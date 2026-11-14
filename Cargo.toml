@@ -17,6 +17,7 @@ members = [
     "crates/kicad",
     "generators/chip",
     "generators/header",
+    "generators/tabbed",
     "apps/sparksmith-cli",
     "crates/ui",
     "apps/sparksmith",

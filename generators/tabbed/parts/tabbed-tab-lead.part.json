@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tabbed-tab-lead",
+  "title": "SOT-223 and SOT-89 package",
+  "summary": "Power small-outline package: an epoxy body on its standoff, a row of bent tin gull-wing leads on −y (a pattern with its own count and grid step) and a wide gull-wing tab lead on +y (pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length, row_s_leads, row_s_step, tab_width, tab_length, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the SOT-223 starter values (JEDEC TO-261); the tabbed generator gives every input its value. Estimated rounds and lead bends; no vendor drawing or EDA/CAD library data copied."
+}
