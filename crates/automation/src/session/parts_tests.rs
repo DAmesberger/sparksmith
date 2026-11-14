@@ -406,13 +406,20 @@ fn schemas_and_mcp_list_the_part_command_and_queries() -> TestResult {
         assert!(schemas.contains(name), "{name} is in the schemas");
     }
 
-    let tools = serde_json::to_string(&crate::mcp::tools())?;
-    for id in [
-        "instance.assign_part",
-        "project.bom",
-        "library.resolve_groups",
+    // MCP's `find` reaches each by what it does.
+    let tools = crate::mcp::testing::Tools::new(Session::default(), crate::gate::Grant::default())?;
+    for (id, text) in [
+        ("instance.assign_part", "assign part"),
+        ("project.bom", "bill of materials"),
+        ("library.resolve_groups", "resolve groups"),
     ] {
-        assert!(tools.contains(id), "{id} is in the MCP tool schemas");
+        let found = tools.ok("find", json!({"text": text, "limit": 50}))?;
+        assert!(
+            found["hits"]
+                .as_array()
+                .is_some_and(|hits| hits.iter().any(|h| h["name"] == id)),
+            "find {text:?} reaches {id}: {found}"
+        );
     }
     let catalog = Request::catalog();
     let describes = |id: &str, text: &str| {
@@ -423,20 +430,5 @@ fn schemas_and_mcp_list_the_part_command_and_queries() -> TestResult {
     assert!(describes("project.apply", "instance.assign_part"));
     assert!(describes("project.query", "project.bom"));
     assert!(describes("project.query", "library.resolve_groups"));
-
-    let mut server = crate::mcp::Server::new(Session::default(), crate::gate::Grant::default());
-    let reply = server
-        .handle(json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}))
-        .ok_or("initialize reply")?;
-    let instructions = reply["result"]["instructions"]
-        .as_str()
-        .ok_or("instructions")?;
-    for id in [
-        "instance.assign_part",
-        "project.bom",
-        "library.resolve_groups",
-    ] {
-        assert!(instructions.contains(id), "{id} is in the MCP instructions");
-    }
     Ok(())
 }

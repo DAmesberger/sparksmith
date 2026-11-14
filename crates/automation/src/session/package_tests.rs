@@ -82,8 +82,11 @@ fn package_placement_commands_through_json_report_store_and_undo() -> TestResult
     }
     let schemas = schemas().to_string();
     assert!(schemas.contains("library.edit_package") && schemas.contains("library.fit_leads"));
-    let instructions = crate::mcp::INSTRUCTIONS;
-    assert!(instructions.contains("library.edit_package"));
-    assert!(instructions.contains("library.fit_leads"));
+    for name in ["library.edit_package", "library.fit_leads"] {
+        assert!(
+            crate::mcp::catalog::entry(name).is_some(),
+            "{name} over MCP"
+        );
+    }
     Ok(())
 }

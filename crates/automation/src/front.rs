@@ -10,9 +10,9 @@
 //! the envelope's: every entry that changes the document requires it, and
 //! the session checks it once, before any file is read or written. The
 //! wrappers `project.apply`, `project.apply_all` and `project.query` remain
-//! the shapes the JSON-lines and MCP transports send until the MCP cut-over;
-//! the gate weighs the operations and queries inside them, never the
-//! wrapper.
+//! the shapes the JSON-lines transport sends (MCP names entries itself and
+//! sends a batch as `project.apply_all`); the gate weighs the operations and
+//! queries inside them, never the wrapper.
 //!
 //! What needs a person is asked through the host's [`Asker`]; a host with
 //! no way to ask ([`NoOne`]) refuses it, saying so.
@@ -369,7 +369,7 @@ fn malformed(name: &str, why: &str) -> Box<Error> {
         "malformed_request",
         name,
         &format!("it is not a valid request: {why}. Nothing was changed."),
-        "Read its schema with project_schema and send it again.",
+        "Read its schema with describe (project.schema on JSON lines) and send it again.",
     ))
 }
 

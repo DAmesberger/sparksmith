@@ -50,10 +50,10 @@ The panel never calls the engine directly.
 
 | Rule | Where it lives | Panel (either kind) | External live client |
 |---|---|---|---|
-| Typed command and its schema | `Request` catalogue, `mcp::live_tools` | Same | Same |
-| Window-only (`project.new`, `.open`, `.save`) | `live::admit` | Refused, `live.window_only` | Same |
+| Typed command and its schema | The catalog behind the MCP verbs (`mcp::tools`) | Same | Same |
+| Window-only (`project.new`, `.open`, `.save`) | `live::grant` (no `files` module) | Refused, `gate.module` | Same |
 | Busy (typing, dragging, menu, dialog, review) | `live::admit` | Refused, `live.busy`; reads run | Same |
-| Revision | `admit`, and again in `Session::execute` | `stale_revision`, `live.revision_required` | Same |
+| Revision | `admit`, and again in `Surface::call` | `stale_revision`, `malformed_request` without one | Same |
 | Permission gate | `Session::check_request` with the window's `Grant` | Run, Ask or Refuse | Same |
 | Ask | `Verdict::Ask` | An Allow/Deny card in the conversation | The window's "AI assistant asks" prompt |
 | Failed mutation | Engine | Document unchanged | Same |
@@ -316,7 +316,7 @@ Other states:
 | Reused as is | Where |
 |---|---|
 | Typed engine, catalogue, classes, compact replies | `sparksmith-core`, `crates/automation/src/session*` |
-| MCP server, live mode, `live_tools` | `crates/automation/src/mcp.rs` |
+| MCP server (six verbs), headless and live | `crates/automation/src/mcp.rs`, `mcp/` |
 | Live channel: `Endpoint`, `admit`, `run`, `Client`, `--live` bridge | `crates/automation/src/live.rs`, Solidcraft's control channel |
 | Gate: `Grant`, `Principal`, `Mode`, `decide_entries`, `check_request`, refusals | `crates/automation/src/gate.rs` |
 | Window pump, busy rule, Ask prompt, AI indicator, toasts | `apps/sparksmith/src/app/live_mcp.rs` |

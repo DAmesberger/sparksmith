@@ -422,7 +422,7 @@ These are typed, one undo step each, and failures leave the document unchanged. 
 
 ### MCP and the datasheet assistant
 
-Every command and query above is an MCP tool through `project_apply` and `project_query`. The assistant's tool set (`crates/assist/src/tools.rs`) adds:
+Every command and query above is an MCP catalog entry, reached through the `query` and `apply` verbs. The assistant's tool set (`crates/assist/src/tools.rs`) adds:
 
 - `library_templates` with `kind:part_template`;
 - `library_part_template_interface`;
