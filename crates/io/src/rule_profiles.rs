@@ -19,6 +19,7 @@ use crate::settings::UserDirs;
 use crate::shipped::{Shelf, ShippedLibrary};
 use crate::{Error, Result};
 use sparksmith_core::rules::{PROFILE_FILE_FORMAT, ProfileFile, RuleProfile};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// The library folder's name under the user config directory.
@@ -47,12 +48,14 @@ pub struct Listing {
     pub profiles: Vec<RuleProfile>,
     pub problems: Vec<Problem>,
     pub builtins: Vec<RuleProfile>,
+    /// The shipped profiles' former ids ([`shipped_former_ids`]).
+    pub former_ids: BTreeMap<String, String>,
 }
 
-/// The shipped profiles: every `.json` file in the shipped library's
+/// The shipped profile files: every `.json` file in the shipped library's
 /// `profiles/` shelf, in file-name order, each named `<id>.json`. A file
 /// that does not read as a profile is an error naming it.
-pub fn shipped_profiles(shipped: &ShippedLibrary) -> Result<Vec<RuleProfile>> {
+fn shipped_files(shipped: &ShippedLibrary) -> Result<Vec<ProfileFile>> {
     let names = shipped.list(Shelf::Profiles, &format!(".{EXTENSION}"))?;
     if names.len() > MAX_LIBRARY_PROFILES {
         return Err(Error::TooLarge(format!(
@@ -66,17 +69,40 @@ pub fn shipped_profiles(shipped: &ShippedLibrary) -> Result<Vec<RuleProfile>> {
         .map(|name| {
             let path = shipped.shelf(Shelf::Profiles).join(name);
             let named = |e: Error| Error::Invalid(format!("{}: {e}", path.display()));
-            let profile = decode(&shipped.read(Shelf::Profiles, name, limit).map_err(named)?)
+            let file = decode_file(&shipped.read(Shelf::Profiles, name, limit).map_err(named)?)
                 .map_err(named)?;
-            if name.strip_suffix(&format!(".{EXTENSION}")) != Some(profile.id.as_str()) {
+            if name.strip_suffix(&format!(".{EXTENSION}")) != Some(file.profile.id.as_str()) {
                 return Err(named(Error::Invalid(format!(
                     "the file name does not match its profile id {}",
-                    profile.id
+                    file.profile.id
                 ))));
             }
-            Ok(profile)
+            Ok(file)
         })
         .collect()
+}
+
+/// The shipped profiles ([`shipped_files`]).
+pub fn shipped_profiles(shipped: &ShippedLibrary) -> Result<Vec<RuleProfile>> {
+    Ok(shipped_files(shipped)?
+        .into_iter()
+        .map(|file| file.profile)
+        .collect())
+}
+
+/// The shipped profiles' former ids, each to the id it is now
+/// (`ProfileFile::former_ids`): a project snapshot or a setting naming a
+/// former id finds the profile under its current one.
+pub fn shipped_former_ids(shipped: &ShippedLibrary) -> Result<BTreeMap<String, String>> {
+    Ok(shipped_files(shipped)?
+        .into_iter()
+        .flat_map(|file| {
+            let id = file.profile.id;
+            file.former_ids
+                .into_iter()
+                .map(move |former| (former, id.clone()))
+        })
+        .collect())
 }
 
 /// [`shipped_profiles`] of the located shipped library.
@@ -143,6 +169,7 @@ pub fn encode(profile: &RuleProfile) -> Result<Vec<u8>> {
     let bytes = pretty(&ProfileFile {
         format: PROFILE_FILE_FORMAT,
         profile: profile.clone(),
+        former_ids: Vec::new(),
     })?;
     if bytes.len() > MAX_PROFILE_FILE_BYTES {
         return Err(Error::TooLarge(format!(
@@ -156,6 +183,12 @@ pub fn encode(profile: &RuleProfile) -> Result<Vec<u8>> {
 /// Decode one profile file: its format must be [`PROFILE_FILE_FORMAT`]
 /// and its profile valid.
 pub fn decode(bytes: &[u8]) -> Result<RuleProfile> {
+    decode_file(bytes).map(|file| file.profile)
+}
+
+/// [`decode`], with the file's former ids: library ids, none the
+/// profile's own.
+fn decode_file(bytes: &[u8]) -> Result<ProfileFile> {
     if bytes.len() > MAX_PROFILE_FILE_BYTES {
         return Err(Error::TooLarge(format!(
             "a profile file exceeds {} KiB",
@@ -180,7 +213,16 @@ pub fn decode(bytes: &[u8]) -> Result<RuleProfile> {
     }
     let file: ProfileFile = serde_json::from_value(value)?;
     file.profile.validate()?;
-    Ok(file.profile)
+    if let Some(bad) = file
+        .former_ids
+        .iter()
+        .find(|id| !valid_id(id) || **id == file.profile.id)
+    {
+        return Err(Error::Invalid(format!(
+            "the former id {bad:?} must be a library id other than the profile's own"
+        )));
+    }
+    Ok(file)
 }
 
 /// Read and decode a profile file anywhere (an import).
@@ -336,17 +378,26 @@ impl ProfileLibrary {
             profiles,
             problems,
             builtins,
+            former_ids: shipped_former_ids(&self.shipped)?,
         })
     }
 
-    /// One profile by id: the user's, else the shipped one.
+    /// One profile by id: the user's, else the shipped one, else the
+    /// shipped one that was published under `id` before.
     pub fn get(&self, id: &str) -> Result<RuleProfile> {
         match self.user(id) {
-            Err(error) if error.code() == "not_found" => self
-                .builtins()?
-                .into_iter()
-                .find(|p| p.id == id)
-                .ok_or(error),
+            Err(error) if error.code() == "not_found" => {
+                let builtins = self.builtins()?;
+                let current = if builtins.iter().any(|p| p.id == id) {
+                    Some(id.to_owned())
+                } else {
+                    shipped_former_ids(&self.shipped)?.remove(id)
+                };
+                builtins
+                    .into_iter()
+                    .find(|p| current.as_deref() == Some(p.id.as_str()))
+                    .ok_or(error)
+            }
             other => other,
         }
     }
@@ -555,7 +606,7 @@ mod tests {
 
     /// The shipped default profile (the sourced JLCPCB 2-layer file).
     fn jlcpcb() -> Result<RuleProfile> {
-        decode(shipped_text("jlcpcb-2-layer-1oz.json")?.as_bytes())
+        decode(shipped_text("jlcpcb-2-layer.json")?.as_bytes())
     }
 
     fn library_in(dir: PathBuf) -> Result<ProfileLibrary> {
@@ -605,8 +656,8 @@ mod tests {
     #[test]
     fn the_jlcpcb_examples_split_holes_and_take_the_recommended_values() -> Result<()> {
         use sparksmith_core::rules::CopperObject::{NpthHole, Pad, PthHole, Track, ViaHole};
-        let two = shipped_text("jlcpcb-2-layer-1oz.json")?;
-        let four = shipped_text("jlcpcb-4-layer-1oz.json")?;
+        let two = shipped_text("jlcpcb-2-layer.json")?;
+        let four = shipped_text("jlcpcb-4-layer.json")?;
         // (file, PTH ring, PTH to track, via hole to track)
         for (text, ring, pth, via) in [(two, 0.25, 0.35, 0.2), (four, 0.2, 0.35, 0.2)] {
             let p = decode(text.as_bytes())?;
@@ -640,8 +691,8 @@ mod tests {
     fn the_jlcpcb_options_give_the_published_limits_and_default_to_the_old_values() -> Result<()> {
         use sparksmith_core::rules::CopperObject::{PthHole, Track};
         for (name, ring, pth, space_2oz) in [
-            ("jlcpcb-2-layer-1oz.json", 0.18, 0.28, 0.16),
-            ("jlcpcb-4-layer-1oz.json", 0.15, 0.3, 0.15),
+            ("jlcpcb-2-layer.json", 0.18, 0.28, 0.16),
+            ("jlcpcb-4-layer.json", 0.15, 0.3, 0.15),
         ] {
             let text = shipped_text(name)?;
             let p = decode(text.as_bytes())?;
@@ -708,6 +759,7 @@ mod tests {
             library.list()?,
             Listing {
                 builtins: library.builtins()?,
+                former_ids: shipped_former_ids(library.shipped())?,
                 ..Listing::default()
             },
             "missing folder: only the built-ins"
@@ -755,15 +807,15 @@ mod tests {
     #[test]
     fn a_profile_without_a_source_or_rule_is_refused() -> Result<()> {
         let mut value: serde_json::Value =
-            serde_json::from_str(&shipped_text("jlcpcb-2-layer-1oz.json")?)?;
+            serde_json::from_str(&shipped_text("jlcpcb-2-layer.json")?)?;
         value["fab_profile"]["source"]["date"] = "11.11.2026".into();
         assert!(decode(&serde_json::to_vec(&value)?).is_err(), "date");
         let mut value: serde_json::Value =
-            serde_json::from_str(&shipped_text("jlcpcb-2-layer-1oz.json")?)?;
+            serde_json::from_str(&shipped_text("jlcpcb-2-layer.json")?)?;
         value["fab_profile"]["source"]["publisher"] = "".into();
         assert!(decode(&serde_json::to_vec(&value)?).is_err(), "publisher");
         let mut value: serde_json::Value =
-            serde_json::from_str(&shipped_text("jlcpcb-2-layer-1oz.json")?)?;
+            serde_json::from_str(&shipped_text("jlcpcb-2-layer.json")?)?;
         if let Some(rules) = value["fab_profile"]["rules"].as_object_mut() {
             rules.remove("drill_min");
         }
@@ -844,7 +896,7 @@ mod tests {
         assert_eq!(for_new_board(&library, None, Some(&b.id))?, b);
         assert_eq!(for_new_board(&library, None, None)?, jlcpcb()?);
         assert_eq!(
-            for_new_board(&library, Some("jlcpcb-4-layer-1oz"), None)?.name,
+            for_new_board(&library, Some("jlcpcb-4-layer"), None)?.name,
             "JLCPCB 4-layer"
         );
         assert!(for_new_board(&library, Some("no-such"), None).is_err());
@@ -862,13 +914,26 @@ mod tests {
         let all = library.builtins()?;
         assert_eq!(
             all.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(),
-            ["jlcpcb-2-layer-1oz", "jlcpcb-4-layer-1oz"]
+            ["jlcpcb-2-layer", "jlcpcb-4-layer"]
         );
         assert!(all.iter().all(|p| p.source.publisher == "JLCPCB"));
         let default = library.default_id()?;
-        assert_eq!(default, "jlcpcb-2-layer-1oz");
+        assert_eq!(default, "jlcpcb-2-layer");
         let default = default.as_str();
         assert_eq!(library.get(default)?, jlcpcb()?);
+        // The ids from before copper weight was an option still find them.
+        assert_eq!(library.get("jlcpcb-2-layer-1oz")?, jlcpcb()?);
+        assert_eq!(library.get("jlcpcb-4-layer-1oz")?.id, "jlcpcb-4-layer");
+        assert_eq!(
+            library.list()?.former_ids.get("jlcpcb-2-layer-1oz"),
+            Some(&"jlcpcb-2-layer".to_owned())
+        );
+        // A profile's own id is not a former id of it.
+        let own = shipped_text("jlcpcb-2-layer.json")?.replace(
+            "\"former_ids\": [\n    \"jlcpcb-2-layer-1oz\"",
+            "\"former_ids\": [\n    \"jlcpcb-2-layer\"",
+        );
+        assert!(decode(own.as_bytes()).is_err());
         // Read-only: no rename or delete, and no file is written.
         assert!(library.rename(default, "Mine").is_err());
         assert!(library.delete(default).is_err());
@@ -890,7 +955,7 @@ mod tests {
                 .iter()
                 .map(|p| p.id.as_str())
                 .collect::<Vec<_>>(),
-            ["jlcpcb-4-layer-1oz"]
+            ["jlcpcb-4-layer"]
         );
         assert_eq!(library.get(default)?.name, "JLCPCB house rules");
         // Deleting the user's copy brings the built-in back.

@@ -75,8 +75,8 @@ fn the_production_check_resolves_a_profile_id_through_the_library() -> Fallible 
         [
             "test-fine",
             "test-prototype",
-            "jlcpcb-2-layer-1oz",
-            "jlcpcb-4-layer-1oz"
+            "jlcpcb-2-layer",
+            "jlcpcb-4-layer"
         ],
         "the user's profiles, then the built-ins"
     );
@@ -138,7 +138,7 @@ fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Falli
             json!({"command": "project.new", "params": {"expected_revision": 0}}),
             profile_id.clone(),
             json!({"command": "project.query", "params": {"query": "rules.fab_profiles", "params": {}}}),
-            json!({"command": "project.new", "params": {"expected_revision": 1, "profile": "jlcpcb-4-layer-1oz"}}),
+            json!({"command": "project.new", "params": {"expected_revision": 1, "profile": "jlcpcb-4-layer"}}),
             profile_id,
         ],
     )?;
@@ -146,7 +146,7 @@ fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Falli
         return Err(format!("five replies expected: {replies:?}").into());
     };
     assert_eq!(new["ok"], true, "{new}");
-    assert_eq!(first["result"]["value"], "jlcpcb-2-layer-1oz", "{first}");
+    assert_eq!(first["result"]["value"], "jlcpcb-2-layer", "{first}");
     let ids: Vec<&str> = listed["result"]["result"]
         .as_array()
         .ok_or("profiles")?
@@ -155,11 +155,11 @@ fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Falli
         .collect();
     assert_eq!(
         ids,
-        ["jlcpcb-2-layer-1oz", "jlcpcb-4-layer-1oz"],
+        ["jlcpcb-2-layer", "jlcpcb-4-layer"],
         "{listed}"
     );
     assert_eq!(named["ok"], true, "{named}");
-    assert_eq!(second["result"]["value"], "jlcpcb-4-layer-1oz", "{second}");
+    assert_eq!(second["result"]["value"], "jlcpcb-4-layer", "{second}");
     Ok(())
 }
 

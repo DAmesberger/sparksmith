@@ -1041,7 +1041,7 @@ fn the_copper_weight_and_the_stackup_stay_together() -> Result<()> {
     // without it keeps the foils as they are.
     // Its mask colour choices differ: "dark" for "black_white".
     let four = fixtures::parse(
-        &include_str!("../../../../library/profiles/jlcpcb-4-layer-1oz.json")
+        &include_str!("../../../../library/profiles/jlcpcb-4-layer.json")
             .replace("\"black_white\"", "\"dark\""),
     )?;
     engine.apply(
