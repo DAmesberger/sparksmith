@@ -80,7 +80,7 @@ export_generator!(Molded);
 
 /// How the two terminals are formed.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-enum Lead {
+enum Form {
     /// Flat leads under the body ends (SOD-123F, SOD-523).
     Flat,
     /// Leads leaving the body ends at mid-height and bending down to a
@@ -93,7 +93,7 @@ enum Lead {
     Melf,
 }
 
-impl Lead {
+impl Form {
     const ALL: [(Self, &'static str, &'static str); 4] = [
         (Self::Flat, "flat", "Flat leads"),
         (Self::Bent, "bent", "Bent leads"),
@@ -190,7 +190,7 @@ fn description() -> Description {
 /// without reading the preset table).
 fn description_with(presets: Vec<Preset>) -> Description {
     let parts: Vec<(&str, &str)> = Part::ALL.iter().map(|(_, k, l)| (*k, *l)).collect();
-    let leads: Vec<(&str, &str)> = Lead::ALL.iter().map(|(_, k, l)| (*k, *l)).collect();
+    let leads: Vec<(&str, &str)> = Form::ALL.iter().map(|(_, k, l)| (*k, *l)).collect();
     // The defaults are the SOD-123 starter row.
     let params = vec![
         enumeration("part", "Part", &parts, "diode", "part"),
@@ -305,7 +305,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
 /// A package's values, checked.
 struct Dims {
     part: Part,
-    lead: Lead,
+    lead: Form,
     body_length: i64,
     body_width: i64,
     body_height: i64,
@@ -326,16 +326,16 @@ impl Dims {
     fn lead_thickness(&self) -> i64 {
         let quarter = part_of(self.body_height, 4);
         match self.lead {
-            Lead::Flat | Lead::Bent => FLAT_LEAD_NM.min(quarter),
-            Lead::JLead => J_LEAD_NM.min(quarter),
-            Lead::Melf => 0,
+            Form::Flat | Form::Bent => FLAT_LEAD_NM.min(quarter),
+            Form::JLead => J_LEAD_NM.min(quarter),
+            Form::Melf => 0,
         }
     }
 
     /// Height of the moulded body's underside (bent leads stand it off).
     fn body_bottom(&self) -> i64 {
         match self.lead {
-            Lead::Bent => BENT_STANDOFF_NM.min(part_of(self.body_height, 10)),
+            Form::Bent => BENT_STANDOFF_NM.min(part_of(self.body_height, 10)),
             _ => 0,
         }
     }
@@ -350,7 +350,7 @@ impl Dims {
     /// round).
     fn envelope(&self) -> [i64; 3] {
         let width = self.body_width.max(self.terminal_width);
-        let height = if self.lead == Lead::Melf {
+        let height = if self.lead == Form::Melf {
             width
         } else {
             self.body_height
@@ -380,7 +380,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         )]
     })?;
     let key = args.text("lead").map_err(one)?;
-    let lead = find(&Lead::ALL, key).ok_or_else(|| {
+    let lead = find(&Form::ALL, key).ok_or_else(|| {
         vec![problem(
             "param.out_of_range",
             "lead",
@@ -412,7 +412,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         "The two terminals must not meet (2 × terminal length < overall length).",
     );
     match lead {
-        Lead::Melf => {
+        Form::Melf => {
             rule(
                 (d.body_height - d.body_width).abs() <= 1,
                 "body_height",
@@ -430,7 +430,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
                  (overall − 2 × terminal length ≤ body length ≤ overall).",
             );
         }
-        Lead::Flat | Lead::Bent | Lead::JLead => {
+        Form::Flat | Form::Bent | Form::JLead => {
             rule(
                 d.terminal_width <= d.body_width,
                 "terminal_width",
@@ -446,8 +446,8 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
     // Twice the exit height less the half thickness, so halves stay whole.
     let exit2 = 2 * d.lead_exit() - t;
     match lead {
-        Lead::Melf | Lead::Flat => {}
-        Lead::Bent => {
+        Form::Melf | Form::Flat => {}
+        Form::Bent => {
             rule(
                 2 * tl <= span - bl,
                 "terminal_length",
@@ -471,7 +471,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
                 "The body must be tall enough for the lead to leave it above the seating plane.",
             );
         }
-        Lead::JLead => {
+        Form::JLead => {
             rule(
                 span - bl > 3 * t,
                 "span",
@@ -616,7 +616,7 @@ fn model(d: &Dims) -> v1::Model {
     set("body_length", bl);
     set("span", span);
     set("terminal_length", tl);
-    let asset = if d.lead == Lead::Melf {
+    let asset = if d.lead == Form::Melf {
         set("body_diameter", bw);
         set("cap_diameter", tw);
         let round = CAP_EDGE_NM
@@ -641,13 +641,13 @@ fn model(d: &Dims) -> v1::Model {
         let (hb, hs) = (part_of(bl, 2), part_of(span, 2));
         let exit = d.lead_exit();
         match d.lead {
-            Lead::Flat => {
+            Form::Flat => {
                 // From the tip to the contact's inner end, or further in
                 // to reach under the body by the root.
                 let under = part_of(span - bl, 2) + root;
                 set("lead_length", if tl >= under { tl } else { under });
             }
-            Lead::Bent => {
+            Form::Bent => {
                 set("body_bottom", d.body_bottom());
                 set("lead_exit", exit);
                 let foot = hs - tl;
@@ -663,7 +663,7 @@ fn model(d: &Dims) -> v1::Model {
                 );
                 set("bend_2", bend_radius(t, slope.min(tl), drop, slope + run));
             }
-            Lead::JLead => {
+            Form::JLead => {
                 set("lead_exit", exit);
                 let outer = hs - h;
                 let run_out = outer - (hb - root);
@@ -672,7 +672,7 @@ fn model(d: &Dims) -> v1::Model {
                 set("bend_1", bend_radius(t, run_out.min(down), 1, 1));
                 set("bend_2", bend_radius(t, down.min(under), 1, 1));
             }
-            Lead::Melf => {}
+            Form::Melf => {}
         }
         // Upright corners clear of the terminals, the top edges clear of
         // the leads, each capped by the body and the band's inset.
@@ -682,7 +682,7 @@ fn model(d: &Dims) -> v1::Model {
         } else {
             0
         };
-        let lead_top = if d.lead == Lead::Flat { t } else { exit + h };
+        let lead_top = if d.lead == Form::Flat { t } else { exit + h };
         let mut edge = TOP_EDGE_NM
             .min(part_of(12 * bh, 100))
             .min(cap)
@@ -697,10 +697,10 @@ fn model(d: &Dims) -> v1::Model {
         set("corner_round", corner);
         set("edge_round", edge);
         match (d.lead, d.polarised) {
-            (Lead::Flat, false) => parts::MOLDED_FLAT,
-            (Lead::Flat, true) => parts::MOLDED_FLAT_BAND,
-            (Lead::Bent, false) => parts::MOLDED_BENT,
-            (Lead::Bent, true) => parts::MOLDED_BENT_BAND,
+            (Form::Flat, false) => parts::MOLDED_FLAT,
+            (Form::Flat, true) => parts::MOLDED_FLAT_BAND,
+            (Form::Bent, false) => parts::MOLDED_BENT,
+            (Form::Bent, true) => parts::MOLDED_BENT_BAND,
             (_, false) => parts::MOLDED_J_LEAD,
             (_, true) => parts::MOLDED_J_LEAD_BAND,
         }
@@ -772,7 +772,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         Part::Diode => ["K", "A"],
         Part::PolarisedCapacitor => ["1", "2"],
     };
-    let class = if d.lead == Lead::Melf {
+    let class = if d.lead == Form::Melf {
         "MELF"
     } else {
         "Molded"

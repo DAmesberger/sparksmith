@@ -619,7 +619,7 @@ fn x_box(
     let x = if minus {
         format!("- ({to})")
     } else {
-        format!("{from}")
+        from.to_owned()
     };
     let mut p = json!({"corner": [x, format!("- ({width}) / 2"), z0],
         "length": format!("({to}) - ({from})"), "width": width, "height": height, "name": name});
