@@ -163,7 +163,7 @@ fn dialog(editor: &mut PcbEditor) -> Result<&mut ProductionDialog, Box<dyn std::
 
 /// A report with one clearance error, its waiver read from the project.
 fn report_with_error(engine: &Engine) -> PreflightReport {
-    let key = "board.clearance via:1 via:2".to_owned();
+    let key = r#"board.clearance [{"kind":"track","id":1},{"kind":"track","id":2}]"#.to_owned();
     let waiver = engine.project().production.waiver(&key).cloned();
     let blocking = usize::from(waiver.is_none());
     PreflightReport {
@@ -305,7 +305,7 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
     assert!(matches!(
         &op,
         Operation::Fabrication(FabricationCommand::Waive { keys, reason })
-            if keys == &["board.clearance via:1 via:2"] && reason == "Vias are 0.18 mm apart by design"
+            if keys == &[r#"board.clearance [{"kind":"track","id":1},{"kind":"track","id":2}]"#] && reason == "Vias are 0.18 mm apart by design"
     ));
     let before = engine.revision();
     engine.apply(before, op)?;
@@ -444,17 +444,20 @@ fn report_like_the_run(engine: &Engine) -> PreflightReport {
         }
     };
     let mut items = vec![item(
-        "board.clearance via:1 via:2".into(),
+        r#"board.clearance [{"kind":"track","id":1},{"kind":"track","id":2}]"#.into(),
         "board.clearance",
         Severity::Error,
         "Via on GND too close to via on VCC".into(),
         "Move one via",
     )];
-    for net in [
+    for (id, net) in [
         "VBUS", "USB_DP", "USB_DM", "GND", "3V3", "SWDIO", "SWCLK", "SDA", "SCL",
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         items.push(item(
-            format!("board.unrouted net:{net}"),
+            format!(r#"board.unrouted [{{"kind":"net","id":{}}}]"#, id + 1),
             "board.unrouted",
             Severity::Error,
             format!("{net}: 2 pads unrouted"),

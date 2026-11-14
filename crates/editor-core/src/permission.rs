@@ -22,7 +22,7 @@ pub use sparksmith_generator_abi::surface::{
 pub const MODULES: &[ModuleDecl] = &[
     module_at(
         "project",
-        (0, 2),
+        (0, 3),
         "Project",
         "The open design: inspect, properties, undo, redo, bill of materials.",
     ),
@@ -33,8 +33,9 @@ pub const MODULES: &[ModuleDecl] = &[
         "Schematic",
         "Sheets, symbols, wires, labels, placed components and their pins.",
     ),
-    module(
+    module_at(
         "layout",
+        (0, 2),
         "Layout",
         "Place parts, route copper, vias, fills, keepouts, pairs and the board shape.",
     ),
@@ -45,7 +46,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "library",
-        (0, 2),
+        (0, 3),
         "Library",
         "Component definitions, drafts, publishing, folders, updates and pinout import.",
     ),
@@ -76,7 +77,9 @@ const fn module(id: &'static str, title: &'static str, summary: &'static str) ->
 }
 
 /// A module at `version`, raised from 0.1 by a change the lock records
-/// (0.2: net disagreements and pins added by import).
+/// (0.2: net disagreements and pins added by import; project 0.3, layout 0.2
+/// and library 0.3: sketches as JSON objects and fills without computed
+/// copper, file format version 4).
 const fn module_at(
     id: &'static str,
     version: Version,

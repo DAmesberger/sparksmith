@@ -290,6 +290,11 @@ fn encode_record(collection: &Collection, value: &Value) -> std::result::Result<
                 _ => return Err(format!("the sort field \"{field}\" must be a whole number")),
             },
             Some(Value::String(text)) => KeyPart::Text(text.clone()),
+            // A structured key (a waiver's) sorts by its text on one line.
+            Some(value @ (Value::Object(_) | Value::Array(_))) => KeyPart::Text(
+                serde_json::to_string(value)
+                    .map_err(|e| format!("the sort field \"{field}\": {e}"))?,
+            ),
             Some(_) => {
                 return Err(format!(
                     "the sort field \"{field}\" must be a number or a text"

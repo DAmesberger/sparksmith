@@ -325,7 +325,9 @@ fn a_track_across_the_pair_never_tears_it() -> Fallible {
 fn issues_and_the_production_check_count_alike_but_for_production_findings() -> Fallible {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    let engine = sparksmith_core::Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    let mut engine = sparksmith_core::Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    // A file holds no fill copper; fill it as opening does.
+    engine.refill_stale()?;
     let issues = match engine.query(sparksmith_core::Query::Issues {
         scope: sparksmith_core::issues::IssueScope::All,
     })? {

@@ -365,7 +365,8 @@ pub(super) fn split(
     simplify(project, &mut first);
     simplify(project, &mut second);
     project.wires[index] = first;
-    project.wires.insert(index + 1, second);
+    // The new identity is the largest: wires stay in identity order.
+    project.wires.push(second);
     Ok(end)
 }
 

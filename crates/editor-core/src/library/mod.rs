@@ -409,7 +409,8 @@ impl Library {
         all
     }
 
-    /// Append one revision. Callers check revision order and findings.
+    /// Add one revision, in lineage then revision order (the order a file
+    /// holds them in). Callers check revision order and findings.
     fn append(
         &mut self,
         id: DefinitionId,
@@ -417,67 +418,35 @@ impl Library {
         meta: DefinitionMeta,
         body: Definition,
     ) {
+        fn put<T: Clone>(
+            items: &mut Shared<Vec<Published<T>>>,
+            id: DefinitionId,
+            revision: Revision,
+            meta: DefinitionMeta,
+            definition: T,
+        ) {
+            let at = items.partition_point(|p| (p.id, p.revision) < (id, revision));
+            items.insert(
+                at,
+                Published {
+                    id,
+                    revision,
+                    meta,
+                    definition,
+                },
+            );
+        }
         match body {
-            Definition::Component(definition) => self.components.push(Published {
-                id,
-                revision,
-                meta,
-                definition,
-            }),
-            Definition::Symbol(definition) => self.symbols.push(Published {
-                id,
-                revision,
-                meta,
-                definition,
-            }),
-            Definition::Package(definition) => self.packages.push(Published {
-                id,
-                revision,
-                meta,
-                definition,
-            }),
-            Definition::Footprint(definition) => self.footprints.push(Published {
-                id,
-                revision,
-                meta,
-                definition,
-            }),
-            Definition::Binding(definition) => self.bindings.push(Published {
-                id,
-                revision,
-                meta,
-                definition,
-            }),
-            Definition::QuantityKind(definition) => self.quantity_kinds.push(Published {
-                id,
-                revision,
-                meta,
-                definition,
-            }),
-            Definition::Field(definition) => self.fields.push(Published {
-                id,
-                revision,
-                meta,
-                definition,
-            }),
-            Definition::Part(definition) => self.parts.push(Published {
-                id,
-                revision,
-                meta,
-                definition: *definition,
-            }),
-            Definition::Model(definition) => self.models.push(Published {
-                id,
-                revision,
-                meta,
-                definition: *definition,
-            }),
-            Definition::PackageRow(definition) => self.package_rows.push(Published {
-                id,
-                revision,
-                meta,
-                definition: *definition,
-            }),
+            Definition::Component(d) => put(&mut self.components, id, revision, meta, d),
+            Definition::Symbol(d) => put(&mut self.symbols, id, revision, meta, d),
+            Definition::Package(d) => put(&mut self.packages, id, revision, meta, d),
+            Definition::Footprint(d) => put(&mut self.footprints, id, revision, meta, d),
+            Definition::Binding(d) => put(&mut self.bindings, id, revision, meta, d),
+            Definition::QuantityKind(d) => put(&mut self.quantity_kinds, id, revision, meta, d),
+            Definition::Field(d) => put(&mut self.fields, id, revision, meta, d),
+            Definition::Part(d) => put(&mut self.parts, id, revision, meta, *d),
+            Definition::Model(d) => put(&mut self.models, id, revision, meta, *d),
+            Definition::PackageRow(d) => put(&mut self.package_rows, id, revision, meta, *d),
         }
     }
 
