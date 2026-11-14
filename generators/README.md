@@ -70,6 +70,8 @@ The molded generator (phase C) ships eight part files: flat, bent and J-lead ter
 
 The grid generator (phase C) makes BGA, WLCSP and LGA parts, full or with empty positions (`depopulated`, a list of ball names), and ships four part files: balls or lands, each full (`grid-ball`, `grid-land`) or with 16 rectangular cut-outs that remove the empty positions (`grid-ball-voids`, `grid-land-voids`); its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-grid-15-november-2026)).
 
+The tabbed generator (phase C) ships three part files, one per outline class (`tabbed-rows`, `tabbed-tab-lead`, `tabbed-flange`), parametric in their lead counts, grid steps and lead profile; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-tabbed-14-november-2026)).
+
 The chip generator ships four part files (resistor, capacitor, ferrite or inductor, LED), saved from the in-code chip builder's construction (`cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`); evaluated at the module's values they equal the builder to 0 mm in bounds and volume for resistors and capacitors 0402–1206, a ferrite bead 0603 and an LED 0603 (`models::chip_part_tests`).
 
 ## ABI 1 changes
@@ -122,6 +124,7 @@ Measured with `cargo xtask generators measure` on an Apple M-series Mac, macOS, 
 | no-lead (14 November 2026) | 245 883 | as chip |
 | molded (14 November 2026) | 228 961 | as chip |
 | grid (15 November 2026) | 237 788 | as chip |
+| tabbed (14 November 2026) | 233 846 | as chip |
 | probe (host for wasm32, test only) | 1 772 010 | — |
 
 The feature list is measured: each allowed feature is switched off in turn and the module validated without it. Mutable globals, multi-value and saturating float-to-int are allowed but unused; SIMD, relaxed SIMD, threads, memory64, multi-memory, tail calls, extended constants, custom page sizes, wide arithmetic and GC are refused.
