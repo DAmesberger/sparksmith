@@ -83,3 +83,43 @@ fn a_board_imports_with_its_outline_sketch_copper_and_zone() -> Fallible {
     assert!(dir.path().join("imported.kicad-import.json").is_file());
     Ok(())
 }
+
+/// A `.kicad_pro` names its board; a rule looser than the fab profile is
+/// named with both values in the summary, the reply and the detail file.
+#[test]
+fn a_project_file_imports_its_board_and_names_the_rules_not_taken() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let config = tempfile::tempdir()?;
+    std::fs::write(dir.path().join("synthetic.kicad_pcb"), BOARD)?;
+    let project = dir.path().join("synthetic.kicad_pro");
+    std::fs::write(
+        &project,
+        br#"{"board":{"design_settings":{"rules":{"min_through_hole_diameter":0.01}}}}"#,
+    )?;
+    let target = dir.path().join("imported.sparksmith");
+    let out = Command::new(env!("CARGO_BIN_EXE_sparksmith"))
+        .env("SPARKSMITH_CONFIG_DIR", config.path())
+        .env("SPARKSMITH_CACHE_DIR", config.path())
+        .arg("import-kicad")
+        .arg(&project)
+        .arg(&target)
+        .output()?;
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let reply: Value = serde_json::from_slice(&out.stdout)?;
+    assert_eq!(count(&reply["rows"], "rule_looser_than_fab"), 1, "{reply:#}");
+    assert_eq!(reply["looser_rules"][0]["rule"], "min drill", "{reply:#}");
+    assert_eq!(reply["looser_rules"][0]["kicad_mm"], 0.01);
+    let summary = reply["summary"].as_str().unwrap_or_default();
+    assert!(
+        summary.contains("    min drill: KiCad 0.01 mm, fab profile "),
+        "{summary}"
+    );
+    let detail: Value =
+        serde_json::from_slice(&std::fs::read(dir.path().join("imported.kicad-import.json"))?)?;
+    assert_eq!(detail["looser_rules"][0]["rule"], "min drill");
+    Ok(())
+}

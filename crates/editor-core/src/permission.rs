@@ -33,8 +33,9 @@ pub const MODULES: &[ModuleDecl] = &[
         "Schematic",
         "Sheets, symbols, wires, labels, placed components and their pins.",
     ),
-    module(
+    module_at(
         "layout",
+        (0, 2),
         "Layout",
         "Place parts, route copper, vias, fills, keepouts, pairs and the board shape.",
     ),
@@ -76,7 +77,8 @@ const fn module(id: &'static str, title: &'static str, summary: &'static str) ->
 }
 
 /// A module at `version`, raised from 0.1 by a change the lock records
-/// (0.2: net disagreements and pins added by import).
+/// (0.2: net disagreements and pins added by import; for layout, tracks an
+/// import refused).
 const fn module_at(
     id: &'static str,
     version: Version,

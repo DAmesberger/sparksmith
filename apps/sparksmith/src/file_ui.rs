@@ -32,6 +32,8 @@ struct Ticket {
 enum Transition {
     New,
     Open(Option<PathBuf>),
+    /// Import a KiCad project (picked when `None`) as a new project.
+    Import(Option<PathBuf>),
     Close,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,6 +44,8 @@ enum Kind {
     /// Print every schematic sheet to a PDF.
     SchematicPdf,
     Restore,
+    /// A KiCad project imported as a new project.
+    Import,
     Close,
 }
 #[derive(Clone)]
@@ -197,6 +201,10 @@ pub enum Action {
     New,
     Open,
     OpenPath(PathBuf),
+    /// File › Import KiCad project…: pick a `.kicad_pro` or `.kicad_pcb`.
+    ImportKicad,
+    /// Import this KiCad project or board file (from Finder).
+    ImportKicadPath(PathBuf),
     Save,
     SaveAs,
     Export,
@@ -217,11 +225,19 @@ pub enum Effect {
         name: String,
         saved: bool,
     },
+    /// A KiCad project imported from `source`: the new project, unsaved,
+    /// and the import's report.
+    Imported {
+        document: Box<EditorFile>,
+        source: PathBuf,
+        report: Box<sparksmith_automation::kicad_import::Report>,
+    },
     Close,
 }
 
 enum Job {
     Read(Ticket, PathBuf),
+    Import(Ticket, PathBuf),
     Write(Ticket, PathBuf, Document),
     SchematicPdf(Ticket, PathBuf, Arc<Project>),
     Recover(Ticket, Document, Option<PathBuf>),
@@ -235,6 +251,11 @@ enum Event {
     Startup(Outcome<recovery::Listing>),
     Picked(Ticket, Kind, Option<PathBuf>),
     Read(Ticket, PathBuf, Outcome<EditorFile>),
+    Imported(
+        Ticket,
+        PathBuf,
+        Outcome<(EditorFile, sparksmith_automation::kicad_import::Report)>,
+    ),
     Written(Ticket, PathBuf, Outcome<()>),
     PdfExported(Ticket, PathBuf, Outcome<usize>),
     Recovered(Ticket, bool, bool, Outcome<()>),
@@ -273,6 +294,13 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                 Job::Read(ticket, path) => {
                     let value = sparksmith_io::read_project(&path).map_err(|e| e.to_string());
                     Event::Read(ticket, path, value)
+                }
+                Job::Import(ticket, path) => {
+                    // The CLI's import, off the UI thread; the window
+                    // shows that it runs (`FileUi::importing`).
+                    let value = sparksmith_automation::kicad_import::import(&path, None)
+                        .map(|imported| (imported.engine.to_file(), imported.report));
+                    Event::Imported(ticket, path, value)
                 }
                 Job::Write(ticket, path, document) => {
                     // The deep copy into the file form happens here, off the UI thread.
@@ -371,7 +399,8 @@ pub struct FileUi {
     /// own recovery snapshot of the restored document (so the work is never
     /// in no file at all).
     restored_source: Option<PathBuf>,
-    /// The file a restored session was opened from: until the project has
+    /// The file a restored session was opened from, or the KiCad file an
+    /// imported project came from: until the project has
     /// a path, the save panel proposes its name and folder.
     restored_origin: Option<PathBuf>,
     recovery_choice_pending: bool,
@@ -383,6 +412,9 @@ pub struct FileUi {
     /// The save request whose file is being written (not while its save
     /// panel is open), for [`FileUi::saving`].
     writing: Option<u64>,
+    /// The KiCad import running (not while its file panel is open), for
+    /// [`FileUi::importing`].
+    importing: Option<u64>,
     /// The window is closing with the user's answer (or nothing unsaved):
     /// the exit keeps no recovery copy.
     closed: bool,
@@ -441,6 +473,7 @@ impl FileUi {
             now: 0.0,
             close_pending: false,
             writing: None,
+            importing: None,
             closed: false,
             model_export: crate::model_export::ModelExport::new(ctx),
         }
@@ -486,12 +519,28 @@ impl FileUi {
             .as_ref()
             .is_some_and(|f| f.kind == Kind::Save && Some(f.ticket.id) == self.writing)
     }
+    /// A KiCad import is running: from the file's choice until the new
+    /// project is ready.
+    pub fn importing(&self) -> bool {
+        self.controller
+            .flight
+            .as_ref()
+            .is_some_and(|f| f.kind == Kind::Import && Some(f.ticket.id) == self.importing)
+    }
     pub fn prompting(&self) -> bool {
         self.controller.prompt.is_some() || !self.recoveries.is_empty()
     }
     /// The latest file message, with its severity said explicitly.
     pub fn take_status(&mut self) -> Option<(Level, String)> {
         self.status.take()
+    }
+    /// An imported project, from the KiCad file `source`: unsaved (a
+    /// recovery snapshot keeps it, and quitting asks), and its first save
+    /// proposes the KiCad project's folder and name.
+    pub fn adopt_imported(&mut self, engine: &Engine, source: PathBuf) -> Outcome<()> {
+        self.adopt(engine, None, true)?;
+        self.restored_origin = Some(source);
+        Ok(())
     }
     pub fn adopt(
         &mut self,
@@ -546,6 +595,9 @@ impl FileUi {
         if let Job::Write(ticket, ..) = &job {
             self.writing = Some(ticket.id);
         }
+        if let Job::Import(ticket, ..) = &job {
+            self.importing = Some(ticket.id);
+        }
         if let Err(error) = self.sender.send(job) {
             self.controller.flight = None;
             self.controller.recovery_flight = None;
@@ -596,6 +648,8 @@ impl FileUi {
                     Action::New => Transition::New,
                     Action::Open => Transition::Open(None),
                     Action::OpenPath(path) => Transition::Open(Some(path)),
+                    Action::ImportKicad => Transition::Import(None),
+                    Action::ImportKicadPath(path) => Transition::Import(Some(path)),
                     _ => Transition::Close,
                 };
                 if let Some(transition) = self.controller.request(transition) {
@@ -626,6 +680,21 @@ impl FileUi {
                         }
                     } else {
                         self.pick(ticket, Kind::Open);
+                    }
+                }
+            }
+            Transition::Import(path) => {
+                if let Some(ticket) = self.begin(Kind::Import, None) {
+                    if let Some(path) = path {
+                        match absolute_path(path) {
+                            Ok(path) => self.send(Job::Import(ticket, path)),
+                            Err(error) => {
+                                self.controller.cancel(&ticket, Kind::Import);
+                                self.status = Some((Level::Error, error));
+                            }
+                        }
+                    } else {
+                        self.pick(ticket, Kind::Import);
                     }
                 }
             }
@@ -660,7 +729,16 @@ impl FileUi {
     fn pick(&mut self, ticket: Ticket, kind: Kind) {
         let (folder, filename) = self.save_proposal();
         let dialog = self.picker.clone().set_directory(folder);
-        let dialog = if kind == Kind::Export {
+        let dialog = if kind == Kind::Import {
+            self.picker
+                .clone()
+                .set_directory(&self.folder)
+                .set_title("Import KiCad project")
+                .add_filter(
+                    "KiCad project or board",
+                    &["kicad_pro", "kicad_pcb", "KICAD_PRO", "KICAD_PCB"],
+                )
+        } else if kind == Kind::Export {
             dialog
                 .set_title("Export PCB to Solidcraft")
                 .set_file_name("board.solidcraft")
@@ -692,7 +770,7 @@ impl FileUi {
         // Solidcraft services do. Awaiting it does not block egui or file I/O.
         type Picking =
             std::pin::Pin<Box<dyn std::future::Future<Output = Option<rfd::FileHandle>> + Send>>;
-        let future: Picking = if kind == Kind::Open {
+        let future: Picking = if matches!(kind, Kind::Open | Kind::Import) {
             Box::pin(dialog.pick_file())
         } else {
             Box::pin(dialog.save_file())
@@ -822,6 +900,9 @@ impl FileUi {
                     Kind::Open if ticket.stamp == self.controller.current => {
                         self.send(Job::Read(ticket, path))
                     }
+                    Kind::Import if ticket.stamp == self.controller.current => {
+                        self.send(Job::Import(ticket, path))
+                    }
                     Kind::Export if ticket.stamp == self.controller.current => {
                         // The export runs on its own thread: the file
                         // workflow is free again at once.
@@ -898,6 +979,26 @@ impl FileUi {
                     }),
                     Err(error) => {
                         self.status = Some((Level::Error, format!("Open failed: {error}")))
+                    }
+                }
+            }
+            Event::Imported(ticket, path, result) => {
+                self.importing = None;
+                if !self.controller.accept(&ticket, Kind::Import) {
+                    self.status = Some((
+                        Level::Warning,
+                        "Import cancelled because the current document changed".into(),
+                    ));
+                    return;
+                }
+                match result {
+                    Ok((document, report)) => self.effects.push(Effect::Imported {
+                        document: Box::new(document),
+                        source: path,
+                        report: Box::new(report),
+                    }),
+                    Err(error) => {
+                        self.status = Some((Level::Error, format!("Import failed: {error}")))
                     }
                 }
             }
@@ -1014,7 +1115,9 @@ impl FileUi {
         if let Some(transition) = &self.controller.prompt {
             let title = match transition {
                 Transition::Close => "Save changes before quitting?",
-                Transition::New | Transition::Open(_) => "Save changes before continuing?",
+                Transition::New | Transition::Open(_) | Transition::Import(_) => {
+                    "Save changes before continuing?"
+                }
             };
             let mut choice = None;
             ui_kit::Window::new(egui::Id::unique("file-unsaved"), "status_warning", title)

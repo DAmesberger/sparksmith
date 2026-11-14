@@ -5074,6 +5074,7 @@ dependencies = [
  "sparksmith-generator-abi",
  "sparksmith-generators",
  "sparksmith-io",
+ "sparksmith-kicad",
  "sparksmith-solidcraft",
  "tempfile",
  "thiserror 2.0.21",
@@ -5091,7 +5092,6 @@ dependencies = [
  "sparksmith-core",
  "sparksmith-generators",
  "sparksmith-io",
- "sparksmith-kicad",
  "tempfile",
 ]
 

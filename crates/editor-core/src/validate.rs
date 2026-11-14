@@ -76,6 +76,7 @@ fn project_checks(p: &Project, schematic: bool) -> Result<()> {
         ));
     }
     crate::model::import_review::check(&p.net_disagreements)?;
+    crate::model::import_review::check_refused(&p.refused_import_tracks)?;
     crate::interface::check_table(&p.interface)?;
     if let Some(link) = p.assembly_link.as_deref() {
         crate::interface::assembly_link::check_link(link)?;

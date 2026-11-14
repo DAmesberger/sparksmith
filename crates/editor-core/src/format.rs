@@ -45,6 +45,7 @@ pub const FEATURES: &[&str] = &[
     PROJECT_RULE_SOURCE,
     PINS_ADDED_BY_IMPORT,
     NET_DISAGREEMENTS,
+    REFUSED_IMPORT_TRACKS,
 ];
 /// A placed part or pad overrides how fills join it
 /// (`Placement::fill_override`, `pad_fill_overrides`).
@@ -61,6 +62,8 @@ pub const PINS_ADDED_BY_IMPORT: &str = "pins_added_by_import";
 /// Where an imported board and its schematic disagreed on nets
 /// (`Project::net_disagreements`).
 pub const NET_DISAGREEMENTS: &str = "net_disagreements";
+/// Track pieces an import refused (`Project::refused_import_tracks`).
+pub const REFUSED_IMPORT_TRACKS: &str = "refused_import_tracks";
 pub const EXTENSION: &str = "sparksmith";
 /// The extension before the rename from Pcbcraft (docs/rename-phase-b.md).
 /// Such a file holds this same format, so it opens through the same reader
@@ -160,6 +163,9 @@ pub fn features_used(file: &EditorFile) -> Vec<&'static str> {
     }
     if !project.net_disagreements.is_empty() {
         out.push(NET_DISAGREEMENTS);
+    }
+    if !project.refused_import_tracks.is_empty() {
+        out.push(REFUSED_IMPORT_TRACKS);
     }
     out
 }
@@ -402,6 +408,29 @@ mod tests {
         let value: serde_json::Value = serde_json::from_slice(&encode(&file)?)?;
         assert_eq!(value["features"], serde_json::json!([NET_DISAGREEMENTS]));
         assert_eq!(refusal(&value)?, "accepted");
+        Ok(())
+    }
+
+    /// Track pieces an import refused are a named feature, and read back.
+    #[test]
+    fn refused_import_tracks_are_a_named_feature() -> Result<()> {
+        use crate::model::import_review::{RefusedTrack, TrackRefusal};
+        use crate::units::PointNm;
+        let mut document = Document::default();
+        let refused = vec![RefusedTrack {
+            net: 7,
+            layer: crate::model::CopperLayer::Top,
+            start: PointNm::from_mm_f64_rounded([1.0, 2.0])?,
+            end: PointNm::from_mm_f64_rounded([3.0, 2.0])?,
+            reason: TrackRefusal::Clearance,
+        }];
+        std::sync::Arc::make_mut(&mut document.project).refused_import_tracks = refused.clone();
+        let file = EditorFile::from_document(&document);
+        let bytes = encode(&file)?;
+        let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+        assert_eq!(value["features"], serde_json::json!([REFUSED_IMPORT_TRACKS]));
+        assert_eq!(refusal(&value)?, "accepted");
+        assert_eq!(decode(&bytes)?.project.refused_import_tracks, refused);
         Ok(())
     }
 

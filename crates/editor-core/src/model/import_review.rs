@@ -187,3 +187,56 @@ pub fn findings(project: &Project) -> Vec<Finding> {
     }
     out
 }
+
+/// Most refused track pieces a project keeps.
+pub const MAX_REFUSED_TRACKS: usize = 100_000;
+
+/// Which check refused an imported track piece.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TrackRefusal {
+    /// Too close to copper of another net.
+    Clearance,
+    /// Outside the board.
+    OutsideBoard,
+    /// Narrower or wider than the rules allow.
+    Width,
+    /// Any other check.
+    Other,
+}
+
+impl TrackRefusal {
+    /// The refusal in the user's words.
+    pub fn words(self) -> &'static str {
+        match self {
+            Self::Clearance => "clearance",
+            Self::OutsideBoard => "outside the board",
+            Self::Width => "width",
+            Self::Other => "a board check",
+        }
+    }
+}
+
+/// A track piece an import refused: where it ran, so copper left ending
+/// where it began or ended is named as left by it (`board.track_dangling`).
+/// Data only; an importer records them with
+/// `layout.set_refused_import_tracks`.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RefusedTrack {
+    pub net: Id,
+    pub layer: crate::model::CopperLayer,
+    pub start: crate::units::PointNm,
+    pub end: crate::units::PointNm,
+    pub reason: TrackRefusal,
+}
+
+/// Bounds of a list of refused tracks: at most [`MAX_REFUSED_TRACKS`].
+pub fn check_refused(list: &[RefusedTrack]) -> Result<()> {
+    if list.len() > MAX_REFUSED_TRACKS {
+        return Err(Error::Limit(format!(
+            "import.refused_tracks: at most {MAX_REFUSED_TRACKS} refused tracks"
+        )));
+    }
+    Ok(())
+}

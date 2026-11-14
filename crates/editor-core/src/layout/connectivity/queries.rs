@@ -357,15 +357,34 @@ impl CopperGraph {
         let track_layers: BTreeMap<Id, CopperLayer> =
             self.tracks.iter().map(|t| (t.id, t.layer)).collect();
         for stub in stubs.iter().filter(|s| !s.tracks.is_empty()) {
-            let layers: BTreeSet<CopperLayer> = stub
+            let on: BTreeSet<CopperLayer> = stub
                 .tracks
                 .iter()
                 .filter_map(|id| track_layers.get(id).copied())
                 .collect();
+            // An end where an import refused a track piece of the net: the
+            // stub is what that piece left.
+            let refused = stub
+                .open_ends
+                .iter()
+                .chain(&stub.via_ends)
+                .find_map(|p| {
+                    project
+                        .refused_import_tracks
+                        .iter()
+                        .filter(|r| r.net == stub.net && on.contains(&r.layer))
+                        .find(|r| {
+                            [r.start, r.end].iter().any(|q| {
+                                let [x, y] = q.to_mm_f64();
+                                (x - p[0]).hypot(y - p[1]) <= JOIN_TOLERANCE_MM
+                            })
+                        })
+                        .map(|r| (*p, r.reason))
+                });
             let layers = self
                 .layers
                 .iter()
-                .filter(|l| layers.contains(l))
+                .filter(|l| on.contains(l))
                 .map(|l| l.name())
                 .collect::<Vec<_>>()
                 .join(", ");
@@ -380,7 +399,13 @@ impl CopperGraph {
                 )
                 .collect();
             let net = project.net_name(stub.net);
-            let message = if ends.is_empty() {
+            let message = if let Some((end, reason)) = refused {
+                format!(
+                    "Track on {net} ({layers}) stops at {}: import refused the rest ({})",
+                    point(&end),
+                    reason.words()
+                )
+            } else if ends.is_empty() {
                 format!("Track on {net} ({layers}) reaches no pad")
             } else {
                 format!(
