@@ -375,6 +375,8 @@ pub struct FileUi {
     /// a path, the save panel proposes its name and folder.
     restored_origin: Option<PathBuf>,
     recovery_choice_pending: bool,
+    /// The worker's startup listing of earlier sessions has arrived.
+    started: bool,
     changed_at: f64,
     recovery_retry_at: f64,
     now: f64,
@@ -436,6 +438,7 @@ impl FileUi {
             restored_source: None,
             restored_origin: None,
             recovery_choice_pending: false,
+            started: false,
             changed_at: 0.0,
             recovery_retry_at: 0.0,
             now: 0.0,
@@ -485,6 +488,11 @@ impl FileUi {
             .flight
             .as_ref()
             .is_some_and(|f| f.kind == Kind::Save && Some(f.ticket.id) == self.writing)
+    }
+    /// Whether the startup listing of earlier sessions has arrived, so
+    /// [`FileUi::prompting`] says whether one is offered.
+    pub fn started(&self) -> bool {
+        self.started
     }
     pub fn prompting(&self) -> bool {
         self.controller.prompt.is_some() || !self.recoveries.is_empty()
@@ -787,13 +795,16 @@ impl FileUi {
     }
     fn receive(&mut self, event: Event) {
         match event {
-            Event::Startup(result) => match result {
-                Ok(listing) => {
-                    self.recoveries = listing.entries;
-                    self.older_recoveries = listing.older;
+            Event::Startup(result) => {
+                self.started = true;
+                match result {
+                    Ok(listing) => {
+                        self.recoveries = listing.entries;
+                        self.older_recoveries = listing.older;
+                    }
+                    Err(error) => self.status = Some((Level::Error, error)),
                 }
-                Err(error) => self.status = Some((Level::Error, error)),
-            },
+            }
             Event::Picked(ticket, kind, path) => {
                 if !self
                     .controller

@@ -637,3 +637,65 @@ fn the_production_waive_form_shows_beside_a_long_issues_list() -> Fallible {
     );
     Ok(())
 }
+
+/// A launch whose recovery folder `dir` holds an earlier session of a
+/// project without a fab profile, starting a new project without one
+/// either; settled on the recovery question.
+fn launch_with_a_recovery(dir: tempfile::TempDir) -> Fallible<Ax> {
+    let earlier = Engine::default();
+    sparksmith_io::recovery::RecoveryStore::new(dir.path())?
+        .write(&EditorFile::from_document(earlier.document()), None)?;
+    let mut ax = Ax::in_dir(
+        dir,
+        Engine::default(),
+        Workspace::Pcb,
+        LibrarySources::new(None),
+    )?;
+    ax.app.launch_profile = true;
+    ax.until("the recovery question", |ax| ax.app.files.prompting())?;
+    ax.settle();
+    assert!(
+        ax.texts.iter().any(|t| t == "Recover an earlier session?"),
+        "{:?}",
+        ax.texts
+    );
+    Ok(ax)
+}
+
+/// E2E run 6, finding 8: the new project's "Fab profile" question waits
+/// while an earlier session is offered; kept for later, the launch's new
+/// project is asked for its profile then.
+#[test]
+fn the_launch_profile_question_waits_for_the_recovery_question() -> Fallible {
+    let mut ax = launch_with_a_recovery(tempfile::tempdir()?)?;
+    assert!(
+        !ax.texts.iter().any(|t| t == "Fab profile"),
+        "asked behind the recovery question: {:?}",
+        ax.texts
+    );
+    ax.button("Keep for later")?;
+    ax.settle();
+    assert!(
+        ax.texts.iter().any(|t| t == "Fab profile"),
+        "the new project is asked: {}",
+        ax.dump()
+    );
+    Ok(())
+}
+
+/// E2E run 6, finding 8: a restored session replaces the launch's new
+/// project, which is then never asked for a profile.
+#[test]
+fn a_restored_session_is_not_asked_for_the_launch_profile() -> Fallible {
+    let mut ax = launch_with_a_recovery(tempfile::tempdir()?)?;
+    ax.button("Restore")?;
+    ax.until("the restored session", |ax| !ax.app.files.prompting())?;
+    ax.settle();
+    assert!(!ax.app.launch_profile);
+    assert!(
+        !ax.texts.iter().any(|t| t == "Fab profile"),
+        "{:?}",
+        ax.texts
+    );
+    Ok(())
+}
