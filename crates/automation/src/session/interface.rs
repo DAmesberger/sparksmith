@@ -15,9 +15,21 @@ use sparksmith_core::interface::{InterfaceCommand, PublishParams, PublishPreview
 use sparksmith_io::interface as files;
 use std::path::Path;
 
+/// A relative path as the project file keeps it: its parts joined with `/`
+/// whatever the host's separator, so a project published on one platform
+/// reads the same on another.
+fn portable(relative: &Path) -> String {
+    relative
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 impl Session {
     /// `design` as the project keeps it: relative to the project's folder
-    /// when it lies inside it, else as given.
+    /// when it lies inside it, `/`-separated on every platform, else as
+    /// given.
     fn relative_to_project(&self, design: &Path) -> String {
         let folder = self.path.as_deref().and_then(Path::parent);
         let relative = match (folder, design.is_absolute()) {
@@ -34,10 +46,12 @@ impl Session {
             }
             _ => None,
         };
-        relative
-            .unwrap_or_else(|| design.to_path_buf())
-            .to_string_lossy()
-            .into_owned()
+        let kept = relative.unwrap_or_else(|| design.to_path_buf());
+        if kept.is_absolute() {
+            kept.to_string_lossy().into_owned()
+        } else {
+            portable(&kept)
+        }
     }
 
     /// The diff publishing would make, against the sidecar beside `path`
@@ -162,5 +176,22 @@ impl Session {
             Operation::Interface(InterfaceCommand::RecordPublish { source_id, record }),
             published,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::portable;
+    use std::path::PathBuf;
+
+    /// Built from parts with the host's separator, kept with `/`.
+    #[test]
+    fn a_relative_hint_is_slash_separated_on_every_host() {
+        let path: PathBuf = ["shared", "boards", "board.solidcraft"].iter().collect();
+        assert_eq!(portable(&path), "shared/boards/board.solidcraft");
+        assert_eq!(
+            portable(&PathBuf::from("board.solidcraft")),
+            "board.solidcraft"
+        );
     }
 }

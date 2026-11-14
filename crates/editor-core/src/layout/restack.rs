@@ -246,11 +246,28 @@ impl StackupDraft {
         self.origin.get(index).copied().flatten()
     }
 
-    /// Replace the draft's layers with a preset; foils keep their origin
-    /// by position from the top while both have them, and the bottom foil
-    /// stays the bottom.
+    /// The preset of `count` layers with the draft's outer foils: a preset
+    /// sets the layers and dielectrics, not the outer copper weight, which
+    /// the board keeps (the fab profile's copper weight sets it, and a
+    /// stackup edit may not leave it).
+    pub fn preset(&self, presets: &StackupPresets, count: usize) -> Result<Stackup> {
+        let mut preset = presets.preset(count)?;
+        if let Some((top, bottom)) = self.stackup.outer_copper_um() {
+            if let Some(foil) = preset.copper.first_mut() {
+                foil.thickness_um = top;
+            }
+            if let Some(foil) = preset.copper.last_mut() {
+                foil.thickness_um = bottom;
+            }
+        }
+        Ok(preset)
+    }
+
+    /// Replace the draft's layers with a preset ([`StackupDraft::preset`]);
+    /// foils keep their origin by position from the top while both have
+    /// them, and the bottom foil stays the bottom.
     pub fn use_preset(&mut self, presets: &StackupPresets, count: usize) -> Result<()> {
-        let preset = presets.preset(count)?;
+        let preset = self.preset(presets, count)?;
         let old = self.origin.clone();
         let n = preset.copper.len();
         self.origin = (0..n)

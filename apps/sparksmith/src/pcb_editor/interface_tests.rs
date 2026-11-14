@@ -1149,3 +1149,18 @@ fn selecting_a_row_selects_its_datum() -> TestResult {
     assert_eq!(engine.revision(), revision);
     Ok(())
 }
+
+/// A relative published path reads the same with `/` or `\` between its
+/// parts, whatever the host, against the project's folder.
+#[test]
+fn a_stored_path_reads_with_either_separator() {
+    let project: std::path::PathBuf = ["work", "board.sparksmith"].iter().collect();
+    let expected: std::path::PathBuf = ["work", "shared", "board.solidcraft"].iter().collect();
+    for stored in ["shared/board.solidcraft", "shared\\board.solidcraft"] {
+        assert_eq!(
+            interface_card::resolved(Some(&project), stored),
+            expected,
+            "{stored}"
+        );
+    }
+}

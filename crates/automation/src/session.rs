@@ -1076,8 +1076,20 @@ impl Session {
                     let dirs = sparksmith_io::settings::UserDirs::from_env()?;
                     let listing =
                         sparksmith_io::rule_profiles::ProfileLibrary::from_dirs(&dirs)?.list()?;
-                    for p in listing.profiles.into_iter().chain(listing.builtins) {
-                        if !profiles.iter().any(|q| q.id == p.id) {
+                    // A board that pinned a shipped profile under a former
+                    // id no library profile has stands for it, as under
+                    // its own id.
+                    let library: Vec<_> =
+                        listing.profiles.into_iter().chain(listing.builtins).collect();
+                    let pinned: Vec<String> = profiles
+                        .iter()
+                        .map(|q| match listing.former_ids.get(&q.id) {
+                            Some(id) if !library.iter().any(|p| p.id == q.id) => id.clone(),
+                            _ => q.id.clone(),
+                        })
+                        .collect();
+                    for p in library {
+                        if !pinned.contains(&p.id) {
                             profiles.push(p);
                         }
                     }
