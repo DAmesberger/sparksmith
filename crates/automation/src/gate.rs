@@ -221,16 +221,21 @@ impl Question {
         )
     }
 
-    /// The answer when no one can be asked: Ask counts as refused.
+    /// The answer when no one can be asked: the step is the person's, so
+    /// it counts as refused.
     pub fn unanswered(&self) -> Error {
         refusal(
-            "gate.cannot_ask",
+            "gate.needs_person",
             &self.command,
             &format!(
                 "{} It needs a person's Allow, and this host has no way to ask, so it counts as refused. Nothing was changed.",
                 self.why
             ),
-            "Finish what you can without it and tell the user what is left for them to do, or have them start this session in a permission mode that allows it.",
+            concat!(
+                "Finish what you can without it and tell the user what is left for them to do. They can run it themselves in ",
+                sparksmith_core::product_name!(),
+                ", connect you to their open window (mcp --live), where they are asked, or start this session in a permission mode that allows it."
+            ),
         )
     }
 }
@@ -346,23 +351,27 @@ pub fn decide_entries(
 
 fn beyond_module(subject: &Subject<'_>, class: Class, ceiling: Option<Class>) -> Error {
     let module = subject.module;
-    let why = match ceiling {
-        None => format!("this run is not granted the {module} module. Nothing was changed."),
-        Some(ceiling) => format!(
-            "this run may use the {module} module only up to {}, and this is {}. Nothing was changed.",
-            ceiling.name(),
-            class.name()
+    let (why, instead) = match ceiling {
+        None => (
+            format!("this run is not granted the {module} module. Nothing was changed."),
+            format!(
+                "Carry on without it, or ask the user to do it themselves in {}.",
+                sparksmith_core::product::NAME
+            ),
+        ),
+        Some(ceiling) => (
+            format!(
+                "this run may use the {module} module only up to {}, and this is {}. Nothing was changed.",
+                ceiling.name(),
+                class.name()
+            ),
+            format!(
+                "Carry on without it, or ask the user to grant {module} up to {} for this run.",
+                class.name()
+            ),
         ),
     };
-    refusal(
-        "gate.module",
-        subject.name,
-        &why,
-        &format!(
-            "Carry on without it, or ask the user to grant {module} up to {} for this run.",
-            class.name()
-        ),
-    )
+    refusal("gate.module", subject.name, &why, &instead)
 }
 
 /// The rules for a model's `request` under `grant`, as written: a path

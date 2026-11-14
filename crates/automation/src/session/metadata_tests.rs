@@ -1,7 +1,7 @@
 //! Catalog metadata (`docs/mcp-surface.md` §3, slice M2): every one of the
 //! 237 entries has a title and a summary within budget, its kind, person,
-//! long and result fields come from the catalog, and the MCP tools carry the
-//! same titles and annotations.
+//! long and result fields come from the catalog, and the sizes they promise
+//! hold over MCP.
 use super::metadata::{self, Annotations, Kind, Person, ResultSize};
 use super::*;
 use sparksmith_core::permission::MAX_TITLE;
@@ -170,74 +170,22 @@ fn annotations_follow_the_class() {
     }
 }
 
-/// The tools today's MCP server lists carry the catalog's titles and
-/// annotations under the spec's names.
-#[test]
-fn the_tools_carry_the_catalog_titles_and_annotations() -> Fallible<()> {
-    let tools = crate::mcp::tools();
-    let listed: Vec<_> = Request::catalog_shared()
-        .iter()
-        .filter(|info| !crate::mcp::NOT_TOOLS.contains(&info.id))
-        .collect();
-    assert_eq!(tools.len(), listed.len());
-    for (tool, info) in tools.iter().zip(listed) {
-        assert_eq!(tool["title"], info.title, "{}", info.id);
-        assert_eq!(
-            tool.get("annotations").cloned(),
-            info.annotations().map(|a| json!(a))
-        );
-    }
-    let tool = |name: &str| {
-        tools
-            .iter()
-            .find(|t| t["name"] == name)
-            .cloned()
-            .unwrap_or(Value::Null)
-    };
-    assert_eq!(
-        tool("project_query")["annotations"],
-        json!({"readOnlyHint": true, "idempotentHint": true, "openWorldHint": false})
-    );
-    assert_eq!(
-        tool("project_apply")["annotations"],
-        json!({"readOnlyHint": false, "destructiveHint": false, "idempotentHint": false, "openWorldHint": false})
-    );
-    assert_eq!(
-        tool("project_export_fabrication")["annotations"],
-        json!({"readOnlyHint": false, "destructiveHint": true, "idempotentHint": false, "openWorldHint": true})
-    );
-    assert!(tool("library_favourite").get("annotations").is_none());
-    Ok(())
-}
-
 /// An entry marked inline answers within the inline budget on the shipped
 /// showcase over MCP, and one marked linked can pass it there.
 #[test]
 fn inline_and_linked_results_hold_on_the_showcase() -> Fallible<()> {
-    let mut server = crate::mcp::Server::new(
+    let tools = crate::mcp::testing::Tools::new(
         Session::new(showcase(
             sparksmith_core::library::standards::Context::fixture()?,
             &sparksmith_core::StackupPresets::fixture()?,
             sparksmith_core::rules::fixtures::prototype()?,
         )?),
         crate::gate::Grant::default(),
-    );
-    let mut size = |tool: &str, arguments: Value| -> usize {
-        let reply = server
-            .handle(json!({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
-                "params": {"name": tool, "arguments": arguments}}))
-            .unwrap_or(Value::Null);
-        assert_eq!(reply["result"]["isError"], false, "{reply}");
-        reply["result"]["content"][0]["text"]
-            .as_str()
-            .map_or(0, str::len)
+    )?;
+    let size = |(failed, reply): (bool, Value)| -> usize {
+        assert!(!failed, "{reply}");
+        reply.to_string().len()
     };
-    let revision = showcase(
-        sparksmith_core::library::standards::Context::fixture()?,
-        &sparksmith_core::StackupPresets::fixture()?,
-        sparksmith_core::rules::fixtures::prototype()?,
-    )?
-    .revision();
     let result = |name: &str| {
         metadata::entries()
             .iter()
@@ -246,26 +194,19 @@ fn inline_and_linked_results_hold_on_the_showcase() -> Fallible<()> {
     };
     // Its findings by code and drafts grow with the project: 3.5 KB here.
     assert_eq!(result("project.inspect"), Some(ResultSize::Link));
-    let inspect = size("project_inspect", json!({}));
+    let inspect = size(tools.query("project.inspect", json!({})));
     assert!(
         inspect > metadata::INLINE_RESULT,
         "inspect is {inspect} bytes"
     );
     assert_eq!(result("project.rename"), Some(ResultSize::Inline));
-    let rename = size(
-        "project_apply",
-        json!({"expected_revision": revision, "operation": {"editor": "Schematic",
-            "operation": {"command": "project.rename", "params": {"name": "Renamed"}}}}),
-    );
+    let rename = size(tools.apply("project.rename", json!({"name": "Renamed"})));
     assert!(
         (1..=metadata::INLINE_RESULT).contains(&rename),
         "rename is {rename} bytes"
     );
     assert_eq!(result("project.issues"), Some(ResultSize::Link));
-    let issues = size(
-        "project_query",
-        json!({"query": "project.issues", "params": {"scope": {"kind": "all"}}}),
-    );
+    let issues = size(tools.query("project.issues", json!({"scope": {"kind": "all"}})));
     assert!(issues > metadata::INLINE_RESULT, "issues is {issues} bytes");
     Ok(())
 }

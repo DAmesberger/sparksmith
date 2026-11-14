@@ -36,11 +36,12 @@ const USAGE: &str = concat!(
                                    not a model; every class runs (settings, library
                                    sources, any path), as at the command line
   mcp [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
-                                   Model Context Protocol server on stdio, always
+                                   MCP server on stdio (protocol 2026-07-28), always
                                    gated: the mode (ask-every-time, auto-allow-edits
                                    by default, allow-all) decides what runs, paths are
                                    limited to the given folders and FILE's, what would
-                                   need asking is refused, and settings never change
+                                   need a person is refused (gate.needs_person), and
+                                   settings never change
   mcp --live [--port PORT]         MCP server for the project open in the ",
     sparksmith_core::product_name!(),
     "
@@ -257,7 +258,7 @@ fn run() -> Result<()> {
                 _ => return Err(format!("unexpected arguments after --live\n{USAGE}").into()),
             };
             let client = live::Client::find(&live::APP, port, None)?;
-            Ok(mcp::Server::live(client).serve(io::stdin().lock(), io::stdout().lock())?)
+            Ok(mcp::Server::live(client)?.serve_stdio()?)
         }
         [command, rest @ ..] if command == "mcp" => {
             let options = McpOptions::parse(rest)?;
@@ -265,8 +266,19 @@ fn run() -> Result<()> {
                 return Err(format!("--operator is for stdio only\n{USAGE}").into());
             }
             let session = open(options.project.as_ref())?;
-            let mut server = mcp::Server::new(session, options.policy()?);
-            Ok(server.serve(io::stdin().lock(), io::stdout().lock())?)
+            // Projects the client opens or creates later start like this
+            // one: the run's standards, the user's sources and settings.
+            let context = context()?;
+            let new_session = move || match sparksmith_io::new_project::engine(&context) {
+                Ok(engine) => user_session(engine),
+                Err(error) => {
+                    eprintln!("new projects start without the shipped defaults: {error}");
+                    Session::lending()
+                }
+            };
+            let server =
+                mcp::Server::with_new_projects(session, options.policy()?, Box::new(new_session))?;
+            Ok(server.serve_stdio()?)
         }
         [command, path, rest @ ..]
             if ["showcase", "parts"].contains(&command.as_str())

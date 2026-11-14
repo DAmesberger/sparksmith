@@ -1,77 +1,44 @@
 //! The datasheet-to-component workflow as an external agent runs it: the
-//! `datasheet_to_component` prompt, then only MCP tool calls, scripted here in place
-//! of a model (no network, no model). The agent's steps end at
-//! `library_review_check`; publishing stays behind the import review gate
+//! `datasheet_to_component` prompt, then only MCP verb calls, scripted here
+//! in place of a model (no network, no model). The agent's steps end at
+//! `library.review_check`; publishing stays behind the import review gate
 //! until the person has confirmed the rows.
 use super::prompts::{self, DATASHEET_PART, DATASHEET_PART_SKILL, skill_body};
 use super::scenario::{EXM48, Fallible};
-use super::*;
+use super::testing::Tools;
+use crate::session::Session;
 use crate::{Grant, Mode};
+use serde_json::{Value, json};
 
-fn rpc(server: &mut Server, method: &str, params: Value) -> Value {
-    server
-        .handle(json!({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}))
-        .unwrap_or(Value::Null)
-}
-
-/// One tool call: whether it failed, and its JSON payload.
-fn tool(server: &mut Server, name: &str, arguments: Value) -> (bool, Value) {
-    let reply = rpc(
-        server,
-        "tools/call",
-        json!({"name": name, "arguments": arguments}),
-    );
-    let payload = reply["result"]["content"][0]["text"]
-        .as_str()
-        .and_then(|text| serde_json::from_str(text).ok())
-        .unwrap_or(Value::Null);
-    (reply["result"]["isError"] != false, payload)
-}
-
-/// A tool call that must succeed.
-fn ok(server: &mut Server, step: &str, name: &str, arguments: Value) -> Fallible<Value> {
-    let (failed, payload) = tool(server, name, arguments);
+/// A call that must succeed, named by its step.
+fn ok(step: &str, (failed, payload): (bool, Value)) -> Fallible<Value> {
     if failed {
         return Err(format!("{step}: {payload}").into());
     }
     Ok(payload)
 }
 
-fn revision(server: &Server) -> u64 {
-    server.session().engine().revision()
+/// A query's report.
+fn query(tools: &Tools, step: &str, name: &str, params: Value) -> Fallible<Value> {
+    Ok(ok(step, tools.query(name, params))?["result"].clone())
 }
 
-fn query(server: &mut Server, step: &str, name: &str, params: Value) -> Fallible<Value> {
-    let reply = ok(
-        server,
-        step,
-        "project_query",
-        json!({"query": name, "params": params}),
-    )?;
-    Ok(reply["result"].clone())
-}
-
-fn apply(server: &mut Server, step: &str, command: &str, params: Value) -> Fallible<Value> {
-    let expected_revision = revision(server);
-    ok(
-        server,
-        step,
-        "project_apply",
-        json!({"expected_revision": expected_revision, "operation": {"editor": "Library",
-            "operation": {"command": command, "params": params}}}),
-    )
+/// One library operation through `apply`: its outcome.
+fn apply(tools: &Tools, step: &str, op: &str, params: Value) -> Fallible<Value> {
+    let reply = ok(step, tools.apply(op, params))?;
+    Ok(reply["outcomes"][0].clone())
 }
 
 /// Preview `document` onto `target` and apply exactly that plan.
-fn import(server: &mut Server, step: &str, target: Value, document: &Value) -> Fallible<Value> {
+fn import(tools: &Tools, step: &str, target: Value, document: &Value) -> Fallible<Value> {
     let plan = query(
-        server,
+        tools,
         step,
         "library.pinout_preview",
         json!({"target": target, "document": document}),
     )?;
     apply(
-        server,
+        tools,
         step,
         "library.pinout_apply",
         json!({"target": target, "document": document, "base": plan["base"],
@@ -94,12 +61,10 @@ fn report(open_questions: Value) -> Value {
     }})
 }
 
-fn draft_of(server: &mut Server, id: u64) -> Fallible<Value> {
+fn draft_of(tools: &Tools, id: u64) -> Fallible<Value> {
     let snapshot = ok(
-        server,
         "inspect",
-        "project_inspect",
-        json!({"verbose": true}),
+        tools.query("project.inspect", json!({"verbose": true})),
     )?;
     snapshot["drafts"]
         .as_array()
@@ -112,14 +77,8 @@ fn draft_of(server: &mut Server, id: u64) -> Fallible<Value> {
 
 #[test]
 fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
-    let mut server = Server::new(Session::default(), Grant::default());
-    let init = rpc(&mut server, "initialize", json!({}));
-    assert!(
-        init["result"]["capabilities"]["prompts"].is_object(),
-        "{init}"
-    );
-    let listed = rpc(&mut server, "prompts/list", json!({}));
-    let prompt = listed["result"]["prompts"]
+    let listed = serde_json::to_value(prompts::list())?;
+    let prompt = listed
         .as_array()
         .into_iter()
         .flatten()
@@ -134,13 +93,17 @@ fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
         .collect();
     assert_eq!(required, ["part", "datasheets"]);
 
-    let got = rpc(
-        &mut server,
-        "prompts/get",
-        json!({"name": DATASHEET_PART, "arguments": {"part": "EXM-48",
-            "datasheets": "exm48.pdf\nhttps://example.com/exm48-errata.pdf", "notes": "QFN-48 only"}}),
-    );
-    let message = &got["result"]["messages"][0];
+    let arguments = |value: Value| match value {
+        Value::Object(map) => Some(map),
+        _ => None,
+    };
+    let got = serde_json::to_value(prompts::get(
+        DATASHEET_PART,
+        arguments(json!({"part": "EXM-48",
+            "datasheets": "exm48.pdf\nhttps://example.com/exm48-errata.pdf", "notes": "QFN-48 only"}))
+        .as_ref(),
+    )?)?;
+    let message = &got["messages"][0];
     assert_eq!(message["role"], "user", "{got}");
     let text = message["content"]["text"].as_str().unwrap_or_default();
     // The workflow first, word for word, then the task.
@@ -155,32 +118,33 @@ fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
     );
     for step in [
         "No guessing",
-        "library_pinout_schema",
+        "library.pinout_schema",
         "library.pinout_preview",
         "library.pinout_apply",
         "library.package_plan",
         "library.package_from_template",
         "component.check_drafts",
-        "library_review_check",
+        "library.review_check",
         "Verification checklist",
     ] {
         assert!(workflow.contains(step), "{step}");
     }
 
-    for bad in [
-        json!({"name": "other", "arguments": {"part": "X", "datasheets": "a.pdf"}}),
-        json!({"name": DATASHEET_PART, "arguments": {"part": "X"}}),
-        json!({"name": DATASHEET_PART, "arguments": {"part": 3, "datasheets": "a.pdf"}}),
+    for (name, bad) in [
+        ("other", json!({"part": "X", "datasheets": "a.pdf"})),
+        (DATASHEET_PART, json!({"part": "X"})),
+        (DATASHEET_PART, json!({"part": 3, "datasheets": "a.pdf"})),
     ] {
-        let refused = rpc(&mut server, "prompts/get", bad.clone());
-        assert_eq!(refused["error"]["code"], INVALID_PARAMS, "{bad}: {refused}");
+        assert!(
+            prompts::get(name, arguments(bad.clone()).as_ref()).is_err(),
+            "{name} {bad}"
+        );
     }
     Ok(())
 }
 
 /// One file is the source of both: the prompt serves the skill file in the
-/// repository, read now, without its front matter; and the workflow names
-/// only tools and wire IDs this build has.
+/// repository, read now, without its front matter.
 #[test]
 fn the_skill_file_and_the_prompt_are_one_source() -> Fallible<()> {
     let path = concat!(
@@ -193,15 +157,14 @@ fn the_skill_file_and_the_prompt_are_one_source() -> Fallible<()> {
     let body = skill_body(&on_disk);
     assert!(body.starts_with("# Create a component from datasheets"));
     assert!(!body.contains("\n---\n") && !body.contains("name: sparksmith"));
-    let got = prompts::get(&json!({"name": DATASHEET_PART,
-        "arguments": {"part": "P", "datasheets": "a.pdf"}}))
-    .map_err(|e| e.to_string())?;
+    let mut arguments = rmcp::model::JsonObject::new();
+    arguments.insert("part".into(), json!("P"));
+    arguments.insert("datasheets".into(), json!("a.pdf"));
+    let got = serde_json::to_value(prompts::get(DATASHEET_PART, Some(&arguments))?)?;
     let text = got["messages"][0]["content"]["text"]
         .as_str()
         .unwrap_or_default();
     assert!(text.starts_with(body));
-    let named = super::tests::names_only_what_exists(body);
-    assert!(named >= 8, "the workflow names its requests ({named})");
     Ok(())
 }
 
@@ -214,13 +177,12 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     // Publishing is Ask-class: allow-all stands in for the person's Allow,
     // so the test reaches the review gate that must still refuse it. The
     // board has a fab profile, whose margins the estimated lands take.
-    let mut server = Server::new(
+    let tools = Tools::new(
         Session::new(sparksmith_core::Engine::profiled()?),
         Grant::new(Mode::AllowAll, Vec::<std::path::PathBuf>::new()),
-    );
-    rpc(&mut server, "initialize", json!({}));
-    let schema = ok(&mut server, "schema", "library_pinout_schema", json!({}))?;
-    assert_eq!(schema["format"], 1);
+    )?;
+    let schema = ok("schema", tools.query("library.pinout_schema", json!({})))?;
+    assert_eq!(schema["format"], 1, "{schema}");
 
     // The agent forgot one row's source.
     let complete: Value = serde_json::from_str(EXM48)?;
@@ -232,12 +194,12 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     let name = r2["name"].clone();
     r2["source"] = Value::Null;
     let applied = import(
-        &mut server,
+        &tools,
         "import",
         json!({"target": "new", "name": "EXM-48"}),
         &document,
     )?;
-    let drafts: Vec<u64> = applied["outcome"]["report"]["drafts"]
+    let drafts: Vec<u64> = applied["report"]["drafts"]
         .as_array()
         .ok_or_else(|| format!("the import's drafts: {applied}"))?
         .iter()
@@ -248,14 +210,13 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
 
     // An early review check: no open question for the uncertain row, and
     // the imported pin without a source page, named.
-    let before = server.session().engine().document().clone();
+    let document_now = |tools: &Tools| tools.with_session(|s| s.engine().document().clone());
+    let before = document_now(&tools);
     let checked = ok(
-        &mut server,
         "review check",
-        "library_review_check",
-        report(json!([])),
+        tools.query("library.review_check", report(json!([]))),
     )?;
-    assert_eq!(server.session().engine().document(), &before, "a read");
+    assert_eq!(document_now(&tools), before, "a read");
     assert_eq!(checked["accepted"], false, "{checked}");
     let problems = checked["problems"].to_string();
     assert!(problems.contains("uncertain"), "{problems}");
@@ -268,7 +229,7 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     // The agent restores the source (before the footprint, which renumbers
     // pad 49 as EP) and asks about the uncertain row.
     import(
-        &mut server,
+        &tools,
         "re-import",
         json!({"target": "draft", "id": component}),
         &complete,
@@ -278,14 +239,14 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
         .iter()
         .copied()
         .find(|&id| {
-            draft_of(&mut server, id).is_ok_and(|d| d["draft"]["definition"]["kind"] == "binding")
+            draft_of(&tools, id).is_ok_and(|d| d["draft"]["definition"]["kind"] == "binding")
         })
         .ok_or("the binding draft")?;
-    let package = draft_of(&mut server, binding)?["draft"]["definition"]["body"]["package"]["id"]
+    let package = draft_of(&tools, binding)?["draft"]["definition"]["body"]["package"]["id"]
         .as_u64()
         .ok_or("the package draft")?;
     let rows = query(
-        &mut server,
+        &tools,
         "templates",
         "library.templates",
         json!({"query": "qfn pins:48 pitch:0.5 body:7x7"}),
@@ -300,35 +261,31 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     let request = json!({"draft": package, "row": {"source": "starter", "name": starter},
         "renumber": [{"from": "49", "to": "EP"}]});
     let plan = query(
-        &mut server,
+        &tools,
         "package plan",
         "library.package_plan",
         json!({"request": request}),
     )?;
     assert_eq!(plan["footprint_created"], true, "{plan}");
     let built = apply(
-        &mut server,
+        &tools,
         "package from template",
         "library.package_from_template",
         request,
     )?;
-    let footprint = built["outcome"]["plan"]["footprint"]
+    let footprint = built["plan"]["footprint"]
         .as_u64()
         .ok_or_else(|| format!("the footprint: {built}"))?;
-    query(
-        &mut server,
-        "check drafts",
-        "component.check_drafts",
-        json!({}),
-    )?;
+    query(&tools, "check drafts", "component.check_drafts", json!({}))?;
 
     let checked = ok(
-        &mut server,
         "review check again",
-        "library_review_check",
-        report(json!([
-            "Row r20 (PB4): is AF1 SPI1_MISO? The scan is unreadable on page 14."
-        ])),
+        tools.query(
+            "library.review_check",
+            report(json!([
+                "Row r20 (PB4): is AF1 SPI1_MISO? The scan is unreadable on page 14."
+            ])),
+        ),
     )?;
     assert_eq!(checked["accepted"], true, "{checked}");
     assert_eq!(checked["pins"]["uncertain"], 1, "{checked}");
@@ -340,34 +297,29 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
 
     // Publishing is refused while a row is uncertain, and changes nothing.
     let set = json!({"drafts": [component, symbol, package, footprint, binding]});
-    let before = revision(&server);
-    let (failed, refusal) = tool(
-        &mut server,
-        "project_apply",
-        json!({"expected_revision": before, "operation": {"editor": "Library",
-            "operation": {"command": "library.publish", "params": set}}}),
-    );
+    let before = tools.revision();
+    let (failed, refusal) = tools.act("library.publish", set.clone());
     assert!(failed && refusal["code"] == "conflict", "{refusal}");
     assert!(
         refusal.to_string().contains("flagged uncertain"),
         "{refusal}"
     );
-    assert_eq!(revision(&server), before);
+    assert_eq!(tools.revision(), before);
 
     // The person checks every row in the Pins tab and confirms them (their
     // step, in the window): the review state goes, and they publish.
-    let draft = draft_of(&mut server, component)?;
+    let draft = draft_of(&tools, component)?;
     let mut body = draft["draft"]["definition"]["body"].clone();
     body["review"] = Value::Null;
     body["designator_prefix"] = json!("U");
     apply(
-        &mut server,
+        &tools,
         "the person confirms",
         "library.edit",
         json!({"edits": [{"id": component, "meta": draft["draft"]["meta"],
             "definition": {"kind": "component", "body": body}}]}),
     )?;
-    let published = apply(&mut server, "the person publishes", "library.publish", set)?;
+    let published = ok("the person publishes", tools.act("library.publish", set))?;
     assert!(
         published["outcome"]["revisions"]
             .as_array()
@@ -379,10 +331,11 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
 
 /// The check is a read: a server that asks for every edit still runs it.
 #[test]
-fn the_review_check_passes_the_strictest_gate() {
+fn the_review_check_passes_the_strictest_gate() -> Fallible<()> {
     let policy = Grant::new(Mode::AskEveryTime, Vec::<std::path::PathBuf>::new());
-    let mut server = Server::new(Session::default(), policy);
-    let (failed, checked) = tool(&mut server, "library_review_check", report(json!([])));
+    let tools = Tools::new(Session::default(), policy)?;
+    let (failed, checked) = tools.query("library.review_check", report(json!([])));
     assert!(!failed, "{checked}");
     assert_eq!(checked["accepted"], false, "no drafts yet: {checked}");
+    Ok(())
 }

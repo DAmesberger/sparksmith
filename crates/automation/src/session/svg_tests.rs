@@ -190,10 +190,8 @@ fn import_svg_is_in_the_generated_catalog() -> TestResult {
     for field in ["expected_revision", "draft", "target", "path", "scale"] {
         assert!(schema.contains(field), "{field} in {schema}");
     }
-    assert!(
-        crate::mcp::tools()
-            .iter()
-            .any(|t| t["name"] == crate::mcp::tool_name("library.import_svg"))
-    );
+    // A model reaches it as an action: it reads a file.
+    let entry = crate::mcp::catalog::entry("library.import_svg").ok_or("reachable")?;
+    assert_eq!(entry.kind, Some(super::metadata::Kind::Action));
     Ok(())
 }

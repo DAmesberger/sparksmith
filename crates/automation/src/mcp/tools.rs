@@ -1,9 +1,10 @@
-//! The five tools of `docs/mcp-surface.md` §3.1: `find` and `describe` over
-//! the catalog, and `query`, `apply` and `act`, one verb per permission
-//! class, so each tool's annotations are exact. The catalog's entries are
-//! data behind them ([`super::catalog`]); a verb reaches an entry only
-//! through its own kind, and every call becomes one request of the JSON
-//! contract that runs on the desk through the gate ([`super::desk`]).
+//! The six tools of `docs/mcp-surface.md` §3.1 and the extension surface's
+//! verbs: `find` and `describe` over the catalog, and `query`, `apply`,
+//! `act` and `show`, one verb per permission class, so each tool's
+//! annotations are exact. The catalog's entries are data behind them
+//! ([`super::catalog`]); a verb reaches an entry only through its own kind,
+//! and every call becomes one [`Call`] of the front door that runs on the
+//! desk ([`super::desk`]).
 //!
 //! Input schemas are generated from the argument types here. `apply`'s `op`
 //! is a plain string (the founder's answer to Q3): the catalog resolves it,
@@ -14,8 +15,8 @@
 use super::catalog::{self, Unreachable};
 use super::desk::{self, Desk};
 use super::outcome;
-use crate::session::Request;
-use crate::session::discovery::{self, Call};
+use crate::front::Call;
+use crate::session::discovery::{self, Call as Typed};
 use crate::session::metadata::{self, EntryMeta, Kind};
 use rmcp::ErrorData;
 use rmcp::model::{CallToolResult, JsonObject, Tool, ToolAnnotations};
@@ -33,12 +34,16 @@ pub const MAX_NAME: usize = 128;
 /// `find`'s hits by default, and at most.
 pub const FIND_LIMIT: usize = 10;
 pub const MAX_FIND_LIMIT: usize = 50;
+/// The most bytes `tools/list`'s tools may take: six verbs, held near the
+/// extension design's 3.5 KB target.
+pub const TOOLS_BUDGET: usize = 3_584;
 
 pub const FIND: &str = "find";
 pub const DESCRIBE: &str = "describe";
 pub const QUERY: &str = "query";
 pub const APPLY: &str = "apply";
 pub const ACT: &str = "act";
+pub const SHOW: &str = "show";
 
 /// The requests that open a project of their own rather than act on one.
 const OPENS: &[&str] = &["project.new", "project.open"];
@@ -130,7 +135,16 @@ pub struct Step {
     pub params: Map<String, Value>,
 }
 
-/// The five tools, in their fixed order.
+/// `show` arguments.
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ShowArgs {
+    pub name: String,
+    #[serde(default)]
+    pub params: Map<String, Value>,
+}
+
+/// The six tools, in their fixed order.
 pub fn tools() -> Vec<Tool> {
     static TOOLS: OnceLock<Vec<Tool>> = OnceLock::new();
     TOOLS.get_or_init(build).clone()
@@ -173,6 +187,13 @@ fn build() -> Vec<Tool> {
             "Runs an action (files, exports, publishing); a person approves it. project.new and project.open {path} return a new project's handle, valid until the server exits.",
             schema::<RunArgs>(),
             metadata::annotations(Class::Ask, true),
+        ),
+        tool(
+            SHOW,
+            "Steer the window",
+            "Changes what the window shows (selection, camera, view); never the document, no undo step. Needs the window (mcp --live).",
+            schema::<ShowArgs>(),
+            metadata::annotations(Class::Show, false),
         ),
     ]
 }
@@ -331,9 +352,15 @@ pub async fn call(
             Ok(args) => handle.run(move |d| run(d, Kind::Action, args)).await?,
             Err(failure) => failure,
         },
+        SHOW => match parse::<ShowArgs>(arguments) {
+            Ok(args) => handle.run(move |d| show(d, &args)).await?,
+            Err(failure) => failure,
+        },
         other => {
             return Err(ErrorData::invalid_params(
-                format!("unknown tool {other}: the tools are find, describe, query, apply and act"),
+                format!(
+                    "unknown tool {other}: the tools are find, describe, query, apply, act and show"
+                ),
                 None,
             ));
         }
@@ -443,7 +470,7 @@ fn score(wanted: &[String], text: &str, entry: &EntryMeta) -> usize {
 }
 
 /// `describe`: `project.schema` of one reachable entry, through the gate,
-/// with the call that sends it on this surface instead of today's tools.
+/// with the call that sends it on this surface.
 fn describe(desk: &mut Desk, args: DescribeArgs) -> Value {
     if let Some(failure) = too_long("name", &args.name, MAX_NAME) {
         return failure;
@@ -464,9 +491,11 @@ fn describe(desk: &mut Desk, args: DescribeArgs) -> Value {
     let Some(entry) = catalog::entry(&args.name) else {
         return Unreachable::unknown(&args.name, None).reply();
     };
-    let request =
-        json!({"command": "project.schema", "params": {"name": args.name, "def": args.def}});
-    let mut reply = desk.respond_catalog(request);
+    let mut reply = desk.catalog(envelope(
+        "project.schema",
+        json!({"name": args.name, "def": args.def}),
+        None,
+    ));
     if reply["ok"] != true || args.def.is_some() {
         return reply;
     }
@@ -511,7 +540,21 @@ fn example(entry: &EntryMeta) -> Value {
     }
 }
 
-/// `query` and `act`: one entry of `kind` as one request.
+/// A call of the front door: `entry` with `params`, at `expected`.
+fn envelope(entry: &str, params: Value, expected: Option<u64>) -> Call {
+    Call {
+        entry: entry.to_owned(),
+        params,
+        project: None,
+        expected_revision: expected,
+        dry_run: false,
+        confirm: None,
+        turn: None,
+        job: false,
+    }
+}
+
+/// `query` and `act`: one entry of `kind` as one call.
 fn run(desk: &mut Desk, kind: Kind, args: RunArgs) -> Value {
     if let Some(failure) = too_long("name", &args.name, MAX_NAME) {
         return failure;
@@ -520,6 +563,11 @@ fn run(desk: &mut Desk, kind: Kind, args: RunArgs) -> Value {
         Ok(entry) => entry,
         Err(unreachable) => return unreachable.reply(),
     };
+    let sent = envelope(
+        &entry.name,
+        Value::Object(args.params),
+        args.expected_revision,
+    );
     if OPENS.contains(&entry.name.as_str()) {
         if args.project.is_some() {
             return desk::failure(
@@ -530,16 +578,12 @@ fn run(desk: &mut Desk, kind: Kind, args: RunArgs) -> Value {
                 ),
             );
         }
-        return desk.open(json!({"command": entry.name, "params": args.params}));
+        return desk.open(sent);
     }
-    let request = match request(entry, args.params, args.expected_revision) {
-        Ok(request) => request,
-        Err(failure) => return failure,
-    };
-    desk.respond(args.project.as_deref(), request)
+    desk.call(args.project.as_deref(), sent)
 }
 
-/// `apply`: the steps as one request, `project.apply_all` for document
+/// `apply`: the steps as one call, `project.apply_all` for document
 /// operations, or the one command-level edit (undo, an update) alone.
 fn apply(desk: &mut Desk, args: ApplyArgs) -> Value {
     let count = args.operations.len();
@@ -560,7 +604,7 @@ fn apply(desk: &mut Desk, args: ApplyArgs) -> Value {
             Err(unreachable) => return unreachable.reply(),
         };
         match discovery::call(&entry.name, Value::Object(step.params.clone())) {
-            Some(Call::Operation(operation)) => operations.push(operation),
+            Some(Typed::Operation(operation)) => operations.push(operation),
             _ if count == 1 => alone = Some((entry, step.params)),
             _ => {
                 return desk::failure(
@@ -573,59 +617,48 @@ fn apply(desk: &mut Desk, args: ApplyArgs) -> Value {
             }
         }
     }
-    let request = match alone {
-        Some((entry, params)) => match request(entry, params, Some(args.expected_revision)) {
-            Ok(request) => request,
-            Err(failure) => return failure,
-        },
-        None => json!({"command": "project.apply_all", "params": {
-            "expected_revision": args.expected_revision, "operations": operations}}),
+    let mut sent = match alone {
+        Some((entry, params)) => envelope(
+            &entry.name,
+            Value::Object(params),
+            Some(args.expected_revision),
+        ),
+        None => envelope(
+            "project.apply_all",
+            json!({"operations": operations}),
+            Some(args.expected_revision),
+        ),
     };
-    if args.dry_run {
-        desk.rehearse(args.project.as_deref(), request)
-    } else {
-        desk.respond(args.project.as_deref(), request)
-    }
+    sent.dry_run = args.dry_run;
+    desk.call(args.project.as_deref(), sent)
 }
 
-/// The request that runs `entry` with `params`: a command as itself (with
-/// `expected_revision` where its schema takes one), an operation inside
-/// `project.apply_all`, a query inside `project.query`.
-fn request(
-    entry: &EntryMeta,
-    mut params: Map<String, Value>,
-    expected: Option<u64>,
-) -> Result<Value, Value> {
-    let name = entry.name.as_str();
-    match discovery::call(name, Value::Object(params.clone())) {
-        Some(Call::Operation(operation)) => {
-            let Some(expected) = expected else {
-                return Err(desk::failure(
-                    "arguments.invalid",
-                    format!(
-                        "{name} changes the document: give expected_revision from the last reply"
-                    ),
-                ));
-            };
-            Ok(json!({"command": "project.apply_all", "params": {
-                "expected_revision": expected, "operations": [operation]}}))
-        }
-        Some(Call::Query(query)) => Ok(json!({"command": "project.query", "params": query})),
-        Some(Call::Command) | None => {
-            if let Some(expected) = expected
-                && takes_revision(name)
-            {
-                params.insert("expected_revision".into(), json!(expected));
-            }
-            Ok(json!({"command": name, "params": params}))
-        }
+/// `show`: the window's entries. Headless there is no window; live, no
+/// entry of the class is served yet (they arrive with the `view` module).
+fn show(desk: &mut Desk, args: &ShowArgs) -> Value {
+    if let Some(failure) = too_long("name", &args.name, MAX_NAME) {
+        return failure;
     }
-}
-
-/// Whether the command `name`'s parameters name the revision they expect.
-fn takes_revision(name: &str) -> bool {
-    Request::catalog_shared()
-        .iter()
-        .find(|c| c.id == name)
-        .is_some_and(|c| c.params["properties"].get("expected_revision").is_some())
+    if !desk.is_live() {
+        return desk::failure(
+            "host.unavailable",
+            concat!(
+                "this server has no window: show steers the ",
+                sparksmith_core::product_name!(),
+                " window, which mcp --live reaches. Nothing was changed."
+            )
+            .into(),
+        );
+    }
+    let shown: String = args.name.chars().take(64).collect();
+    let why = match catalog::entry(&args.name).and_then(|entry| entry.kind) {
+        Some(Kind::Query) => "it is a query: read it with query",
+        Some(Kind::Operation) => "it is an operation: make it with apply",
+        Some(Kind::Action) => "it is an action: run it with act",
+        None => "this build serves no show entry yet",
+    };
+    desk::failure(
+        "catalog.unknown",
+        format!("no show entry {shown}: {why}. Nothing was changed."),
+    )
 }

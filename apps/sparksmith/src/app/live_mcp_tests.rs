@@ -123,11 +123,8 @@ impl Harness {
     /// `layout.add_via` at `revision`.
     fn add_via(&self, revision: u64) -> Value {
         let net = self.app.engine.project().nets.first().map_or(0, |n| n.id);
-        json!({"command": "project.apply", "params": {
-            "expected_revision": revision,
-            "operation": {"editor": "Layout", "operation": {"command": "layout.add_via", "params": {
-                "via": {"net": net, "position": [1.0, 1.0], "drill": 0.3, "diameter": 0.6, "span": "through", "tented": true}
-            }}},
+        json!({"entry": "layout.add_via", "expected_revision": revision, "params": {
+            "via": {"net": net, "position": [1.0, 1.0], "drill": 0.3, "diameter": 0.6, "span": "through", "tented": true}
         }})
     }
 
@@ -148,7 +145,7 @@ fn an_assistant_edits_the_open_project_with_shared_undo() -> Fallible {
     let mut h = Harness::new()?;
     let revision = h.app.engine.revision();
     let before = h.app.engine.document().clone();
-    let reply = h.call(live::EXECUTE, h.add_via(revision))?;
+    let reply = h.call(live::CALL, h.add_via(revision))?;
     assert_eq!(reply["ok"], true, "{reply}");
     let bytes = reply.to_string().len();
     assert!(bytes < 4 * 1024, "the reply is {bytes} bytes: {reply}");
@@ -167,16 +164,16 @@ fn an_assistant_edits_the_open_project_with_shared_undo() -> Fallible {
 
     // The assistant redoes at the revision it last saw: refused, stale.
     let stale = h.call(
-        live::EXECUTE,
-        json!({"command": "project.redo", "params": {"expected_revision": revision + 1}}),
+        live::CALL,
+        json!({"entry": "project.redo", "params": {}, "expected_revision": revision + 1}),
     )?;
     assert_eq!(code(&stale), "stale_revision", "{stale}");
     let now = h.call(live::REVISION, json!({}))?;
     let current = now["result"]["revision"].as_u64().ok_or("revision")?;
     assert_eq!(current, h.app.engine.revision());
     let redone = h.call(
-        live::EXECUTE,
-        json!({"command": "project.redo", "params": {"expected_revision": current}}),
+        live::CALL,
+        json!({"entry": "project.redo", "params": {}, "expected_revision": current}),
     )?;
     assert_eq!(redone["ok"], true, "{redone}");
     assert_eq!(
@@ -191,7 +188,8 @@ fn an_assistant_edits_the_open_project_with_shared_undo() -> Fallible {
 
 /// While the person holds the window (the command palette open, a pointer
 /// held down), a change is refused with the reason and nothing changes; a
-/// read still answers. The window's own file requests are refused.
+/// read still answers. The window's own file requests are refused: the
+/// files module is outside its grant.
 #[test]
 fn changes_wait_while_the_person_holds_the_window() -> Fallible {
     let mut h = Harness::new()?;
@@ -200,9 +198,12 @@ fn changes_wait_while_the_person_holds_the_window() -> Fallible {
 
     h.app.palette.open();
     h.frame(Vec::new());
-    let refused = h.call(live::EXECUTE, h.add_via(revision))?;
+    let refused = h.call(live::CALL, h.add_via(revision))?;
     assert_eq!(code(&refused), "live.busy", "{refused}");
-    let read = h.call(live::EXECUTE, json!({"command": "project.inspect"}))?;
+    let read = h.call(
+        live::CALL,
+        json!({"entry": "project.inspect", "params": {}}),
+    )?;
     assert_eq!(read["ok"], true, "{read}");
     h.app.palette.close();
     h.frame(vec![egui::Event::Key {
@@ -223,7 +224,7 @@ fn changes_wait_while_the_person_holds_the_window() -> Fallible {
             modifiers: egui::Modifiers::NONE,
         },
     ]);
-    let dragging = h.call(live::EXECUTE, h.add_via(revision))?;
+    let dragging = h.call(live::CALL, h.add_via(revision))?;
     assert_eq!(code(&dragging), "live.busy", "{dragging}");
     assert!(
         dragging["error"]["message"]
@@ -241,12 +242,12 @@ fn changes_wait_while_the_person_holds_the_window() -> Fallible {
     assert_eq!(h.app.engine.revision(), revision);
 
     let open = h.call(
-        live::EXECUTE,
-        json!({"command": "project.open", "params": {"expected_revision": revision, "path": "/tmp/x.sparksmith"}}),
+        live::CALL,
+        json!({"entry": "project.open", "params": {"path": "/tmp/x.sparksmith"}, "expected_revision": revision}),
     )?;
-    assert_eq!(code(&open), "live.window_only", "{open}");
-    let missing = h.call(live::EXECUTE, json!({"command": "project.undo"}))?;
-    assert_eq!(code(&missing), "live.revision_required", "{missing}");
+    assert_eq!(code(&open), "gate.module", "{open}");
+    let missing = h.call(live::CALL, json!({"entry": "project.undo", "params": {}}))?;
+    assert_eq!(code(&missing), "malformed_request", "{missing}");
     assert_eq!(h.app.engine.revision(), revision);
     Ok(())
 }
@@ -259,12 +260,12 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
     let revision = h.app.engine.revision();
     let dir = tempfile::tempdir_in(std::env::temp_dir())?;
     let path = dir.path().join("board.solidcraft");
-    let export = json!({"command": "project.export_native",
+    let export = json!({"entry": "project.export_native",
         "params": {"path": path.display().to_string()}});
 
     let mut client = h.client()?;
     let sent = export.clone();
-    let asked = std::thread::spawn(move || client.call(live::EXECUTE, sent));
+    let asked = std::thread::spawn(move || client.call(live::CALL, sent));
     for _ in 0..5000 {
         if h.app.live_held().is_some() {
             break;
@@ -274,7 +275,7 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
     }
     assert_eq!(h.app.live_held(), Some("project.export_native"));
     // Meanwhile another change is refused: the window waits for an answer.
-    let waiting = h.call(live::EXECUTE, h.add_via(revision))?;
+    let waiting = h.call(live::CALL, h.add_via(revision))?;
     assert_eq!(code(&waiting), "live.busy", "{waiting}");
     h.app.live_answer(false);
     let denied = asked.join().map_err(|_| "client thread")??;
@@ -282,7 +283,7 @@ fn an_ask_request_waits_for_the_person() -> Fallible {
     assert!(!path.exists());
 
     let mut client = h.client()?;
-    let asked = std::thread::spawn(move || client.call(live::EXECUTE, export));
+    let asked = std::thread::spawn(move || client.call(live::CALL, export));
     for _ in 0..5000 {
         if h.app.live_held().is_some() {
             break;
@@ -317,11 +318,11 @@ fn turning_access_off_closes_the_channel() -> Fallible {
 fn live_mcp_never_adds_a_library_source() -> Fallible {
     let mut h = Harness::new()?;
     let dir = tempfile::tempdir_in(std::env::temp_dir())?;
-    let add = json!({"command": "library.source.add",
+    let add = json!({"entry": "library.source.add",
         "params": {"path": dir.path().display().to_string()}});
     for mode in [Mode::AskEveryTime, Mode::AutoAllowEdits, Mode::AllowAll] {
         h.app.live.mode = mode;
-        let reply = h.call(live::EXECUTE, add.clone())?;
+        let reply = h.call(live::CALL, add.clone())?;
         assert_eq!(code(&reply), "gate.never", "{mode:?}: {reply}");
         assert!(h.app.live_held().is_none(), "{mode:?}");
         assert!(h.app.live.session.sources().list().is_empty(), "{mode:?}");
@@ -343,10 +344,10 @@ fn live_mcp_runs_a_path_read_on_allow() -> Fallible {
         ),
         &part,
     )?;
-    let check = json!({"command": "library.check_part_file",
+    let check = json!({"entry": "library.check_part_file",
         "params": {"path": part.display().to_string()}});
     let mut client = h.client()?;
-    let asked = std::thread::spawn(move || client.call(live::EXECUTE, check));
+    let asked = std::thread::spawn(move || client.call(live::CALL, check));
     for _ in 0..5000 {
         if h.app.live_held().is_some() {
             break;

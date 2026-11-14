@@ -1,6 +1,6 @@
 # The capability surface
 
-The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2 and S2b) and how to change it.
+The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2, S2b and S3) and how to change it.
 
 ## Entries and modules
 
@@ -52,7 +52,7 @@ A line is `Variant "wire.name" Class "Title" [attributes]`. A variant without it
 
 The title is at most 40 bytes; the summary is the first sentence of the doc comment (for requests, the catalog's summary), at most 140 bytes. The kind is derived: Never reaches no model; Ask or a path makes an action; else a read is a query and an edit an operation.
 
-The macro builds `ENTRIES: &[EntryDecl]` for each enum. Discovery, the MCP tool annotations, the five-verb server's metadata and `surface.lock` all read these; no list elsewhere names an entry.
+The macro builds `ENTRIES: &[EntryDecl]` for each enum. Discovery, the MCP verbs' catalog (`find`, `describe`) and `surface.lock` all read these; no list elsewhere names an entry.
 
 ### Paths
 
@@ -98,7 +98,7 @@ The types are in the ABI crate, `sparksmith_generator_abi::surface` (`no_std` + 
 
 `cargo xtask surface --update` rewrites the lock, after the same rules pass. To change the surface, raise the module's version in `MODULES` (and `since` on a new entry), then update the lock.
 
-**Versions before the cut-over.** Every module is `0.x` until the MCP cut-over (S3), where each starts at `1.0` (decision 12). Before 1.0 the minor is the breaking number, as in semver: any change raises the minor. From 1.0 a break raises the major and an addition the minor.
+**Versions.** Every module was `0.x` until the MCP cut-over (S3), where each started at `1.0` (decision 12; `permission::CUT_OVER`). From 1.0 a break raises the major and an addition the minor: a new entry raises its module's minor and declares `since` it (for example `since(1, 1)`).
 
 ## What S1 deleted
 
@@ -110,23 +110,41 @@ MCP behaviour, the tool lists and their annotations are unchanged.
 
 ## The front door
 
-Every call reaches the engine through one function, `Surface::call` (`crates/automation/src/front.rs`), implemented by `Session` (S2). `Session::respond`, `dispatch`, `execute` and `rehearse` are calls through it; the old MCP server, the five-verb server, the live channel, the CLI and the built-in assistant all reach it that way.
+Every call reaches the engine through one function, `Surface::call` (`crates/automation/src/front.rs`), implemented by `Session` (S2). `Session::respond`, `dispatch`, `execute` and `rehearse` are calls through it; the MCP server (headless and live), the live channel, the CLI and the built-in assistant all reach it that way.
 
 - **The envelope.** A `Call` names any entry by its own name: an operation (`layout.add_via`), a query (`project.bom`) or a request (`project.save`), with its `params`. `expected_revision` is the envelope's. An entry takes it when it is an operation or its parameters name one (`EntryMeta::revision`, from the schema); such a call without one is refused (`malformed_request`), and one given in the parameters too must agree. The session checks it once, before any file is read or written, and the engine again. `dry_run: true` runs an edit on a fork and keeps nothing. `confirm`, `turn` and `job` are refused (`host.unsupported`) until S4 and the plan slices serve them; `project` is for a transport holding several sessions.
-- **The wrappers.** `project.apply`, `project.apply_all` and `project.query` stay in the catalog as the shapes the JSON-lines and MCP transports send until the cut-over (S3). The front door reads `{"command", "params"}` as a call (`front::from_request`), moving the revision to the envelope, and the gate weighs the operations and queries inside a wrapper, each in its own module, never the wrapper. `project.schema` is the catalog lookup until the `describe` verb replaces it.
+- **The wrappers.** `project.apply`, `project.apply_all` and `project.query` stay in the catalog as the shapes the JSON-lines transport sends; MCP sends calls by entry name, and its `apply` verb sends a batch as `project.apply_all`. The front door reads `{"command", "params"}` as a call (`front::from_request`), moving the revision to the envelope, and the gate weighs the operations and queries inside a wrapper, each in its own module, never the wrapper. `project.schema` is the catalog lookup the `describe` verb reads.
 - **Who calls.** `Principal`: `Person` (the UI), `Operator` (the person's own script), `LocalAgent` (the built-in agent) and `RemoteAgent` (MCP and other model-facing transports). The person and the operator run everything. `Plugin` comes with S8. Transports still name a `Caller` (`Operator`, `Model`, `Allowed`), which maps to a principal and whether a person already allowed the request.
 - **Grants.** `Grant` (formerly `Policy`): the mode, the folders and a ceiling class per module. A module absent from the grant is out of reach. `Grant::new(mode, folders)`, what the CLI and MCP flags give, has every module up to Ask; `Grant::local_agent` has the document's modules up to Edit and `files`, `fab` and `model3d` up to Ask.
 - **One decision.** `gate::decide_entries`, the same for every principal: the person and the operator run; Never is refused (`gate.never`); a class above the grant's ceiling for the entry's module is refused (`gate.module`); a path outside the folders is refused (`gate.path_outside`); the mode decides Run or Ask. A path makes a call at least Ask; a batch takes its strictest member. An unknown entry is refused before (`catalog.unknown`, with the nearest names in `closest`). `front::tests::one_decision_over_every_entry_and_every_principal` holds it as a table over every catalog entry and every principal.
-- **Asking.** What needs a person goes to the host's `Asker`: Allow runs, Deny answers `gate.denied`, and a host with no way to ask (`NoOne`) answers `gate.cannot_ask`. A dry run asks no one, since it keeps nothing.
+- **Asking.** What needs a person goes to the host's `Asker`: Allow runs, Deny answers `gate.denied`, and a host with no way to ask (`NoOne`) answers `gate.needs_person`, saying where a person can allow it. A dry run asks no one, since it keeps nothing.
 - **One error.** Every failure is `sparksmith_generator_abi::surface::Error`: engine and file diagnostics keep their codes, and gate refusals carry `instead`. On the wire it is a superset of the old diagnostic, so replies keep their shape.
 
-Not yet: the `review` person step does not ask (it comes with plans, `dry_run` and `confirm`), there is no `host.unavailable` (no entry needs a window yet), and the busy rule stays in the live channel until S5.
+Not yet: the `review` person step does not ask (it comes with plans, `dry_run` and `confirm`), no entry needs a window yet (the MCP `show` verb answers `host.unavailable` headless), and the busy rule stays in the live channel until S5.
 
 ## What S2 deleted
 
 - `Request::expected_revision` and its 50-arm match: the envelope's revision and `EntryMeta::revision`.
 - `gate::Refusal` and `Policy`: the one `Error` and `Grant`.
 - `Session::admit` and the gate's own path resolution: `Surface::decide` and `Session::gate`.
+
+## The MCP cut-over (S3)
+
+`sparksmith mcp` and `sparksmith mcp --live` serve the catalog on MCP `2026-07-28` only, through six verbs: `find`, `describe`, `query`, `apply`, `act` and `show` (`crates/automation/src/mcp/tools.rs`). `tools/list` is the verbs and nothing else (3,398 bytes, held under 3.5 KB by a test); every entry, the generator entries included, is data behind them. Each verb call becomes one `Call` through `Surface::call` as a remote agent:
+
+- **Headless**, on the server's own sessions (project handles, `docs/mcp-surface.md` §3.2). Nobody can be asked, so a person-owned step is refused with `gate.needs_person`.
+- **Live**, sent to the window as the same envelope (the live channel's `surface.call`); the window decides with its own grant (`live::grant`: every module but `files`, so opening, saving and starting a project stay the person's, refused with `gate.module`) and asks the person in the window.
+- **`show`** steers the window. No entry has the show class yet (S5), so headless it answers `host.unavailable`.
+
+The `datasheet_to_component` prompt serves `skills/sparksmith-datasheet-part/SKILL.md`. [MCP surface, as built: S3](mcp-surface.md#as-built-s3-the-cut-over-14-november-2026) has the detail.
+
+## What S3 deleted
+
+- The old MCP server, its 40 per-command tools, `tool_name`, `INSTRUCTIONS` and `LIVE_INSTRUCTIONS`, and its protocol versions.
+- The list of requests MCP hid (the generator requests) and the 64 KiB `tools/list` test: the six verbs have a fixed size.
+- `live_tools` and `live::WINDOW_ONLY`: the window's grant leaves out the `files` module.
+- The live channel's `engine.execute` `{command, params}`: it carries a `Call`.
+- `CommandInfo::permission_note` and the per-command tool schemas in `discovery`.
 
 ## Explicit context
 

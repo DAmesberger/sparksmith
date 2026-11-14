@@ -127,11 +127,12 @@ but Linux and Windows have not been checked as products yet.
 
 ## Drive it from an agent (MCP)
 
-`sparksmith mcp` serves the engine as a Model Context Protocol server on stdio: the same typed
-operations as the UI (`project_apply` with an expected revision), queries (`project_query`: library
-search, component checks, BOM, pin reports, the production pre-flight), undo and redo, save and the
-exports. Replies are compact (the outcome, the ids that changed, new findings) and `verbose: true`
-returns the whole document; `project_schema` serves each operation's exact schema on demand, and
+`sparksmith mcp` serves the engine as a Model Context Protocol server (`2026-07-28`) on stdio,
+through six verbs: `find` and `describe` over the catalog, `query` (library search, component
+checks, BOM, pin reports, the production pre-flight), `apply` (the same typed operations as the
+UI, with an expected revision, undo and redo), `act` (save and the exports) and `show` (the
+window). Replies are compact (the outcome, the ids that changed, new findings) and `verbose: true`
+returns the whole document; `describe` serves each entry's exact schema on demand, and
 `sparksmith commands` prints every schema, generated from the Rust types.
 
 Build the CLI once, then register it with your MCP client. For Claude Code:
