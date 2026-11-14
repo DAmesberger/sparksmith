@@ -82,7 +82,8 @@ pub fn convert(path: &Path, options: &Options) -> Result<Converted> {
     let zip_options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .last_modified_time(zip::DateTime::default())
-        .unix_permissions(0o644);
+        .unix_permissions(0o644)
+        .system(zip::System::Unix);
     for i in 0..archive.len() {
         let entry = archive.by_index_raw(i)?;
         if entry.name()? == CONTAINER_DOCUMENT {

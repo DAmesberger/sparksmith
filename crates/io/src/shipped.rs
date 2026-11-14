@@ -271,9 +271,11 @@ mod tests {
 
     #[test]
     fn a_missing_library_says_where_it_looked() {
-        let error = ShippedLibrary::locate_from(|_| None, Some(PathBuf::from("/nowhere/bin/app")));
+        let bin = Path::new("/nowhere").join("bin");
+        let error = ShippedLibrary::locate_from(|_| None, Some(bin.join("app")));
+        let looked = bin.join(FOLDER).display().to_string();
         assert!(
-            matches!(error, Err(Error::Invalid(message)) if message.contains("/nowhere/bin/library") && message.contains(ENV))
+            matches!(error, Err(Error::Invalid(message)) if message.contains(&looked) && message.contains(ENV))
         );
     }
 
