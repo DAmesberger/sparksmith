@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tabbed-rows",
+  "title": "SOT-23 and SC-70 package",
+  "summary": "Small-outline transistor package: an epoxy body on its standoff and bent tin gull-wing leads in two rows, the −y and +y rows each a pattern with its own count and grid step (pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length, row_s_leads, row_s_step, row_n_leads, row_n_step, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the SOT-23-5 starter values (JEDEC MO-178); the tabbed generator gives every input its value. Estimated rounds and lead bends; no vendor drawing or EDA/CAD library data copied."
+}

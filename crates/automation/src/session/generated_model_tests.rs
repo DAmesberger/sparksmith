@@ -169,3 +169,48 @@ fn every_through_hole_preset_is_made_with_its_model() -> TestResult {
     }
     Ok(())
 }
+
+/// Every tabbed preset makes a part through the session from the shipped
+/// bundle: its part file at the module's values passes the checks (the
+/// envelope, a DPAK's flange side included, and every lead contact under a
+/// lead body bound to its terminal).
+#[test]
+fn every_tabbed_preset_makes_a_part_with_its_model() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = library(temp.path())?;
+    copy_dir(
+        &Path::new(BUNDLE).with_file_name("tabbed"),
+        &root.join("generators/tabbed"),
+    )?;
+    for preset in [
+        "tabbed-sot-23-3",
+        "tabbed-sot-23-5",
+        "tabbed-sot-23-6",
+        "tabbed-sc-70-3",
+        "tabbed-sc-70-5",
+        "tabbed-sc-70-6",
+        "tabbed-sot-223",
+        "tabbed-sot-89",
+        "tabbed-dpak",
+        "tabbed-d2pak",
+    ] {
+        let mut made = session(&root)?;
+        let reply = call(
+            &mut made,
+            "library.generate_part",
+            json!({"generator": "tabbed", "scope": "component", "preset": preset, "params": {}}),
+        );
+        assert_eq!(reply["ok"], true, "{preset}: {reply}");
+        let library = &made.engine().project().library;
+        let package = library.packages.first().ok_or("no package")?;
+        let PackageModel::PartFile(part) = &package.definition.model else {
+            return Err(format!("{preset}: no part file").into());
+        };
+        assert_eq!(
+            part.derived.leads.len(),
+            package.definition.terminals.len(),
+            "{preset}: every lead bound"
+        );
+    }
+    Ok(())
+}

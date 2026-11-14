@@ -5179,6 +5179,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-tabbed"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-tht"
 version = "0.1.0"
 dependencies = [

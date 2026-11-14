@@ -20,6 +20,7 @@ members = [
     "generators/header",
     "generators/molded",
     "generators/no-lead",
+    "generators/tabbed",
     "generators/tht",
     "apps/sparksmith-cli",
     "crates/ui",

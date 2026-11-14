@@ -120,6 +120,37 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
             }
             Some(("tht", params))
         }
+        PackageForm::Tabbed(t) => {
+            int("leads_s", i64::from(t.leads_per_side[0]));
+            int("leads_n", i64::from(t.leads_per_side[1]));
+            int("step_s", i64::from(t.lead_step[0]));
+            int("step_n", i64::from(t.lead_step[1]));
+            int("pitch", t.pitch_nm.get());
+            int("body_length", t.body_length_nm.get());
+            int("body_width", t.body_width_nm.get());
+            int("body_height", t.body_height_nm.get());
+            int("standoff", t.standoff_nm.get());
+            int("span", t.span_nm.get());
+            int("lead_width", t.lead_width_nm.get());
+            int("lead_thickness", t.lead_thickness_nm.get());
+            int("foot_length", t.foot_length_nm.get());
+            let kind = match t.tab {
+                None => "none",
+                Some(tab) => {
+                    int("tab_width", tab.width_nm.get());
+                    int("tab_length", tab.length_nm.get());
+                    match tab.flange_nm {
+                        None => "lead",
+                        Some(p) => {
+                            int("flange", p.get());
+                            "flange"
+                        }
+                    }
+                }
+            };
+            params.insert("tab".into(), ParamValue::Text(kind.into()));
+            Some(("tabbed", params))
+        }
         PackageForm::Molded(m) => {
             use sparksmith_core::library::package_form::molded::MoldedLead;
             int("body_length", m.body_length_nm.get());
