@@ -1,7 +1,7 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "0.3", "digest": "sha256:c5218849896a8b7d5075a1a23d8fc026f4b41972b6d56ba9cf1f2de8c93c01b7", "entries": [
-  {"name":"project.apply","class":"edit","schema":"e9302930b78a9c31","fields":[["expected_revision","9295ea67127970c6"],["operation","938d4ea9027f9888"]],"required":["expected_revision","operation"]},
-  {"name":"project.apply_all","class":"edit","schema":"c10679425c1c7847","fields":[["expected_revision","9295ea67127970c6"],["operations","1ad411abe478c6fa"]],"required":["expected_revision","operations"]},
+ {"id": "project", "version": "0.4", "digest": "sha256:3c704928ba0e66989f57e5cfb77204798be0411d6a028594a9906ae6f1d2e75e", "entries": [
+  {"name":"project.apply","class":"edit","schema":"5d2ba870e4cc084b","fields":[["expected_revision","9295ea67127970c6"],["operation","83312633e080dbca"]],"required":["expected_revision","operation"]},
+  {"name":"project.apply_all","class":"edit","schema":"b79942d8efada71d","fields":[["expected_revision","9295ea67127970c6"],["operations","d3da52a3783537e3"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"project.inspect","class":"read","schema":"249aa00f4b2dbec1","fields":[["at","40bd5b57f4261fe2"]],"required":[]},
   {"name":"project.query","class":"read","schema":"5f1122e2b9c0a374","fields":[],"required":[]},
@@ -83,7 +83,7 @@
   {"name":"wire.set_path","class":"edit","schema":"705ecb1ce27bb5a3","fields":[["corners","73d1f761686fc06c"],["from","846e8bebc4584c84"],["to","846e8bebc4584c84"],["wire","9295ea67127970c6"]],"required":["wire"]},
   {"name":"wire.set_radius","class":"edit","schema":"e42e553e7eecee31","fields":[["index","2edcfeee1addbd20"],["radius","9bb62b1d9da95c32"],["wire","9295ea67127970c6"]],"required":["index","radius","wire"]}
  ]},
- {"id": "layout", "version": "0.2", "digest": "sha256:216e68c82d80cc09d27528dc0aef55f4c3664bdfd133406a934f23f8c1bc5700", "entries": [
+ {"id": "layout", "version": "0.3", "digest": "sha256:636689cd53e4f6c8ea55f470566685bdb9ad349f36d3c63df6a2f4bd21efce6d", "entries": [
   {"name":"board.edit","class":"edit","schema":"61a6f30290e0b1f2","fields":[["edits","162f1d8bbf2ef47c"]],"required":["edits"]},
   {"name":"board.set_rectangle","class":"edit","schema":"a40811035afccce6","fields":[["size","6a3d87a414a20bc3"]],"required":["size"]},
   {"name":"board.shape","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
@@ -132,6 +132,7 @@
   {"name":"layout.set_fabrication","class":"edit","schema":"2201492ae3fbb523","fields":[["mask_colour","18f9d1555a3b3032"],["mask_finish","5f2ae33fa41da855"],["pad_finish","8dad0a9f7eaef272"],["silkscreen_colour","5f61b934e287afbe"]],"required":["mask_colour","mask_finish","pad_finish","silkscreen_colour"]},
   {"name":"layout.set_part","class":"edit","schema":"21b811ec43bad1d8","fields":[["instance","9295ea67127970c6"],["part","5fa5b8dd5a012448"]],"required":["instance","part"]},
   {"name":"layout.set_part_file_values","class":"edit","schema":"6696ffb13b21b467","fields":[["bom","77527e610f033c59"],["expected_revision","9295ea67127970c6"],["instance","9295ea67127970c6"],["pads","f67b8ae6707f18fa"],["pick_and_place","77527e610f033c59"],["values","2905ffaa50c97ef9"]],"required":["expected_revision","instance"]},
+  {"name":"layout.set_refused_import_tracks","class":"edit","schema":"42af348dada9f3e7","fields":[["tracks","9ca2a54195a7cff8"]],"required":["tracks"]},
   {"name":"layout.set_stackup","class":"edit","schema":"d84846ff47dae125","fields":[["copper","3b49ca48bf7d6c8d"],["dielectrics","5a3bc94aa7377034"],["mask_bottom","90c3f0cfcf6ff8f0"],["mask_laminate_nm","4cefa84b0ee7d4fe"],["mask_top","90c3f0cfcf6ff8f0"],["mask_um","357133641c82f95d"],["silkscreen_bottom","90c3f0cfcf6ff8f0"],["silkscreen_top","90c3f0cfcf6ff8f0"]],"required":["copper","dielectrics","mask_bottom","mask_top","silkscreen_bottom","silkscreen_top"]},
   {"name":"layout.sync","class":"edit","schema":"8c0ca73827fa1a28","fields":[["command","a7e21bb803c41c1a"]],"required":["command"]},
   {"name":"layout.track_delete","class":"edit","schema":"244adef7c3868093","fields":[["id","9295ea67127970c6"]],"required":["id"]},
