@@ -47,7 +47,7 @@ Formerly Pcbcraft. Renamed to avoid confusion with tangency-labs' PCBCraft, a se
 - **PCB.** 2 to 64 copper layers with a typed stackup. Interactive routing that shoves or walks round other nets. Differential pairs at a gap derived from the stackup's impedance, and length meanders. Fab profiles, net classes, copper fills with thermals, and parametric board outlines.
 - **3D.** One key from the layout. Peel the stackup layer by layer. Generated part models with markings, and imported STEP, GLB and `.solidcraft` models.
 - **Production.** Gerber X2, Excellon, a job file, pick-and-place, BOMs, and fabrication and assembly drawings. Tests read every Gerber layer back and compare it with the design.
-- **Automation.** MCP and JSON lines over the same commands as the UI, including live MCP into the open window.
+- **Automation.** MCP (`2026-07-28`: six verbs over the whole catalog) and JSON lines over the same commands as the UI, including live MCP into the open window.
 
 The reference design is a 4-layer [ESP32-S31-WROOM-3 dev board](examples/esp32-s31-devboard/README.md): USB-C, a 90 Ω USB pair, an LDO, 20 parts. An AI agent designed it from parts to Gerbers through the command engine. It passes ERC, DRC and the production check. It has not yet been reviewed or built.
 

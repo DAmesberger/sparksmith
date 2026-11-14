@@ -1,9 +1,9 @@
 //! MCP prompts: workflows any client can start. Each is a skill file in the
 //! repository's `skills/` folder, served without its front matter, so an
 //! agent reading the skill and one using the prompt follow the same text.
-//! Only what today's server needs; the planned MCP surface serves the same
-//! file as a skill, a prompt and through `describe`.
-use serde_json::{Value, json};
+//! The skills extension and `describe {name: "guide:…"}` come with P4.
+use rmcp::model::{GetPromptResult, JsonObject, Prompt, PromptArgument, PromptMessage, Role};
+use serde_json::Value;
 
 /// The datasheet-to-component workflow (`skills/sparksmith-datasheet-part`).
 pub const DATASHEET_PART_SKILL: &str =
@@ -23,28 +23,50 @@ pub fn skill_body(skill: &str) -> &str {
 }
 
 /// `prompts/list`.
-pub fn list() -> Value {
-    json!({"prompts": [{
-        "name": DATASHEET_PART,
-        "title": "Create a component from datasheets",
-        "description": "Author one component (pins and functions, symbol, package, footprint, binding, 3D model) from its manufacturer datasheets as drafts, with every value cited and checked by library_review_check, for a person to review and publish.",
-        "arguments": [
-            {"name": "part", "description": "The part name the drafts take, e.g. its manufacturer part number.", "required": true},
-            {"name": "datasheets", "description": concat!("The datasheets: file paths or URLs, one per line. You read them; ", sparksmith_core::product_name!(), " does not."), "required": true},
-            {"name": "notes", "description": "Anything else: which variant or package, what to include or leave out.", "required": false},
-        ],
-    }]})
+pub fn list() -> Vec<Prompt> {
+    let argument = |name: &str, description: &str, required: bool| {
+        PromptArgument::new(name)
+            .with_description(description)
+            .with_required(required)
+    };
+    vec![
+        Prompt::new(
+            DATASHEET_PART,
+            Some("Author one component (pins and functions, symbol, package, footprint, binding, 3D model) from its manufacturer datasheets as drafts, with every value cited and checked by library.review_check, for a person to review and publish."),
+            Some(vec![
+                argument(
+                    "part",
+                    "The part name the drafts take, e.g. its manufacturer part number.",
+                    true,
+                ),
+                argument(
+                    "datasheets",
+                    concat!(
+                        "The datasheets: file paths or URLs, one per line. You read them; ",
+                        sparksmith_core::product_name!(),
+                        " does not."
+                    ),
+                    true,
+                ),
+                argument(
+                    "notes",
+                    "Anything else: which variant or package, what to include or leave out.",
+                    false,
+                ),
+            ]),
+        )
+        .with_title("Create a component from datasheets"),
+    ]
 }
 
 /// `prompts/get`: the workflow, then the task built from the arguments.
-pub fn get(params: &Value) -> Result<Value, String> {
-    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
+pub fn get(name: &str, arguments: Option<&JsonObject>) -> Result<GetPromptResult, String> {
     if name != DATASHEET_PART {
-        return Err(format!("unknown prompt {name:?}; prompts/list names them"));
+        let shown: String = name.chars().take(64).collect();
+        return Err(format!("unknown prompt {shown:?}; prompts/list names them"));
     }
-    let arguments = &params["arguments"];
     let argument = |key: &str| -> Result<String, String> {
-        let text = match arguments.get(key) {
+        let text = match arguments.and_then(|a| a.get(key)) {
             None | Some(Value::Null) => "",
             Some(Value::String(text)) => text.trim(),
             Some(_) => return Err(format!("argument {key} must be text")),
@@ -68,8 +90,8 @@ pub fn get(params: &Value) -> Result<Value, String> {
         task.push_str(&format!("\nNotes: {notes}\n"));
     }
     let text = format!("{}\n{task}", skill_body(DATASHEET_PART_SKILL));
-    Ok(json!({
-        "description": format!("Create {part} from its datasheets"),
-        "messages": [{"role": "user", "content": {"type": "text", "text": text}}],
-    }))
+    Ok(
+        GetPromptResult::new(vec![PromptMessage::new_text(Role::User, text)])
+            .with_description(format!("Create {part} from its datasheets")),
+    )
 }

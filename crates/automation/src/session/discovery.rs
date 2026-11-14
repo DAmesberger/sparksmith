@@ -1,8 +1,8 @@
-//! Schemas an LLM client can afford: a short input schema per tool, and
-//! `project.schema` for the exact schema of one operation, query or command
+//! Schemas an LLM client can afford: `project.schema` (the `describe` verb)
+//! gives the exact schema of one operation, query or command
 //! on demand. Everything is derived from the generated catalog, so a command
 //! added to the engine is listed and served without changing this module.
-use super::{CommandInfo, Request, SchemaParams};
+use super::{Request, SchemaParams};
 use crate::{Error, Result};
 use serde_json::{Map, Value, json};
 use sparksmith_core::permission::EntryDecl;
@@ -10,11 +10,6 @@ use sparksmith_core::{Class, Operation, Query};
 use std::collections::{BTreeSet, VecDeque};
 use std::sync::OnceLock;
 
-/// A tool's input schema is listed whole up to this many bytes.
-const WHOLE_SCHEMA: usize = 1500;
-/// One property of a shortened schema stays whole up to this many bytes,
-/// definitions included.
-const WHOLE_PROPERTY: usize = 400;
 /// Definitions one `project.schema` entry carries; the rest are named in
 /// `more_defs` and read with `def`.
 const MAX_DEFS_BYTES: usize = 24 * 1024;
@@ -208,12 +203,7 @@ pub(super) fn schema_reply(params: SchemaParams) -> Result<Value> {
         }
         return Ok(index());
     };
-    let found: Vec<&Entry> = entries()
-        .iter()
-        .filter(|e| {
-            e.name == name || (e.kind == "command" && super::super::mcp::tool_name(&e.name) == name)
-        })
-        .collect();
+    let found: Vec<&Entry> = entries().iter().filter(|e| e.name == name).collect();
     if found.is_empty() {
         return Err(not_found(format!(
             "no operation, query or command is named {name}; project.schema without a name lists them"
@@ -377,134 +367,6 @@ fn first_sentence(text: &str) -> String {
     format!("{cut}…")
 }
 
-/// The input schema `tools/list` shows for one command: whole when small;
-/// otherwise its structure, with large parts replaced by what they accept in
-/// outline and where the rest is served.
-pub fn tool_schema(info: &CommandInfo) -> Value {
-    let mut whole = info.params.clone();
-    strip_root(&mut whole);
-    let mut out = if whole.to_string().len() <= WHOLE_SCHEMA {
-        whole
-    } else {
-        shorten(info)
-    };
-    out["properties"]["verbose"] = json!({"type": "boolean"});
-    out
-}
-
-fn shorten(info: &CommandInfo) -> Value {
-    let root = &info.params;
-    if let Some(union) = union_outline(root, root, info.id) {
-        return union;
-    }
-    let mut properties = Map::new();
-    let mut kept = BTreeSet::new();
-    let mut queue = VecDeque::new();
-    for (key, property) in root["properties"].as_object().into_iter().flatten() {
-        if closure_size(property, root) <= WHOLE_PROPERTY {
-            collect_refs(property, &mut kept, &mut queue);
-            properties.insert(key.clone(), property.clone());
-        } else {
-            properties.insert(key.clone(), outline(property, root, info.id));
-        }
-    }
-    let mut defs = Map::new();
-    while let Some(name) = queue.pop_front() {
-        if let Some(def) = root["$defs"].get(&name) {
-            collect_refs(def, &mut kept, &mut queue);
-            defs.insert(name, def.clone());
-        }
-    }
-    let mut out = json!({"type": "object", "properties": properties});
-    copy(
-        root,
-        &mut out,
-        &["description", "required", "additionalProperties"],
-    );
-    if !defs.is_empty() {
-        out["$defs"] = Value::Object(defs);
-    }
-    out
-}
-
-/// A large property: its outline if it is a tagged union, else its type and
-/// description, with where to read the rest.
-fn outline(property: &Value, root: &Value, id: &str) -> Value {
-    let target = resolve(property, root);
-    if let Some(mut union) = union_outline(target, root, id) {
-        if let Some(text) = property.get("description") {
-            union["description"] = text.clone();
-        }
-        return union;
-    }
-    let text = property
-        .get("description")
-        .or_else(|| target.get("description"))
-        .and_then(Value::as_str)
-        .map_or_else(String::new, |text| format!("{} ", first_sentence(text)));
-    let mut out =
-        json!({"description": format!("{text}Schema: project_schema {{name: \"{id}\"}}.")});
-    if let Some(kind) = target.get("type") {
-        out["type"] = kind.clone();
-    }
-    out
-}
-
-/// A tagged union as its tag's values and an open content field that says
-/// which names to pass to `project_schema`.
-fn union_outline(schema: &Value, root: &Value, id: &str) -> Option<Value> {
-    let (tag, variants) = union_variants(schema)?;
-    let values: Vec<&str> = variants.iter().map(|(value, _)| *value).collect();
-    let content = content_key(&variants, tag);
-    let mut properties = Map::new();
-    properties.insert(tag.to_owned(), json!({"type": "string", "enum": values}));
-    let mut required = vec![tag.to_owned()];
-    if let Some(key) = content {
-        let mut nested = Vec::new();
-        let mut names = Vec::new();
-        for (value, variant) in &variants {
-            match union_variants(resolve(&variant["properties"][key], root)) {
-                Some((_, inner)) => {
-                    let list: Vec<&str> = inner.iter().map(|(name, _)| *name).collect();
-                    nested.push(format!("{value}: {}", list.join(", ")));
-                }
-                None => names.push(*value),
-            }
-        }
-        let text = if nested.is_empty() {
-            format!(
-                "The parameters of the chosen {tag}. Schema: project_schema {{name: <the {tag}>}}."
-            )
-        } else {
-            let mut groups = nested;
-            groups.extend(
-                names
-                    .iter()
-                    .map(|name| format!("{name}: {}", name.to_lowercase())),
-            );
-            format!(
-                "Inner command by {tag}: {}. Schema of one: project_schema {{name: <the command>}}.",
-                groups.join("; ")
-            )
-        };
-        properties.insert(key.to_owned(), json!({"description": text}));
-        if variants.iter().all(|(_, v)| is_required(v, key)) {
-            required.push(key.to_owned());
-        }
-    } else {
-        // Fields sit beside the tag: nothing to list without the schema.
-        let text =
-            format!("Other fields depend on {tag}. Schema: project_schema {{name: \"{id}\"}}.");
-        return Some(json!({
-            "type": "object",
-            "description": text,
-            "properties": properties,
-            "required": required,
-        }));
-    }
-    Some(json!({"type": "object", "properties": properties, "required": required}))
-}
-
 /// `(tag key, [(tag value, variant)])` when every `oneOf` variant is an object
 /// that names itself by one shared `const` property.
 fn union_variants(schema: &Value) -> Option<(&str, Vec<(&str, &Value)>)> {
@@ -520,30 +382,6 @@ fn union_variants(schema: &Value) -> Option<(&str, Vec<(&str, &Value)>)> {
         out.push((variant["properties"][tag]["const"].as_str()?, variant));
     }
     Some((tag, out))
-}
-
-/// The one key beside the tag, when every variant has only that one.
-fn content_key<'a>(variants: &[(&str, &'a Value)], tag: &str) -> Option<&'a str> {
-    let mut key = None;
-    for (_, variant) in variants {
-        for name in variant["properties"].as_object()?.keys() {
-            if name == tag {
-                continue;
-            }
-            match key {
-                None => key = Some(name.as_str()),
-                Some(existing) if existing == name => {}
-                Some(_) => return None,
-            }
-        }
-    }
-    key
-}
-
-fn is_required(variant: &Value, key: &str) -> bool {
-    variant["required"]
-        .as_array()
-        .is_some_and(|required| required.iter().any(|name| name == key))
 }
 
 /// Follow a `$ref`, or the one reference of an optional (`anyOf` with null).
@@ -562,32 +400,10 @@ fn resolve<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
         .unwrap_or(schema)
 }
 
-fn closure_size(schema: &Value, root: &Value) -> usize {
-    let mut seen = BTreeSet::new();
-    let mut queue = VecDeque::new();
-    collect_refs(schema, &mut seen, &mut queue);
-    let mut size = schema.to_string().len();
-    while let Some(name) = queue.pop_front() {
-        if let Some(def) = root["$defs"].get(&name) {
-            size = size.saturating_add(def.to_string().len());
-            collect_refs(def, &mut seen, &mut queue);
-        }
-    }
-    size
-}
-
 fn strip_root(schema: &mut Value) {
     if let Some(object) = schema.as_object_mut() {
         object.remove("$schema");
         object.remove("title");
-    }
-}
-
-fn copy(from: &Value, to: &mut Value, keys: &[&str]) {
-    for key in keys {
-        if let Some(value) = from.get(*key) {
-            to[*key] = value.clone();
-        }
     }
 }
 

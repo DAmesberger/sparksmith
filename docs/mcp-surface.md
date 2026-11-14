@@ -1,6 +1,6 @@
 # MCP surface design
 
-**Status:** approved 9 November 2026; M0 was a spike; M2 and P1 are built (see the as-built sections). Estimates are agent hours. This design replaces today's MCP server (`crates/automation/src/mcp.rs`) wholesale: nobody depends on it yet, so there is no migration, and the last slice deletes it. Related: [assistant panel](assistant-panel.md), [LLM integration](llm-integration.md), [live MCP](development.md#live-mcp), [datasheet assistant](datasheet-assistant.md).
+**Status:** approved 9 November 2026; M0 was a spike; M2, P1, P2 and the cut-over (extension slice S3, which is P9 here) are built (see the as-built sections). Estimates are agent hours. The server this design replaced is deleted; `sparksmith mcp` and `mcp --live` serve this one (`crates/automation/src/mcp.rs`). Related: [assistant panel](assistant-panel.md), [LLM integration](llm-integration.md), [live MCP](development.md#live-mcp), [datasheet assistant](datasheet-assistant.md).
 
 **Founder decisions this follows (9 November 2026):**
 - MCP `2026-07-28` only, with no older protocols, no handshake fallback and no compatibility path.
@@ -490,6 +490,24 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
     - `dry_run` keeps nothing;
     - `apply.alone`, `catalog.other_kind`, and `gate.cannot_ask` with no file written.
   - Handles: `project.new` and `project.open`, separation, ambiguous, unknown and `opens_new`, save and reopen, `gate.path_outside` on open, and the 16-project limit.
+
+## As built: S3, the cut-over (14 November 2026)
+
+Slice S3 of the [extension ABI design](design/extension-abi-design.md#51-slices), which is this design's P9 without its follow-ups. `sparksmith mcp` and `sparksmith mcp --live` serve this server; the one it replaced is deleted.
+
+- **Where.** The server moved from `mcp/surface/` to `crates/automation/src/mcp.rs` and `mcp/{catalog,desk,tools,wire,prompts}.rs`; the golden transcript is `mcp/golden/core.json`.
+- **Six verbs.** `show` joins the five: `{name, params}`, annotated not read-only and not destructive. No entry of the show class exists yet (they arrive with the window module, S5), so headless it answers `host.unavailable` and live `catalog.unknown`. `tools/list` is the six verbs and nothing else: **3,398 bytes**, held under `tools::TOOLS_BUDGET` (3,584) by `the_tools_are_the_six_verbs`.
+- **Through the front door.** Every verb builds one `Call` (`entry`, `params`, `expected_revision`, `dry_run`) and the desk runs it through `Surface::call` as `Principal::RemoteAgent` (client `mcp`). `query` and `act` name the entry itself; `apply` sends a batch as `project.apply_all`, or one command-level edit (undo, an update) alone; `describe` reads `project.schema`. The revision is the envelope's, so the per-verb filling of `expected_revision` is gone.
+- **Live.** The live channel carries the same envelope (`surface.call`, replacing `engine.execute`); the window reads it with the front door's reader, refuses changes while the person is busy (reads and dry runs run), checks the revision, decides with `Surface::decide` and runs it with `Surface::call`, the person's Allow as the asker. `mcp --live` is the same server with a desk that forwards each call to the window (`Desk::start_live`): one project, the window's, with a handle minted for the bridge.
+- **The window's file.** `WINDOW_ONLY` is gone. The window's grant (`live::grant`) is every module but `files`, so `project.new`, `project.open` and `project.save` are refused with `gate.module` by the one gate, saying to ask the person. Letting an agent use the window's own File prompts is S5.
+- **Person-owned steps.** Live, what asks waits for the window's Allow, as before. Headless, nobody can be asked: the refusal is `gate.needs_person` (formerly `gate.cannot_ask`), which says to run it in the window over `mcp --live` or in a mode that allows it. The impact-review step (`person: review`) still runs as its class allows; reviews come with plans (S4/P5).
+- **Prompts.** `prompts/list` and `prompts/get` serve `datasheet_to_component` from `skills/sparksmith-datasheet-part/SKILL.md`, cached `public` for a day. The skill now names verbs and entries (`query` `library.pinout_preview`, `apply` `library.pinout_apply`, `query` `library.review_check`), and carries the module-family fields the old instructions held.
+- **Instructions.** The §3.1 text, made true for what is built: no resource links, skills or `guide:` lines, a line on `show` and on `gate.needs_person`, and a live paragraph (`mcp::instructions`). 940 bytes headless and 1,222 live, within `INSTRUCTIONS_TARGET` and `INSTRUCTIONS_TARGET + LIVE_TARGET`. The 15 KB of domain instructions are gone; the entries' summaries and schemas (`find`, `describe`) carry that knowledge, and the method guides become skills with P4.
+- **Generators.** Nothing is hidden any more: `library.generators`, `library.generate` and `library.generate_part` are found and called like any other entry (`generators_are_found_and_called`).
+- **Module versions.** Every module starts at `1.0` (decision 12), recorded in `surface.lock`.
+- **Deleted:** the old server (`Server::handle`, `tools()`, `live_tools()`, `tool_name`, `PROTOCOL_VERSION`, `SUPPORTED_VERSIONS`), `INSTRUCTIONS` and `LIVE_INSTRUCTIONS`, the hidden-request list and the 64 KiB `tools/list` test, `live::WINDOW_ONLY`, `live.window_only`, `live.revision_required`, `engine.execute`, `CommandInfo::permission_note`, and the per-command tool schemas in `discovery` (`tool_schema` and its outlines).
+- **Tests.** The golden transcript re-blessed (the sixth verb, the prompts list); the old server's tests ported to the verbs (gate modes, the Never class, inline and linked sizes, the issues golden, the datasheet workflow end to end); new: the six-verb list and budget, generators, `show` headless, the prompt and the skill's names, and the verbs reaching a stand-in window over the real channel (`live::tests::the_verbs_reach_the_window`).
+- **Not yet:** elicitation (`input_required`), plan review with `confirm`, result links, resources, skills, completions and tasks (P3–P8, P11, P12); clients that speak older versions cannot connect.
 
 ## 9. Sources
 
