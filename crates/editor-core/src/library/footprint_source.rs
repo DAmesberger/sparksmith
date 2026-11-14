@@ -86,8 +86,9 @@ pub struct EvaluatorRef {
     pub rev: String,
 }
 
-/// SolidCraft's sketch JSON (`serde_json::to_string(&sketch)` output, or
-/// the same value with its keys in another order; anything else is refused
+/// SolidCraft's sketch JSON (the product writes it with sorted keys, the
+/// form a file reads back as; the same value with its keys in another
+/// order is accepted too; anything else is refused
 /// by the evaluator's round trip, which compares values).
 ///
 /// Held as text, stored as JSON (file format version 4): a file holds the
