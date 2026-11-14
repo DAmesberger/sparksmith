@@ -3,7 +3,7 @@
 //! demo project in `golden/issues_demo.json`. Set `SPARKSMITH_BLESS=1` to
 //! rewrite the golden file after an intended change, then review the diff.
 use super::*;
-use crate::mcp::Server;
+use crate::mcp::testing::Tools;
 use sparksmith_core::issues::style;
 
 type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -48,24 +48,14 @@ fn json_lines_issues_of_the_demo_match_the_golden_file() -> Fallible<()> {
 
 #[test]
 fn mcp_issues_of_the_demo_match_the_golden_file() -> Fallible<()> {
-    let mut server = Server::new(Session::new(Engine::demo()?), crate::gate::Grant::default());
-    let reply = server
-        .handle(json!({
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {
-                "name": "project_query",
-                "arguments": {"query": "project.issues", "params": {"scope": {"kind": "all"}}}
-            }
-        }))
-        .ok_or("no reply")?;
-    assert_eq!(reply["result"]["isError"], false, "{reply}");
-    let content: Value = serde_json::from_str(
-        reply["result"]["content"][0]["text"]
-            .as_str()
-            .ok_or("no text")?,
-    )?;
+    let tools = Tools::new(Session::new(Engine::demo()?), crate::gate::Grant::default())?;
+    let (failed, mut content) = tools.query("project.issues", json!({"scope": {"kind": "all"}}));
+    assert!(!failed, "{content}");
+    // The handle of the project it read.
+    let project = content
+        .as_object_mut()
+        .and_then(|object| object.remove("project"));
+    assert!(project.is_some(), "{content}");
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN);
     let expected: Value = serde_json::from_str(&std::fs::read_to_string(path)?)?;
     assert_eq!(content, expected);

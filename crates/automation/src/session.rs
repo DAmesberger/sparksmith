@@ -919,22 +919,6 @@ pub struct CommandInfo {
     pub decl: Option<&'static sparksmith_core::permission::EntryDecl>,
 }
 
-impl CommandInfo {
-    /// The sentence a tool description ends with, so a model can see what
-    /// will need asking.
-    pub fn permission_note(&self) -> String {
-        match (self.id, self.class, self.takes_path) {
-            ("project.apply", ..) => {
-                "Permission: edit; project_schema marks the operations that ask.".to_owned()
-            }
-            (_, class @ (Class::Read | Class::Edit), true) => {
-                format!("Permission: {}, or ask with a path.", class.name())
-            }
-            (_, class, _) => format!("Permission: {}.", class.name()),
-        }
-    }
-}
-
 /// A headless editing session: one engine, the current file path and the
 /// library sources.
 pub struct Session {

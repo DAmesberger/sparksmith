@@ -1,753 +1,573 @@
+//! P1 evidence: the `2026-07-28` core through rmcp's own client, the same
+//! server on the raw wire against a golden transcript
+//! (`golden/core.json`; set `SPARKSMITH_BLESS=1` to rewrite it after an
+//! intended change, then review the diff), the session thread behind the
+//! gate, and the catalog wiring.
+use super::catalog::{self, Unreachable};
+use super::wire::SERVER_INFO;
 use super::*;
-use sparksmith_core::Engine;
+use crate::gate::Mode;
+use crate::session::metadata::{self, Kind};
+use rmcp::model::{ClientCapabilities, ClientConfig, ErrorCode};
+use rmcp::service::ServiceError;
+use rmcp::{ClientHandler, ClientLifecycleMode, ClientServiceExt};
+use serde_json::json;
+use std::future::Future;
+use std::path::Path;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
-fn call(server: &mut Server, id: u64, method: &str, params: Value) -> Value {
-    server
-        .handle(json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params}))
-        .unwrap_or(Value::Null)
+type Fallible<T> = Result<T, Box<dyn std::error::Error>>;
+
+const GOLDEN: &str = "src/mcp/golden/core.json";
+
+fn block_on<F: Future>(future: F) -> Fallible<F::Output> {
+    Ok(tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?
+        .block_on(future))
 }
 
-/// The JSON a tool call answered with: its one text block.
-fn payload(reply: &Value) -> Value {
-    assert!(
-        reply["result"].get("structuredContent").is_none(),
-        "{reply}"
-    );
-    reply["result"]["content"][0]["text"]
-        .as_str()
-        .and_then(|text| serde_json::from_str(text).ok())
-        .unwrap_or(Value::Null)
+/// A server in the default mode (edits run, files ask), allowed `folder`.
+fn server(folder: &Path) -> Fallible<Server> {
+    let policy = Grant::new(Mode::AutoAllowEdits, [folder.to_path_buf()]);
+    Ok(Server::new(Session::default(), policy)?)
 }
 
-#[test]
-fn initialize_negotiates_versions_and_lists_generated_tools() {
-    let mut server = Server::new(Session::default(), Grant::default());
-    let init = call(
-        &mut server,
-        1,
-        "initialize",
-        json!({"protocolVersion": "2025-03-26"}),
-    );
-    assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
-    let init = call(
-        &mut server,
-        2,
-        "initialize",
-        json!({"protocolVersion": "1999-01-01"}),
-    );
-    assert_eq!(init["result"]["protocolVersion"], PROTOCOL_VERSION);
-    assert!(
-        server
-            .handle(json!({"jsonrpc": "2.0", "method": "notifications/initialized"}))
-            .is_none()
-    );
-    assert!(server.is_initialized());
-    let tools = call(&mut server, 3, "tools/list", json!({}));
-    let names: Vec<_> = tools["result"]["tools"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|t| t["name"].as_str())
-        .collect();
-    assert!(names.contains(&"project_apply"));
-    assert!(names.contains(&"project_export_native"));
-    assert!(names.contains(&"project_query"));
-    assert_eq!(
-        names.len(),
-        Request::catalog().len() - crate::mcp::NOT_TOOLS.len()
-    );
-    // The generator requests stay session requests until GP7's tools.
-    assert!(!names.contains(&"library_generate_part"));
-    let refused = call(
-        &mut server,
-        4,
-        "tools/call",
-        json!({"name": "library_generators", "arguments": {}}),
-    );
-    assert_eq!(
-        refused["error"]["message"],
-        "unknown tool library_generators"
-    );
-}
+#[derive(Clone)]
+struct Client;
 
-#[test]
-fn tool_calls_share_the_session_and_report_failures_as_tool_errors() {
-    let mut server = Server::new(
-        Session::new(Engine::demo().unwrap_or_default()),
-        Grant::default(),
-    );
-    let inspect = call(
-        &mut server,
-        1,
-        "tools/call",
-        json!({"name": "project_inspect", "arguments": {}}),
-    );
-    assert_eq!(inspect["result"]["isError"], false);
-    let revision = payload(&inspect)["revision"].clone();
-    assert!(revision.is_u64());
-    let stale = call(
-        &mut server,
-        2,
-        "tools/call",
-        json!({"name": "project_undo", "arguments": {"expected_revision": revision}}),
-    );
-    assert_eq!(stale["result"]["isError"], true);
-    assert_eq!(payload(&stale)["code"], "history_empty");
-    let unknown = call(&mut server, 3, "tools/call", json!({"name": "nope"}));
-    assert_eq!(unknown["error"]["code"], INVALID_PARAMS);
-    let method = call(&mut server, 4, "resources/list", json!({}));
-    assert_eq!(method["error"]["code"], METHOD_NOT_FOUND);
-}
-
-#[test]
-fn serve_bounds_lines_and_survives_bad_input() -> std::io::Result<()> {
-    let mut server = Server::new(Session::default(), Grant::default());
-    let mut input = Vec::new();
-    input.extend_from_slice(b"not json\n");
-    input.extend(std::iter::repeat_n(b'x', MAX_LINE + 10));
-    input.push(b'\n');
-    input.extend_from_slice(&[0xff, 0xfe, b'\n']);
-    input.extend_from_slice(br#"{"jsonrpc":"2.0","id":7,"method":"ping"}"#);
-    input.push(b'\n');
-    let mut output = Vec::new();
-    server.serve(input.as_slice(), &mut output)?;
-    let replies: Vec<Value> = output
-        .split(|b| *b == b'\n')
-        .filter(|line| !line.is_empty())
-        .filter_map(|line| serde_json::from_slice(line).ok())
-        .collect();
-    assert_eq!(replies.len(), 4);
-    assert_eq!(replies[0]["error"]["code"], PARSE_ERROR);
-    assert_eq!(replies[1]["error"]["code"], INVALID_REQUEST);
-    assert_eq!(replies[2]["error"]["code"], PARSE_ERROR);
-    assert_eq!(replies[3]["id"], 7);
-    Ok(())
-}
-
-#[test]
-fn query_tools_return_the_engine_report() -> Result<(), Box<dyn std::error::Error>> {
-    let engine = Engine::demo()?;
-    let instance = engine.project().instances[0].id;
-    let direct =
-        serde_json::to_value(engine.query(sparksmith_core::Query::InspectInstance { instance })?)?;
-    let mut server = Server::new(Session::new(engine), Grant::default());
-    let reply = call(
-        &mut server,
-        1,
-        "tools/call",
-        json!({"name": "project_query", "arguments": {"query": "component.inspect", "params": {"instance": instance}}}),
-    );
-    assert_eq!(reply["result"]["isError"], false, "{reply}");
-    assert_eq!(payload(&reply), direct);
-    Ok(())
-}
-
-/// `library.edit_graphics` over MCP is one atomic tool call: a batch whose
-/// last edit fails is reported as a tool error and changes nothing; the
-/// same batch without it applies once and lists the new graphic IDs.
-#[test]
-fn graphic_edits_over_mcp_are_atomic() -> Result<(), Box<dyn std::error::Error>> {
-    use sparksmith_core::library::Definition;
-    let engine = Engine::demo()?;
-    let symbol = engine
-        .drafts()
-        .items
-        .iter()
-        .find(|d| matches!(d.definition, Definition::Symbol(_)))
-        .map(|d| d.id)
-        .ok_or("the demo has a symbol draft")?;
-    let unit = match &engine.drafts().get(symbol).ok_or("draft")?.definition {
-        Definition::Symbol(s) => s.units[0].id,
-        _ => return Err("not a symbol".into()),
-    };
-    let mut server = Server::new(Session::new(engine), Grant::default());
-    let before = server.session().engine().document().clone();
-    let revision = server.session().engine().revision();
-    let add = json!({"add": {"target": {"unit": unit}, "item": {"shape": {
-        "shape": {"polyline": {"points": [[0, 0], [5, 0], [5, 5]], "radii": [0, 1, 0]}},
-        "width": 0.25, "fill": "none"}}}});
-    let apply = |edits: Value, revision: u64| {
-        json!({"name": "project_apply", "arguments": {
-            "expected_revision": revision,
-            "operation": {"editor": "Library", "operation": {
-                "command": "library.edit_graphics",
-                "params": {"draft": symbol, "edits": edits}}}}})
-    };
-    let failed = call(
-        &mut server,
-        1,
-        "tools/call",
-        apply(json!([add.clone(), {"remove": {"id": 9999}}]), revision),
-    );
-    assert_eq!(failed["result"]["isError"], true, "{failed}");
-    assert_eq!(payload(&failed)["code"], "not_found", "{failed}");
-    assert_eq!(server.session().engine().document(), &before);
-    assert_eq!(server.session().engine().revision(), revision);
-    let applied = call(&mut server, 2, "tools/call", apply(json!([add]), revision));
-    assert_eq!(applied["result"]["isError"], false, "{applied}");
-    let outcome = payload(&applied)["outcome"].clone();
-    assert_eq!(outcome["outcome"], "graphics_edited", "{outcome}");
-    assert_eq!(outcome["added"].as_array().map(Vec::len), Some(1));
-    assert_eq!(server.session().engine().revision(), revision + 1);
-    Ok(())
-}
-
-/// The library-folder requests are MCP tools with generated schemas, and
-/// adding a source, which changes the person's settings, is a tool error
-/// from the gate (I-A1): it never reaches the settings.
-#[test]
-fn library_folder_tools_are_listed_and_report_refusals() {
-    let mut server = Server::new(Session::default(), Grant::default());
-    let tools = call(&mut server, 1, "tools/list", json!({}));
-    let listed: Vec<_> = tools["result"]["tools"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|t| t["name"].as_str())
-        .collect();
-    for name in [
-        "library_sources",
-        "library_source_add",
-        "library_bundle",
-        "library_place_from_folder",
-        "library_import_from_folder",
-        "library_publish_to_folder",
-    ] {
-        assert!(listed.contains(&name), "{name}");
+impl ClientHandler for Client {
+    fn get_info(&self) -> ClientConfig {
+        ClientConfig::new(
+            ClientCapabilities::default(),
+            Implementation::new("sparksmith-p1-client", "0"),
+        )
     }
-    let sources = call(
-        &mut server,
-        2,
-        "tools/call",
-        json!({"name": "library_sources", "arguments": {}}),
-    );
-    assert_eq!(sources["result"]["isError"], false);
-    assert_eq!(payload(&sources)["sources"], json!([]));
-    let missing = call(
-        &mut server,
-        3,
-        "tools/call",
-        json!({"name": "library_source_add", "arguments": {"path": "/nonexistent/sparksmith-library"}}),
-    );
-    assert_eq!(missing["result"]["isError"], true);
-    assert_eq!(payload(&missing)["code"], "gate.never", "{missing}");
 }
 
-/// Every wire ID the instructions name (`library.pinout_apply`,
-/// `project.pin_report`, …) is a request, command or query this build
-/// accepts (or a registered finding code such as `pinout.uncertain`), and every tool name they name is listed, so an agent following
-/// them never meets an unknown tool.
+fn code(result: Result<impl std::fmt::Debug, ServiceError>) -> Fallible<ErrorCode> {
+    match result {
+        Err(ServiceError::McpError(error)) => Ok(error.code),
+        other => Err(format!("expected a protocol error, got {other:?}").into()),
+    }
+}
+
+/// rmcp's client at `2026-07-28`: discovery, the tools list with its cache
+/// fields and `serverInfo`, and the spec's error codes.
 #[test]
-fn the_instructions_name_only_requests_and_tools_that_exist() {
-    let named = names_only_what_exists(INSTRUCTIONS);
-    assert!(named > 20, "the check found the IDs ({named})");
+fn rmcp_client_discovers_and_lists_at_2026_07_28() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let server = server(dir.path())?;
+    block_on(async move {
+        let (client_io, server_io) = tokio::io::duplex(1 << 20);
+        let (read, write) = tokio::io::split(server_io);
+        let serving = tokio::spawn(server.serve(read, write));
+        let client = Client
+            .serve_with_lifecycle(
+                client_io,
+                ClientLifecycleMode::Discover {
+                    preferred_versions: VERSIONS.to_vec(),
+                },
+            )
+            .await?;
+        let info = client.peer_info().ok_or("discovery gave server info")?;
+        assert_eq!(info.protocol_version, ProtocolVersion::V_2026_07_28);
+        assert_eq!(info.server_info.as_ref().ok_or("serverInfo")?.name, NAME);
+        assert_eq!(
+            info.instructions.as_deref(),
+            Some(instructions(false).as_str())
+        );
+        assert!(info.capabilities.tools.is_some());
+        assert!(info.capabilities.prompts.is_some());
+        assert!(info.capabilities.resources.is_none());
+
+        let tools = client.list_tools(None).await?;
+        assert_eq!(tools.ttl_ms, Some(LIST_TTL_MS));
+        assert_eq!(tools.cache_scope, Some(CacheScope::Public));
+        assert!(tools.next_cursor.is_none());
+        assert_eq!(tools.tools, super::tools());
+        let meta = tools.meta.as_ref().ok_or("_meta")?;
+        assert_eq!(meta.0[SERVER_INFO]["name"], NAME);
+
+        let unknown = client
+            .call_tool(CallToolRequestParams::new("project_inspect"))
+            .await;
+        assert_eq!(code(unknown)?, ErrorCode::INVALID_PARAMS);
+        let prompts = client.list_prompts(None).await?;
+        let names: Vec<&str> = prompts.prompts.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, [prompts::DATASHEET_PART]);
+        assert_eq!(prompts.cache_scope, Some(CacheScope::Public));
+        assert_eq!(
+            code(client.list_resources(None).await)?,
+            ErrorCode::METHOD_NOT_FOUND
+        );
+        client.cancel().await?;
+        serving.await??;
+        Fallible::Ok(())
+    })??;
+    Ok(())
 }
 
-/// Checks every wire ID and tool name `text` names; returns how many wire
-/// IDs it found.
-pub(super) fn names_only_what_exists(text: &str) -> usize {
-    let catalog = Request::catalog();
-    let wire: String = catalog
-        .iter()
-        .map(|c| format!("\"{}\" {}", c.id, c.params))
+/// rmcp's client in its `initialize` mode cannot connect: the error names
+/// the version.
+#[test]
+fn an_initializing_client_is_told_the_version() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let server = server(dir.path())?;
+    block_on(async move {
+        let (client_io, server_io) = tokio::io::duplex(1 << 20);
+        let (read, write) = tokio::io::split(server_io);
+        let serving = tokio::spawn(server.serve(read, write));
+        let connected = Client
+            .serve_with_lifecycle(client_io, ClientLifecycleMode::Initialize)
+            .await;
+        let error = match connected {
+            Ok(_) => return Err("a legacy client connected".into()),
+            Err(error) => error.to_string(),
+        };
+        assert!(error.contains("2026-07-28"), "{error}");
+        serving.await??;
+        Fallible::Ok(())
+    })??;
+    Ok(())
+}
+
+/// The raw wire, one JSON-RPC message per line.
+struct Wire {
+    write: tokio::io::WriteHalf<tokio::io::DuplexStream>,
+    read: tokio::io::Lines<BufReader<tokio::io::ReadHalf<tokio::io::DuplexStream>>>,
+}
+
+impl Wire {
+    fn open(server: Server) -> (Self, tokio::task::JoinHandle<Result<(), String>>) {
+        let (client_io, server_io) = tokio::io::duplex(1 << 20);
+        let (read, write) = tokio::io::split(server_io);
+        let serving = tokio::spawn(server.serve(read, write));
+        let (read, write) = tokio::io::split(client_io);
+        let wire = Self {
+            write,
+            read: BufReader::new(read).lines(),
+        };
+        (wire, serving)
+    }
+
+    async fn send(&mut self, line: &str) -> Fallible<()> {
+        self.write.write_all(format!("{line}\n").as_bytes()).await?;
+        Ok(())
+    }
+
+    async fn reply(&mut self) -> Fallible<Value> {
+        let line = self.read.next_line().await?.ok_or("the server closed")?;
+        Ok(serde_json::from_str(&line)?)
+    }
+}
+
+/// The `_meta` every `2026-07-28` request carries.
+fn meta(version: &str) -> Value {
+    json!({
+        "io.modelcontextprotocol/protocolVersion": version,
+        "io.modelcontextprotocol/clientCapabilities": {},
+        "io.modelcontextprotocol/clientInfo": {"name": "wire", "version": "0"},
+    })
+}
+
+fn request(id: u64, method: &str, params: Value) -> Value {
+    let mut params = params;
+    params["_meta"] = meta("2026-07-28");
+    json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})
+}
+
+/// The transcript: each line sent, and the reply when one is due. Lines
+/// that get none (notifications, unparsable text) are followed by a request,
+/// so a reply they should not have had would show as a mismatch.
+fn script() -> Vec<(String, bool)> {
+    let initialize = json!({"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {
+        "protocolVersion": "2025-11-25", "capabilities": {},
+        "clientInfo": {"name": "legacy", "version": "0"}}});
+    let mut old = request(11, "tools/list", json!({}));
+    old["params"]["_meta"] = meta("2025-11-25");
+    let lines = [
+        // Before any request: a legacy notification is dropped, and
+        // initialize is refused without ending the connection.
+        (
+            json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+            false,
+        ),
+        (initialize.clone(), true),
+        (json!({"jsonrpc": "2.0", "id": 3, "method": "ping"}), true),
+        (request(4, "server/discover", json!({})), true),
+        (request(5, "tools/list", json!({})), true),
+        (request(6, "tools/list", json!({"cursor": "next"})), true),
+        (
+            request(
+                7,
+                "tools/call",
+                json!({"name": "project_inspect", "arguments": {}}),
+            ),
+            true,
+        ),
+        (request(8, "prompts/list", json!({})), true),
+        (request(9, "resources/list", json!({})), true),
+        (
+            request(10, "resources/read", json!({"uri": "sparksmith://catalog"})),
+            true,
+        ),
+        (old, true),
+        (
+            json!({"jsonrpc": "2.0", "id": 12, "method": "tools/list", "params": {}}),
+            true,
+        ),
+        (request(13, "ping", json!({})), true),
+        (
+            request(14, "logging/setLevel", json!({"level": "info"})),
+            true,
+        ),
+        (request(15, "sparksmith/unknown", json!({})), true),
+        (
+            request(
+                16,
+                "completion/complete",
+                json!({
+            "ref": {"type": "ref/prompt", "name": "explain"},
+            "argument": {"name": "x", "value": ""}}),
+            ),
+            true,
+        ),
+        (
+            json!({"jsonrpc": "2.0", "method": "notifications/initialized"}),
+            false,
+        ),
+        (json!({"well": "formed", "but": "no message"}), true),
+        (initialize, true),
+    ];
+    let mut script: Vec<(String, bool)> = lines
+        .into_iter()
+        .map(|(line, reply)| (line.to_string(), reply))
         .collect();
-    let tool_names: Vec<String> = catalog.iter().map(|c| tool_name(c.id)).collect();
-    // Dotted words that are prose or a refusal's rule, not wire IDs;
-    // finding codes are checked against the registered codes.
-    let prose = ["purchasing.state", "e.g", "library.other_revision"];
-    let finding = |word: &str| sparksmith_core::issues::KNOWN_CODES.contains(&word);
-    let words = text.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_' || c == '.'));
-    let mut named = 0;
-    for word in words.map(|w| w.trim_matches('.')) {
-        let dotted = word.contains('.')
-            && word.split('.').all(|part| {
-                !part.is_empty() && part.chars().all(|c| c.is_ascii_lowercase() || c == '_')
-            });
-        if dotted && !prose.contains(&word) && !finding(word) {
+    // Not JSON: ignored, as rmcp and the other official SDKs do.
+    script.insert(4, ("{not json".to_owned(), false));
+    script.push((request(17, "tools/list", json!({})).to_string(), true));
+    script
+}
+
+/// The build's version, which `serverInfo` carries, made stable.
+fn without_version(reply: Value) -> Fallible<Value> {
+    let text = reply.to_string().replace(
+        &format!("\"version\":\"{}\"", env!("CARGO_PKG_VERSION")),
+        "\"version\":\"<version>\"",
+    );
+    Ok(serde_json::from_str(&text)?)
+}
+
+#[test]
+fn the_wire_matches_the_golden_transcript() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let server = server(dir.path())?;
+    let transcript = block_on(async move {
+        let (mut wire, serving) = Wire::open(server);
+        let mut transcript = Vec::new();
+        for (line, replies) in script() {
+            wire.send(&line).await?;
+            let reply = if replies {
+                without_version(wire.reply().await?)?
+            } else {
+                Value::Null
+            };
+            let sent: Value = serde_json::from_str(&line).unwrap_or(Value::String(line));
+            transcript.push(json!({"send": sent, "reply": reply}));
+        }
+        drop(wire);
+        serving.await??;
+        Fallible::Ok(Value::Array(transcript))
+    })??;
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(GOLDEN);
+    if std::env::var_os("SPARKSMITH_BLESS").is_some() {
+        std::fs::write(&path, serde_json::to_string_pretty(&transcript)? + "\n")?;
+    }
+    let golden: Value = serde_json::from_str(&std::fs::read_to_string(&path)?)?;
+    assert_eq!(transcript, golden);
+
+    // What the transcript must show, whatever the golden file says.
+    let reply = |id: u64| {
+        transcript
+            .as_array()
+            .and_then(|t| t.iter().find(|x| x["reply"]["id"] == id))
+            .map(|x| x["reply"].clone())
+            .unwrap_or(Value::Null)
+    };
+    for id in [2, 11] {
+        assert_eq!(reply(id)["error"]["code"], -32022, "{}", reply(id));
+        assert_eq!(
+            reply(id)["error"]["data"]["supported"],
+            json!(["2026-07-28"])
+        );
+    }
+    let discover = &reply(4)["result"];
+    assert_eq!(discover["resultType"], "complete");
+    assert_eq!(discover["supportedVersions"], json!(["2026-07-28"]));
+    assert_eq!(discover["ttlMs"], LIST_TTL_MS);
+    assert_eq!(discover["cacheScope"], "public");
+    assert_eq!(discover["capabilities"]["tools"]["listChanged"], false);
+    assert_eq!(discover["_meta"][SERVER_INFO]["name"], NAME);
+    let list = &reply(5)["result"];
+    assert_eq!(list["resultType"], "complete");
+    assert_eq!(list["ttlMs"], LIST_TTL_MS);
+    assert_eq!(list["cacheScope"], "public");
+    assert_eq!(list["_meta"][SERVER_INFO]["name"], NAME);
+    assert_eq!(reply(17)["result"], *list, "the list is the same each time");
+    assert_eq!(
+        reply(8)["result"]["prompts"][0]["name"],
+        prompts::DATASHEET_PART
+    );
+    for (id, code) in [(3, -32601), (6, -32602), (7, -32602), (9, -32601)] {
+        assert_eq!(reply(id)["error"]["code"], code, "{}", reply(id));
+    }
+    for (id, code) in [(10, -32601), (12, -32602), (13, -32601), (14, -32601)] {
+        assert_eq!(reply(id)["error"]["code"], code, "{}", reply(id));
+    }
+    for (id, code) in [(15, -32601), (16, -32601)] {
+        assert_eq!(reply(id)["error"]["code"], code, "{}", reply(id));
+    }
+    Ok(())
+}
+
+/// A call of the front door.
+fn call(entry: &str, params: Value, expected: Option<u64>) -> crate::front::Call {
+    crate::front::Call {
+        entry: entry.to_owned(),
+        params,
+        project: None,
+        expected_revision: expected,
+        dry_run: false,
+        confirm: None,
+        turn: None,
+        job: false,
+    }
+}
+
+/// Every job runs on the session thread through the gate as the model: a
+/// read runs, an edit runs in the default mode and publishes its revision,
+/// a file Ask is refused (no one to ask yet), and Never always is.
+#[test]
+fn the_desk_runs_every_request_through_the_gate() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let saved = dir.path().join("p1.sparksmith").display().to_string();
+    let server = server(dir.path())?;
+    block_on(async move {
+        let desk = server.desk().clone();
+        let mut revisions = desk.revisions();
+        let (project, start) = revisions
+            .borrow_and_update()
+            .iter()
+            .next()
+            .map(|(handle, revision)| (handle.clone(), *revision))
+            .ok_or("the first project")?;
+
+        let inspect = desk
+            .run(|d| d.call(None, call("project.inspect", json!({}), None)))
+            .await?;
+        assert_eq!(inspect["ok"], true, "{inspect}");
+        assert_eq!(inspect["result"]["revision"], start);
+
+        let edit = call(
+            "layout.set_board_size",
+            json!({"size": [40.0, 30.0]}),
+            Some(start),
+        );
+        let applied = desk.run(move |d| d.call(None, edit)).await?;
+        assert_eq!(applied["ok"], true, "{applied}");
+        revisions.changed().await?;
+        assert_eq!(revisions.borrow().get(&project), Some(&(start + 1)));
+
+        // The same edit again is stale: refused, nothing changes.
+        let stale = call(
+            "layout.set_board_size",
+            json!({"size": [50.0, 30.0]}),
+            Some(start),
+        );
+        let shown = project.clone();
+        let refused = desk
+            .run(move |d| (d.call(None, stale), d.revision(&shown)))
+            .await?;
+        assert_eq!(refused.0["ok"], false, "{}", refused.0);
+        assert_eq!(refused.1, Some(start + 1));
+
+        let save = call("project.save", json!({"path": saved}), Some(start + 1));
+        let asked = save.clone();
+        let decided = desk.run(move |d| d.decide(None, &asked)).await?;
+        assert!(
+            matches!(decided, Ok(crate::gate::Decision::Ask(_))),
+            "{decided:?}"
+        );
+        let refused = desk.run(move |d| d.call(None, save)).await?;
+        assert_eq!(refused["error"]["code"], "gate.needs_person", "{refused}");
+
+        let never = call("library.source.remove", json!({"path": "/x"}), None);
+        let refused = desk.run(move |d| d.call(None, never)).await?;
+        assert_eq!(refused["error"]["code"], "gate.never", "{refused}");
+        Fallible::Ok(())
+    })??;
+    assert!(!dir.path().join("p1.sparksmith").exists());
+    Ok(())
+}
+
+/// Many callers at once are served one at a time, each once.
+#[test]
+fn concurrent_jobs_run_one_at_a_time() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    let server = server(dir.path())?;
+    let ran = block_on(async move {
+        let desk = server.desk().clone();
+        let calls = (0..desk::QUEUE * 2).map(|i| {
+            let desk = desk.clone();
+            async move { desk.run(move |d| (i, d.revisions().len())).await }
+        });
+        let mut ran = Vec::new();
+        for call in calls.collect::<Vec<_>>() {
+            ran.push(tokio::spawn(call));
+        }
+        let mut answers = Vec::new();
+        for call in ran {
+            answers.push(call.await??);
+        }
+        Fallible::Ok(answers)
+    })??;
+    let indices: Vec<_> = ran.iter().map(|(i, _)| *i).collect();
+    assert_eq!(indices, (0..desk::QUEUE * 2).collect::<Vec<_>>());
+    Ok(())
+}
+
+#[test]
+fn a_session_reply_becomes_a_tool_result() {
+    let ok = outcome(&json!({"ok": true, "result": {"revision": 3}}));
+    assert_eq!(ok.is_error, Some(false));
+    let text = ok.content[0].as_text().map(|t| t.text.clone());
+    assert_eq!(text.as_deref(), Some(r#"{"revision":3}"#));
+    let failed = outcome(&Unreachable::unknown("nothing", None).reply());
+    assert_eq!(failed.is_error, Some(true));
+    let text = failed.content[0]
+        .as_text()
+        .map(|t| t.text.clone())
+        .unwrap_or_default();
+    assert!(text.contains("catalog.unknown"), "{text}");
+}
+
+/// The catalog is the M2 metadata: every entry but Never resolves through
+/// its own kind only, in catalog order, and Never is unknown.
+#[test]
+fn the_catalog_resolves_each_entry_by_its_kind() {
+    let all = metadata::entries();
+    let reachable: Vec<_> = catalog::reachable().map(|e| e.name.as_str()).collect();
+    let expected: Vec<_> = all
+        .iter()
+        .filter(|e| e.class != sparksmith_core::Class::Never)
+        .map(|e| e.name.as_str())
+        .collect();
+    assert_eq!(reachable, expected);
+    assert!(reachable.len() < all.len(), "some entries are Never");
+    for entry in all {
+        match entry.kind {
+            None => assert_eq!(
+                catalog::resolve(Kind::Action, &entry.name)
+                    .map(|e| e.name.as_str())
+                    .map_err(|e| e.code()),
+                Err("catalog.unknown")
+            ),
+            Some(kind) => {
+                let found = catalog::resolve(kind, &entry.name).map(|e| e.name.as_str());
+                assert_eq!(found, Ok(entry.name.as_str()));
+                for other in [Kind::Query, Kind::Operation, Kind::Action] {
+                    if other != kind {
+                        let refused = catalog::resolve(other, &entry.name);
+                        let code = refused.map(|e| e.name.as_str()).map_err(|e| e.code());
+                        assert_eq!(code, Err("catalog.other_kind"));
+                    }
+                }
+            }
+        }
+    }
+    assert!(matches!(
+        catalog::resolve(Kind::Query, "project.save"),
+        Err(Unreachable::OtherKind {
+            kind: Kind::Action,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn the_instructions_hold_their_budget() {
+    let headless = instructions(false);
+    let live = instructions(true);
+    assert!(headless.len() <= INSTRUCTIONS_TARGET, "{}", headless.len());
+    assert!(
+        live.len() <= INSTRUCTIONS_TARGET + LIVE_TARGET,
+        "{}",
+        live.len()
+    );
+    assert!(live.chars().count() <= MAX_INSTRUCTIONS);
+    // Every entry the instructions name is one a model reaches.
+    for word in live.split(|c: char| !(c.is_alphanumeric() || c == '.' || c == '_')) {
+        let word = word.trim_end_matches('.');
+        if word.contains('.')
+            && word
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c == '.' || c == '_')
+        {
             assert!(
-                wire.contains(&format!("\"{word}\"")),
-                "unknown wire ID {word}"
+                catalog::entry(word).is_some() || word.starts_with("gate."),
+                "the instructions name {word}"
             );
+        }
+    }
+}
+
+/// The datasheet workflow is served as a prompt: the skill's text, then the
+/// task; and the skill names only verbs and entries this server has.
+#[test]
+fn the_datasheet_prompt_serves_the_skill() -> Fallible<()> {
+    let mut arguments = rmcp::model::JsonObject::new();
+    arguments.insert("part".into(), json!("EXM-48"));
+    arguments.insert("datasheets".into(), json!("/data/exm48.pdf\n\n"));
+    let prompt = prompts::get(prompts::DATASHEET_PART, Some(&arguments))?;
+    let text = serde_json::to_value(&prompt.messages)?.to_string();
+    assert!(text.contains("Create the part \\\"EXM-48\\\""), "{text}");
+    assert!(text.contains("- /data/exm48.pdf"), "{text}");
+    assert!(prompts::get("explain", None).is_err());
+    let mut missing = rmcp::model::JsonObject::new();
+    missing.insert("part".into(), json!("EXM-48"));
+    assert!(prompts::get(prompts::DATASHEET_PART, Some(&missing)).is_err());
+
+    let skill = prompts::skill_body(prompts::DATASHEET_PART_SKILL);
+    for tool in [
+        tools::FIND,
+        tools::DESCRIBE,
+        tools::QUERY,
+        tools::APPLY,
+        tools::ACT,
+    ] {
+        assert!(skill.contains(&format!("`{tool}")), "the skill uses {tool}");
+    }
+    // Names with dots in backticks are catalog entries a model reaches,
+    // or finding codes the drafts carry.
+    let mut named = 0;
+    for quoted in skill.split('`').skip(1).step_by(2) {
+        let Some(name) = quoted.split_whitespace().next() else {
+            continue;
+        };
+        if name.contains('.')
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c == '.' || c == '_')
+            && !name.starts_with("pinout.")
+            && !name.starts_with("binding.")
+            && !name.starts_with("package.")
+        {
+            assert!(catalog::entry(name).is_some(), "the skill names {name}");
             named += 1;
         }
-        let tool = ["project_", "library_", "firmware_"]
-            .iter()
-            .any(|prefix| word.starts_with(prefix));
-        if tool {
-            assert!(tool_names.iter().any(|t| t == word), "unknown tool {word}");
-        }
     }
-    named
-}
-
-/// The instructions walk an agent through the reviewed datasheet
-/// workflow: schema, preview, review, apply, the publish gate, the
-/// footprint from a package row and its model, suggest,
-/// assign, pin configuration, the report and the firmware export.
-#[test]
-fn the_instructions_describe_the_reviewed_pinout_workflow() -> super::scenario::Fallible<()> {
-    let mut server = Server::new(Session::default(), Grant::default());
-    let init = call(&mut server, 1, "initialize", json!({}));
-    let text = init["result"]["instructions"].as_str().unwrap_or_default();
-    let mut last = 0;
-    for step in [
-        "library_pinout_schema",
-        "uncertain: true",
-        "library.pinout_preview",
-        "review items",
-        "library.pinout_apply",
-        "pinout.uncertain",
-        "unreviewed count",
-        "library.templates",
-        "library.package_plan",
-        "library.package_from_template",
-        "footprint_bound",
-        "binding.footprint_unbound",
-        "library.models",
-        "library.publish",
-        "library.assign_terminals",
-        "functions.suggest",
-        "instance.assign_peripheral",
-        "instance.set_pin_config",
-        "project.pin_report",
-        "project.pin_config",
-        "firmware_export_preview",
-        "firmware_export ",
-        "never configures clocks",
-    ] {
-        let at = text[last..]
-            .find(step)
-            .ok_or_else(|| format!("{step} after byte {last}"))?;
-        last += at;
-    }
-    assert!(text.contains("never infers electrical compatibility from matching names"));
-    assert!(text.contains("never split a name such as USART1_TX"));
+    assert!(named >= 10, "{named} entries named");
     Ok(())
-}
-
-/// The pinout and firmware requests are generated tools; the schema tool
-/// answers now, and the preview through `project_query` answers the EXM-48
-/// document with its one review item.
-#[test]
-fn the_pinout_tools_answer_over_mcp() -> super::scenario::Fallible<()> {
-    use super::scenario::EXM48;
-    let mut server = Server::new(Session::new(Engine::demo()?), Grant::default());
-    let tools = call(&mut server, 1, "tools/list", json!({}));
-    let listed: Vec<_> = tools["result"]["tools"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|t| t["name"].as_str())
-        .collect();
-    for name in [
-        "library_pinout_schema",
-        "firmware_export_preview",
-        "firmware_export",
-    ] {
-        assert!(listed.contains(&name), "{name}");
-    }
-    let schema = call(
-        &mut server,
-        2,
-        "tools/call",
-        json!({"name": "library_pinout_schema", "arguments": {}}),
-    );
-    assert_eq!(schema["result"]["isError"], false, "{schema}");
-    assert_eq!(payload(&schema)["format"], 1);
-
-    let document: Value = serde_json::from_str(EXM48)?;
-    let before = server.session().engine().document().clone();
-    let revision = server.session().engine().revision();
-    let plan = call(
-        &mut server,
-        3,
-        "tools/call",
-        json!({"name": "project_query", "arguments": {"query": "library.pinout_preview",
-            "params": {"target": {"target": "new", "name": "EXM-48"}, "document": document}}}),
-    );
-    assert_eq!(server.session().engine().revision(), revision);
-    assert_eq!(server.session().engine().document(), &before);
-    assert_eq!(plan["result"]["isError"], false, "{plan}");
-    let content = &payload(&plan);
-    let review = content["result"]["review"].as_array().ok_or("review")?;
-    assert_eq!(review.len(), 1, "{plan}");
-    assert_eq!(review[0]["row"], "r20");
-    assert_eq!(review[0]["reason"], "uncertain");
-    Ok(())
-}
-
-/// Every `$ref` in a value names a definition in `defs`, or one in `more`.
-fn refs_of(value: &Value, out: &mut Vec<String>) {
-    match value {
-        Value::Object(object) => {
-            for (key, inner) in object {
-                match (key.as_str(), inner.as_str()) {
-                    ("$ref", Some(target)) => {
-                        out.push(target.trim_start_matches("#/$defs/").to_owned());
-                    }
-                    _ => refs_of(inner, out),
-                }
-            }
-        }
-        Value::Array(items) => items.iter().for_each(|item| refs_of(item, out)),
-        _ => {}
-    }
-}
-
-fn schema_call(server: &mut Server, arguments: Value) -> Value {
-    call(
-        server,
-        1,
-        "tools/call",
-        json!({"name": "project_schema", "arguments": arguments}),
-    )
-}
-
-/// The list an agent loads stays small, is valid on its own (no dangling
-/// reference) and offers `verbose` everywhere.
-#[test]
-fn the_tool_list_is_small_and_self_contained() {
-    let mut server = Server::new(Session::default(), Grant::default());
-    let list = call(&mut server, 1, "tools/list", json!({}));
-    let bytes = list.to_string().len();
-    // 64,583 bytes measured with the generator requests left to GP7
-    // (mcp::NOT_TOOLS); the whole-schema list was 625 KB.
-    assert!(bytes < 64 * 1024, "tools/list is {bytes} bytes");
-    let tools = list["result"]["tools"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    assert_eq!(
-        tools.len(),
-        Request::catalog().len() - crate::mcp::NOT_TOOLS.len()
-    );
-    for tool in &tools {
-        let schema = &tool["inputSchema"];
-        assert_eq!(schema["type"], "object", "{}", tool["name"]);
-        assert!(
-            schema["properties"]["verbose"].is_object(),
-            "{}",
-            tool["name"]
-        );
-        let mut refs = Vec::new();
-        refs_of(schema, &mut refs);
-        for target in refs {
-            assert!(
-                schema["$defs"].get(&target).is_some(),
-                "{}: {target}",
-                tool["name"]
-            );
-        }
-    }
-    // `verbose` is the transport's: no command may claim it for itself.
-    for info in Request::catalog() {
-        assert!(
-            info.params["properties"].get("verbose").is_none(),
-            "{}",
-            info.id
-        );
-    }
-}
-
-/// Every operation and query the engine's generated schema holds is named in
-/// the short tool schemas and served by `project_schema`, with every
-/// definition it reaches either in the reply or readable through `def`.
-#[test]
-fn every_operation_and_query_is_reachable_on_demand() -> super::scenario::Fallible<()> {
-    let schemas = sparksmith_core::schemas();
-    let mut names = Vec::new();
-    // Independent of the code under test: every tag constant in the schemas.
-    fn constants(value: &Value, tag: &str, out: &mut Vec<String>) {
-        match value {
-            Value::Object(object) => {
-                if let Some(name) = object
-                    .get("properties")
-                    .and_then(|p| p.get(tag))
-                    .and_then(|t| t.get("const"))
-                    .and_then(Value::as_str)
-                {
-                    out.push(name.to_owned());
-                }
-                object.values().for_each(|inner| constants(inner, tag, out));
-            }
-            Value::Array(items) => items.iter().for_each(|inner| constants(inner, tag, out)),
-            _ => {}
-        }
-    }
-    let operation = schemas["operation"].clone();
-    let root = operation["oneOf"].as_array().ok_or("operation oneOf")?;
-    for editor in root {
-        let target = editor["properties"]["operation"]["$ref"]
-            .as_str()
-            .and_then(|r| r.strip_prefix("#/$defs/"))
-            .ok_or("editor content")?;
-        constants(&operation["$defs"][target], "command", &mut names);
-    }
-    let operations = names.len();
-    assert!(operations > 100, "found the operations ({operations})");
-    constants(&schemas["query"], "query", &mut names);
-    assert!(names.len() > operations + 30, "found the queries");
-
-    let mut server = Server::new(Session::default(), Grant::default());
-    let list = call(&mut server, 1, "tools/list", json!({}));
-    let text = list.to_string();
-    for name in names.iter().chain(&["update".to_owned()]) {
-        assert!(text.contains(name.as_str()), "{name} is not listed");
-        let reply = schema_call(&mut server, json!({"name": name}));
-        assert_eq!(reply["result"]["isError"], false, "{name}: {reply}");
-        let answer = payload(&reply);
-        let matches = answer["matches"].as_array().ok_or("matches")?;
-        assert!(!matches.is_empty(), "{name}");
-        for found in matches {
-            assert!(found["schema"].is_object(), "{name}: {found}");
-            // Walk the references, reading `def` for what did not fit.
-            let mut held = found["$defs"].as_object().cloned().unwrap_or_default();
-            let mut pending = Vec::new();
-            refs_of(&found["schema"], &mut pending);
-            let mut seen = std::collections::BTreeSet::new();
-            while let Some(target) = pending.pop() {
-                if !seen.insert(target.clone()) {
-                    continue;
-                }
-                let def = match held.get(&target) {
-                    Some(def) => def.clone(),
-                    None => {
-                        let more = found["more_defs"].to_string();
-                        let read = schema_call(&mut server, json!({"name": name, "def": target}));
-                        assert_eq!(
-                            read["result"]["isError"], false,
-                            "{name}/{target} (more_defs {more})"
-                        );
-                        let read = payload(&read);
-                        if let Some(extra) = read["$defs"].as_object() {
-                            held.extend(extra.clone());
-                        }
-                        read["schema"].clone()
-                    }
-                };
-                refs_of(&def, &mut pending);
-            }
-        }
-    }
-    Ok(())
-}
-
-/// An agent can act on what the schema tool says: fill the `send` shape with
-/// schema-conforming parameters and the operation applies; the compact reply
-/// names the new via.
-#[test]
-fn the_schema_reply_says_how_to_send_the_operation() -> super::scenario::Fallible<()> {
-    let mut server = Server::new(Session::new(Engine::demo()?), Grant::default());
-    let reply = schema_call(&mut server, json!({"name": "layout.add_via"}));
-    let answer = payload(&reply);
-    let found = &answer["matches"][0];
-    assert_eq!(found["kind"], "operation");
-    assert_eq!(found["editor"], "Layout");
-    assert!(found["$defs"]["ViaRequest"].is_object(), "{found}");
-    let mut arguments = found["send"].clone();
-    arguments["expected_revision"] = json!(server.session().engine().revision());
-    arguments["operation"]["operation"]["params"] = json!({"via": {
-        "net": server.session().engine().project().nets[0].id,
-        "position": [1.0, 1.0], "drill": 0.3, "diameter": 0.6, "span": "through", "tented": true,
-    }});
-    let applied = call(
-        &mut server,
-        2,
-        "tools/call",
-        json!({"name": "project_apply", "arguments": arguments}),
-    );
-    assert_eq!(applied["result"]["isError"], false, "{applied}");
-    let done = payload(&applied);
-    assert_eq!(
-        done["changes"]["added"]["vias"],
-        json!([done["outcome"]["via"]])
-    );
-    assert!(applied.to_string().len() < 8 * 1024, "{applied}");
-
-    // The tool's own name works, as does a query's; unknown names are refused.
-    let tool = payload(&schema_call(&mut server, json!({"name": "project_query"})));
-    assert_eq!(tool["matches"][0]["kind"], "command");
-    let query = payload(&schema_call(&mut server, json!({"name": "library.search"})));
-    assert_eq!(query["matches"][0]["kind"], "query");
-    assert_eq!(query["matches"][0]["send"]["query"], "library.search");
-    let unknown = schema_call(&mut server, json!({"name": "layout.nope"}));
-    assert_eq!(unknown["result"]["isError"], true);
-    assert_eq!(payload(&unknown)["code"], "not_found");
-    let orphan = schema_call(&mut server, json!({"def": "Via"}));
-    assert_eq!(payload(&orphan)["code"], "invalid_input");
-    let missing = schema_call(
-        &mut server,
-        json!({"name": "layout.add_via", "def": "Nope"}),
-    );
-    assert_eq!(payload(&missing)["code"], "not_found");
-
-    let index = payload(&schema_call(&mut server, json!({})));
-    assert!(
-        index["operations"]["Layout"]
-            .as_array()
-            .is_some_and(|l| l.iter().any(|row| row["name"] == "layout.add_via"))
-    );
-    Ok(())
-}
-
-/// The snapshot goes out only when asked for, and then once.
-#[test]
-fn verbose_over_mcp_returns_the_snapshot_once() -> super::scenario::Fallible<()> {
-    let mut server = Server::new(Session::new(Engine::demo()?), Grant::default());
-    let brief = call(
-        &mut server,
-        1,
-        "tools/call",
-        json!({"name": "project_inspect", "arguments": {}}),
-    );
-    assert!(payload(&brief).get("project").is_none(), "{brief}");
-    let full = call(
-        &mut server,
-        2,
-        "tools/call",
-        json!({"name": "project_inspect", "arguments": {"verbose": true}}),
-    );
-    let body = payload(&full);
-    assert!(body["project"].is_object(), "{full}");
-    assert_eq!(full["result"]["content"].as_array().map(Vec::len), Some(1));
-    Ok(())
-}
-
-/// Z4: a GND port dropped on the VBUS wire over MCP is refused as a named
-/// merge and changes nothing; the preview lists the merge, an update that
-/// does not ask for it is refused too, and one that asks merges the nets.
-#[test]
-fn a_gnd_port_on_a_vbus_wire_over_mcp_merges_only_when_asked() -> super::scenario::Fallible<()> {
-    use sparksmith_core::{Endpoint, TerminalId, schematic::pin_position};
-    let engine = Engine::demo()?;
-    let project = engine.project();
-    let [first, second] = [0, 1].map(|n| project.instances.get(n).map(|i| i.id));
-    let (Some(first), Some(second)) = (first, second) else {
-        return Err("the demo has two parts".into());
-    };
-    let pin = |instance, terminal| Endpoint {
-        instance,
-        terminal: TerminalId(terminal),
-    };
-    let (vbus_pin, gnd_pin) = (pin(first, 2), pin(second, 2));
-    let wire = project.wires.first().ok_or("the demo's wire")?.id;
-    let a = pin_position(project, vbus_pin).ok_or("pin")?;
-    let b = pin_position(project, pin(second, 1)).ok_or("pin")?;
-    let middle = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
-    let mut server = Server::new(Session::new(engine), Grant::default());
-    let port = |name: &str, style: &str, attach: Value| {
-        json!({"editor": "Schematic", "operation": {"command": "label.place", "params": {
-            "name": name, "kind": {"type": "power", "style": style},
-            "position": middle, "attach": attach}}})
-    };
-    let mut id = 0;
-    let mut tool = |server: &mut Server, name: &str, arguments: Value| {
-        id += 1;
-        call(
-            server,
-            id,
-            "tools/call",
-            json!({"name": name, "arguments": arguments}),
-        )
-    };
-    let revision = |server: &Server| server.session().engine().revision();
-    for (name, style, at) in [("VBUS", "bar", vbus_pin), ("GND", "ground", gnd_pin)] {
-        let r = revision(&server);
-        let placed = tool(
-            &mut server,
-            "project_apply",
-            json!({"expected_revision": r, "operation": port(name, style, json!(at))}),
-        );
-        assert_eq!(placed["result"]["isError"], false, "{placed}");
-    }
-    let net_name = |server: &Server, at: Endpoint| {
-        let project = server.session().engine().project();
-        project
-            .net_of(at)
-            .map(|n| project.net_name(n.id).to_owned())
-    };
-    assert_eq!(net_name(&server, vbus_pin).as_deref(), Some("VBUS"));
-    assert_eq!(net_name(&server, gnd_pin).as_deref(), Some("GND"));
-
-    let drop = port("GND", "ground", json!({"wire": wire, "at": middle}));
-    let before = server.session().engine().document().clone();
-    let r = revision(&server);
-    let refused = tool(
-        &mut server,
-        "project_apply",
-        json!({"expected_revision": r, "operation": drop.clone()}),
-    );
-    assert_eq!(refused["result"]["isError"], true, "{refused}");
-    let body = payload(&refused);
-    assert_eq!(body["code"], "conflict", "{body}");
-    // The rule ID travels apart from the text (in `rule` or `details`).
-    assert!(body.to_string().contains("net.named_merge"), "{body}");
-    let message = body["message"].as_str().unwrap_or_default();
-    assert!(
-        message.contains("VBUS and GND") && message.contains("merge_named_nets: true"),
-        "{message}"
-    );
-    assert_eq!(server.session().engine().document(), &before);
-    assert_eq!(revision(&server), r);
-
-    let change = json!({"kind": "Schematic", "params": {"command": drop["operation"]}});
-    let preview = payload(&tool(
-        &mut server,
-        "project_preview_update",
-        json!({"change": change}),
-    ));
-    let merges = preview["merges_named"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    assert_eq!(merges.len(), 1, "{preview}");
-    let names: Vec<&str> = merges[0]["nets"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|n| n["name"].as_str())
-        .collect();
-    assert_eq!(names, ["VBUS", "GND"]);
-    assert_eq!(merges[0]["name"], "GND");
-
-    let unasked = tool(
-        &mut server,
-        "project_apply_update",
-        json!({"expected_revision": r, "change": change, "remove_conflicting_tracks": false}),
-    );
-    assert_eq!(unasked["result"]["isError"], true, "{unasked}");
-    assert_eq!(server.session().engine().document(), &before);
-    let joined = tool(
-        &mut server,
-        "project_apply_update",
-        json!({"expected_revision": r, "change": change,
-               "remove_conflicting_tracks": false, "merge_named_nets": true}),
-    );
-    assert_eq!(joined["result"]["isError"], false, "{joined}");
-    let project = server.session().engine().project();
-    assert_eq!(
-        project.net_of(vbus_pin).map(|n| n.id),
-        project.net_of(gnd_pin).map(|n| n.id)
-    );
-    Ok(())
-}
-
-/// The instructions a client is sent, headless and live: within Claude
-/// Code's cut, and near the design's 238 tokens (bytes stand in for tokens;
-/// `docs/mcp-surface.md` §3.1 has the ratio).
-#[test]
-#[ignore = "fails until slice P4 (M3 in v1) moves the method text into skills: 14,843 characters today"]
-fn the_instructions_fit_their_budget() {
-    for (mode, text) in [
-        ("headless", INSTRUCTIONS.to_owned()),
-        ("live", format!("{LIVE_INSTRUCTIONS}{INSTRUCTIONS}")),
-    ] {
-        let chars = text.chars().count();
-        assert!(chars <= MAX_INSTRUCTIONS, "{mode}: {chars} characters");
-    }
-    assert!(
-        INSTRUCTIONS.len() <= INSTRUCTIONS_TARGET,
-        "{} bytes",
-        INSTRUCTIONS.len()
-    );
 }

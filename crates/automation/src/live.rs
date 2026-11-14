@@ -6,20 +6,21 @@
 //! token kept in a file only the user can read, one JSON line per request
 //! and per reply. Each connection's thread hands its requests to the window
 //! ([`Endpoint::next`]), which answers them on the UI thread between frames
-//! with [`admit`] and [`run`]: the same [`Session::respond`] the headless
-//! transports use, over the window's engine ([`Session::lend`]).
+//! with [`admit`] and [`run`]: the front door ([`Surface::call`]) the
+//! headless transports use, over the window's engine ([`Session::lend`]).
 //!
-//! Two methods are served: [`EXECUTE`] (`{command, params}`, one
-//! automation request) and [`REVISION`]. A request that changes the project
-//! names the revision it was prepared against in its own parameters, which
-//! [`Session::execute`] checks as for every transport. Any request but a
-//! read is refused while the person is typing, dragging or has a menu,
-//! dialog or review open. The
-//! permission gate decides as for any LLM request; Ask waits for the
-//! person's Allow in the window. The CLI's `mcp --live` bridges an MCP
-//! client to this channel ([`Client`]).
-use crate::gate::{Caller, Decision, Grant, Question, failure};
-use crate::session::{Request, Session, envelope, take_verbose};
+//! Two methods are served: [`CALL`] (one [`Call`] envelope: `entry`,
+//! `params`, `expected_revision`, `dry_run`) and [`REVISION`]. A call that
+//! changes the project names the revision it was prepared against, which
+//! the front door checks as for every transport. Any call but a read or a
+//! dry run is refused while the person is typing, dragging or has a menu,
+//! dialog or review open. The permission gate decides as for any remote
+//! agent, under the window's [`grant`]; Ask waits for the person's Allow in
+//! the window. The CLI's `mcp --live` bridges an MCP client to this channel
+//! ([`Client`]).
+use crate::front::{self, AlreadyAllowed, Asker, Call, CallCx, NoOne, Surface};
+use crate::gate::{Decision, Grant, Mode, Principal, Question, failure};
+use crate::session::Session;
 use serde_json::{Value, json};
 use solidcraft_control::Effect;
 use solidcraft_control::auth;
@@ -37,16 +38,15 @@ use std::time::Duration;
 
 pub use solidcraft_control::ControlRequest;
 
-/// Run one automation request: `{command, params}`.
-pub const EXECUTE: &str = "engine.execute";
+/// Run one call of the front door: a [`Call`] envelope.
+pub const CALL: &str = "surface.call";
 /// The project's revision now, and whether it can undo and redo.
 pub const REVISION: &str = "project.revision";
 /// The first port tried; the next free one of [`auth::PORT_TRIES`] when it
 /// is taken. Below the ephemeral ranges, apart from Solidcraft's 27878.
 pub const DEFAULT_PORT: u16 = 27979;
-/// Requests that belong to the window's own File workflow, which asks about
-/// unsaved work and owns the file: refused on the live channel.
-pub const WINDOW_ONLY: &[&str] = &["project.new", "project.open", "project.save"];
+/// How a remote agent on the live channel is named to the gate.
+const CLIENT: &str = "live";
 /// Connections served at once.
 const MAX_CONNECTIONS: usize = 8;
 /// The longest request line, as the MCP server's.
@@ -96,33 +96,33 @@ struct LiveProtocol;
 
 impl Protocol for LiveProtocol {
     fn summary(&self, method: &str, params: &Value) -> Summary {
-        let command = params.get("command").and_then(Value::as_str);
-        let info = command.and_then(|id| Request::catalog_shared().iter().find(|c| c.id == id));
-        // What the request does is its effective class, as the gate decides
-        // it: `project.apply` of `library.publish` is Ask, a read naming a
-        // path is too. An unreadable one is refused at once.
-        let typed = info.and_then(|_| {
-            let mut request = json!({
-                "command": command,
-                "params": params.get("params").cloned().unwrap_or_else(|| json!({})),
-            });
-            take_verbose(&mut request);
-            serde_json::from_value::<Request>(request).ok()
-        });
-        let class = typed.as_ref().map(Request::effective_class);
+        // What the call does is its effective class, as the gate decides
+        // it: `project.apply_all` of `library.publish` is Ask, a read
+        // naming a path is too. An unreadable one is refused at once.
+        let typed = (method == CALL)
+            .then(|| serde_json::from_value::<Call>(params.clone()).ok())
+            .flatten()
+            .and_then(|call| front::read(&call).ok())
+            .map(|target| target.request);
+        let class = typed.as_ref().map(crate::Request::effective_class);
         let names_path = typed.as_ref().is_some_and(|typed| !typed.names_no_path());
+        let entry = params
+            .get("entry")
+            .and_then(Value::as_str)
+            .and_then(crate::session::metadata::find)
+            .map(|meta| meta.name.as_str());
         let effect = match (method, class) {
             (REVISION, _) | (_, Some(Class::Read)) => Effect::ReadsOnly,
             (_, Some(Class::Ask)) if names_path => Effect::WritesFile,
             _ => Effect::Changes,
         };
         Summary {
-            what: match info {
-                Some(info) => format!("`{method}` ({})", info.id),
+            what: match entry {
+                Some(entry) => format!("`{method}` ({entry})"),
                 None => format!("`{}`", method.chars().take(64).collect::<String>()),
             },
             effect,
-            command: info.map(|info| info.id),
+            command: entry,
             steps: None,
             // Anything but a read may wait for a person: Ask always, an edit
             // under ask-every-time. Timing it out first would leave it held,
@@ -143,7 +143,7 @@ impl Protocol for LiveProtocol {
         DOCS
     }
     fn capabilities(&self) -> Value {
-        json!({"methods": [EXECUTE, REVISION]})
+        json!({"methods": [CALL, REVISION]})
     }
 }
 
@@ -340,11 +340,18 @@ pub fn client_config(cli: &str) -> String {
     serde_json::to_string_pretty(&config).unwrap_or_default()
 }
 
-/// A request the window may run, as [`Session::respond`] takes it, with
-/// the policy it was admitted under.
+/// What a remote agent may do in the window: `mode` and `folders` over
+/// every module but `files`. Opening, saving and starting a project belong
+/// to the window's own File workflow, which asks the person about unsaved
+/// work and owns the file, so they are out of the agent's reach.
+pub fn grant(mode: Mode, folders: impl IntoIterator<Item = std::path::PathBuf>) -> Grant {
+    Grant::new(mode, folders).without_module("files")
+}
+
+/// A call the window may run, with the grant it was admitted under.
 #[derive(Clone, Debug)]
 pub struct Admitted {
-    request: Value,
+    call: Call,
     subject: &'static str,
     class: Class,
     policy: Grant,
@@ -360,6 +367,10 @@ impl Admitted {
     }
     pub fn class(&self) -> Class {
         self.class
+    }
+    /// Whether it is a dry run, which keeps nothing.
+    pub fn dry_run(&self) -> bool {
+        self.call.dry_run
     }
 }
 
@@ -378,9 +389,17 @@ fn refusal(code: &str, command: &str, why: String, instead: &str) -> Value {
     failure(&crate::gate::refusal(code, command, &why, instead))
 }
 
-/// Decide one request on the window's session. `busy` says why the person
-/// holds the window now (typing, dragging, a dialog): changes are refused
-/// then, reads still run.
+fn agent(policy: &Grant) -> Principal<'_> {
+    Principal::RemoteAgent {
+        grant: policy,
+        client: CLIENT,
+    }
+}
+
+/// Decide one request on the window's session, under `policy` (the
+/// window's [`grant`]). `busy` says why the person holds the window now
+/// (typing, dragging, a dialog): changes are refused then; reads and dry
+/// runs still run.
 pub fn admit(
     session: &Session,
     policy: &Grant,
@@ -397,61 +416,40 @@ pub fn admit(
                 "can_redo": engine.can_redo(),
             }}));
         }
-        EXECUTE => {}
+        CALL => {}
         other => {
             let shown: String = other.chars().take(64).collect();
             return Verdict::Reply(json!({"ok": false, "error": {
                 "code": "live.unknown_method",
-                "message": format!("unknown method {shown}: use {EXECUTE} or {REVISION}"),
+                "message": format!("unknown method {shown}: use {CALL} or {REVISION}"),
             }}));
         }
     }
-    let Some(command) = params.get("command").and_then(Value::as_str) else {
-        return Verdict::Reply(refusal(
-            "malformed_request",
-            EXECUTE,
-            "it names no command.".into(),
-            "Send {command, params}.",
-        ));
-    };
-    if WINDOW_ONLY.contains(&command) {
-        return Verdict::Reply(refusal(
-            "live.window_only",
-            command,
-            "the open window owns its file, and its File menu asks the person about unsaved work. Nothing was changed.".into(),
-            concat!("Ask the person to open, save or start a project in ", sparksmith_core::product_name!(), ", then carry on."),
-        ));
-    }
-    let mut request = json!({
-        "command": command,
-        "params": params.get("params").cloned().unwrap_or_else(|| json!({})),
-    });
-    if params.get("verbose") == Some(&Value::Bool(true)) {
-        request["verbose"] = Value::Bool(true);
-    }
-    let mut typed = request.clone();
-    take_verbose(&mut typed);
-    let typed = match serde_json::from_value::<Request>(typed) {
-        Ok(typed) => typed,
-        Err(_) if lacks_revision(command, &request["params"]) => {
+    let call = match serde_json::from_value::<Call>(params.clone()) {
+        Ok(call) => call,
+        Err(error) => {
             return Verdict::Reply(refusal(
-                "live.revision_required",
-                command,
-                "a change to the open window's project names the revision it was prepared against. Nothing was changed.".into(),
-                "Send expected_revision in its parameters: the revision of the last reply, or project_inspect's.",
+                "malformed_request",
+                CALL,
+                format!("it is not a call: {error}. Nothing was changed."),
+                "Send {entry, params, expected_revision?, dry_run?}.",
             ));
         }
-        Err(error) => return Verdict::Reply(envelope(Err(error.into()))),
     };
-    let class = typed.effective_class();
+    let target = match front::read(&call) {
+        Ok(target) => target,
+        Err(error) => return Verdict::Reply(failure(&error)),
+    };
+    let class = target.request.effective_class();
     let mut admitted = Admitted {
-        request,
-        subject: typed.subject(),
+        subject: target.request.subject(),
+        call,
         class,
         policy: policy.clone(),
         asked: false,
     };
     if class != Class::Read
+        && !admitted.call.dry_run
         && let Some(reason) = busy
     {
         return Verdict::Reply(refusal(
@@ -463,13 +461,15 @@ pub fn admit(
     }
     // A stale change is refused now rather than after the person's Allow;
     // the front door checks it again when it runs.
-    if let Some(expected) = admitted.request["params"]["expected_revision"].as_u64()
+    if let Some(expected) = target.expected
         && let Err(stale) = engine.check_revision(expected)
     {
-        return Verdict::Reply(envelope(Err(stale.into())));
+        return Verdict::Reply(failure(&front::from_diagnostic(stale.diagnostic())));
     }
-    match session.check_request(policy, &admitted.request) {
+    match session.decide(&agent(policy), &admitted.call) {
         Decision::Run => Verdict::Run(admitted),
+        // A dry run keeps nothing, so what would ask a person runs.
+        Decision::Ask(_) if admitted.call.dry_run => Verdict::Run(admitted),
         Decision::Ask(question) => {
             admitted.asked = true;
             Verdict::Ask(admitted, question)
@@ -478,31 +478,25 @@ pub fn admit(
     }
 }
 
-/// Whether `command` takes `expected_revision` in its parameters, which
-/// `params` lacks: the central revision rule's requirement, named clearly
-/// instead of as a parse error.
-fn lacks_revision(command: &str, params: &Value) -> bool {
-    let requires = Request::catalog_shared()
-        .iter()
-        .find(|info| info.id == command)
-        .and_then(|info| info.params.get("required"))
-        .and_then(Value::as_array)
-        .is_some_and(|required| required.iter().any(|name| name == "expected_revision"));
-    requires && params.get("expected_revision").is_none()
-}
-
-/// Run an admitted request on the window's session and answer with the
-/// compact reply. [`Session::respond`] gates it again under the policy it
-/// was admitted with (a held one as allowed: the host runs it only on the
-/// person's Allow), and [`Session::execute`] checks the revision again: the
-/// person may have edited while it waited.
+/// Run an admitted call on the window's session and answer with the
+/// compact reply. The front door gates it again under the grant it was
+/// admitted with (a held one as allowed: the host runs it only on the
+/// person's Allow) and checks the revision again: the person may have
+/// edited while it waited.
 pub fn run(session: &mut Session, admitted: &Admitted) -> Value {
-    let caller = if admitted.asked {
-        Caller::Allowed(&admitted.policy)
+    let mut no_one = NoOne;
+    let mut allowed = AlreadyAllowed;
+    let asker: &mut dyn Asker = if admitted.asked {
+        &mut allowed
     } else {
-        Caller::Model(&admitted.policy)
+        &mut no_one
     };
-    session.respond(caller, admitted.request.clone())
+    let cx = CallCx {
+        who: agent(&admitted.policy),
+        asker,
+        verbose: false,
+    };
+    front::envelope(session.call(cx, admitted.call.clone()))
 }
 
 /// A bridge's connection to the window: one authenticated connection, kept

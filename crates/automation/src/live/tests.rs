@@ -1,5 +1,5 @@
 //! The live channel's decisions over a plain session, and its socket end to
-//! end: the token, the window's turn and the bridge's tools.
+//! end: the token, the window's turn and the MCP verbs through the bridge.
 use super::*;
 use crate::gate::Mode;
 use sparksmith_core::Engine;
@@ -16,18 +16,26 @@ const TEST_APP: App = App {
 };
 
 fn policy() -> Grant {
-    Grant::new(Mode::AutoAllowEdits, [std::env::temp_dir()])
+    grant(Mode::AutoAllowEdits, [std::env::temp_dir()])
 }
 
-/// `engine.execute` of `layout.add_via` at `revision`.
+/// A call of `entry` with `params`, at `revision` when it names one.
+fn envelope(entry: &str, params: Value, revision: Option<u64>) -> Value {
+    let mut call = json!({"entry": entry, "params": params});
+    if let Some(revision) = revision {
+        call["expected_revision"] = json!(revision);
+    }
+    call
+}
+
+/// `layout.add_via` at `revision`.
 fn add_via(session: &Session, revision: u64) -> Value {
     let net = session.engine().project().nets.first().map_or(0, |n| n.id);
-    json!({"command": "project.apply", "params": {
-        "expected_revision": revision,
-        "operation": {"editor": "Layout", "operation": {"command": "layout.add_via", "params": {
-            "via": {"net": net, "position": [1.0, 1.0], "drill": 0.3, "diameter": 0.6, "span": "through", "tented": true}
-        }}},
-    }})
+    envelope(
+        "layout.add_via",
+        json!({"via": {"net": net, "position": [1.0, 1.0], "drill": 0.3, "diameter": 0.6, "span": "through", "tented": true}}),
+        Some(revision),
+    )
 }
 
 fn code(reply: &Value) -> &str {
@@ -35,12 +43,12 @@ fn code(reply: &Value) -> &str {
 }
 
 fn decide(session: &Session, busy: Option<&str>, params: &Value) -> Verdict {
-    admit(session, &policy(), busy, EXECUTE, params)
+    admit(session, &policy(), busy, CALL, params)
 }
 
 /// A change at the current revision runs and answers compactly; at an older
 /// one, without one, or while the person holds the window it is refused and
-/// nothing changes. Reads run while the person is busy.
+/// nothing changes. Reads and dry runs run while the person is busy.
 #[test]
 fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
     let mut session = Session::new(Engine::demo()?);
@@ -57,11 +65,17 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
     };
     assert_eq!(code(&stale), "stale_revision", "{stale}");
 
-    let undo = json!({"command": "project.undo"});
+    let undo = envelope("project.undo", json!({}), None);
     let Verdict::Reply(missing) = decide(&session, None, &undo) else {
         return Err("an undo without a revision was admitted".into());
     };
-    assert_eq!(code(&missing), "live.revision_required", "{missing}");
+    assert_eq!(code(&missing), "malformed_request", "{missing}");
+    assert!(
+        missing["error"]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("expected_revision")),
+        "{missing}"
+    );
 
     let Verdict::Reply(busy) = decide(
         &session,
@@ -77,11 +91,21 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
             .is_some_and(|m| m.contains("typing"))
     );
 
-    let read = json!({"command": "project.inspect"});
+    let read = envelope("project.inspect", json!({}), None);
     let Verdict::Run(admitted) = decide(&session, Some("The person is typing"), &read) else {
         return Err("a read was refused while the person types".into());
     };
     assert_eq!(run(&mut session, &admitted)["ok"], true);
+
+    // A dry run keeps nothing, so it runs while the person types too.
+    let mut tried = add_via(&session, revision);
+    tried["dry_run"] = json!(true);
+    let Verdict::Run(admitted) = decide(&session, Some("The person is typing"), &tried) else {
+        return Err("a dry run was refused while the person types".into());
+    };
+    assert!(admitted.dry_run());
+    let reply = run(&mut session, &admitted);
+    assert_eq!(reply["result"]["dry_run"], true, "{reply}");
     assert_eq!(session.engine().document(), &before);
     assert_eq!(session.engine().revision(), revision);
 
@@ -103,8 +127,7 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
     );
     assert_eq!(session.engine().revision(), revision + 1);
 
-    // Undo takes its revision in its own parameters.
-    let undo = json!({"command": "project.undo", "params": {"expected_revision": revision + 1}});
+    let undo = envelope("project.undo", json!({}), Some(revision + 1));
     let Verdict::Run(admitted) = decide(&session, None, &undo) else {
         return Err("a current undo was not admitted".into());
     };
@@ -113,30 +136,48 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
     Ok(())
 }
 
-/// The window's own file requests are refused; an Ask request is held for
-/// the person; a Never one is refused; an unknown method says what exists.
+/// Opening, saving and starting a project are the window's own: the files
+/// module is outside the window's grant. An Ask call is held for the
+/// person; a Never one is refused; an unknown method says what exists.
 #[test]
 fn the_window_decides_files_and_asks() -> Fallible {
     let session = Session::new(Engine::demo()?);
     let revision = session.engine().revision();
-    for command in WINDOW_ONLY {
-        let request = json!({"command": command, "params": {"expected_revision": revision}});
-        let Verdict::Reply(reply) = decide(&session, None, &request) else {
-            return Err(format!("{command} was admitted").into());
+    let file = std::env::temp_dir().join("live.sparksmith");
+    for (entry, params) in [
+        ("project.new", json!({})),
+        ("project.open", json!({"path": file.display().to_string()})),
+        ("project.save", json!({})),
+    ] {
+        let call = envelope(entry, params, Some(revision));
+        let Verdict::Reply(reply) = decide(&session, None, &call) else {
+            return Err(format!("{entry} was admitted").into());
         };
-        assert_eq!(code(&reply), "live.window_only", "{reply}");
+        assert_eq!(code(&reply), "gate.module", "{reply}");
+        assert!(
+            reply["error"]["message"]
+                .as_str()
+                .is_some_and(|m| m.contains("files module")),
+            "{reply}"
+        );
     }
     let path = std::env::temp_dir().join("live-export.solidcraft");
-    let export = json!({"command": "project.export_native",
-        "params": {"path": path.display().to_string()}});
+    let export = envelope(
+        "project.export_native",
+        json!({"path": path.display().to_string()}),
+        None,
+    );
     let Verdict::Ask(admitted, question) = decide(&session, None, &export) else {
         return Err("an export was not held for the person".into());
     };
     assert_eq!(admitted.class(), Class::Ask);
     assert_eq!(question.command, "project.export_native");
 
-    let never = json!({"command": "library.favourite",
-        "params": {"key": {"source": "project", "lineage": 1}, "favourite": true}});
+    let never = envelope(
+        "library.favourite",
+        json!({"key": {"source": "project", "lineage": 1}, "favourite": true}),
+        None,
+    );
     let Verdict::Reply(never) = decide(&session, None, &never) else {
         return Err("a never-class request was admitted".into());
     };
@@ -145,6 +186,11 @@ fn the_window_decides_files_and_asks() -> Fallible {
         return Err("an unknown method was admitted".into());
     };
     assert_eq!(code(&unknown), "live.unknown_method");
+    let Verdict::Reply(malformed) = decide(&session, None, &json!({"command": "project.inspect"}))
+    else {
+        return Err("a request that is no call was admitted".into());
+    };
+    assert_eq!(code(&malformed), "malformed_request", "{malformed}");
     let Verdict::Reply(now) = admit(&session, &policy(), Some("busy"), REVISION, &json!({})) else {
         return Err("the revision was not answered".into());
     };
@@ -161,8 +207,14 @@ fn an_allowed_change_is_checked_again() -> Fallible {
         return Err("not admitted".into());
     };
     // The person edits meanwhile.
-    let mine = add_via(&session, revision);
-    assert_eq!(session.respond(Caller::Operator, mine)["ok"], true);
+    let net = session.engine().project().nets.first().map_or(0, |n| n.id);
+    let mine = json!({"command": "project.apply", "params": {
+        "expected_revision": revision,
+        "operation": {"editor": "Layout", "operation": {"command": "layout.add_via", "params": {
+            "via": {"net": net, "position": [2.0, 2.0], "drill": 0.3, "diameter": 0.6, "span": "through", "tented": true}
+        }}},
+    }});
+    assert_eq!(session.dispatch(mine)["ok"], true);
     let reply = run(&mut session, &admitted);
     assert_eq!(code(&reply), "stale_revision", "{reply}");
     assert_eq!(session.engine().revision(), revision + 1);
@@ -215,35 +267,110 @@ fn the_socket_needs_the_token_and_waits_for_the_window() -> Fallible {
     Ok(())
 }
 
-/// The bridge's tools: no window-only file requests, and each change takes
-/// `expected_revision` once, from its own parameters.
+/// A stand-in for the window: answers the endpoint's requests on `session`
+/// as the desktop app does, the person allowing what asks, until `stop`.
+fn window(
+    endpoint: Endpoint,
+    mut session: Session,
+    stop: Arc<AtomicBool>,
+) -> std::thread::JoinHandle<Session> {
+    std::thread::spawn(move || {
+        while !stop.load(Ordering::Acquire) {
+            let Some(request) = endpoint.next() else {
+                std::thread::sleep(Duration::from_millis(2));
+                continue;
+            };
+            let reply = match admit(&session, &policy(), None, &request.method, &request.params) {
+                Verdict::Reply(reply) => reply,
+                Verdict::Run(admitted) | Verdict::Ask(admitted, _) => run(&mut session, &admitted),
+            };
+            let _ = request.reply.send(reply);
+        }
+        session
+    })
+}
+
+/// `sparksmith mcp --live`: the verbs reach the window through the bridge.
+/// A read and an edit run there, a dry run keeps nothing, what asks waits
+/// for the person (who allows it here), the window's file is refused, and
+/// `show` finds no entry yet.
 #[test]
-fn live_tools_take_their_own_revision() {
-    let tools = crate::mcp::live_tools();
-    let tool = |name: &str| tools.iter().find(|t| t["name"] == name).cloned();
-    assert!(tool("project_open").is_none() && tool("project_save").is_none());
-    let undo = tool("project_undo").unwrap_or_default();
-    assert!(
-        undo["inputSchema"]["required"]
-            .as_array()
-            .is_some_and(|r| r.contains(&json!("expected_revision"))),
-        "{undo}"
+fn the_verbs_reach_the_window() -> Fallible {
+    let endpoint = Endpoint::start(TEST_APP, Listen::Exact(0), || {})?;
+    let client = Client::with_token(
+        endpoint.port(),
+        ClientToken {
+            token: endpoint.token().to_owned(),
+            file: None,
+            app: TEST_APP,
+        },
     );
-    let apply = tool("project_apply").unwrap_or_default();
-    let required = apply["inputSchema"]["required"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    assert_eq!(
-        required
-            .iter()
-            .filter(|r| *r == "expected_revision")
-            .count(),
-        1,
-        "{apply}"
+    let session = Session::new(Engine::demo()?);
+    let revision = session.engine().revision();
+    let via = add_via(&session, revision)["params"].clone();
+    let stop = Arc::new(AtomicBool::new(false));
+    let serving = window(endpoint, session, Arc::clone(&stop));
+    let tools = crate::mcp::testing::Tools::live(client)?;
+
+    let inspect = tools.ok("query", json!({"name": "project.inspect"}))?;
+    assert_eq!(inspect["revision"], revision, "{inspect}");
+    let project = inspect["project"].clone();
+    assert!(project.is_string(), "{inspect}");
+
+    let tried = tools.ok(
+        "apply",
+        json!({"expected_revision": revision, "dry_run": true,
+            "operations": [{"op": "layout.add_via", "params": via.clone()}]}),
+    )?;
+    assert_eq!(tried["dry_run"], true, "{tried}");
+    assert_eq!(tried["revision"], revision, "{tried}");
+
+    let applied = tools.ok(
+        "apply",
+        json!({"project": project, "expected_revision": revision,
+            "operations": [{"op": "layout.add_via", "params": via.clone()}]}),
+    )?;
+    assert_eq!(applied["revision"], revision + 1, "{applied}");
+    let (failed, stale) = tools.call(
+        "apply",
+        json!({"expected_revision": revision,
+            "operations": [{"op": "layout.add_via", "params": via}]}),
     );
-    let inspect = tool("project_inspect").unwrap_or_default();
-    assert!(inspect["inputSchema"]["properties"]["expected_revision"].is_null());
+    assert!(failed, "{stale}");
+    assert_eq!(stale["code"], "stale_revision", "{stale}");
+
+    // The window's file is the person's: the files module is not granted.
+    let (failed, save) = tools.call("act", json!({"name": "project.save"}));
+    assert!(failed);
+    assert_eq!(save["code"], "gate.module", "{save}");
+    let (failed, opened) = tools.call("act", json!({"name": "project.new"}));
+    assert!(failed);
+    assert_eq!(opened["code"], "gate.module", "{opened}");
+
+    // A read naming a path asks; the window's person allows it.
+    let dir = tempfile::tempdir_in(std::env::temp_dir())?;
+    let part = dir.path().join("smd-nut.solidcraft");
+    std::fs::copy(
+        concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../library/parts/smd-nut.solidcraft"
+        ),
+        &part,
+    )?;
+    let checked = tools.ok(
+        "act",
+        json!({"name": "library.check_part_file", "params": {"path": part.display().to_string()}}),
+    )?;
+    assert_eq!(checked["report"]["ok"], true, "{checked}");
+
+    let (failed, shown) = tools.call("show", json!({"name": "view.select"}));
+    assert!(failed);
+    assert_eq!(shown["code"], "catalog.unknown", "{shown}");
+
+    stop.store(true, Ordering::Release);
+    let session = serving.join().map_err(|_| "window thread")?;
+    assert_eq!(session.engine().revision(), revision + 1);
+    Ok(())
 }
 
 /// I-A1: live, `library.source.add` is refused in every mode the window
@@ -252,11 +379,14 @@ fn live_tools_take_their_own_revision() {
 #[test]
 fn the_window_never_adds_a_library_source() -> Fallible {
     let session = Session::new(Engine::demo()?);
-    let request = json!({"command": "library.source.add",
-        "params": {"path": std::env::temp_dir().join("lib").display().to_string()}});
+    let call = envelope(
+        "library.source.add",
+        json!({"path": std::env::temp_dir().join("lib").display().to_string()}),
+        None,
+    );
     for mode in [Mode::AskEveryTime, Mode::AutoAllowEdits, Mode::AllowAll] {
-        let policy = Grant::new(mode, [std::env::temp_dir()]);
-        let Verdict::Reply(reply) = admit(&session, &policy, None, EXECUTE, &request) else {
+        let policy = grant(mode, [std::env::temp_dir()]);
+        let Verdict::Reply(reply) = admit(&session, &policy, None, CALL, &call) else {
             return Err(format!("{mode:?}: library.source.add was admitted").into());
         };
         assert_eq!(code(&reply), "gate.never", "{mode:?}: {reply}");
@@ -280,8 +410,11 @@ fn a_read_naming_a_path_runs_on_allow() -> Fallible {
         ),
         &part,
     )?;
-    let check = json!({"command": "library.check_part_file",
-        "params": {"path": part.display().to_string()}});
+    let check = envelope(
+        "library.check_part_file",
+        json!({"path": part.display().to_string()}),
+        None,
+    );
     let Verdict::Ask(admitted, question) = decide(&session, None, &check) else {
         return Err("a path-named read was not held for the person".into());
     };
@@ -290,9 +423,12 @@ fn a_read_naming_a_path_runs_on_allow() -> Fallible {
     assert_eq!(reply["ok"], true, "{reply}");
     assert_eq!(reply["result"]["report"]["ok"], true, "{reply}");
 
-    let preview = json!({"command": "firmware.export_preview", "params": {
-        "instance": 1, "emitter": {"emitter": "json"},
-        "template_file": dir.path().join("t.rhai").display().to_string()}});
+    let preview = envelope(
+        "firmware.export_preview",
+        json!({"instance": 1, "emitter": {"emitter": "json"},
+            "template_file": dir.path().join("t.rhai").display().to_string()}),
+        None,
+    );
     let Verdict::Ask(admitted, _) = decide(&session, None, &preview) else {
         return Err("a preview naming a template was not held".into());
     };
@@ -304,25 +440,22 @@ fn a_read_naming_a_path_runs_on_allow() -> Fallible {
     Ok(())
 }
 
-/// I-A3: the wait comes from the effective class: a request inside
-/// `project.apply` that asks, a read that names a path and, under
-/// ask-every-time, an edit may all wait for the person, so none times out
-/// while it is held; a plain read keeps the short wait.
+/// I-A3: the wait comes from the effective class: an operation that asks,
+/// a read that names a path and, under ask-every-time, an edit may all wait
+/// for the person, so none times out while it is held; a plain read keeps
+/// the short wait.
 #[test]
 fn a_request_that_may_wait_for_the_person_gets_the_long_wait() -> Fallible {
     let session = Session::new(Engine::demo()?);
-    let apply = |command: &str, params: Value| {
-        json!({"command": "project.apply", "params": {
-            "expected_revision": 0,
-            "operation": {"editor": "Library", "operation": {"command": command, "params": params}},
-        }})
-    };
-    let publish = apply("library.publish", json!({"drafts": [1]}));
-    let path_read = json!({"command": "library.check_part_file",
-        "params": {"path": "/tmp/x.solidcraft"}});
+    let publish = envelope("library.publish", json!({"drafts": [1]}), Some(0));
+    let path_read = envelope(
+        "library.check_part_file",
+        json!({"path": "/tmp/x.solidcraft"}),
+        None,
+    );
     let edit = add_via(&session, 0);
-    let read = json!({"command": "project.inspect"});
-    let summary = |params: &Value| LiveProtocol.summary(EXECUTE, params);
+    let read = envelope("project.inspect", json!({}), None);
+    let summary = |params: &Value| LiveProtocol.summary(CALL, params);
     for (name, params) in [
         ("publish", &publish),
         ("path read", &path_read),
@@ -331,6 +464,7 @@ fn a_request_that_may_wait_for_the_person_gets_the_long_wait() -> Fallible {
         assert!(summary(params).long, "{name}: {params}");
     }
     assert!(matches!(summary(&publish).effect, Effect::Changes));
+    assert_eq!(summary(&publish).command, Some("library.publish"));
     assert!(!summary(&read).long);
     assert!(matches!(summary(&read).effect, Effect::ReadsOnly));
     assert!(!LiveProtocol.summary(REVISION, &json!({})).long);

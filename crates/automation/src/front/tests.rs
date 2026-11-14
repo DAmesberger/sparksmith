@@ -473,7 +473,7 @@ fn the_asker_answers_what_needs_a_person() -> Fallible {
     let before = session.engine().to_file();
     for (answer, code) in [
         (Answer::Deny, "gate.denied"),
-        (Answer::Unavailable, "gate.cannot_ask"),
+        (Answer::Unavailable, "gate.needs_person"),
     ] {
         let revision = session.engine().revision();
         let mut asker = Answers(answer, 0);

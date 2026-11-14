@@ -16,26 +16,23 @@ pub use sparksmith_generator_abi::surface::{
     Person, Reach, Reaches, ResultSize, Time, Version,
 };
 
-/// The modules of the catalog, each with its version. Before the MCP
-/// cut-over every module is `0.x` (`docs/design/decisions-2026-11-14.md`);
+/// The modules of the catalog, each with its version. Every module started
+/// at `1.0` with the MCP cut-over (`docs/design/decisions-2026-11-14.md`);
 /// `cargo xtask surface --check` holds each against `surface.lock`.
 pub const MODULES: &[ModuleDecl] = &[
-    module_at(
+    module(
         "project",
-        (0, 4),
         "Project",
         "The open design: inspect, properties, undo, redo, bill of materials.",
     ),
     module("files", "Files", "New, open and save a project file."),
-    module_at(
+    module(
         "schematic",
-        (0, 2),
         "Schematic",
         "Sheets, symbols, wires, labels, placed components and their pins.",
     ),
-    module_at(
+    module(
         "layout",
-        (0, 3),
         "Layout",
         "Place parts, route copper, vias, fills, keepouts, pairs and the board shape.",
     ),
@@ -44,9 +41,8 @@ pub const MODULES: &[ModuleDecl] = &[
         "Rules",
         "Design rules, fab profiles, net classes and impedance.",
     ),
-    module_at(
+    module(
         "library",
-        (0, 3),
         "Library",
         "Component definitions, drafts, publishing, folders, updates and pinout import.",
     ),
@@ -72,15 +68,17 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
 ];
 
+/// The version every module started at with the MCP cut-over (decision 12).
+pub const CUT_OVER: Version = (1, 0);
+
+/// A module at [`CUT_OVER`]. A later change raises it with [`module_at`]:
+/// a break the major, an addition the minor.
 const fn module(id: &'static str, title: &'static str, summary: &'static str) -> ModuleDecl {
-    module_at(id, (0, 1), title, summary)
+    module_at(id, CUT_OVER, title, summary)
 }
 
-/// A module at `version`, raised from 0.1 by a change the lock records
-/// (0.2: net disagreements and pins added by import; project 0.3, layout 0.2
-/// and library 0.3: sketches as JSON objects and fills without computed
-/// copper, file format version 4; project 0.4 and layout 0.3: tracks an
-/// import refused).
+/// A module at `version`, raised from [`CUT_OVER`] by a change the lock
+/// records.
 const fn module_at(
     id: &'static str,
     version: Version,

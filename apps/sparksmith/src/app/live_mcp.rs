@@ -15,7 +15,7 @@
 use super::App;
 use crate::kit::{self, severity::Level, toast::ToastAction};
 use sparksmith_automation::live::{self, Admitted, ControlRequest, Endpoint, Verdict};
-use sparksmith_automation::{Grant, Mode, Question, Session};
+use sparksmith_automation::{Mode, Question, Session};
 use sparksmith_ui::{ui_kit, ui_kit::Button};
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -227,7 +227,7 @@ impl App {
                 .started
                 .store(true, std::sync::atomic::Ordering::Relaxed);
             let busy = self.live_busy(ctx);
-            let policy = Grant::new(self.live.mode, folders(self.files.path()));
+            let policy = live::grant(self.live.mode, folders(self.files.path()));
             let path = self.files.path().map(std::path::Path::to_path_buf);
             let verdict = self
                 .live
@@ -355,7 +355,7 @@ impl App {
                 kit::hint(
                     ui,
                     "Edits join your undo history. Files and publishing ask you here.",
-                    "An assistant's change is refused while you type, drag or have a menu, dialog or review open. A new token is made each time you turn this on; it stays in a file only you can read.",
+                    "Opening, saving and starting projects stay yours: an assistant cannot do them. An assistant's change is refused while you type, drag or have a menu, dialog or review open. A new token is made each time you turn this on; it stays in a file only you can read.",
                 );
             });
             kit::section(ui, "live-config", "Configuration", true, None, |ui| {
@@ -373,6 +373,11 @@ impl App {
                         copy = Some(claude.clone());
                     }
                 });
+                kit::hint(
+                    ui,
+                    "The server speaks MCP 2026-07-28 only.",
+                    "Claude Code connects as it is. Codex needs its mcp_2026_07_28 feature and CODEX_MCP_PROTOCOL_VERSION=2026-07-28; OpenCode needs \"protocol\": \"2026-07-28\" on this server in its own settings. Clients that only speak older versions are told which version to use.",
+                );
             });
         });
         if let Some(text) = copy {

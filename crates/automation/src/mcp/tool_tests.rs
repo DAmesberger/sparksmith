@@ -1,6 +1,6 @@
-//! P2 evidence: the five tools and project handles, through rmcp's own
+//! P2 and S3 evidence: the six tools and project handles, through rmcp's own
 //! client at `2026-07-28` against the server, as a model would call them.
-use super::tools::{ACT, APPLY, DESCRIBE, FIND, QUERY};
+use super::tools::{ACT, APPLY, DESCRIBE, FIND, QUERY, SHOW, TOOLS_BUDGET};
 use super::*;
 use crate::gate::Mode;
 use rmcp::model::{ClientCapabilities, ClientConfig, ErrorCode};
@@ -108,16 +108,16 @@ fn board_size(size: [f64; 2]) -> Value {
     json!({"op": "layout.set_board_size", "params": {"size": size}})
 }
 
-/// The list is the five verbs in order, each with the annotations of its
+/// The list is the six verbs in order, each with the annotations of its
 /// class, `apply`'s `op` a plain string, within the design's token budget.
 #[test]
-fn the_tools_are_the_five_verbs() -> Fallible<()> {
+fn the_tools_are_the_six_verbs() -> Fallible<()> {
     let dir = tempfile::tempdir()?;
     block_on(async move {
         let connection = Connection::open(Mode::AutoAllowEdits, dir.path()).await?;
         let listed = connection.client.list_tools(None).await?.tools;
         let names: Vec<&str> = listed.iter().map(|t| t.name.as_ref()).collect();
-        assert_eq!(names, [FIND, DESCRIBE, QUERY, APPLY, ACT]);
+        assert_eq!(names, [FIND, DESCRIBE, QUERY, APPLY, ACT, SHOW]);
         let hints = |name: &str| {
             listed
                 .iter()
@@ -145,6 +145,11 @@ fn the_tools_are_the_five_verbs() -> Fallible<()> {
             hints(ACT),
             Some((Some(false), Some(true), None, Some(true)))
         );
+        // Steering the window changes no document and takes no undo step.
+        assert_eq!(
+            hints(SHOW),
+            Some((Some(false), Some(false), None, Some(false)))
+        );
         for tool in &listed {
             assert!(tool.title.is_some(), "{} has a title", tool.name);
         }
@@ -163,10 +168,10 @@ fn the_tools_are_the_five_verbs() -> Fallible<()> {
             "no operation names listed"
         );
 
-        // §3.1: 1,404 Qwen tokens with the union outline, at the 4.3 bytes
-        // per token the instructions target uses.
+        // The extension design's budget for six verbs: the list is the
+        // verbs and nothing else, whatever the catalog grows to.
         let bytes = wire.len();
-        assert!(bytes <= 1404 * 43 / 10, "the five tools are {bytes} bytes");
+        assert!(bytes <= TOOLS_BUDGET, "the six tools are {bytes} bytes");
         connection.close().await
     })?
 }
@@ -543,12 +548,12 @@ fn query_apply_and_act_run_through_the_gate() -> Fallible<()> {
                 json!({"name": "project.save", "params": {"path": path}})
             )
             .await?,
-            "gate.cannot_ask"
+            "gate.needs_person"
         );
         assert!(!saved.exists());
         assert_eq!(
             c.refused(ACT, json!({"name": "project.new"})).await?,
-            "gate.cannot_ask"
+            "gate.needs_person"
         );
 
         // An unknown tool is the protocol's error.
@@ -661,4 +666,58 @@ fn projects_are_kept_apart_by_handle() -> Fallible<()> {
         assert_eq!(c.refused(ACT, new.clone()).await?, "project.limit");
         c.close().await
     })?
+}
+
+/// The generator entries, which the old server hid to fit its list, are
+/// found and called like any other: the shipped chip module lists and
+/// makes a part through `query` and `apply`.
+#[test]
+fn generators_are_found_and_called() -> Fallible<()> {
+    let mut session = Session::default();
+    session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(Path::new(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/../../library"),
+    ))?);
+    let tools = super::testing::Tools::new(session, Grant::default())?;
+    let found = tools.ok(FIND, json!({"text": "generator", "limit": 50}))?;
+    let hits: Vec<&str> = found["hits"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|h| h["name"].as_str())
+        .collect();
+    for name in [
+        "library.generators",
+        "library.generate",
+        "library.generate_part",
+    ] {
+        assert!(hits.contains(&name), "find reaches {name}: {found}");
+    }
+    let described = tools.ok(DESCRIBE, json!({"name": "library.generate_part"}))?;
+    assert_eq!(described["call"]["tool"], APPLY, "{described}");
+
+    let listed = tools.ok(QUERY, json!({"name": "library.generators"}))?;
+    let shipped = listed["shipped"].as_array().ok_or("shipped")?;
+    assert!(shipped.iter().any(|g| g["name"] == "chip"), "{listed}");
+    let before = tools.revision();
+    let made = tools.ok(
+        APPLY,
+        json!({"expected_revision": before, "operations": [{"op": "library.generate_part",
+            "params": {"generator": "chip", "scope": "component", "preset": "resistor-0603"}}]}),
+    )?;
+    assert_eq!(made["outcome"]["report"]["created"], true, "{made}");
+    assert_eq!(tools.revision(), before + 1);
+    Ok(())
+}
+
+/// Headless, there is no window to steer: `show` says so and changes
+/// nothing.
+#[test]
+fn show_needs_the_window() -> Fallible<()> {
+    let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
+    let before = tools.revision();
+    let (failed, shown) = tools.call(SHOW, json!({"name": "view.select", "params": {}}));
+    assert!(failed);
+    assert_eq!(shown["code"], "host.unavailable", "{shown}");
+    assert_eq!(tools.revision(), before);
+    Ok(())
 }

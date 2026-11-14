@@ -469,7 +469,7 @@ fn publishing_and_paths_outside_the_output_folder_are_refused_by_the_gate() -> F
             "operation": {"editor": "Library", "operation": {
                 "command": "library.publish", "params": {"drafts": []}}}}}),
     );
-    assert_eq!(reply["error"]["code"], "gate.cannot_ask", "{reply}");
+    assert_eq!(reply["error"]["code"], "gate.needs_person", "{reply}");
     // A file outside the run's folder is refused before anything is written.
     let outside = tempfile::tempdir()?;
     let target = outside.path().join("elsewhere.sparksmith");
@@ -543,7 +543,7 @@ fn a_gated_tool_call_comes_back_as_a_tool_result_and_the_run_goes_on() -> Fallib
     assert_eq!(refused["is_error"], true);
     let text = refused["content"].as_str().unwrap_or_default();
     assert!(
-        text.contains("gate.cannot_ask") && text.contains("no way to ask"),
+        text.contains("gate.needs_person") && text.contains("no way to ask"),
         "{text}"
     );
     let report = &bodies[4]["messages"][8]["content"][0];

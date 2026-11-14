@@ -1,7 +1,7 @@
 //! The gate through its public functions: the decision table, the folder
 //! limit, a run that was told to publish, and MCP under each mode.
 use super::*;
-use crate::mcp::{Server, tool_name};
+use crate::mcp::testing::Tools;
 use sparksmith_core::{Engine, Operation, Query};
 use std::collections::BTreeSet;
 
@@ -305,22 +305,28 @@ fn a_model_can_see_what_will_need_asking() -> Fallible {
     let schema = session
         .dispatch(json!({"command": "project.schema", "params": {"name": "library.publish"}}));
     assert_eq!(schema["result"]["matches"][0]["class"], "ask", "{schema}");
-    let tools = crate::mcp::tools();
-    let description = |name: &str| {
-        tools
-            .iter()
-            .find(|tool| tool["name"] == name)
-            .and_then(|tool| tool["description"].as_str())
-            .unwrap_or_default()
-            .to_owned()
+    // Over MCP, `find` names each hit's class and the verb its kind takes;
+    // the Never class is not found at all.
+    let tools = Tools::new(Session::default(), Grant::default())?;
+    let hit = |text: &str| -> Fallible<Value> {
+        let found = tools.ok("find", json!({"text": text, "limit": 50}))?;
+        Ok(found["hits"]
+            .as_array()
+            .and_then(|hits| hits.iter().find(|h| h["name"] == text))
+            .cloned()
+            .unwrap_or(Value::Null))
     };
-    assert!(description("project_save").ends_with("Permission: ask."));
-    assert!(description("project_inspect").ends_with("Permission: read."));
-    assert!(description("library_favourite").ends_with("Permission: never."));
-    assert!(
-        description("library_check_part_file").ends_with("Permission: read, or ask with a path.")
+    let save = hit("project.save")?;
+    assert_eq!(
+        (&save["class"], &save["kind"]),
+        (&json!("ask"), &json!("action"))
     );
-    assert!(description("project_apply").contains("project_schema marks"));
+    let inspect = hit("project.inspect")?;
+    assert_eq!(
+        (&inspect["class"], &inspect["kind"]),
+        (&json!("read"), &json!("query"))
+    );
+    assert_eq!(hit("library.favourite")?, Value::Null);
     Ok(())
 }
 
@@ -460,7 +466,7 @@ fn a_request_from_a_run_cannot_publish_or_write_without_allow() -> Fallible {
         );
         let reply = session.respond(Caller::Model(&policy), attempt.clone());
         assert_eq!(reply["ok"], false, "{reply}");
-        assert_eq!(reply["error"]["code"], "gate.cannot_ask", "{reply}");
+        assert_eq!(reply["error"]["code"], "gate.needs_person", "{reply}");
         let message = reply["error"]["message"].as_str().unwrap_or_default();
         assert!(message.contains("no way to ask"), "{message}");
         assert!(message.contains("Instead:"), "{message}");
@@ -602,7 +608,7 @@ fn a_malformed_request_is_refused_with_its_parse_error() -> Fallible {
     };
     assert_eq!(refusal.code, "malformed_request");
     assert!(refusal.message.starts_with("Refused project.save:"));
-    assert!(refusal.message.clone().contains("project_schema"));
+    assert!(refusal.message.clone().contains("describe"));
     Ok(())
 }
 
@@ -622,22 +628,9 @@ fn a_denied_question_answers_the_model() -> Fallible {
     Ok(())
 }
 
-fn tool_call(server: &mut Server, id: u64, command: &str, arguments: Value) -> (bool, Value) {
-    let reply = server
-        .handle(json!({"jsonrpc": "2.0", "id": id, "method": "tools/call",
-            "params": {"name": tool_name(command), "arguments": arguments}}))
-        .unwrap_or(Value::Null);
-    let text = reply["result"]["content"][0]["text"]
-        .as_str()
-        .unwrap_or_default();
-    (
-        reply["result"]["isError"] == true,
-        serde_json::from_str(text).unwrap_or(Value::Null),
-    )
-}
-
-/// MCP has no way to ask, so its gate refuses what would need asking; each
-/// mode moves that line, and a server without one allows edits only.
+/// MCP has no way to ask, so its gate refuses what would need a person;
+/// each mode moves that line, and a server without one allows edits only.
+/// The Never class is not even in the catalog a model reaches.
 #[test]
 fn mcp_runs_under_each_mode_and_allows_edits_by_default() -> Fallible {
     let root = tempfile::tempdir()?;
@@ -649,73 +642,56 @@ fn mcp_runs_under_each_mode_and_allows_edits_by_default() -> Fallible {
     ] {
         let name = format!("{}.sparksmith", mode.name());
         let policy = Grant::new(mode, [root.path().to_path_buf()]);
-        let mut server = Server::new(Session::new(Engine::demo()?), policy);
+        let tools = Tools::new(Session::new(Engine::demo()?), policy)?;
 
-        let (failed, _) = tool_call(&mut server, 1, "project.inspect", json!({}));
+        let (failed, _) = tools.query("project.inspect", json!({}));
         assert!(!failed, "{mode:?}: reads always run");
 
-        let (failed, reply) = tool_call(
-            &mut server,
-            2,
-            "project.undo",
-            json!({"expected_revision": 0}),
-        );
+        let (failed, reply) = tools.apply("project.undo", json!({}));
         if undo_runs {
             // It reaches the engine: the demo has history or says it has none.
-            assert_ne!(reply["code"], "gate.cannot_ask", "{mode:?}: {reply}");
+            assert_ne!(reply["code"], "gate.needs_person", "{mode:?}: {reply}");
         } else {
             assert!(failed);
-            assert_eq!(reply["code"], "gate.cannot_ask", "{mode:?}: {reply}");
+            assert_eq!(reply["code"], "gate.needs_person", "{mode:?}: {reply}");
         }
 
-        let (failed, reply) =
-            tool_call(&mut server, 3, "project.save", json!({"path": file(&name)}));
+        let (failed, reply) = tools.act("project.save", json!({"path": file(&name)}));
         assert_eq!(failed, !save_runs, "{mode:?}: {reply}");
         assert_eq!(root.path().join(&name).exists(), save_runs, "{mode:?}");
         if !save_runs {
-            assert_eq!(reply["code"], "gate.cannot_ask", "{mode:?}: {reply}");
+            assert_eq!(reply["code"], "gate.needs_person", "{mode:?}: {reply}");
         }
 
-        let (failed, reply) = tool_call(
-            &mut server,
-            4,
+        let (failed, reply) = tools.act(
             "project.save",
-            json!({"path": "/elsewhere/x.sparksmith"}),
+            json!({"path": abs("/elsewhere/x.sparksmith")}),
         );
         assert!(failed);
         assert_eq!(reply["code"], "gate.path_outside", "{mode:?}: {reply}");
 
-        let (failed, reply) = tool_call(
-            &mut server,
-            5,
-            "library.source.remove",
-            json!({"path": file("x")}),
-        );
+        let (failed, reply) = tools.act("library.source.remove", json!({"path": file("x")}));
         assert!(failed);
-        assert_eq!(reply["code"], "gate.never", "{mode:?}: {reply}");
+        assert_eq!(reply["code"], "catalog.unknown", "{mode:?}: {reply}");
     }
 
     // I-A1: the CLI's server without a mode, its project's folder allowed:
     // edits run, a save asks and so is refused.
     let policy = Grant::new(Mode::default(), [root.path().to_path_buf()]);
-    let mut server = Server::new(Session::new(Engine::demo()?), policy);
-    let (failed, reply) = tool_call(
-        &mut server,
-        1,
-        "project.save",
-        json!({"path": file("default.sparksmith")}),
-    );
+    let tools = Tools::new(Session::new(Engine::demo()?), policy)?;
+    let (failed, reply) = tools.act("project.save", json!({"path": file("default.sparksmith")}));
     assert!(failed, "{reply}");
-    assert_eq!(reply["code"], "gate.cannot_ask", "{reply}");
+    assert_eq!(reply["code"], "gate.needs_person", "{reply}");
     assert!(!root.path().join("default.sparksmith").exists());
     Ok(())
 }
 
 /// I-A1: `library.source.add` writes the person's own settings, so a model
 /// never runs it: not over a headless MCP server in its default mode or in
-/// allow-all, not over gated JSON lines, not even after a person's Allow.
-/// The settings stay unwritten and the source list empty. The request
-/// itself is valid: the operator's own script runs it.
+/// allow-all (where the Never class is not in the catalog at all), not
+/// over gated JSON lines, not even after a person's Allow. The settings
+/// stay unwritten and the source list empty. The request itself is valid:
+/// the operator's own script runs it.
 #[test]
 fn a_model_never_adds_a_library_source() -> Fallible {
     use crate::session::sources::Sources;
@@ -739,12 +715,14 @@ fn a_model_never_adds_a_library_source() -> Fallible {
     let allow_all = Grant::new(Mode::AllowAll, [root.path().to_path_buf()]);
 
     for policy in [Grant::default(), allow_all.clone()] {
-        let mut server = Server::new(user_session()?, policy.clone());
-        let (failed, reply) = tool_call(&mut server, 1, "library.source.add", add.clone());
-        assert!(failed, "{:?}: {reply}", policy.mode);
-        assert_eq!(reply["code"], "gate.never", "{:?}: {reply}", policy.mode);
-        assert!(server.session().sources().list().is_empty());
-        assert!(!settings_written(), "{:?}", policy.mode);
+        let mode = policy.mode;
+        let tools = Tools::new(user_session()?, policy)?;
+        let (failed, reply) = tools.act("library.source.add", add.clone());
+        assert!(failed, "{mode:?}: {reply}");
+        assert_eq!(reply["code"], "catalog.unknown", "{mode:?}: {reply}");
+        let sources = tools.with_session(|s| s.sources().list().len());
+        assert_eq!(sources, Some(0));
+        assert!(!settings_written(), "{mode:?}");
     }
 
     let request = json!({"command": "library.source.add", "params": add});
@@ -766,11 +744,7 @@ fn a_model_never_adds_a_library_source() -> Fallible {
 /// operation or query of the Never class, which every model is refused.
 #[test]
 fn the_instructions_name_no_never_class_command() {
-    let instructions = format!(
-        "{}{}",
-        crate::mcp::LIVE_INSTRUCTIONS,
-        crate::mcp::INSTRUCTIONS
-    );
+    let instructions = crate::mcp::instructions(true);
     let never = Request::ENTRIES
         .iter()
         .chain(Operation::entries())
@@ -780,11 +754,9 @@ fn the_instructions_name_no_never_class_command() {
         .collect::<Vec<_>>();
     assert!(never.contains(&"library.source.add"), "{never:?}");
     for name in never {
-        for spelling in [name.to_owned(), tool_name(name)] {
-            assert!(
-                !instructions.contains(&spelling),
-                "the instructions name {spelling}, which is never run for a model"
-            );
-        }
+        assert!(
+            !instructions.contains(name),
+            "the instructions name {name}, which is never run for a model"
+        );
     }
 }
