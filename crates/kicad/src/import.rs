@@ -505,6 +505,13 @@ fn footprint_pads(
         if fp.zone.connect == Some(3) && own.connection.is_none() {
             own.connection = crate::zones::pad_override(&fp.zone, Some(through_hole)).connection;
         }
+        // A round pad without its own spoke angle has its spokes at 45°
+        // (what KiCad's plots show for the omitted token); every other
+        // shape at 0° and 90°, which our zones' reliefs use already.
+        if own.spoke_angle.is_none() && kpad.shape == board::PadShapeK::Circle && kpad.net.is_some()
+        {
+            own.spoke_angle = Some(crate::zones::round_pad_spoke_angle());
+        }
         if !own.is_empty() {
             overrides.push((pad.id, own));
         }

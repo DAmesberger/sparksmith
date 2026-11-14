@@ -155,3 +155,45 @@ fn footprint_and_pad_zone_overrides_become_fill_overrides() -> Fallible<()> {
     );
     Ok(())
 }
+
+#[test]
+fn a_round_pad_without_its_own_spoke_angle_gets_spokes_at_45_degrees() -> Fallible<()> {
+    let mut board = zoned();
+    // Pad 1 round without an angle, pad 2 round at 0°; pad 3 square.
+    board.footprints[0].pads = vec![
+        Pad::smd("1", "circle", [-1.0, 0.0, 0.0], [0.8, 0.8]).with("(net 1 \"GND\")"),
+        Pad::smd("2", "circle", [1.0, 0.0, 0.0], [0.8, 0.8])
+            .with("(net 1 \"GND\") (thermal_bridge_angle 0)"),
+        Pad::smd("3", "rect", [3.0, 0.0, 0.0], [0.8, 0.8]).with("(net 1 \"GND\")"),
+    ];
+    let imported = import(board.text().as_bytes())?;
+    let project = imported.engine.project();
+    let r1 = project.instance_by_designator("R1").ok_or("R1")?;
+    let angles: Vec<_> = sparksmith_core::layout::placed_pads(project)
+        .into_iter()
+        .filter(|p| p.instance == r1.id)
+        .map(|p| p.fill_override.spoke_angle.map(|a| a.to_degrees_f64()))
+        .collect();
+    assert_eq!(angles, [Some(45.0), Some(0.0), None]);
+    // Only the pad that states a zone override counts as one.
+    assert_eq!(imported.report.count(Case::PadZoneOverrides), 1);
+    Ok(())
+}
+
+#[test]
+fn a_zone_connecting_pads_in_full_joins_them_solidly() -> Fallible<()> {
+    let text = zoned().text().replace(
+        "(connect_pads yes (clearance 0.3))",
+        "(connect_pads full (clearance 0.3))",
+    );
+    assert!(text.contains("connect_pads full"));
+    let imported = import(text.as_bytes())?;
+    for fill in imported.engine.project().fills.iter() {
+        assert_eq!(fill.settings.connections.smd, Some(PadConnection::Solid));
+        assert_eq!(
+            fill.settings.connections.through_hole,
+            Some(PadConnection::Solid)
+        );
+    }
+    Ok(())
+}

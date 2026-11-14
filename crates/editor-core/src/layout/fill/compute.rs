@@ -15,14 +15,21 @@
 //!    cleared), thermal (a relief gap crossed by spokes) or none (cleared
 //!    like another net).
 //! 3. Copper narrower than the minimum width is removed (an opening: erode
-//!    then grow by half the width).
+//!    then grow by half the width). A spoke must cross its relief gap to
+//!    copper of the net: past the gap it has to meet the fill's copper
+//!    beyond its end or beside it (along at least half its width), or
+//!    another joined pad. A spoke that meets none (its gap opens onto a
+//!    clearance, the fill's edge or copper too narrow to keep) joins
+//!    nothing and is removed.
 //! 4. Hatched fills keep a border and a grid of lines.
 //! 5. Islands that no copper of the fill's net touches (by the copper
 //!    graph's one joining rule) are removed, and by setting small ones.
 //!
-//! Every clearance adds [`FILL_CHORD_MM`]: obstacles are generated so they
-//! cover their true curves, and the fill boundary is never closer than the
-//! rule.
+//! Obstacles cover their true curves, so the fill boundary is never closer
+//! than the rule: circles (vias, drills) and track ends are drawn with
+//! their chords outside the true curve; outlines flattened with chords
+//! inside it (pads, slots, cutouts, other fills' copper) grow by
+//! [`FILL_CHORD_MM`] more.
 //!
 //! Fills rank by priority (higher first), then by id (lower first). A fill
 //! reads the copper of higher-ranking fills, so one pass computes them in
@@ -413,11 +420,12 @@ impl<'a> Ctx<'a> {
         // 2. Obstacles.
         let mut rings: Vec<Ring> = Vec::new();
         let mut regions: Vec<Region> = Vec::new();
+        let mut reliefs: Vec<Relief> = Vec::new();
         // Plated pad and mounting holes keep the plated hole clearance,
         // unplated ones the unplated hole clearance; via drills keep the
         // via hole clearance.
-        let hole_gap = |plated: bool| self.clearance(fill, CopperObject::hole(plated), None) + tol;
-        let via_hole_gap = self.clearance(fill, CopperObject::ViaHole, None) + tol;
+        let hole_gap = |plated: bool| self.clearance(fill, CopperObject::hole(plated), None);
+        let via_hole_gap = self.clearance(fill, CopperObject::ViaHole, None);
         for cut in &board.cutouts {
             if let Some(ring) = geom::ccw(cut.outline.flatten(tol)) {
                 regions.extend(geom::offset(&[vec![ring]], edge + tol, tol));
@@ -428,7 +436,7 @@ impl<'a> Ctx<'a> {
             if h.plated
                 && let Some(d) = h.pad_diameter
             {
-                let gap = self.clearance(fill, CopperObject::Pad, None) + tol;
+                let gap = self.clearance(fill, CopperObject::Pad, None);
                 rings.push(geom::circle(h.at, d / 2.0 + gap, tol));
             }
         }
@@ -469,8 +477,9 @@ impl<'a> Ctx<'a> {
                     }
                     PadConnection::Solid => {}
                     PadConnection::Thermal => {
-                        if let Some(shape) = pad.pad.shape.grown(thermal.gap + tol, tol) {
-                            let ring = geom::ccw(shape.transformed(&frame).flatten(tol));
+                        if let Some(shape) = pad.pad.shape.grown(thermal.gap + tol, tol)
+                            && let Some(ring) = geom::ccw(shape.transformed(&frame).flatten(tol))
+                        {
                             let reach = pad.pad.shape.extent();
                             let length =
                                 reach[0].hypot(reach[1]) + thermal.gap + thermal.spoke_width;
@@ -481,7 +490,15 @@ impl<'a> Ctx<'a> {
                                 length,
                                 &thermal,
                             );
-                            regions.extend(relief(ring, &spokes));
+                            let own = geom::ccw(
+                                pad.pad.shape.outline(tol).transformed(&frame).flatten(tol),
+                            );
+                            regions.extend(relief(&ring, &spokes));
+                            reliefs.push(Relief {
+                                pad: own,
+                                ring,
+                                spokes,
+                            });
                         }
                     }
                 }
@@ -506,17 +523,22 @@ impl<'a> Ctx<'a> {
             match connection {
                 PadConnection::None => {
                     let gap = self.clearance(fill, CopperObject::Via, self.class(Some(v.net)));
-                    let r = (v.diameter / 2.0 + gap).max(v.drill / 2.0 + via_hole_gap - tol);
-                    rings.push(geom::circle(v.position, r + tol, tol));
+                    let r = (v.diameter / 2.0 + gap).max(v.drill / 2.0 + via_hole_gap);
+                    rings.push(geom::circle(v.position, r, tol));
                 }
                 PadConnection::Solid => {
                     rings.push(geom::circle(v.position, v.drill / 2.0, tol));
                 }
                 PadConnection::Thermal => {
-                    let ring = geom::circle(v.position, v.diameter / 2.0 + thermal.gap + tol, tol);
+                    let ring = geom::circle(v.position, v.diameter / 2.0 + thermal.gap, tol);
                     let length = v.diameter / 2.0 + thermal.gap + thermal.spoke_width;
-                    let s = spokes(v.position, 0.0, false, length, &thermal);
-                    regions.extend(relief(Some(ring), &s));
+                    let spokes = spokes(v.position, 0.0, false, length, &thermal);
+                    regions.extend(relief(&ring, &spokes));
+                    reliefs.push(Relief {
+                        pad: Some(geom::circle(v.position, v.diameter / 2.0, tol)),
+                        ring,
+                        spokes,
+                    });
                     rings.push(geom::circle(v.position, v.drill / 2.0, tol));
                 }
             }
@@ -525,7 +547,7 @@ impl<'a> Ctx<'a> {
             if same(Some(t.net)) {
                 continue;
             }
-            let gap = self.clearance(fill, CopperObject::Track, self.class(Some(t.net))) + tol;
+            let gap = self.clearance(fill, CopperObject::Track, self.class(Some(t.net)));
             rings.push(geom::stadium(t.start, t.end, t.width / 2.0 + gap, tol));
         }
         for h in rel.higher.clone() {
@@ -556,6 +578,11 @@ impl<'a> Ctx<'a> {
         } else {
             raw
         };
+        // Spokes that cross their gap to no copper of the net are removed.
+        let loose = loose_spokes(&copper, &reliefs);
+        if !loose.is_empty() {
+            copper = geom::difference(&copper, &loose);
+        }
 
         // 4. Hatch.
         if let Some(h) = fill.settings.hatch {
@@ -651,7 +678,7 @@ fn grown_shape(shape: &crate::geometry::Shape, by: f64, tol: f64) -> Vec<Ring> {
             let Some(ring) = geom::ccw(other.flatten(tol)) else {
                 return Vec::new();
             };
-            geom::offset(&[vec![ring]], by + tol, tol)
+            geom::offset(&[vec![ring]], by + 2.0 * tol, tol)
                 .into_iter()
                 .filter_map(|mut r| (!r.is_empty()).then(|| r.remove(0)))
                 .collect()
@@ -669,32 +696,182 @@ fn spoke_angles(rotation_deg: f64, mirror: bool, t: &ThermalRelief) -> Vec<f64> 
         .collect()
 }
 
+/// One thermal spoke: its centre line from the pad's centre outward and
+/// its bar.
+struct Spoke {
+    from: Point,
+    to: Point,
+    width: f64,
+    bar: Ring,
+}
+
+/// A thermal relief: the joined pad's (or via's) copper outline, the
+/// ring it clears (the pad grown by the relief gap) and its spokes.
+struct Relief {
+    pad: Option<Ring>,
+    ring: Ring,
+    spokes: Vec<Spoke>,
+}
+
 fn spokes(
     center: Point,
     rotation_deg: f64,
     mirror: bool,
     length: f64,
     t: &ThermalRelief,
-) -> Vec<Ring> {
+) -> Vec<Spoke> {
     spoke_angles(rotation_deg, mirror, t)
         .into_iter()
         .filter_map(|a| {
             let (s, c) = a.to_radians().sin_cos();
-            geom::bar(
-                center,
-                [center[0] + c * length, center[1] + s * length],
-                t.spoke_width,
-            )
+            let to = [center[0] + c * length, center[1] + s * length];
+            Some(Spoke {
+                from: center,
+                to,
+                width: t.spoke_width,
+                bar: geom::bar(center, to, t.spoke_width)?,
+            })
         })
         .collect()
 }
 
+/// Whether `p` lies inside `ring` (even-odd).
+fn inside(p: Point, ring: &[Point]) -> bool {
+    let mut odd = false;
+    let n = ring.len();
+    for i in 0..n {
+        let (a, b) = (ring[i], ring[(i + 1) % n]);
+        if (a[1] > p[1]) != (b[1] > p[1]) {
+            let x = a[0] + (p[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0]);
+            if p[0] < x {
+                odd = !odd;
+            }
+        }
+    }
+    odd
+}
+
 /// The relief obstacle: the grown pad less its spokes.
-fn relief(ring: Option<Ring>, spokes: &[Ring]) -> Vec<Region> {
-    let Some(ring) = ring else {
+fn relief(ring: &Ring, spokes: &[Spoke]) -> Vec<Region> {
+    let bars: Vec<Ring> = spokes.iter().map(|s| s.bar.clone()).collect();
+    geom::difference_rings(&[vec![ring.clone()]], &bars)
+}
+
+/// Samples along a spoke's centre line, per spoke width.
+const SPOKE_SAMPLES_PER_WIDTH: f64 = 4.0;
+/// Most samples along one spoke.
+const MAX_SPOKE_SAMPLES: usize = 1024;
+/// Samples along which copper must lie beside a spoke for it to join
+/// (half a spoke width): a spoke that only grazes a corner joins nothing.
+const SPOKE_CONTACT_SAMPLES: usize = 2;
+
+/// The spokes (less their own pad) that cross their relief gap to no
+/// copper of the fill's net. Past its ring, a spoke must meet the fill's
+/// copper beyond its end or beside it (along at least half its width), or
+/// another joined pad, before anything cuts it. A spoke whose gap opens
+/// onto a clearance, the fill's edge or copper removed as too narrow joins
+/// nothing and is dropped.
+fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> Vec<Region> {
+    if reliefs.is_empty() || copper.is_empty() {
         return Vec::new();
-    };
-    geom::difference_rings(&[vec![ring]], spokes)
+    }
+    let index = RegionIndex::new(copper);
+    let rings: Vec<Option<[Point; 2]>> = reliefs
+        .iter()
+        .map(|r| geom::bounds(std::iter::once(&r.ring)))
+        .collect();
+    let mut loose = Vec::new();
+    for (k, relief) in reliefs.iter().enumerate() {
+        for spoke in &relief.spokes {
+            let Some(b) = geom::bounds(std::iter::once(&spoke.bar)) else {
+                continue;
+            };
+            let near: Vec<&Ring> = reliefs
+                .iter()
+                .zip(&rings)
+                .enumerate()
+                .filter(|(j, (_, rb))| {
+                    *j != k && rb.is_some_and(|rb| geom::overlaps(b, rb, spoke.width))
+                })
+                .filter_map(|(_, (r, _))| r.pad.as_ref())
+                .collect();
+            let meets = |p: Point| {
+                !inside(p, &relief.ring)
+                    && (index.region_at(p).is_some() || near.iter().any(|pad| inside(p, pad)))
+            };
+            let len = crate::geometry::distance(spoke.from, spoke.to);
+            if len <= 0.0 {
+                continue;
+            }
+            let dir = [
+                (spoke.to[0] - spoke.from[0]) / len,
+                (spoke.to[1] - spoke.from[1]) / len,
+            ];
+            let side = spoke.width / 2.0 + (spoke.width / 8.0).max(0.005);
+            let normal = [-dir[1] * side, dir[0] * side];
+            let tip = [spoke.to[0] + dir[0] * side, spoke.to[1] + dir[1] * side];
+            let n = ((len / spoke.width * SPOKE_SAMPLES_PER_WIDTH).ceil() as usize)
+                .clamp(1, MAX_SPOKE_SAMPLES);
+            // Walk out from the ring while the spoke's own copper lasts:
+            // copper beyond a cut belongs to something the spoke never
+            // reaches.
+            let mut joined = false;
+            let mut whole = true;
+            let mut out = 0usize;
+            let mut beside = 0usize;
+            // How far the spoke's copper runs, from the pad's centre.
+            let mut reach = 0.0;
+            for i in 1..=n {
+                let t = len * i as f64 / n as f64;
+                let c = [spoke.from[0] + dir[0] * t, spoke.from[1] + dir[1] * t];
+                if inside(c, &relief.ring) {
+                    reach = t;
+                    continue;
+                }
+                out += 1;
+                if near.iter().any(|pad| inside(c, pad)) {
+                    joined = true;
+                    break;
+                }
+                if index.region_at(c).is_none() {
+                    // The first sample may sit on the ring's own edge.
+                    if out > 1 {
+                        whole = false;
+                        break;
+                    }
+                    continue;
+                }
+                reach = t;
+                if meets([c[0] + normal[0], c[1] + normal[1]])
+                    || meets([c[0] - normal[0], c[1] - normal[1]])
+                {
+                    beside += 1;
+                    if beside >= SPOKE_CONTACT_SAMPLES {
+                        joined = true;
+                        break;
+                    }
+                }
+            }
+            // A spoke that never leaves its ring crosses no gap to judge.
+            if out == 0 || joined || (whole && meets(tip)) {
+                continue;
+            }
+            let end = (reach + len / n as f64).min(len);
+            let Some(bar) = geom::bar(
+                spoke.from,
+                [spoke.from[0] + dir[0] * end, spoke.from[1] + dir[1] * end],
+                spoke.width,
+            ) else {
+                continue;
+            };
+            let bar = vec![vec![bar]];
+            match &relief.pad {
+                Some(pad) => loose.extend(geom::difference(&bar, &[vec![pad.clone()]])),
+                None => loose.extend(bar),
+            }
+        }
+    }
+    loose
 }
 
 /// A hatched fill: a border of the hatch width and a grid of lines.
