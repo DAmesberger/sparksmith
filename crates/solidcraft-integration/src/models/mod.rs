@@ -22,6 +22,7 @@
 //!
 //! As built: `docs/component-model.md` (M1–M3).
 mod chip;
+pub mod family;
 pub mod gltf_ext;
 mod grid;
 mod gull_wing;
@@ -586,3 +587,7 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "chip_part_tests.rs"]
 mod chip_part_tests;
+
+#[cfg(test)]
+#[path = "header_part_tests.rs"]
+mod header_part_tests;

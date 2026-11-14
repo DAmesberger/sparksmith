@@ -159,6 +159,17 @@ pub fn generated(package: &PackageDefinition) -> Result<Arc<NamedDesign>> {
         "terminals": terminals,
     });
     cached(&what, || {
+        if super::family::generator(&package.form).is_some() {
+            // A family whose builder gave way to its generator: the
+            // generator's part file at the form's values.
+            let (part, generated) = super::family::evaluate(package)?;
+            return Ok(NamedDesign {
+                key: [0; 32],
+                source: Arc::clone(part.source()),
+                state: Arc::clone(part.shared_state()),
+                generated,
+            });
+        }
         let mut native = Native::new("Package model")?;
         // Evaluated once at the end, as the board build evaluates it.
         native.defer_evaluation()?;

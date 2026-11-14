@@ -32,12 +32,13 @@ thiserror.workspace = true
 quick-xml = "0.41"
 png = "0.18"
 base64 = "0.22"
+# Runs a shipped generator for a family whose in-code model builder gave way
+# to it (models::family; docs/design/part-generation-plan.md, phase C).
+sparksmith-generators.workspace = true
 
 [dev-dependencies]
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
 tempfile = "3"
-# The parity of a generator module's chip model with the in-code builder.
-sparksmith-generators.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 wasm-bindgen-test = "0.3"

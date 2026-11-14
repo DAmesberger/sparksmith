@@ -200,6 +200,16 @@ impl EvaluatedPart {
         &self.state
     }
 
+    /// The source design with the values applied, evaluated.
+    pub(crate) fn source(&self) -> &Arc<Document> {
+        &self.source
+    }
+
+    /// The evaluated bodies, shared.
+    pub(crate) fn shared_state(&self) -> &Arc<ModelState> {
+        &self.state
+    }
+
     /// The first blocking finding as a refusal.
     pub fn refusal(&self) -> Option<Error> {
         self.findings
@@ -301,6 +311,17 @@ pub fn material_of(appearance: &str) -> Option<MaterialId> {
     serde_json::from_value(serde_json::Value::String(key)).ok()
 }
 
+/// The bottom of the bodies that are not leads: what sits on the seating
+/// plane. Leads (bodies of a lead material) may reach below it, as a
+/// through-hole post or wire does. `None` when every body is a lead.
+pub fn seated_bottom(bodies: &[PartBody]) -> Option<f64> {
+    bodies
+        .iter()
+        .filter(|b| role_of(b.material) != BodyRole::Termination)
+        .map(|b| b.bounds_mm[0][2])
+        .reduce(f64::min)
+}
+
 /// A part-file body's role, from its material: a body plated or made in a
 /// lead finish (gold, tin, solder, nickel, copper alloys, brass) is a
 /// termination, drawn and listed as a lead; clear or diffuse silicone is a
@@ -381,6 +402,49 @@ fn cache() -> &'static Mutex<Cache> {
 /// (cache hits, evaluations) so far, process-wide.
 pub fn cache_counts() -> (u64, u64) {
     cache().lock().map_or((0, 0), |c| (c.hits, c.evaluations))
+}
+
+/// A generator's integer `values` typed by the part file's own units
+/// (`as_is`, the file evaluated without values): nanometres for a length
+/// parameter, millidegrees for an angle, the count for a unitless one.
+/// Refused, in a sentence naming the value, when one is not a whole
+/// number, names no parameter of the file or does not fit its unit.
+pub fn generator_values(
+    as_is: &EvaluatedPart,
+    values: &sparksmith_generators::abi::v1::Params,
+) -> std::result::Result<PartValues, String> {
+    use sparksmith_generators::abi::v1::ParamValue;
+    let mut out = PartValues::new();
+    for (name, value) in values {
+        let ParamValue::Int(int) = value else {
+            return Err(format!(
+                "the generator gives the part file's \"{name}\" a value that is not a whole number"
+            ));
+        };
+        let parameter = as_is
+            .parameters
+            .iter()
+            .find(|p| &p.name == name)
+            .ok_or_else(|| {
+                format!(
+                    "the generator gives a value to \"{name}\", which its part file does not have"
+                )
+            })?;
+        let value = match parameter.unit.as_str() {
+            "mm" => PartValue::Nm(Nm::new(*int).map_err(|e| format!("\"{name}\": {e}"))?.get()),
+            "deg" => PartValue::Mdeg(*int),
+            "" => PartValue::Count(
+                u32::try_from(*int).map_err(|_| format!("\"{name}\" is a count; {int} is not one"))?,
+            ),
+            other => {
+                return Err(format!(
+                    "the part file's \"{name}\" is in {other}, which a generator cannot set"
+                ));
+            }
+        };
+        out.insert(name.clone(), value);
+    }
+    Ok(out)
 }
 
 /// Evaluate `bytes` at `values`, from the cache when this key was
@@ -580,13 +644,13 @@ fn evaluate_now(bytes: &[u8], values: &PartValues, key: [u8; 32]) -> Result<Eval
             format!("the part file has {count} bodies; at most {MAX_PART_BODIES}"),
         ));
     } else {
-        let low = bounds_mm[0][2];
+        let low = seated_bottom(&bodies).unwrap_or(bounds_mm[0][2]);
         if low.abs() > SEATING_TOLERANCE_MM {
             findings.push(finding(
                 "part_file.seating",
                 true,
                 format!(
-                    "the lowest geometry is at z = {low:.3} mm; the seating plane is z = 0 (±{SEATING_TOLERANCE_MM} mm)"
+                    "the lowest geometry that is not a lead is at z = {low:.3} mm; the seating plane is z = 0 (±{SEATING_TOLERANCE_MM} mm)"
                 ),
             ));
         }
