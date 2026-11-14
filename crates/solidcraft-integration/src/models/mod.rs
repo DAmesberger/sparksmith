@@ -40,7 +40,6 @@ mod no_lead;
 pub mod part_file;
 mod profile;
 mod tabbed;
-mod tht;
 mod usb_c;
 
 use crate::material::BodyKind;
@@ -80,7 +79,7 @@ pub fn family_rev(form: &PackageForm) -> Option<u16> {
         PackageForm::Tabbed(_) => tabbed::FAMILY_REV,
         PackageForm::Molded(_) => molded::FAMILY_REV,
         PackageForm::Grid(_) => grid::FAMILY_REV,
-        PackageForm::Tht(_) => tht::FAMILY_REV,
+        PackageForm::Tht(_) => Some(family::FAMILY_REV),
         PackageForm::Module(_) => module::FAMILY_REV,
         PackageForm::UsbC(_) => usb_c::FAMILY_REV,
     }
@@ -234,7 +233,7 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
         PackageForm::Tabbed(f) => tabbed::check(f),
         PackageForm::Molded(f) => molded::check(f),
         PackageForm::Grid(f) => grid::check(f),
-        PackageForm::Tht(f) => tht::check(f),
+        PackageForm::Tht(_) => Ok(()),
         PackageForm::Module(f) => module::check(f),
         PackageForm::UsbC(f) => usb_c::check(f),
         PackageForm::Generic => Ok(()),
@@ -264,7 +263,7 @@ fn build_bodies(
         PackageForm::Chip(c) => chip::build(&mut b, c)?,
         PackageForm::GullWing(g) => gull_wing::build(&mut b, g)?,
         PackageForm::NoLead(n) => no_lead::build(&mut b, n)?,
-        PackageForm::Header(_) => {
+        PackageForm::Header(_) | PackageForm::Tht(_) => {
             return Err(Error::Invalid(format!(
                 "model.generator: {} models are built from their shipped generator",
                 package.form.label()
@@ -273,7 +272,6 @@ fn build_bodies(
         PackageForm::Tabbed(f) => tabbed::build(&mut b, f)?,
         PackageForm::Molded(f) => molded::build(&mut b, f)?,
         PackageForm::Grid(f) => grid::build(&mut b, f)?,
-        PackageForm::Tht(f) => tht::build(&mut b, f)?,
         PackageForm::Module(f) => module::build(&mut b, f)?,
         PackageForm::UsbC(f) => usb_c::build(&mut b, f)?,
         PackageForm::Generic => {
@@ -599,7 +597,3 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "chip_part_tests.rs"]
 mod chip_part_tests;
-
-#[cfg(test)]
-#[path = "tht_part_tests.rs"]
-mod tht_part_tests;

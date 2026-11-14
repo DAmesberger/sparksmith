@@ -64,6 +64,8 @@ A part never exists without its 3D model, so every generation carries `model`, a
 
 The header generator (phase C) ships one part file, `pin-header`, parametric in its row and pin counts; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-header-14-november-2026)).
 
+The through-hole generator (`tht`, phase C) ships six part files, one per lead topology (`tht-axial`, `tht-radial`, `tht-radial-formed`, `tht-dip`, `tht-to`, `tht-to-formed`); the module picks the file and gives every value, and its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-through-hole-14-november-2026)).
+
 The chip generator ships four part files (resistor, capacitor, ferrite or inductor, LED), saved from the in-code chip builder's construction (`cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`); evaluated at the module's values they equal the builder to 0 mm in bounds and volume for resistors and capacitors 0402–1206, a ferrite bead 0603 and an LED 0603 (`models::chip_part_tests`).
 
 ## ABI 1 changes
@@ -113,6 +115,7 @@ Measured with `cargo xtask generators measure` on an Apple M-series Mac, macOS, 
 | --- | --- | --- |
 | chip | 281 021 (274 KiB); 283 970 naming its part files (GP2); 234 868 without `serde_json` or floats (B3, 14 November 2026) | sign-extension, bulk-memory, reference-types (floats refused since B3) |
 | header (14 November 2026) | 232 533 | as chip |
+| tht (14 November 2026) | 261 313 | as chip |
 | probe (host for wasm32, test only) | 1 772 010 | — |
 
 The feature list is measured: each allowed feature is switched off in turn and the module validated without it. Mutable globals, multi-value and saturating float-to-int are allowed but unused; SIMD, relaxed SIMD, threads, memory64, multi-memory, tail calls, extended constants, custom page sizes, wide arithmetic and GC are refused.
