@@ -94,6 +94,39 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
             );
             Some(("no-lead", params))
         }
+        PackageForm::Grid(g) => {
+            use sparksmith_core::library::package_form::grid::GridContact;
+            let balls = g.contact == GridContact::Ball;
+            params.insert(
+                "contact".into(),
+                ParamValue::Text(if balls { "ball" } else { "land" }.into()),
+            );
+            let mut int = |key: &str, v: i64| {
+                params.insert(key.into(), ParamValue::Int(v));
+            };
+            int("rows", i64::from(g.rows));
+            int("columns", i64::from(g.cols));
+            int("pitch", g.pitch.x_nm.get());
+            int("row_pitch", g.pitch.y_nm.get());
+            int("body_length", g.body_length_nm.get());
+            int("body_width", g.body_width_nm.get());
+            int("body_height", g.body_height_nm.get());
+            int("contact_diameter", g.contact_diameter_nm.get());
+            int("contact_height", g.contact_height_nm.get());
+            // The empty positions by name, in the form's own alphabet.
+            let empty = g
+                .depopulated
+                .iter()
+                .filter_map(|[r, c]| g.ball_name(*r, *c))
+                .map(ParamValue::Text)
+                .collect();
+            params.insert("depopulated".into(), ParamValue::List(empty));
+            params.insert(
+                "row_letters".into(),
+                ParamValue::Text(g.row_letters.clone()),
+            );
+            Some(("grid", params))
+        }
         _ => None,
     }
 }
@@ -103,11 +136,16 @@ const EXPOSED_PAD: &str = "exposed pad";
 
 /// The role the retired builder gave a part file's body of `role` (by its
 /// material) and `name`: the package's materials are chosen by it. A
-/// header's posts were leads; a no-lead package's exposed pad its own
-/// role.
+/// header's posts and a grid's balls were leads (a land grid's lands
+/// terminations); a no-lead package's exposed pad its own role.
 fn builder_role(form: &PackageForm, name: &str, role: BodyRole) -> BodyRole {
     match (form, role) {
         (PackageForm::Header(_), BodyRole::Termination) => BodyRole::Lead,
+        (PackageForm::Grid(g), BodyRole::Termination)
+            if g.contact == sparksmith_core::library::package_form::grid::GridContact::Ball =>
+        {
+            BodyRole::Lead
+        }
         (PackageForm::Molded(m), BodyRole::Termination)
             if m.lead != sparksmith_core::library::package_form::molded::MoldedLead::Melf =>
         {

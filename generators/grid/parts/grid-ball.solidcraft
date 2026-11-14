@@ -1,0 +1,8024 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "Ball grid array",
+  "units": "mm",
+  "params": [
+    {
+      "name": "rows",
+      "expr": "4",
+      "unit": "",
+      "comment": "rows of contacts (y), A from +y",
+      "model": false
+    },
+    {
+      "name": "columns",
+      "expr": "5",
+      "unit": "",
+      "comment": "columns of contacts (x), 1 from −x",
+      "model": false
+    },
+    {
+      "name": "pitch",
+      "expr": "0.8 mm",
+      "unit": "mm",
+      "comment": "pitch along a row (x)",
+      "model": false
+    },
+    {
+      "name": "row_pitch",
+      "expr": "0.8 mm",
+      "unit": "mm",
+      "comment": "pitch between rows (y)",
+      "model": false
+    },
+    {
+      "name": "body_length",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "4 mm",
+      "unit": "mm",
+      "comment": "body width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "0.8 mm",
+      "unit": "mm",
+      "comment": "body height above the contacts",
+      "model": false
+    },
+    {
+      "name": "contact_diameter",
+      "expr": "0.4 mm",
+      "unit": "mm",
+      "comment": "ball or land diameter",
+      "model": false
+    },
+    {
+      "name": "contact_height",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "ball height (standoff)",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edges",
+      "model": false
+    },
+    {
+      "name": "mark_radius",
+      "expr": "0.24 mm",
+      "unit": "mm",
+      "comment": "A1 dimple radius",
+      "model": false
+    },
+    {
+      "name": "mark_depth",
+      "expr": "0.03 mm",
+      "unit": "mm",
+      "comment": "A1 dimple depth",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "contact 1",
+      "suppressed": false,
+      "body_names": [
+        "contact 1"
+      ],
+      "param_names": [
+        "d1",
+        "d2"
+      ],
+      "type": "cylinder",
+      "base": [
+        "- (columns - 1) / 2 * pitch",
+        "(rows - 1) / 2 * row_pitch",
+        "0 mm"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "(contact_diameter) / 2",
+      "height": "contact_height",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "contact 1 pattern",
+      "suppressed": false,
+      "body_names": [
+        "contact 1 (2)",
+        "contact 1 (3)",
+        "contact 1 (4)",
+        "contact 1 (5)",
+        "contact 1 (6)",
+        "contact 1 (7)",
+        "contact 1 (8)",
+        "contact 1 (9)",
+        "contact 1 (10)",
+        "contact 1 (11)",
+        "contact 1 (12)",
+        "contact 1 (13)",
+        "contact 1 (14)",
+        "contact 1 (15)",
+        "contact 1 (16)",
+        "contact 1 (17)",
+        "contact 1 (18)",
+        "contact 1 (19)",
+        "contact 1 (20)",
+        "contact 1 (21)",
+        "contact 1 (22)",
+        "contact 1 (23)",
+        "contact 1 (24)",
+        "contact 1 (25)",
+        "contact 1 (26)",
+        "contact 1 (27)",
+        "contact 1 (28)",
+        "contact 1 (29)",
+        "contact 1 (30)",
+        "contact 1 (31)",
+        "contact 1 (32)",
+        "contact 1 (33)",
+        "contact 1 (34)",
+        "contact 1 (35)",
+        "contact 1 (36)",
+        "contact 1 (37)",
+        "contact 1 (38)",
+        "contact 1 (39)",
+        "contact 1 (40)",
+        "contact 1 (41)",
+        "contact 1 (42)",
+        "contact 1 (43)",
+        "contact 1 (44)",
+        "contact 1 (45)",
+        "contact 1 (46)",
+        "contact 1 (47)",
+        "contact 1 (48)",
+        "contact 1 (49)",
+        "contact 1 (50)",
+        "contact 1 (51)",
+        "contact 1 (52)",
+        "contact 1 (53)",
+        "contact 1 (54)",
+        "contact 1 (55)",
+        "contact 1 (56)",
+        "contact 1 (57)",
+        "contact 1 (58)",
+        "contact 1 (59)",
+        "contact 1 (60)",
+        "contact 1 (61)",
+        "contact 1 (62)",
+        "contact 1 (63)",
+        "contact 1 (64)",
+        "contact 1 (65)",
+        "contact 1 (66)",
+        "contact 1 (67)",
+        "contact 1 (68)",
+        "contact 1 (69)",
+        "contact 1 (70)",
+        "contact 1 (71)",
+        "contact 1 (72)",
+        "contact 1 (73)",
+        "contact 1 (74)",
+        "contact 1 (75)",
+        "contact 1 (76)",
+        "contact 1 (77)",
+        "contact 1 (78)",
+        "contact 1 (79)",
+        "contact 1 (80)",
+        "contact 1 (81)",
+        "contact 1 (82)",
+        "contact 1 (83)",
+        "contact 1 (84)",
+        "contact 1 (85)",
+        "contact 1 (86)",
+        "contact 1 (87)",
+        "contact 1 (88)",
+        "contact 1 (89)",
+        "contact 1 (90)",
+        "contact 1 (91)",
+        "contact 1 (92)",
+        "contact 1 (93)",
+        "contact 1 (94)",
+        "contact 1 (95)",
+        "contact 1 (96)",
+        "contact 1 (97)",
+        "contact 1 (98)",
+        "contact 1 (99)",
+        "contact 1 (100)",
+        "contact 1 (101)",
+        "contact 1 (102)",
+        "contact 1 (103)",
+        "contact 1 (104)",
+        "contact 1 (105)",
+        "contact 1 (106)",
+        "contact 1 (107)",
+        "contact 1 (108)",
+        "contact 1 (109)",
+        "contact 1 (110)",
+        "contact 1 (111)",
+        "contact 1 (112)",
+        "contact 1 (113)",
+        "contact 1 (114)",
+        "contact 1 (115)",
+        "contact 1 (116)",
+        "contact 1 (117)",
+        "contact 1 (118)",
+        "contact 1 (119)",
+        "contact 1 (120)",
+        "contact 1 (121)",
+        "contact 1 (122)",
+        "contact 1 (123)",
+        "contact 1 (124)",
+        "contact 1 (125)",
+        "contact 1 (126)",
+        "contact 1 (127)",
+        "contact 1 (128)",
+        "contact 1 (129)",
+        "contact 1 (130)",
+        "contact 1 (131)",
+        "contact 1 (132)",
+        "contact 1 (133)",
+        "contact 1 (134)",
+        "contact 1 (135)",
+        "contact 1 (136)",
+        "contact 1 (137)",
+        "contact 1 (138)",
+        "contact 1 (139)",
+        "contact 1 (140)",
+        "contact 1 (141)",
+        "contact 1 (142)",
+        "contact 1 (143)",
+        "contact 1 (144)",
+        "contact 1 (145)",
+        "contact 1 (146)",
+        "contact 1 (147)",
+        "contact 1 (148)",
+        "contact 1 (149)",
+        "contact 1 (150)",
+        "contact 1 (151)",
+        "contact 1 (152)",
+        "contact 1 (153)",
+        "contact 1 (154)",
+        "contact 1 (155)",
+        "contact 1 (156)",
+        "contact 1 (157)",
+        "contact 1 (158)",
+        "contact 1 (159)",
+        "contact 1 (160)",
+        "contact 1 (161)",
+        "contact 1 (162)",
+        "contact 1 (163)",
+        "contact 1 (164)",
+        "contact 1 (165)",
+        "contact 1 (166)",
+        "contact 1 (167)",
+        "contact 1 (168)",
+        "contact 1 (169)",
+        "contact 1 (170)",
+        "contact 1 (171)",
+        "contact 1 (172)",
+        "contact 1 (173)",
+        "contact 1 (174)",
+        "contact 1 (175)",
+        "contact 1 (176)",
+        "contact 1 (177)",
+        "contact 1 (178)",
+        "contact 1 (179)",
+        "contact 1 (180)",
+        "contact 1 (181)",
+        "contact 1 (182)",
+        "contact 1 (183)",
+        "contact 1 (184)",
+        "contact 1 (185)",
+        "contact 1 (186)",
+        "contact 1 (187)",
+        "contact 1 (188)",
+        "contact 1 (189)",
+        "contact 1 (190)",
+        "contact 1 (191)",
+        "contact 1 (192)",
+        "contact 1 (193)",
+        "contact 1 (194)",
+        "contact 1 (195)",
+        "contact 1 (196)",
+        "contact 1 (197)",
+        "contact 1 (198)",
+        "contact 1 (199)",
+        "contact 1 (200)",
+        "contact 1 (201)",
+        "contact 1 (202)",
+        "contact 1 (203)",
+        "contact 1 (204)",
+        "contact 1 (205)",
+        "contact 1 (206)",
+        "contact 1 (207)",
+        "contact 1 (208)",
+        "contact 1 (209)",
+        "contact 1 (210)",
+        "contact 1 (211)",
+        "contact 1 (212)",
+        "contact 1 (213)",
+        "contact 1 (214)",
+        "contact 1 (215)",
+        "contact 1 (216)",
+        "contact 1 (217)",
+        "contact 1 (218)",
+        "contact 1 (219)",
+        "contact 1 (220)",
+        "contact 1 (221)",
+        "contact 1 (222)",
+        "contact 1 (223)",
+        "contact 1 (224)",
+        "contact 1 (225)",
+        "contact 1 (226)",
+        "contact 1 (227)",
+        "contact 1 (228)",
+        "contact 1 (229)",
+        "contact 1 (230)",
+        "contact 1 (231)",
+        "contact 1 (232)",
+        "contact 1 (233)",
+        "contact 1 (234)",
+        "contact 1 (235)",
+        "contact 1 (236)",
+        "contact 1 (237)",
+        "contact 1 (238)",
+        "contact 1 (239)",
+        "contact 1 (240)",
+        "contact 1 (241)",
+        "contact 1 (242)",
+        "contact 1 (243)",
+        "contact 1 (244)",
+        "contact 1 (245)",
+        "contact 1 (246)",
+        "contact 1 (247)",
+        "contact 1 (248)",
+        "contact 1 (249)",
+        "contact 1 (250)",
+        "contact 1 (251)",
+        "contact 1 (252)",
+        "contact 1 (253)",
+        "contact 1 (254)",
+        "contact 1 (255)",
+        "contact 1 (256)",
+        "contact 1 (257)",
+        "contact 1 (258)",
+        "contact 1 (259)",
+        "contact 1 (260)",
+        "contact 1 (261)",
+        "contact 1 (262)",
+        "contact 1 (263)",
+        "contact 1 (264)",
+        "contact 1 (265)",
+        "contact 1 (266)",
+        "contact 1 (267)",
+        "contact 1 (268)",
+        "contact 1 (269)",
+        "contact 1 (270)",
+        "contact 1 (271)",
+        "contact 1 (272)",
+        "contact 1 (273)",
+        "contact 1 (274)",
+        "contact 1 (275)",
+        "contact 1 (276)",
+        "contact 1 (277)",
+        "contact 1 (278)",
+        "contact 1 (279)",
+        "contact 1 (280)",
+        "contact 1 (281)",
+        "contact 1 (282)",
+        "contact 1 (283)",
+        "contact 1 (284)",
+        "contact 1 (285)",
+        "contact 1 (286)",
+        "contact 1 (287)",
+        "contact 1 (288)",
+        "contact 1 (289)",
+        "contact 1 (290)",
+        "contact 1 (291)",
+        "contact 1 (292)",
+        "contact 1 (293)",
+        "contact 1 (294)",
+        "contact 1 (295)",
+        "contact 1 (296)",
+        "contact 1 (297)",
+        "contact 1 (298)",
+        "contact 1 (299)",
+        "contact 1 (300)",
+        "contact 1 (301)",
+        "contact 1 (302)",
+        "contact 1 (303)",
+        "contact 1 (304)",
+        "contact 1 (305)",
+        "contact 1 (306)",
+        "contact 1 (307)",
+        "contact 1 (308)",
+        "contact 1 (309)",
+        "contact 1 (310)",
+        "contact 1 (311)",
+        "contact 1 (312)",
+        "contact 1 (313)",
+        "contact 1 (314)",
+        "contact 1 (315)",
+        "contact 1 (316)",
+        "contact 1 (317)",
+        "contact 1 (318)",
+        "contact 1 (319)",
+        "contact 1 (320)",
+        "contact 1 (321)",
+        "contact 1 (322)",
+        "contact 1 (323)",
+        "contact 1 (324)",
+        "contact 1 (325)",
+        "contact 1 (326)",
+        "contact 1 (327)",
+        "contact 1 (328)",
+        "contact 1 (329)",
+        "contact 1 (330)",
+        "contact 1 (331)",
+        "contact 1 (332)",
+        "contact 1 (333)",
+        "contact 1 (334)",
+        "contact 1 (335)",
+        "contact 1 (336)",
+        "contact 1 (337)",
+        "contact 1 (338)",
+        "contact 1 (339)",
+        "contact 1 (340)",
+        "contact 1 (341)",
+        "contact 1 (342)",
+        "contact 1 (343)",
+        "contact 1 (344)",
+        "contact 1 (345)",
+        "contact 1 (346)",
+        "contact 1 (347)",
+        "contact 1 (348)",
+        "contact 1 (349)",
+        "contact 1 (350)",
+        "contact 1 (351)",
+        "contact 1 (352)",
+        "contact 1 (353)",
+        "contact 1 (354)",
+        "contact 1 (355)",
+        "contact 1 (356)",
+        "contact 1 (357)",
+        "contact 1 (358)",
+        "contact 1 (359)",
+        "contact 1 (360)",
+        "contact 1 (361)",
+        "contact 1 (362)",
+        "contact 1 (363)",
+        "contact 1 (364)",
+        "contact 1 (365)",
+        "contact 1 (366)",
+        "contact 1 (367)",
+        "contact 1 (368)",
+        "contact 1 (369)",
+        "contact 1 (370)",
+        "contact 1 (371)",
+        "contact 1 (372)",
+        "contact 1 (373)",
+        "contact 1 (374)",
+        "contact 1 (375)",
+        "contact 1 (376)",
+        "contact 1 (377)",
+        "contact 1 (378)",
+        "contact 1 (379)",
+        "contact 1 (380)",
+        "contact 1 (381)",
+        "contact 1 (382)",
+        "contact 1 (383)",
+        "contact 1 (384)",
+        "contact 1 (385)",
+        "contact 1 (386)",
+        "contact 1 (387)",
+        "contact 1 (388)",
+        "contact 1 (389)",
+        "contact 1 (390)",
+        "contact 1 (391)",
+        "contact 1 (392)",
+        "contact 1 (393)",
+        "contact 1 (394)",
+        "contact 1 (395)",
+        "contact 1 (396)",
+        "contact 1 (397)",
+        "contact 1 (398)",
+        "contact 1 (399)",
+        "contact 1 (400)",
+        "contact 1 (401)",
+        "contact 1 (402)",
+        "contact 1 (403)",
+        "contact 1 (404)",
+        "contact 1 (405)",
+        "contact 1 (406)",
+        "contact 1 (407)",
+        "contact 1 (408)",
+        "contact 1 (409)",
+        "contact 1 (410)",
+        "contact 1 (411)",
+        "contact 1 (412)",
+        "contact 1 (413)",
+        "contact 1 (414)",
+        "contact 1 (415)",
+        "contact 1 (416)",
+        "contact 1 (417)",
+        "contact 1 (418)",
+        "contact 1 (419)",
+        "contact 1 (420)",
+        "contact 1 (421)",
+        "contact 1 (422)",
+        "contact 1 (423)",
+        "contact 1 (424)",
+        "contact 1 (425)",
+        "contact 1 (426)",
+        "contact 1 (427)",
+        "contact 1 (428)",
+        "contact 1 (429)",
+        "contact 1 (430)",
+        "contact 1 (431)",
+        "contact 1 (432)",
+        "contact 1 (433)",
+        "contact 1 (434)",
+        "contact 1 (435)",
+        "contact 1 (436)",
+        "contact 1 (437)",
+        "contact 1 (438)",
+        "contact 1 (439)",
+        "contact 1 (440)",
+        "contact 1 (441)",
+        "contact 1 (442)",
+        "contact 1 (443)",
+        "contact 1 (444)",
+        "contact 1 (445)",
+        "contact 1 (446)",
+        "contact 1 (447)",
+        "contact 1 (448)",
+        "contact 1 (449)",
+        "contact 1 (450)",
+        "contact 1 (451)",
+        "contact 1 (452)",
+        "contact 1 (453)",
+        "contact 1 (454)",
+        "contact 1 (455)",
+        "contact 1 (456)",
+        "contact 1 (457)",
+        "contact 1 (458)",
+        "contact 1 (459)",
+        "contact 1 (460)",
+        "contact 1 (461)",
+        "contact 1 (462)",
+        "contact 1 (463)",
+        "contact 1 (464)",
+        "contact 1 (465)",
+        "contact 1 (466)",
+        "contact 1 (467)",
+        "contact 1 (468)",
+        "contact 1 (469)",
+        "contact 1 (470)",
+        "contact 1 (471)",
+        "contact 1 (472)",
+        "contact 1 (473)",
+        "contact 1 (474)",
+        "contact 1 (475)",
+        "contact 1 (476)",
+        "contact 1 (477)",
+        "contact 1 (478)",
+        "contact 1 (479)",
+        "contact 1 (480)",
+        "contact 1 (481)",
+        "contact 1 (482)",
+        "contact 1 (483)",
+        "contact 1 (484)",
+        "contact 1 (485)",
+        "contact 1 (486)",
+        "contact 1 (487)",
+        "contact 1 (488)",
+        "contact 1 (489)",
+        "contact 1 (490)",
+        "contact 1 (491)",
+        "contact 1 (492)",
+        "contact 1 (493)",
+        "contact 1 (494)",
+        "contact 1 (495)",
+        "contact 1 (496)",
+        "contact 1 (497)",
+        "contact 1 (498)",
+        "contact 1 (499)",
+        "contact 1 (500)",
+        "contact 1 (501)",
+        "contact 1 (502)",
+        "contact 1 (503)",
+        "contact 1 (504)",
+        "contact 1 (505)",
+        "contact 1 (506)",
+        "contact 1 (507)",
+        "contact 1 (508)",
+        "contact 1 (509)",
+        "contact 1 (510)",
+        "contact 1 (511)",
+        "contact 1 (512)"
+      ],
+      "param_names": [
+        "d3",
+        "d4",
+        "d5",
+        "d6"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "columns",
+        "spacing1": "pitch",
+        "dir2": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "count2": "rows",
+        "spacing2": "row_pitch"
+      },
+      "bodies": [
+        "contact 1"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "contact_height"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height",
+      "operation": "new_body"
+    },
+    {
+      "id": 4,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d10"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -2.5,
+            -2.0,
+            0.3
+          ],
+          "max": [
+            2.5,
+            2.0,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            -2.5,
+            -2.0,
+            0.3
+          ],
+          "max": [
+            2.5,
+            2.0,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -2.5,
+            -2.0,
+            0.3
+          ],
+          "max": [
+            2.5,
+            2.0,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -2.5,
+            -2.0,
+            0.3
+          ],
+          "max": [
+            2.5,
+            2.0,
+            1.1
+          ]
+        }
+      ],
+      "edge_names": [
+        "F3:+z|F3:-y",
+        "F3:+x|F3:+z",
+        "F3:+y|F3:+z",
+        "F3:+z|F3:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -2.0,
+          1.1
+        ],
+        [
+          2.5,
+          0.0,
+          1.1
+        ],
+        [
+          0.0,
+          2.0,
+          1.1
+        ],
+        [
+          -2.5,
+          0.0,
+          1.1
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body"
+    },
+    {
+      "id": 5,
+      "name": "pin 1 mark",
+      "suppressed": false,
+      "param_names": [
+        "d11",
+        "d12"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "cylinder",
+      "base": [
+        "- body_length / 2 + 2 * mark_radius",
+        "body_width / 2 - 2 * mark_radius",
+        "contact_height + body_height - mark_depth"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "mark_radius",
+      "height": "2 * mark_depth",
+      "operation": "cut"
+    }
+  ],
+  "next_id": 6,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "contact 1": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (10)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (100)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (101)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (102)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (103)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (104)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (105)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (106)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (107)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (108)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (109)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (11)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (110)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (111)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (112)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (113)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (114)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (115)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (116)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (117)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (118)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (119)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (12)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (120)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (121)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (122)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (123)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (124)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (125)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (126)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (127)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (128)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (129)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (13)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (130)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (131)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (132)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (133)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (134)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (135)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (136)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (137)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (138)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (139)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (14)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (140)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (141)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (142)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (143)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (144)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (145)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (146)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (147)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (148)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (149)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (15)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (150)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (151)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (152)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (153)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (154)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (155)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (156)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (157)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (158)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (159)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (16)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (160)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (161)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (162)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (163)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (164)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (165)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (166)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (167)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (168)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (169)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (17)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (170)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (171)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (172)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (173)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (174)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (175)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (176)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (177)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (178)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (179)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (18)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (180)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (181)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (182)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (183)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (184)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (185)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (186)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (187)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (188)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (189)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (19)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (190)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (191)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (192)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (193)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (194)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (195)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (196)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (197)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (198)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (199)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (2)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (20)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (200)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (201)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (202)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (203)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (204)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (205)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (206)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (207)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (208)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (209)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (21)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (210)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (211)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (212)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (213)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (214)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (215)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (216)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (217)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (218)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (219)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (22)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (220)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (221)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (222)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (223)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (224)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (225)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (226)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (227)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (228)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (229)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (23)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (230)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (231)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (232)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (233)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (234)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (235)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (236)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (237)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (238)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (239)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (24)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (240)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (241)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (242)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (243)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (244)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (245)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (246)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (247)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (248)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (249)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (25)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (250)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (251)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (252)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (253)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (254)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (255)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (256)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (257)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (258)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (259)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (26)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (260)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (261)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (262)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (263)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (264)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (265)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (266)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (267)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (268)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (269)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (27)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (270)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (271)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (272)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (273)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (274)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (275)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (276)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (277)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (278)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (279)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (28)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (280)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (281)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (282)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (283)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (284)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (285)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (286)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (287)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (288)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (289)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (29)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (290)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (291)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (292)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (293)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (294)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (295)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (296)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (297)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (298)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (299)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (3)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (30)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (300)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (301)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (302)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (303)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (304)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (305)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (306)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (307)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (308)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (309)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (31)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (310)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (311)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (312)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (313)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (314)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (315)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (316)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (317)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (318)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (319)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (32)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (320)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (321)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (322)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (323)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (324)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (325)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (326)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (327)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (328)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (329)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (33)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (330)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (331)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (332)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (333)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (334)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (335)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (336)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (337)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (338)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (339)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (34)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (340)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (341)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (342)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (343)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (344)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (345)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (346)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (347)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (348)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (349)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (35)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (350)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (351)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (352)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (353)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (354)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (355)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (356)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (357)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (358)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (359)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (36)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (360)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (361)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (362)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (363)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (364)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (365)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (366)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (367)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (368)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (369)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (37)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (370)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (371)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (372)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (373)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (374)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (375)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (376)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (377)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (378)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (379)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (38)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (380)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (381)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (382)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (383)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (384)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (385)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (386)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (387)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (388)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (389)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (39)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (390)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (391)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (392)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (393)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (394)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (395)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (396)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (397)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (398)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (399)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (4)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (40)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (400)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (401)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (402)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (403)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (404)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (405)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (406)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (407)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (408)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (409)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (41)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (410)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (411)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (412)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (413)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (414)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (415)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (416)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (417)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (418)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (419)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (42)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (420)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (421)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (422)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (423)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (424)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (425)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (426)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (427)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (428)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (429)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (43)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (430)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (431)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (432)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (433)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (434)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (435)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (436)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (437)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (438)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (439)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (44)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (440)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (441)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (442)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (443)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (444)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (445)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (446)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (447)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (448)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (449)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (45)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (450)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (451)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (452)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (453)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (454)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (455)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (456)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (457)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (458)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (459)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (46)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (460)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (461)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (462)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (463)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (464)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (465)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (466)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (467)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (468)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (469)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (47)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (470)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (471)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (472)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (473)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (474)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (475)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (476)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (477)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (478)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (479)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (48)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (480)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (481)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (482)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (483)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (484)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (485)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (486)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (487)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (488)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (489)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (49)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (490)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (491)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (492)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (493)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (494)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (495)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (496)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (497)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (498)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (499)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (5)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (50)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (500)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (501)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (502)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (503)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (504)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (505)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (506)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (507)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (508)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (509)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (51)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (510)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (511)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (512)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (52)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (53)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (54)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (55)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (56)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (57)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (58)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (59)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (6)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (60)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (61)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (62)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (63)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (64)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (65)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (66)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (67)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (68)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (69)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (7)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (70)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (71)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (72)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (73)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (74)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (75)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (76)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (77)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (78)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (79)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (8)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (80)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (81)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (82)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (83)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (84)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (85)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (86)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (87)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (88)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (89)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (9)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (90)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (91)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (92)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (93)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (94)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (95)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (96)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (97)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (98)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact 1 (99)": {
+        "name": "solder-sac",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.38,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}
