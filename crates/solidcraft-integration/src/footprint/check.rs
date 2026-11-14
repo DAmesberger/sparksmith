@@ -23,9 +23,13 @@ pub(crate) const MAX_COORD_MM: f64 = 1000.0;
 const UNSUPPORTED: &str = "footprint.sketch_unsupported";
 const TOO_LARGE: &str = "footprint.too_large";
 
-/// The canonical JSON the product stores for a sketch.
+/// The canonical JSON the product stores for a sketch: its keys sorted,
+/// the text a saved file reads back as (`SketchBlob`, file format version
+/// 4), so a sketch made here equals itself after saving and reopening.
 pub(crate) fn canonical(sketch: &Sketch) -> Outcome<String> {
-    serde_json::to_string(sketch).map_err(|e| problem("footprint.internal", e.to_string()))
+    let internal = |e: serde_json::Error| problem("footprint.internal", e.to_string());
+    let value = serde_json::to_value(sketch).map_err(internal)?;
+    serde_json::to_string(&value).map_err(internal)
 }
 
 /// Load a stored sketch: bounded, canonical and within the footprint subset.
