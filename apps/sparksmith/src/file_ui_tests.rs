@@ -303,7 +303,11 @@ fn a_failed_kicad_import_says_why() -> Fallible {
     let status = h.files.take_status().ok_or("no status")?;
     assert_eq!(status.0, Level::Error);
     assert!(status.1.starts_with("Import failed: "), "{}", status.1);
-    assert!(h.effects.iter().all(|e| !matches!(e, Effect::Imported { .. })));
+    assert!(
+        h.effects
+            .iter()
+            .all(|e| !matches!(e, Effect::Imported { .. }))
+    );
     Ok(())
 }
 

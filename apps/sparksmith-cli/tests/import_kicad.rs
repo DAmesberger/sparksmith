@@ -110,7 +110,11 @@ fn a_project_file_imports_its_board_and_names_the_rules_not_taken() -> Fallible 
         String::from_utf8_lossy(&out.stderr)
     );
     let reply: Value = serde_json::from_slice(&out.stdout)?;
-    assert_eq!(count(&reply["rows"], "rule_looser_than_fab"), 1, "{reply:#}");
+    assert_eq!(
+        count(&reply["rows"], "rule_looser_than_fab"),
+        1,
+        "{reply:#}"
+    );
     assert_eq!(reply["looser_rules"][0]["rule"], "min drill", "{reply:#}");
     assert_eq!(reply["looser_rules"][0]["kicad_mm"], 0.01);
     let summary = reply["summary"].as_str().unwrap_or_default();
@@ -118,8 +122,9 @@ fn a_project_file_imports_its_board_and_names_the_rules_not_taken() -> Fallible 
         summary.contains("    min drill: KiCad 0.01 mm, fab profile "),
         "{summary}"
     );
-    let detail: Value =
-        serde_json::from_slice(&std::fs::read(dir.path().join("imported.kicad-import.json"))?)?;
+    let detail: Value = serde_json::from_slice(&std::fs::read(
+        dir.path().join("imported.kicad-import.json"),
+    )?)?;
     assert_eq!(detail["looser_rules"][0]["rule"], "min drill");
     Ok(())
 }

@@ -198,7 +198,11 @@ pub fn overrides(
             "min_via_annular_width",
         ),
         (RuleKey::DrillMin, b.drill_min, "min_through_hole_diameter"),
-        (RuleKey::SilkTextHeightMin, b.text_height_min, "min_text_height"),
+        (
+            RuleKey::SilkTextHeightMin,
+            b.text_height_min,
+            "min_text_height",
+        ),
         (RuleKey::TrackWidthDefault, default.track_width, CLASS_TRACK),
         (RuleKey::ViaDiameterDefault, default.via_diameter, CLASS_VIA),
         (RuleKey::ViaDrillDefault, default.via_drill, CLASS_DRILL),

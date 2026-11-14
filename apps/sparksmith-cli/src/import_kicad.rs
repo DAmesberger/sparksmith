@@ -13,7 +13,8 @@ use sparksmith_core::product::SHORT_NAME as CLI;
 use std::path::Path;
 
 /// The usage line(s).
-pub const USAGE: &str = "import-kicad DIR|FILE.kicad_pcb|FILE.kicad_pro NEW_FILE.sparksmith [--profile ID]
+pub const USAGE: &str =
+    "import-kicad DIR|FILE.kicad_pcb|FILE.kicad_pro NEW_FILE.sparksmith [--profile ID]
                                    import a KiCad board through the command engine
                                    (footprints, outline, stackup, nets, tracks, vias,
                                    zones filled by our engine) and save it; DIR names

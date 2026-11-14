@@ -456,7 +456,10 @@ mod tests {
         let file = EditorFile::from_document(&document);
         let bytes = encode(&file)?;
         let value: serde_json::Value = serde_json::from_slice(&bytes)?;
-        assert_eq!(value["features"], serde_json::json!([REFUSED_IMPORT_TRACKS]));
+        assert_eq!(
+            value["features"],
+            serde_json::json!([REFUSED_IMPORT_TRACKS])
+        );
         assert_eq!(refusal(&value)?, "accepted");
         assert_eq!(decode(&bytes)?.project.refused_import_tracks, refused);
         Ok(())

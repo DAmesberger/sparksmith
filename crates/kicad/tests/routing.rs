@@ -176,7 +176,9 @@ fn a_stub_a_refused_track_left_says_so() -> Fallible<()> {
         .collect();
     // KiCad's (29, 16) is (29, 20 − 16) here.
     assert!(
-        stubs.contains(&"Track on SIG (Top) stops at (29, 4) mm: import refused the rest (clearance)"),
+        stubs.contains(
+            &"Track on SIG (Top) stops at (29, 4) mm: import refused the rest (clearance)"
+        ),
         "{stubs:?}"
     );
     Ok(())

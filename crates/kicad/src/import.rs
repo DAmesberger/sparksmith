@@ -250,7 +250,11 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         let prefix = first
             .map(|fp| prefix_of(&fp.reference))
             .unwrap_or_else(|| "U".to_owned());
-        let name = definition_name(first.map_or("", |fp| fp.lib_id.as_str()), k, &mut names_taken);
+        let name = definition_name(
+            first.map_or("", |fp| fp.lib_id.as_str()),
+            k,
+            &mut names_taken,
+        );
         sets.push(session.component_set(&name, pads, &prefix, symbol.as_ref(), &mut report)?);
     }
     // The schematic's sheets, and where each reference's unit goes.

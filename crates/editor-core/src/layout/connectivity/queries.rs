@@ -364,23 +364,19 @@ impl CopperGraph {
                 .collect();
             // An end where an import refused a track piece of the net: the
             // stub is what that piece left.
-            let refused = stub
-                .open_ends
-                .iter()
-                .chain(&stub.via_ends)
-                .find_map(|p| {
-                    project
-                        .refused_import_tracks
-                        .iter()
-                        .filter(|r| r.net == stub.net && on.contains(&r.layer))
-                        .find(|r| {
-                            [r.start, r.end].iter().any(|q| {
-                                let [x, y] = q.to_mm_f64();
-                                (x - p[0]).hypot(y - p[1]) <= JOIN_TOLERANCE_MM
-                            })
+            let refused = stub.open_ends.iter().chain(&stub.via_ends).find_map(|p| {
+                project
+                    .refused_import_tracks
+                    .iter()
+                    .filter(|r| r.net == stub.net && on.contains(&r.layer))
+                    .find(|r| {
+                        [r.start, r.end].iter().any(|q| {
+                            let [x, y] = q.to_mm_f64();
+                            (x - p[0]).hypot(y - p[1]) <= JOIN_TOLERANCE_MM
                         })
-                        .map(|r| (*p, r.reason))
-                });
+                    })
+                    .map(|r| (*p, r.reason))
+            });
             let layers = self
                 .layers
                 .iter()

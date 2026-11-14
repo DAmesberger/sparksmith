@@ -73,7 +73,13 @@ fn the_showcase_board_imports_through_the_engine() -> Fallible<()> {
         .components
         .iter()
         .map(|c| c.meta.name.as_str())
-        .chain(project.library.footprints.iter().map(|f| f.meta.name.as_str()))
+        .chain(
+            project
+                .library
+                .footprints
+                .iter()
+                .map(|f| f.meta.name.as_str()),
+        )
         .collect();
     assert_eq!(names.len(), 6, "{names:?}");
     assert!(
