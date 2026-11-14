@@ -906,7 +906,7 @@ impl App {
     /// The toast stack, bottom-centre of the canvas above the navigation
     /// bar and clear of the bottom-left hint line.
     fn toasts_above_navigation(&mut self, ui: &mut egui::Ui, canvas: Rect) {
-        let free = toast_area(canvas);
+        let free = toast_area(canvas, self.reveal.panel);
         if let Some(event) = self.toasts.show(ui.ctx(), free, self.now) {
             self.toast_event(event);
         }
@@ -1007,16 +1007,16 @@ fn tab(ui: &mut egui::Ui, label: &str, tip: &str) -> egui::Response {
 }
 
 /// Where toasts may go in `canvas`: above the navigation bar (its height
-/// and gap, see `navigation_bar`).
-fn toast_area(canvas: Rect) -> Rect {
+/// and gap, see `navigation_bar`) and, while the key reveal shows its
+/// bottom-left panel of keys (`keys`), above that panel too, which is
+/// painted over everything (E2E run 6, finding 4).
+fn toast_area(canvas: Rect, keys: Option<Rect>) -> Rect {
     let navigation = crate::navigation::bar_band();
-    Rect::from_min_max(
-        canvas.min,
-        pos2(
-            canvas.right(),
-            (canvas.bottom() - navigation).max(canvas.top()),
-        ),
-    )
+    let mut bottom = (canvas.bottom() - navigation).max(canvas.top());
+    if let Some(keys) = keys.filter(|k| k.intersects(canvas) && k.top() < bottom) {
+        bottom = (keys.top() - Tokens::get().space_8).max(canvas.top());
+    }
+    Rect::from_min_max(canvas.min, pos2(canvas.right(), bottom))
 }
 
 #[cfg(test)]
@@ -1116,11 +1116,29 @@ mod tests {
     #[test]
     fn toasts_stay_above_the_navigation_bar() {
         let canvas = Rect::from_min_size(pos2(10.0, 20.0), vec2(600.0, 400.0));
-        let free = toast_area(canvas);
+        let free = toast_area(canvas, None);
         assert!(canvas.contains_rect(free));
         assert!(free.bottom() < canvas.bottom() - Tokens::get().control_height);
-        let flat = toast_area(Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 4.0)));
+        let flat = toast_area(Rect::from_min_size(pos2(0.0, 0.0), vec2(600.0, 4.0)), None);
         assert!(flat.height() >= 0.0);
+    }
+
+    /// E2E run 6, finding 4: while ⌘ is held, the key reveal paints its
+    /// panel of keys at the bottom-left over everything; a toast then
+    /// shows above it, never under it. Without the panel nothing moves.
+    #[test]
+    fn toasts_stay_clear_of_the_key_reveal_panel() {
+        let canvas = Rect::from_min_size(pos2(10.0, 20.0), vec2(600.0, 400.0));
+        let keys = Rect::from_min_max(pos2(16.0, 250.0), pos2(400.0, 420.0));
+        let free = toast_area(canvas, Some(keys));
+        assert!(canvas.contains_rect(free));
+        assert!(free.bottom() < keys.top(), "{free:?} above {keys:?}");
+        // A panel elsewhere (another window part) leaves the area alone.
+        let away = Rect::from_min_size(pos2(700.0, 250.0), vec2(100.0, 100.0));
+        assert_eq!(toast_area(canvas, Some(away)), toast_area(canvas, None));
+        // A panel as tall as the canvas leaves an empty area, not a negative one.
+        let tall = canvas.expand(5.0);
+        assert!(toast_area(canvas, Some(tall)).height() >= 0.0);
     }
 
     #[test]

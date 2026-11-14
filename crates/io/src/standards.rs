@@ -12,7 +12,7 @@ use sparksmith_core::library::marking::codes::{
     ColourCode, Eia96Code, MarkingCodes, PreferredSeries, VoltageLetterTables,
 };
 use sparksmith_core::library::standard_fields::StandardFields;
-use sparksmith_core::library::standards::{Context, Standards};
+use sparksmith_core::library::standards::{Context, ShippedGenerator, Standards};
 use sparksmith_core::library::symbol_style::{
     KindDrawing, SymbolDrawings, SymbolKind, SymbolStyle,
 };
@@ -117,13 +117,36 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Standards> {
     )
 }
 
-/// The context of `shipped`: its standards, and its material library or
-/// why that failed to load (kept, so a host without 3D still runs).
+/// The context of `shipped`: its standards, and its material library and
+/// generator bundles or why those failed to load (kept, so a host without
+/// 3D still runs).
 pub fn context(shipped: &ShippedLibrary) -> Result<Arc<Context>> {
     let materials = crate::materials::load(shipped).map_err(|e| e.to_string());
     Ok(Arc::new(
-        Context::new(load(shipped)?).with_materials(materials),
+        Context::new(load(shipped)?)
+            .with_materials(materials)
+            .with_generators(generators(shipped).map_err(|e| e.to_string())),
     ))
+}
+
+/// Every shipped generator bundle, each file checked against its manifest.
+fn generators(shipped: &ShippedLibrary) -> Result<Vec<ShippedGenerator>> {
+    shipped
+        .generators()?
+        .into_iter()
+        .map(|name| {
+            let bundle = shipped.generator(&name)?;
+            Ok(ShippedGenerator {
+                name,
+                module: Arc::from(bundle.module),
+                parts: bundle
+                    .parts
+                    .into_iter()
+                    .map(|p| (p.entry.sha256, Arc::from(p.bytes)))
+                    .collect(),
+            })
+        })
+        .collect()
 }
 
 /// Find the shipped library and make its context: what each program does

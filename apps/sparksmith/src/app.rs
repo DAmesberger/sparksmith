@@ -143,6 +143,10 @@ pub struct App {
     /// the error when the newer model failed. It is drawn after the issues
     /// badge, beside it.
     updating: Option<(egui::Rect, Option<String>)>,
+    /// A launch without a file starts a new project, whose fab profile is
+    /// asked for once the launch has settled: not while a file opens or
+    /// an earlier session is offered for recovery.
+    launch_profile: bool,
 }
 
 impl App {
@@ -270,8 +274,9 @@ impl App {
                 native_menu,
             },
         );
-        // A launch without a file is a new project: ask for its profile.
-        app.pcb.ask_for_profile();
+        // A launch without a file is a new project: ask for its profile
+        // once no file opens and no session is recovered instead.
+        app.launch_profile = true;
         Ok(app)
     }
 
@@ -341,6 +346,7 @@ impl App {
             recent: Default::default(),
             recent_seen: None,
             updating: None,
+            launch_profile: false,
         }
     }
 
@@ -727,6 +733,10 @@ impl App {
                     self.sources.read_bundle(pick, BundlePurpose::Update(None));
                 }
                 PaletteEvent::ManageSources => self.sources.open_card(),
+                PaletteEvent::PlacePartFile(name) => {
+                    self.workspace = Workspace::Pcb;
+                    self.pcb.place_builtin_part(name);
+                }
             }
         }
         if let Some((instance, pick)) = instance_update {
@@ -1042,6 +1052,8 @@ impl App {
     fn document_replaced(&mut self) {
         self.sources.forget_project();
         self.pending_import = None;
+        // Opened, recovered, new or imported: the launch's project is gone.
+        self.launch_profile = false;
         self.import_report.clear();
         self.pcb.set_selection(None, None, None);
         self.pcb.document_opened();
@@ -1105,6 +1117,23 @@ impl App {
             self.say(level, status);
         }
         self.opened_documents();
+        self.launch_profile_prompt();
+    }
+
+    /// Ask for the launch's new project's fab profile once the launch has
+    /// settled with it: the earlier sessions are listed and none is
+    /// offered, and no file is opening or waiting to open (E2E run 6,
+    /// finding 8).
+    fn launch_profile_prompt(&mut self) {
+        if self.launch_profile
+            && self.files.started()
+            && !self.files.busy()
+            && !self.files.prompting()
+            && !crate::open_documents::pending()
+        {
+            self.launch_profile = false;
+            self.pcb.ask_for_profile();
+        }
     }
 
     /// Files opened from Finder or the Dock go through File › Open's path,

@@ -62,6 +62,17 @@ impl PcbEditor {
             .open(ChooserMode::Place, None, PartValues::new());
     }
 
+    /// Place 3D part… at the built-in part file `name`, as the Schematic
+    /// part search hands one over.
+    pub fn place_builtin_part(&mut self, name: String) {
+        self.end_route();
+        self.part_chooser.open(
+            ChooserMode::Place,
+            Some(crate::part_chooser::PartSource::Builtin(name)),
+            PartValues::new(),
+        );
+    }
+
     /// Show the chooser while it is open and place its pick. The part the
     /// last placement made is selected once the engine has applied it.
     pub(super) fn part_chooser_frame(

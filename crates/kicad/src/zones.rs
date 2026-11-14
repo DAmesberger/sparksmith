@@ -49,6 +49,11 @@ fn layers(board: &Board, zone: &KZone) -> Vec<CopperLayer> {
         .collect()
 }
 
+/// The spoke angle of a round pad that states none: 45°.
+pub(crate) fn round_pad_spoke_angle() -> sparksmith_core::units::Angle {
+    sparksmith_core::units::Angle::normalized(45_000)
+}
+
 /// A KiCad footprint's or pad's zone override as our pad fill override.
 /// `through_hole` says how "thermal for through-hole pads only" (3)
 /// lands: thermal on a through-hole pad, not joined on another; `None`

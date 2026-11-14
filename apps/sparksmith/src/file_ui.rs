@@ -217,7 +217,7 @@ pub enum Effect {
         path: Option<PathBuf>,
         recovered: bool,
     },
-    /// A first save wrote the project under its file's name
+    /// A save of an Untitled project wrote it under its file's name
     /// (`sparksmith_core::name_by_file`): apply that `project.rename`, then
     /// call [`FileUi::renamed`]. `saved` says the write saved the current
     /// revision.
@@ -404,6 +404,8 @@ pub struct FileUi {
     /// a path, the save panel proposes its name and folder.
     restored_origin: Option<PathBuf>,
     recovery_choice_pending: bool,
+    /// The worker's startup listing of earlier sessions has arrived.
+    started: bool,
     changed_at: f64,
     recovery_retry_at: f64,
     now: f64,
@@ -468,6 +470,7 @@ impl FileUi {
             restored_source: None,
             restored_origin: None,
             recovery_choice_pending: false,
+            started: false,
             changed_at: 0.0,
             recovery_retry_at: 0.0,
             now: 0.0,
@@ -539,6 +542,11 @@ impl FileUi {
             .flight
             .as_ref()
             .is_some_and(|f| f.kind == Kind::Import && Some(f.ticket.id) == self.importing)
+    }
+    /// Whether the startup listing of earlier sessions has arrived, so
+    /// [`FileUi::prompting`] says whether one is offered.
+    pub fn started(&self) -> bool {
+        self.started
     }
     pub fn prompting(&self) -> bool {
         self.controller.prompt.is_some() || !self.recoveries.is_empty()
@@ -719,10 +727,24 @@ impl FileUi {
             return;
         };
         if !save_as && let Some(path) = self.controller.path.clone() {
-            self.send(Job::Write(ticket, path, self.document.clone()));
+            self.write(ticket, path);
         } else {
             self.pick(ticket, Kind::Save);
         }
+    }
+    /// Write the captured document to `path`. A project still called
+    /// Untitled takes the file's name (`sparksmith_core::name_by_file`):
+    /// on its first save, and on the next save of a file that was written
+    /// without one (an import, or a save that failed to name it).
+    fn write(&mut self, ticket: Ticket, path: PathBuf) {
+        let Some(mut document) = self.captured.clone() else {
+            return;
+        };
+        if let Some(name) = sparksmith_core::name_by_file(&mut document.project, &path) {
+            self.naming = Some((ticket.id, name));
+            self.captured = Some(document.clone());
+        }
+        self.send(Job::Write(ticket, path, document));
     }
     /// The folder and file name the project's save panel proposes: its
     /// own file's, else (a restored session) the file it was restored
@@ -864,13 +886,16 @@ impl FileUi {
     }
     fn receive(&mut self, event: Event) {
         match event {
-            Event::Startup(result) => match result {
-                Ok(listing) => {
-                    self.recoveries = listing.entries;
-                    self.older_recoveries = listing.older;
+            Event::Startup(result) => {
+                self.started = true;
+                match result {
+                    Ok(listing) => {
+                        self.recoveries = listing.entries;
+                        self.older_recoveries = listing.older;
+                    }
+                    Err(error) => self.status = Some((Level::Error, error)),
                 }
-                Err(error) => self.status = Some((Level::Error, error)),
-            },
+            }
             Event::Picked(ticket, kind, path) => {
                 if !self
                     .controller
@@ -898,18 +923,7 @@ impl FileUi {
                     self.folder = parent.to_path_buf();
                 }
                 match kind {
-                    Kind::Save => {
-                        if let Some(mut document) = self.captured.clone() {
-                            if self.controller.path.is_none()
-                                && let Some(name) =
-                                    sparksmith_core::name_by_file(&mut document.project, &path)
-                            {
-                                self.naming = Some((ticket.id, name));
-                                self.captured = Some(document.clone());
-                            }
-                            self.send(Job::Write(ticket, path, document));
-                        }
-                    }
+                    Kind::Save => self.write(ticket, path),
                     Kind::Open if ticket.stamp == self.controller.current => {
                         self.send(Job::Read(ticket, path))
                     }

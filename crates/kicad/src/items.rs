@@ -458,7 +458,7 @@ pub fn zone(node: &Node) -> Result<KZone> {
     }
     if let Some(connect) = node.child("connect_pads") {
         zone.connect = match connect.arg(0) {
-            Some("yes") => ZoneConnect::Solid,
+            Some("yes" | "full") => ZoneConnect::Solid,
             Some("no") => ZoneConnect::None,
             Some("thru_hole_only") => ZoneConnect::ThroughHoleOnly,
             _ => ZoneConnect::Thermal,

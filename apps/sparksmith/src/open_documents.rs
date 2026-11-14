@@ -35,6 +35,14 @@ pub fn take() -> Vec<PathBuf> {
     std::mem::take(&mut *PENDING.lock().unwrap_or_else(PoisonError::into_inner))
 }
 
+/// Whether paths arrived that nobody took yet (a launch with a file).
+pub fn pending() -> bool {
+    !PENDING
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .is_empty()
+}
+
 /// Queue `paths` and wake the UI.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn arrive(paths: impl IntoIterator<Item = PathBuf>) {

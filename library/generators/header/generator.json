@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "module": {
+    "file": "header.wasm",
+    "sha256": "684be9d1c106e9c737103011b72a1d580029512c6caa21ef9ec154cdd3b73984"
+  },
+  "name": "header",
+  "parts": [
+    {
+      "file": "parts/pin-header.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code header builder's construction (crates/solidcraft-integration/src/models/header.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 2 × 5 header of 2.54 mm; the header generator gives every parameter its value. Typical square-post proportions and estimated rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "24c5a7d604724a2ce1ccbf00bdb8cdaf31a6c469f564a585059a83a0bc9241bc",
+      "title": "Straight pin header"
+    }
+  ]
+}

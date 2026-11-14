@@ -43,6 +43,9 @@ pub(crate) struct KeyReveal {
     pub tips: Option<Tips>,
     /// This frame's registered controls (kept, so it never grows).
     targets: Vec<(Target, Rect)>,
+    /// Where the last frame painted the "Keys without a button" panel,
+    /// which the toasts stay clear of.
+    pub panel: Option<Rect>,
 }
 
 impl KeyReveal {
@@ -383,6 +386,7 @@ impl App {
 
     /// Paint the badges, panels and tips over everything, in one layer.
     pub(super) fn reveal_overlay(&mut self, ctx: &egui::Context) {
+        self.reveal.panel = None;
         if !self.reveal.badges && self.reveal.tips.is_none() {
             return;
         }
@@ -394,7 +398,7 @@ impl App {
         ));
         let screen = ctx.content_rect();
         if self.reveal.badges {
-            self.paint_badges(ctx, &painter, screen, &targets);
+            self.reveal.panel = Some(self.paint_badges(ctx, &painter, screen, &targets));
         }
         if let Some(tips) = &self.reveal.tips {
             paint_tips(&painter, screen, tips, &targets);
@@ -402,13 +406,15 @@ impl App {
         self.reveal.targets = targets;
     }
 
+    /// The badges and panels; returns where the bottom-left panel of keys
+    /// without a button went.
     fn paint_badges(
         &self,
         ctx: &egui::Context,
         painter: &egui::Painter,
         screen: Rect,
         targets: &[(Target, Rect)],
-    ) {
+    ) -> Rect {
         let active = self.active_contexts();
         let mut covered: Vec<&str> = Vec::with_capacity(targets.len());
         for (target, rect) in targets {
@@ -469,7 +475,7 @@ impl App {
             "Keys without a button",
             &shown,
             Some(&footer),
-        );
+        )
     }
 }
 

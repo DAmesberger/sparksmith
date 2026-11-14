@@ -662,7 +662,7 @@ A part file follows these conventions, all over generic Solidcraft features:
 | Convention | Rule |
 |---|---|
 | Single component | The part's features live in the root component: no subcomponents, occurrences or joints. |
-| Frame | The design origin is the footprint origin; z = 0 is the seating plane; x runs along the package length. The lowest geometry lies at z = 0 (±0.01 mm), and the origin lies inside the xy bounds. |
+| Frame | The design origin is the footprint origin; z = 0 is the seating plane; x runs along the package length. The lowest geometry lies at z = 0 (±0.01 mm; leads, bodies of a lead material, may reach below it, as through-hole posts do), and the origin lies inside the xy bounds. |
 | Parameters | Plain user parameter names (`can_height`, `body_height`, `rows_left`). Any user parameter may be given a value; the rest are internal. |
 | Materials | Each body's Solidcraft appearance is named after a Sparksmith material: its `MaterialId` in kebab case (`nickel-silver`, `solder-mask-green`, `gold`, `epoxy-mould`, …; `sparksmith part check --materials` lists them). Case and `_`, `-` or space are not told apart. A body with any other appearance, or none, is a blocking finding. The Solidcraft look keeps Sparksmith's opaque PBR projection, so plain Solidcraft shows it right; Sparksmith draws its own full look for the material. When the fork's material graph lands, a graph material named the same way maps the same way (only `part_file::material_of` changes). |
 | Marking surfaces | A construction plane named `marking-<name>` is a marking surface. Its origin is the area's centre, its x axis the area's u (reading) direction, and its normal points out of the part. Its size is the two length parameters `marking_<name>_u` and `marking_<name>_v` (`-` in `<name>` becomes `_`). It becomes the anchor `<name>` with `-` turned into `_` (`marking-can-top` → `can_top`). `marking-top` is the default marking area (`placement.on: model`); without it, the default is the first surface. |
@@ -677,7 +677,7 @@ A part file follows these conventions, all over generic Solidcraft features:
 - `part_file.value`: a value names an unknown or non-user parameter, or its unit does not match;
 - `part_file.feature`: a feature fails at the values (the first 16 are named);
 - `part_file.empty`, `part_file.bodies`: no bodies, or more than 1024;
-- `part_file.seating`: the lowest geometry is not at z = 0;
+- `part_file.seating`: the lowest geometry is not at z = 0 (leads may reach below it);
 - `part_file.origin` (advisory): the origin is outside the xy bounds;
 - `part_file.material`: a body's appearance names no Sparksmith material (the bodies are named);
 - `part_file.marking`: a `marking-*` plane without both size parameters, a size that is not positive, or two surfaces with one anchor name;

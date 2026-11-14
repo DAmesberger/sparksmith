@@ -80,9 +80,9 @@ impl Standards {
 }
 
 /// The host's data an engine works with: the standards and, for 3D, the
-/// material library. Explicit: the host builds one from the shipped
-/// library and hands it to each engine and session; nothing in the process
-/// holds one for everybody.
+/// material library and the shipped generators. Explicit: the host builds
+/// one from the shipped library and hands it to each engine and session;
+/// nothing in the process holds one for everybody.
 #[derive(Debug)]
 pub struct Context {
     standards: Arc<Standards>,
@@ -91,6 +91,39 @@ pub struct Context {
     /// keep references into it, so it lives as long as the program: a host
     /// makes one context at startup, not one per request.
     materials: std::result::Result<&'static MaterialLibrary, String>,
+    /// The shipped generator bundles, or why reading them failed: the 3D
+    /// build of a package whose family's in-code builder has given way to
+    /// a generator runs that generator and evaluates its part file
+    /// (docs/design/part-generation-plan.md, phase C).
+    generators: std::result::Result<Arc<Vec<ShippedGenerator>>, String>,
+}
+
+/// A shipped generator bundle as the host read and checked it: the module
+/// and the part files it may name, by SHA-256. Bytes only: the core never
+/// runs a module or evaluates a part file.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ShippedGenerator {
+    /// The bundle's folder name (`library/generators/<name>/`).
+    pub name: String,
+    pub module: Arc<[u8]>,
+    pub parts: Vec<(crate::ids::ContentHash, Arc<[u8]>)>,
+}
+
+impl std::fmt::Debug for ShippedGenerator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShippedGenerator")
+            .field("name", &self.name)
+            .field("module_bytes", &self.module.len())
+            .field("parts", &self.parts.len())
+            .finish()
+    }
+}
+
+impl ShippedGenerator {
+    /// The part file of SHA-256 `hash`, if the bundle ships it.
+    pub fn part(&self, hash: crate::ids::ContentHash) -> Option<&Arc<[u8]>> {
+        self.parts.iter().find(|(h, _)| *h == hash).map(|(_, b)| b)
+    }
 }
 
 thread_local! {
@@ -123,7 +156,41 @@ impl Context {
                 "the material library was not loaded: the program loads the shipped library's materials/ folder before it builds a 3D model"
                     .into(),
             ),
+            generators: Err(
+                "the shipped generators were not loaded: the program reads the shipped library's generators/ folder before it builds a 3D model"
+                    .into(),
+            ),
         }
+    }
+
+    /// This context with the shipped generator bundles, or why reading
+    /// them failed.
+    #[must_use]
+    pub fn with_generators(
+        mut self,
+        generators: std::result::Result<Vec<ShippedGenerator>, String>,
+    ) -> Self {
+        self.generators = generators.map(Arc::new);
+        self
+    }
+
+    /// The shipped generator bundle `name`, or why it is not there.
+    pub fn generator(&self, name: &str) -> Result<&ShippedGenerator> {
+        let shipped = self
+            .generators
+            .as_ref()
+            .map_err(|why| Error::Invalid(why.clone()))?;
+        shipped.iter().find(|g| g.name == name).ok_or_else(|| {
+            let names: Vec<&str> = shipped.iter().map(|g| g.name.as_str()).collect();
+            Error::NotFound(format!(
+                "no generator {name} is shipped; shipped: {}",
+                if names.is_empty() {
+                    "none".to_owned()
+                } else {
+                    names.join(", ")
+                }
+            ))
+        })
     }
 
     /// This context with the material library, or why it failed to load.
@@ -181,7 +248,13 @@ impl Context {
             .get_or_init(|| {
                 let materials = fixture::materials().map_err(|e| e.to_string());
                 fixture::shipped()
-                    .map(|standards| Arc::new(Context::new(standards).with_materials(materials)))
+                    .map(|standards| {
+                        Arc::new(
+                            Context::new(standards)
+                                .with_materials(materials)
+                                .with_generators(Ok(fixture::generators())),
+                        )
+                    })
                     .map_err(|e| e.to_string())
             })
             .clone()
@@ -448,6 +521,23 @@ pub mod fixture {
                 "library/materials/{other} is not a fixture file"
             ))),
         })
+    }
+
+    /// The repository's shipped generator bundles a 3D build runs for a
+    /// family whose in-code builder is retired, as committed
+    /// (`sparksmith-io` reads and checks the installed folder).
+    pub fn generators() -> Vec<ShippedGenerator> {
+        macro_rules! bytes {
+            ($path:literal) => {
+                include_bytes!(concat!("../../../../library/generators/", $path))
+            };
+        }
+        let part = |bytes: &[u8]| (crate::library::bundle::asset_hash(bytes), Arc::from(bytes));
+        vec![ShippedGenerator {
+            name: "header".into(),
+            module: Arc::from(&bytes!("header/header.wasm")[..]),
+            parts: vec![part(bytes!("header/parts/pin-header.solidcraft"))],
+        }]
     }
 
     pub fn shipped() -> Result<Standards> {

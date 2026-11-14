@@ -13,7 +13,6 @@ use sparksmith_core::library::bundle::AssetBytes;
 use sparksmith_core::library::model3d::{
     AssetRef, ModelDefinition, ModelFormat, ModelProvenance, Redistribution,
 };
-use sparksmith_core::library::package_model::PartValue;
 use sparksmith_core::library::{Basis, Provenance};
 use sparksmith_core::units::Nm;
 use sparksmith_generators::abi::v1;
@@ -92,48 +91,6 @@ fn find(
     }
 }
 
-/// `values` (the generation's integers) typed by the part file's own
-/// units: nanometres for a length parameter, millidegrees for an angle,
-/// the count for a unitless one.
-fn part_values(as_is: &part_file::EvaluatedPart, values: &v1::Params) -> Result<PartValues> {
-    let mut out = PartValues::new();
-    for (name, value) in values {
-        let v1::ParamValue::Int(int) = value else {
-            return Err(refused(format!(
-                "the generator gives the part file's \"{name}\" a value that is not a whole number"
-            )));
-        };
-        let parameter = as_is
-            .parameters
-            .iter()
-            .find(|p| &p.name == name)
-            .ok_or_else(|| {
-                refused(format!(
-                    "the generator gives a value to \"{name}\", which its part file does not have"
-                ))
-            })?;
-        let value = match parameter.unit.as_str() {
-            "mm" => PartValue::Nm(
-                Nm::new(*int)
-                    .map_err(|e| refused(format!("\"{name}\": {e}")))?
-                    .get(),
-            ),
-            "deg" => PartValue::Mdeg(*int),
-            "" => PartValue::Count(
-                u32::try_from(*int)
-                    .map_err(|_| refused(format!("\"{name}\" is a count; {int} is not one")))?,
-            ),
-            other => {
-                return Err(refused(format!(
-                    "the part file's \"{name}\" is in {other}, which a generator cannot set"
-                )));
-            }
-        };
-        out.insert(name.clone(), value);
-    }
-    Ok(out)
-}
-
 /// The model of `generation` for `library.generate`: its part file
 /// evaluated at its values and checked against the generation.
 pub(super) fn generated_model(
@@ -150,7 +107,7 @@ pub(super) fn generated_model(
         .ok_or_else(|| refused(format!("\"{asset}\" is not a SHA-256")))?;
     let (bytes, definition, name, packed) = find(engine, hash, bundle)?;
     let as_is = part_file::evaluate(&bytes, &PartValues::new())?;
-    let values = part_values(&as_is, values)?;
+    let values = part_file::generator_values(&as_is, values).map_err(refused)?;
     let part = part_file::evaluate(&bytes, &values)?;
     if let Some(refusal) = part.refusal() {
         return Err(refused(format!(
@@ -158,11 +115,16 @@ pub(super) fn generated_model(
         )));
     }
     // The bounds against the envelope, centred in x and y on the seating
-    // plane.
+    // plane. Leads may reach below the seating plane (through-hole posts
+    // and wires, which the envelope leaves out): the bottom is the lowest
+    // body that is not a lead.
     let geometry = &generation.package.geometry;
     let mm = |v: i64| Nm::new(v).map(Nm::to_mm_f64).unwrap_or(f64::NAN);
     let [l, w, h] = geometry.envelope_nm.map(mm);
-    let [lo, hi] = part.bounds_mm;
+    let [mut lo, hi] = part.bounds_mm;
+    if let Some(bottom) = part_file::seated_bottom(&part.bodies) {
+        lo[2] = lo[2].max(bottom);
+    }
     let envelope = [[-l / 2.0, -w / 2.0, 0.0], [l / 2.0, w / 2.0, h]];
     let off = lo
         .iter()

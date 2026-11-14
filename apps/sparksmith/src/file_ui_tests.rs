@@ -468,6 +468,81 @@ fn a_first_save_names_an_untitled_project_after_its_file() -> Fallible {
     Ok(())
 }
 
+/// E2E run 6, finding 6: a project file written while the project was
+/// still Untitled (an import, or a first save that did not finish) takes
+/// its file's name at the next ⌘S; a name someone chose is kept.
+#[test]
+fn saving_an_untitled_project_under_its_file_names_it() -> Fallible {
+    let mut h = Harness::new()?;
+    let path = h.dir.path().join("blinkpad-imported.sparksmith");
+    assert_eq!(h.engine.project().name, sparksmith_core::UNTITLED);
+    // Opened from its file, as the app opens an imported project.
+    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.files.request(Action::Save);
+    h.until("the write", |h| !h.files.busy())?;
+    let renames: Vec<_> = h
+        .effects
+        .drain(..)
+        .filter_map(|e| match e {
+            Effect::Rename { name, saved } => Some((name, saved)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(renames, [("blinkpad-imported".to_owned(), true)]);
+    assert_eq!(
+        sparksmith_io::read_project(&path)?.project.name,
+        "blinkpad-imported"
+    );
+
+    // A chosen name is not replaced by the file's.
+    h.edit("My blinker")?;
+    h.files.request(Action::Save);
+    h.until("the second write", |h| !h.files.busy())?;
+    assert!(!h.effects.iter().any(|e| matches!(e, Effect::Rename { .. })));
+    assert_eq!(
+        sparksmith_io::read_project(&path)?.project.name,
+        "My blinker"
+    );
+    Ok(())
+}
+
+/// E2E run 6, finding 4: a save into a folder whose sync the system
+/// refuses (macOS Documents; here a folder that may be written but not
+/// opened) is a save: the project is no longer unsaved, the status says
+/// Saved, and the recovery snapshot of the edit is cleared, so the next
+/// launch does not offer to recover it.
+#[cfg(unix)]
+#[test]
+fn a_save_into_a_folder_that_refuses_its_sync_is_saved() -> Fallible {
+    use std::os::unix::fs::PermissionsExt;
+    let mut h = Harness::new()?;
+    let folder = h.dir.path().join("documents");
+    std::fs::create_dir(&folder)?;
+    let path = folder.join("blinker.sparksmith");
+    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.edit("Protected")?;
+    h.snapshot("Protected")?;
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o300))?;
+    h.files.request(Action::Save);
+    let saved = h.until("the write", |h| !h.files.busy());
+    let status = h.files.take_status();
+    std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o700))?;
+    saved?;
+    assert!(!h.files.dirty(), "{status:?}");
+    assert!(
+        matches!(&status, Some((Level::Ok, text)) if text.starts_with("Saved")),
+        "{status:?}"
+    );
+    h.until("the recovery cleared", |h| {
+        h.recoverable().is_ok_and(|names| names.is_empty())
+    })?;
+    assert_eq!(
+        sparksmith_io::read_project(&path)?.project.name,
+        "Protected"
+    );
+    Ok(())
+}
+
 /// R7-4: a save says it runs from the request until its file is written,
 /// so one the system holds (a permission prompt) is not silent.
 #[test]
