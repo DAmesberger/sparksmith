@@ -16,6 +16,8 @@ sparksmith-generators.workspace = true
 sparksmith-generator-abi.workspace = true
 sparksmith-solidcraft.workspace = true
 sparksmith-firmware.workspace = true
+# KiCad import for every host (`kicad_import`).
+sparksmith-kicad.workspace = true
 solidcraft-control.workspace = true
 serde.workspace = true
 serde_json.workspace = true

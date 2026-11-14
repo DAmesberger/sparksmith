@@ -223,6 +223,9 @@ impl App {
                     if self.files.saving() {
                         kit::status_chip(ui, None, "Saving\u{2026}");
                     }
+                    if self.files.importing() {
+                        kit::status_chip(ui, None, "Importing KiCad project\u{2026}");
+                    }
                     self.live_indicator(ui);
                     let (_, drag) = ui.allocate_exact_size(
                         vec2(ui.available_width().max(0.0), APP_BAR_HEIGHT - t.space_8),

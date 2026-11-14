@@ -11,7 +11,9 @@
 //! **Copper.** Tracks and vias are added with `layout.route_apply` in
 //! batches, checked by the engine like routed copper. A batch the checks
 //! refuse is split until the refused items are found; those are listed
-//! and the rest is imported. Arc tracks become chords within
+//! and the rest is imported. The refused track pieces are recorded in the
+//! project (`layout.set_refused_import_tracks`), so copper left ending
+//! where one ran says why in its finding. Arc tracks become chords within
 //! [`ARC_CHORD_MM`].
 use crate::board::{Board, Nm, PointNm};
 use crate::import::{ImportError, Session};
@@ -23,7 +25,8 @@ use sparksmith_core::layout::posture::MIN_SEGMENT_MM;
 use sparksmith_core::layout::{LayoutCommand, RouteEditSet, RouteRequest, ViaRequest};
 use sparksmith_core::model::LabelKind;
 use sparksmith_core::model::import_review::{
-    DisagreementKind, MAX_DISAGREEMENTS, MAX_TERMINALS, NetDisagreement,
+    DisagreementKind, MAX_DISAGREEMENTS, MAX_REFUSED_TRACKS, MAX_TERMINALS, NetDisagreement,
+    RefusedTrack, TrackRefusal,
 };
 use sparksmith_core::schematic::SchematicCommand;
 use sparksmith_core::{
@@ -399,10 +402,17 @@ pub(crate) fn copper(
             tented: via.tenting.map_or(tented, |(front, back)| front && back),
         });
     }
-    let added = add(session, tracks, Vec::new(), report)?;
+    let mut refused = Vec::new();
+    let added = add(session, tracks, Vec::new(), report, &mut refused)?;
     report.counts.tracks = added;
-    let added = add(session, Vec::new(), vias, report)?;
+    let added = add(session, Vec::new(), vias, report, &mut refused)?;
     report.counts.vias = added;
+    if !refused.is_empty() {
+        session.apply(
+            "layout.set_refused_import_tracks",
+            Operation::Layout(LayoutCommand::SetRefusedImportTracks { tracks: refused }),
+        )?;
+    }
     Ok(())
 }
 
@@ -501,12 +511,15 @@ pub(crate) fn clean_tiny(tracks: &mut Vec<RouteRequest>, vias: &[(Id, Point)]) -
 }
 
 /// Add tracks and vias in batches; a refused batch is halved until each
-/// refused item is found and counted. Returns how many were added.
+/// refused item is found and counted, and each refused track piece is
+/// pushed to `refused` (at most [`MAX_REFUSED_TRACKS`]). Returns how many
+/// were added.
 fn add(
     session: &mut Session<'_>,
     tracks: Vec<RouteRequest>,
     vias: Vec<ViaRequest>,
     report: &mut Report,
+    refused: &mut Vec<RefusedTrack>,
 ) -> Result<usize, ImportError> {
     let mut added = 0;
     let mut pending: Vec<(Vec<RouteRequest>, Vec<ViaRequest>)> = Vec::new();
@@ -533,12 +546,27 @@ fn add(
         ) {
             Ok(_) => added += n,
             Err(ImportError::Refused { reason, .. }) if n == 1 => {
-                let case = if tracks.is_empty() {
-                    Case::ViaRefused
-                } else {
-                    Case::TrackRefused
-                };
-                report.add_detail(case, "", "", reason_kind(&reason));
+                let kind = reason_kind(&reason);
+                match tracks.first() {
+                    None => report.add_detail(Case::ViaRefused, "", "", kind.words()),
+                    Some(track) => {
+                        report.add_detail(Case::TrackRefused, "", "", kind.words());
+                        if refused.len() < MAX_REFUSED_TRACKS
+                            && let (Ok(start), Ok(end)) = (
+                                sparksmith_core::units::PointNm::from_mm_f64_rounded(track.start),
+                                sparksmith_core::units::PointNm::from_mm_f64_rounded(track.end),
+                            )
+                        {
+                            refused.push(RefusedTrack {
+                                net: track.net,
+                                layer: track.layer,
+                                start,
+                                end,
+                                reason: kind,
+                            });
+                        }
+                    }
+                }
             }
             Err(ImportError::Refused { .. }) => {
                 // Halve and try each half; the first half first.
@@ -554,15 +582,15 @@ fn add(
 }
 
 /// The kind of a refusal, without the names the core's message may carry.
-fn reason_kind(reason: &str) -> &'static str {
+fn reason_kind(reason: &str) -> TrackRefusal {
     if reason.contains("Too close") {
-        "clearance"
+        TrackRefusal::Clearance
     } else if reason.contains("inside the board") {
-        "outside the board"
+        TrackRefusal::OutsideBoard
     } else if reason.contains("width") {
-        "width"
+        TrackRefusal::Width
     } else {
-        "other"
+        TrackRefusal::Other
     }
 }
 

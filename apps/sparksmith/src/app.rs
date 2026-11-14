@@ -9,6 +9,7 @@ mod browser_catalog;
 mod chrome;
 mod command_dispatch;
 mod command_palette;
+mod import_report;
 mod key_reveal;
 mod list_prefs;
 mod live_mcp;
@@ -72,9 +73,12 @@ pub struct App {
     /// Every message of this run, with the full engine text.
     messages: Messages,
     messages_open: bool,
-    /// Messages, Keyboard shortcuts, Settings and Connect AI assistants
-    /// open last frame, in that order (`system_windows`).
-    system_windows: [bool; 4],
+    /// The last KiCad import's report while its project is open.
+    import_report: import_report::ImportReport,
+    /// Messages, Keyboard shortcuts, Settings, Connect AI assistants and
+    /// the KiCad import report open last frame, in that order
+    /// (`system_windows`).
+    system_windows: [bool; 5],
     /// Live MCP: assistants editing this window's project (off at start).
     live: live_mcp::LiveMcp,
     /// The system's fallback fonts (CJK and others) are installed.
@@ -169,13 +173,14 @@ impl App {
         let render_state = cc.wgpu_render_state.as_ref().ok_or("wgpu is required")?;
         let mut engine = file_ui::new_project()?;
         let mut files = FileUi::new(cc, &engine);
-        // `sparksmith FILE.sparksmith` opens that project through the file workflow.
+        // `sparksmith FILE.sparksmith` opens that project through the file
+        // workflow; a KiCad project or board file is imported.
         if let Some(path) = std::env::args_os()
             .skip(1)
             .map(PathBuf::from)
-            .find(|p| crate::open_documents::is_project(p))
+            .find(|p| crate::open_documents::is_openable(p))
         {
-            files.request(file_ui::Action::OpenPath(path));
+            files.request(crate::open_documents::action(path));
         }
         // Files opened from Finder wake the UI (src/open_documents.rs).
         crate::open_documents::set_ui(&cc.egui_ctx);
@@ -307,7 +312,8 @@ impl App {
             toasts: Toasts::default(),
             messages,
             messages_open: false,
-            system_windows: [false; 4],
+            import_report: import_report::ImportReport::default(),
+            system_windows: [false; 5],
             live: Default::default(),
             system_fonts: false,
             issues: Default::default(),
@@ -636,11 +642,12 @@ impl App {
         }
     }
 
-    /// The Messages window, while open.
+    /// The Messages window, while open, and the KiCad import report.
     fn messages_window(&mut self, ctx: &egui::Context) {
         if self.messages_open && self.messages.window(ctx).closed {
             self.messages_open = false;
         }
+        self.import_report.window(ctx);
     }
 
     /// Component workspace requests the app runs on the engine (drafting a
@@ -1026,23 +1033,54 @@ impl App {
             self.say(Level::Error, format!("Open failed: {error}"));
             return;
         }
-        self.sources.forget_project();
-        self.pending_import = None;
-        // Opened, recovered or new: the launch's project is gone.
-        self.launch_profile = false;
-        self.pcb.set_selection(None, None, None);
-        self.pcb.document_opened();
+        self.document_replaced();
         if path.is_none() && !recovered {
             // File › New: ask for the new project's fab profile.
             self.pcb.ask_for_profile();
         }
-        self.scene.document_opened();
-        self.schematic.document_opened(self.engine.project());
         match self.files.adopt(&self.engine, path, recovered) {
             Ok(()) if recovered => {
                 self.say(Level::Info, format!("Recovered {name}; save it to keep it"));
             }
             Ok(()) => self.say(Level::Ok, format!("Opened {name}")),
+            Err(error) => self.say(Level::Error, error),
+        }
+    }
+
+    /// What every new document resets: the editors' state of the old one
+    /// and the last import's report.
+    fn document_replaced(&mut self) {
+        self.sources.forget_project();
+        self.pending_import = None;
+        // Opened, recovered, new or imported: the launch's project is gone.
+        self.launch_profile = false;
+        self.import_report.clear();
+        self.pcb.set_selection(None, None, None);
+        self.pcb.document_opened();
+        self.scene.document_opened();
+        self.schematic.document_opened(self.engine.project());
+    }
+
+    /// A KiCad project imported from `source` (File › Import KiCad
+    /// project…): the new project, unsaved, with its report shown.
+    fn imported(
+        &mut self,
+        document: EditorFile,
+        source: PathBuf,
+        report: sparksmith_automation::kicad_import::Report,
+    ) {
+        if let Err(error) = self.engine.replace_document(document) {
+            self.say(Level::Error, format!("Import failed: {error}"));
+            return;
+        }
+        self.document_replaced();
+        let name = source.file_name().map_or_else(
+            || source.display().to_string(),
+            |n| n.to_string_lossy().into_owned(),
+        );
+        self.import_report.set(&source, report);
+        match self.files.adopt_imported(&self.engine, source) {
+            Ok(()) => self.say(Level::Ok, format!("Imported {name}; save it to keep it")),
             Err(error) => self.say(Level::Error, error),
         }
     }
@@ -1055,6 +1093,11 @@ impl App {
                     path,
                     recovered,
                 } => self.replace(*document, path, recovered),
+                Effect::Imported {
+                    document,
+                    source,
+                    report,
+                } => self.imported(*document, source, *report),
                 Effect::Rename { name, saved } => {
                     let rename = Operation::Schematic(
                         sparksmith_core::schematic::SchematicCommand::RenameProject { name },
@@ -1102,12 +1145,12 @@ impl App {
         }
         let arrivals = crate::open_documents::sort(crate::open_documents::take());
         for path in arrivals.skipped {
-            let why = if crate::open_documents::is_project(&path) {
+            let why = if crate::open_documents::is_openable(&path) {
                 "another project opened at the same time"
             } else {
                 concat!(
                     sparksmith_core::product_name!(),
-                    " opens .sparksmith projects"
+                    " opens .sparksmith projects and imports KiCad projects"
                 )
             };
             self.say(
@@ -1116,7 +1159,7 @@ impl App {
             );
         }
         if let Some(path) = arrivals.open {
-            self.files.request(file_ui::Action::OpenPath(path));
+            self.files.request(crate::open_documents::action(path));
         }
     }
 

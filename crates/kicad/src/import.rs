@@ -237,17 +237,25 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
     report.counts.definitions = definitions.len();
     report.add_n(Case::ProjectOnly, definitions.len());
     let mut sets: Vec<Set> = Vec::with_capacity(definitions.len());
+    let mut names_taken: BTreeMap<String, usize> = BTreeMap::new();
     for (k, (pads, symbol)) in definitions.into_iter().enumerate() {
         // A footprint without electrical pads (a fiducial, a mounting
         // hole) becomes a part without terminals.
-        let prefix = board
+        let first = board
             .footprints
             .iter()
             .zip(&uses)
             .find(|(_, u)| **u == k)
-            .map(|(fp, _)| prefix_of(&fp.reference))
+            .map(|(fp, _)| fp);
+        let prefix = first
+            .map(|fp| prefix_of(&fp.reference))
             .unwrap_or_else(|| "U".to_owned());
-        sets.push(session.component_set(k, pads, &prefix, symbol.as_ref(), &mut report)?);
+        let name = definition_name(
+            first.map_or("", |fp| fp.lib_id.as_str()),
+            k,
+            &mut names_taken,
+        );
+        sets.push(session.component_set(&name, pads, &prefix, symbol.as_ref(), &mut report)?);
     }
     // The schematic's sheets, and where each reference's unit goes.
     let plan = match schematic {
@@ -857,7 +865,7 @@ impl Session<'_> {
 
     fn component_set(
         &mut self,
-        k: usize,
+        name: &str,
         pads: Vec<Pad>,
         prefix: &str,
         kicad_symbol: Option<&crate::schematic::LibSymbol>,
@@ -899,7 +907,7 @@ impl Session<'_> {
         };
         let mut unpinned = 0;
         let edits = drafts(
-            k,
+            name,
             pads,
             prefix,
             kicad_symbol,
@@ -930,9 +938,37 @@ impl Session<'_> {
     }
 }
 
-/// The five definition bodies of one imported footprint.
+/// Longest definition name taken from a footprint's KiCad name, chars.
+const MAX_NAME_CHARS: usize = 120;
+
+/// The name of the `k`th imported definition: its first footprint's KiCad
+/// name (`Library:R_0805`), without control characters and bounded, else
+/// "KiCad footprint {k + 1}". A name an earlier definition took (one KiCad
+/// footprint whose copies differ) gets " (2)", " (3)" and so on.
+fn definition_name(lib_id: &str, k: usize, taken: &mut BTreeMap<String, usize>) -> String {
+    let clean: String = lib_id
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_NAME_CHARS)
+        .collect();
+    let base = match clean.trim() {
+        "" => format!("KiCad footprint {}", k + 1),
+        name => name.to_owned(),
+    };
+    let seen = taken.entry(base.clone()).or_insert(0);
+    *seen += 1;
+    if *seen == 1 {
+        base
+    } else {
+        format!("{base} ({seen})")
+    }
+}
+
+/// The five definition bodies of one imported footprint, under `name`:
+/// the component and footprint take it as it is, the symbol, package and
+/// binding with their kind after it.
 fn drafts(
-    k: usize,
+    name: &str,
     pads: Vec<Pad>,
     prefix: &str,
     kicad_symbol: Option<&crate::schematic::LibSymbol>,
@@ -976,9 +1012,11 @@ fn drafts(
         Nm::from_mm_f64_rounded(1.0)?,
     ];
     let next_local = u32::try_from(pads.len() + 1).unwrap_or(u32::MAX);
-    let name = format!("KiCad footprint {}", k + 1);
     let meta = |what: &str| DefinitionMeta {
-        name: format!("{name} {what}"),
+        name: match what {
+            "component" | "footprint" => name.to_owned(),
+            what => format!("{name} {what}"),
+        },
         description: String::new(),
         provenance: PROVENANCE.into(),
     };
@@ -1068,4 +1106,22 @@ fn drafts(
             }),
         },
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A definition is named by its KiCad footprint; a repeated name is
+    /// numbered, and a footprint without one is numbered by its place.
+    #[test]
+    fn definitions_take_their_kicad_footprint_names() {
+        let mut taken = BTreeMap::new();
+        let mut name = |lib_id: &str, k: usize| definition_name(lib_id, k, &mut taken);
+        assert_eq!(name("Lib:R_0805", 0), "Lib:R_0805");
+        assert_eq!(name("Lib:R_0805", 1), "Lib:R_0805 (2)");
+        assert_eq!(name("  ", 2), "KiCad footprint 3");
+        assert_eq!(name("Lib:C\n_0603", 3), "Lib:C_0603");
+        assert_eq!(name(&"x".repeat(500), 4).chars().count(), MAX_NAME_CHARS);
+    }
 }

@@ -444,6 +444,10 @@ pub enum AppCommand {
     Open,
     /// Empty File › Open Recent.
     ClearRecent,
+    /// File › Import KiCad project…: a KiCad project as a new project.
+    ImportKicad,
+    /// The last KiCad import's report, while its project is open.
+    ImportReport,
     Save,
     SaveAs,
     Export,
@@ -1227,6 +1231,9 @@ fn defaults() -> Vec<Command> {
         app("file.open", "Open project…", A::Open)
             .chord(Chord::cmd(K::O))
             .icon("open"),
+        app("file.import-kicad", "Import KiCad project…", A::ImportKicad)
+            .icon("open")
+            .keywords("kicad import convert board pcb schematic project kicad_pro kicad_pcb"),
         app("file.clear-recent", "Clear recent projects", A::ClearRecent)
             .icon("close")
             .keywords("open recent history forget list"),
@@ -1279,6 +1286,9 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::cmd(K::I).with_shift())
             .icon("list")
             .keywords("problems checks erc drc errors warnings"),
+        app("view.import-report", "KiCad import report", A::ImportReport)
+            .icon("list")
+            .keywords("kicad import report rules refused tracks looser counts"),
         app("view.messages", "Messages…", A::Messages)
             .chord(Chord::cmd(K::M).with_shift())
             .icon("list")

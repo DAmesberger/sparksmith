@@ -545,6 +545,10 @@ pub struct Project {
     /// (the schematic's kept); findings while they still disagree.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub net_disagreements: Vec<import_review::NetDisagreement>,
+    /// Track pieces an import refused, so copper they left dangling says
+    /// why.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub refused_import_tracks: Vec<import_review::RefusedTrack>,
 }
 
 /// The item of `items` with identity `id`. Collections are kept in
@@ -655,6 +659,7 @@ impl Project {
             interface: Shared::default(),
             assembly_link: None,
             net_disagreements: Vec::new(),
+            refused_import_tracks: Vec::new(),
         }
     }
 }

@@ -5,8 +5,9 @@
     "board_only_parts",
     "project_rule_source",
     "pins_added_by_import",
-    "net_disagreements"
+    "net_disagreements",
+    "refused_import_tracks"
   ],
-  "schema_sha256": "d95b595233b100be7fa8248b0ff67c300c76c428e6deac493d51ac5d4732bcc5",
+  "schema_sha256": "d0f63465dc51d928076559f62e5236941cdd0c03ccb9351f28b1817b0a78946b",
   "version": 4
 }

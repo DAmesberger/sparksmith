@@ -5,7 +5,10 @@
 //! Privacy: the rows and [`Report::summary`] hold fixed text and counts
 //! only. Names from the file (designators, pad numbers, library names)
 //! appear only in [`Detail`]s, which a host writes to a local file and
-//! never prints.
+//! never prints. The rules not taken ([`LooserRule`]) carry the file's
+//! values: [`Report::summary_named`] lists them, for the person who
+//! imported their own project (the CLI and the app), never for a shared
+//! log.
 use serde::Serialize;
 use std::collections::BTreeMap;
 
@@ -564,6 +567,44 @@ pub struct Detail {
     pub path: String,
 }
 
+/// A KiCad limit looser than the fab profile's, not taken
+/// ([`Case::RuleLooserThanFab`]): which rule, where KiCad sets it, and
+/// both values.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct LooserRule {
+    /// The rule as issue texts name it ("min drill").
+    pub rule: String,
+    /// The KiCad project setting it came from (`min_through_hole_diameter`,
+    /// "default net class clearance").
+    pub kicad_setting: &'static str,
+    pub kicad_mm: f64,
+    pub profile_mm: f64,
+}
+
+impl LooserRule {
+    /// "min drill: KiCad 0.2 mm, fab profile 0.3 mm (min_through_hole_diameter)".
+    pub fn line(&self) -> String {
+        format!(
+            "{}: KiCad {} mm, fab profile {} mm ({})",
+            self.rule,
+            mm_text(self.kicad_mm),
+            mm_text(self.profile_mm),
+            self.kicad_setting
+        )
+    }
+}
+
+/// A length in millimetres to the micrometre, without trailing zeros.
+fn mm_text(mm: f64) -> String {
+    let text = format!("{mm:.3}");
+    let text = text.trim_end_matches('0').trim_end_matches('.');
+    if text.is_empty() || text == "-" {
+        "0".to_owned()
+    } else {
+        text.to_owned()
+    }
+}
+
 /// Overall counts.
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
 pub struct Counts {
@@ -599,6 +640,7 @@ pub struct Report {
     pub counts: Counts,
     rows: BTreeMap<Case, usize>,
     details: Vec<Detail>,
+    looser: Vec<LooserRule>,
 }
 
 impl Report {
@@ -625,6 +667,19 @@ impl Report {
                 path: path.to_owned(),
             });
         }
+    }
+
+    /// A limit not taken, counted and named.
+    pub fn looser_rule(&mut self, rule: LooserRule) {
+        self.add(Case::RuleLooserThanFab);
+        if self.looser.len() < MAX_DETAILS {
+            self.looser.push(rule);
+        }
+    }
+
+    /// The limits not taken, in the order the project file's rules were read.
+    pub fn looser_rules(&self) -> &[LooserRule] {
+        &self.looser
     }
 
     /// An unknown token outside pads, by path.
@@ -709,12 +764,30 @@ impl Report {
         out
     }
 
+    /// [`Self::summary`] with each rule not taken named under its count,
+    /// with the KiCad and fab profile values: for the person importing
+    /// their own project.
+    pub fn summary_named(&self) -> String {
+        let mut out = String::new();
+        for line in self.summary().lines() {
+            out.push_str(line);
+            out.push('\n');
+            if line.contains("looser than the fab profile") && line.ends_with("not taken") {
+                for rule in &self.looser {
+                    out.push_str(&format!("    {}\n", rule.line()));
+                }
+            }
+        }
+        out
+    }
+
     /// The full report with its private details, for the local file.
     pub fn to_json(&self) -> serde_json::Value {
         serde_json::json!({
             "format_version": self.format_version,
             "counts": self.counts,
             "rows": self.rows(),
+            "looser_rules": self.looser,
             "details": self.details,
         })
     }

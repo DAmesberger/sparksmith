@@ -66,6 +66,28 @@ fn the_showcase_board_imports_through_the_engine() -> Fallible<()> {
         );
         assert_eq!(placement.layer == Layer::Bottom, fp.back);
     }
+    // Each component and footprint takes its KiCad footprint's name (the
+    // first footprint of its shape), never a numbered placeholder.
+    let names: Vec<&str> = project
+        .library
+        .components
+        .iter()
+        .map(|c| c.meta.name.as_str())
+        .chain(
+            project
+                .library
+                .footprints
+                .iter()
+                .map(|f| f.meta.name.as_str()),
+        )
+        .collect();
+    assert_eq!(names.len(), 6, "{names:?}");
+    assert!(
+        names
+            .iter()
+            .all(|n| n.starts_with("Synthetic:") && !n.contains("KiCad footprint")),
+        "{names:?}"
+    );
     // The import is undoable command history, not a written document.
     assert!(imported.engine.can_undo());
     Ok(())
