@@ -1536,3 +1536,84 @@ fn part_and_pad_overrides_change_how_the_fill_joins_a_pad() -> Fallible<()> {
     assert!(!copper_at(&engine, between, t.gap / 2.0)?);
     Ok(())
 }
+
+/// A spoke must cross its relief gap to copper of the net. The fill's
+/// edge runs just past the via's relief on the left and right, so the
+/// copper there is too narrow to keep and those spokes would end in
+/// nothing: they are removed. Up and down the fill goes on, and those
+/// spokes stay.
+#[test]
+fn a_spoke_that_reaches_no_copper_is_removed() -> Fallible<()> {
+    let mut f = pad_strip()?;
+    let v = f.engine.project().via(f.beside).ok_or("via")?.clone();
+    let ring = v.diameter / 2.0 + STRIP_RELIEF.gap;
+    let edge = ring + 0.05;
+    let (x, y) = (v.position[0], v.position[1]);
+    let mut s = spec(
+        Some(f.gnd),
+        CopperLayer::Top,
+        rect(x - edge, y - 3.0, x + edge, y + 3.0),
+    );
+    s.settings.connections = PadConnections {
+        smd: Some(PadConnection::Thermal),
+        through_hole: None,
+        via: Some(PadConnection::Thermal),
+    };
+    s.settings.thermal = Some(STRIP_RELIEF);
+    s.settings.width_min = Some(0.25);
+    let id = add(&mut f.engine, s)?;
+    refill(&mut f.engine)?;
+    let p = f.engine.project();
+    let fl = fill(p, id)?;
+    let mid = v.diameter / 2.0 + STRIP_RELIEF.gap / 2.0;
+    for deg in [90.0, 270.0] {
+        assert!(copper_towards(fl, v.position, mid, deg), "spoke at {deg}°");
+    }
+    for deg in [0.0, 180.0] {
+        assert!(
+            !copper_towards(fl, v.position, mid, deg),
+            "no spoke at {deg}°"
+        );
+        assert!(
+            !copper_towards(fl, v.position, ring + 0.025, deg),
+            "no stub at {deg}°"
+        );
+    }
+    assert!(via_joined(p, id, f.beside));
+    Ok(())
+}
+
+/// A via's clearance is drawn as a polygon whose chords lie outside the
+/// true circle, so the fill keeps the rule and reaches it where a chord
+/// touches the circle.
+#[test]
+fn the_fill_follows_a_via_clearance_to_the_chord_tolerance() -> Fallible<()> {
+    let mut f = pad_strip()?;
+    let vcc = net(&f.engine, "VCC")?;
+    let beside = f.engine.project().via(f.beside).ok_or("via")?.position;
+    // The first free place near the strip's via.
+    let (at, other) = [[0.0, 2.0], [0.0, -2.0], [2.0, 0.0], [3.0, 0.0], [0.0, 3.0]]
+        .into_iter()
+        .map(|d| [beside[0] + d[0], beside[1] + d[1]])
+        .find_map(|at| via_at(&mut f.engine, vcc, at).ok().map(|id| (at, id)))
+        .ok_or("no free place for a via")?;
+    let id = add(
+        &mut f.engine,
+        spec(
+            Some(f.gnd),
+            CopperLayer::Top,
+            rect(at[0] - 2.0, at[1] - 1.5, at[0] + 2.0, at[1] + 1.5),
+        ),
+    )?;
+    refill(&mut f.engine)?;
+    let p = f.engine.project();
+    let v = p.via(other).ok_or("via")?;
+    let fl = fill(p, id)?;
+    let gap = gap_to_segment(fl, v.position, v.position) - v.diameter / 2.0;
+    let rule = 0.2;
+    assert!(gap >= rule - 1e-6, "gap {gap}");
+    // The chords touch the true circle at their middles: no margin is
+    // added on top of the circumscribed polygon.
+    assert!(gap <= rule + FILL_CHORD_MM / 2.0, "gap {gap}");
+    Ok(())
+}
