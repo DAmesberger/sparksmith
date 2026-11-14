@@ -383,6 +383,44 @@ fn a_first_save_names_an_untitled_project_after_its_file() -> Fallible {
     Ok(())
 }
 
+/// E2E run 6, finding 6: a project file written while the project was
+/// still Untitled (an import, or a first save that did not finish) takes
+/// its file's name at the next ⌘S; a name someone chose is kept.
+#[test]
+fn saving_an_untitled_project_under_its_file_names_it() -> Fallible {
+    let mut h = Harness::new()?;
+    let path = h.dir.path().join("blinkpad-imported.sparksmith");
+    assert_eq!(h.engine.project().name, sparksmith_core::UNTITLED);
+    // Opened from its file, as the app opens an imported project.
+    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.files.request(Action::Save);
+    h.until("the write", |h| !h.files.busy())?;
+    let renames: Vec<_> = h
+        .effects
+        .drain(..)
+        .filter_map(|e| match e {
+            Effect::Rename { name, saved } => Some((name, saved)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(renames, [("blinkpad-imported".to_owned(), true)]);
+    assert_eq!(
+        sparksmith_io::read_project(&path)?.project.name,
+        "blinkpad-imported"
+    );
+
+    // A chosen name is not replaced by the file's.
+    h.edit("My blinker")?;
+    h.files.request(Action::Save);
+    h.until("the second write", |h| !h.files.busy())?;
+    assert!(!h.effects.iter().any(|e| matches!(e, Effect::Rename { .. })));
+    assert_eq!(
+        sparksmith_io::read_project(&path)?.project.name,
+        "My blinker"
+    );
+    Ok(())
+}
+
 /// E2E run 6, finding 4: a save into a folder whose sync the system
 /// refuses (macOS Documents; here a folder that may be written but not
 /// opened) is a save: the project is no longer unsaved, the status says
