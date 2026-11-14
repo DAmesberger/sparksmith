@@ -219,7 +219,7 @@ fn inline_and_linked_results_hold_on_the_showcase() -> Fallible<()> {
             &sparksmith_core::StackupPresets::fixture()?,
             sparksmith_core::rules::fixtures::prototype()?,
         )?),
-        crate::gate::Policy::default(),
+        crate::gate::Grant::default(),
     );
     let mut size = |tool: &str, arguments: Value| -> usize {
         let reply = server

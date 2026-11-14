@@ -9,14 +9,14 @@
 //! lines, version negotiation, notifications without replies) follow
 //! Solidcraft's MCP server.
 //!
-//! Every tool call passes the gate under the server's [`Policy`]
+//! Every tool call passes the gate under the server's [`Grant`]
 //! ([`Session::respond`] as [`Caller::Model`]): MCP has no way to ask, so
 //! whatever would need a person is refused, and the Never class always is.
 //!
 //! A live server ([`Server::live`]) answers the same tools from the open
 //! desktop window instead of a session of its own ([`crate::live`]), whose
 //! gate decides and asks.
-use crate::gate::{Caller, Policy};
+use crate::gate::{Caller, Grant};
 use crate::lines::{self, Line};
 use crate::live;
 use crate::session::{CommandInfo, Request, Session, discovery};
@@ -57,7 +57,7 @@ pub struct Server {
     initialized: bool,
     /// Every tool call passes [`crate::gate`] under it, and Ask is refused:
     /// this transport has no way to ask.
-    policy: Policy,
+    policy: Grant,
     /// When set, tool calls go to the open window, whose gate decides.
     live: Option<live::Client>,
 }
@@ -71,7 +71,7 @@ pub(crate) const LIVE_INSTRUCTIONS: &str = concat!(
 
 impl Server {
     /// A server whose tool calls all pass the gate under `policy`.
-    pub fn new(session: Session, policy: Policy) -> Self {
+    pub fn new(session: Session, policy: Grant) -> Self {
         Self {
             session,
             initialized: false,
@@ -84,7 +84,7 @@ impl Server {
     pub fn live(client: live::Client) -> Self {
         Self {
             live: Some(client),
-            ..Self::new(Session::lending(), Policy::default())
+            ..Self::new(Session::lending(), Grant::default())
         }
     }
     pub fn session(&self) -> &Session {

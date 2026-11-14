@@ -21,7 +21,7 @@ fn payload(reply: &Value) -> Value {
 
 #[test]
 fn initialize_negotiates_versions_and_lists_generated_tools() {
-    let mut server = Server::new(Session::default(), Policy::default());
+    let mut server = Server::new(Session::default(), Grant::default());
     let init = call(
         &mut server,
         1,
@@ -74,7 +74,7 @@ fn initialize_negotiates_versions_and_lists_generated_tools() {
 fn tool_calls_share_the_session_and_report_failures_as_tool_errors() {
     let mut server = Server::new(
         Session::new(Engine::demo().unwrap_or_default()),
-        Policy::default(),
+        Grant::default(),
     );
     let inspect = call(
         &mut server,
@@ -101,7 +101,7 @@ fn tool_calls_share_the_session_and_report_failures_as_tool_errors() {
 
 #[test]
 fn serve_bounds_lines_and_survives_bad_input() -> std::io::Result<()> {
-    let mut server = Server::new(Session::default(), Policy::default());
+    let mut server = Server::new(Session::default(), Grant::default());
     let mut input = Vec::new();
     input.extend_from_slice(b"not json\n");
     input.extend(std::iter::repeat_n(b'x', MAX_LINE + 10));
@@ -130,7 +130,7 @@ fn query_tools_return_the_engine_report() -> Result<(), Box<dyn std::error::Erro
     let instance = engine.project().instances[0].id;
     let direct =
         serde_json::to_value(engine.query(sparksmith_core::Query::InspectInstance { instance })?)?;
-    let mut server = Server::new(Session::new(engine), Policy::default());
+    let mut server = Server::new(Session::new(engine), Grant::default());
     let reply = call(
         &mut server,
         1,
@@ -160,7 +160,7 @@ fn graphic_edits_over_mcp_are_atomic() -> Result<(), Box<dyn std::error::Error>>
         Definition::Symbol(s) => s.units[0].id,
         _ => return Err("not a symbol".into()),
     };
-    let mut server = Server::new(Session::new(engine), Policy::default());
+    let mut server = Server::new(Session::new(engine), Grant::default());
     let before = server.session().engine().document().clone();
     let revision = server.session().engine().revision();
     let add = json!({"add": {"target": {"unit": unit}, "item": {"shape": {
@@ -197,7 +197,7 @@ fn graphic_edits_over_mcp_are_atomic() -> Result<(), Box<dyn std::error::Error>>
 /// from the gate (I-A1): it never reaches the settings.
 #[test]
 fn library_folder_tools_are_listed_and_report_refusals() {
-    let mut server = Server::new(Session::default(), Policy::default());
+    let mut server = Server::new(Session::default(), Grant::default());
     let tools = call(&mut server, 1, "tools/list", json!({}));
     let listed: Vec<_> = tools["result"]["tools"]
         .as_array()
@@ -286,7 +286,7 @@ pub(super) fn names_only_what_exists(text: &str) -> usize {
 /// assign, pin configuration, the report and the firmware export.
 #[test]
 fn the_instructions_describe_the_reviewed_pinout_workflow() -> super::scenario::Fallible<()> {
-    let mut server = Server::new(Session::default(), Policy::default());
+    let mut server = Server::new(Session::default(), Grant::default());
     let init = call(&mut server, 1, "initialize", json!({}));
     let text = init["result"]["instructions"].as_str().unwrap_or_default();
     let mut last = 0;
@@ -331,7 +331,7 @@ fn the_instructions_describe_the_reviewed_pinout_workflow() -> super::scenario::
 #[test]
 fn the_pinout_tools_answer_over_mcp() -> super::scenario::Fallible<()> {
     use super::scenario::EXM48;
-    let mut server = Server::new(Session::new(Engine::demo()?), Policy::default());
+    let mut server = Server::new(Session::new(Engine::demo()?), Grant::default());
     let tools = call(&mut server, 1, "tools/list", json!({}));
     let listed: Vec<_> = tools["result"]["tools"]
         .as_array()
@@ -407,7 +407,7 @@ fn schema_call(server: &mut Server, arguments: Value) -> Value {
 /// reference) and offers `verbose` everywhere.
 #[test]
 fn the_tool_list_is_small_and_self_contained() {
-    let mut server = Server::new(Session::default(), Policy::default());
+    let mut server = Server::new(Session::default(), Grant::default());
     let list = call(&mut server, 1, "tools/list", json!({}));
     let bytes = list.to_string().len();
     // 64,583 bytes measured with the generator requests left to GP7
@@ -488,7 +488,7 @@ fn every_operation_and_query_is_reachable_on_demand() -> super::scenario::Fallib
     constants(&schemas["query"], "query", &mut names);
     assert!(names.len() > operations + 30, "found the queries");
 
-    let mut server = Server::new(Session::default(), Policy::default());
+    let mut server = Server::new(Session::default(), Grant::default());
     let list = call(&mut server, 1, "tools/list", json!({}));
     let text = list.to_string();
     for name in names.iter().chain(&["update".to_owned()]) {
@@ -537,7 +537,7 @@ fn every_operation_and_query_is_reachable_on_demand() -> super::scenario::Fallib
 /// names the new via.
 #[test]
 fn the_schema_reply_says_how_to_send_the_operation() -> super::scenario::Fallible<()> {
-    let mut server = Server::new(Session::new(Engine::demo()?), Policy::default());
+    let mut server = Server::new(Session::new(Engine::demo()?), Grant::default());
     let reply = schema_call(&mut server, json!({"name": "layout.add_via"}));
     let answer = payload(&reply);
     let found = &answer["matches"][0];
@@ -593,7 +593,7 @@ fn the_schema_reply_says_how_to_send_the_operation() -> super::scenario::Fallibl
 /// The snapshot goes out only when asked for, and then once.
 #[test]
 fn verbose_over_mcp_returns_the_snapshot_once() -> super::scenario::Fallible<()> {
-    let mut server = Server::new(Session::new(Engine::demo()?), Policy::default());
+    let mut server = Server::new(Session::new(Engine::demo()?), Grant::default());
     let brief = call(
         &mut server,
         1,
@@ -634,7 +634,7 @@ fn a_gnd_port_on_a_vbus_wire_over_mcp_merges_only_when_asked() -> super::scenari
     let a = pin_position(project, vbus_pin).ok_or("pin")?;
     let b = pin_position(project, pin(second, 1)).ok_or("pin")?;
     let middle = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
-    let mut server = Server::new(Session::new(engine), Policy::default());
+    let mut server = Server::new(Session::new(engine), Grant::default());
     let port = |name: &str, style: &str, attach: Value| {
         json!({"editor": "Schematic", "operation": {"command": "label.place", "params": {
             "name": name, "kind": {"type": "power", "style": style},

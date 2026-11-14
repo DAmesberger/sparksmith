@@ -28,7 +28,7 @@
 //!   an opaque handle; handlers send it work over a bounded channel, and
 //!   every request it runs passes the gate
 //!   ([`crate::session::Session::respond`] as a model under the server's
-//!   [`Policy`]).
+//!   [`Grant`]).
 //!
 //! Requests are served concurrently, so replies can come back in another
 //! order than their requests; the session runs them one at a time, and an
@@ -40,7 +40,7 @@ pub mod tools;
 pub mod wire;
 
 use super::MAX_LINE;
-use crate::gate::Policy;
+use crate::gate::Grant;
 use crate::session::Session;
 use desk::Desk;
 use rmcp::model::{
@@ -83,7 +83,7 @@ impl Server {
     /// Starts the session thread with `session` as the first project,
     /// gated by `policy`; projects opened later start from
     /// [`Session::lending`] and open or create their document.
-    pub fn new(session: Session, policy: Policy) -> Result<Self, String> {
+    pub fn new(session: Session, policy: Grant) -> Result<Self, String> {
         Self::with_new_projects(session, policy, Box::new(Session::lending))
     }
 
@@ -91,7 +91,7 @@ impl Server {
     /// `new_session` (one with the host's library sources, say).
     pub fn with_new_projects(
         session: Session,
-        policy: Policy,
+        policy: Grant,
         new_session: desk::NewSession,
     ) -> Result<Self, String> {
         Ok(Self {

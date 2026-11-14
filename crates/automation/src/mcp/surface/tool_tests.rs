@@ -39,7 +39,7 @@ struct Connection {
 
 impl Connection {
     async fn open(mode: Mode, folder: &Path) -> Fallible<Self> {
-        let policy = Policy::new(mode, [folder.to_path_buf()]);
+        let policy = Grant::new(mode, [folder.to_path_buf()]);
         let server = Server::new(Session::default(), policy)?;
         let (client_io, server_io) = tokio::io::duplex(1 << 22);
         let (read, write) = tokio::io::split(server_io);

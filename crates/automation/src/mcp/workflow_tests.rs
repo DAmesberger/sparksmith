@@ -6,7 +6,7 @@
 use super::prompts::{self, DATASHEET_PART, DATASHEET_PART_SKILL, skill_body};
 use super::scenario::{EXM48, Fallible};
 use super::*;
-use crate::{Mode, Policy};
+use crate::{Grant, Mode};
 
 fn rpc(server: &mut Server, method: &str, params: Value) -> Value {
     server
@@ -112,7 +112,7 @@ fn draft_of(server: &mut Server, id: u64) -> Fallible<Value> {
 
 #[test]
 fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
-    let mut server = Server::new(Session::default(), Policy::default());
+    let mut server = Server::new(Session::default(), Grant::default());
     let init = rpc(&mut server, "initialize", json!({}));
     assert!(
         init["result"]["capabilities"]["prompts"].is_object(),
@@ -216,7 +216,7 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     // board has a fab profile, whose margins the estimated lands take.
     let mut server = Server::new(
         Session::new(sparksmith_core::Engine::profiled()?),
-        Policy::new(Mode::AllowAll, Vec::<std::path::PathBuf>::new()),
+        Grant::new(Mode::AllowAll, Vec::<std::path::PathBuf>::new()),
     );
     rpc(&mut server, "initialize", json!({}));
     let schema = ok(&mut server, "schema", "library_pinout_schema", json!({}))?;
@@ -380,7 +380,7 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
 /// The check is a read: a server that asks for every edit still runs it.
 #[test]
 fn the_review_check_passes_the_strictest_gate() {
-    let policy = Policy::new(Mode::AskEveryTime, Vec::<std::path::PathBuf>::new());
+    let policy = Grant::new(Mode::AskEveryTime, Vec::<std::path::PathBuf>::new());
     let mut server = Server::new(Session::default(), policy);
     let (failed, checked) = tool(&mut server, "library_review_check", report(json!([])));
     assert!(!failed, "{checked}");

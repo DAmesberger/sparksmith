@@ -1,6 +1,6 @@
 # The capability surface
 
-The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1 and S2b) and how to change it.
+The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2 and S2b) and how to change it.
 
 ## Entries and modules
 
@@ -67,7 +67,7 @@ The types are in the ABI crate, `sparksmith_generator_abi::surface` (`no_std` + 
 - `Effect` (`pure`, `revision`, `world`), `Person` (`none`, `review`, `approval`), `Time` (`instant`, `short`, `long`), `ResultSize` (`inline`, `link`), `Reach`, `HostFeature`.
 - `EntryDecl` and `ModuleDecl`: what a declaration says, built in `const` context. Reaches and needs are small bit sets.
 - `ModuleInfo` and `EntryInfo`: a module and an entry as described to a caller.
-- `Call<P>`: the envelope (`entry`, `params` of the host's JSON type, `project`, `expected_revision`, `dry_run`, `confirm`, `turn`, `job`), and `Error`, the one error shape (`code`, `message`, `at`, `rule`, `closest`, `instead`, `expected_revision`, `actual_revision`). S2 puts them to use.
+- `Call<P>`: the envelope (`entry`, `params` of the host's JSON type, `project`, `expected_revision`, `dry_run`, `confirm`, `turn`, `job`), and `Error`, the one error shape (`code`, `message`, `at`, `rule`, `closest`, `instead`, `expected_revision`, `actual_revision`). The front door uses both.
 - `Lock`, `LockedModule`, `LockedEntry`: the lock file.
 
 ## `surface.lock`
@@ -106,7 +106,27 @@ The types are in the ABI crate, `sparksmith_generator_abi::surface` (`no_std` + 
 - `Request::NAMING_PATHS`, the 50-arm `Request::paths` match and the gate tests' `path_samples`: now `FilePath` and the schema walk.
 - `declare_classes!` and its `CLASSES` and `TITLES` tables, `Operation::classes()` and `Operation::titles()`: now `declare_entries!`, `ENTRIES` and `Operation::entries()`.
 
-`Request::expected_revision` stays until the envelope carries the revision (S2). MCP behaviour, the tool lists and their annotations are unchanged.
+MCP behaviour, the tool lists and their annotations are unchanged.
+
+## The front door
+
+Every call reaches the engine through one function, `Surface::call` (`crates/automation/src/front.rs`), implemented by `Session` (S2). `Session::respond`, `dispatch`, `execute` and `rehearse` are calls through it; the old MCP server, the five-verb server, the live channel, the CLI and the built-in assistant all reach it that way.
+
+- **The envelope.** A `Call` names any entry by its own name: an operation (`layout.add_via`), a query (`project.bom`) or a request (`project.save`), with its `params`. `expected_revision` is the envelope's. An entry takes it when it is an operation or its parameters name one (`EntryMeta::revision`, from the schema); such a call without one is refused (`malformed_request`), and one given in the parameters too must agree. The session checks it once, before any file is read or written, and the engine again. `dry_run: true` runs an edit on a fork and keeps nothing. `confirm`, `turn` and `job` are refused (`host.unsupported`) until S4 and the plan slices serve them; `project` is for a transport holding several sessions.
+- **The wrappers.** `project.apply`, `project.apply_all` and `project.query` stay in the catalog as the shapes the JSON-lines and MCP transports send until the cut-over (S3). The front door reads `{"command", "params"}` as a call (`front::from_request`), moving the revision to the envelope, and the gate weighs the operations and queries inside a wrapper, each in its own module, never the wrapper. `project.schema` is the catalog lookup until the `describe` verb replaces it.
+- **Who calls.** `Principal`: `Person` (the UI), `Operator` (the person's own script), `LocalAgent` (the built-in agent) and `RemoteAgent` (MCP and other model-facing transports). The person and the operator run everything. `Plugin` comes with S8. Transports still name a `Caller` (`Operator`, `Model`, `Allowed`), which maps to a principal and whether a person already allowed the request.
+- **Grants.** `Grant` (formerly `Policy`): the mode, the folders and a ceiling class per module. A module absent from the grant is out of reach. `Grant::new(mode, folders)`, what the CLI and MCP flags give, has every module up to Ask; `Grant::local_agent` has the document's modules up to Edit and `files`, `fab` and `model3d` up to Ask.
+- **One decision.** `gate::decide_entries`, the same for every principal: the person and the operator run; Never is refused (`gate.never`); a class above the grant's ceiling for the entry's module is refused (`gate.module`); a path outside the folders is refused (`gate.path_outside`); the mode decides Run or Ask. A path makes a call at least Ask; a batch takes its strictest member. An unknown entry is refused before (`catalog.unknown`, with the nearest names in `closest`). `front::tests::one_decision_over_every_entry_and_every_principal` holds it as a table over every catalog entry and every principal.
+- **Asking.** What needs a person goes to the host's `Asker`: Allow runs, Deny answers `gate.denied`, and a host with no way to ask (`NoOne`) answers `gate.cannot_ask`. A dry run asks no one, since it keeps nothing.
+- **One error.** Every failure is `sparksmith_generator_abi::surface::Error`: engine and file diagnostics keep their codes, and gate refusals carry `instead`. On the wire it is a superset of the old diagnostic, so replies keep their shape.
+
+Not yet: the `review` person step does not ask (it comes with plans, `dry_run` and `confirm`), there is no `host.unavailable` (no entry needs a window yet), and the busy rule stays in the live channel until S5.
+
+## What S2 deleted
+
+- `Request::expected_revision` and its 50-arm match: the envelope's revision and `EntryMeta::revision`.
+- `gate::Refusal` and `Policy`: the one `Error` and `Grant`.
+- `Session::admit` and the gate's own path resolution: `Surface::decide` and `Session::gate`.
 
 ## Explicit context
 
