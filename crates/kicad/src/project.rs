@@ -6,7 +6,7 @@
 //! fab profile, which keeps the fab limits: a KiCad limit looser than the
 //! profile's is not taken (and is counted). Read for facts only; nothing
 //! else of the file is used.
-use crate::report::{Case, Report};
+use crate::report::{LooserRule, Report};
 use sparksmith_core::rules::{CopperObject, DesignRules, RuleKey, RuleValue};
 
 /// Largest project file read, bytes.
@@ -149,9 +149,16 @@ fn is_limit(key: RuleKey) -> bool {
     )
 }
 
+/// The KiCad settings of the default class, as the report names them.
+const CLASS_CLEARANCE: &str = "default net class clearance";
+const CLASS_TRACK: &str = "default net class track width";
+const CLASS_VIA: &str = "default net class via diameter";
+const CLASS_DRILL: &str = "default net class via drill";
+
 /// The rule overrides the project's default class and board minimums
 /// give, less the limits looser than `profile`'s (each counted as
-/// [`Case::RuleLooserThanFab`]): the fab profile keeps its limits.
+/// [`crate::report::Case::RuleLooserThanFab`], each named): the fab
+/// profile keeps its limits.
 pub fn overrides(
     rules: &ProjectRules,
     profile: &DesignRules,
@@ -162,46 +169,60 @@ pub fn overrides(
     let holes = [ViaHole, PthHole, NpthHole];
     let b = &rules.board;
     let default = rules.default.clone().unwrap_or_default();
-    let mut wanted: Vec<(RuleKey, f64)> = Vec::new();
-    let mut pair = |a: CopperObject, b: CopperObject, value: Option<f64>| {
+    // Each wanted value with the KiCad setting it comes from.
+    let mut wanted: Vec<(RuleKey, f64, &'static str)> = Vec::new();
+    let mut pair = |a: CopperObject, b: CopperObject, value: Option<f64>, setting| {
         if let Some(v) = value {
-            wanted.push((RuleKey::Clearance { a, b }, v));
+            wanted.push((RuleKey::Clearance { a, b }, v, setting));
         }
     };
     for (i, a) in copper.iter().enumerate() {
         for c in &copper[i..] {
-            pair(*a, *c, default.clearance);
+            pair(*a, *c, default.clearance, CLASS_CLEARANCE);
         }
-        pair(*a, BoardEdge, b.edge_clearance);
+        pair(*a, BoardEdge, b.edge_clearance, "min_copper_edge_clearance");
         for hole in holes {
-            pair(*a, hole, b.hole_clearance);
+            pair(*a, hole, b.hole_clearance, "min_hole_clearance");
         }
     }
     for (i, a) in holes.iter().enumerate() {
         for c in &holes[i..] {
-            pair(*a, *c, b.hole_to_hole);
+            pair(*a, *c, b.hole_to_hole, "min_hole_to_hole");
         }
     }
-    for (key, value) in [
-        (RuleKey::TrackWidthMin, b.track_width_min),
-        (RuleKey::ViaAnnularRingMin, b.via_annular_min),
-        (RuleKey::DrillMin, b.drill_min),
-        (RuleKey::SilkTextHeightMin, b.text_height_min),
-        (RuleKey::TrackWidthDefault, default.track_width),
-        (RuleKey::ViaDiameterDefault, default.via_diameter),
-        (RuleKey::ViaDrillDefault, default.via_drill),
+    for (key, value, setting) in [
+        (RuleKey::TrackWidthMin, b.track_width_min, "min_track_width"),
+        (
+            RuleKey::ViaAnnularRingMin,
+            b.via_annular_min,
+            "min_via_annular_width",
+        ),
+        (RuleKey::DrillMin, b.drill_min, "min_through_hole_diameter"),
+        (
+            RuleKey::SilkTextHeightMin,
+            b.text_height_min,
+            "min_text_height",
+        ),
+        (RuleKey::TrackWidthDefault, default.track_width, CLASS_TRACK),
+        (RuleKey::ViaDiameterDefault, default.via_diameter, CLASS_VIA),
+        (RuleKey::ViaDrillDefault, default.via_drill, CLASS_DRILL),
     ] {
         if let Some(v) = value {
-            wanted.push((key, v));
+            wanted.push((key, v, setting));
         }
     }
     let mut out = Vec::new();
-    for (key, v) in wanted {
+    for (key, v, setting) in wanted {
         if is_limit(key)
             && let RuleValue::Length(fab) = key.get(profile)
             && v < fab - 1e-9
         {
-            report.add(Case::RuleLooserThanFab);
+            report.looser_rule(LooserRule {
+                rule: key.label(),
+                kicad_setting: setting,
+                kicad_mm: v,
+                profile_mm: fab,
+            });
             continue;
         }
         out.push((key, RuleValue::Length(v)));
@@ -212,6 +233,7 @@ pub fn overrides(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::report::Case;
 
     #[test]
     fn classes_patterns_assignments_and_board_rules_are_read() {
@@ -248,6 +270,24 @@ mod tests {
                 .contains("1 KiCad rule looser than the fab profile was not taken")
         );
         assert!(!overrides.iter().any(|(k, _)| *k == RuleKey::DrillMin));
+        // The rule not taken is named with both values.
+        assert_eq!(
+            report.looser_rules(),
+            &[LooserRule {
+                rule: "min drill".into(),
+                kicad_setting: "min_through_hole_diameter",
+                kicad_mm: 0.2,
+                profile_mm: 0.3,
+            }]
+        );
+        assert!(
+            report.summary_named().contains(
+                "    min drill: KiCad 0.2 mm, fab profile 0.3 mm (min_through_hole_diameter)"
+            ),
+            "{}",
+            report.summary_named()
+        );
+        assert!(!report.summary().contains("min drill"));
         assert!(overrides.contains(&(
             RuleKey::Clearance {
                 a: CopperObject::Track,

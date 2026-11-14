@@ -537,12 +537,13 @@ impl super::App {
             self.shortcut_sheet.is_open(),
             self.settings_window.is_open(),
             self.live.is_open(),
+            self.import_report.is_open(),
         ];
         let escape = now.contains(&true)
             && !self.palette.is_open()
             && !self.settings_window.is_recording()
             && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
-        let [messages, shortcuts, settings, live] =
+        let [messages, shortcuts, settings, live, report] =
             super::system_windows::one_window(self.system_windows, now, escape);
         self.messages_open = messages;
         if !shortcuts {
@@ -554,7 +555,10 @@ impl super::App {
         if !live {
             self.live.close();
         }
-        self.system_windows = [messages, shortcuts, settings, live];
+        if !report {
+            self.import_report.close();
+        }
+        self.system_windows = [messages, shortcuts, settings, live, report];
     }
 
     /// The Settings window while open.

@@ -7,6 +7,7 @@
 //! reaches the same typed operations, the same gate and the same error.
 pub mod front;
 pub mod gate;
+pub mod kicad_import;
 pub mod lines;
 pub mod live;
 pub mod mcp;

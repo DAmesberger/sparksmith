@@ -143,6 +143,47 @@ fn a_track_the_checks_refuse_is_listed_and_the_rest_imported() -> Fallible<()> {
     Ok(())
 }
 
+/// A track from R2's SIG pad whose second piece runs onto R3's GND pad:
+/// that piece is refused, and the first piece, now ending in nothing, says
+/// in its finding that the import refused the rest and why.
+#[test]
+fn a_stub_a_refused_track_left_says_so() -> Fallible<()> {
+    let mut board = routed();
+    board.items.push_str(
+        "  (segment (start 29 10) (end 29 16) (width 0.25) (layer \"F.Cu\") (net 1))
+  (segment (start 29 16) (end 21 16) (width 0.25) (layer \"F.Cu\") (net 1))\n",
+    );
+    let imported = import(board.text().as_bytes())?;
+    assert_eq!(imported.report.count(Case::TrackRefused), 1);
+    let project = imported.engine.project();
+    let refused = &project.refused_import_tracks;
+    assert_eq!(refused.len(), 1, "{refused:?}");
+    assert_eq!(
+        refused[0].reason,
+        sparksmith_core::model::import_review::TrackRefusal::Clearance
+    );
+    let report = sparksmith_core::issues::report(
+        project,
+        &sparksmith_core::library::Drafts::default(),
+        &sparksmith_core::issues::IssueScope::All,
+        &Default::default(),
+    )?;
+    let stubs: Vec<&str> = report
+        .rows
+        .iter()
+        .filter(|r| r.finding.code == "board.track_dangling")
+        .map(|r| r.finding.message.as_str())
+        .collect();
+    // KiCad's (29, 16) is (29, 20 − 16) here.
+    assert!(
+        stubs.contains(
+            &"Track on SIG (Top) stops at (29, 4) mm: import refused the rest (clearance)"
+        ),
+        "{stubs:?}"
+    );
+    Ok(())
+}
+
 #[test]
 fn the_project_files_rules_become_the_projects_own_rule_set() -> Fallible<()> {
     // Original project rules: a default class, a Power class by pattern
@@ -190,5 +231,18 @@ fn the_project_files_rules_become_the_projects_own_rule_set() -> Fallible<()> {
     assert!((effective.holes.drill_min - 0.1).abs() < 1e-9);
     assert!((effective.copper.track_width_default - 0.25).abs() < 1e-9);
     assert_eq!(report.count(Case::RuleLooserThanFab), 1);
+    // The rule not taken is named with the KiCad and the profile's value,
+    // in the summary for the person and in the detail file.
+    let looser = report.looser_rules();
+    assert_eq!(looser.len(), 1);
+    assert_eq!(
+        looser[0].line(),
+        "min drill: KiCad 0.05 mm, fab profile 0.1 mm (min_through_hole_diameter)"
+    );
+    assert!(report.summary_named().contains(&looser[0].line()));
+    assert_eq!(
+        report.to_json()["looser_rules"][0]["kicad_setting"],
+        "min_through_hole_diameter"
+    );
     Ok(())
 }

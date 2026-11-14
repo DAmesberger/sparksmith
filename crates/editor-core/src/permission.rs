@@ -22,7 +22,7 @@ pub use sparksmith_generator_abi::surface::{
 pub const MODULES: &[ModuleDecl] = &[
     module_at(
         "project",
-        (0, 3),
+        (0, 4),
         "Project",
         "The open design: inspect, properties, undo, redo, bill of materials.",
     ),
@@ -35,7 +35,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "layout",
-        (0, 2),
+        (0, 3),
         "Layout",
         "Place parts, route copper, vias, fills, keepouts, pairs and the board shape.",
     ),
@@ -79,7 +79,8 @@ const fn module(id: &'static str, title: &'static str, summary: &'static str) ->
 /// A module at `version`, raised from 0.1 by a change the lock records
 /// (0.2: net disagreements and pins added by import; project 0.3, layout 0.2
 /// and library 0.3: sketches as JSON objects and fills without computed
-/// copper, file format version 4).
+/// copper, file format version 4; project 0.4 and layout 0.3: tracks an
+/// import refused).
 const fn module_at(
     id: &'static str,
     version: Version,

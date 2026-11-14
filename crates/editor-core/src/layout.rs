@@ -287,6 +287,13 @@ pub enum LayoutCommand {
         objects: several::Objects,
         locked: bool,
     },
+    /// Record the track pieces an import refused, replacing those
+    /// recorded: copper left ending where one ran says why
+    /// (`board.track_dangling`).
+    #[serde(rename = "layout.set_refused_import_tracks")]
+    SetRefusedImportTracks {
+        tracks: Vec<crate::model::import_review::RefusedTrack>,
+    },
 }
 
 // A new command chooses its permission class here.
@@ -322,6 +329,7 @@ declare_entries!(LayoutCommand in layout {
     Distribute "layout.distribute" Edit "Distribute parts evenly",
     DeleteObjects "layout.delete_objects" Edit "Delete several board objects",
     LockObjects "layout.lock_objects" Edit "Lock or unlock several board objects",
+    SetRefusedImportTracks "layout.set_refused_import_tracks" Edit "Record tracks an import refused" [since(0, 3)],
 });
 
 impl LayoutCommand {
@@ -872,6 +880,10 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
         }
         LayoutCommand::LockObjects { objects, locked } => {
             several::lock(project, &objects, locked)?;
+        }
+        LayoutCommand::SetRefusedImportTracks { tracks } => {
+            crate::model::import_review::check_refused(&tracks)?;
+            project.refused_import_tracks = tracks;
         }
     }
     Ok(None)
