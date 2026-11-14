@@ -32,6 +32,10 @@ Design note and contract, 13 November 2026 (GP2: 14 November 2026). GP0 built th
 
 **Refusals** (word for word in `crates/generators/tests/refusals.rs`, `missing_or_malformed_models_are_refused_in_plain_words`): no model; a part file named by something other than a SHA-256; a value beyond 1 m, not a whole number, or under a name no part parameter can have. Each ends "Nothing was changed." The core refuses a missing evaluation, another file than the module names, and other values (`library/generated/tests.rs`); the session refuses a file in neither the bundle nor the project, a blocking finding, bounds off the envelope and a lead contact under no lead body.
 
+**The header part file** (phase C, 14 November 2026). `generators/header/parts/pin-header.solidcraft` is the header builder's construction made parametric in its counts (parameters `rows`, `pins`, `pitch`, `row_pitch`, `body_height`, `pin_side`, `pin_above`, `pin_below`, `corner_round`, `edge_round`): the posts are a body pattern, the base's holes a feature pattern of one cut. Its posts reach below the seating plane, which the part-file check and the generated-part envelope check allow for leads (`part_file::seated_bottom`). The in-code header builder is deleted; parity numbers are in the [part-generation plan](design/part-generation-plan.md#done-header-14-november-2026).
+
+**Retired builders.** A project's package that stores `PackageModel::Generated` with a family whose builder is deleted still builds: the host's context carries the shipped bundles (`Context::with_generators`, read by `sparksmith_io::standards::context`), and `sparksmith_solidcraft::models::family` maps the form's values to the generator's parameters, runs the module (package scope) and evaluates its part file at the values, binding each lead body to the package terminal of its land. Until D2 removes `PackageModel::Generated`, this is how templates, the 3D library's "Generated" entry and older projects get that family's model.
+
 ## Regenerating a part
 
 | # | Decision | Why |

@@ -311,14 +311,21 @@ pub fn material_of(appearance: &str) -> Option<MaterialId> {
     serde_json::from_value(serde_json::Value::String(key)).ok()
 }
 
-/// The bottom of the bodies that are not leads: what sits on the seating
-/// plane. Leads (bodies of a lead material) may reach below it, as a
-/// through-hole post or wire does. `None` when every body is a lead.
+/// The bottom of the part as it sits on the board: the lowest body, a
+/// lead counting from the seating plane at the lowest, since a lead (a
+/// body of a lead material) may reach below it, as a through-hole post or
+/// wire does. `None` without bodies.
 pub fn seated_bottom(bodies: &[PartBody]) -> Option<f64> {
     bodies
         .iter()
-        .filter(|b| role_of(b.material) != BodyRole::Termination)
-        .map(|b| b.bounds_mm[0][2])
+        .map(|b| {
+            let bottom = b.bounds_mm[0][2];
+            if role_of(b.material) == BodyRole::Termination {
+                bottom.max(0.0)
+            } else {
+                bottom
+            }
+        })
         .reduce(f64::min)
 }
 
@@ -650,7 +657,7 @@ fn evaluate_now(bytes: &[u8], values: &PartValues, key: [u8; 32]) -> Result<Eval
                 "part_file.seating",
                 true,
                 format!(
-                    "the lowest geometry that is not a lead is at z = {low:.3} mm; the seating plane is z = 0 (±{SEATING_TOLERANCE_MM} mm)"
+                    "the lowest geometry (a lead from the seating plane down not counted) is at z = {low:.3} mm; the seating plane is z = 0 (±{SEATING_TOLERANCE_MM} mm)"
                 ),
             ));
         }
