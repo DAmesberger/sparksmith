@@ -46,6 +46,27 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
             int("pin_below", h.pin_below_nm.get());
             Some(("header", params))
         }
+        PackageForm::Molded(m) => {
+            use sparksmith_core::library::package_form::molded::MoldedLead;
+            int("body_length", m.body_length_nm.get());
+            int("body_width", m.body_width_nm.get());
+            int("body_height", m.body_height_nm.get());
+            int("span", m.span_nm.get());
+            int("terminal_length", m.terminal_length_nm.get());
+            int("terminal_width", m.terminal_width_nm.get());
+            let lead = match m.lead {
+                MoldedLead::Flat => "flat",
+                MoldedLead::Bent => "bent",
+                MoldedLead::JLead => "j_lead",
+                MoldedLead::Melf => "melf",
+            };
+            params.insert("lead".into(), ParamValue::Text(lead.into()));
+            params.insert("polarised".into(), ParamValue::Bool(m.polarised));
+            // The package alone: what the part is (its symbol) leaves the
+            // model as it is.
+            params.insert("part".into(), ParamValue::Text("diode".into()));
+            Some(("molded", params))
+        }
         _ => None,
     }
 }
@@ -118,15 +139,26 @@ pub fn evaluate(
         .iter()
         .map(|b| {
             let role = part_file::role_of(b.material);
-            // The package's material for the builder's role of the body.
-            let builder_role = match role {
-                BodyRole::Termination => BodyRole::Lead,
-                other => other,
+            // The package's own choice for the body's role (a lead body was
+            // the builders' `lead` or `termination`), else the part file's
+            // material (a MELF's glass, a band's ink), else the family's.
+            let chosen = |r: BodyRole| {
+                materials
+                    .roles
+                    .iter()
+                    .find(|c| c.role == r)
+                    .map(|c| c.material)
             };
+            let material = match role {
+                BodyRole::Termination => chosen(BodyRole::Lead).or_else(|| chosen(role)),
+                other => chosen(other),
+            }
+            .or(b.material)
+            .unwrap_or_else(|| materials.material(&package.form, role));
             GeneratedBody {
                 name: b.name.clone(),
                 role,
-                material: materials.material(&package.form, builder_role),
+                material,
                 terminal: bound
                     .iter()
                     .find(|l| l.body == b.name)

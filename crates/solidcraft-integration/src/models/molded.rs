@@ -457,7 +457,9 @@ mod tests {
     #[test]
     fn the_band_marks_terminal_one_in_the_core_s_band_area() -> Result<()> {
         let _context = crate::looks::test_context().map(|c| c.enter());
-        for lead in ALL {
+        // A MELF's dark ring is epoxy, which a part file reads as a body
+        // (models::molded_part_tests compares the ring itself).
+        for lead in ALL.into_iter().filter(|l| *l != MoldedLead::Melf) {
             let f = form(lead);
             let area = f
                 .band_area()

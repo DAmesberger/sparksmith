@@ -600,3 +600,6 @@ pub(crate) mod tests;
 #[path = "chip_part_tests.rs"]
 mod chip_part_tests;
 
+#[cfg(test)]
+#[path = "molded_part_tests.rs"]
+mod molded_part_tests;

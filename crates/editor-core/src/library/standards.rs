@@ -533,11 +533,27 @@ pub mod fixture {
             };
         }
         let part = |bytes: &[u8]| (crate::library::bundle::asset_hash(bytes), Arc::from(bytes));
-        vec![ShippedGenerator {
-            name: "header".into(),
-            module: Arc::from(&bytes!("header/header.wasm")[..]),
-            parts: vec![part(bytes!("header/parts/pin-header.solidcraft"))],
-        }]
+        vec![
+            ShippedGenerator {
+                name: "header".into(),
+                module: Arc::from(&bytes!("header/header.wasm")[..]),
+                parts: vec![part(bytes!("header/parts/pin-header.solidcraft"))],
+            },
+            ShippedGenerator {
+                name: "molded".into(),
+                module: Arc::from(&bytes!("molded/molded.wasm")[..]),
+                parts: vec![
+                    part(bytes!("molded/parts/molded-flat.solidcraft")),
+                    part(bytes!("molded/parts/molded-flat-band.solidcraft")),
+                    part(bytes!("molded/parts/molded-bent.solidcraft")),
+                    part(bytes!("molded/parts/molded-bent-band.solidcraft")),
+                    part(bytes!("molded/parts/molded-j-lead.solidcraft")),
+                    part(bytes!("molded/parts/molded-j-lead-band.solidcraft")),
+                    part(bytes!("molded/parts/melf.solidcraft")),
+                    part(bytes!("molded/parts/melf-band.solidcraft")),
+                ],
+            },
+        ]
     }
 
     pub fn shipped() -> Result<Standards> {

@@ -353,6 +353,10 @@ pub fn role_of(material: Option<MaterialId>) -> BodyRole {
         // overcoat on its body, as the generated models give them.
         Some(M::SiliconeClear | M::SiliconeDiffuse) => BodyRole::Lens,
         Some(M::ResistorOvercoat) => BodyRole::Other,
+        // A polarity band or other mark made as a body.
+        Some(M::EpoxyLaserMarked | M::MetalLaserMarked | M::MarkingInkWhite | M::PadPrintInk) => {
+            BodyRole::Marking
+        }
         _ => BodyRole::Body,
     }
 }
@@ -441,7 +445,8 @@ pub fn generator_values(
             "mm" => PartValue::Nm(Nm::new(*int).map_err(|e| format!("\"{name}\": {e}"))?.get()),
             "deg" => PartValue::Mdeg(*int),
             "" => PartValue::Count(
-                u32::try_from(*int).map_err(|_| format!("\"{name}\" is a count; {int} is not one"))?,
+                u32::try_from(*int)
+                    .map_err(|_| format!("\"{name}\" is a count; {int} is not one"))?,
             ),
             other => {
                 return Err(format!(

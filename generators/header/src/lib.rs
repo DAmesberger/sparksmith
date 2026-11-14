@@ -112,8 +112,22 @@ fn description_with(presets: Vec<Preset>) -> Description {
     let params = vec![
         count("rows", "Rows", MAX_ROWS, 2),
         count("columns", "Pins per row", MAX_COLUMNS, 5),
-        length("pitch", "Pitch along a row", 500 * UM, 10 * MM, 2_540_000, "pins"),
-        length("row_pitch", "Row pitch", 500 * UM, 10 * MM, 2_540_000, "pins"),
+        length(
+            "pitch",
+            "Pitch along a row",
+            500 * UM,
+            10 * MM,
+            2_540_000,
+            "pins",
+        ),
+        length(
+            "row_pitch",
+            "Row pitch",
+            500 * UM,
+            10 * MM,
+            2_540_000,
+            "pins",
+        ),
         length("pin_side", "Pin side", 100 * UM, 2 * MM, 640_000, "pins"),
         length(
             "pin_above",
@@ -207,7 +221,10 @@ impl Dims {
     /// The moulded base: one pitch per pin long, one row pitch per row
     /// wide, centred.
     fn body(&self) -> Box2 {
-        Box2::centred([0, 0], [self.columns * self.pitch, self.rows * self.row_pitch])
+        Box2::centred(
+            [0, 0],
+            [self.columns * self.pitch, self.rows * self.row_pitch],
+        )
     }
 
     /// The centre of pin `k` (from 0, across the rows first).
@@ -467,12 +484,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         assembly: land::assembly(body),
     };
     let component_part = request.scope == Scope::Component;
-    let name = format!(
-        "Pin header {}×{} {} mm",
-        d.rows,
-        d.columns,
-        mm(d.pitch)
-    );
+    let name = format!("Pin header {}×{} {} mm", d.rows, d.columns, mm(d.pitch));
     Ok(Generation {
         component: component_part.then(|| Component {
             terminals: keys

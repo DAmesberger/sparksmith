@@ -1,0 +1,964 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "Molded two-terminal, J-leads",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "4.3 mm",
+      "unit": "mm",
+      "comment": "moulded body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "2.6 mm",
+      "unit": "mm",
+      "comment": "moulded body width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "2.2 mm",
+      "unit": "mm",
+      "comment": "body top above the seating plane",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "5.2 mm",
+      "unit": "mm",
+      "comment": "overall length, tip to tip",
+      "model": false
+    },
+    {
+      "name": "terminal_length",
+      "expr": "1.1 mm",
+      "unit": "mm",
+      "comment": "terminal contact length on the seating plane, from the tip",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "1.4 mm",
+      "unit": "mm",
+      "comment": "terminal width (y)",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "leadframe thickness",
+      "model": false
+    },
+    {
+      "name": "lead_root",
+      "expr": "0.25 mm",
+      "unit": "mm",
+      "comment": "how far a lead reaches into the body",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "round of the body's upright corners",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edges",
+      "model": false
+    },
+    {
+      "name": "lead_exit",
+      "expr": "1.1 mm",
+      "unit": "mm",
+      "comment": "height of the lead's centre line where it leaves the body",
+      "model": false
+    },
+    {
+      "name": "bend_1",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "centre-line radius of the bend at the body",
+      "model": false
+    },
+    {
+      "name": "bend_2",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "centre-line radius of the bend at the foot",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "(body_length / 2 - 0.08 * body_length) - (- body_length / 2 + 0.08 * body_length)",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.8 * body_width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "0 mm"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height - 0 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d4",
+        "d5",
+        "d6"
+      ],
+      "type": "box",
+      "corner": [
+        "- (span / 2)",
+        "- (terminal_width) / 2",
+        "0 mm"
+      ],
+      "length": "(span / 2) - (min(body_length / 2 - lead_root, span / 2 - terminal_length))",
+      "width": "terminal_width",
+      "height": "lead_exit + lead_thickness / 2",
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "terminal 1 inside",
+      "suppressed": false,
+      "param_names": [
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "box",
+      "corner": [
+        "- (span / 2 - lead_thickness)",
+        "- (terminal_width + 2 mm) / 2",
+        "lead_thickness"
+      ],
+      "length": "(span / 2 - lead_thickness) - (min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm)",
+      "width": "terminal_width + 2 mm",
+      "height": "lead_exit - 3 * lead_thickness / 2",
+      "operation": "cut"
+    },
+    {
+      "id": 4,
+      "name": "terminal 1 inward of the foot",
+      "suppressed": false,
+      "param_names": [
+        "d10",
+        "d11",
+        "d12"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "box",
+      "corner": [
+        "- (span / 2 - terminal_length)",
+        "- (terminal_width + 2 mm) / 2",
+        "- 1 mm"
+      ],
+      "length": "(span / 2 - terminal_length) - (min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm)",
+      "width": "terminal_width + 2 mm",
+      "height": "lead_exit - lead_thickness / 2 + 1 mm",
+      "operation": "cut"
+    },
+    {
+      "id": 5,
+      "name": "terminal 1 inward of the root",
+      "suppressed": false,
+      "param_names": [
+        "d13",
+        "d14",
+        "d15"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "box",
+      "corner": [
+        "- (body_length / 2 - lead_root)",
+        "- (terminal_width + 2 mm) / 2",
+        "lead_thickness"
+      ],
+      "length": "(body_length / 2 - lead_root) - (min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm)",
+      "width": "terminal_width + 2 mm",
+      "height": "lead_exit + lead_thickness / 2",
+      "operation": "cut"
+    },
+    {
+      "id": 6,
+      "name": "terminal 1 bend 1 outside",
+      "suppressed": false,
+      "param_names": [
+        "d16"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -2.6,
+            -0.7,
+            0.0
+          ],
+          "max": [
+            -1.5,
+            0.7,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:+z|F2:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.6,
+          0.0,
+          1.175
+        ]
+      ],
+      "radius": "bend_1 + lead_thickness / 2",
+      "body": "terminal 1"
+    },
+    {
+      "id": 7,
+      "name": "terminal 1 bend 1 inside",
+      "suppressed": false,
+      "param_names": [
+        "d17"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -2.6,
+            -0.7,
+            0.0
+          ],
+          "max": [
+            -1.5,
+            0.7,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F3:+z|F3:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.45,
+          0.0,
+          1.0250000000000001
+        ]
+      ],
+      "radius": "bend_1 - lead_thickness / 2",
+      "body": "terminal 1"
+    },
+    {
+      "id": 8,
+      "name": "terminal 1 bend 2 outside",
+      "suppressed": false,
+      "param_names": [
+        "d18"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -2.6,
+            -0.7000000000000003,
+            0.0
+          ],
+          "max": [
+            -1.5,
+            0.7,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:-x|F2:-z"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.6,
+          0.0,
+          0.0
+        ]
+      ],
+      "radius": "bend_2 + lead_thickness / 2",
+      "body": "terminal 1"
+    },
+    {
+      "id": 9,
+      "name": "terminal 1 bend 2 inside",
+      "suppressed": false,
+      "param_names": [
+        "d19"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -2.6,
+            -0.7000000000000003,
+            0.0
+          ],
+          "max": [
+            -1.5,
+            0.7,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F3:-x|F3:-z"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.45,
+          0.0,
+          0.15
+        ]
+      ],
+      "radius": "bend_2 - lead_thickness / 2",
+      "body": "terminal 1"
+    },
+    {
+      "id": 10,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d20",
+        "d21",
+        "d22"
+      ],
+      "type": "box",
+      "corner": [
+        "min(body_length / 2 - lead_root, span / 2 - terminal_length)",
+        "- (terminal_width) / 2",
+        "0 mm"
+      ],
+      "length": "(span / 2) - (min(body_length / 2 - lead_root, span / 2 - terminal_length))",
+      "width": "terminal_width",
+      "height": "lead_exit + lead_thickness / 2",
+      "operation": "new_body"
+    },
+    {
+      "id": 11,
+      "name": "terminal 2 inside",
+      "suppressed": false,
+      "param_names": [
+        "d23",
+        "d24",
+        "d25"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "box",
+      "corner": [
+        "min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm",
+        "- (terminal_width + 2 mm) / 2",
+        "lead_thickness"
+      ],
+      "length": "(span / 2 - lead_thickness) - (min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm)",
+      "width": "terminal_width + 2 mm",
+      "height": "lead_exit - 3 * lead_thickness / 2",
+      "operation": "cut"
+    },
+    {
+      "id": 12,
+      "name": "terminal 2 inward of the foot",
+      "suppressed": false,
+      "param_names": [
+        "d26",
+        "d27",
+        "d28"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "box",
+      "corner": [
+        "min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm",
+        "- (terminal_width + 2 mm) / 2",
+        "- 1 mm"
+      ],
+      "length": "(span / 2 - terminal_length) - (min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm)",
+      "width": "terminal_width + 2 mm",
+      "height": "lead_exit - lead_thickness / 2 + 1 mm",
+      "operation": "cut"
+    },
+    {
+      "id": 13,
+      "name": "terminal 2 inward of the root",
+      "suppressed": false,
+      "param_names": [
+        "d29",
+        "d30",
+        "d31"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "box",
+      "corner": [
+        "min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm",
+        "- (terminal_width + 2 mm) / 2",
+        "lead_thickness"
+      ],
+      "length": "(body_length / 2 - lead_root) - (min(body_length / 2 - lead_root, span / 2 - terminal_length) - 1 mm)",
+      "width": "terminal_width + 2 mm",
+      "height": "lead_exit + lead_thickness / 2",
+      "operation": "cut"
+    },
+    {
+      "id": 14,
+      "name": "terminal 2 bend 1 outside",
+      "suppressed": false,
+      "param_names": [
+        "d32"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            1.5,
+            -0.7,
+            0.0
+          ],
+          "max": [
+            2.6,
+            0.7,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F10:+x|F10:+z"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          2.6,
+          0.0,
+          1.175
+        ]
+      ],
+      "radius": "bend_1 + lead_thickness / 2",
+      "body": "terminal 2"
+    },
+    {
+      "id": 15,
+      "name": "terminal 2 bend 1 inside",
+      "suppressed": false,
+      "param_names": [
+        "d33"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            1.5,
+            -0.7,
+            0.0
+          ],
+          "max": [
+            2.6,
+            0.7000000000000002,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F11:+x|F11:+z"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          2.45,
+          0.0,
+          1.0250000000000001
+        ]
+      ],
+      "radius": "bend_1 - lead_thickness / 2",
+      "body": "terminal 2"
+    },
+    {
+      "id": 16,
+      "name": "terminal 2 bend 2 outside",
+      "suppressed": false,
+      "param_names": [
+        "d34"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            1.5,
+            -0.7,
+            0.0
+          ],
+          "max": [
+            2.6,
+            0.7000000000000002,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F10:+x|F10:-z"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          2.6,
+          0.0,
+          0.0
+        ]
+      ],
+      "radius": "bend_2 + lead_thickness / 2",
+      "body": "terminal 2"
+    },
+    {
+      "id": 17,
+      "name": "terminal 2 bend 2 inside",
+      "suppressed": false,
+      "param_names": [
+        "d35"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            1.5,
+            -0.7,
+            0.0
+          ],
+          "max": [
+            2.6,
+            0.7000000000000002,
+            1.175
+          ]
+        }
+      ],
+      "edge_names": [
+        "F11:+x|F11:-z"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          2.45,
+          0.0,
+          0.15
+        ]
+      ],
+      "radius": "bend_2 - lead_thickness / 2",
+      "body": "terminal 2"
+    },
+    {
+      "id": 18,
+      "name": "lead roots",
+      "suppressed": false,
+      "type": "combine",
+      "target": "body",
+      "tools": [
+        "terminal 1",
+        "terminal 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 19,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d36"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.15,
+          -1.3,
+          1.6875
+        ],
+        [
+          2.15,
+          -1.3,
+          1.6875
+        ],
+        [
+          2.15,
+          1.3,
+          1.6875
+        ],
+        [
+          -2.15,
+          1.3,
+          1.6875
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "body"
+    },
+    {
+      "id": 20,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d37"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            1.1386902816668274e-16
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            2.0185873175002846e-16
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            1.1386902816668274e-16
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            2.0185873175002846e-16
+          ],
+          "min": [
+            -2.15,
+            -1.3,
+            0.0
+          ],
+          "max": [
+            2.15,
+            1.3,
+            2.2
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y",
+        "F1:+x|F1:+z",
+        "F1:+y|F1:+z",
+        "F1:+z|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -1.3,
+          2.2
+        ],
+        [
+          2.15,
+          0.0,
+          2.2
+        ],
+        [
+          0.0,
+          1.3,
+          2.2
+        ],
+        [
+          -2.15,
+          0.0,
+          2.2
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body"
+    },
+    {
+      "id": 21,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d38"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "((- body_length / 2 + 0.08 * body_length) + (body_length / 2 - 0.08 * body_length)) / 2",
+            "0 mm",
+            "body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 22,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "terminal 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}
