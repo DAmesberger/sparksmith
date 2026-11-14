@@ -336,11 +336,15 @@ fn file_name(path: &str) -> String {
 }
 
 /// A path as the link stores it, read against the project's folder when
-/// relative.
-fn resolved(project: Option<&Path>, given: &str) -> PathBuf {
+/// relative. A relative path is kept `/`-separated; one written with `\`
+/// (by a Windows build before that) reads the same.
+pub(super) fn resolved(project: Option<&Path>, given: &str) -> PathBuf {
     let path = Path::new(given);
     match project.and_then(Path::parent) {
-        Some(folder) if path.is_relative() && !folder.as_os_str().is_empty() => folder.join(path),
+        Some(folder) if path.is_relative() && !folder.as_os_str().is_empty() => given
+            .split(['/', '\\'])
+            .filter(|part| !part.is_empty())
+            .fold(folder.to_path_buf(), |path, part| path.join(part)),
         _ => path.to_path_buf(),
     }
 }
