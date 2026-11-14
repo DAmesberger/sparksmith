@@ -725,6 +725,10 @@ impl App {
                     self.sources.read_bundle(pick, BundlePurpose::Update(None));
                 }
                 PaletteEvent::ManageSources => self.sources.open_card(),
+                PaletteEvent::PlacePartFile(name) => {
+                    self.workspace = Workspace::Pcb;
+                    self.pcb.place_builtin_part(name);
+                }
             }
         }
         if let Some((instance, pick)) = instance_update {

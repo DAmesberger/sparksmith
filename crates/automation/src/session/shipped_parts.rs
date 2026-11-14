@@ -174,6 +174,23 @@ impl BuiltinParts {
         self.parts.iter().find(|p| p.name == name)
     }
 
+    /// The built-in part files a search text names: every word of `query`
+    /// is in the part's name, title or summary, in any letter case. An
+    /// empty text names none.
+    pub fn find(&self, query: &str) -> Vec<&BuiltinPart> {
+        let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+        if words.is_empty() {
+            return Vec::new();
+        }
+        self.parts
+            .iter()
+            .filter(|part| {
+                let text = format!("{} {} {}", part.name, part.title, part.summary).to_lowercase();
+                words.iter().all(|word| text.contains(word.as_str()))
+            })
+            .collect()
+    }
+
     /// The built-in `name`, or an error listing the ones there are.
     pub fn require(&self, name: &str) -> Result<&BuiltinPart> {
         self.get(name).ok_or_else(|| {
@@ -289,6 +306,25 @@ mod tests {
         let mechanical = parts.all().iter().filter(|p| p.mechanical).count();
         assert_eq!(mechanical, 3);
         assert!(parts.require("no-such-part").is_err());
+        Ok(())
+    }
+
+    /// E2E run 6, finding 9: the shipped parts are found by the words a
+    /// designer types, in any letter case, every word counting.
+    #[test]
+    fn the_shipped_parts_are_found_by_their_words() -> TestResult {
+        let parts = builtin_parts()?;
+        let names = |query: &str| -> Vec<String> {
+            parts.find(query).iter().map(|p| p.name.clone()).collect()
+        };
+        assert_eq!(names("esp32"), ["esp32-s31-wroom-3"]);
+        assert_eq!(names("ESP32 module"), ["esp32-s31-wroom-3"]);
+        assert_eq!(names("heatsink"), ["finned-heatsink"]);
+        assert_eq!(names("spacer"), ["round-spacer"]);
+        assert_eq!(names("nut"), ["smd-nut"]);
+        assert!(names("heatsink nut").is_empty(), "every word counts");
+        assert!(names("10k 0603").is_empty());
+        assert!(names("  ").is_empty());
         Ok(())
     }
 
