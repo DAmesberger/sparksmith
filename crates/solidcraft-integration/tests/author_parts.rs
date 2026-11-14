@@ -1574,6 +1574,267 @@ fn author_qfn_ep() -> Vec<u8> {
     author_no_lead(true, true)
 }
 
+/// Rectangular cut-outs of a depopulated grid's part file (the grid
+/// generator's `MAX_VOIDS`).
+const GRID_VOIDS: usize = 16;
+
+/// A part file of the `grid` generator's bundle: a grid array on solder
+/// balls (`balls`, BGA and WLCSP) or on lands (LGA), full or with
+/// rectangular cut-outs (`voids`), the in-code grid builder's construction
+/// made parametric in its counts. The contacts are one seed at A1 (−x, +y)
+/// of `contact_diameter` and `contact_height` (a land's thickness) and a
+/// body pattern of `columns` along +x at `pitch` and `rows` along −y at
+/// `row_pitch`, so the copies are `contact 1 (2)`, `(3)`, … at any count.
+/// Each cut-out `void_<k>` (`_x`, `_y` its −x, −y corner, `_length`,
+/// `_width`) removes the contacts inside it whole, before the body exists;
+/// cut-outs a grid does not need repeat the first. The body (substrate and
+/// moulding as one block) of `body_length` × `body_width` × `body_height`
+/// stands on the balls, or on the seating plane over the lands, cut round
+/// each land by a pattern of one cut with the contacts' counts (nothing
+/// names the pattern's bodies) and filled again over every cut-out. Its
+/// top edges are rounded by `edge_round`, and a dimple of `mark_radius`,
+/// `mark_depth` deep, two radii in from the −x, +y corner marks A1. Saved
+/// at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body (with cut-outs: rows B–C,
+/// columns 2–4 empty); the generator gives every value.
+pub fn author_grid(balls: bool, voids: bool) -> Vec<u8> {
+    let mut s = Session::default();
+    let title = match (balls, voids) {
+        (true, false) => "Ball grid array",
+        (true, true) => "Ball grid array with empty positions",
+        (false, false) => "Land grid array",
+        (false, true) => "Land grid array with empty positions",
+    };
+    run(&mut s, "file.new", json!({"name": title}));
+    let height = if balls { "0.3 mm" } else { "0.03 mm" };
+    let mut rows = vec![
+        param("rows", "4", "", "rows of contacts (y), A from +y"),
+        param("columns", "5", "", "columns of contacts (x), 1 from −x"),
+        param("pitch", "0.8 mm", "mm", "pitch along a row (x)"),
+        param("row_pitch", "0.8 mm", "mm", "pitch between rows (y)"),
+        param("body_length", "5 mm", "mm", "body length (x)"),
+        param("body_width", "4 mm", "mm", "body width (y)"),
+        param(
+            "body_height",
+            "0.8 mm",
+            "mm",
+            "body height above the contacts",
+        ),
+        param("contact_diameter", "0.4 mm", "mm", "ball or land diameter"),
+        param(
+            "contact_height",
+            height,
+            "mm",
+            if balls {
+                "ball height (standoff)"
+            } else {
+                "land thickness, set into the body"
+            },
+        ),
+        param(
+            "edge_round",
+            "0.05 mm",
+            "mm",
+            "round of the body's top edges",
+        ),
+        param("mark_radius", "0.24 mm", "mm", "A1 dimple radius"),
+        param("mark_depth", "0.03 mm", "mm", "A1 dimple depth"),
+    ];
+    // The saved cut-out: rows B–C, columns 2–4 (half a pitch outside the
+    // contacts there).
+    let saved_void = ["-1.2 mm", "-0.8 mm", "2.4 mm", "1.6 mm"];
+    if voids {
+        for k in 1..=GRID_VOIDS {
+            for (axis, value, what) in [
+                ("x", saved_void[0], "−x edge"),
+                ("y", saved_void[1], "−y edge"),
+                ("length", saved_void[2], "length (x)"),
+                ("width", saved_void[3], "width (y)"),
+            ] {
+                rows.push(param(
+                    &format!("void_{k}_{axis}"),
+                    value,
+                    "mm",
+                    &format!("cut-out {k}: {what}"),
+                ));
+            }
+        }
+    }
+    import(&mut s, &rows);
+    let seed = json!([
+        "- (columns - 1) / 2 * pitch",
+        "(rows - 1) / 2 * row_pitch",
+        "0 mm"
+    ]);
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"base": seed, "diameter": "contact_diameter", "height": "contact_height",
+            "axis": "Z", "name": "contact 1", "body_name": "contact 1"}),
+    );
+    let pattern = |what: serde_json::Value, name: &str| {
+        let mut p = json!({"dir1": [1, 0, 0], "count1": "columns", "spacing1": "pitch",
+            "dir2": [0, -1, 0], "count2": "rows", "spacing2": "row_pitch", "name": name});
+        if let (Some(map), Some(extra)) = (p.as_object_mut(), what.as_object()) {
+            map.extend(extra.clone());
+        }
+        p
+    };
+    run(
+        &mut s,
+        "solid.pattern.rectangular",
+        pattern(json!({"bodies": ["contact 1"]}), "contact 1 pattern"),
+    );
+    let void = |k: usize, axis: &str| format!("void_{k}_{axis}");
+    if voids {
+        // Only contacts exist yet, so each cut-out (no targets) removes
+        // the contacts inside it and nothing else.
+        for k in 1..=GRID_VOIDS {
+            run(
+                &mut s,
+                "solid.box",
+                json!({"corner": [void(k, "x"), void(k, "y"), "- contact_height"],
+                    "length": void(k, "length"), "width": void(k, "width"),
+                    "height": "3 * contact_height", "operation": "cut",
+                    "name": format!("void {k}")}),
+            );
+        }
+    }
+    let base = if balls { "contact_height" } else { "0 mm" };
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", base],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    if !balls {
+        run(
+            &mut s,
+            "solid.cylinder",
+            json!({"base": seed, "diameter": "contact_diameter", "height": "contact_height",
+                "axis": "Z", "operation": "cut", "targets": ["body"],
+                "name": "contact 1 pocket"}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            pattern(json!({"features": ["contact 1 pocket"]}), "pockets"),
+        );
+        if voids {
+            for k in 1..=GRID_VOIDS {
+                run(
+                    &mut s,
+                    "solid.box",
+                    json!({"corner": [void(k, "x"), void(k, "y"), "0 mm"],
+                        "length": void(k, "length"), "width": void(k, "width"),
+                        "height": "contact_height", "operation": "join", "targets": ["body"],
+                        "name": format!("void {k} fill")}),
+                );
+            }
+        }
+    }
+    // The top edges, picked at the saved size: 5 × 4 mm, its top at
+    // 1.1 mm on balls, 0.8 mm over lands.
+    let (x, y, z) = (2.5, 2.0, if balls { 1.1 } else { 0.8 });
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, z], [x, 0.0, z], [0.0, y, z], [-x, 0.0, z]]}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 mark",
+            "base": ["- body_length / 2 + 2 * mark_radius", "body_width / 2 - 2 * mark_radius",
+                format!("{base} + body_height - mark_depth")],
+            "radius": "mark_radius", "height": "2 * mark_depth", "axis": "Z",
+            "operation": "cut", "targets": ["body"]}),
+    );
+    // Looks are kept by body name, and the pattern names its copies
+    // `contact 1 (2)`, `(3)`, …: every contact the generator can ask for
+    // (512 positions full, 1000 with cut-outs) gets its look at that
+    // count, on a body large enough and with the cut-outs moved off the
+    // grid, then the file goes back to its saved values.
+    let (most_rows, most_columns, most) = if voids { (20, 50, 1000) } else { (8, 64, 512) };
+    let mut changes = serde_json::Map::new();
+    changes.insert("rows".into(), json!(most_rows.to_string()));
+    changes.insert("columns".into(), json!(most_columns.to_string()));
+    changes.insert("body_length".into(), json!("60 mm"));
+    changes.insert("body_width".into(), json!("20 mm"));
+    if voids {
+        for k in 1..=GRID_VOIDS {
+            changes.insert(void(k, "x"), json!("100 mm"));
+            changes.insert(void(k, "y"), json!("100 mm"));
+        }
+    }
+    run(&mut s, "parameters.change", json!({ "changes": changes }));
+    s.refresh();
+    let contacts: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    assert_eq!(contacts.len(), most, "{contacts:?}");
+    let contacts: Vec<&str> = contacts.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
+    assign_look(
+        &mut s,
+        &contacts,
+        if balls {
+            MaterialId::SolderSac
+        } else {
+            MaterialId::Gold
+        },
+    );
+    let mut changes = serde_json::Map::new();
+    changes.insert("rows".into(), json!("4"));
+    changes.insert("columns".into(), json!("5"));
+    changes.insert("body_length".into(), json!("5 mm"));
+    changes.insert("body_width".into(), json!("4 mm"));
+    if voids {
+        for k in 1..=GRID_VOIDS {
+            changes.insert(void(k, "x"), json!(saved_void[0]));
+            changes.insert(void(k, "y"), json!(saved_void[1]));
+        }
+    }
+    run(&mut s, "parameters.change", json!({ "changes": changes }));
+    s.refresh();
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    let left = s.model.state().bodies.len();
+    assert_eq!(
+        left,
+        if voids { 1 + 20 - 6 } else { 1 + 20 },
+        "bodies saved"
+    );
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_grid_ball() -> Vec<u8> {
+    author_grid(true, false)
+}
+
+fn author_grid_ball_voids() -> Vec<u8> {
+    author_grid(true, true)
+}
+
+fn author_grid_land() -> Vec<u8> {
+    author_grid(false, false)
+}
+
+fn author_grid_land_voids() -> Vec<u8> {
+    author_grid(false, true)
+}
+
 /// Give `bodies` the Solidcraft appearance named after `material`, with
 /// Sparksmith's opaque PBR projection of its look.
 fn assign_look(s: &mut Session, bodies: &[&str], material: MaterialId) {
@@ -2166,7 +2427,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 29] = [
+    let parts: [(&str, &str, Author); 33] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -2227,6 +2488,20 @@ fn author_parts() {
             "generators/tht/parts",
             "tht-to-formed",
             tht::author_tht_to_formed,
+        ),
+        // The grid generator's bundle (`generators/grid/parts/`): balls or
+        // lands, each full or with cut-outs.
+        ("generators/grid/parts", "grid-ball", author_grid_ball),
+        (
+            "generators/grid/parts",
+            "grid-ball-voids",
+            author_grid_ball_voids,
+        ),
+        ("generators/grid/parts", "grid-land", author_grid_land),
+        (
+            "generators/grid/parts",
+            "grid-land-voids",
+            author_grid_land_voids,
         ),
         ("library/parts", "esp32-s31-wroom-3", author_wroom3),
         ("library/parts", "smd-nut", author_smd_nut),

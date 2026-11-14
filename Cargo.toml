@@ -16,6 +16,7 @@ members = [
     "crates/fabcheck",
     "crates/kicad",
     "generators/chip",
+    "generators/grid",
     "generators/header",
     "generators/molded",
     "generators/no-lead",

@@ -21,7 +21,7 @@
 //! is a sketch drawn from the form when the model is built.
 //!
 //! A family whose builder has given way to its shipped generator (the pin
-//! header, no-lead and molded two-terminal families, phase C of
+//! header, no-lead, molded two-terminal and grid families, phase C of
 //! docs/design/part-generation-plan.md) builds from the generator's part
 //! file instead ([`family`]), behind the same functions.
 //!
@@ -29,7 +29,6 @@
 mod chip;
 pub mod family;
 pub mod gltf_ext;
-mod grid;
 mod gull_wing;
 pub mod imported;
 pub mod inspect;
@@ -74,11 +73,11 @@ pub fn family_rev(form: &PackageForm) -> Option<u16> {
     match form {
         PackageForm::Generic => None,
         PackageForm::Chip(_) | PackageForm::GullWing(_) => Some(1),
-        PackageForm::Header(_) | PackageForm::NoLead(_) | PackageForm::Molded(_) => {
-            Some(family::FAMILY_REV)
-        }
+        PackageForm::Header(_)
+        | PackageForm::NoLead(_)
+        | PackageForm::Molded(_)
+        | PackageForm::Grid(_) => Some(family::FAMILY_REV),
         PackageForm::Tabbed(_) => tabbed::FAMILY_REV,
-        PackageForm::Grid(_) => grid::FAMILY_REV,
         PackageForm::Tht(_) => Some(family::FAMILY_REV),
         PackageForm::Module(_) => module::FAMILY_REV,
         PackageForm::UsbC(_) => usb_c::FAMILY_REV,
@@ -228,9 +227,11 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
         PackageForm::Chip(c) => chip::check(c),
         PackageForm::GullWing(g) => gull_wing::check(g),
         // Built from their generators (`family`), which check their values.
-        PackageForm::Header(_) | PackageForm::NoLead(_) | PackageForm::Molded(_) => Ok(()),
+        PackageForm::Header(_)
+        | PackageForm::NoLead(_)
+        | PackageForm::Molded(_)
+        | PackageForm::Grid(_) => Ok(()),
         PackageForm::Tabbed(f) => tabbed::check(f),
-        PackageForm::Grid(f) => grid::check(f),
         PackageForm::Tht(_) => Ok(()),
         PackageForm::Module(f) => module::check(f),
         PackageForm::UsbC(f) => usb_c::check(f),
@@ -263,6 +264,7 @@ fn build_bodies(
         PackageForm::Header(_)
         | PackageForm::NoLead(_)
         | PackageForm::Molded(_)
+        | PackageForm::Grid(_)
         | PackageForm::Tht(_) => {
             return Err(Error::Invalid(format!(
                 "model.generator: {} models are built from their shipped generator",
@@ -270,7 +272,6 @@ fn build_bodies(
             )));
         }
         PackageForm::Tabbed(f) => tabbed::build(&mut b, f)?,
-        PackageForm::Grid(f) => grid::build(&mut b, f)?,
         PackageForm::Module(f) => module::build(&mut b, f)?,
         PackageForm::UsbC(f) => usb_c::build(&mut b, f)?,
         PackageForm::Generic => {
