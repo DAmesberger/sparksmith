@@ -1107,3 +1107,47 @@ fn the_copper_weight_and_the_stackup_stay_together() -> Result<()> {
     assert_eq!(outer(&engine), Some((35.0, 35.0)), "one undo step");
     Ok(())
 }
+
+/// A stackup preset picked on a 2 oz board applies with the board's 2 oz
+/// outer foils; the presets are 1 oz data, and the copper weight is the
+/// fab profile's choice, not the preset's.
+#[test]
+fn a_stackup_preset_applies_on_a_2_oz_board() -> Result<()> {
+    use crate::layout::LayoutCommand;
+    use crate::layout::restack::StackupDraft;
+    use crate::model::StackupPresets;
+    use crate::{Engine, Operation};
+    let mut engine = Engine::demo()?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(set_profile_cmd(fixtures::jlcpcb_example()?, false)),
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(RulesCommand::SetOptions {
+            options: choices(&[("copper_weight", "2oz")]),
+        }),
+    )?;
+    let presets = StackupPresets::fixture()?;
+    for count in [4, 2] {
+        let mut draft = StackupDraft::of(&engine.project().stackup);
+        draft.use_preset(&presets, count)?;
+        engine.apply(
+            engine.revision(),
+            Operation::Layout(LayoutCommand::EditStackup(
+                draft.edit(&std::collections::BTreeMap::new()),
+            )),
+        )?;
+        let stackup = &engine.project().stackup;
+        assert_eq!(stackup.copper.len(), count);
+        assert_eq!(stackup.outer_copper_um(), Some((70.0, 70.0)));
+        let preset = presets.preset(count)?;
+        assert_eq!(stackup.dielectrics, preset.dielectrics);
+        assert_eq!(
+            stackup.copper.get(1..count - 1),
+            preset.copper.get(1..count - 1),
+            "inner foils are the preset's"
+        );
+    }
+    Ok(())
+}
