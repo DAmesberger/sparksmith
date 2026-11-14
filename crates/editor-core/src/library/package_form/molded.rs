@@ -3,8 +3,8 @@
 //! −x; a polarised form carries a band on the body's top at terminal 1,
 //! whose area ([`MoldedForm::band_area`]) and the remaining marking area
 //! ([`MoldedForm::marking_area`]) are data. The footprint template is
-//! `templates/footprint_family/molded.rs` and the model builder
-//! `sparksmith-solidcraft` `models/molded.rs`.
+//! `templates/footprint_family/molded.rs`; the 3D model is the shipped
+//! `molded` generator's part file (`library/generators/molded/`).
 use super::{FamilyForm, length_problem, typical_nm};
 use crate::geometry::Point3;
 use crate::library::footprint_source::{PACKAGE_PREFIX, PackageValue, ParamName, ParamValue};
