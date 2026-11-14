@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "grid-land",
+  "title": "Land grid array",
+  "summary": "Land grid array (LGA): an epoxy body on the seating plane with rows × columns gold lands set into its underside, A1 at −x, +y; top edges rounded, A1 dimple (rows, columns, pitch, row_pitch, body_length, body_width, body_height, contact_diameter, contact_height, edge_round, mark_radius, mark_depth).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code grid builder's construction (crates/solidcraft-integration/src/models/grid.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body; the grid generator gives every parameter its value. Matrix, pitch, body and contact sizes are the generator's (the grid starter rows: JEDEC fine-pitch BGA conventions, typical values); land thickness, edge round and A1 dimple are estimated. No vendor drawing or EDA/CAD library data copied."
+}
