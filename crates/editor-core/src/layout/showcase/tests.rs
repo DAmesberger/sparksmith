@@ -151,7 +151,9 @@ fn the_showcase_saves_and_reopens_unchanged() -> Result<()> {
     let text = serde_json::to_string(&file).map_err(|e| Error::Invalid(format!("encode: {e}")))?;
     let decoded: format::EditorFile =
         serde_json::from_str(&text).map_err(|e| Error::Invalid(format!("decode: {e}")))?;
-    let reopened = Engine::from_file(decoded)?;
+    let mut reopened = Engine::from_file(decoded)?;
+    // The fill copper is not saved; refilled, it is the copper it was.
+    reopened.refill_stale()?;
     assert_eq!(reopened.project(), engine.project());
     assert_eq!(reopened.project().vias, engine.project().vias);
     assert_eq!(reopened.project().stackup, Stackup::preset(4)?);

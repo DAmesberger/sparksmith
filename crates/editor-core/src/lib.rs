@@ -1888,6 +1888,9 @@ impl Engine {
                 project,
                 evaluators.board,
             )?;
+            // Collections stay in the order a file holds them, so a saved
+            // and reopened document is the same document.
+            format::order::sort(project);
             validate::edited_document(
                 &self.document.project,
                 &candidate.project,
@@ -2314,6 +2317,21 @@ impl Engine {
         self.document.project = Arc::new(project);
         self.set_revision(revision);
         Ok(fresh.len())
+    }
+
+    /// Compute and store the copper of every fill whose copper is missing
+    /// or stale, here and now, without an undo step ([`Self::store_fills`]).
+    /// For a host without a UI thread to keep free (the headless session
+    /// after opening a file, which holds no fill copper); the desktop app
+    /// does the same on its fill worker. Returns how many fills were
+    /// stored.
+    pub fn refill_stale(&mut self) -> Result<usize> {
+        let mut cache = layout::fill::FillCache::default();
+        let copper = layout::fill::compute_stale(&self.document.project, &mut cache)?;
+        if copper.is_empty() {
+            return Ok(0);
+        }
+        self.store_fills(self.revision, copper)
     }
 
     /// Refused as stale unless `expected_revision` is the current one.

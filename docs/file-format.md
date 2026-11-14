@@ -8,12 +8,12 @@ This page is the normative contract for Sparksmith's project and library files. 
 |---|---|
 | Versions, features, converter chain, `format-lock` gate | Built (F0). See [file versions](development.md#file-versions). |
 | This contract, both layouts, the tree in memory (`FileSet`), declared field order and sort keys, the table reply type | Built (F1), in `sparksmith_core::format::{files, layout, records, table}`. **Nothing saves through it yet.** |
-| Fills out of the document, order audit, sketch and waiver keys as real JSON | F2 |
+| Fills out of the document, collections sorted by key, order audit ([4.1](#41-order-audit)), sketch and waiver keys as real JSON | Built (F2), version 4. Applies to today's `project.json` too. |
 | Encoding and decoding the whole document as a tree; a ZIP of the tree replaces today's single `project.json` | F3 |
 | The folder store: journaled saves, changed files only, lock, external-change detection | F4 |
 | Library folders in this layout, canonical revision hashes | F7 |
 
-Until F3 lands, a `.sparksmith` file is still today's ZIP holding one `project.json` and `assets/sha256/<hash>` (`sparksmith_core::format`, `sparksmith_io::persistence::container`). Everything below describes the tree that replaces it.
+Until F3 lands, a `.sparksmith` file is still today's ZIP holding one `project.json` and `assets/sha256/<hash>` (`sparksmith_core::format`, `sparksmith_io::persistence::container`). Everything below describes the tree that replaces it, except where it names F2: the F2 rules (no computed copper, collections sorted by key, nothing nested as a string) already hold for `project.json`.
 
 Words: **must** and **never** are rules a reader enforces by refusing the file. **Target** marks a limit that is not yet measured.
 
@@ -64,7 +64,8 @@ A reader tells the two apart when it opens the path: a folder, or a file startin
 - **Names come from ids, never from labels a person can change.** Renaming or reordering a sheet edits one line of `sheets.json` and moves no file.
 - **Order that means something** (sheets, stackup layers, outline segments) is an array inside one record or document. Every other collection is sorted by its key (section 4), so the order of creation or editing never shows in a file.
 - **Id counters** live in the manifest. Two branches that both add objects conflict on its `next` line, which is the intended signal.
-- **No caches, view state or timestamps** are in the tree: computed fill copper, check results, search indexes, zoom, visible layers and the open sheet live in per-user folders keyed by the project id.
+- **No caches, view state or timestamps** are in the tree: computed fill copper, check results, search indexes, zoom, visible layers and the open sheet live in per-user folders keyed by the project id, or only in memory.
+- **Computed fill copper** (F2) is never saved. A file holds each fill's definition; whoever opens it refills. The desktop app refills on its fill worker, off the UI thread, and draws the board meanwhile without that copper; storing the copper is no edit (no undo step, nothing unsaved). The headless session (`sparksmith` CLI, MCP, `stdio`) refills before it answers `project.open`. Fabrication output never writes a fill without copper: the production check refuses an export while a fill is unfilled or stale. Copper lives in memory only for now; a per-user disk cache comes if a measured cold open asks for it.
 - A **folder** may also hold the closed list `.git*`, `.DS_Store`, the save journal and the lock file. A reader ignores those and nothing else. Any other file or folder is refused by name, never dropped.
 
 ### 1.2 Paths
@@ -133,7 +134,7 @@ These hold for every value in both layouts.
 4. **Defaults are left out** where the type says so, and a default is part of the format version: changing one is a version change.
 5. **Numbers** are integers. Lengths are integer nanometres, angles integer millidegrees, and a key that holds a unit says so (`width_nm`, `rotation_mdeg`). Points are `[x, y]` integer pairs. Any other non-integer is a scaled integer with its scale in the key (`_ppm`) or an exact decimal string for a value a person typed (`"si": "5100"`).
    **Until the units migration finishes** (U2, U3), a file that holds a field on the `f64-lengths` allowlist allows floats, written in `serde_json`'s shortest round-trip form. Every other file refuses them. The [declaration table](#4-field-order-and-sort-keys) says which files allow floats today; when the allowlist is empty, every file refuses them.
-6. **Nothing is nested as a string.** A value that is JSON is written as JSON, never as a string holding JSON. (Today the board sketch and waiver keys break this; F2 changes them. The rule is not checked by the encoder, because a person's text may look like JSON.)
+6. **Nothing is nested as a string.** A value that is JSON is written as JSON, never as a string holding JSON. Since F2 a board or footprint `sketch` is a JSON object (its keys sorted) and a waiver `key` is `{"code":…,"objects":[…]}`. The rule is not checked by the encoder, because a person's text may look like JSON.
 7. **Depth**: at most 64 levels of arrays and objects, as in the canonical codec.
 
 ## 4. Field order and sort keys
@@ -167,10 +168,33 @@ Notes:
 
 - **Tracks and vias are sorted by net, then id.** A net's copper is one block of lines: a raw read scoped to a net is one search and one short range, a diff groups changes by net, and two branches that route different nets insert lines in different places and merge cleanly. A line moves only when its net changes. There is one tracks file, not one per layer.
 - **A sheet file** holds what the records' `sheet` field holds today, so its records do not repeat it; the header names the sheet.
-- **Computed fill copper is not a declared field.** A fill that still carries it cannot be written; F2 moves it to a cache.
-- A sort key is made of integers and texts. Integers sort by value, texts by UTF-8 bytes, an integer before a text.
+- **Computed fill copper is not a stored field** (F2): `Fill::computed` is skipped by serialization, so a fill is written with its definition only.
+- A sort key is made of integers and texts. Integers sort by value, texts by UTF-8 bytes, an integer before a text. A structured key (a waiver's `{"code","objects"}`) sorts as the text it is written as on the line.
 - Field names and values are today's. When U3 changes the board records (integer nanometres, `width_nm`, tracks as a `path` that can hold arcs), these declarations change in the same version step.
 - Files the tables do not list yet (`interface.jsonl`, `link.json`, `rules.json`, `profile.json`, `generated.jsonl`, `model-traces.jsonl`, drafts and library revisions) get their declarations with the slice that writes them.
+
+### 4.1 Order audit
+
+F2 checked every collection of the project (each `Shared<Vec<T>>` in `sparksmith_core`, and the other lists of the document) for whether its order means something. `sparksmith_core::format::order::sort` sorts the ones whose order means nothing on every write, on every read and after every edit the engine applies, so the document in memory is the document a reopened file gives; a collection already in order is left untouched and stays shared. Adding a published revision, an origin or an asset inserts it in place. Nothing in the engine reads meaning into the order of these: lookups go by id (`model::by_id`, a binary search with a scan as fallback), fill ranking is by priority with id breaking ties, and library lookups go by lineage and revision.
+
+| Collection | Order means | Saved order |
+|---|---|---|
+| `instances`, `occurrences`, `wires`, `junctions`, `nets`, `tracks`, `vias`, `fills`, `keepouts`, `labels`, `sheet_symbols`, `drawings` | nothing (creation order) | by `id` |
+| `part_dimensions` | the Dimensions list's order, which `layout.dimension_order` sets: document data | left as is. **The F1 declaration of `board/dimensions.jsonl` (sorted by `id`) loses this order; F3 must keep it, for example as an ordered list of ids in `board.json`.** |
+| `placements` | nothing | by `instance` |
+| library `components`, `symbols`, `packages`, `footprints`, `bindings`, `quantity_kinds`, `fields`, `parts`, `models`, `package_rows` | nothing (publish order) | by lineage, then revision |
+| library `origins` | nothing | by the local revision (`local`), records of one revision in their order |
+| library `assets` | nothing | by hash |
+| library `generated` | nothing | by root revision |
+| `model_traces` | the order the part dimensions name their 3D references | rebuilt in that order from the sorted dimensions on every edit; left as is |
+| `production.waivers` | nothing | by key text, already enforced by validation |
+| `interface.datums`, `.retired`, `.rules_off` | slot order | ascending, already enforced by validation |
+| `sheets.list` | page order: annotation, printing, "sheet n of m" | an array in one value, left as is |
+| `stackup` copper and dielectric layers | top to bottom | arrays in one value, left as is |
+| board and fill outline segments, sketch points and curves | the path | arrays in one value, left as is |
+| a net's `terminals`, a sheet symbol's `pins`, a wire's `corners` | their own rules (terminals sorted by validation; pins and corners are paths or lists in one record) | left as is |
+| `drafts.items` | the order drafts were opened | left as is; F3 gives drafts one file each |
+| `net_disagreements` | report order | left as is |
 
 ## 5. The manifest
 

@@ -490,6 +490,7 @@ impl App {
                 if polled.stored > 0 {
                     let now = self.engine.revision();
                     self.pcb.fills_stored(before, now);
+                    self.files.fills_stored(&self.engine, before);
                     if self.undo_revision == Some(before) {
                         self.undo_revision = Some(now);
                     }

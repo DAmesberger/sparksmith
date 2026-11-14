@@ -56,12 +56,12 @@ fn boards() -> Vec<(String, Project)> {
     files
         .into_iter()
         .filter_map(|path| {
-            let project = sparksmith_io::read_project(&path)
-                .unwrap()
-                .into_document()
-                .project
-                .as_ref()
-                .clone();
+            // A file holds no fill copper; fill it as opening does.
+            let mut engine =
+                sparksmith_core::Engine::from_file(sparksmith_io::read_project(&path).unwrap())
+                    .unwrap();
+            engine.refill_stale().unwrap();
+            let project = engine.project().clone();
             let board = !project.placements.is_empty()
                 || !project.tracks.is_empty()
                 || !project.vias.is_empty()

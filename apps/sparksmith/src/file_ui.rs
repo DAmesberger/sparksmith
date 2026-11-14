@@ -460,6 +460,19 @@ impl FileUi {
             }
         }
     }
+    /// The fill worker stored copper on top of revision `before` (no undo
+    /// step). Fill copper is derived and never saved, so when `before` was
+    /// the saved content the new revision is too: opening a file and
+    /// letting it refill leaves nothing unsaved.
+    pub fn fills_stored(&mut self, engine: &Engine, before: u64) {
+        let saved = !self.controller.dirty() && self.controller.current.revision == before;
+        self.observe(engine, self.now);
+        if saved && self.controller.dirty() {
+            self.controller.back_at_saved();
+            self.saved_document = Some(self.document.clone());
+            self.clear_recovery(false);
+        }
+    }
     /// The engine took the name the first save wrote ([`Effect::Rename`]):
     /// when that save was current, the renamed document is the saved one.
     pub fn renamed(&mut self, engine: &Engine, saved: bool) {
@@ -1434,6 +1447,45 @@ mod tests {
         let saved = controller.saved(&ticket, PathBuf::from("/tmp/x.sparksmith"));
         assert_eq!(saved.map(|(current, _)| current), Some(false));
         assert!(controller.dirty(), "the newer edit stays unsaved");
+        Ok(())
+    }
+
+    /// Fill copper the worker stores after opening is never saved, so it
+    /// leaves nothing unsaved; on top of an edit, the edit stays unsaved.
+    #[test]
+    fn stored_fill_copper_leaves_nothing_unsaved() -> Outcome<()> {
+        let showcase = Engine::showcase().map_err(|e| e.to_string())?;
+        let opened = sparksmith_core::format::decode(
+            &sparksmith_core::format::encode(&showcase.to_file()).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
+        let mut engine = Engine::from_file(opened).map_err(|e| e.to_string())?;
+        let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut files = FileUi::with_directory(
+            &egui::Context::default(),
+            rfd::AsyncFileDialog::new(),
+            &engine,
+            dir.path().to_path_buf(),
+        );
+        let before = engine.revision();
+        assert!(engine.refill_stale().map_err(|e| e.to_string())? > 0);
+        files.fills_stored(&engine, before);
+        assert!(!files.controller.dirty());
+        // An edit, then copper for it: the edit is still unsaved.
+        let track = engine.project().tracks[0].id;
+        engine
+            .apply(
+                engine.revision(),
+                sparksmith_core::Operation::Layout(
+                    sparksmith_core::layout::LayoutCommand::DeleteTrack { id: track },
+                ),
+            )
+            .map_err(|e| e.to_string())?;
+        files.observe(&engine, 1.0);
+        let before = engine.revision();
+        engine.refill_stale().map_err(|e| e.to_string())?;
+        files.fills_stored(&engine, before);
+        assert!(files.controller.dirty());
         Ok(())
     }
 

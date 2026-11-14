@@ -1152,6 +1152,11 @@ impl Session {
                 self.engine.replace_document(file)?;
                 self.engine
                     .supply_dk_estimates(&sparksmith_io::new_project::shipped()?.presets.glass_dk);
+                // A file holds no fill copper: refill before answering, so
+                // checks, connectivity and fabrication see it. A fill that
+                // cannot be computed stays unfilled, and the production
+                // check reports it.
+                let _ = self.engine.refill_stale();
                 self.path = Some(path);
             }
             Request::Save(params) => {

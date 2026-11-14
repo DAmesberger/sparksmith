@@ -115,11 +115,11 @@ fn the_showcase_board_round_trips_collection_by_collection() -> Fallible {
     round_trip(&records::FILLS, &no_header(), &fills)?;
     let waivers = [
         Waiver {
-            key: "b".into(),
+            key: "fill.stale []".into(),
             reason: "checked by hand".into(),
         },
         Waiver {
-            key: "a".into(),
+            key: r#"board.clearance [{"kind":"track","id":4}]"#.into(),
             reason: "fab confirmed".into(),
         },
     ];
@@ -127,8 +127,8 @@ fn the_showcase_board_round_trips_collection_by_collection() -> Fallible {
     Ok(())
 }
 
-/// A fill that still carries its computed copper cannot be written: the
-/// copper is derived data, not a declared field.
+/// A fill's computed copper is derived data, not a stored field: a filled
+/// pour is written with its definition only.
 #[test]
 fn computed_fill_copper_is_not_a_stored_field() -> Fallible {
     let project = showcase()?;
@@ -136,8 +136,12 @@ fn computed_fill_copper_is_not_a_stored_field() -> Fallible {
     let Some(fill) = fill else {
         return Err("the showcase has no filled pour".into());
     };
-    let refused = write_collection(&records::FILLS, FILE_VERSION, &no_header(), &[fill]);
-    assert!(refused.is_err_and(|e| e.to_string().contains("unknown field \"computed\"")),);
+    let bytes = write_collection(&records::FILLS, FILE_VERSION, &no_header(), &[fill])?;
+    let text = std::str::from_utf8(&bytes).map_err(|e| Error::Invalid(e.to_string()))?;
+    assert!(
+        !text.contains("computed") && !text.contains("regions"),
+        "{text}"
+    );
     Ok(())
 }
 
@@ -364,7 +368,7 @@ fn declarations_cover_every_stored_field() -> Fallible {
     check::<Placement>(&records::PLACEMENTS, None, &[])?;
     check::<Track>(&records::TRACKS, None, &[])?;
     check::<Via>(&records::VIAS, None, &[])?;
-    check::<Fill>(&records::FILLS, None, &["computed"])?;
+    check::<Fill>(&records::FILLS, None, &[])?;
     check::<Keepout>(&records::KEEPOUTS, None, &[])?;
     check::<PartDimension>(&records::DIMENSIONS, None, &[])?;
     check::<Waiver>(&records::WAIVERS, None, &[])?;
