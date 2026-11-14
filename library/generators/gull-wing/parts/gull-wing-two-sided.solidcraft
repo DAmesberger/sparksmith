@@ -1,0 +1,5109 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "Gull-wing package, two sides (SOIC, SSOP, TSSOP)",
+  "units": "mm",
+  "params": [
+    {
+      "name": "leads",
+      "expr": "4",
+      "unit": "",
+      "comment": "leads on each long side (±y)",
+      "model": false
+    },
+    {
+      "name": "pitch",
+      "expr": "1.27 mm",
+      "unit": "mm",
+      "comment": "lead pitch",
+      "model": false
+    },
+    {
+      "name": "body_length",
+      "expr": "4.9 mm",
+      "unit": "mm",
+      "comment": "moulded body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "3.9 mm",
+      "unit": "mm",
+      "comment": "moulded body width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "1.45 mm",
+      "unit": "mm",
+      "comment": "moulded body height above its underside",
+      "model": false
+    },
+    {
+      "name": "standoff",
+      "expr": "0.175 mm",
+      "unit": "mm",
+      "comment": "seating plane to the body's underside",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "6 mm",
+      "unit": "mm",
+      "comment": "lead tip to tip across y",
+      "model": false
+    },
+    {
+      "name": "lead_width",
+      "expr": "0.41 mm",
+      "unit": "mm",
+      "comment": "lead width",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "lead thickness",
+      "model": false
+    },
+    {
+      "name": "foot_length",
+      "expr": "0.835 mm",
+      "unit": "mm",
+      "comment": "flat foot length on the seating plane",
+      "model": false
+    },
+    {
+      "name": "lead_exit",
+      "expr": "standoff + body_height / 2",
+      "unit": "mm",
+      "comment": "where the leads leave the body: mid-height",
+      "model": false
+    },
+    {
+      "name": "y_root",
+      "expr": "min(0.25 mm, body_width / 2 / 3)",
+      "unit": "mm",
+      "comment": "how far a lead root reaches into the body (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_foot",
+      "expr": "span / 2 - foot_length",
+      "unit": "mm",
+      "comment": "where the foot begins (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_shoulder",
+      "expr": "body_width / 2 + 0.3 * (y_foot - body_width / 2)",
+      "unit": "mm",
+      "comment": "where the lead turns down (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_dx",
+      "expr": "y_foot - y_shoulder",
+      "unit": "mm",
+      "comment": "the sloped segment's run (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_dz",
+      "expr": "lead_exit - lead_thickness / 2",
+      "unit": "mm",
+      "comment": "the sloped segment's drop (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_len",
+      "expr": "hypot(y_dx, y_dz)",
+      "unit": "mm",
+      "comment": "the sloped segment's length (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_half",
+      "expr": "y_dz / (y_len + y_dx)",
+      "unit": "",
+      "comment": "tan of half the bend angle (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_ux",
+      "expr": "y_dx / y_len",
+      "unit": "",
+      "comment": "the sloped segment's direction along s (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_uz",
+      "expr": "y_dz / y_len",
+      "unit": "",
+      "comment": "the sloped segment's drop per length (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_bend_b",
+      "expr": "max(min(lead_thickness, 0.45 * min(y_root + 0.3 * (y_foot - body_width / 2), y_len) / y_half), lead_thickness / 2 * 1.0001)",
+      "unit": "mm",
+      "comment": "centreline radius of the upper bend (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_bend_c",
+      "expr": "max(min(lead_thickness, 0.45 * min(y_len, foot_length) / y_half), lead_thickness / 2 * 1.0001)",
+      "unit": "mm",
+      "comment": "centreline radius of the lower bend (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_tb",
+      "expr": "y_bend_b * y_half",
+      "unit": "mm",
+      "comment": "the upper bend's tangent length (y rows)",
+      "model": false
+    },
+    {
+      "name": "y_tc",
+      "expr": "y_bend_c * y_half",
+      "unit": "mm",
+      "comment": "the lower bend's tangent length (y rows)",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "min(0.2 mm, 0.06 * min(body_length, body_width), (body_length - ((leads - 1) * pitch + lead_width)) / 4)",
+      "unit": "mm",
+      "comment": "round of the body's upright corners, clear of the end leads",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "min(0.12 mm, 0.1 * body_height, (standoff + body_height - lead_exit - lead_thickness / 2) / 2, corner_round)",
+      "unit": "mm",
+      "comment": "round of the body's top edges, clear of the lead exit",
+      "model": false
+    },
+    {
+      "name": "dimple_radius",
+      "expr": "min(max(0.12 * min(body_length, body_width), 0.15 mm), 0.5 mm)",
+      "unit": "mm",
+      "comment": "pin-1 dimple radius",
+      "model": false
+    },
+    {
+      "name": "dimple_depth",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "pin-1 dimple depth",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "standoff"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "row_s profile",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "-(leads - 1) / 2 * pitch - lead_width / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "w1",
+            "pos": [
+              -1.7,
+              0.9999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(body_width / 2 - y_root)",
+              "y": "(lead_exit + lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "w2",
+            "pos": [
+              -1.8729749999999998,
+              0.9999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_shoulder - y_tb)",
+              "y": "(lead_exit + lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "w3",
+            "pos": [
+              -2.1389414813384136,
+              0.7794029712335281
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_shoulder + y_tb * y_ux + lead_thickness / 2 * y_uz)",
+              "y": "(lead_exit - y_tb * y_uz + lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w4",
+            "pos": [
+              -2.2326072554143037,
+              0.28151181335504327
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_foot - y_tc * y_ux + lead_thickness / 2 * y_uz)",
+              "y": "(lead_thickness / 2 + y_tc * y_uz + lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w5",
+            "pos": [
+              -2.3308833306034424,
+              0.2
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_foot + y_tc)",
+              "y": "(lead_thickness)"
+            }
+          },
+          {
+            "id": "w6",
+            "pos": [
+              -3.0,
+              0.2
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(span / 2)",
+              "y": "(lead_thickness)"
+            }
+          },
+          {
+            "id": "w7",
+            "pos": [
+              -3.0,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(span / 2)"
+            }
+          },
+          {
+            "id": "w8",
+            "pos": [
+              -2.3308833306034424,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_foot + y_tc)"
+            }
+          },
+          {
+            "id": "w9",
+            "pos": [
+              -2.0360551050360263,
+              0.24453544006512984
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_foot - y_tc * y_ux - lead_thickness / 2 * y_uz)",
+              "y": "(lead_thickness / 2 + y_tc * y_uz - lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w10",
+            "pos": [
+              -1.942389330960136,
+              0.7424265979436145
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_shoulder + y_tb * y_ux - lead_thickness / 2 * y_uz)",
+              "y": "(lead_exit - y_tb * y_uz - lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w11",
+            "pos": [
+              -1.8729749999999998,
+              0.7999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_shoulder - y_tb)",
+              "y": "(lead_exit - lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "w12",
+            "pos": [
+              -1.7,
+              0.7999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(body_width / 2 - y_root)",
+              "y": "(lead_exit - lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "wcb",
+            "pos": [
+              -1.8729749999999998,
+              0.729368026931739
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_shoulder - y_tb)",
+              "y": "(lead_exit - y_bend_b)"
+            }
+          },
+          {
+            "id": "wcc",
+            "pos": [
+              -2.3308833306034424,
+              0.30000000000000004
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(y_foot + y_tc)",
+              "y": "(lead_thickness / 2 + y_bend_c)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 13,
+            "a": 2,
+            "b": 3,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 5,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 6,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 7,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 14,
+            "a": 8,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 13,
+            "a": 11,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 12,
+            "b": 1,
+            "construction": false
+          }
+        ],
+        "constraints": [],
+        "counters": {
+          "a": 4,
+          "l": 8
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "row_s lead",
+      "suppressed": false,
+      "body_names": [
+        "row_s lead"
+      ],
+      "param_names": [
+        "d5"
+      ],
+      "type": "extrude",
+      "sketch": 2,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 4,
+      "name": "row_s root",
+      "suppressed": false,
+      "param_names": [
+        "d6"
+      ],
+      "type": "extrude",
+      "sketch": 2,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "body"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "row_s pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_s lead (2)",
+        "row_s lead (3)",
+        "row_s lead (4)",
+        "row_s lead (5)",
+        "row_s lead (6)",
+        "row_s lead (7)",
+        "row_s lead (8)",
+        "row_s lead (9)",
+        "row_s lead (10)",
+        "row_s lead (11)",
+        "row_s lead (12)",
+        "row_s lead (13)",
+        "row_s lead (14)",
+        "row_s lead (15)",
+        "row_s lead (16)",
+        "row_s lead (17)",
+        "row_s lead (18)",
+        "row_s lead (19)",
+        "row_s lead (20)",
+        "row_s lead (21)",
+        "row_s lead (22)",
+        "row_s lead (23)",
+        "row_s lead (24)",
+        "row_s lead (25)",
+        "row_s lead (26)",
+        "row_s lead (27)",
+        "row_s lead (28)",
+        "row_s lead (29)",
+        "row_s lead (30)",
+        "row_s lead (31)",
+        "row_s lead (32)",
+        "row_s lead (33)",
+        "row_s lead (34)",
+        "row_s lead (35)",
+        "row_s lead (36)",
+        "row_s lead (37)",
+        "row_s lead (38)",
+        "row_s lead (39)",
+        "row_s lead (40)",
+        "row_s lead (41)",
+        "row_s lead (42)",
+        "row_s lead (43)",
+        "row_s lead (44)",
+        "row_s lead (45)",
+        "row_s lead (46)",
+        "row_s lead (47)",
+        "row_s lead (48)",
+        "row_s lead (49)",
+        "row_s lead (50)",
+        "row_s lead (51)",
+        "row_s lead (52)",
+        "row_s lead (53)",
+        "row_s lead (54)",
+        "row_s lead (55)",
+        "row_s lead (56)",
+        "row_s lead (57)",
+        "row_s lead (58)",
+        "row_s lead (59)",
+        "row_s lead (60)",
+        "row_s lead (61)",
+        "row_s lead (62)",
+        "row_s lead (63)",
+        "row_s lead (64)",
+        "row_s lead (65)",
+        "row_s lead (66)",
+        "row_s lead (67)",
+        "row_s lead (68)",
+        "row_s lead (69)",
+        "row_s lead (70)",
+        "row_s lead (71)",
+        "row_s lead (72)",
+        "row_s lead (73)",
+        "row_s lead (74)",
+        "row_s lead (75)",
+        "row_s lead (76)",
+        "row_s lead (77)",
+        "row_s lead (78)",
+        "row_s lead (79)",
+        "row_s lead (80)",
+        "row_s lead (81)",
+        "row_s lead (82)",
+        "row_s lead (83)",
+        "row_s lead (84)",
+        "row_s lead (85)",
+        "row_s lead (86)",
+        "row_s lead (87)",
+        "row_s lead (88)",
+        "row_s lead (89)",
+        "row_s lead (90)",
+        "row_s lead (91)",
+        "row_s lead (92)",
+        "row_s lead (93)",
+        "row_s lead (94)",
+        "row_s lead (95)",
+        "row_s lead (96)",
+        "row_s lead (97)",
+        "row_s lead (98)",
+        "row_s lead (99)",
+        "row_s lead (100)",
+        "row_s lead (101)",
+        "row_s lead (102)",
+        "row_s lead (103)",
+        "row_s lead (104)",
+        "row_s lead (105)",
+        "row_s lead (106)",
+        "row_s lead (107)",
+        "row_s lead (108)",
+        "row_s lead (109)",
+        "row_s lead (110)",
+        "row_s lead (111)",
+        "row_s lead (112)",
+        "row_s lead (113)",
+        "row_s lead (114)",
+        "row_s lead (115)",
+        "row_s lead (116)",
+        "row_s lead (117)",
+        "row_s lead (118)",
+        "row_s lead (119)",
+        "row_s lead (120)",
+        "row_s lead (121)",
+        "row_s lead (122)",
+        "row_s lead (123)",
+        "row_s lead (124)",
+        "row_s lead (125)",
+        "row_s lead (126)",
+        "row_s lead (127)",
+        "row_s lead (128)"
+      ],
+      "param_names": [
+        "d7",
+        "d8"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "leads",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "row_s lead"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "row_s roots",
+      "suppressed": false,
+      "param_names": [
+        "d9",
+        "d10"
+      ],
+      "type": "pattern",
+      "features": [
+        4
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "leads",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 7,
+      "name": "row_n profile",
+      "suppressed": false,
+      "param_names": [
+        "d11"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "-(leads - 1) / 2 * pitch - lead_width / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "w1",
+            "pos": [
+              1.7,
+              0.9999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(body_width / 2 - y_root)",
+              "y": "(lead_exit + lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "w2",
+            "pos": [
+              1.8729749999999998,
+              0.9999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_shoulder - y_tb)",
+              "y": "(lead_exit + lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "w3",
+            "pos": [
+              2.1389414813384136,
+              0.7794029712335281
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_shoulder + y_tb * y_ux + lead_thickness / 2 * y_uz)",
+              "y": "(lead_exit - y_tb * y_uz + lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w4",
+            "pos": [
+              2.2326072554143037,
+              0.28151181335504327
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_foot - y_tc * y_ux + lead_thickness / 2 * y_uz)",
+              "y": "(lead_thickness / 2 + y_tc * y_uz + lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w5",
+            "pos": [
+              2.3308833306034424,
+              0.2
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_foot + y_tc)",
+              "y": "(lead_thickness)"
+            }
+          },
+          {
+            "id": "w6",
+            "pos": [
+              3.0,
+              0.2
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(span / 2)",
+              "y": "(lead_thickness)"
+            }
+          },
+          {
+            "id": "w7",
+            "pos": [
+              3.0,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(span / 2)"
+            }
+          },
+          {
+            "id": "w8",
+            "pos": [
+              2.3308833306034424,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_foot + y_tc)"
+            }
+          },
+          {
+            "id": "w9",
+            "pos": [
+              2.0360551050360263,
+              0.24453544006512984
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_foot - y_tc * y_ux - lead_thickness / 2 * y_uz)",
+              "y": "(lead_thickness / 2 + y_tc * y_uz - lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w10",
+            "pos": [
+              1.942389330960136,
+              0.7424265979436145
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_shoulder + y_tb * y_ux - lead_thickness / 2 * y_uz)",
+              "y": "(lead_exit - y_tb * y_uz - lead_thickness / 2 * y_ux)"
+            }
+          },
+          {
+            "id": "w11",
+            "pos": [
+              1.8729749999999998,
+              0.7999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_shoulder - y_tb)",
+              "y": "(lead_exit - lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "w12",
+            "pos": [
+              1.7,
+              0.7999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(body_width / 2 - y_root)",
+              "y": "(lead_exit - lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "wcb",
+            "pos": [
+              1.8729749999999998,
+              0.729368026931739
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_shoulder - y_tb)",
+              "y": "(lead_exit - y_bend_b)"
+            }
+          },
+          {
+            "id": "wcc",
+            "pos": [
+              2.3308833306034424,
+              0.30000000000000004
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(y_foot + y_tc)",
+              "y": "(lead_thickness / 2 + y_bend_c)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 13,
+            "a": 3,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 6,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 7,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 14,
+            "a": 9,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 13,
+            "a": 10,
+            "b": 11,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 12,
+            "b": 1,
+            "construction": false
+          }
+        ],
+        "constraints": [],
+        "counters": {
+          "a": 4,
+          "l": 8
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "row_n lead",
+      "suppressed": false,
+      "body_names": [
+        "row_n lead"
+      ],
+      "param_names": [
+        "d12"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "row_n root",
+      "suppressed": false,
+      "param_names": [
+        "d13"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "body"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "row_n pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_n lead (2)",
+        "row_n lead (3)",
+        "row_n lead (4)",
+        "row_n lead (5)",
+        "row_n lead (6)",
+        "row_n lead (7)",
+        "row_n lead (8)",
+        "row_n lead (9)",
+        "row_n lead (10)",
+        "row_n lead (11)",
+        "row_n lead (12)",
+        "row_n lead (13)",
+        "row_n lead (14)",
+        "row_n lead (15)",
+        "row_n lead (16)",
+        "row_n lead (17)",
+        "row_n lead (18)",
+        "row_n lead (19)",
+        "row_n lead (20)",
+        "row_n lead (21)",
+        "row_n lead (22)",
+        "row_n lead (23)",
+        "row_n lead (24)",
+        "row_n lead (25)",
+        "row_n lead (26)",
+        "row_n lead (27)",
+        "row_n lead (28)",
+        "row_n lead (29)",
+        "row_n lead (30)",
+        "row_n lead (31)",
+        "row_n lead (32)",
+        "row_n lead (33)",
+        "row_n lead (34)",
+        "row_n lead (35)",
+        "row_n lead (36)",
+        "row_n lead (37)",
+        "row_n lead (38)",
+        "row_n lead (39)",
+        "row_n lead (40)",
+        "row_n lead (41)",
+        "row_n lead (42)",
+        "row_n lead (43)",
+        "row_n lead (44)",
+        "row_n lead (45)",
+        "row_n lead (46)",
+        "row_n lead (47)",
+        "row_n lead (48)",
+        "row_n lead (49)",
+        "row_n lead (50)",
+        "row_n lead (51)",
+        "row_n lead (52)",
+        "row_n lead (53)",
+        "row_n lead (54)",
+        "row_n lead (55)",
+        "row_n lead (56)",
+        "row_n lead (57)",
+        "row_n lead (58)",
+        "row_n lead (59)",
+        "row_n lead (60)",
+        "row_n lead (61)",
+        "row_n lead (62)",
+        "row_n lead (63)",
+        "row_n lead (64)",
+        "row_n lead (65)",
+        "row_n lead (66)",
+        "row_n lead (67)",
+        "row_n lead (68)",
+        "row_n lead (69)",
+        "row_n lead (70)",
+        "row_n lead (71)",
+        "row_n lead (72)",
+        "row_n lead (73)",
+        "row_n lead (74)",
+        "row_n lead (75)",
+        "row_n lead (76)",
+        "row_n lead (77)",
+        "row_n lead (78)",
+        "row_n lead (79)",
+        "row_n lead (80)",
+        "row_n lead (81)",
+        "row_n lead (82)",
+        "row_n lead (83)",
+        "row_n lead (84)",
+        "row_n lead (85)",
+        "row_n lead (86)",
+        "row_n lead (87)",
+        "row_n lead (88)",
+        "row_n lead (89)",
+        "row_n lead (90)",
+        "row_n lead (91)",
+        "row_n lead (92)",
+        "row_n lead (93)",
+        "row_n lead (94)",
+        "row_n lead (95)",
+        "row_n lead (96)",
+        "row_n lead (97)",
+        "row_n lead (98)",
+        "row_n lead (99)",
+        "row_n lead (100)",
+        "row_n lead (101)",
+        "row_n lead (102)",
+        "row_n lead (103)",
+        "row_n lead (104)",
+        "row_n lead (105)",
+        "row_n lead (106)",
+        "row_n lead (107)",
+        "row_n lead (108)",
+        "row_n lead (109)",
+        "row_n lead (110)",
+        "row_n lead (111)",
+        "row_n lead (112)",
+        "row_n lead (113)",
+        "row_n lead (114)",
+        "row_n lead (115)",
+        "row_n lead (116)",
+        "row_n lead (117)",
+        "row_n lead (118)",
+        "row_n lead (119)",
+        "row_n lead (120)",
+        "row_n lead (121)",
+        "row_n lead (122)",
+        "row_n lead (123)",
+        "row_n lead (124)",
+        "row_n lead (125)",
+        "row_n lead (126)",
+        "row_n lead (127)",
+        "row_n lead (128)"
+      ],
+      "param_names": [
+        "d14",
+        "d15"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "leads",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "row_n lead"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "row_n roots",
+      "suppressed": false,
+      "param_names": [
+        "d16",
+        "d17"
+      ],
+      "type": "pattern",
+      "features": [
+        9
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "leads",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 12,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d18"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.175
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.175
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.175
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.175
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.45,
+          -1.95,
+          0.9
+        ],
+        [
+          2.45,
+          -1.95,
+          0.9
+        ],
+        [
+          2.45,
+          1.95,
+          0.9
+        ],
+        [
+          -2.45,
+          1.95,
+          0.9
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "body"
+    },
+    {
+      "id": 13,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d19"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.17500000000000002
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.17500000000000002
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.17500000000000002
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -2.45,
+            -1.9500000000000002,
+            0.17500000000000002
+          ],
+          "max": [
+            2.45,
+            1.9500000000000002,
+            1.625
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y",
+        "F1:+x|F1:+z",
+        "F1:+y|F1:+z",
+        "F1:+z|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -1.95,
+          1.625
+        ],
+        [
+          2.45,
+          0.0,
+          1.625
+        ],
+        [
+          0.0,
+          1.95,
+          1.625
+        ],
+        [
+          -2.45,
+          0.0,
+          1.625
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body"
+    },
+    {
+      "id": 14,
+      "name": "pin 1 mark",
+      "suppressed": false,
+      "param_names": [
+        "d20",
+        "d21"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "cylinder",
+      "base": [
+        "- body_length / 2 + 2 * dimple_radius",
+        "- body_width / 2 + 2 * dimple_radius",
+        "standoff + body_height - dimple_depth"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "dimple_radius",
+      "height": "2 * dimple_depth",
+      "operation": "cut"
+    }
+  ],
+  "next_id": 15,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "row_n lead": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (10)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (100)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (101)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (102)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (103)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (104)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (105)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (106)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (107)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (108)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (109)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (11)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (110)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (111)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (112)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (113)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (114)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (115)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (116)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (117)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (118)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (119)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (12)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (120)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (121)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (122)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (123)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (124)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (125)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (126)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (127)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (128)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (13)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (14)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (15)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (16)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (17)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (18)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (19)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (2)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (20)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (21)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (22)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (23)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (24)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (25)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (26)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (27)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (28)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (29)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (3)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (30)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (31)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (32)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (33)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (34)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (35)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (36)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (37)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (38)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (39)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (4)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (40)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (41)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (42)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (43)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (44)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (45)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (46)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (47)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (48)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (49)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (5)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (50)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (51)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (52)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (53)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (54)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (55)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (56)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (57)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (58)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (59)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (6)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (60)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (61)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (62)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (63)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (64)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (65)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (66)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (67)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (68)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (69)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (7)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (70)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (71)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (72)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (73)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (74)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (75)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (76)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (77)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (78)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (79)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (8)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (80)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (81)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (82)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (83)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (84)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (85)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (86)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (87)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (88)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (89)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (9)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (90)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (91)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (92)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (93)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (94)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (95)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (96)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (97)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (98)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (99)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (10)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (100)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (101)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (102)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (103)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (104)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (105)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (106)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (107)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (108)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (109)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (11)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (110)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (111)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (112)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (113)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (114)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (115)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (116)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (117)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (118)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (119)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (12)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (120)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (121)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (122)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (123)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (124)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (125)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (126)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (127)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (128)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (13)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (14)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (15)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (16)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (17)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (18)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (19)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (2)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (20)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (21)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (22)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (23)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (24)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (25)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (26)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (27)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (28)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (29)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (3)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (30)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (31)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (32)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (33)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (34)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (35)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (36)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (37)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (38)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (39)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (4)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (40)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (41)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (42)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (43)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (44)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (45)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (46)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (47)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (48)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (49)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (5)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (50)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (51)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (52)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (53)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (54)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (55)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (56)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (57)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (58)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (59)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (6)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (60)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (61)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (62)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (63)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (64)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (65)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (66)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (67)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (68)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (69)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (7)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (70)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (71)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (72)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (73)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (74)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (75)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (76)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (77)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (78)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (79)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (8)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (80)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (81)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (82)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (83)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (84)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (85)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (86)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (87)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (88)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (89)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (9)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (90)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (91)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (92)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (93)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (94)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (95)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (96)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (97)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (98)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (99)": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

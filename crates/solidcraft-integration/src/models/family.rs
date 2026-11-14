@@ -18,7 +18,7 @@ use super::GeneratedBody;
 use super::part_file::{self, PartValues};
 use crate::{Error, Result};
 use sparksmith_core::library::standards::Context;
-use sparksmith_core::library::{BodyRole, PackageDefinition, PackageForm, PackageModel};
+use sparksmith_core::library::{BodyRole, LeadSides, PackageDefinition, PackageForm, PackageModel};
 use sparksmith_core::units::Nm;
 use sparksmith_generators::abi::v1::{self, Model, ParamValue, Scope};
 use sparksmith_generators::abi::{Failure, GeneratorRuntime};
@@ -45,6 +45,27 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
             int("pin_above", h.pin_above_nm.get());
             int("pin_below", h.pin_below_nm.get());
             Some(("header", params))
+        }
+        PackageForm::GullWing(g) => {
+            int("leads", i64::from(g.leads_per_side[0]));
+            int("leads_short", i64::from(g.leads_per_side[1]));
+            int("pitch", g.pitch_nm.get());
+            int("body_length", g.body_length_nm.get());
+            int("body_width", g.body_width_nm.get());
+            int("body_height", g.body_height_nm.get());
+            int("standoff", g.standoff_nm.get());
+            int("span", g.span_nm[0].get());
+            int("span_x", g.span_nm[1].get());
+            int("lead_width", g.lead_width_nm.get());
+            int("lead_thickness", g.lead_thickness_nm.get());
+            int("foot_length", g.foot_length_nm.get());
+            let sides = if g.sides == LeadSides::Four {
+                "four"
+            } else {
+                "two"
+            };
+            params.insert("sides".into(), ParamValue::Text(sides.into()));
+            Some(("gull-wing", params))
         }
         _ => None,
     }

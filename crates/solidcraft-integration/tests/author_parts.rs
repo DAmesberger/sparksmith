@@ -574,6 +574,598 @@ pub fn author_pin_header() -> Vec<u8> {
     solidcraft_engine::io::write_design(&s.doc)
 }
 
+/// One row of gull-wing leads in a part file: its body name stem, the
+/// origin plane its side profile is drawn on, how profile (s, z) maps to
+/// sketch (u, v) (signs; a mirroring map turns arcs round), the axis it
+/// runs along and its count, and the derived-parameter prefix of its
+/// rows' profile (`y` across the long sides, `x` across the short).
+struct WingRow {
+    part: &'static str,
+    plane: &'static str,
+    signs: [i8; 2],
+    axis: [i8; 3],
+    count: &'static str,
+    across: &'static str,
+}
+
+/// The derived parameters of one gull-wing profile class `a` (`y`: rows
+/// on the ±y sides, half body `half_body`, span `span`): the bent lead's
+/// side profile as the in-code gull-wing builder drew it (a strip of the
+/// lead's thickness along a centreline from 0.25 mm (at most a third of
+/// the half body) inside the body at the lead exit, out 30 % of the room
+/// to the foot, down to the foot's centreline and out to the tip, each
+/// corner bent at a centreline radius of the thickness, reduced so a bend
+/// takes at most 45 % of a segment). `half` is tan(θ / 2) of the sloped
+/// segment, `ux`, `uz` its direction.
+fn wing_profile_params(
+    a: &str,
+    half_body: &str,
+    span: &str,
+) -> Vec<(String, String, &'static str, String)> {
+    let p = |name: &str| format!("{a}_{name}");
+    let row = |name: &str, expr: String, unit: &'static str, comment: &str| {
+        (p(name), expr, unit, format!("{comment} ({a} rows)"))
+    };
+    vec![
+        row(
+            "root",
+            format!("min(0.25 mm, {half_body} / 3)"),
+            "mm",
+            "how far a lead root reaches into the body",
+        ),
+        row(
+            "foot",
+            format!("{span} / 2 - foot_length"),
+            "mm",
+            "where the foot begins",
+        ),
+        row(
+            "shoulder",
+            format!("{half_body} + 0.3 * ({} - {half_body})", p("foot")),
+            "mm",
+            "where the lead turns down",
+        ),
+        row(
+            "dx",
+            format!("{} - {}", p("foot"), p("shoulder")),
+            "mm",
+            "the sloped segment's run",
+        ),
+        row(
+            "dz",
+            "lead_exit - lead_thickness / 2".into(),
+            "mm",
+            "the sloped segment's drop",
+        ),
+        row(
+            "len",
+            format!("hypot({}, {})", p("dx"), p("dz")),
+            "mm",
+            "the sloped segment's length",
+        ),
+        row(
+            "half",
+            format!("{} / ({} + {})", p("dz"), p("len"), p("dx")),
+            "",
+            "tan of half the bend angle",
+        ),
+        row(
+            "ux",
+            format!("{} / {}", p("dx"), p("len")),
+            "",
+            "the sloped segment's direction along s",
+        ),
+        row(
+            "uz",
+            format!("{} / {}", p("dz"), p("len")),
+            "",
+            "the sloped segment's drop per length",
+        ),
+        row(
+            "bend_b",
+            format!(
+                "max(min(lead_thickness, 0.45 * min({} + 0.3 * ({} - {half_body}), {}) / {}), lead_thickness / 2 * 1.0001)",
+                p("root"),
+                p("foot"),
+                p("len"),
+                p("half")
+            ),
+            "mm",
+            "centreline radius of the upper bend",
+        ),
+        row(
+            "bend_c",
+            format!(
+                "max(min(lead_thickness, 0.45 * min({}, foot_length) / {}), lead_thickness / 2 * 1.0001)",
+                p("len"),
+                p("half")
+            ),
+            "mm",
+            "centreline radius of the lower bend",
+        ),
+        row(
+            "tb",
+            format!("{} * {}", p("bend_b"), p("half")),
+            "mm",
+            "the upper bend's tangent length",
+        ),
+        row(
+            "tc",
+            format!("{} * {}", p("bend_c"), p("half")),
+            "mm",
+            "the lower bend's tangent length",
+        ),
+    ]
+}
+
+/// Draw one gull-wing lead's side profile (the closed outline of the bent
+/// strip: lines and four bend arcs) in a new sketch on `row.plane`,
+/// offset to the row's first lead, every point an expression over the
+/// part's parameters; returns the sketch's name.
+fn wing_sketch(s: &mut Session, row: &WingRow, half_body: &str, span: &str) -> String {
+    let a = row.across;
+    let p = |name: &str| format!("{a}_{name}");
+    let h = "lead_thickness / 2";
+    let (hb, root, foot, shoulder) = (half_body, p("root"), p("foot"), p("shoulder"));
+    let (ux, uz, tb, tc) = (p("ux"), p("uz"), p("tb"), p("tc"));
+    let hs = format!("{span} / 2");
+    // (s, z) of each point.
+    let points: Vec<(&str, String, String)> = vec![
+        ("1", format!("{hb} - {root}"), format!("lead_exit + {h}")),
+        (
+            "2",
+            format!("{shoulder} - {tb}"),
+            format!("lead_exit + {h}"),
+        ),
+        (
+            "3",
+            format!("{shoulder} + {tb} * {ux} + {h} * {uz}"),
+            format!("lead_exit - {tb} * {uz} + {h} * {ux}"),
+        ),
+        (
+            "4",
+            format!("{foot} - {tc} * {ux} + {h} * {uz}"),
+            format!("{h} + {tc} * {uz} + {h} * {ux}"),
+        ),
+        ("5", format!("{foot} + {tc}"), "lead_thickness".into()),
+        ("6", hs.clone(), "lead_thickness".into()),
+        ("7", hs, "0 mm".into()),
+        ("8", format!("{foot} + {tc}"), "0 mm".into()),
+        (
+            "9",
+            format!("{foot} - {tc} * {ux} - {h} * {uz}"),
+            format!("{h} + {tc} * {uz} - {h} * {ux}"),
+        ),
+        (
+            "10",
+            format!("{shoulder} + {tb} * {ux} - {h} * {uz}"),
+            format!("lead_exit - {tb} * {uz} - {h} * {ux}"),
+        ),
+        (
+            "11",
+            format!("{shoulder} - {tb}"),
+            format!("lead_exit - {h}"),
+        ),
+        ("12", format!("{hb} - {root}"), format!("lead_exit - {h}")),
+        (
+            "cb",
+            format!("{shoulder} - {tb}"),
+            format!("lead_exit - {}", p("bend_b")),
+        ),
+        (
+            "cc",
+            format!("{foot} + {tc}"),
+            format!("{h} + {}", p("bend_c")),
+        ),
+    ];
+    let sign = |k: i8, e: &str| {
+        if k < 0 {
+            format!("-({e})")
+        } else {
+            format!("({e})")
+        }
+    };
+    let sketch = format!("{} profile", row.part);
+    run(
+        s,
+        "sketch.create",
+        json!({"plane": row.plane, "offset": format!("-({} - 1) / 2 * pitch - lead_width / 2", row.count),
+            "name": sketch}),
+    );
+    for (id, ps, pz) in &points {
+        run(
+            s,
+            "sketch.point",
+            json!({"point": [sign(row.signs[0], ps), sign(row.signs[1], pz)], "id": format!("w{id}")}),
+        );
+    }
+    let w = |id: &str| format!("w{id}");
+    let line = |s: &mut Session, a: &str, b: &str| {
+        run(
+            s,
+            "sketch.line",
+            json!({"points": [w(a), w(b)], "infer": false}),
+        );
+    };
+    // Arcs run counter-clockwise from start to end in the profile's own
+    // (s, z) frame; a mirroring map turns them round.
+    let mirrored = row.signs[0] * row.signs[1] < 0;
+    let arc = |s: &mut Session, centre: &str, start: &str, end: &str| {
+        let (start, end) = if mirrored { (end, start) } else { (start, end) };
+        run(
+            s,
+            "sketch.arc.center_point",
+            json!({"center": w(centre), "start": w(start), "end": w(end)}),
+        );
+    };
+    line(s, "1", "2");
+    arc(s, "cb", "3", "2");
+    line(s, "3", "4");
+    arc(s, "cc", "4", "5");
+    line(s, "5", "6");
+    line(s, "6", "7");
+    line(s, "7", "8");
+    arc(s, "cc", "9", "8");
+    line(s, "9", "10");
+    arc(s, "cb", "10", "11");
+    line(s, "11", "12");
+    line(s, "12", "1");
+    run(s, "sketch.finish", json!({}));
+    sketch
+}
+
+/// A gull-wing part file of the `gull-wing` generator's bundle: the
+/// in-code gull-wing builder's construction made parametric in its counts.
+/// A moulded `body` on its standoff; per row of leads (`row_s`, `row_n`,
+/// and on four sides `row_e`, `row_w`, in the builder's order) one formed
+/// lead extruded `lead_width` from its side profile and a body pattern of
+/// `leads` (`leads_short`) at `pitch` replaying it, and the same profile
+/// cut out of the body as the lead's root, patterned the same way, so the
+/// leads and the moulding stay disjoint at any count and nothing names
+/// the pattern's bodies. Then the body's rounded upright corners (clear of
+/// the end leads) and top edges (clear of the lead exit) and the pin-1
+/// dimple, each derived from the dimensions as the builder derived them.
+/// Saved at SOIC-8 (two sides) or LQFP-48 7 × 7 mm (four); the generator
+/// gives every dimension.
+fn author_gull_wing(four: bool) -> Vec<u8> {
+    use sparksmith_core::library::{BodyRole, GullWingForm, LeadSides};
+    let mut s = Session::default();
+    let title = if four {
+        "Gull-wing package, four sides (QFP)"
+    } else {
+        "Gull-wing package, two sides (SOIC, SSOP, TSSOP)"
+    };
+    run(&mut s, "file.new", json!({"name": title}));
+    // The saved size: SOIC-8 3.9 mm or LQFP-48 7 × 7 mm 0.5 mm.
+    let (n, m, pitch, bl, bw, bh, standoff, span, span_x, lw, t, foot) = if four {
+        (12, 12, 0.5, 7.0, 7.0, 1.4, 0.1, 9.0, 9.0, 0.22, 0.145, 0.6)
+    } else {
+        (
+            4, 0, 1.27, 4.9, 3.9, 1.45, 0.175, 6.0, 0.0, 0.41, 0.2, 0.835,
+        )
+    };
+    let mm = |v: f64| format!("{v} mm");
+    let mut params: Vec<(String, String, &'static str, String)> = vec![
+        (
+            "leads".into(),
+            n.to_string(),
+            "",
+            "leads on each long side (±y)".into(),
+        ),
+        ("pitch".into(), mm(pitch), "mm", "lead pitch".into()),
+        (
+            "body_length".into(),
+            mm(bl),
+            "mm",
+            "moulded body length (x)".into(),
+        ),
+        (
+            "body_width".into(),
+            mm(bw),
+            "mm",
+            "moulded body width (y)".into(),
+        ),
+        (
+            "body_height".into(),
+            mm(bh),
+            "mm",
+            "moulded body height above its underside".into(),
+        ),
+        (
+            "standoff".into(),
+            mm(standoff),
+            "mm",
+            "seating plane to the body's underside".into(),
+        ),
+        (
+            "span".into(),
+            mm(span),
+            "mm",
+            "lead tip to tip across y".into(),
+        ),
+        ("lead_width".into(), mm(lw), "mm", "lead width".into()),
+        (
+            "lead_thickness".into(),
+            mm(t),
+            "mm",
+            "lead thickness".into(),
+        ),
+        (
+            "foot_length".into(),
+            mm(foot),
+            "mm",
+            "flat foot length on the seating plane".into(),
+        ),
+    ];
+    if four {
+        params.insert(
+            1,
+            (
+                "leads_short".into(),
+                m.to_string(),
+                "",
+                "leads on each short side (±x)".into(),
+            ),
+        );
+        params.insert(
+            8,
+            (
+                "span_x".into(),
+                mm(span_x),
+                "mm",
+                "lead tip to tip across x".into(),
+            ),
+        );
+    }
+    params.push((
+        "lead_exit".into(),
+        "standoff + body_height / 2".into(),
+        "mm",
+        "where the leads leave the body: mid-height".into(),
+    ));
+    params.extend(wing_profile_params("y", "body_width / 2", "span"));
+    if four {
+        params.extend(wing_profile_params("x", "body_length / 2", "span_x"));
+    }
+    let row_room =
+        |count: &str, edge: &str| format!("({edge} - (({count} - 1) * pitch + lead_width)) / 4");
+    let corner = if four {
+        format!(
+            "min(0.2 mm, 0.06 * min(body_length, body_width), {}, {})",
+            row_room("leads", "body_length"),
+            row_room("leads_short", "body_width")
+        )
+    } else {
+        format!(
+            "min(0.2 mm, 0.06 * min(body_length, body_width), {})",
+            row_room("leads", "body_length")
+        )
+    };
+    params.push((
+        "corner_round".into(),
+        corner,
+        "mm",
+        "round of the body's upright corners, clear of the end leads".into(),
+    ));
+    params.push((
+        "edge_round".into(),
+        "min(0.12 mm, 0.1 * body_height, (standoff + body_height - lead_exit - lead_thickness / 2) / 2, corner_round)".into(),
+        "mm",
+        "round of the body's top edges, clear of the lead exit".into(),
+    ));
+    params.push((
+        "dimple_radius".into(),
+        "min(max(0.12 * min(body_length, body_width), 0.15 mm), 0.5 mm)".into(),
+        "mm",
+        "pin-1 dimple radius".into(),
+    ));
+    params.push((
+        "dimple_depth".into(),
+        "0.05 mm".into(),
+        "mm",
+        "pin-1 dimple depth".into(),
+    ));
+    let rows: Vec<serde_json::Value> = params
+        .iter()
+        .map(|(name, expression, unit, comment)| {
+            json!({"name": name, "expression": expression, "unit": unit, "comment": comment})
+        })
+        .collect();
+    run(
+        &mut s,
+        "parameters.import",
+        json!({"text": serde_json::to_string(&rows).unwrap()}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", "standoff"],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    // The builder's rows: −y, (+x), +y, (−x). YZ maps sketch (u, v) to
+    // (offset, u, v), XZ to (u, offset, −v).
+    let y_row = |part: &'static str, plus: bool| WingRow {
+        part,
+        plane: "YZ",
+        signs: [if plus { 1 } else { -1 }, 1],
+        axis: [1, 0, 0],
+        count: "leads",
+        across: "y",
+    };
+    let x_row = |part: &'static str, plus: bool| WingRow {
+        part,
+        plane: "XZ",
+        signs: [if plus { 1 } else { -1 }, -1],
+        axis: [0, 1, 0],
+        count: "leads_short",
+        across: "x",
+    };
+    let mut wing_rows = vec![y_row("row_s", false)];
+    if four {
+        wing_rows.push(x_row("row_e", true));
+        wing_rows.push(y_row("row_n", true));
+        wing_rows.push(x_row("row_w", false));
+    } else {
+        wing_rows.push(y_row("row_n", true));
+    }
+    for row in &wing_rows {
+        let (half_body, span) = if row.across == "y" {
+            ("body_width / 2", "span")
+        } else {
+            ("body_length / 2", "span_x")
+        };
+        let sketch = wing_sketch(&mut s, row, half_body, span);
+        let lead = format!("{} lead", row.part);
+        run(
+            &mut s,
+            "solid.extrude",
+            json!({"sketch": sketch, "distance": "lead_width", "operation": "new",
+                "name": lead, "body_name": lead}),
+        );
+        let root = format!("{} root", row.part);
+        run(
+            &mut s,
+            "solid.extrude",
+            json!({"sketch": sketch, "distance": "lead_width", "operation": "cut",
+                "targets": ["body"], "name": root}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"bodies": [lead], "dir1": row.axis, "count1": row.count, "spacing1": "pitch",
+                "name": format!("{} pattern", row.part)}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"features": [root], "dir1": row.axis, "count1": row.count, "spacing1": "pitch",
+                "name": format!("{} roots", row.part)}),
+        );
+    }
+    // The rounds, picked at the saved size.
+    let (x, y, top) = (bl / 2.0, bw / 2.0, standoff + bh);
+    let mid = (standoff + top) / 2.0;
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "corner round", "body": "body", "radius": "corner_round",
+            "edges": [[-x, -y, mid], [x, -y, mid], [x, y, mid], [-x, y, mid]]}),
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, top], [x, 0.0, top], [0.0, y, top], [-x, 0.0, top]]}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 mark", "radius": "dimple_radius", "height": "2 * dimple_depth",
+            "base": ["- body_length / 2 + 2 * dimple_radius", "- body_width / 2 + 2 * dimple_radius",
+                "standoff + body_height - dimple_depth"],
+            "axis": "Z", "operation": "cut", "targets": ["body"]}),
+    );
+    // Looks are kept by body name, and a pattern names its copies
+    // `row_s lead (2)`, …: every lead the generator can ask for (128 a
+    // side) gets the lead look at that count, then the file goes back to
+    // its saved counts.
+    let form = PackageForm::GullWing(Box::new(GullWingForm {
+        sides: if four {
+            LeadSides::Four
+        } else {
+            LeadSides::Two
+        },
+        leads_per_side: [n, m],
+        pitch_nm: nm(pitch),
+        body_length_nm: nm(bl),
+        body_width_nm: nm(bw),
+        body_height_nm: nm(bh),
+        standoff_nm: nm(standoff),
+        span_nm: [nm(span), nm(span_x)],
+        lead_width_nm: nm(lw),
+        lead_thickness_nm: nm(t),
+        foot_length_nm: nm(foot),
+    }));
+    let materials = GeneratedMaterials::default();
+    let counts = |s: &mut Session, leads: u32, short: u32, pitch: &str| {
+        let mut changes = serde_json::Map::new();
+        changes.insert("leads".into(), json!(leads.to_string()));
+        changes.insert("pitch".into(), json!(pitch));
+        // Room for the most leads at the smallest pitch.
+        changes.insert(
+            "body_length".into(),
+            json!(if leads > n {
+                "70 mm".to_owned()
+            } else {
+                mm(bl)
+            }),
+        );
+        if four {
+            changes.insert("leads_short".into(), json!(short.to_string()));
+            changes.insert(
+                "body_width".into(),
+                json!(if short > m {
+                    "70 mm".to_owned()
+                } else {
+                    mm(bw)
+                }),
+            );
+            changes.insert(
+                "span_x".into(),
+                json!(if leads > n {
+                    "72 mm".to_owned()
+                } else {
+                    mm(span_x)
+                }),
+            );
+            changes.insert(
+                "span".into(),
+                json!(if short > m {
+                    "72 mm".to_owned()
+                } else {
+                    mm(span)
+                }),
+            );
+        }
+        run(s, "parameters.change", json!({"changes": changes}));
+        s.refresh();
+    };
+    let most = 128;
+    counts(&mut s, most, if four { most } else { 0 }, "0.5 mm");
+    let leads: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    assert_eq!(leads.len(), if four { 4 * 128 } else { 2 * 128 });
+    let leads: Vec<&str> = leads.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], materials.material(&form, BodyRole::Body));
+    for chunk in leads.chunks(200) {
+        assign_look(&mut s, chunk, materials.material(&form, BodyRole::Lead));
+    }
+    counts(&mut s, n, m, &mm(pitch));
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_gull_wing_two_sided() -> Vec<u8> {
+    author_gull_wing(false)
+}
+
+fn author_gull_wing_four_sided() -> Vec<u8> {
+    author_gull_wing(true)
+}
+
 /// Give `bodies` the Solidcraft appearance named after `material`, with
 /// Sparksmith's opaque PBR projection of its look.
 fn assign_look(s: &mut Session, bodies: &[&str], material: MaterialId) {
@@ -1147,7 +1739,7 @@ pub fn author_usb4105() -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "writes library/parts/*.solidcraft, the chip and header generators' part files and the examples' part files"]
+#[ignore = "writes library/parts/*.solidcraft, the chip, header and gull-wing generators' part files and the examples' part files"]
 fn author_parts() {
     // The repository's shipped material library (the program loads it
     // through sparksmith-io at start-up).
@@ -1166,7 +1758,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 11] = [
+    let parts: [(&str, &str, Author); 13] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -1182,6 +1774,17 @@ fn author_parts() {
         ("generators/chip/parts", "chip-led", author_chip_led),
         // The header generator's bundle (`generators/header/parts/`).
         ("generators/header/parts", "pin-header", author_pin_header),
+        // The gull-wing generator's bundle (`generators/gull-wing/parts/`).
+        (
+            "generators/gull-wing/parts",
+            "gull-wing-two-sided",
+            author_gull_wing_two_sided,
+        ),
+        (
+            "generators/gull-wing/parts",
+            "gull-wing-four-sided",
+            author_gull_wing_four_sided,
+        ),
         ("library/parts", "esp32-s31-wroom-3", author_wroom3),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),

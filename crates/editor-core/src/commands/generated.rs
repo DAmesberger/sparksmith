@@ -166,20 +166,16 @@ fn module_bytes(document: &Document, source: &ModuleSource) -> Result<(AssetByte
 /// The value of a project setting a parameter declares as its context, if
 /// the core knows the setting.
 fn context_value(document: &Document, param: &v1::Param) -> Option<v1::ParamValue> {
+    // Without a fab profile the board has no land margins.
+    let land = |pick: fn(&crate::rules::LandRules) -> f64| {
+        let mm = pick(&document.project.rules.land_estimators().ok()?.land);
+        crate::units::Nm::from_mm_f64_rounded(mm)
+            .ok()
+            .map(|nm| v1::ParamValue::Int(nm.get()))
+    };
     match param.context.as_deref()? {
-        "project.land.chip_gap_min" => {
-            // Without a fab profile the board has no land margins.
-            let mm = document
-                .project
-                .rules
-                .land_estimators()
-                .ok()?
-                .land
-                .chip_gap_min;
-            crate::units::Nm::from_mm_f64_rounded(mm)
-                .ok()
-                .map(|nm| v1::ParamValue::Int(nm.get()))
-        }
+        "project.land.chip_gap_min" => land(|l| l.chip_gap_min),
+        "project.land.gull_wing_width_extra" => land(|l| l.gull_wing_width_extra),
         "project.symbols.resistor_style" => {
             let key = match document.drafts.symbols.resistor {
                 ResistorStyle::Iec => "iec",
