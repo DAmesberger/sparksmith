@@ -1079,11 +1079,8 @@ impl Session {
                     // A board that pinned a shipped profile under a former
                     // id no library profile has stands for it, as under
                     // its own id.
-                    let library: Vec<_> = listing
-                        .profiles
-                        .into_iter()
-                        .chain(listing.builtins)
-                        .collect();
+                    let library: Vec<_> =
+                        listing.profiles.into_iter().chain(listing.builtins).collect();
                     let pinned: Vec<String> = profiles
                         .iter()
                         .map(|q| match listing.former_ids.get(&q.id) {

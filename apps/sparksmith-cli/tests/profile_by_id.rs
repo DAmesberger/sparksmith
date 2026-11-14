@@ -153,7 +153,11 @@ fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Falli
         .iter()
         .filter_map(|p| p["id"].as_str())
         .collect();
-    assert_eq!(ids, ["jlcpcb-2-layer", "jlcpcb-4-layer"], "{listed}");
+    assert_eq!(
+        ids,
+        ["jlcpcb-2-layer", "jlcpcb-4-layer"],
+        "{listed}"
+    );
     assert_eq!(named["ok"], true, "{named}");
     assert_eq!(second["result"]["value"], "jlcpcb-4-layer", "{second}");
     Ok(())

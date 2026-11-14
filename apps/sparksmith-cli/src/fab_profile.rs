@@ -171,9 +171,16 @@ mod tests {
 
         let file = dir.path().join("again.json");
         let file_text = file.to_string_lossy().into_owned();
-        reply(&library, &args(&["export", "jlcpcb-2-layer", &file_text]))?;
+        reply(
+            &library,
+            &args(&["export", "jlcpcb-2-layer", &file_text]),
+        )?;
         assert!(
-            reply(&library, &args(&["export", "jlcpcb-2-layer", &file_text])).is_err(),
+            reply(
+                &library,
+                &args(&["export", "jlcpcb-2-layer", &file_text])
+            )
+            .is_err(),
             "an export never replaces a file"
         );
         assert!(reply(&library, &args(&["export", "no-such", "x.json"])).is_err());
