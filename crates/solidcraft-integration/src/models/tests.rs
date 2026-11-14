@@ -689,6 +689,87 @@ fn molded_packages_build_from_their_generator_with_the_band_at_terminal_one() ->
     Ok(())
 }
 
+/// Stored grid packages build from the grid generator's part files: a
+/// body on solder balls (or on the seating plane over gold lands set into
+/// it), each contact bound to its terminal in lead order (row-major from
+/// A1 at −x, +y) and standing on its lead point, and no contact where a
+/// position is empty (the cut-out files), up to a 20 × 20 grid with a
+/// 6 × 6 centre void.
+#[test]
+fn grid_packages_build_from_their_generator_with_no_ball_where_a_position_is_empty() -> Result<()> {
+    use sparksmith_core::library::package_form::GridForm;
+    use sparksmith_core::library::package_form::grid::GridContact;
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let ball = GridForm::ball_grid(
+        3,
+        4,
+        nm(0.8),
+        [nm(4.0), nm(3.0), nm(0.7)],
+        [nm(0.4), nm(0.3)],
+    );
+    let mut sparse = GridForm::ball_grid(
+        5,
+        5,
+        nm(0.5),
+        [nm(3.0), nm(3.0), nm(0.5)],
+        [nm(0.3), nm(0.2)],
+    );
+    sparse.depopulated = vec![[2, 2], [0, 1], [4, 4]];
+    let mut lga = GridForm::ball_grid(
+        2,
+        3,
+        nm(1.0),
+        [nm(3.5), nm(2.5), nm(0.8)],
+        [nm(0.6), nm(0.0)],
+    );
+    lga.contact = GridContact::Land;
+    let mut large = GridForm::ball_grid(
+        20,
+        20,
+        nm(0.8),
+        [nm(17.0), nm(17.0), nm(1.2)],
+        [nm(0.45), nm(0.35)],
+    );
+    large.depopulated = (7..13).flat_map(|r| (7..13).map(move |c| [r, c])).collect();
+    for (form, contacts, material, body_z) in [
+        (ball, 12, MaterialId::SolderSac, [0.3, 1.0]),
+        (sparse, 22, MaterialId::SolderSac, [0.2, 0.7]),
+        (lga, 6, MaterialId::Gold, [0.0, 0.8]),
+        (large, 364, MaterialId::SolderSac, [0.35, 1.55]),
+    ] {
+        let diameter = form.contact_diameter();
+        let form = PackageForm::Grid(Box::new(form));
+        let points = form.lead_points();
+        let (mut native, definition) = built(form, contacts)?;
+        let leads = leads(&definition);
+        assert_eq!(leads.len(), usize::try_from(contacts).unwrap_or(0));
+        for (lead, point) in leads.iter().zip(&points) {
+            assert_eq!(lead.material, material);
+            let c = centre(&native, &lead.name)?;
+            near(c[0], point[0], "contact x");
+            near(c[1], point[1], "contact y");
+            let (lo, hi) = bounds(&native, &lead.name)?;
+            near(lo[2], 0.0, "on the seating plane");
+            near(hi[0] - lo[0], diameter, "contact diameter");
+        }
+        let body = definition
+            .bodies
+            .iter()
+            .find(|b| b.role == BodyRole::Body)
+            .ok_or_else(|| Error::Verification("no body".into()))?;
+        assert_eq!(body.material, MaterialId::EpoxyMould);
+        let (lo, hi) = bounds(&native, &body.name)?;
+        near(lo[2], body_z[0], "body bottom");
+        near(hi[2], body_z[1], "body top");
+        assert_eq!(definition.bodies.len(), leads.len() + 1, "no other body");
+        if contacts < 100 {
+            // Round faces are measured through their tessellation.
+            disjoint_within(&mut native, &definition, 1e-4)?;
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn role_materials_override_the_family_defaults() -> Result<()> {
     let _context = crate::looks::test_context().map(|c| c.enter());

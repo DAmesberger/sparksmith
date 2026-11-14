@@ -564,6 +564,16 @@ pub mod fixture {
                 ],
             },
             ShippedGenerator {
+                name: "grid".into(),
+                module: Arc::from(&bytes!("grid/grid.wasm")[..]),
+                parts: vec![
+                    part(bytes!("grid/parts/grid-ball.solidcraft")),
+                    part(bytes!("grid/parts/grid-ball-voids.solidcraft")),
+                    part(bytes!("grid/parts/grid-land.solidcraft")),
+                    part(bytes!("grid/parts/grid-land-voids.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
                 name: "tabbed".into(),
                 module: Arc::from(&bytes!("tabbed/tabbed.wasm")[..]),
                 parts: vec![
