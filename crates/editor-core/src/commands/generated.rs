@@ -176,6 +176,13 @@ fn context_value(document: &Document, param: &v1::Param) -> Option<v1::ParamValu
     match param.context.as_deref()? {
         "project.land.chip_gap_min" => land(|l| l.chip_gap_min),
         "project.land.gull_wing_width_extra" => land(|l| l.gull_wing_width_extra),
+        "project.land.exposed_pad_clearance" => land(|l| l.exposed_pad_clearance),
+        "project.mask.web_min" => {
+            let rules = document.project.rules.land_estimators().ok()?;
+            crate::units::Nm::from_mm_f64_rounded(rules.mask.web_min)
+                .ok()
+                .map(|nm| v1::ParamValue::Int(nm.get()))
+        }
         "project.symbols.resistor_style" => {
             let key = match document.drafts.symbols.resistor {
                 ResistorStyle::Iec => "iec",

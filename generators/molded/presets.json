@@ -1,0 +1,319 @@
+[
+ {
+  "key": "molded-sod-123",
+  "name": "SOD-123",
+  "aliases": [
+   "SOD-123",
+   "SOD123"
+  ],
+  "description": "SOD-123 flat-lead diode, body 2.70 × 1.60 mm.",
+  "params": {
+   "part": "diode",
+   "lead": "flat",
+   "body_length": 2700000,
+   "body_width": 1600000,
+   "body_height": 1100000,
+   "span": 3700000,
+   "terminal_length": 500000,
+   "terminal_width": 600000,
+   "polarised": true
+  },
+  "basis": "estimated",
+  "note": "Estimated: SOD outlines differ between manufacturers; nominal values of the common outline. Confirm against the device's drawing."
+ },
+ {
+  "key": "molded-sod-323",
+  "name": "SOD-323",
+  "aliases": [
+   "SOD-323",
+   "SC-76"
+  ],
+  "description": "SOD-323 flat-lead diode, body 1.70 × 1.25 mm.",
+  "params": {
+   "part": "diode",
+   "lead": "flat",
+   "body_length": 1700000,
+   "body_width": 1250000,
+   "body_height": 900000,
+   "span": 2500000,
+   "terminal_length": 350000,
+   "terminal_width": 300000,
+   "polarised": true
+  },
+  "basis": "estimated",
+  "note": "Estimated: SOD outlines differ between manufacturers; nominal values of the common outline. Confirm against the device's drawing."
+ },
+ {
+  "key": "molded-sod-523",
+  "name": "SOD-523",
+  "aliases": [
+   "SOD-523",
+   "SC-79"
+  ],
+  "description": "SOD-523 flat-lead diode, body 1.20 × 0.80 mm.",
+  "params": {
+   "part": "diode",
+   "lead": "flat",
+   "body_length": 1200000,
+   "body_width": 800000,
+   "body_height": 600000,
+   "span": 1600000,
+   "terminal_length": 200000,
+   "terminal_width": 300000,
+   "polarised": true
+  },
+  "basis": "estimated",
+  "note": "Estimated: SOD outlines differ between manufacturers; nominal values of the common outline. Confirm against the device's drawing."
+ },
+ {
+  "key": "molded-sma",
+  "name": "SMA (DO-214AC)",
+  "aliases": [
+   "SMA",
+   "DO-214AC"
+  ],
+  "description": "SMA J-lead diode, body 4.30 × 2.60 mm.",
+  "params": {
+   "part": "diode",
+   "lead": "j_lead",
+   "body_length": 4300000,
+   "body_width": 2600000,
+   "body_height": 2200000,
+   "span": 5200000,
+   "terminal_length": 1100000,
+   "terminal_width": 1400000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "molded-smb",
+  "name": "SMB (DO-214AA)",
+  "aliases": [
+   "SMB",
+   "DO-214AA"
+  ],
+  "description": "SMB J-lead diode, body 4.30 × 3.60 mm.",
+  "params": {
+   "part": "diode",
+   "lead": "j_lead",
+   "body_length": 4300000,
+   "body_width": 3600000,
+   "body_height": 2200000,
+   "span": 5400000,
+   "terminal_length": 1100000,
+   "terminal_width": 2000000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "molded-smc",
+  "name": "SMC (DO-214AB)",
+  "aliases": [
+   "SMC",
+   "DO-214AB"
+  ],
+  "description": "SMC J-lead diode, body 6.90 × 5.90 mm.",
+  "params": {
+   "part": "diode",
+   "lead": "j_lead",
+   "body_length": 6900000,
+   "body_width": 5900000,
+   "body_height": 2200000,
+   "span": 7900000,
+   "terminal_length": 1100000,
+   "terminal_width": 3000000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "molded-minimelf",
+  "name": "MiniMELF (DO-213AA)",
+  "aliases": [
+   "MiniMELF",
+   "SOD-80",
+   "DO-213AA"
+  ],
+  "description": "MiniMELF cylindrical diode, 3.50 mm long, 1.50 mm diameter.",
+  "params": {
+   "part": "diode",
+   "lead": "melf",
+   "body_length": 3500000,
+   "body_width": 1500000,
+   "body_height": 1500000,
+   "span": 3500000,
+   "terminal_length": 400000,
+   "terminal_width": 1500000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "JEDEC DO-213, MiniMELF (AA) and MELF (AB) cylindrical outlines"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "molded-melf",
+  "name": "MELF (DO-213AB)",
+  "aliases": [
+   "MELF",
+   "DO-213AB"
+  ],
+  "description": "MELF cylindrical diode, 5.00 mm long, 2.50 mm diameter.",
+  "params": {
+   "part": "diode",
+   "lead": "melf",
+   "body_length": 5000000,
+   "body_width": 2500000,
+   "body_height": 2500000,
+   "span": 5000000,
+   "terminal_length": 500000,
+   "terminal_width": 2500000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "JEDEC DO-213, MiniMELF (AA) and MELF (AB) cylindrical outlines"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "molded-tantalum-a",
+  "name": "Tantalum case A (3216-18)",
+  "aliases": [
+   "Case A",
+   "EIA 3216-18",
+   "Tantalum A"
+  ],
+  "description": "Molded tantalum chip capacitor, EIA 3216-18: 3.2 × 1.6 × 1.6 mm.",
+  "params": {
+   "part": "polarised_capacitor",
+   "lead": "j_lead",
+   "body_length": 2600000,
+   "body_width": 1600000,
+   "body_height": 1600000,
+   "span": 3200000,
+   "terminal_length": 800000,
+   "terminal_width": 1200000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
+  },
+  "basis": "cited_unverified",
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+ },
+ {
+  "key": "molded-tantalum-b",
+  "name": "Tantalum case B (3528-21)",
+  "aliases": [
+   "Case B",
+   "EIA 3528-21",
+   "Tantalum B"
+  ],
+  "description": "Molded tantalum chip capacitor, EIA 3528-21: 3.5 × 2.8 × 1.9 mm.",
+  "params": {
+   "part": "polarised_capacitor",
+   "lead": "j_lead",
+   "body_length": 2900000,
+   "body_width": 2800000,
+   "body_height": 1900000,
+   "span": 3500000,
+   "terminal_length": 800000,
+   "terminal_width": 2200000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
+  },
+  "basis": "cited_unverified",
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+ },
+ {
+  "key": "molded-tantalum-c",
+  "name": "Tantalum case C (6032-28)",
+  "aliases": [
+   "Case C",
+   "EIA 6032-28",
+   "Tantalum C"
+  ],
+  "description": "Molded tantalum chip capacitor, EIA 6032-28: 6.0 × 3.2 × 2.5 mm.",
+  "params": {
+   "part": "polarised_capacitor",
+   "lead": "j_lead",
+   "body_length": 5400000,
+   "body_width": 3200000,
+   "body_height": 2500000,
+   "span": 6000000,
+   "terminal_length": 1300000,
+   "terminal_width": 2200000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
+  },
+  "basis": "cited_unverified",
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+ },
+ {
+  "key": "molded-tantalum-d",
+  "name": "Tantalum case D (7343-31)",
+  "aliases": [
+   "Case D",
+   "EIA 7343-31",
+   "Tantalum D"
+  ],
+  "description": "Molded tantalum chip capacitor, EIA 7343-31: 7.3 × 4.3 × 2.8 mm.",
+  "params": {
+   "part": "polarised_capacitor",
+   "lead": "j_lead",
+   "body_length": 6700000,
+   "body_width": 4300000,
+   "body_height": 2800000,
+   "span": 7300000,
+   "terminal_length": 1300000,
+   "terminal_width": 2400000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
+  },
+  "basis": "cited_unverified",
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+ },
+ {
+  "key": "molded-tantalum-e",
+  "name": "Tantalum case E (7343-43)",
+  "aliases": [
+   "Case E",
+   "EIA 7343-43",
+   "Tantalum E"
+  ],
+  "description": "Molded tantalum chip capacitor, EIA 7343-43: 7.3 × 4.3 × 4.0 mm.",
+  "params": {
+   "part": "polarised_capacitor",
+   "lead": "j_lead",
+   "body_length": 6700000,
+   "body_width": 4300000,
+   "body_height": 4000000,
+   "span": 7300000,
+   "terminal_length": 1300000,
+   "terminal_width": 2400000,
+   "polarised": true
+  },
+  "citation": {
+   "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
+  },
+  "basis": "cited_unverified",
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+ }
+]

@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "module": {
+    "file": "molded.wasm",
+    "sha256": "f1cccea8a2145d0e8cbdce2c9584a11fa04e5018a85d2fea2b5a8c0e091b062f"
+  },
+  "name": "molded",
+  "parts": [
+    {
+      "file": "parts/melf.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "9fe16a15548c33a0cceb6eae0793a57257a8b3b4a9823925ab3572295516c132",
+      "title": "MELF"
+    },
+    {
+      "file": "parts/melf-band.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "5a61179775208ed88731a0ecb519066a8a389dc74d056fffccc88e0b63e426c5",
+      "title": "MELF, band"
+    },
+    {
+      "file": "parts/molded-bent.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "3eb3f4f1a6911c9457be6959898428c5c7563b2695750da84b9468ef715eed97",
+      "title": "Molded two-terminal, bent leads"
+    },
+    {
+      "file": "parts/molded-bent-band.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "9c90d64ca6bfff4552437edda0a2f068b8e3e9de3315b748961c90dc8e5b7394",
+      "title": "Molded two-terminal, bent leads, band"
+    },
+    {
+      "file": "parts/molded-flat.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "544ff2871a5743adf42c783d827b6feab609f1ae5360300e3aa9ac0dc9fffe0d",
+      "title": "Molded two-terminal, flat leads"
+    },
+    {
+      "file": "parts/molded-flat-band.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "2d839d74865295c25c470f5afec25a540cd1c6e648237550d25e55a85efda16f",
+      "title": "Molded two-terminal, flat leads, band"
+    },
+    {
+      "file": "parts/molded-j-lead.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "1ca0fca80522ee1d0f480eab36f3c97e8fc7d46882ade249476b976e255d0d75",
+      "title": "Molded two-terminal, J-leads"
+    },
+    {
+      "file": "parts/molded-j-lead-band.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "4017f29fe8a426d885a3ff459aa9184ed1263d69e88db576daefcdd491bb7ed6",
+      "title": "Molded two-terminal, J-leads, band"
+    }
+  ]
+}

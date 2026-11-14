@@ -17,7 +17,7 @@
 //! dimensions.
 //!
 //! `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`
-//! (`AUTHOR_ONLY=<name>` writes one part file only)
+//! (`AUTHOR_ONLY=<name>[,<name>…]` writes those part files only)
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use serde_json::json;
@@ -572,6 +572,1003 @@ pub fn author_pin_header() -> Vec<u8> {
         .collect();
     assert!(errors.is_empty(), "{errors:?}");
     solidcraft_engine::io::write_design(&s.doc)
+}
+
+/// How a molded two-terminal package's terminals are formed: one part
+/// file each (the lead bodies differ in their construction), with and
+/// without the polarity band (a band is a body of its own).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MoldedLead {
+    /// Flat strips on the seating plane under the body ends (SOD-123F,
+    /// SOD-323F, SOD-523).
+    Flat,
+    /// Strips leaving the body ends at mid-height and bending down to a
+    /// flat foot (SOD-123, SOD-323).
+    Bent,
+    /// J-leads folded down the end faces and under the body (SMA/SMB/SMC,
+    /// moulded tantalum).
+    JLead,
+}
+
+/// A user parameter row for `parameters.import`.
+fn param(name: &str, expression: &str, unit: &str, comment: &str) -> serde_json::Value {
+    json!({"name": name, "expression": expression, "unit": unit, "comment": comment})
+}
+
+fn import(s: &mut Session, rows: &[serde_json::Value]) {
+    run(
+        s,
+        "parameters.import",
+        json!({"text": serde_json::to_string(rows).unwrap()}),
+    );
+}
+
+/// A box over x `from`..`to` (expressions on the +x side; `minus` mirrors
+/// it to −x), y ± `width` / 2 and z `z0`..`z0 + height`.
+#[allow(clippy::too_many_arguments)]
+fn x_box(
+    s: &mut Session,
+    name: &str,
+    body: Option<&str>,
+    [from, to]: [&str; 2],
+    minus: bool,
+    width: &str,
+    [z0, height]: [&str; 2],
+    operation: Option<(&str, &str)>,
+) {
+    let x = if minus {
+        format!("- ({to})")
+    } else {
+        from.to_owned()
+    };
+    let mut p = json!({"corner": [x, format!("- ({width}) / 2"), z0],
+        "length": format!("({to}) - ({from})"), "width": width, "height": height, "name": name});
+    if let Some(map) = p.as_object_mut() {
+        if let Some(body) = body {
+            map.insert("body_name".into(), json!(body));
+        }
+        if let Some((operation, target)) = operation {
+            map.insert("operation".into(), json!(operation));
+            map.insert("targets".into(), json!([target]));
+        }
+    }
+    run(s, "solid.box", p);
+}
+
+fn fillet(s: &mut Session, name: &str, body: &str, at: [f64; 3], radius: &str) {
+    run(
+        s,
+        "solid.fillet",
+        json!({"name": name, "body": body, "radius": radius, "edges": [at]}),
+    );
+}
+
+fn assert_evaluates(s: &mut Session) {
+    s.refresh();
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    for b in &s.model.state().bodies {
+        if let Ok(m) = b.measure() {
+            eprintln!("  {}: {:.6} mm³", b.name, m.volume);
+        }
+    }
+}
+
+/// `marking-top`, the area of the top left for text: its centre `x` and
+/// height `z`, u along +x, normal +z; sized by `marking_top_u` and `_v`.
+fn marking_top(s: &mut Session, [x, z]: [&str; 2], [u, v]: [&str; 2]) {
+    import(
+        s,
+        &[
+            param(
+                "marking_top_u",
+                u,
+                "mm",
+                "marking-top size along its u axis",
+            ),
+            param("marking_top_v", v, "mm", "marking-top size across it"),
+        ],
+    );
+    run(
+        s,
+        "construct.plane.offset",
+        json!({"base": {"origin": [x, "0 mm", z], "x_dir": [1, 0, 0], "y_dir": [0, 1, 0]},
+            "offset": "0 mm", "name": "marking-top"}),
+    );
+}
+
+/// The polarity band's parameters: a fifth to a sixth of the body (0.15 of
+/// its length), inset 0.08 of the length from the end of the visible top
+/// at terminal 1 (`top_from`), across 0.8 of the width, `depth` deep (the
+/// core's band area, `MoldedForm::band_area`, est.).
+fn band_params(s: &mut Session, top_from: &str, width: &str, depth: &str) {
+    import(
+        s,
+        &[
+            param(
+                "band_width",
+                "0.15 * body_length",
+                "mm",
+                "polarity band length along x",
+            ),
+            param(
+                "band_start",
+                &format!("{top_from} + 0.08 * body_length"),
+                "mm",
+                "polarity band's end towards terminal 1",
+            ),
+            param(
+                "band_across",
+                &format!("0.8 * {width}"),
+                "mm",
+                "polarity band across the body",
+            ),
+            param("band_depth", depth, "mm", "how deep the band is inlaid"),
+        ],
+    );
+}
+
+/// The `molded` generator's part file of `lead` terminals, with the
+/// polarity band at terminal 1 when `band`: a moulded epoxy body with two
+/// tin terminals, terminal 1 at −x, terminal 2 at +x. Rebuilt from the
+/// in-code molded builder's construction by Solidcraft commands:
+///
+/// - the body a box from `body_bottom` (0 but under bent leads) to
+///   `body_height`, cut round the leads it holds (kept disjoint), its
+///   upright corners and top edges rounded (`corner_round`, `edge_round`);
+/// - flat leads: boxes of `lead_length` × `terminal_width` ×
+///   `lead_thickness` from the tips inward;
+/// - bent leads: a strip of `lead_thickness` from `lead_root` inside the
+///   body end out at `lead_exit` to `lead_shoulder`, down to the foot
+///   (`terminal_length` long) at the tip, as the union of three straight
+///   boxes mitred at the bends (the slope a box turned about y by the
+///   strip's angle) whose outer and inner bend edges are rounded about
+///   the bend centre (centreline radii `bend_1`, `bend_2`);
+/// - J-leads: the same strip out at `lead_exit`, down the end face and
+///   under the body, made as a box with the inside of the J cut out;
+/// - the band a thin box inlaid in the top.
+///
+/// Saved at a typical size of the class (flat: SOD-123F, bent: SOD-123,
+/// J-lead: SMA); the generator gives every value but the band's and the
+/// marking area's, which follow the body.
+fn author_molded(lead: MoldedLead, band: bool) -> Vec<u8> {
+    // The saved size, and the values the generator computes for it (the
+    // core's estimates: leadframe 0.12 mm (flat, bent) or 0.15 mm (J),
+    // at most a quarter of the height; a root of at most a sixth of the
+    // body length; bends of the lead thickness, the bent lead's shoulder
+    // 0.3 of the way out; rounds capped by the body).
+    let (bl, bw, bh, span, tl, tw) = match lead {
+        MoldedLead::Flat => (2.7, 1.6, 1.1, 3.7, 0.5, 0.6),
+        MoldedLead::Bent => (2.7, 1.6, 1.1, 3.7, 0.3, 0.6),
+        MoldedLead::JLead => (4.3, 2.6, 2.2, 5.2, 1.1, 1.4),
+    };
+    let t: f64 = if lead == MoldedLead::JLead {
+        0.15
+    } else {
+        0.12
+    };
+    let t = t.min(bh / 4.0);
+    let h = t / 2.0;
+    let bottom: f64 = if lead == MoldedLead::Bent {
+        0.05f64.min(bh / 10.0)
+    } else {
+        0.0
+    };
+    let exit = bottom + 0.5 * (bh - bottom);
+    let root = 0.25f64.min(bl / 6.0);
+    let (hb, hs) = (bl / 2.0, span / 2.0);
+    let foot_in = hs - tl;
+    let shoulder = hb + 0.3 * (foot_in - hb);
+    let lead_top = if lead == MoldedLead::Flat {
+        t
+    } else {
+        exit + h
+    };
+    let cap = (0.08 * bl.min(bw)).min(0.064 * bl);
+    let corner = 0.2f64.min(cap).min((bw - tw) / 4.0);
+    let edge = 0.15f64
+        .min(0.12 * bh)
+        .min(cap)
+        .min((bh - lead_top) / 2.0)
+        .min(corner);
+    let title = match (lead, band) {
+        (MoldedLead::Flat, false) => "Molded two-terminal, flat leads",
+        (MoldedLead::Flat, true) => "Molded two-terminal, flat leads, band",
+        (MoldedLead::Bent, false) => "Molded two-terminal, bent leads",
+        (MoldedLead::Bent, true) => "Molded two-terminal, bent leads, band",
+        (MoldedLead::JLead, false) => "Molded two-terminal, J-leads",
+        (MoldedLead::JLead, true) => "Molded two-terminal, J-leads, band",
+    };
+    let mut s = Session::default();
+    run(&mut s, "file.new", json!({"name": title}));
+    let mm = |v: f64| format!("{} mm", (v * 1e6).round() / 1e6);
+    let mut rows = vec![
+        param("body_length", &mm(bl), "mm", "moulded body length (x)"),
+        param("body_width", &mm(bw), "mm", "moulded body width (y)"),
+        param(
+            "body_height",
+            &mm(bh),
+            "mm",
+            "body top above the seating plane",
+        ),
+        param("span", &mm(span), "mm", "overall length, tip to tip"),
+        param(
+            "terminal_length",
+            &mm(tl),
+            "mm",
+            "terminal contact length on the seating plane, from the tip",
+        ),
+        param("terminal_width", &mm(tw), "mm", "terminal width (y)"),
+        param("lead_thickness", &mm(t), "mm", "leadframe thickness"),
+        param(
+            "lead_root",
+            &mm(root),
+            "mm",
+            "how far a lead reaches into the body",
+        ),
+        param(
+            "corner_round",
+            &mm(corner),
+            "mm",
+            "round of the body's upright corners",
+        ),
+        param(
+            "edge_round",
+            &mm(edge),
+            "mm",
+            "round of the body's top edges",
+        ),
+    ];
+    match lead {
+        MoldedLead::Flat => {
+            let length = if tl >= hs - hb + root {
+                tl
+            } else {
+                hs - hb + root
+            };
+            rows.push(param(
+                "lead_length",
+                &mm(length),
+                "mm",
+                "flat lead length from the tip inward",
+            ));
+        }
+        MoldedLead::Bent | MoldedLead::JLead => {
+            if lead == MoldedLead::Bent {
+                rows.push(param(
+                    "body_bottom",
+                    &mm(bottom),
+                    "mm",
+                    "the body's underside above the seating plane",
+                ));
+                rows.push(param(
+                    "lead_shoulder",
+                    &mm(shoulder),
+                    "mm",
+                    "x of the bend where the lead turns down",
+                ));
+            }
+            rows.push(param(
+                "lead_exit",
+                &mm(exit),
+                "mm",
+                "height of the lead's centre line where it leaves the body",
+            ));
+            rows.push(param(
+                "bend_1",
+                &mm(t),
+                "mm",
+                "centre-line radius of the bend at the body",
+            ));
+            rows.push(param(
+                "bend_2",
+                &mm(t),
+                "mm",
+                "centre-line radius of the bend at the foot",
+            ));
+        }
+    }
+    import(&mut s, &rows);
+    if lead == MoldedLead::Bent {
+        // The slope: its run and drop, its angle below +x and how far the
+        // mitred ends reach past each bend's corner.
+        import(
+            &mut s,
+            &[
+                param(
+                    "lead_run",
+                    "span / 2 - terminal_length - lead_shoulder",
+                    "mm",
+                    "the slope's run along x",
+                ),
+                param(
+                    "lead_drop",
+                    "lead_exit - lead_thickness / 2",
+                    "mm",
+                    "the slope's drop",
+                ),
+                param(
+                    "lead_angle",
+                    "atan2(lead_drop, lead_run)",
+                    "deg",
+                    "the slope below the horizontal",
+                ),
+                param(
+                    "lead_miter",
+                    "lead_thickness / 2 * tan(lead_angle / 2)",
+                    "mm",
+                    "how far a mitred end reaches past its bend's corner",
+                ),
+            ],
+        );
+    }
+    let bottom_expr = if lead == MoldedLead::Bent {
+        "body_bottom"
+    } else {
+        "0 mm"
+    };
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", bottom_expr],
+            "length": "body_length", "width": "body_width",
+            "height": format!("body_height - {bottom_expr}"), "name": "body", "body_name": "body"}),
+    );
+    for (k, minus) in [(1, true), (2, false)] {
+        let name = format!("terminal {k}");
+        let sign = if minus { -1.0 } else { 1.0 };
+        match lead {
+            MoldedLead::Flat => x_box(
+                &mut s,
+                &name,
+                Some(&name),
+                ["span / 2 - lead_length", "span / 2"],
+                minus,
+                "terminal_width",
+                ["0 mm", "lead_thickness"],
+                None,
+            ),
+            MoldedLead::JLead => {
+                // The J's bounding box from whichever reaches further in,
+                // the run's root or the foot's inner end, less the inside
+                // of the J, what lies inward of the foot below the run and
+                // what lies inward of the run's root above the foot.
+                let from = "min(body_length / 2 - lead_root, span / 2 - terminal_length)";
+                x_box(
+                    &mut s,
+                    &name,
+                    Some(&name),
+                    [from, "span / 2"],
+                    minus,
+                    "terminal_width",
+                    ["0 mm", "lead_exit + lead_thickness / 2"],
+                    None,
+                );
+                let cut = |s: &mut Session, what: &str, to: &str, z: [&str; 2]| {
+                    x_box(
+                        s,
+                        &format!("{name} {what}"),
+                        None,
+                        [&format!("{from} - 1 mm"), to],
+                        minus,
+                        "terminal_width + 2 mm",
+                        z,
+                        Some(("cut", &name)),
+                    );
+                };
+                cut(
+                    &mut s,
+                    "inside",
+                    "span / 2 - lead_thickness",
+                    ["lead_thickness", "lead_exit - 3 * lead_thickness / 2"],
+                );
+                cut(
+                    &mut s,
+                    "inward of the foot",
+                    "span / 2 - terminal_length",
+                    ["- 1 mm", "lead_exit - lead_thickness / 2 + 1 mm"],
+                );
+                cut(
+                    &mut s,
+                    "inward of the root",
+                    "body_length / 2 - lead_root",
+                    ["lead_thickness", "lead_exit + lead_thickness / 2"],
+                );
+                let (outer, inner) = (hs, hs - t);
+                for (bend, outer_z, inner_z) in [(1, exit + h, exit - h), (2, 0.0, t)] {
+                    fillet(
+                        &mut s,
+                        &format!("{name} bend {bend} outside"),
+                        &name,
+                        [sign * outer, 0.0, outer_z],
+                        &format!("bend_{bend} + lead_thickness / 2"),
+                    );
+                    fillet(
+                        &mut s,
+                        &format!("{name} bend {bend} inside"),
+                        &name,
+                        [sign * inner, 0.0, inner_z],
+                        &format!("bend_{bend} - lead_thickness / 2"),
+                    );
+                }
+            }
+            MoldedLead::Bent => {
+                // The run out of the body to past the shoulder, the slope,
+                // and the foot from before its bend to the tip, each
+                // reaching its mitre.
+                x_box(
+                    &mut s,
+                    &name,
+                    Some(&name),
+                    ["body_length / 2 - lead_root", "lead_shoulder + lead_miter"],
+                    minus,
+                    "terminal_width",
+                    ["lead_exit - lead_thickness / 2", "lead_thickness"],
+                    None,
+                );
+                let slope = format!("{name} slope");
+                run(
+                    &mut s,
+                    "solid.box",
+                    json!({"corner": ["- hypot(lead_run, lead_drop) / 2 - lead_miter",
+                            "- terminal_width / 2", "- lead_thickness / 2"],
+                        "length": "hypot(lead_run, lead_drop) + 2 * lead_miter",
+                        "width": "terminal_width", "height": "lead_thickness",
+                        "name": slope, "body_name": slope}),
+                );
+                let x = "(lead_shoulder + span / 2 - terminal_length) / 2";
+                run(
+                    &mut s,
+                    "solid.move",
+                    json!({"bodies": [slope], "axis": [0, 1, 0],
+                        "angle": if minus { "- lead_angle" } else { "lead_angle" },
+                        "translate": [if minus { format!("- {x}") } else { x.to_owned() }, "0 mm",
+                            "(lead_exit + lead_thickness / 2) / 2"],
+                        "name": format!("{slope} placed")}),
+                );
+                run(
+                    &mut s,
+                    "solid.combine",
+                    json!({"target": name, "tools": [slope], "operation": "join",
+                        "name": format!("{name} joined")}),
+                );
+                x_box(
+                    &mut s,
+                    &format!("{name} foot"),
+                    None,
+                    ["span / 2 - terminal_length - lead_miter", "span / 2"],
+                    minus,
+                    "terminal_width",
+                    ["0 mm", "lead_thickness"],
+                    Some(("join", &name)),
+                );
+                let (drop, run_x) = (exit - h, foot_in - shoulder);
+                let miter = h * (drop.atan2(run_x) / 2.0).tan();
+                for (bend, outer, inner) in [
+                    (
+                        1,
+                        [shoulder + miter, exit + h],
+                        [shoulder - miter, exit - h],
+                    ),
+                    (2, [foot_in - miter, 0.0], [foot_in + miter, t]),
+                ] {
+                    fillet(
+                        &mut s,
+                        &format!("{name} bend {bend} outside"),
+                        &name,
+                        [sign * outer[0], 0.0, outer[1]],
+                        &format!("bend_{bend} + lead_thickness / 2"),
+                    );
+                    fillet(
+                        &mut s,
+                        &format!("{name} bend {bend} inside"),
+                        &name,
+                        [sign * inner[0], 0.0, inner[1]],
+                        &format!("bend_{bend} - lead_thickness / 2"),
+                    );
+                }
+            }
+        }
+    }
+    run(
+        &mut s,
+        "solid.combine",
+        json!({"target": "body", "tools": ["terminal 1", "terminal 2"], "operation": "cut",
+            "keep_tools": true, "name": "lead roots"}),
+    );
+    // The rounds, picked at the saved size: upright corners above the
+    // leads, then the top edges.
+    let z = (lead_top + bh) / 2.0;
+    let corners: Vec<[f64; 3]> = [
+        [-hb, -bw / 2.0],
+        [hb, -bw / 2.0],
+        [hb, bw / 2.0],
+        [-hb, bw / 2.0],
+    ]
+    .iter()
+    .map(|[x, y]| [*x, *y, z])
+    .collect();
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "corner round", "body": "body", "radius": "corner_round", "edges": corners}),
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -bw / 2.0, bh], [hb, 0.0, bh], [0.0, bw / 2.0, bh], [-hb, 0.0, bh]]}),
+    );
+    if band {
+        band_params(&mut s, "- body_length / 2", "body_width", "0.03 mm");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": ["band_start", "- band_across / 2", "body_height - band_depth"],
+                "length": "band_width", "width": "band_across", "height": "band_depth",
+                "name": "band", "body_name": "band"}),
+        );
+        run(
+            &mut s,
+            "solid.combine",
+            json!({"target": "body", "tools": ["band"], "operation": "cut", "keep_tools": true,
+                "name": "band inlay"}),
+        );
+        assign_look(&mut s, &["band"], MaterialId::EpoxyLaserMarked);
+    }
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
+    assign_look(&mut s, &["terminal 1", "terminal 2"], MaterialId::TinMatte);
+    // The top left for text: beside the band (or the inset), to the inset
+    // before terminal 2 (`MoldedForm::marking_area`).
+    let from = if band {
+        "band_start + band_width"
+    } else {
+        "- body_length / 2 + 0.08 * body_length"
+    };
+    let to = "body_length / 2 - 0.08 * body_length";
+    marking_top(
+        &mut s,
+        [&format!("(({from}) + ({to})) / 2"), "body_height"],
+        [&format!("({to}) - ({from})"), "0.8 * body_width"],
+    );
+    assert_evaluates(&mut s);
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+/// The `molded` generator's MELF part file, with the polarity band at
+/// terminal 1 when `band`: a round borosilicate glass body between two
+/// tin end caps on one axis along x, `cap_diameter` / 2 above the seating
+/// plane; the body is cut where the caps seat on it, each cap's outer
+/// edge is rounded (`cap_round`), and the band is a thin ring of dark
+/// epoxy inlaid in the glass. Rebuilt from the in-code molded builder's
+/// construction by Solidcraft commands; saved at a MiniMELF (DO-213AA).
+fn author_melf(band: bool) -> Vec<u8> {
+    let (bl, bd, span, tl, cd) = (3.5, 1.5, 3.5, 0.4, 1.5);
+    let rc = cd / 2.0;
+    let cap_round = 0.08f64
+        .min(0.15 * tl)
+        .min(0.1 * rc)
+        .min((rc - bd / 2.0).max(0.0) + 0.5 * tl);
+    let mut s = Session::default();
+    run(
+        &mut s,
+        "file.new",
+        json!({"name": if band { "MELF, band" } else { "MELF" }}),
+    );
+    let mm = |v: f64| format!("{} mm", (v * 1e6).round() / 1e6);
+    import(
+        &mut s,
+        &[
+            param("body_length", &mm(bl), "mm", "glass body length (x)"),
+            param("body_diameter", &mm(bd), "mm", "glass body diameter"),
+            param("span", &mm(span), "mm", "overall length, cap to cap"),
+            param("terminal_length", &mm(tl), "mm", "end cap length"),
+            param("cap_diameter", &mm(cd), "mm", "end cap diameter"),
+            param(
+                "cap_round",
+                &mm(cap_round),
+                "mm",
+                "round of each cap's outer edge",
+            ),
+        ],
+    );
+    // Each round body is circles drawn on a YZ sketch at `from` (x),
+    // centred on the axis, extruded `length` along +x.
+    let disc =
+        |s: &mut Session, name: &str, from: &str, diameters: &[(&str, f64)], length: &str| {
+            let reply = run(
+                s,
+                "sketch.create",
+                json!({"plane": "YZ", "offset": from, "name": format!("{name} sketch")}),
+            );
+            for (diameter, at) in diameters {
+                run(
+                    s,
+                    "sketch.draw.dimensioned",
+                    json!({"command": "sketch.circle.center",
+                    "params": {"center": ["0 mm", "cap_diameter / 2"], "radius": at / 2.0},
+                    "dimensions": {"diameter": diameter}}),
+                );
+            }
+            run(s, "sketch.finish", json!({}));
+            run(
+                s,
+                "solid.extrude",
+                json!({"sketch": reply["sketch"], "distance": length, "operation": "new",
+                "name": name, "body_name": name}),
+            );
+        };
+    disc(
+        &mut s,
+        "body",
+        "- body_length / 2",
+        &[("body_diameter", bd)],
+        "body_length",
+    );
+    for (k, x) in [(1, "- span / 2"), (2, "span / 2 - terminal_length")] {
+        disc(
+            &mut s,
+            &format!("cap {k}"),
+            x,
+            &[("cap_diameter", cd)],
+            "terminal_length",
+        );
+    }
+    run(
+        &mut s,
+        "solid.combine",
+        json!({"target": "body", "tools": ["cap 1", "cap 2"], "operation": "cut",
+            "keep_tools": true, "name": "cap seats"}),
+    );
+    for (k, x) in [(1, -span / 2.0), (2, span / 2.0)] {
+        let name = format!("cap {k}");
+        fillet(
+            &mut s,
+            &format!("{name} round"),
+            &name,
+            [x, 0.0, cd],
+            "cap_round",
+        );
+    }
+    if band {
+        // The visible top runs between the caps (or the body's ends).
+        band_params(
+            &mut s,
+            "- min(span / 2 - terminal_length, body_length / 2)",
+            "body_diameter",
+            "min(0.03 mm, body_diameter / 8)",
+        );
+        disc(
+            &mut s,
+            "band",
+            "band_start",
+            &[
+                ("body_diameter", bd),
+                ("body_diameter - 2 * band_depth", bd - 0.06),
+            ],
+            "band_width",
+        );
+        run(
+            &mut s,
+            "solid.combine",
+            json!({"target": "body", "tools": ["band"], "operation": "cut", "keep_tools": true,
+                "name": "band inlay"}),
+        );
+        assign_look(&mut s, &["band"], MaterialId::EpoxyMould);
+    }
+    assign_look(&mut s, &["body"], MaterialId::BorosilicateGlass);
+    assign_look(&mut s, &["cap 1", "cap 2"], MaterialId::TinMatte);
+    let half = "min(span / 2 - terminal_length, body_length / 2)";
+    let from = if band {
+        "band_start + band_width".to_owned()
+    } else {
+        format!("- {half} + 0.08 * body_length")
+    };
+    let to = format!("{half} - 0.08 * body_length");
+    marking_top(
+        &mut s,
+        [
+            &format!("(({from}) + ({to})) / 2"),
+            "max((cap_diameter - body_diameter) / 2, 0 mm) + body_diameter",
+        ],
+        [&format!("({to}) - ({from})"), "0.8 * body_diameter"],
+    );
+    assert_evaluates(&mut s);
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_molded_flat() -> Vec<u8> {
+    author_molded(MoldedLead::Flat, false)
+}
+fn author_molded_flat_band() -> Vec<u8> {
+    author_molded(MoldedLead::Flat, true)
+}
+fn author_molded_bent() -> Vec<u8> {
+    author_molded(MoldedLead::Bent, false)
+}
+fn author_molded_bent_band() -> Vec<u8> {
+    author_molded(MoldedLead::Bent, true)
+}
+fn author_molded_j_lead() -> Vec<u8> {
+    author_molded(MoldedLead::JLead, false)
+}
+fn author_molded_j_lead_band() -> Vec<u8> {
+    author_molded(MoldedLead::JLead, true)
+}
+fn author_melf_plain() -> Vec<u8> {
+    author_melf(false)
+}
+fn author_melf_band() -> Vec<u8> {
+    author_melf(true)
+}
+
+/// A part file of the `no-lead` generator's bundle: a DFN (terminals on
+/// the two long sides, `four` false) or QFN package, with or without an
+/// exposed pad (`pad`), the in-code no-lead builder's construction made
+/// parametric in its counts. A moulded body of `body_length` ×
+/// `body_width` × `body_height` stands on the seating plane; each side's
+/// first terminal (`terminal_width` along the side, `terminal_length` in
+/// from its edge, `frame` thick) lies flush with the underside and the side
+/// face, and a body pattern of `terminals` (long sides) or
+/// `terminals_short` (short sides) at `pitch` replays it. The body's pocket
+/// for each terminal is a cut of the terminal's own box, patterned the
+/// same way, so terminals and moulding stay disjoint at any count and
+/// nothing names the pattern's bodies; the exposed pad (`pad_length` ×
+/// `pad_width`, centred) is cut out the same way. The top edges are
+/// rounded by `edge_round`, and a dimple of `mark_radius`, `mark_depth`
+/// deep, two radii in from the −x, −y corner marks pin 1. Saved at a
+/// QFN-16 3 × 3 mm, 0.5 mm (four sides) or a DFN-8 3 × 3 mm, 0.65 mm; the
+/// generator gives every value.
+pub fn author_no_lead(four: bool, pad: bool) -> Vec<u8> {
+    let mut s = Session::default();
+    let title = match (four, pad) {
+        (false, false) => "DFN package",
+        (false, true) => "DFN package with exposed pad",
+        (true, false) => "QFN package",
+        (true, true) => "QFN package with exposed pad",
+    };
+    run(&mut s, "file.new", json!({"name": title}));
+    let (pitch, width, pad_size) = if four {
+        ("0.5 mm", "0.25 mm", ["1.7 mm", "1.7 mm"])
+    } else {
+        ("0.65 mm", "0.3 mm", ["2.4 mm", "1.6 mm"])
+    };
+    let mut params = vec![
+        ("terminals", "4", "", "terminals per long (±y) side"),
+        ("pitch", pitch, "mm", "terminal pitch"),
+        ("body_length", "3 mm", "mm", "body length (x)"),
+        ("body_width", "3 mm", "mm", "body width (y)"),
+        (
+            "body_height",
+            "0.9 mm",
+            "mm",
+            "body height above the seating plane",
+        ),
+        (
+            "terminal_length",
+            "0.4 mm",
+            "mm",
+            "terminal length in from the body edge",
+        ),
+        (
+            "terminal_width",
+            width,
+            "mm",
+            "terminal width along the edge",
+        ),
+        ("frame", "0.2 mm", "mm", "leadframe (terminal) thickness"),
+        (
+            "edge_round",
+            "0.06 mm",
+            "mm",
+            "round of the body's top edges",
+        ),
+        ("mark_radius", "0.24 mm", "mm", "pin-1 dimple radius"),
+        ("mark_depth", "0.03 mm", "mm", "pin-1 dimple depth"),
+    ];
+    if four {
+        params.insert(
+            1,
+            ("terminals_short", "4", "", "terminals per short (±x) side"),
+        );
+    }
+    if pad {
+        params.push(("pad_length", pad_size[0], "mm", "exposed pad length (x)"));
+        params.push(("pad_width", pad_size[1], "mm", "exposed pad width (y)"));
+    }
+    let rows: Vec<serde_json::Value> = params
+        .iter()
+        .map(|(name, expression, unit, comment)| {
+            json!({"name": name, "expression": expression, "unit": unit, "comment": comment})
+        })
+        .collect();
+    run(
+        &mut s,
+        "parameters.import",
+        json!({"text": serde_json::to_string(&rows).unwrap()}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", "0 mm"],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    // (row, corner, size, pattern direction, count), in the builder's
+    // order: −y, then (four sides) +x, +y, −x.
+    let first = |count: &str| format!("- ({count} - 1) / 2 * pitch - terminal_width / 2");
+    let along_x = ["terminal_width", "terminal_length", "frame"];
+    let along_y = ["terminal_length", "terminal_width", "frame"];
+    let south = (
+        "row_s",
+        [first("terminals"), "- body_width / 2".into(), "0 mm".into()],
+        along_x,
+        [1, 0, 0],
+        "terminals",
+    );
+    let north = (
+        "row_n",
+        [
+            first("terminals"),
+            "body_width / 2 - terminal_length".into(),
+            "0 mm".into(),
+        ],
+        along_x,
+        [1, 0, 0],
+        "terminals",
+    );
+    let rows_of = if four {
+        vec![
+            south,
+            (
+                "row_e",
+                [
+                    "body_length / 2 - terminal_length".into(),
+                    first("terminals_short"),
+                    "0 mm".into(),
+                ],
+                along_y,
+                [0, 1, 0],
+                "terminals_short",
+            ),
+            north,
+            (
+                "row_w",
+                [
+                    "- body_length / 2".into(),
+                    first("terminals_short"),
+                    "0 mm".into(),
+                ],
+                along_y,
+                [0, 1, 0],
+                "terminals_short",
+            ),
+        ]
+    } else {
+        vec![south, north]
+    };
+    let mut seeds = Vec::new();
+    for (row, corner, [l, w, h], dir, count) in rows_of {
+        let terminal = format!("{row} terminal");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": l, "width": w, "height": h,
+                "name": terminal, "body_name": terminal}),
+        );
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": l, "width": w, "height": h,
+                "operation": "cut", "targets": ["body"], "name": format!("{row} pocket")}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"features": [format!("{row} pocket")], "dir1": dir, "count1": count,
+                "spacing1": "pitch", "name": format!("{row} pockets")}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"bodies": [terminal], "dir1": dir, "count1": count, "spacing1": "pitch",
+                "name": format!("{row} pattern")}),
+        );
+        seeds.push(terminal);
+    }
+    if pad {
+        let corner = json!(["- pad_length / 2", "- pad_width / 2", "0 mm"]);
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": "pad_length", "width": "pad_width",
+                "height": "frame", "name": "exposed pad", "body_name": "exposed pad"}),
+        );
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": "pad_length", "width": "pad_width",
+                "height": "frame", "operation": "cut", "targets": ["body"],
+                "name": "exposed pad pocket"}),
+        );
+    }
+    // The top edges, picked at the saved size: 3 × 3 × 0.9 mm.
+    let (x, y, z) = (1.5, 1.5, 0.9);
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, z], [x, 0.0, z], [0.0, y, z], [-x, 0.0, z]]}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 mark",
+            "base": ["- body_length / 2 + 2 * mark_radius", "- body_width / 2 + 2 * mark_radius",
+                "body_height - mark_depth"],
+            "radius": "mark_radius", "height": "2 * mark_depth", "axis": "Z",
+            "operation": "cut", "targets": ["body"]}),
+    );
+    // Looks are kept by body name, and a pattern names its copies
+    // `row_s terminal (2)`, `(3)`, …: every terminal the generator can ask
+    // for (64 a side) gets the tin look at that count, on a body long
+    // enough to hold them, then the file goes back to its saved values.
+    let counts = |s: &mut Session, n: u32, body: &str| {
+        let mut changes = serde_json::Map::new();
+        changes.insert("terminals".into(), json!(n.to_string()));
+        if four {
+            changes.insert("terminals_short".into(), json!(n.to_string()));
+        }
+        changes.insert("body_length".into(), json!(body));
+        changes.insert("body_width".into(), json!(body));
+        run(s, "parameters.change", json!({ "changes": changes }));
+        s.refresh();
+    };
+    counts(&mut s, 64, "40 mm");
+    let metal: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    let sides = if four { 4 } else { 2 };
+    assert_eq!(metal.len(), sides * 64 + usize::from(pad), "{metal:?}");
+    assert!(seeds.iter().all(|seed| metal.contains(seed)));
+    let metal: Vec<&str> = metal.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
+    assign_look(&mut s, &metal, MaterialId::TinMatte);
+    counts(&mut s, 4, "3 mm");
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_dfn() -> Vec<u8> {
+    author_no_lead(false, false)
+}
+
+fn author_dfn_ep() -> Vec<u8> {
+    author_no_lead(false, true)
+}
+
+fn author_qfn() -> Vec<u8> {
+    author_no_lead(true, false)
+}
+
+fn author_qfn_ep() -> Vec<u8> {
+    author_no_lead(true, true)
 }
 
 /// One row of gull-wing leads in a part file: its body name stem, the
@@ -1739,7 +2736,7 @@ pub fn author_usb4105() -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "writes library/parts/*.solidcraft, the chip, header and gull-wing generators' part files and the examples' part files"]
+#[ignore = "writes library/parts/*.solidcraft, the chip, header, gull-wing, no-lead and molded generators' part files and the examples' part files"]
 fn author_parts() {
     // The repository's shipped material library (the program loads it
     // through sparksmith-io at start-up).
@@ -1758,7 +2755,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 13] = [
+    let parts: [(&str, &str, Author); 25] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -1785,6 +2782,37 @@ fn author_parts() {
             "gull-wing-four-sided",
             author_gull_wing_four_sided,
         ),
+        // The no-lead generator's bundle (`generators/no-lead/parts/`).
+        ("generators/no-lead/parts", "dfn", author_dfn),
+        ("generators/no-lead/parts", "dfn-ep", author_dfn_ep),
+        ("generators/no-lead/parts", "qfn", author_qfn),
+        ("generators/no-lead/parts", "qfn-ep", author_qfn_ep),
+        // The molded generator's bundle (`generators/molded/parts/`): one
+        // file per terminal form, each with and without the band.
+        ("generators/molded/parts", "molded-flat", author_molded_flat),
+        (
+            "generators/molded/parts",
+            "molded-flat-band",
+            author_molded_flat_band,
+        ),
+        ("generators/molded/parts", "molded-bent", author_molded_bent),
+        (
+            "generators/molded/parts",
+            "molded-bent-band",
+            author_molded_bent_band,
+        ),
+        (
+            "generators/molded/parts",
+            "molded-j-lead",
+            author_molded_j_lead,
+        ),
+        (
+            "generators/molded/parts",
+            "molded-j-lead-band",
+            author_molded_j_lead_band,
+        ),
+        ("generators/molded/parts", "melf", author_melf_plain),
+        ("generators/molded/parts", "melf-band", author_melf_band),
         ("library/parts", "esp32-s31-wroom-3", author_wroom3),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),
@@ -1804,10 +2832,14 @@ fn author_parts() {
             author_usb4105,
         ),
     ];
-    // `AUTHOR_ONLY=pin-header` writes that one part file only.
+    // `AUTHOR_ONLY=pin-header` (or `dfn,qfn`) writes those part files
+    // only; a folder (`generators/molded/parts`) writes its files.
     let only = std::env::var("AUTHOR_ONLY").ok();
     for (folder, name, author) in parts {
-        if only.as_deref().is_some_and(|o| o != name) {
+        if only
+            .as_deref()
+            .is_some_and(|o| !o.split(',').any(|o| o == name || o == folder))
+        {
             continue;
         }
         let dir = root.join(folder);
@@ -1833,6 +2865,9 @@ fn author_parts() {
                 "  {} = {} [{}] -> {:?}",
                 p.name, p.expression, p.unit, p.value
             );
+        }
+        for b in &report.bodies {
+            eprintln!("  body {}: {:?}", b.name, b.bounds_mm);
         }
         assert!(report.ok, "{name}: {:?}", report.findings);
     }

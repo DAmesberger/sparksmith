@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "molded-j-lead",
+  "title": "Molded two-terminal, J-leads",
+  "summary": "Molded two-terminal package with J-leads (SMA/SMB/SMC, moulded tantalum): a moulded epoxy body (body_length, body_width, body_height) with two matte-tin J-leads folded down the end faces and under the body, terminal 1 at -x (span, terminal_length, terminal_width, lead_thickness, lead_root, lead_exit, bend_1, bend_2); rounds corner_round, edge_round.",
+  "use": "package_body",
+  "prefix": "D",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied."
+}

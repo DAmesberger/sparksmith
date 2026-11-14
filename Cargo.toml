@@ -18,6 +18,8 @@ members = [
     "generators/chip",
     "generators/gull-wing",
     "generators/header",
+    "generators/molded",
+    "generators/no-lead",
     "apps/sparksmith-cli",
     "crates/ui",
     "apps/sparksmith",
