@@ -457,8 +457,18 @@ pub fn author_pin_header() -> Vec<u8> {
             "mm",
             "post length below the seating plane",
         ),
-        ("corner_round", "0.3 mm", "mm", "round of the base's upright corners"),
-        ("edge_round", "0.2 mm", "mm", "round of the base's top edges"),
+        (
+            "corner_round",
+            "0.3 mm",
+            "mm",
+            "round of the base's upright corners",
+        ),
+        (
+            "edge_round",
+            "0.2 mm",
+            "mm",
+            "round of the base's top edges",
+        ),
     ];
     let rows: Vec<serde_json::Value> = params
         .iter()
@@ -478,8 +488,11 @@ pub fn author_pin_header() -> Vec<u8> {
             "length": "pins * pitch", "width": "rows * row_pitch", "height": "body_height",
             "name": "body", "body_name": "body"}),
     );
-    let post = json!(["- (pins - 1) / 2 * pitch - pin_side / 2",
-        "- (rows - 1) / 2 * row_pitch - pin_side / 2", "- pin_below"]);
+    let post = json!([
+        "- (pins - 1) / 2 * pitch - pin_side / 2",
+        "- (rows - 1) / 2 * row_pitch - pin_side / 2",
+        "- pin_below"
+    ]);
     run(
         &mut s,
         "solid.box",
