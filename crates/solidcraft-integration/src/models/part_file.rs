@@ -353,6 +353,10 @@ pub fn role_of(material: Option<MaterialId>) -> BodyRole {
         // overcoat on its body, as the generated models give them.
         Some(M::SiliconeClear | M::SiliconeDiffuse) => BodyRole::Lens,
         Some(M::ResistorOvercoat) => BodyRole::Other,
+        // A polarity band or other mark made as a body.
+        Some(M::EpoxyLaserMarked | M::MetalLaserMarked | M::MarkingInkWhite | M::PadPrintInk) => {
+            BodyRole::Marking
+        }
         _ => BodyRole::Body,
     }
 }

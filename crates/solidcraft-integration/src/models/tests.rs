@@ -632,6 +632,63 @@ fn tabbed_tabs_come_last_and_a_flange_lies_flat_under_the_body() -> Result<()> {
     disjoint(&mut native, &definition)
 }
 
+/// A stored molded package (an SMA with its band, a MiniMELF) builds from
+/// the molded generator's part file: tin leads bound to terminals 1 and 2
+/// at −x and +x, the band at terminal 1, a MELF's body glass.
+#[test]
+fn molded_packages_build_from_their_generator_with_the_band_at_terminal_one() -> Result<()> {
+    use sparksmith_core::library::package_form::MoldedForm;
+    use sparksmith_core::library::package_form::molded::MoldedLead;
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let sma = MoldedForm {
+        lead: MoldedLead::JLead,
+        body_length_nm: nm(4.3),
+        body_width_nm: nm(2.6),
+        body_height_nm: nm(2.2),
+        span_nm: nm(5.2),
+        terminal_length_nm: nm(1.1),
+        terminal_width_nm: nm(1.4),
+        polarised: true,
+    };
+    let melf = MoldedForm {
+        lead: MoldedLead::Melf,
+        body_length_nm: nm(3.5),
+        body_width_nm: nm(1.5),
+        body_height_nm: nm(1.5),
+        span_nm: nm(3.5),
+        terminal_length_nm: nm(0.4),
+        terminal_width_nm: nm(1.5),
+        polarised: true,
+    };
+    for (form, body) in [
+        (sma, MaterialId::EpoxyMould),
+        (melf, MaterialId::BorosilicateGlass),
+    ] {
+        let (mut native, definition) = built(PackageForm::Molded(Box::new(form)), 2)?;
+        let leads = leads(&definition);
+        assert_eq!(leads.len(), 2);
+        let x1 = centre(&native, &leads[0].name)?[0];
+        let x2 = centre(&native, &leads[1].name)?[0];
+        assert!(x1 < 0.0 && x2 > 0.0, "terminal 1 at −x");
+        for lead in &leads {
+            assert_eq!(lead.material, MaterialId::TinMatte);
+            let (lo, _) = bounds(&native, &lead.name)?;
+            near(lo[2], 0.0, "lead on the seating plane");
+        }
+        let named = |n: &str| definition.bodies.iter().find(|b| b.name.ends_with(n));
+        assert_eq!(named(" body").map(|b| b.material), Some(body));
+        let band = named(" band").ok_or_else(|| Error::Verification("no band".into()))?;
+        let (lo, hi) = bounds(&native, &band.name)?;
+        assert!(
+            hi[0] < 0.0 && lo[0] > -form.span() / 2.0,
+            "band at terminal 1"
+        );
+        // The MELF's round faces are measured through their tessellation.
+        disjoint_within(&mut native, &definition, 1e-4)?;
+    }
+    Ok(())
+}
+
 #[test]
 fn role_materials_override_the_family_defaults() -> Result<()> {
     let _context = crate::looks::test_context().map(|c| c.enter());

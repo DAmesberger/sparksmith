@@ -1,0 +1,492 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "Molded two-terminal, flat leads",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "2.7 mm",
+      "unit": "mm",
+      "comment": "moulded body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "1.6 mm",
+      "unit": "mm",
+      "comment": "moulded body width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "1.1 mm",
+      "unit": "mm",
+      "comment": "body top above the seating plane",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "3.7 mm",
+      "unit": "mm",
+      "comment": "overall length, tip to tip",
+      "model": false
+    },
+    {
+      "name": "terminal_length",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "terminal contact length on the seating plane, from the tip",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "0.6 mm",
+      "unit": "mm",
+      "comment": "terminal width (y)",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.12 mm",
+      "unit": "mm",
+      "comment": "leadframe thickness",
+      "model": false
+    },
+    {
+      "name": "lead_root",
+      "expr": "0.25 mm",
+      "unit": "mm",
+      "comment": "how far a lead reaches into the body",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "0.128 mm",
+      "unit": "mm",
+      "comment": "round of the body's upright corners",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.128 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edges",
+      "model": false
+    },
+    {
+      "name": "lead_length",
+      "expr": "0.75 mm",
+      "unit": "mm",
+      "comment": "flat lead length from the tip inward",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "(body_length / 2 - 0.08 * body_length) - (- body_length / 2 + 0.08 * body_length)",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.8 * body_width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "0 mm"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height - 0 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d4",
+        "d5",
+        "d6"
+      ],
+      "type": "box",
+      "corner": [
+        "- (span / 2)",
+        "- (terminal_width) / 2",
+        "0 mm"
+      ],
+      "length": "(span / 2) - (span / 2 - lead_length)",
+      "width": "terminal_width",
+      "height": "lead_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "type": "box",
+      "corner": [
+        "span / 2 - lead_length",
+        "- (terminal_width) / 2",
+        "0 mm"
+      ],
+      "length": "(span / 2) - (span / 2 - lead_length)",
+      "width": "terminal_width",
+      "height": "lead_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 4,
+      "name": "lead roots",
+      "suppressed": false,
+      "type": "combine",
+      "target": "body",
+      "tools": [
+        "terminal 1",
+        "terminal 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 5,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d10"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -1.35,
+          -0.8,
+          0.6100000000000001
+        ],
+        [
+          1.35,
+          -0.8,
+          0.6100000000000001
+        ],
+        [
+          1.35,
+          0.8,
+          0.6100000000000001
+        ],
+        [
+          -1.35,
+          0.8,
+          0.6100000000000001
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "body"
+    },
+    {
+      "id": 6,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d11"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            9.085294800533196e-17
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            1.6521175961683875e-16
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            9.085294800533196e-17
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            1.6521175961683875e-16
+          ],
+          "min": [
+            -1.35,
+            -0.8,
+            0.0
+          ],
+          "max": [
+            1.35,
+            0.8,
+            1.1
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y",
+        "F1:+x|F1:+z",
+        "F1:+y|F1:+z",
+        "F1:+z|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -0.8,
+          1.1
+        ],
+        [
+          1.35,
+          0.0,
+          1.1
+        ],
+        [
+          0.0,
+          0.8,
+          1.1
+        ],
+        [
+          -1.35,
+          0.0,
+          1.1
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body"
+    },
+    {
+      "id": 7,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d12"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "((- body_length / 2 + 0.08 * body_length) + (body_length / 2 - 0.08 * body_length)) / 2",
+            "0 mm",
+            "body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 8,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "terminal 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

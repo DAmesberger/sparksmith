@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "module": {
+    "file": "no-lead.wasm",
+    "sha256": "872472d939eb861ed02456140194c6f6f7e4799dc66e9dd6c45330db823c13f5"
+  },
+  "name": "no-lead",
+  "parts": [
+    {
+      "file": "parts/dfn.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a DFN-8 3 × 3 mm, 0.65 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
+      "sha256": "23fadde4958452a1c44fccad25f58aadfa77d1be90c79fd0275777929790c977",
+      "title": "DFN package"
+    },
+    {
+      "file": "parts/dfn-ep.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a DFN-8 3 × 3 mm, 0.65 mm, exposed pad 2.4 × 1.6 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
+      "sha256": "7602cfd5afc5b9eb74e2969915bbb68ac78de8c52567cf6a932afbdc5e108f94",
+      "title": "DFN package with exposed pad"
+    },
+    {
+      "file": "parts/qfn.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a QFN-16 3 × 3 mm, 0.5 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
+      "sha256": "1295738c1e0b63f266bbbbfb264b660084c8338dc2369c849b5d43fa09d1859c",
+      "title": "QFN package"
+    },
+    {
+      "file": "parts/qfn-ep.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a QFN-16 3 × 3 mm, 0.5 mm, exposed pad 1.7 × 1.7 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
+      "sha256": "eaedb747e1c716e2df677f4763954181675dd1a0f520663e912a10c16a1302c7",
+      "title": "QFN package with exposed pad"
+    }
+  ]
+}
