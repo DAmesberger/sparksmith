@@ -305,12 +305,15 @@ enum Entry {
     Asset(ContentHash),
 }
 
-/// Reproducible entries: a fixed timestamp and ordinary file permissions.
+/// Reproducible entries: a fixed timestamp, ordinary file permissions and
+/// a fixed host system (the zip crate otherwise records DOS on Windows), so
+/// every platform writes the same bytes.
 fn options(method: CompressionMethod) -> SimpleFileOptions {
     SimpleFileOptions::default()
         .compression_method(method)
         .last_modified_time(zip::DateTime::default())
         .unix_permissions(0o644)
+        .system(zip::System::Unix)
 }
 
 /// Read at most `limit` decompressed bytes. Reading to the end lets the

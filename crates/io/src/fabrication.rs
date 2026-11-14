@@ -267,7 +267,8 @@ fn write_zip(output: &Path, files: &[FabFile]) -> Result<()> {
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated)
             .last_modified_time(zip::DateTime::default())
-            .unix_permissions(0o644);
+            .unix_permissions(0o644)
+            .system(zip::System::Unix);
         for file in files {
             zip.start_file(file.name.as_str(), options)
                 .map_err(|e| Error::Invalid(format!("fabrication.zip: {e}")))?;

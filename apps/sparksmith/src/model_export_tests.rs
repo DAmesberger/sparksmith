@@ -157,6 +157,9 @@ fn an_export_runs_off_the_ui_thread_and_reports_the_check() -> Fallible {
 /// message says so.
 #[test]
 fn stop_ends_the_export_and_writes_nothing() -> Fallible {
+    // The shipped standards and materials, so the export runs until Stop
+    // ends it instead of failing at once (which raced the first frame).
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
     let mut h = Harness::new()?;
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("board.solidcraft");
