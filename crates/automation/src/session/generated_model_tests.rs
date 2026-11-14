@@ -128,3 +128,44 @@ fn a_generated_part_keeps_its_model_offline() -> TestResult {
     assert_eq!(model(&reopened)?, built);
     Ok(())
 }
+
+/// Every preset of the through-hole generator (phase C) is made through
+/// the session: its part file, evaluated at the module's values, passes
+/// the host's checks (no blocking finding, bounds on the envelope, every
+/// lead contact under a lead body) and binds a lead body per terminal.
+#[test]
+fn every_through_hole_preset_is_made_with_its_model() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path().join("library");
+    std::fs::create_dir_all(root.join("generators"))?;
+    std::fs::write(root.join(MARKER), "{\"format\":1}\n")?;
+    copy_dir(
+        &Path::new(BUNDLE).with_file_name("tht"),
+        &root.join("generators/tht"),
+    )?;
+    let presets = serde_json::from_str::<Vec<Value>>(include_str!(
+        "../../../../generators/tht/presets.json"
+    ))?;
+    assert_eq!(presets.len(), 22);
+    for preset in &presets {
+        let key = preset["key"].as_str().ok_or("no key")?;
+        let mut session = session(&root)?;
+        let reply = call(
+            &mut session,
+            "library.generate_part",
+            json!({"generator": "tht", "scope": "component", "preset": key, "params": {}}),
+        );
+        assert_eq!(reply["ok"], true, "{key}: {reply}");
+        let library = &session.engine().project().library;
+        let package = &library.packages.first().ok_or("no package")?.definition;
+        let PackageModel::PartFile(part) = &package.model else {
+            return Err(format!("{key}: no part file").into());
+        };
+        assert_eq!(
+            part.derived.leads.len(),
+            package.terminals.len(),
+            "{key}: a lead body per terminal"
+        );
+    }
+    Ok(())
+}

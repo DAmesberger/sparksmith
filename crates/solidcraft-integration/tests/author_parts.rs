@@ -45,6 +45,9 @@ fn pt(p: [f64; 2]) -> sparksmith_core::units::PointNm {
     sparksmith_core::units::PointNm::from_mm_f64_rounded(p).unwrap_or_default()
 }
 
+#[path = "author_parts/tht.rs"]
+mod tht;
+
 const STEM: &str = "pkgT";
 
 fn wroom3() -> PackageDefinition {
@@ -1166,7 +1169,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 11] = [
+    let parts: [(&str, &str, Author); 17] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -1182,6 +1185,21 @@ fn author_parts() {
         ("generators/chip/parts", "chip-led", author_chip_led),
         // The header generator's bundle (`generators/header/parts/`).
         ("generators/header/parts", "pin-header", author_pin_header),
+        // The through-hole generator's bundle (`generators/tht/parts/`).
+        ("generators/tht/parts", "tht-axial", tht::author_tht_axial),
+        ("generators/tht/parts", "tht-radial", tht::author_tht_radial),
+        (
+            "generators/tht/parts",
+            "tht-radial-formed",
+            tht::author_tht_radial_formed,
+        ),
+        ("generators/tht/parts", "tht-dip", tht::author_tht_dip),
+        ("generators/tht/parts", "tht-to", tht::author_tht_to),
+        (
+            "generators/tht/parts",
+            "tht-to-formed",
+            tht::author_tht_to_formed,
+        ),
         ("library/parts", "esp32-s31-wroom-3", author_wroom3),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),

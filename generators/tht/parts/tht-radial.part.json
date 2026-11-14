@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tht-radial",
+  "title": "Radial through-hole part",
+  "summary": "Radial lead part: a round body standing on its standoff on two straight round leads, a marking plane on its top (lead_pitch, lead_diameter, lead_below, standoff, root, body_diameter, body_height, top_round).",
+  "use": "package_body",
+  "prefix": "C",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at Ø5 × 11 mm, leads 0.5 mm at 2 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied."
+}

@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tht-dip",
+  "title": "Dual in-line package",
+  "summary": "Dual in-line package: a moulded block on its standoff, strip leads leaving its long sides and bending down at the rows, each row a body pattern of per_row leads (per_row, lead_pitch, lead_diameter, lead_thickness, lead_below, lead_exit, standoff, root, row_pitch, bend_radius, body_length, body_width, body_height, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a DIP-8 of 300 mil, 9.27 × 6.35 × 3.3 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied."
+}

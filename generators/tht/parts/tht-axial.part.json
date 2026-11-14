@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tht-axial",
+  "title": "Axial through-hole part",
+  "summary": "Axial lead part: a round body lying on its standoff along x, each lead leaving an end on the axis and bending down at the lead pitch (lead_pitch, lead_diameter, lead_below, standoff, root, body_diameter, body_length, bend_radius, end_round).",
+  "use": "package_body",
+  "prefix": "R",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 0.25 W resistor, Ø2.5 × 6.5 mm, leads 0.6 mm at 10.16 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied."
+}
