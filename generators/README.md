@@ -62,7 +62,7 @@ A part never exists without its 3D model, so every generation carries `model`, a
 - **The host** (`library.generate_part`) finds the file in the bundle (or, for a module the project embeds, in the project), evaluates it at the values through the part-file path (`sparksmith_solidcraft::models::part_file`), and refuses a blocking finding, bounds more than 10 µm off the generation's envelope, or a lead contact under no body of a lead material. `library.generate` then stores the file as a Model of format `solidcraft` (one per file, shared by every part that uses it) and the package as `PackageModel::PartFile`, so the 3D view, the exact export, markings and the load check treat it like any part file.
 - **The bundle** (`library/generators/<name>/`) is the manifest `generator.json` (`format`, `name`, the module and each part file by path and SHA-256, with each part file's title, licence and provenance), the module and `parts/`. Its identity is the SHA-256 of the manifest's bytes (`library.generators` reports it as `bundle`), which names every other file by hash. `sparksmith_io::generator_bundle` reads a bundle and refuses a missing or changed file by name.
 
-The header generator (phase C) ships one part file, `pin-header`, parametric in its row and pin counts; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-header-14-november-2026)).
+The header generator (phase C) ships one part file, `pin-header`, parametric in its row and pin counts; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-header-14-november-2026)). The gull-wing generator ships two, `gull-wing-two-sided` and `gull-wing-four-sided`, parametric in their lead counts; its in-code builder is deleted too ([plan](../docs/design/part-generation-plan.md#done-gull-wing-15-november-2026)).
 
 The chip generator ships four part files (resistor, capacitor, ferrite or inductor, LED), saved from the in-code chip builder's construction (`cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`); evaluated at the module's values they equal the builder to 0 mm in bounds and volume for resistors and capacitors 0402–1206, a ferrite bead 0603 and an LED 0603 (`models::chip_part_tests`).
 
@@ -113,6 +113,7 @@ Measured with `cargo xtask generators measure` on an Apple M-series Mac, macOS, 
 | --- | --- | --- |
 | chip | 281 021 (274 KiB); 283 970 naming its part files (GP2); 234 868 without `serde_json` or floats (B3, 14 November 2026) | sign-extension, bulk-memory, reference-types (floats refused since B3) |
 | header (14 November 2026) | 232 533 | as chip |
+| gull-wing (15 November 2026) | 248 095 | as chip |
 | probe (host for wasm32, test only) | 1 772 010 | — |
 
 The feature list is measured: each allowed feature is switched off in turn and the module validated without it. Mutable globals, multi-value and saturating float-to-int are allowed but unused; SIMD, relaxed SIMD, threads, memory64, multi-memory, tail calls, extended constants, custom page sizes, wide arithmetic and GC are refused.

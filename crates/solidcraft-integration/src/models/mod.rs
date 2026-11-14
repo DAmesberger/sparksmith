@@ -21,15 +21,15 @@
 //! is a sketch drawn from the form when the model is built.
 //!
 //! A family whose builder has given way to its shipped generator (the pin
-//! header, phase C of docs/design/part-generation-plan.md) builds from the
-//! generator's part file instead ([`family`]), behind the same functions.
+//! header and the gull-wing packages, phase C of
+//! docs/design/part-generation-plan.md) builds from the generator's part
+//! file instead ([`family`]), behind the same functions.
 //!
 //! As built: `docs/component-model.md` (M1–M3).
 mod chip;
 pub mod family;
 pub mod gltf_ext;
 mod grid;
-mod gull_wing;
 pub mod imported;
 pub mod inspect;
 pub mod look;
@@ -75,8 +75,8 @@ const MAX_STEM: usize = 64;
 pub fn family_rev(form: &PackageForm) -> Option<u16> {
     match form {
         PackageForm::Generic => None,
-        PackageForm::Chip(_) | PackageForm::GullWing(_) | PackageForm::NoLead(_) => Some(1),
-        PackageForm::Header(_) => Some(family::FAMILY_REV),
+        PackageForm::Chip(_) | PackageForm::NoLead(_) => Some(1),
+        PackageForm::GullWing(_) | PackageForm::Header(_) => Some(family::FAMILY_REV),
         PackageForm::Tabbed(_) => tabbed::FAMILY_REV,
         PackageForm::Molded(_) => molded::FAMILY_REV,
         PackageForm::Grid(_) => grid::FAMILY_REV,
@@ -227,10 +227,9 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
     }
     match &package.form {
         PackageForm::Chip(c) => chip::check(c),
-        PackageForm::GullWing(g) => gull_wing::check(g),
         PackageForm::NoLead(n) => no_lead::check(n),
-        // Built from its generator (`family`), which checks its values.
-        PackageForm::Header(_) => Ok(()),
+        // Built from their generators (`family`), which check their values.
+        PackageForm::GullWing(_) | PackageForm::Header(_) => Ok(()),
         PackageForm::Tabbed(f) => tabbed::check(f),
         PackageForm::Molded(f) => molded::check(f),
         PackageForm::Grid(f) => grid::check(f),
@@ -262,9 +261,8 @@ fn build_bodies(
     };
     match &package.form {
         PackageForm::Chip(c) => chip::build(&mut b, c)?,
-        PackageForm::GullWing(g) => gull_wing::build(&mut b, g)?,
         PackageForm::NoLead(n) => no_lead::build(&mut b, n)?,
-        PackageForm::Header(_) => {
+        PackageForm::GullWing(_) | PackageForm::Header(_) => {
             return Err(Error::Invalid(format!(
                 "model.generator: {} models are built from their shipped generator",
                 package.form.label()
@@ -599,7 +597,3 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "chip_part_tests.rs"]
 mod chip_part_tests;
-
-#[cfg(test)]
-#[path = "gull_wing_part_tests.rs"]
-mod gull_wing_part_tests;
