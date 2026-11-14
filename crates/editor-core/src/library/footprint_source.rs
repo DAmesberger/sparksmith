@@ -86,11 +86,56 @@ pub struct EvaluatorRef {
     pub rev: String,
 }
 
-/// SolidCraft's canonical sketch JSON (`serde_json::to_string(&sketch)`
-/// output only; anything else is refused by the evaluator's round trip).
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(transparent)]
+/// SolidCraft's sketch JSON (`serde_json::to_string(&sketch)` output, or
+/// the same value with its keys in another order; anything else is refused
+/// by the evaluator's round trip, which compares values).
+///
+/// Held as text, stored as JSON (file format version 4): a file holds the
+/// sketch as a JSON object, never as a string holding JSON, with its keys
+/// sorted. Reading it back gives that same sorted text, so opening and
+/// saving changes no byte.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SketchBlob(pub String);
+
+impl Default for SketchBlob {
+    /// An empty object: a value that stores, not empty text.
+    fn default() -> Self {
+        Self("{}".into())
+    }
+}
+
+impl Serialize for SketchBlob {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        let value: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&self.0)
+            .map_err(|e| {
+                serde::ser::Error::custom(format!("a sketch is not a JSON object: {e}"))
+            })?;
+        value.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SketchBlob {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        let value = serde_json::Map::<String, serde_json::Value>::deserialize(deserializer)?;
+        serde_json::to_string(&value)
+            .map(Self)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+impl JsonSchema for SketchBlob {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "SketchBlob".into()
+    }
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({"type": "object"})
+    }
+}
 
 /// A SolidCraft sketch point id (for example `p3`); never reused.
 #[derive(

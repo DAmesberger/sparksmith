@@ -592,18 +592,20 @@ pub(super) fn remove_segment(project: &mut Project, id: Id, index: usize) -> Res
         at += 1;
     }
     if let Some(tail) = &tail {
+        let fresh = head.is_some();
         let piece = Wire {
-            id: if head.is_some() {
-                project.allocate()?
-            } else {
-                id
-            },
+            id: if fresh { project.allocate()? } else { id },
             sheet: wire.sheet,
             from: free(tail.first())?,
             to: wire.to,
             corners: stored(&corners_of(tail))?,
         };
-        project.wires.insert(at, piece);
+        // A new identity is the largest: wires stay in identity order.
+        if fresh {
+            project.wires.push(piece);
+        } else {
+            project.wires.insert(at, piece);
+        }
     }
     Ok(())
 }

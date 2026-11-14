@@ -342,7 +342,7 @@ fn a_required_reason_refuses_a_waiver_without_one() -> Fallible<()> {
         json!({"command": "project.apply", "params": {
             "expected_revision": revision,
             "operation": {"editor": "Fabrication", "operation": {
-                "command": "fabrication.waive", "params": {"keys": ["k"], "reason": reason}}},
+                "command": "fabrication.waive", "params": {"keys": ["fill.stale []"], "reason": reason}}},
         }})
     };
     let revision = session.engine().revision();
@@ -363,5 +363,64 @@ fn a_required_reason_refuses_a_waiver_without_one() -> Fallible<()> {
         session.engine().project().production.waivers[0].reason,
         "prototype"
     );
+    Ok(())
+}
+
+/// A file holds no fill copper (format version 4): `project.open` refills
+/// before it answers, so the production check never sees an unfilled fill
+/// and fabrication never writes empty copper.
+#[test]
+fn opening_a_file_refills_its_fills_before_answering() -> Fallible<()> {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith"
+    );
+    let mut session = Session::new(Engine::default());
+    ok(
+        &mut session,
+        json!({"command": "project.open", "params": {"expected_revision": 0, "path": path}}),
+    )?;
+    let fills = &session.engine().project().fills;
+    assert!(!fills.is_empty());
+    assert!(fills.iter().all(|f| f.computed.is_some()));
+    let report = ok(
+        &mut session,
+        json!({"command": "project.query", "params": {"query": "fabrication.preflight", "params": {}}}),
+    )?;
+    let codes: Vec<&str> = report["result"]["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|i| i["code"].as_str())
+        .collect();
+    assert!(!codes.is_empty());
+    assert!(
+        !codes
+            .iter()
+            .any(|c| *c == "fabrication.fill_unfilled" || *c == "fill.stale"),
+        "{codes:?}"
+    );
+    Ok(())
+}
+
+/// A waiver names a finding by its key; any other text is refused, since
+/// it could never match a finding and a file stores the key as JSON.
+#[test]
+fn a_waiver_key_that_names_no_finding_is_refused() -> Fallible<()> {
+    let mut session = Session::new(Engine::default());
+    let revision = session.engine().revision();
+    let refused = session.dispatch(json!({"command": "project.apply", "params": {
+        "expected_revision": revision,
+        "operation": {"editor": "Fabrication", "operation": {
+            "command": "fabrication.waive", "params": {"keys": ["k"], "reason": "r"}}},
+    }}));
+    assert_eq!(refused["ok"], false);
+    assert!(
+        refused["error"]
+            .to_string()
+            .contains("fabrication.waiver_key"),
+        "{refused}"
+    );
+    assert_eq!(session.engine().revision(), revision);
     Ok(())
 }

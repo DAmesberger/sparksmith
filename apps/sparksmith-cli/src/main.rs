@@ -13,7 +13,7 @@ mod review_diff;
 mod sample_packages;
 
 use serde_json::{Value, json};
-use sparksmith_automation::{Caller, Mode, Policy, Session, lines, live, mcp, session};
+use sparksmith_automation::{Caller, Grant, Mode, Session, lines, live, mcp, session};
 use sparksmith_core::Engine;
 use std::io::{self, Write};
 use std::process::ExitCode;
@@ -199,7 +199,7 @@ impl McpOptions {
 
     /// The gate's policy, in the given mode or [`Mode::default`]; the folder
     /// of a project named here is allowed, as the user just chose that file.
-    fn policy(&self) -> Result<Policy> {
+    fn policy(&self) -> Result<Grant> {
         let mode = self.mode.unwrap_or_default();
         let mut folders = Vec::new();
         for folder in &self.folders {
@@ -210,12 +210,12 @@ impl McpOptions {
         {
             folders.push(folder.to_path_buf());
         }
-        Ok(Policy::new(mode, folders))
+        Ok(Grant::new(mode, folders))
     }
 
     /// The gate for `stdio`: [`McpOptions::policy`], as for `mcp`, unless
     /// `--operator` names the person's own script.
-    fn stdio_policy(&self) -> Result<Option<Policy>> {
+    fn stdio_policy(&self) -> Result<Option<Grant>> {
         if self.operator {
             Ok(None)
         } else {
@@ -400,7 +400,7 @@ fn sample_library(path: &str, name: &str) -> Result<()> {
 /// `policy`; `None` only for `--operator`.
 fn stdio(
     mut session: Session,
-    policy: Option<&Policy>,
+    policy: Option<&Grant>,
     mut input: impl io::BufRead,
     mut output: impl Write,
 ) -> Result<()> {

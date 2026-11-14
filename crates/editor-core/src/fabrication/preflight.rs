@@ -90,6 +90,14 @@ pub fn apply(
                     "fabrication.waiver_bounds: keys and reasons are printable, at most {MAX_WAIVER_TEXT} bytes; at most {MAX_WAIVE_KEYS} keys a request"
                 )));
             }
+            if let Some(k) = keys
+                .iter()
+                .find(|k| crate::model::production::StoredKey::parse(k).is_none())
+            {
+                return Err(Error::Invalid(format!(
+                    "fabrication.waiver_key: `{k}` is not a finding's key (its code, a space and the objects it names as JSON, as fabrication.preflight gives it)"
+                )));
+            }
             for key in keys {
                 match waivers.binary_search_by(|w| w.key.as_str().cmp(&key)) {
                     Ok(i) => waivers[i].reason.clone_from(&reason),

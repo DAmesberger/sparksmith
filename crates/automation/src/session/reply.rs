@@ -4,9 +4,10 @@
 //!
 //! The ids are found by diffing the serialized document, so a collection the
 //! document gains later is reported without changing this module.
-use super::{InspectParams, Request, Session, envelope};
-use crate::gate::{Caller, Decision};
-use crate::{Error, Result};
+use super::{InspectParams, Request, Session};
+use crate::Result;
+use crate::front::{self, AlreadyAllowed, Asker, CallCx, NoOne, Surface, Target, from_request};
+use crate::gate::Caller;
 use serde_json::{Map, Value, json};
 use sparksmith_core::{Class, Document, Finding, Project, Query, QueryResult, erc, layout};
 use std::collections::{BTreeMap, HashMap};
@@ -46,22 +47,13 @@ fn design_findings(project: &Project, settings: &layout::CheckSettings) -> Vec<F
 }
 
 impl Session {
-    /// The transports' entry point: gate one JSON request for `caller`
-    /// ([`crate::gate`]), run it and answer in the shared envelope with a
-    /// compact result. A refused request changes nothing and answers with
+    /// The transports' entry point: one JSON request for `caller` as a call
+    /// through the front door ([`crate::front::Surface::call`]), gated,
+    /// run and answered in the shared envelope with a compact result. A refused request changes nothing and answers with
     /// the refusal. `verbose: true`, beside `command` or inside `params`,
     /// answers as [`Session::dispatch`] does.
-    pub fn respond(&mut self, caller: Caller<'_>, mut request: Value) -> Value {
-        if let Err(refusal) = self.admit(caller, &request) {
-            return refusal.reply();
-        }
-        if take_verbose(&mut request) {
-            return self.dispatch(request);
-        }
-        let result = serde_json::from_value::<Request>(request)
-            .map_err(Error::from)
-            .and_then(|request| self.execute_compact(request));
-        envelope(result)
+    pub fn respond(&mut self, caller: Caller<'_>, request: Value) -> Value {
+        self.answer(caller, request, false)
     }
 
     /// A dry run of one document edit for `caller`: what [`Session::respond`]
@@ -70,61 +62,72 @@ impl Session {
     /// The gate decides as for the edit itself, except that what would ask
     /// a person runs, since nothing is kept. Only requests that change the
     /// engine and nothing else can be tried.
-    pub fn rehearse(&mut self, caller: Caller<'_>, mut request: Value) -> Value {
-        let policy = match caller {
-            Caller::Operator => None,
-            Caller::Model(policy) | Caller::Allowed(policy) => Some(policy),
-        };
-        if let Some(policy) = policy
-            && let Decision::Refuse(refusal) = self.check_request(policy, &request)
-        {
-            return refusal.reply();
-        }
-        take_verbose(&mut request);
-        let result = serde_json::from_value::<Request>(request)
-            .map_err(Error::from)
-            .and_then(|request| {
-                // Only what changes the engine alone: a folder import, for
-                // one, also notes a recent in the person's settings.
-                let pure = matches!(
-                    request,
-                    Request::Apply(_)
-                        | Request::ApplyAll(_)
-                        | Request::Undo(_)
-                        | Request::Redo(_)
-                        | Request::ApplyUpdate(_)
-                );
-                if !pure || request.effective_class() != Class::Edit {
-                    return Err(sparksmith_core::Error::Invalid(format!(
-                        "{} has no dry run: only document operations, undo, redo and updates do",
-                        request.subject()
-                    ))
-                    .into());
-                }
-                let mut fork = self.engine.fork();
-                std::mem::swap(&mut self.engine, &mut fork);
-                let path = self.path.clone();
-                let baseline = self.baseline.take();
-                let tried = self.execute_compact(request);
-                std::mem::swap(&mut self.engine, &mut fork);
-                self.path = path;
-                self.baseline = baseline;
-                let mut reply = tried?;
-                reply["dry_run"] = json!(true);
-                // The document is where it was: the next edit names this.
-                reply["revision"] = json!(self.engine.revision());
-                reply["can_undo"] = json!(self.engine.can_undo());
-                reply["can_redo"] = json!(self.engine.can_redo());
-                Ok(reply)
-            });
-        envelope(result)
+    pub fn rehearse(&mut self, caller: Caller<'_>, request: Value) -> Value {
+        self.answer(caller, request, true)
     }
 
-    fn execute_compact(&mut self, request: Request) -> Result<Value> {
+    /// [`Session::respond`] and [`Session::rehearse`]: the request as a
+    /// call through the front door.
+    fn answer(&mut self, caller: Caller<'_>, request: Value, dry_run: bool) -> Value {
+        let (who, allowed) = caller.principal();
+        let result = from_request(request).and_then(|(mut call, verbose)| {
+            call.dry_run = dry_run;
+            let mut no_one = NoOne;
+            let mut allow = AlreadyAllowed;
+            let asker: &mut dyn Asker = if allowed { &mut allow } else { &mut no_one };
+            let cx = CallCx {
+                who,
+                asker,
+                verbose,
+            };
+            self.call(cx, call)
+        });
+        front::envelope(result)
+    }
+
+    /// The dry run of `target` ([`Session::rehearse`]).
+    pub(crate) fn rehearse_target(&mut self, target: Target) -> Result<Value> {
+        let Target { request, expected } = target;
+        // Only what changes the engine alone: a folder import, for one,
+        // also notes a recent in the person's settings.
+        let pure = matches!(
+            request,
+            Request::Apply(_)
+                | Request::ApplyAll(_)
+                | Request::Undo(_)
+                | Request::Redo(_)
+                | Request::ApplyUpdate(_)
+        );
+        if !pure || request.effective_class() != Class::Edit {
+            return Err(sparksmith_core::Error::Invalid(format!(
+                "{} has no dry run: only document operations, undo, redo and updates do",
+                request.subject()
+            ))
+            .into());
+        }
+        let mut fork = self.engine.fork();
+        std::mem::swap(&mut self.engine, &mut fork);
+        let path = self.path.clone();
+        let baseline = self.baseline.take();
+        let tried = self.run_compact(request, expected);
+        std::mem::swap(&mut self.engine, &mut fork);
+        self.path = path;
+        self.baseline = baseline;
+        let mut reply = tried?;
+        reply["dry_run"] = json!(true);
+        // The document is where it was: the next edit names this.
+        reply["revision"] = json!(self.engine.revision());
+        reply["can_undo"] = json!(self.engine.can_undo());
+        reply["can_redo"] = json!(self.engine.can_redo());
+        Ok(reply)
+    }
+
+    /// Run `request` at `expected` and answer with what it changed.
+    pub(crate) fn run_compact(&mut self, request: Request, expected: Option<u64>) -> Result<Value> {
         let replaced = matches!(request, Request::Open(_) | Request::New(_));
         let before = self.engine.document().clone();
         self.compact = true;
-        let result = self.execute(request);
+        let result = self.run(request, expected);
         self.compact = false;
         let mut reply = result?;
         // A command that took a full snapshot itself still answers compactly.

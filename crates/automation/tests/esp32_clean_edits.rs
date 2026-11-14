@@ -30,7 +30,10 @@ type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 fn example() -> Fallible<Engine> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    Ok(Engine::from_file(sparksmith_io::read_project(&path)?)?)
+    let mut engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    // A file holds no fill copper; fill it as opening does.
+    engine.refill_stale()?;
+    Ok(engine)
 }
 
 /// No unwaived error, no warning, and the two J1 locating-peg waivers.

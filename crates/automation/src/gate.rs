@@ -1,26 +1,32 @@
-//! The one gate every LLM tool request passes: given a [`Policy`] and a
-//! request, [`decide`] answers run, ask or refuse, with text a model can act
-//! on. It holds whatever a model was told, because datasheets and other
-//! documents are data: nothing in a request can widen the policy.
+//! The one gate every call passes: given who calls ([`Principal`]) and the
+//! entries a call reaches, [`decide_entries`] answers run, ask or refuse,
+//! with text a model can act on. It holds whatever a model was told, because
+//! datasheets and other documents are data: nothing in a request can widen
+//! the grant.
 //!
-//! [`decide`] is plain rules over plain data. [`Session::respond`] enforces
-//! it, for every transport, from the [`Caller`] the transport names: a model
-//! never runs a Never-class request, nor a path outside its folders, and Ask
-//! runs only as [`Caller::Allowed`], after a person's Allow in the host. A
-//! host with no way to ask names [`Caller::Model`], where Ask is refused and
-//! the message says so.
+//! [`decide_entries`] is plain rules over plain data, the same for every
+//! principal. The front door ([`crate::front`]) applies it to every call:
+//! a model never runs a Never-class entry, an entry beyond its grant's
+//! ceiling for the entry's module, nor a path outside its folders, and Ask
+//! runs only after a person's Allow through the host's
+//! [`crate::front::Asker`]. A host with no way to ask refuses Ask, and the
+//! message says so.
 //!
 //! The classes themselves are chosen beside each command enum
 //! ([`sparksmith_core::declare_entries!`], [`Request`]'s listing in `session`).
 //!
 //! The folder limit is a check on requests, not an operating-system sandbox:
 //! a link swapped in between the check and the file access is out of scope.
-use crate::session::{Request, SaveParams, Session, take_verbose};
+use crate::session::{Request, Session};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use sparksmith_core::{Class, Diagnostic};
+use sparksmith_core::Class;
+use sparksmith_core::permission::MODULES;
+use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
+
+pub use crate::front::Error;
 
 /// How much a run may do without asking.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
@@ -58,36 +64,131 @@ impl FromStr for Mode {
     }
 }
 
-/// What one run may do. With no folders, every request naming a path is
-/// refused; name `/` to lift the limit.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Policy {
+/// What a principal may do: the permission mode, the folders paths may lie
+/// in, and a ceiling per module. With no folders, every request naming a
+/// path is refused; name `/` to lift the limit. A module absent from
+/// `modules` is out of reach.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Grant {
     pub mode: Mode,
     /// Absolute folders a request may name paths inside.
     pub folders: Vec<PathBuf>,
+    /// The highest class each module may be used at, by module id.
+    #[serde(default = "every_module")]
+    pub modules: BTreeMap<String, Class>,
 }
 
-impl Policy {
+/// Every declared module up to Ask: what a run's flags allow.
+fn every_module() -> BTreeMap<String, Class> {
+    MODULES
+        .iter()
+        .map(|module| (module.id.to_owned(), Class::Ask))
+        .collect()
+}
+
+impl Default for Grant {
+    fn default() -> Self {
+        Self::new(Mode::default(), [])
+    }
+}
+
+impl Grant {
+    /// `mode` and `folders` over every module up to Ask, as the CLI and MCP
+    /// flags give them: only the Never class is out of reach.
     pub fn new(mode: Mode, folders: impl IntoIterator<Item = PathBuf>) -> Self {
         Self {
             mode,
             folders: folders.into_iter().collect(),
+            modules: every_module(),
+        }
+    }
+
+    /// The built-in agent's default: auto-allow-edits, the document's
+    /// modules up to Edit, and files, fabrication output and the 3D model
+    /// up to Ask.
+    pub fn local_agent(folders: impl IntoIterator<Item = PathBuf>) -> Self {
+        let modules = MODULES
+            .iter()
+            .map(|module| {
+                let ceiling = match module.id {
+                    "files" | "fab" | "model3d" => Class::Ask,
+                    _ => Class::Edit,
+                };
+                (module.id.to_owned(), ceiling)
+            })
+            .collect();
+        Self {
+            mode: Mode::AutoAllowEdits,
+            folders: folders.into_iter().collect(),
+            modules,
+        }
+    }
+
+    /// This grant with `module` usable up to `ceiling`.
+    #[must_use]
+    pub fn with_module(mut self, module: &str, ceiling: Class) -> Self {
+        self.modules.insert(module.to_owned(), ceiling);
+        self
+    }
+
+    /// This grant without `module`.
+    #[must_use]
+    pub fn without_module(mut self, module: &str) -> Self {
+        self.modules.remove(module);
+        self
+    }
+}
+
+/// Who calls the surface. Named by the transport, never by the request.
+#[derive(Clone, Copy, Debug)]
+pub enum Principal<'a> {
+    /// The person, through the window: a gesture, the palette, a shortcut.
+    Person,
+    /// The person's own script (`sparksmith-cli stdio --operator`), as at
+    /// the command line.
+    Operator,
+    /// The built-in agent, in process, on the open project.
+    LocalAgent { grant: &'a Grant },
+    /// An MCP client or another model-facing transport.
+    RemoteAgent { grant: &'a Grant, client: &'a str },
+}
+
+impl<'a> Principal<'a> {
+    /// The grant that limits it; `None` for the person and the operator,
+    /// whose every call runs.
+    pub fn grant(&self) -> Option<&'a Grant> {
+        match *self {
+            Self::Person | Self::Operator => None,
+            Self::LocalAgent { grant } | Self::RemoteAgent { grant, .. } => Some(grant),
         }
     }
 }
 
-/// Who sent a request to [`Session::respond`], which gates it accordingly.
+/// How a transport names who sent a request to [`Session::respond`]: a
+/// principal, and whether a person already allowed the request.
 #[derive(Clone, Copy, Debug)]
 pub enum Caller<'a> {
     /// The operator's own script (`sparksmith-cli stdio --operator`): every
     /// class runs, as at the command line. Never a model's.
     Operator,
-    /// A model, under `policy`, with no one asked: Never, a path outside the
-    /// folders and whatever needs a person are refused.
-    Model(&'a Policy),
+    /// A model, under `grant`, with no one asked: Never, a module beyond
+    /// the grant, a path outside the folders and whatever needs a person
+    /// are refused.
+    Model(&'a Grant),
     /// A model's request that a person allowed in the host: what needs a
-    /// person runs; Never and a path outside the folders are still refused.
-    Allowed(&'a Policy),
+    /// person runs; the rest is refused as for [`Caller::Model`].
+    Allowed(&'a Grant),
+}
+
+impl<'a> Caller<'a> {
+    /// The principal it names, and whether a person already allowed it.
+    pub fn principal(self) -> (Principal<'a>, bool) {
+        match self {
+            Self::Operator => (Principal::Operator, false),
+            Self::Model(grant) => (Principal::RemoteAgent { grant, client: "" }, false),
+            Self::Allowed(grant) => (Principal::RemoteAgent { grant, client: "" }, true),
+        }
+    }
 }
 
 /// The gate's answer.
@@ -96,7 +197,7 @@ pub enum Caller<'a> {
 pub enum Decision {
     Run,
     Ask(Question),
-    Refuse(Refusal),
+    Refuse(Error),
 }
 
 /// What a person is asked to Allow or Deny.
@@ -111,158 +212,208 @@ pub struct Question {
 
 impl Question {
     /// The answer for the model when the person chose Deny.
-    pub fn denied(&self) -> Refusal {
-        Refusal {
-            code: "gate.denied",
-            command: self.command.clone(),
-            why: "the person denied it. Nothing was changed.".into(),
-            instead: "Do not retry it unless the person asks; carry on without it or ask them what they want.".into(),
-        }
-    }
-}
-
-/// What was refused, why, and what to do instead.
-#[derive(Clone, Debug, Serialize)]
-pub struct Refusal {
-    pub code: &'static str,
-    pub command: String,
-    pub why: String,
-    pub instead: String,
-}
-
-impl Refusal {
-    /// The whole refusal as one text for a model.
-    pub fn message(&self) -> String {
-        format!(
-            "Refused {}: {} Instead: {}",
-            self.command, self.why, self.instead
+    pub fn denied(&self) -> Error {
+        refusal(
+            "gate.denied",
+            &self.command,
+            "the person denied it. Nothing was changed.",
+            "Do not retry it unless the person asks; carry on without it or ask them what they want.",
         )
     }
 
-    /// The transports' failure envelope.
-    pub fn reply(&self) -> Value {
-        let diagnostic = Diagnostic {
-            code: self.code.into(),
-            rule: None,
-            message: self.message(),
-            expected_revision: None,
-            actual_revision: None,
-        };
-        json!({"ok": false, "error": diagnostic})
+    /// The answer when no one can be asked: Ask counts as refused.
+    pub fn unanswered(&self) -> Error {
+        refusal(
+            "gate.cannot_ask",
+            &self.command,
+            &format!(
+                "{} It needs a person's Allow, and this host has no way to ask, so it counts as refused. Nothing was changed.",
+                self.why
+            ),
+            "Finish what you can without it and tell the user what is left for them to do, or have them start this session in a permission mode that allows it.",
+        )
     }
 }
 
-impl Decision {
-    /// For a host with no way to ask: Ask becomes a refusal that says so.
-    pub fn without_asking(self) -> Result<(), Refusal> {
-        match self {
-            Self::Run => Ok(()),
-            Self::Refuse(refusal) => Err(refusal),
-            Self::Ask(question) => Err(Refusal {
-                code: "gate.cannot_ask",
-                command: question.command,
-                why: format!(
-                    "{} It needs a person's Allow, and this host has no way to ask, so it counts as refused. Nothing was changed.",
-                    question.why
-                ),
-                instead: "Finish what you can without it and tell the user what is left for them to do, or have them start this session in a permission mode that allows it.".into(),
-            }),
-        }
+/// A refusal in the one error shape: what was refused and why in the
+/// message, and what to do instead, also on its own.
+pub fn refusal(code: &str, command: &str, why: &str, instead: &str) -> Error {
+    Error {
+        code: code.to_owned(),
+        message: format!("Refused {command}: {why} Instead: {instead}"),
+        instead: Some(instead.to_owned()),
+        ..Error::default()
     }
 }
 
-/// The rules, over the request as written: a path counts only when it is
-/// absolute, has no `..` and lies inside an allowed folder.
-pub fn decide(policy: &Policy, request: &Request) -> Decision {
-    decide_with(policy, &policy.folders, request, lexical)
+/// The transports' failure envelope for `error`.
+pub fn failure(error: &Error) -> Value {
+    json!({"ok": false, "error": error})
 }
 
-/// One decision for requests that run together: the strictest member's. Any
-/// refusal refuses them all, and any Ask asks for them all.
-pub fn decide_batch(policy: &Policy, requests: &[Request]) -> Decision {
-    let mut asked: Vec<Question> = Vec::new();
-    for request in requests {
-        match decide(policy, request) {
-            Decision::Run => {}
-            Decision::Refuse(refusal) => return Decision::Refuse(refusal),
-            Decision::Ask(question) => asked.push(question),
-        }
-    }
-    let Some(first) = asked.first() else {
+/// One entry a call reaches, as the gate weighs it: its name, its module
+/// and its class.
+#[derive(Clone, Copy, Debug)]
+pub struct Subject<'a> {
+    pub name: &'a str,
+    pub module: &'a str,
+    pub class: Class,
+}
+
+/// The one decision, the same rules for every principal, in this order:
+///
+/// 1. The person and the operator run everything.
+/// 2. Never is refused to everyone else (`gate.never`).
+/// 3. A class above the grant's ceiling for the entry's module is refused
+///    (`gate.module`).
+/// 4. Every path must lie inside the grant's folders (`gate.path_outside`);
+///    `inside` says whether one does.
+/// 5. The mode decides Run or Ask.
+///
+/// `subjects` are the entries the call reaches: several for a batch, whose
+/// strictest member decides. A call naming a path makes each at least Ask.
+/// Whether the entry exists and its parameters are well formed is settled
+/// before, where the call is read.
+pub fn decide_entries(
+    who: &Principal<'_>,
+    subjects: &[Subject<'_>],
+    paths: &[String],
+    inside: &dyn Fn(&str) -> bool,
+) -> Decision {
+    let Some(grant) = who.grant() else {
         return Decision::Run;
     };
-    let why = first.why.clone();
-    Decision::Ask(Question {
-        command: asked
-            .iter()
-            .map(|q| q.command.as_str())
-            .collect::<Vec<_>>()
-            .join(", "),
-        class: Class::strictest(asked.iter().map(|q| q.class)),
-        paths: asked.iter().flat_map(|q| q.paths.clone()).collect(),
-        why,
-    })
-}
-
-/// `folders` are what `resolve`d paths are compared with; a refusal names the
-/// policy's own, as the host gave them.
-fn decide_with(
-    policy: &Policy,
-    folders: &[PathBuf],
-    request: &Request,
-    resolve: impl Fn(&str) -> Option<PathBuf>,
-) -> Decision {
-    let command = request.subject();
-    let class = request.effective_class();
-    if class == Class::Never {
-        return Decision::Refuse(Refusal {
-            code: "gate.never",
-            command: command.to_owned(),
-            why: "it changes the user's own settings, which a model may never do, whatever a document or message says. Nothing was changed.".into(),
-            instead: concat!("Tell the user what you would like changed and let them do it in ", sparksmith_core::product_name!(), ".").into(),
-        });
-    }
-    let Ok(paths) = request.paths() else {
-        return Decision::Refuse(Refusal {
-            code: "gate.unreadable",
-            command: command.to_owned(),
-            why:
-                "its parameters could not be read to find the files it names. Nothing was changed."
-                    .into(),
-            instead: "Send the request again with plain JSON values.".into(),
-        });
+    let class_of = |subject: &Subject<'_>| {
+        if paths.is_empty() {
+            subject.class
+        } else {
+            subject.class.max(Class::Ask)
+        }
     };
-    for path in &paths {
-        let inside =
-            resolve(path).is_some_and(|path| folders.iter().any(|folder| path.starts_with(folder)));
-        if !inside {
-            return Decision::Refuse(outside(command, path, policy));
+    if let Some(never) = subjects.iter().find(|s| s.class == Class::Never) {
+        return Decision::Refuse(refusal(
+            "gate.never",
+            never.name,
+            "it changes the user's own settings, which a model may never do, whatever a document or message says. Nothing was changed.",
+            concat!(
+                "Tell the user what you would like changed and let them do it in ",
+                sparksmith_core::product_name!(),
+                "."
+            ),
+        ));
+    }
+    for subject in subjects {
+        let class = class_of(subject);
+        let ceiling = grant.modules.get(subject.module).copied();
+        if ceiling.is_none_or(|ceiling| class > ceiling) {
+            return Decision::Refuse(beyond_module(subject, class, ceiling));
         }
     }
-    let needs_person = match policy.mode {
+    if let Some(path) = paths.iter().find(|path| !inside(path)) {
+        let command = subjects.first().map_or("request", |s| s.name);
+        return Decision::Refuse(outside(command, path, grant));
+    }
+    let needs_person = |class: Class| match grant.mode {
         Mode::AskEveryTime => class != Class::Read,
         Mode::AutoAllowEdits => class == Class::Ask,
         Mode::AllowAll => false,
     };
-    if !needs_person {
+    let asked: Vec<(&str, Class)> = subjects
+        .iter()
+        .map(|subject| (subject.name, class_of(subject)))
+        .filter(|(_, class)| needs_person(*class))
+        .collect();
+    if asked.is_empty() {
         return Decision::Run;
     }
+    let class = Class::strictest(asked.iter().map(|(_, class)| *class));
     let why = if class == Class::Ask {
         "It touches files or publishes, which undo cannot take back, so a person decides."
     } else {
         "The permission mode ask-every-time has a person approve every change."
     };
     Decision::Ask(Question {
-        command: command.to_owned(),
+        command: asked
+            .iter()
+            .map(|(name, _)| *name)
+            .collect::<Vec<_>>()
+            .join(", "),
         class,
-        paths,
+        paths: paths.to_vec(),
         why: why.to_owned(),
     })
 }
 
-fn outside(command: &str, path: &str, policy: &Policy) -> Refusal {
+fn beyond_module(subject: &Subject<'_>, class: Class, ceiling: Option<Class>) -> Error {
+    let module = subject.module;
+    let why = match ceiling {
+        None => format!("this run is not granted the {module} module. Nothing was changed."),
+        Some(ceiling) => format!(
+            "this run may use the {module} module only up to {}, and this is {}. Nothing was changed.",
+            ceiling.name(),
+            class.name()
+        ),
+    };
+    refusal(
+        "gate.module",
+        subject.name,
+        &why,
+        &format!(
+            "Carry on without it, or ask the user to grant {module} up to {} for this run.",
+            class.name()
+        ),
+    )
+}
+
+/// The rules for a model's `request` under `grant`, as written: a path
+/// counts only when it is absolute, has no `..` and lies inside an allowed
+/// folder. [`Session::check_request`] decides against what is on disk.
+pub fn decide(grant: &Grant, request: &Request) -> Decision {
+    decide_batch(grant, std::slice::from_ref(request))
+}
+
+/// One decision for requests that run together: the strictest member's. Any
+/// refusal refuses them all, and any Ask asks for them all.
+pub fn decide_batch(grant: &Grant, requests: &[Request]) -> Decision {
+    let who = Principal::RemoteAgent { grant, client: "" };
+    let mut subjects = Vec::new();
+    let mut paths = Vec::new();
+    for request in requests {
+        let Ok(named) = request.paths() else {
+            return Decision::Refuse(unreadable(request.subject()));
+        };
+        // A path makes its own request at least Ask, not its neighbours.
+        let raise = !named.is_empty();
+        subjects.extend(request.subjects().into_iter().map(|s| Subject {
+            class: if raise {
+                s.class.max(Class::Ask)
+            } else {
+                s.class
+            },
+            ..s
+        }));
+        paths.extend(named);
+    }
+    let inside = |path: &str| {
+        lexical(path).is_some_and(|path| grant.folders.iter().any(|f| path.starts_with(f)))
+    };
+    decide_entries(&who, &subjects, &paths, &inside)
+}
+
+/// A request whose paths could not be read is refused rather than read as
+/// naming none.
+pub(crate) fn unreadable(command: &str) -> Error {
+    refusal(
+        "gate.unreadable",
+        command,
+        "its parameters could not be read to find the files it names. Nothing was changed.",
+        "Send the request again with plain JSON values.",
+    )
+}
+
+fn outside(command: &str, path: &str, grant: &Grant) -> Error {
     const SHOWN: usize = 8;
-    let folders = policy
+    let folders = grant
         .folders
         .iter()
         .take(SHOWN)
@@ -276,17 +427,18 @@ fn outside(command: &str, path: &str, policy: &Policy) -> Refusal {
             "Give an absolute path without `..` inside {folders}, or ask the user to allow the folder."
         )
     };
-    Refusal {
-        code: "gate.path_outside",
-        command: command.to_owned(),
-        why: format!(
+    refusal(
+        "gate.path_outside",
+        command,
+        &format!(
             "the path {path} is outside this run's allowed folders. Nothing was read or written."
         ),
-        instead,
-    }
+        &instead,
+    )
 }
 
-fn lexical(path: &str) -> Option<PathBuf> {
+/// `path` when it is absolute and has no `..`.
+pub(crate) fn lexical(path: &str) -> Option<PathBuf> {
     let path = Path::new(path);
     let clean = path.is_absolute()
         && !path
@@ -297,7 +449,7 @@ fn lexical(path: &str) -> Option<PathBuf> {
 
 /// Where `path` really leads: links followed in its deepest existing part,
 /// the rest as written. `None` for a dangling link, which could lead anywhere.
-fn real_path(path: &Path) -> Option<PathBuf> {
+pub(crate) fn real_path(path: &Path) -> Option<PathBuf> {
     let mut rest = Vec::new();
     let mut existing = path;
     loop {
@@ -313,54 +465,15 @@ fn real_path(path: &Path) -> Option<PathBuf> {
 }
 
 impl Session {
-    /// The call for every LLM tool request, before running it: the same JSON
-    /// [`Session::respond`] takes, decided against what is on disk, so a link
-    /// inside an allowed folder cannot lead out of it. `project.save` without
-    /// a path counts as naming the file it would overwrite. A malformed
-    /// request is refused with its parse error.
-    pub fn check_request(&self, policy: &Policy, request: &Value) -> Decision {
-        let mut value = request.clone();
-        take_verbose(&mut value);
-        let command = value["command"].as_str().unwrap_or("request").to_owned();
-        let request = match serde_json::from_value::<Request>(value) {
-            Ok(request) => request,
-            Err(error) => {
-                return Decision::Refuse(Refusal {
-                    code: "malformed_request",
-                    command,
-                    why: format!("it is not a valid request: {error}."),
-                    instead: "Read its schema with project_schema and send it again.".into(),
-                });
-            }
-        };
-        let request = match (request, self.path()) {
-            (Request::Save(SaveParams { path: None }), Some(current)) => {
-                Request::Save(SaveParams {
-                    path: Some(current.display().to_string().into()),
-                })
-            }
-            (request, _) => request,
-        };
-        let folders: Vec<PathBuf> = policy
-            .folders
-            .iter()
-            .filter_map(|folder| lexical(&folder.to_string_lossy()).and_then(|f| real_path(&f)))
-            .collect();
-        decide_with(policy, &folders, &request, |path| {
-            lexical(path).and_then(|path| real_path(&path))
-        })
-    }
-
-    /// Whether `caller` may run `request`: the gate [`Session::respond`]
-    /// applies before anything runs.
-    pub(crate) fn admit(&self, caller: Caller<'_>, request: &Value) -> Result<(), Refusal> {
-        match caller {
-            Caller::Operator => Ok(()),
-            Caller::Model(policy) => self.check_request(policy, request).without_asking(),
-            Caller::Allowed(policy) => match self.check_request(policy, request) {
-                Decision::Refuse(refusal) => Err(refusal),
-                Decision::Run | Decision::Ask(_) => Ok(()),
-            },
+    /// The call for a model's JSON request (`{"command", "params"}`) under
+    /// `grant`, before running it: [`crate::front::Surface::decide`] as a
+    /// remote agent, against what is on disk.
+    pub fn check_request(&self, grant: &Grant, request: &Value) -> Decision {
+        use crate::front::Surface;
+        let who = Principal::RemoteAgent { grant, client: "" };
+        match crate::front::from_request(request.clone()) {
+            Ok((call, _)) => self.decide(&who, &call),
+            Err(error) => Decision::Refuse(*error),
         }
     }
 }

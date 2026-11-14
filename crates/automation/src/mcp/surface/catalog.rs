@@ -117,59 +117,13 @@ impl Unreachable {
 }
 
 /// The most names [`Unreachable::Unknown`] suggests.
-pub const MAX_CLOSEST: usize = 3;
-/// The characters of a name [`closest`] compares; longer names are cut.
-const MAX_COMPARED: usize = 128;
+pub const MAX_CLOSEST: usize = metadata::MAX_CLOSEST;
 
-/// The reachable names of `kind` nearest `name` by edit distance, over the
-/// whole name or the part after its last dot, whichever is nearer: at most
-/// [`MAX_CLOSEST`], nearest first and then in catalog order. A name further
-/// than a third of its length (at least 2) suggests nothing.
+/// The reachable names of `kind` nearest `name` ([`metadata::closest`]).
 fn closest(name: &str, kind: Option<Kind>) -> Vec<&'static str> {
-    let name: Vec<char> = name.chars().take(MAX_COMPARED).collect();
-    let limit = (name.len() / 3).max(2);
-    let mut near: Vec<(usize, &'static str)> = reachable()
-        .filter(|e| kind.is_none_or(|kind| e.kind == Some(kind)))
-        .filter_map(|e| {
-            let full = e.name.as_str();
-            let tail = full.rsplit('.').next().unwrap_or(full);
-            let distance = distance(&name, full).min(distance(&name, tail));
-            (distance <= limit).then_some((distance, full))
-        })
-        .collect();
-    // Stable: equal distances keep catalog order.
-    near.sort_by_key(|(distance, _)| *distance);
-    near.into_iter()
-        .take(MAX_CLOSEST)
-        .map(|(_, name)| name)
-        .collect()
-}
-
-/// The Levenshtein distance between `a` and the first [`MAX_COMPARED`]
-/// characters of `b`.
-fn distance(a: &[char], b: &str) -> usize {
-    let b: Vec<char> = b.chars().take(MAX_COMPARED).collect();
-    let mut row: Vec<usize> = (0..=b.len()).collect();
-    for (i, x) in a.iter().enumerate() {
-        let mut diagonal = row.first().copied().unwrap_or(i);
-        if let Some(first) = row.first_mut() {
-            *first = i.saturating_add(1);
-        }
-        for (j, y) in b.iter().enumerate() {
-            let (Some(&left), Some(&up)) = (row.get(j), row.get(j.saturating_add(1))) else {
-                break;
-            };
-            let replace = diagonal.saturating_add(usize::from(x != y));
-            let next = replace
-                .min(left.saturating_add(1))
-                .min(up.saturating_add(1));
-            diagonal = up;
-            if let Some(cell) = row.get_mut(j.saturating_add(1)) {
-                *cell = next;
-            }
-        }
-    }
-    row.last().copied().unwrap_or(a.len())
+    metadata::closest(name, |e| {
+        e.kind.is_some() && kind.is_none_or(|kind| e.kind == Some(kind))
+    })
 }
 
 fn article(kind: Kind) -> &'static str {

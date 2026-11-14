@@ -18,7 +18,7 @@
 //! permission gate decides as for any LLM request; Ask waits for the
 //! person's Allow in the window. The CLI's `mcp --live` bridges an MCP
 //! client to this channel ([`Client`]).
-use crate::gate::{Caller, Decision, Policy, Question, Refusal};
+use crate::gate::{Caller, Decision, Grant, Question, failure};
 use crate::session::{Request, Session, envelope, take_verbose};
 use serde_json::{Value, json};
 use solidcraft_control::Effect;
@@ -347,7 +347,7 @@ pub struct Admitted {
     request: Value,
     subject: &'static str,
     class: Class,
-    policy: Policy,
+    policy: Grant,
     /// Held for the person ([`Verdict::Ask`]): the host runs it only after
     /// their Allow.
     asked: bool,
@@ -374,14 +374,8 @@ pub enum Verdict {
     Ask(Admitted, Question),
 }
 
-fn refusal(code: &'static str, command: &str, why: String, instead: &str) -> Value {
-    Refusal {
-        code,
-        command: command.to_owned(),
-        why,
-        instead: instead.to_owned(),
-    }
-    .reply()
+fn refusal(code: &str, command: &str, why: String, instead: &str) -> Value {
+    failure(&crate::gate::refusal(code, command, &why, instead))
 }
 
 /// Decide one request on the window's session. `busy` says why the person
@@ -389,7 +383,7 @@ fn refusal(code: &'static str, command: &str, why: String, instead: &str) -> Val
 /// then, reads still run.
 pub fn admit(
     session: &Session,
-    policy: &Policy,
+    policy: &Grant,
     busy: Option<&str>,
     method: &str,
     params: &Value,
@@ -468,8 +462,8 @@ pub fn admit(
         ));
     }
     // A stale change is refused now rather than after the person's Allow;
-    // Session::execute checks it again when it runs.
-    if let Some(expected) = typed.expected_revision()
+    // the front door checks it again when it runs.
+    if let Some(expected) = admitted.request["params"]["expected_revision"].as_u64()
         && let Err(stale) = engine.check_revision(expected)
     {
         return Verdict::Reply(envelope(Err(stale.into())));
@@ -480,7 +474,7 @@ pub fn admit(
             admitted.asked = true;
             Verdict::Ask(admitted, question)
         }
-        Decision::Refuse(refused) => Verdict::Reply(refused.reply()),
+        Decision::Refuse(refused) => Verdict::Reply(failure(&refused)),
     }
 }
 

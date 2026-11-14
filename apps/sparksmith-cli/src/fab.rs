@@ -160,9 +160,9 @@ fn iso_utc(seconds: i64) -> String {
 mod tests {
     use super::{MAX_LISTED, Value, blocking_titles, iso_utc, json, run};
 
-    /// The showcase switched to a finer profile: its fills were computed
-    /// under other rules, so they are stale errors and the export is
-    /// refused, naming each one.
+    /// The showcase with a track deleted leaves a connection unrouted: an
+    /// error, so the export is refused, naming each one. (Its fills are
+    /// refilled on open, so they never block it.)
     #[test]
     fn a_blocked_export_lists_the_error_titles() -> super::Result<()> {
         let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
@@ -178,20 +178,21 @@ mod tests {
                 fixtures::prototype()?,
             )?);
         let revision = session.engine().revision();
+        let track = session.engine().project().tracks.first().ok_or("track")?.id;
         super::execute(
             &mut session,
             json!({"command": "project.apply", "params": {
                 "expected_revision": revision,
-                "operation": {"editor": "Rules", "operation": {
-                    "command": "rules.set_fab_profile",
-                    "params": {"profile": fixtures::fine()?}}},
+                "operation": {"editor": "Layout", "operation": {
+                    "command": "layout.track_delete", "params": {"id": track}}},
             }}),
         )?;
         super::execute(
             &mut session,
             json!({"command": "project.save", "params": {"path": arg(&project)}}),
         )?;
-        let report = super::blocking_report(&mut session, None)?;
+        // The check the export runs: on the file as the CLI opens it.
+        let report = super::blocking_report(&mut super::open(Some(&arg(&project)))?, None)?;
         let error = run(&[arg(&project), arg(&out)])
             .err()
             .ok_or("the export should be refused")?

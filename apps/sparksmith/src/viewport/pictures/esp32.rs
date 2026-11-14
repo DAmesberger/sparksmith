@@ -16,7 +16,10 @@ pub(super) fn esp32() -> Result<
 > {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    let project = (*sparksmith_io::read_project(&path)?.into_document().project).clone();
+    // A file holds no fill copper; fill it as opening does.
+    let mut engine = sparksmith_core::Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    engine.refill_stale()?;
+    let project = engine.project().clone();
     let model = sparksmith_solidcraft::project::build(&project)?;
     let mut geometry = model.geometry.clone();
     geometry.extend(
@@ -209,7 +212,10 @@ fn opening_esp32_timings() -> Result<(), Box<dyn std::error::Error>> {
     };
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    let project = (*sparksmith_io::read_project(&path)?.into_document().project).clone();
+    // A file holds no fill copper; fill it as opening does.
+    let mut engine = sparksmith_core::Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    engine.refill_stale()?;
+    let project = engine.project().clone();
     let (mut built, mut scened, mut framed) = (f64::MAX, f64::MAX, f64::MAX);
     let mut triangles = 0;
     for _ in 0..5 {

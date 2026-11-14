@@ -15,8 +15,8 @@ const TEST_APP: App = App {
     default_port: DEFAULT_PORT,
 };
 
-fn policy() -> Policy {
-    Policy::new(Mode::AutoAllowEdits, [std::env::temp_dir()])
+fn policy() -> Grant {
+    Grant::new(Mode::AutoAllowEdits, [std::env::temp_dir()])
 }
 
 /// `engine.execute` of `layout.add_via` at `revision`.
@@ -255,7 +255,7 @@ fn the_window_never_adds_a_library_source() -> Fallible {
     let request = json!({"command": "library.source.add",
         "params": {"path": std::env::temp_dir().join("lib").display().to_string()}});
     for mode in [Mode::AskEveryTime, Mode::AutoAllowEdits, Mode::AllowAll] {
-        let policy = Policy::new(mode, [std::env::temp_dir()]);
+        let policy = Grant::new(mode, [std::env::temp_dir()]);
         let Verdict::Reply(reply) = admit(&session, &policy, None, EXECUTE, &request) else {
             return Err(format!("{mode:?}: library.source.add was admitted").into());
         };

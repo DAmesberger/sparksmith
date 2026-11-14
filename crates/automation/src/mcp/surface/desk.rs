@@ -8,7 +8,7 @@
 //! sees only the desk, whose ways to run a request are [`Desk::respond`],
 //! [`Desk::rehearse`] and [`Desk::open`]: [`Session::respond`] (or its dry
 //! run, [`Session::rehearse`]) as [`Caller::Model`] under the server's
-//! [`Policy`], so every request passes the gate unchanged. After each job
+//! [`Grant`], so every request passes the gate unchanged. After each job
 //! the desk publishes every project's revision, for whatever watches them.
 //!
 //! **Projects have handles** (`docs/mcp-surface.md` §3.2): opaque
@@ -18,7 +18,7 @@
 //! across conversations keep their work apart. A handle lasts until the
 //! process exits. A call may leave the handle out only while one project is
 //! open; with several, it must name one.
-use crate::gate::{Caller, Decision, Policy};
+use crate::gate::{Caller, Decision, Grant};
 use crate::session::Session;
 use rmcp::ErrorData;
 use serde_json::{Value, json};
@@ -46,7 +46,7 @@ pub type NewSession = Box<dyn Fn() -> Session + Send>;
 /// What a job may do with the projects.
 pub struct Desk {
     projects: BTreeMap<String, Session>,
-    policy: Policy,
+    policy: Grant,
     new_session: NewSession,
 }
 
@@ -56,7 +56,7 @@ impl Desk {
     /// [`Handle`] is dropped.
     pub fn start(
         session: Session,
-        policy: Policy,
+        policy: Grant,
         new_session: NewSession,
     ) -> Result<Handle, String> {
         let first = mint()?;
@@ -207,7 +207,7 @@ impl Desk {
     fn run_on(
         &mut self,
         project: Option<&str>,
-        run: impl FnOnce(&mut Session, &Policy) -> Value,
+        run: impl FnOnce(&mut Session, &Grant) -> Value,
     ) -> Value {
         let handle = match self.project(project) {
             Ok(handle) => handle,

@@ -572,61 +572,30 @@ impl Request {
         self.paths().is_ok_and(|paths| paths.is_empty())
     }
 
-    /// The revision a request that changes the document expects, checked
-    /// once before it runs ([`Session::execute`]), so a stale one does
-    /// nothing at all: no file read or written, no step taken or undone.
-    /// `None` only for a request that changes no document (a query, a file
-    /// export, the user's library settings).
-    pub fn expected_revision(&self) -> Option<u64> {
+    /// The entries the gate weighs for this request: the operations inside
+    /// `project.apply` and `project.apply_all` and the query inside
+    /// `project.query`, each in its own module, else the request itself.
+    pub fn subjects(&self) -> Vec<crate::gate::Subject<'static>> {
+        fn of(name: &'static str, class: Class) -> crate::gate::Subject<'static> {
+            crate::gate::Subject {
+                name,
+                module: module_of(name),
+                class,
+            }
+        }
         match self {
-            Self::Apply(params) => Some(params.expected_revision),
-            Self::ApplyAll(params) => Some(params.expected_revision),
-            Self::Undo(params) | Self::Redo(params) => Some(params.expected_revision),
-            Self::New(params) => Some(params.expected_revision),
-            Self::Open(params) => Some(params.expected_revision),
-            Self::ApplyUpdate(params) => Some(params.expected_revision),
-            Self::ImportFrom(params) => Some(params.expected_revision),
-            Self::PlaceFrom(params) => Some(params.expected_revision),
-            Self::Publish(params) => Some(params.expected_revision),
-            Self::ImportFromProject(params) => Some(params.expected_revision),
-            Self::ImportSvg(params) => Some(params.expected_revision),
-            Self::SetMarking(params) => Some(params.expected_revision),
-            Self::UsePartFile(params) => Some(params.expected_revision),
-            Self::SetPartValues(params) => Some(params.expected_revision),
-            Self::GeneratePart(params) => Some(params.expected_revision),
-            Self::PlacePartFile(params) => Some(params.expected_revision),
-            Self::SetPartFileValues(params) => Some(params.expected_revision),
-            Self::InterfacePublish(params) => Some(params.expected_revision),
-            Self::AssemblyFollow(params) => Some(params.expected_revision),
-            Self::AssemblyUpdate(params) => Some(params.expected_revision),
-            Self::AssemblyPreview(_) => None,
-            Self::Inspect(_)
-            | Self::Schema(_)
-            | Self::Query(_)
-            | Self::Save(_)
-            | Self::PreviewUpdate(_)
-            | Self::ExportNative(_)
-            | Self::ExportFabrication(_)
-            | Self::Sources(_)
-            | Self::SourceAdd(_)
-            | Self::SourceCreate(_)
-            | Self::SourceRemove(_)
-            | Self::SourceEnable(_)
-            | Self::Rescan(_)
-            | Self::Favourite(_)
-            | Self::Bundle(_)
-            | Self::OpenPreview(_)
-            | Self::PinoutSchema(_)
-            | Self::ReviewCheck(_)
-            | Self::FirmwarePreview(_)
-            | Self::FirmwareExport(_)
-            | Self::InspectModelFile(_)
-            | Self::SchematicPdf(_)
-            | Self::MarkingSurfaces(_)
-            | Self::CheckPartFile(_)
-            | Self::PartFiles(_)
-            | Self::Generators(_)
-            | Self::InterfacePreview(_) => None,
+            Self::Apply(params) => vec![of(params.operation.command(), params.operation.class())],
+            // At least an edit, so an empty batch is no read.
+            Self::ApplyAll(params) if params.operations.is_empty() => {
+                vec![of(self.command(), Class::Edit)]
+            }
+            Self::ApplyAll(params) => params
+                .operations
+                .iter()
+                .map(|operation| of(operation.command(), operation.class()))
+                .collect(),
+            Self::Query(query) => vec![of(query.command(), query.class())],
+            other => vec![of(other.command(), other.class())],
         }
     }
 
@@ -912,6 +881,18 @@ impl Request {
     }
 }
 
+/// The module the entry `name` is declared in: a request's, an
+/// operation's or a query's. None for a name no declaration has, which no
+/// grant reaches.
+fn module_of(name: &str) -> &'static str {
+    Request::ENTRIES
+        .iter()
+        .chain(Operation::entries())
+        .chain(Query::ENTRIES)
+        .find(|decl| decl.name == name)
+        .map_or("", |decl| decl.module)
+}
+
 impl Request {
     /// [`Request::catalog`], generated once.
     pub fn catalog_shared() -> &'static [CommandInfo] {
@@ -1026,8 +1007,24 @@ impl Session {
         result
     }
 
-    /// Execute one typed request.
+    /// Execute one typed request as the operator, answering with the whole
+    /// document state: a call through the front door
+    /// ([`crate::front::Surface::call`]).
     pub fn execute(&mut self, request: Request) -> Result<Value> {
+        use crate::front::{CallCx, NoOne, Surface};
+        let call = crate::front::call_of(&request).map_err(Error::refused)?;
+        let cx = CallCx {
+            who: crate::gate::Principal::Operator,
+            asker: &mut NoOne,
+            verbose: true,
+        };
+        self.call(cx, call).map_err(Error::refused)
+    }
+
+    /// Run one typed request the front door admitted, at `expected`: the
+    /// one revision check of every document-changing request, before any
+    /// file is read or written, so a stale one does nothing at all.
+    pub(crate) fn run(&mut self, request: Request, expected: Option<u64>) -> Result<Value> {
         self.ensure_generators();
         // The host's standards and materials, current while it runs: what
         // a 3D build or export reads. An engine without them refuses
@@ -1036,8 +1033,7 @@ impl Session {
         // The new-project defaults, once per process; a failure is kept and
         // returned, naming the file, by the request that needs them.
         let _ = sparksmith_io::new_project::shipped();
-        // The one revision check of every document-changing request.
-        if let Some(expected) = request.expected_revision() {
+        if let Some(expected) = expected {
             self.engine.check_revision(expected)?;
         }
         match request {
@@ -1080,8 +1076,20 @@ impl Session {
                     let dirs = sparksmith_io::settings::UserDirs::from_env()?;
                     let listing =
                         sparksmith_io::rule_profiles::ProfileLibrary::from_dirs(&dirs)?.list()?;
-                    for p in listing.profiles.into_iter().chain(listing.builtins) {
-                        if !profiles.iter().any(|q| q.id == p.id) {
+                    // A board that pinned a shipped profile under a former
+                    // id no library profile has stands for it, as under
+                    // its own id.
+                    let library: Vec<_> =
+                        listing.profiles.into_iter().chain(listing.builtins).collect();
+                    let pinned: Vec<String> = profiles
+                        .iter()
+                        .map(|q| match listing.former_ids.get(&q.id) {
+                            Some(id) if !library.iter().any(|p| p.id == q.id) => id.clone(),
+                            _ => q.id.clone(),
+                        })
+                        .collect();
+                    for p in library {
+                        if !pinned.contains(&p.id) {
                             profiles.push(p);
                         }
                     }
@@ -1144,6 +1152,11 @@ impl Session {
                 self.engine.replace_document(file)?;
                 self.engine
                     .supply_dk_estimates(&sparksmith_io::new_project::shipped()?.presets.glass_dk);
+                // A file holds no fill copper: refill before answering, so
+                // checks, connectivity and fabrication see it. A fill that
+                // cannot be computed stays unfilled, and the production
+                // check reports it.
+                let _ = self.engine.refill_stale();
                 self.path = Some(path);
             }
             Request::Save(params) => {
@@ -1518,13 +1531,20 @@ impl Session {
         })
     }
 
-    /// Parse and execute a JSON request, returning the shared envelope:
+    /// Parse and run a JSON request as the operator through the front door,
+    /// answering with the whole document state in the shared envelope:
     /// `{"ok":true,"result":…}` or `{"ok":false,"error":{code,message,…}}`.
     pub fn dispatch(&mut self, request: Value) -> Value {
-        let result = serde_json::from_value::<Request>(request)
-            .map_err(Error::from)
-            .and_then(|request| self.execute(request));
-        envelope(result)
+        use crate::front::{CallCx, NoOne, Surface};
+        let result = crate::front::from_request(request).and_then(|(call, _)| {
+            let cx = CallCx {
+                who: crate::gate::Principal::Operator,
+                asker: &mut NoOne,
+                verbose: true,
+            };
+            self.call(cx, call)
+        });
+        crate::front::envelope(result)
     }
 }
 

@@ -9,7 +9,7 @@ use crate::model::wire::ScriptedWire;
 use crate::model::{ModelBackend, ModelProfile};
 use crate::tools::ToolOutcome;
 use serde_json::Value;
-use sparksmith_automation::{Mode, Policy};
+use sparksmith_automation::{Grant, Mode};
 use std::sync::atomic::AtomicBool;
 
 /// A session on a board with the test fixture fab profile: the estimated
@@ -98,7 +98,7 @@ fn execute_open(
     name: &str,
     input: &Value,
 ) -> ToolOutcome {
-    tools::execute(session, &Policy::default(), workspace, name, input)
+    tools::execute(session, &Grant::default(), workspace, name, input)
 }
 
 fn reply_json(outcome: ToolOutcome) -> Fallible<Value> {
@@ -516,7 +516,7 @@ fn a_gated_tool_call_comes_back_as_a_tool_result_and_the_run_goes_on() -> Fallib
     ];
     let mut backend = anthropic(script)?;
     let config = RunConfig {
-        policy: Policy::new(Mode::AskEveryTime, [dir.path().to_path_buf()]),
+        policy: Grant::new(Mode::AskEveryTime, [dir.path().to_path_buf()]),
         ..shipped_config()?
     };
     let mut session = profiled_session();

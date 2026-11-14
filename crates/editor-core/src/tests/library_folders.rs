@@ -999,7 +999,10 @@ fn place_from_a_folder_then_update_only_r1_and_reopen_offline() -> Result<()> {
     let mut folder: Vec<RevisionRecord> = Vec::new();
     let first = promote(&mut author, root, &ids)?;
     write(&mut folder, &first.bundle)?;
-    assert_eq!(*author.project().library.origins, first.origins);
+    // The project keeps its origins in revision order, as a file holds them.
+    let mut expected = first.origins.clone();
+    expected.sort_by_key(|o| o.local);
+    assert_eq!(*author.project().library.origins, expected);
     // Promoting again records nothing and takes no undo step.
     let revision = author.revision();
     promote(&mut author, root, &fresh(&mut Rng(43), 16))?;

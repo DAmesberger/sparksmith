@@ -228,8 +228,11 @@ pub struct Fill {
     #[serde(default)]
     pub locked: bool,
     /// The last computed copper. Derivable: refilled when its key no
-    /// longer matches the inputs (`layout::fill::inputs_key`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// longer matches the inputs (`layout::fill::inputs_key`). Never saved
+    /// (file format version 4): a host refills it after opening, off the UI
+    /// thread, and fabrication output waits for it.
+    #[serde(skip)]
+    #[schemars(skip)]
     pub computed: Option<FilledCopper>,
 }
 

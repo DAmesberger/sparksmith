@@ -488,11 +488,15 @@ pub fn make_variant(
         ModelChoice::New(definition, name, asset) => {
             let id = allocate()?;
             if !library.assets.iter().any(|a| a.hash == asset.hash) {
-                library.assets.push(PackedAsset {
-                    hash: asset.hash,
-                    media_type: asset.media_type,
-                    data: AssetBytes::clone(&asset.data),
-                });
+                let k = library.assets.partition_point(|a| a.hash < asset.hash);
+                library.assets.insert(
+                    k,
+                    PackedAsset {
+                        hash: asset.hash,
+                        media_type: asset.media_type,
+                        data: AssetBytes::clone(&asset.data),
+                    },
+                );
             }
             let meta = DefinitionMeta {
                 name,

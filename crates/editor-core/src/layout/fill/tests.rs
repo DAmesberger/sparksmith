@@ -1071,16 +1071,21 @@ fn store_commits_only_current_copper_and_refill_is_one_undo_step() -> Fallible<(
 }
 
 #[test]
-fn computed_copper_persists_and_reloads_fresh() -> Fallible<()> {
+fn computed_copper_is_not_saved_and_refills_to_the_same_copper() -> Fallible<()> {
     let (engine, id, _) = showcase_with(CopperLayer::Bottom)?;
     let text = serde_json::to_string(&engine.to_file())?;
+    assert!(!text.contains("\"computed\""));
     let file: format::EditorFile = serde_json::from_str(&text)?;
-    let loaded = Engine::from_file(file)?;
+    let mut loaded = Engine::from_file(file)?;
     let f = fill(loaded.project(), id)?;
-    assert_eq!(f, fill(engine.project(), id)?);
-    assert!(!super::is_stale(loaded.project(), f));
+    assert!(f.computed.is_none() && super::is_stale(loaded.project(), f));
+    // Refilling with unchanged inputs gives exactly the copper that was
+    // there, and nothing is stale after it.
+    assert_eq!(loaded.refill_stale()?, engine.project().fills.len());
+    assert_eq!(fill(loaded.project(), id)?, fill(engine.project(), id)?);
     let mut cache = FillCache::default();
     assert!(compute_stale(loaded.project(), &mut cache)?.is_empty());
+    assert_eq!(loaded.refill_stale()?, 0);
     Ok(())
 }
 

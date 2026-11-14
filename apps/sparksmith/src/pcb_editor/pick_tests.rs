@@ -14,6 +14,8 @@ fn esp32() -> Result<Engine, Box<dyn std::error::Error>> {
     );
     let mut engine = Engine::demo()?;
     engine.replace_document(sparksmith_io::read_project(std::path::Path::new(path))?)?;
+    // A file holds no fill copper; fill it as opening does.
+    engine.refill_stale()?;
     Ok(engine)
 }
 

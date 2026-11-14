@@ -259,7 +259,8 @@ pub fn import(
             },
             direction: bundle::Direction::Imported,
         };
-        library.origins.push(origin);
+        let k = library.origins.partition_point(|o| o.local <= origin.local);
+        library.origins.insert(k, origin);
         map.revisions.insert(at, origin);
         done.insert(
             i,
@@ -272,7 +273,8 @@ pub fn import(
     let held: BTreeSet<ContentHash> = library.assets.iter().map(|a| a.hash).collect();
     for asset in &bundle.assets {
         if needed.contains(&asset.hash) && !held.contains(&asset.hash) {
-            library.assets.push(asset.clone());
+            let k = library.assets.partition_point(|a| a.hash < asset.hash);
+            library.assets.insert(k, asset.clone());
         }
     }
     let root = map

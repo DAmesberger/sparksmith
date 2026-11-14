@@ -31,11 +31,11 @@ fn apply(operation: Value) -> Fallible<Request> {
 }
 
 /// `run`, `ask` or the refusal's code.
-fn verdict(policy: &Policy, request: &Request) -> String {
+fn verdict(policy: &Grant, request: &Request) -> String {
     match decide(policy, request) {
         Decision::Run => "run".into(),
         Decision::Ask(_) => "ask".into(),
-        Decision::Refuse(refusal) => refusal.code.into(),
+        Decision::Refuse(refusal) => refusal.code,
     }
 }
 
@@ -55,7 +55,7 @@ fn each_mode_treats_each_class_as_decided() -> Fallible {
         (Mode::AutoAllowEdits, ["run", "run", "ask"]),
         (Mode::AllowAll, ["run", "run", "run"]),
     ] {
-        let policy = Policy::new(mode, []);
+        let policy = Grant::new(mode, []);
         let got = [
             verdict(&policy, &read),
             verdict(&policy, &edit),
@@ -70,7 +70,7 @@ fn each_mode_treats_each_class_as_decided() -> Fallible {
 
 #[test]
 fn project_apply_is_classed_by_its_operation() -> Fallible {
-    let policy = Policy::default();
+    let policy = Grant::default();
     let edit = apply(json!({"editor": "Library", "operation": {
         "command": "library.discard_draft", "params": {"id": 1}}}))?;
     assert_eq!(edit.effective_class(), Class::Edit);
@@ -92,7 +92,7 @@ fn project_apply_is_classed_by_its_operation() -> Fallible {
 
 #[test]
 fn a_batch_takes_its_strictest_member() -> Fallible {
-    let policy = Policy::default();
+    let policy = Grant::default();
     let read = request("project.inspect", json!({}))?;
     let edit = request("project.undo", json!({"expected_revision": 0}))?;
     let ask = request("project.new", json!({"expected_revision": 0}))?;
@@ -125,7 +125,7 @@ fn a_path_outside_the_folders_is_refused_in_every_mode() -> Fallible {
         )
     };
     for mode in MODES {
-        let policy = Policy::new(mode, [PathBuf::from(abs("/work/board"))]);
+        let policy = Grant::new(mode, [PathBuf::from(abs("/work/board"))]);
         for outside in [
             abs("/work/other/x.sparksmith"),
             // A sibling that shares the folder's text is not inside it.
@@ -150,10 +150,10 @@ fn a_path_outside_the_folders_is_refused_in_every_mode() -> Fallible {
     }
     // No folders: every path is refused, and the refusal says what to do.
     let file = abs("/work/board/x.sparksmith");
-    let Decision::Refuse(refusal) = decide(&Policy::default(), &open(&file)?) else {
+    let Decision::Refuse(refusal) = decide(&Grant::default(), &open(&file)?) else {
         return Err("no folders allow no path".into());
     };
-    let message = refusal.message();
+    let message = refusal.message.clone();
     for part in ["project.open", &file, "Instead:"] {
         assert!(message.contains(part), "{message}");
     }
@@ -162,7 +162,7 @@ fn a_path_outside_the_folders_is_refused_in_every_mode() -> Fallible {
 
 #[test]
 fn naming_a_path_makes_a_request_at_least_ask() -> Fallible {
-    let policy = Policy::new(Mode::AutoAllowEdits, [PathBuf::from(abs("/work"))]);
+    let policy = Grant::new(Mode::AutoAllowEdits, [PathBuf::from(abs("/work"))]);
     let builtin = request(
         "library.check_part_file",
         json!({"builtin": "esp32-s31-wroom-3"}),
@@ -234,7 +234,7 @@ fn every_path_a_command_can_name_reaches_the_gate() -> Fallible {
     assert_eq!(named, typed);
     assert_eq!(typed.len(), 22, "{typed:?}");
     let at = "/samples/f";
-    let policy = Policy::new(Mode::AllowAll, [PathBuf::from("/allowed")]);
+    let policy = Grant::new(Mode::AllowAll, [PathBuf::from("/allowed")]);
     for (command, params, count) in [
         (
             "project.open",
@@ -257,7 +257,7 @@ fn every_path_a_command_can_name_reaches_the_gate() -> Fallible {
             return Err(format!("{command} ran outside the folders").into());
         };
         assert!(
-            ["gate.path_outside", "gate.never"].contains(&refusal.code),
+            ["gate.path_outside", "gate.never"].contains(&refusal.code.as_str()),
             "{command}: {}",
             refusal.code
         );
@@ -412,7 +412,7 @@ fn file_count(folder: &Path) -> Fallible<usize> {
 fn a_request_from_a_run_cannot_publish_or_write_without_allow() -> Fallible {
     let root = tempfile::tempdir()?;
     let (mut session, component, library, draft, folder) = host_session(root.path())?;
-    let policy = Policy::new(Mode::AutoAllowEdits, [root.path().to_path_buf()]);
+    let policy = Grant::new(Mode::AutoAllowEdits, [root.path().to_path_buf()]);
     let revision = session.engine().revision();
     let records_before = file_count(&folder)?;
     let drafts_before = session.engine().drafts().items.len();
@@ -497,7 +497,7 @@ fn a_request_from_a_run_cannot_publish_or_write_without_allow() -> Fallible {
 fn edits_run_inside_the_turn_and_settings_are_refused_with_no_way_around() -> Fallible {
     let root = tempfile::tempdir()?;
     let (mut session, _, _, draft, folder) = host_session(root.path())?;
-    let policy = Policy::new(Mode::AllowAll, [root.path().to_path_buf()]);
+    let policy = Grant::new(Mode::AllowAll, [root.path().to_path_buf()]);
     let revision = session.engine().revision();
     let sources = session.sources().list().len();
     let reply = session.respond(
@@ -509,7 +509,7 @@ fn edits_run_inside_the_turn_and_settings_are_refused_with_no_way_around() -> Fa
     assert_eq!(session.sources().list().len(), sources);
 
     let reply = session.respond(
-        Caller::Model(&Policy::default()),
+        Caller::Model(&Grant::default()),
         json!({"command": "project.apply", "params": {
             "expected_revision": revision,
             "operation": {"editor": "Library", "operation": {
@@ -532,12 +532,12 @@ fn saving_without_a_path_counts_as_naming_the_current_file() -> Fallible {
     );
     assert_eq!(saved["ok"], true, "{saved}");
     let before = std::fs::read(&file)?;
-    let policy = Policy::new(Mode::AllowAll, [root.path().to_path_buf()]);
+    let policy = Grant::new(Mode::AllowAll, [root.path().to_path_buf()]);
     let request = json!({"command": "project.save", "params": {}});
     let reply = session.respond(Caller::Model(&policy), request.clone());
     assert_eq!(reply["error"]["code"], "gate.path_outside", "{reply}");
     assert_eq!(std::fs::read(&file)?, before);
-    let policy = Policy::new(Mode::AllowAll, [elsewhere.path().to_path_buf()]);
+    let policy = Grant::new(Mode::AllowAll, [elsewhere.path().to_path_buf()]);
     let reply = session.respond(Caller::Model(&policy), request);
     assert_eq!(reply["ok"], true, "{reply}");
     Ok(())
@@ -556,7 +556,7 @@ fn a_link_cannot_lead_out_of_an_allowed_folder() -> Fallible {
         allowed.path().join("dangling.sparksmith"),
     )?;
     let session = Session::default();
-    let policy = Policy::new(Mode::AllowAll, [allowed.path().to_path_buf()]);
+    let policy = Grant::new(Mode::AllowAll, [allowed.path().to_path_buf()]);
     let check = |path: PathBuf| {
         session.check_request(
             &policy,
@@ -581,7 +581,7 @@ fn a_link_cannot_lead_out_of_an_allowed_folder() -> Fallible {
     let via = tempfile::tempdir()?;
     let link = via.path().join("work");
     std::os::unix::fs::symlink(allowed.path(), &link)?;
-    let policy = Policy::new(Mode::AllowAll, [link]);
+    let policy = Grant::new(Mode::AllowAll, [link]);
     let reply = session.check_request(
         &policy,
         &json!({"command": "project.save", "params": {
@@ -595,27 +595,27 @@ fn a_link_cannot_lead_out_of_an_allowed_folder() -> Fallible {
 fn a_malformed_request_is_refused_with_its_parse_error() -> Fallible {
     let session = Session::default();
     let Decision::Refuse(refusal) = session.check_request(
-        &Policy::default(),
+        &Grant::default(),
         &json!({"command": "project.save", "params": {"path": 7}}),
     ) else {
         return Err("a malformed request does not run".into());
     };
     assert_eq!(refusal.code, "malformed_request");
-    assert_eq!(refusal.command, "project.save");
-    assert!(refusal.message().contains("project_schema"));
+    assert!(refusal.message.starts_with("Refused project.save:"));
+    assert!(refusal.message.clone().contains("project_schema"));
     Ok(())
 }
 
 #[test]
 fn a_denied_question_answers_the_model() -> Fallible {
     let Decision::Ask(question) = decide(
-        &Policy::default(),
+        &Grant::default(),
         &request("project.new", json!({"expected_revision": 0}))?,
     ) else {
         return Err("project.new asks".into());
     };
     assert_eq!(question.denied().code, "gate.denied");
-    assert!(question.denied().message().contains("denied"));
+    assert!(question.denied().message.contains("denied"));
     let wire = serde_json::to_value(Decision::Ask(question))?;
     assert_eq!(wire["decision"], "ask");
     assert_eq!(wire["class"], "ask");
@@ -648,7 +648,7 @@ fn mcp_runs_under_each_mode_and_allows_edits_by_default() -> Fallible {
         (Mode::AllowAll, true, true),
     ] {
         let name = format!("{}.sparksmith", mode.name());
-        let policy = Policy::new(mode, [root.path().to_path_buf()]);
+        let policy = Grant::new(mode, [root.path().to_path_buf()]);
         let mut server = Server::new(Session::new(Engine::demo()?), policy);
 
         let (failed, _) = tool_call(&mut server, 1, "project.inspect", json!({}));
@@ -697,7 +697,7 @@ fn mcp_runs_under_each_mode_and_allows_edits_by_default() -> Fallible {
 
     // I-A1: the CLI's server without a mode, its project's folder allowed:
     // edits run, a save asks and so is refused.
-    let policy = Policy::new(Mode::default(), [root.path().to_path_buf()]);
+    let policy = Grant::new(Mode::default(), [root.path().to_path_buf()]);
     let mut server = Server::new(Session::new(Engine::demo()?), policy);
     let (failed, reply) = tool_call(
         &mut server,
@@ -736,9 +736,9 @@ fn a_model_never_adds_a_library_source() -> Fallible {
     };
     let settings_written = || dirs.config.exists();
     let add = json!({"path": folder.display().to_string()});
-    let allow_all = Policy::new(Mode::AllowAll, [root.path().to_path_buf()]);
+    let allow_all = Grant::new(Mode::AllowAll, [root.path().to_path_buf()]);
 
-    for policy in [Policy::default(), allow_all.clone()] {
+    for policy in [Grant::default(), allow_all.clone()] {
         let mut server = Server::new(user_session()?, policy.clone());
         let (failed, reply) = tool_call(&mut server, 1, "library.source.add", add.clone());
         assert!(failed, "{:?}: {reply}", policy.mode);

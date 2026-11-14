@@ -1,14 +1,14 @@
 {
   "format": 1,
   "fab_profile": {
-    "id": "jlcpcb-4-layer-1oz",
-    "name": "JLCPCB 4-layer",
+    "id": "jlcpcb-2-layer",
+    "name": "JLCPCB 2-layer",
     "source": {
       "publisher": "JLCPCB",
       "document": "PCB Manufacturing & Assembly Capabilities",
       "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
       "date": "2026-11-14",
-      "notes": "Rigid FR-4, 4 or more layers (the Multilayer rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The id still says 1oz because boards pin it; the profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
+      "notes": "Rigid FR-4, 2 layers (JLCPCB's 1-layer boards drill 0.3 mm and up and have their own rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option); boards that pinned it as jlcpcb-2-layer-1oz, before copper weight was an option, find it by that former id. Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
     },
     "drill_files": {
       "kind": "not_published",
@@ -29,7 +29,7 @@
             "name": "Absolute minimum"
           }
         ],
-        "source": "JLCPCB publishes a recommended value and a minimum for three rows (read 2026-11-14): Traces, \"PTH annular ring\": \"1 oz: Recommended 0.20 mm or above; absolute minimum 0.15 mm\"; \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; Drilling, \"Min. Via hole size/diameter\": \"0.15/0.25mm\", \"② Preferred Min. Via hole size: 0.2mm\". Every other row gives one value, used under both. Not an order option: which of JLCPCB's two values the board is held to. The default is the recommended value."
+        "source": "JLCPCB publishes a recommended value and a minimum for three rows (read 2026-11-14): Traces, \"PTH annular ring\": \"1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm\"; \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; Drilling, \"Min. Via hole size/diameter\": \"0.15/0.25mm\", \"② Preferred Min. Via hole size: 0.2mm\". Every other row gives one value, used under both. Not an order option: which of JLCPCB's two values the board is held to. The default is the recommended value."
       },
       {
         "id": "copper_weight",
@@ -47,7 +47,7 @@
             "outer_copper_um": 70.0
           }
         ],
-        "source": "Finished Outer Layer Copper: \"Multi-layer: 1 oz / 2 oz\" (read 2026-11-14). JLCPCB publishes track, annular ring and soldermask limits for 1 oz and 2 oz only. The page gives no thickness: 35 µm an ounce per square foot (IPC-4562 nominal 34.8 µm, rounded as fabricators quote it; library/stackups). The board's top and bottom foils follow the choice. The default is 1 oz, the standard order."
+        "source": "Finished Outer Layer Copper: \"2-layer: 1 oz / 2 oz / 2.5 oz / 3.5 oz / 4.5oz\" (read 2026-11-14). JLCPCB publishes track, annular ring and soldermask limits for 1 oz and 2 oz only (2.5–4.5 oz give track and spacing only), so only those two are offered. The page gives no thickness: 35 µm an ounce per square foot (IPC-4562 nominal 34.8 µm, rounded as fabricators quote it; library/stackups). The board's top and bottom foils follow the choice. The default is 1 oz, the standard order."
       },
       {
         "id": "mask_colour",
@@ -116,38 +116,38 @@
         "source": "Outline, \"Routed\": \"0.2mm\"; \"① Copper clearance from routed board edges: ≧0.2 mm\"."
       },
       "clearance_fill_fill": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_fill_npth_hole": {
         "value": 0.2,
-        "source": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row."
+        "source": "Traces, \"NPTH to Track\": \"0.2mm\"."
       },
       "clearance_fill_pth_hole": {
         "value": 0.35,
-        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the recommended value, chosen over the minimum (0.28 mm), which is also above the inner-layer value.",
+        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; the recommended value, chosen over the minimum (0.28 mm).",
         "cases": [
           {
             "when": {
               "limits": "minimum"
             },
-            "value": 0.3,
-            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the larger minimum, the inner layers' 0.3 mm."
+            "value": 0.28,
+            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the minimum."
           }
         ]
       },
       "clearance_fill_via_hole": {
         "value": 0.2,
-        "source": "Traces, \"Via hole to Track\": \"0.2mm\"; Traces, \"Inner layer via hole to copper clearance\": \"0.2mm\"."
+        "source": "Traces, \"Via hole to Track\": \"0.2mm\"."
       },
       "clearance_npth_hole_npth_hole": {
         "value": 0.45,
@@ -158,55 +158,64 @@
         "source": "Outline, \"Routed\": \"0.2mm\"; \"① Copper clearance from routed board edges: ≧0.2 mm\"."
       },
       "clearance_pad_fill": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_pad_npth_hole": {
         "value": 0.2,
-        "source": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row."
+        "source": "Traces, \"NPTH to Track\": \"0.2mm\"."
       },
       "clearance_pad_pad": {
         "value": 0.15,
-        "source": "Traces, \"SMD pad to pad clearance (different nets)\": \"0.15mm\"."
-      },
-      "clearance_pad_pth_hole": {
-        "value": 0.35,
-        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the recommended value, chosen over the minimum (0.28 mm), which is also above the inner-layer value.",
-        "cases": [
-          {
-            "when": {
-              "limits": "minimum"
-            },
-            "value": 0.3,
-            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the larger minimum, the inner layers' 0.3 mm."
-          }
-        ]
-      },
-      "clearance_pad_via": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "source": "Traces, \"SMD pad to pad clearance (different nets)\": \"0.15mm\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"SMD pad to pad clearance (different nets)\": \"0.15mm\"; the larger 2 oz spacing applies: Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
+          }
+        ]
+      },
+      "clearance_pad_pth_hole": {
+        "value": 0.35,
+        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; the recommended value, chosen over the minimum (0.28 mm).",
+        "cases": [
+          {
+            "when": {
+              "limits": "minimum"
+            },
+            "value": 0.28,
+            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the minimum."
+          }
+        ]
+      },
+      "clearance_pad_via": {
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
+        "cases": [
+          {
+            "when": {
+              "copper_weight": "2oz"
+            },
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_pad_via_hole": {
         "value": 0.2,
-        "source": "Traces, \"Via hole to Track\": \"0.2mm\"; Traces, \"Inner layer via hole to copper clearance\": \"0.2mm\"."
+        "source": "Traces, \"Via hole to Track\": \"0.2mm\"."
       },
       "clearance_pth_hole_npth_hole": {
         "value": 0.45,
@@ -221,21 +230,21 @@
         "source": "Outline, \"Routed\": \"0.2mm\"; \"① Copper clearance from routed board edges: ≧0.2 mm\"."
       },
       "clearance_track_fill": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_track_npth_hole": {
         "value": 0.2,
-        "source": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row."
+        "source": "Traces, \"NPTH to Track\": \"0.2mm\"."
       },
       "clearance_track_pad": {
         "value": 0.1,
@@ -245,68 +254,68 @@
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Pad to track clearance (1oz)\": \"0.1mm\" has no 2 oz row; the 2 oz spacing applies: Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Pad to track clearance (1oz)\": \"0.1mm\" has no 2 oz row; the 2 oz spacing applies: Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_track_pth_hole": {
         "value": 0.35,
-        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the recommended value, chosen over the minimum (0.28 mm), which is also above the inner-layer value.",
+        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; the recommended value, chosen over the minimum (0.28 mm).",
         "cases": [
           {
             "when": {
               "limits": "minimum"
             },
-            "value": 0.3,
-            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the larger minimum, the inner layers' 0.3 mm."
+            "value": 0.28,
+            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the minimum."
           }
         ]
       },
       "clearance_track_track": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_track_via": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_track_via_hole": {
         "value": 0.2,
-        "source": "Traces, \"Via hole to Track\": \"0.2mm\"; Traces, \"Inner layer via hole to copper clearance\": \"0.2mm\"."
+        "source": "Traces, \"Via hole to Track\": \"0.2mm\"."
       },
       "clearance_via_board_edge": {
         "value": 0.2,
         "source": "Outline, \"Routed\": \"0.2mm\"; \"① Copper clearance from routed board edges: ≧0.2 mm\"."
       },
       "clearance_via_fill": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
@@ -324,37 +333,37 @@
       },
       "clearance_via_npth_hole": {
         "value": 0.2,
-        "source": "Traces, \"NPTH to Track\": \"0.2mm\". JLCPCB gives no inner-layer NPTH row."
+        "source": "Traces, \"NPTH to Track\": \"0.2mm\"."
       },
       "clearance_via_pth_hole": {
         "value": 0.35,
-        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the recommended value, chosen over the minimum (0.28 mm), which is also above the inner-layer value.",
+        "source": "Traces, \"PTH to Track\": \"0.28mm\", \"0.35mm is recommended, minimum 0.28mm\"; the recommended value, chosen over the minimum (0.28 mm).",
         "cases": [
           {
             "when": {
               "limits": "minimum"
             },
-            "value": 0.3,
-            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; Traces, \"Inner layer PTH pad hole to copper clearance\": \"0.3mm\". One rule covers every layer: the larger minimum, the inner layers' 0.3 mm."
+            "value": 0.28,
+            "source": "Traces, \"PTH to Track\": \"0.35mm is recommended, minimum 0.28mm\"; the minimum."
           }
         ]
       },
       "clearance_via_via": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "clearance_via_via_hole": {
         "value": 0.2,
-        "source": "Traces, \"Via hole to Track\": \"0.2mm\"; Traces, \"Inner layer via hole to copper clearance\": \"0.2mm\"."
+        "source": "Traces, \"Via hole to Track\": \"0.2mm\"."
       },
       "copper_angle_min": {
         "value": 0.0,
@@ -366,7 +375,7 @@
       },
       "drill_min": {
         "value": 0.15,
-        "source": "Drilling, \"Drill Diameter\": \"Multilayer: 0.15 – 6.3 mm\"; \"Min. Via hole size/diameter\": \"0.15/0.25mm\". The absolute minimum.",
+        "source": "Drilling, \"Drill Diameter\": \"2-layer: 0.15 – 6.3 mm\"; \"Min. Via hole size/diameter\": \"0.15/0.25mm\". The absolute minimum.",
         "cases": [
           {
             "when": {
@@ -453,22 +462,22 @@
         "source": "Profile author's choice (a default, not a JLCPCB limit)."
       },
       "pth_annular_ring_min": {
-        "value": 0.2,
-        "source": "Traces, \"PTH annular ring\": \"≧0.20mm\"; under \"Multilayer:\", \"1 oz: Recommended 0.20 mm or above; absolute minimum 0.15 mm\". The recommended value, chosen over the absolute minimum (0.15 mm).",
+        "value": 0.25,
+        "source": "Traces, \"PTH annular ring\": \"≧0.20mm\"; under \"2-layer:\", \"1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm\". The recommended value, chosen over the absolute minimum (0.18 mm).",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
             "value": 0.254,
-            "source": "Traces, \"PTH annular ring\": under \"Multilayer:\", \"2 oz: 0.254 mm or above\" (read 2026-11-14)."
+            "source": "Traces, \"PTH annular ring\": under \"2-layer:\", \"2 oz: 0.254 mm or above\" (read 2026-11-14)."
           },
           {
             "when": {
               "limits": "minimum"
             },
-            "value": 0.15,
-            "source": "Traces, \"PTH annular ring\": \"1 oz: Recommended 0.20 mm or above; absolute minimum 0.15 mm\"; the absolute minimum."
+            "value": 0.18,
+            "source": "Traces, \"PTH annular ring\": \"1 oz: Recommended 0.25 mm or above; absolute minimum 0.18 mm\"; the absolute minimum."
           }
         ]
       },
@@ -533,21 +542,21 @@
         "source": "Profile author's choice (a default, not a JLCPCB limit)."
       },
       "track_width_min": {
-        "value": 0.09,
-        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"Multilayer: 0.09 / 0.09 mm (3.5 / 3.5 mil). 3 mil is acceptable in BGA fan-outs.\".",
+        "value": 0.1,
+        "source": "Traces, \"Min. track width and spacing (1 oz)\": \"0.10 / 0.10 mm (4 / 4 mil)\"; \"1- and 2-layer: 0.10 / 0.10 mm (4 / 4 mil)\".",
         "cases": [
           {
             "when": {
               "copper_weight": "2oz"
             },
-            "value": 0.15,
-            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"Multilayer: 0.15 / 0.15 mm (6 / 6 mil)\" (read 2026-11-14)."
+            "value": 0.16,
+            "source": "Traces, \"Min. track width and spacing (2 oz)\": \"0.16 / 0.16 mm (6.5 / 6.5 mil)\"; \"2-layer: 0.16 / 0.16 mm (6.5 / 6.5 mil)\" (read 2026-11-14)."
           }
         ]
       },
       "via_annular_ring_min": {
         "formula": "(0.25 - 0.15) / 2.0",
-        "source": "Drilling, \"Min. Via hole size/diameter\": \"0.15/0.25mm\"; \"Multilayer: 0.15 mm hole size / 0.25 mm via diameter\"."
+        "source": "Drilling, \"Min. Via hole size/diameter\": \"0.15/0.25mm\"; \"2-layer: 0.15mm hole size / 0.25mm via diameter\"."
       },
       "via_diameter_default": {
         "formula": "via_drill_default + 0.15",
@@ -558,5 +567,8 @@
         "source": "Profile author's choice (a default, not a JLCPCB limit)."
       }
     }
-  }
+  },
+  "former_ids": [
+    "jlcpcb-2-layer-1oz"
+  ]
 }

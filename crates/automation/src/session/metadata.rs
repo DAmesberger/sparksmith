@@ -17,6 +17,7 @@ use sparksmith_core::permission::{
     Effect, EntryDecl, HostFeature, Needs, Reach, Reaches, Time, Version,
 };
 pub use sparksmith_core::permission::{Person, ResultSize};
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 /// The longest one-line summary, in bytes: what a `find` hit and a catalog
@@ -81,6 +82,11 @@ pub struct EntryMeta {
     pub needs: Needs,
     #[serde(skip)]
     pub since: Version,
+    /// Whether a call names the revision it expects (the envelope's
+    /// `expected_revision`): every operation, and every request whose
+    /// parameters take one, which are those that change the document.
+    #[serde(skip)]
+    pub revision: bool,
     /// `None` for the Never class.
     pub annotations: Option<Annotations>,
 }
@@ -89,6 +95,72 @@ pub struct EntryMeta {
 pub fn entries() -> &'static [EntryMeta] {
     static ENTRIES: OnceLock<Vec<EntryMeta>> = OnceLock::new();
     ENTRIES.get_or_init(|| discovery::entries().iter().map(meta).collect())
+}
+
+/// The entry named `name`, of any family and class.
+pub fn find(name: &str) -> Option<&'static EntryMeta> {
+    static INDEX: OnceLock<HashMap<&'static str, &'static EntryMeta>> = OnceLock::new();
+    INDEX
+        .get_or_init(|| entries().iter().map(|e| (e.name.as_str(), e)).collect())
+        .get(name)
+        .copied()
+}
+
+/// The most names [`closest`] suggests.
+pub const MAX_CLOSEST: usize = 3;
+/// The characters of a name [`closest`] compares; longer names are cut.
+const MAX_COMPARED: usize = 128;
+
+/// The names of the entries `keep` admits nearest `name` by edit distance,
+/// over the whole name or the part after its last dot, whichever is nearer:
+/// at most [`MAX_CLOSEST`], nearest first and then in catalog order. A name
+/// further than a third of its length (at least 2) suggests nothing.
+pub fn closest(name: &str, keep: impl Fn(&EntryMeta) -> bool) -> Vec<&'static str> {
+    let name: Vec<char> = name.chars().take(MAX_COMPARED).collect();
+    let limit = (name.len() / 3).max(2);
+    let mut near: Vec<(usize, &'static str)> = entries()
+        .iter()
+        .filter(|e| keep(e))
+        .filter_map(|e| {
+            let full = e.name.as_str();
+            let tail = full.rsplit('.').next().unwrap_or(full);
+            let distance = distance(&name, full).min(distance(&name, tail));
+            (distance <= limit).then_some((distance, full))
+        })
+        .collect();
+    // Stable: equal distances keep catalog order.
+    near.sort_by_key(|(distance, _)| *distance);
+    near.into_iter()
+        .take(MAX_CLOSEST)
+        .map(|(_, name)| name)
+        .collect()
+}
+
+/// The Levenshtein distance between `a` and the first [`MAX_COMPARED`]
+/// characters of `b`.
+fn distance(a: &[char], b: &str) -> usize {
+    let b: Vec<char> = b.chars().take(MAX_COMPARED).collect();
+    let mut row: Vec<usize> = (0..=b.len()).collect();
+    for (i, x) in a.iter().enumerate() {
+        let mut diagonal = row.first().copied().unwrap_or(i);
+        if let Some(first) = row.first_mut() {
+            *first = i.saturating_add(1);
+        }
+        for (j, y) in b.iter().enumerate() {
+            let (Some(&left), Some(&up)) = (row.get(j), row.get(j.saturating_add(1))) else {
+                break;
+            };
+            let replace = diagonal.saturating_add(usize::from(x != y));
+            let next = replace
+                .min(left.saturating_add(1))
+                .min(up.saturating_add(1));
+            diagonal = up;
+            if let Some(cell) = row.get_mut(j.saturating_add(1)) {
+                *cell = next;
+            }
+        }
+    }
+    row.last().copied().unwrap_or(a.len())
 }
 
 /// An entry's reach: its declared one, with files when it names a path.
@@ -130,6 +202,10 @@ fn meta(entry: &Entry) -> EntryMeta {
             needs
         },
         since: decl.map_or(sparksmith_core::permission::FIRST, |d| d.since),
+        revision: entry.kind == "operation"
+            || entry.schema["properties"]
+                .get("expected_revision")
+                .is_some(),
         annotations: annotations(entry.class, !reach.is_empty()),
     }
 }

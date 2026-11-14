@@ -91,23 +91,16 @@ pub fn convert_project(path: &Path, options: &Options) -> Result<Vec<String>> {
         )]);
     };
     let mut lines = vec![format!(
-        "{shown}: converted from version {} to {}: {} values, recomputed {} origin hashes, {} design keys and {} fill keys (fill copper moved at most {} nm; original kept as {})",
+        "{shown}: converted from version {} to {}: {} values, recomputed {} origin hashes and {} design keys (original kept as {})",
         done.from,
         sparksmith_core::format::FILE_VERSION,
         done.values,
         done.identity.origins,
         done.identity.design_keys,
-        done.identity.fill_keys,
-        done.identity.fill_moved_nm,
         backup.display()
     )];
     for note in &done.notes {
         lines.push(format!("{shown}: {note}"));
-    }
-    for fill in &done.identity.stale_fills {
-        lines.push(format!(
-            "{shown}: fill {fill} would refill to other copper, so it was already stale; refill it in the app"
-        ));
     }
     for lineage in &done.identity.project_file_lineages {
         lines.push(format!(

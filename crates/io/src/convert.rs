@@ -22,6 +22,7 @@ use std::path::Path;
 
 pub mod v1;
 pub mod v2;
+pub mod v3;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -55,6 +56,11 @@ pub const STEPS: &[Step] = &[
         from: 2,
         summary: "part-file values in integers; generated parts of the old generator ABI detached into ordinary parts",
         apply: v2::step,
+    },
+    Step {
+        from: 3,
+        summary: "computed fill copper out of the file (refilled after opening); sketches and waiver keys as JSON, not strings",
+        apply: v3::step,
     },
 ];
 

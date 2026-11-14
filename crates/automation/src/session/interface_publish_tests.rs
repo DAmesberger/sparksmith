@@ -687,10 +687,7 @@ fn the_project_keeps_where_it_published() -> TestResult {
         &dir.path().join("shared").join("board.solidcraft"),
         "interface",
     )?;
-    assert_eq!(
-        hint(&session).map(std::path::PathBuf::from),
-        Some(Path::new("shared").join("board.solidcraft"))
-    );
+    assert_eq!(hint(&session).as_deref(), Some("shared/board.solidcraft"));
     let elsewhere = tempfile::tempdir()?;
     let outside = elsewhere.path().join("board.solidcraft");
     publish(&mut session, &outside, "interface")?;

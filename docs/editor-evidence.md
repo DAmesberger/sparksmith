@@ -244,7 +244,7 @@ Not done: refusal toasts still offer Details, not a Show that locates the blocke
 
 A via edit on the large board still copies the whole via collection, about 55 bytes for each of the 10,021 vias, because sharing is per collection, not per object. Latency is dominated by validation and checks, not by the copy, so it barely changes. The machine was shared and under load, so latency differences under about 10% are noise.
 
-`project.undo`, `project.redo`, `project.new` and `project.open` now require `expected_revision`, as every other document-changing request does. `Session::execute` checks it once, from `Request::expected_revision`, before any file is read or written. The engine's `undo_at`/`redo_at` check it again through `Engine::check_revision`. The desktop's own undo and redo use the current revision. A catalog test requires the parameter on every non-read request except the named file and settings effects.
+`project.undo`, `project.redo`, `project.new` and `project.open` now require `expected_revision`, as every other document-changing request does. The front door checks it once, from the call envelope's `expected_revision`, before any file is read or written (`Request::expected_revision` until S2). The engine's `undo_at`/`redo_at` check it again through `Engine::check_revision`. The desktop's own undo and redo use the current revision. A catalog test requires the parameter on every non-read request except the named file and settings effects.
 
 ## Large-board benchmark
 

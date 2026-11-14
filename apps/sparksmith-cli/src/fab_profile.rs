@@ -115,7 +115,7 @@ mod tests {
     /// A sourced profile file of the shipped library (`library/profiles/`).
     const EXAMPLE: &str = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../../library/profiles/jlcpcb-2-layer-1oz.json"
+        "/../../library/profiles/jlcpcb-2-layer.json"
     );
 
     #[test]
@@ -141,8 +141,8 @@ mod tests {
         assert_eq!(
             kinds(&listed),
             [
-                pair("jlcpcb-2-layer-1oz", "built-in"),
-                pair("jlcpcb-4-layer-1oz", "built-in"),
+                pair("jlcpcb-2-layer", "built-in"),
+                pair("jlcpcb-4-layer", "built-in"),
             ],
             "the built-ins, with an empty user library"
         );
@@ -150,21 +150,21 @@ mod tests {
         let builtin = dir.path().join("builtin.json");
         reply(
             &library,
-            &args(&["export", "jlcpcb-4-layer-1oz", &builtin.to_string_lossy()]),
+            &args(&["export", "jlcpcb-4-layer", &builtin.to_string_lossy()]),
         )?;
         assert_eq!(
             rule_profiles::read_profile_file(&builtin)?.name,
             "JLCPCB 4-layer"
         );
         let imported = reply(&library, &args(&["import", EXAMPLE]))?;
-        assert_eq!(imported["imported"]["id"], "jlcpcb-2-layer-1oz");
+        assert_eq!(imported["imported"]["id"], "jlcpcb-2-layer");
         assert_eq!(imported["imported"]["source"]["publisher"], "JLCPCB");
         let listed = reply(&library, &args(&["list"]))?;
         assert_eq!(
             kinds(&listed),
             [
-                pair("jlcpcb-2-layer-1oz", "user"),
-                pair("jlcpcb-4-layer-1oz", "built-in"),
+                pair("jlcpcb-2-layer", "user"),
+                pair("jlcpcb-4-layer", "built-in"),
             ],
             "the user's copy replaces the built-in of its id"
         );
@@ -173,12 +173,12 @@ mod tests {
         let file_text = file.to_string_lossy().into_owned();
         reply(
             &library,
-            &args(&["export", "jlcpcb-2-layer-1oz", &file_text]),
+            &args(&["export", "jlcpcb-2-layer", &file_text]),
         )?;
         assert!(
             reply(
                 &library,
-                &args(&["export", "jlcpcb-2-layer-1oz", &file_text])
+                &args(&["export", "jlcpcb-2-layer", &file_text])
             )
             .is_err(),
             "an export never replaces a file"

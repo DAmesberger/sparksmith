@@ -54,7 +54,7 @@ The panel never calls the engine directly.
 | Window-only (`project.new`, `.open`, `.save`) | `live::admit` | Refused, `live.window_only` | Same |
 | Busy (typing, dragging, menu, dialog, review) | `live::admit` | Refused, `live.busy`; reads run | Same |
 | Revision | `admit`, and again in `Session::execute` | `stale_revision`, `live.revision_required` | Same |
-| Permission gate | `Session::check_request` with the window's `Policy` | Run, Ask or Refuse | Same |
+| Permission gate | `Session::check_request` with the window's `Grant` | Run, Ask or Refuse | Same |
 | Ask | `Verdict::Ask` | An Allow/Deny card in the conversation | The window's "AI assistant asks" prompt |
 | Failed mutation | Engine | Document unchanged | Same |
 | Reviewable turn | Window pump and engine (below) | One undo step per message | One step per edit, as today (Q4) |
@@ -318,7 +318,7 @@ Other states:
 | Typed engine, catalogue, classes, compact replies | `sparksmith-core`, `crates/automation/src/session*` |
 | MCP server, live mode, `live_tools` | `crates/automation/src/mcp.rs` |
 | Live channel: `Endpoint`, `admit`, `run`, `Client`, `--live` bridge | `crates/automation/src/live.rs`, Solidcraft's control channel |
-| Gate: `Policy`, `Mode`, `decide`, `check_request`, refusals | `crates/automation/src/gate.rs` |
+| Gate: `Grant`, `Principal`, `Mode`, `decide_entries`, `check_request`, refusals | `crates/automation/src/gate.rs` |
 | Window pump, busy rule, Ask prompt, AI indicator, toasts | `apps/sparksmith/src/app/live_mcp.rs` |
 | Model layer, backends, keys, endpoints, recording | `crates/assist/src/model*` |
 | Run profiles, harness fixes | `crates/assist/src/profile.rs`, `profiles/` |
