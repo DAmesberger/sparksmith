@@ -20,7 +20,7 @@
 use crate::model::ToolSpec;
 use crate::report::ReviewReport;
 use serde_json::{Map, Value, json};
-use sparksmith_automation::{Caller, Policy, Session};
+use sparksmith_automation::{Caller, Grant, Session};
 use sparksmith_core::library::pinout::{
     MAX_PINOUT_PERIPHERALS, MAX_PINOUT_PINS, MAX_PINOUT_RULES, MAX_PINOUT_VARIANTS,
 };
@@ -198,7 +198,7 @@ pub fn definitions() -> Vec<ToolSpec> {
 /// Run one tool call against `session`.
 pub fn execute(
     session: &mut Session,
-    policy: &Policy,
+    policy: &Grant,
     workspace: &mut Workspace,
     name: &str,
     input: &Value,
@@ -357,7 +357,7 @@ pub fn execute(
 /// model's: there is no one to ask in a run yet, so Ask is refused with a
 /// reason the model can read, and Never always is. The runner reads full
 /// results (each draft's findings), so it asks for them.
-pub fn send(session: &mut Session, policy: &Policy, mut request: Value) -> Value {
+pub fn send(session: &mut Session, policy: &Grant, mut request: Value) -> Value {
     request["verbose"] = json!(true);
     session.respond(Caller::Model(policy), request)
 }
@@ -658,7 +658,7 @@ fn ranges(numbers: &[u64]) -> String {
 /// which replaces it) through `library.pinout_preview`, compacted.
 fn preview(
     session: &mut Session,
-    policy: &Policy,
+    policy: &Grant,
     workspace: &mut Workspace,
     input: &Value,
 ) -> ToolOutcome {
@@ -913,7 +913,7 @@ mod tests {
         assert!(matches!(
             execute(
                 &mut session,
-                &Policy::default(),
+                &Grant::default(),
                 &mut workspace,
                 "library_publish",
                 &json!({})
@@ -923,7 +923,7 @@ mod tests {
         assert!(matches!(
             execute(
                 &mut session,
-                &Policy::default(),
+                &Grant::default(),
                 &mut workspace,
                 "submit_review",
                 &json!({"report": {"part": "x"}})
@@ -957,7 +957,7 @@ mod tests {
         let mut workspace = Workspace::default();
         let outcome = execute(
             &mut session,
-            &Policy::default(),
+            &Grant::default(),
             &mut workspace,
             "submit_review",
             &report_example(),
@@ -976,7 +976,7 @@ mod tests {
         report["report"]["values"][0]["source"]["location"] = json!("");
         let outcome = execute(
             &mut session,
-            &Policy::default(),
+            &Grant::default(),
             &mut workspace,
             "submit_review",
             &report,
@@ -1008,7 +1008,7 @@ mod tests {
         for input in [json!({"report": report.clone()}), flat_and_stringified] {
             let outcome = execute(
                 &mut session,
-                &Policy::default(),
+                &Grant::default(),
                 &mut workspace,
                 "submit_review",
                 &input,
@@ -1018,7 +1018,7 @@ mod tests {
         // A wrong field name is refused with the whole expected shape.
         let outcome = execute(
             &mut session,
-            &Policy::default(),
+            &Grant::default(),
             &mut workspace,
             "submit_review",
             &json!({"report": {"part": "X", "summary": "s", "sources": [], "values": [{"name": "x"}]}}),

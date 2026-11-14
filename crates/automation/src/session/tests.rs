@@ -54,7 +54,7 @@ fn json_requests_reach_the_engine_and_report_typed_errors() -> TestResult {
     assert_eq!(stale["error"]["actual_revision"], revision + 1);
 
     let unknown = session.dispatch(json!({"command": "project.unknown", "params": {}}));
-    assert_eq!(unknown["error"]["code"], "malformed_request");
+    assert_eq!(unknown["error"]["code"], "catalog.unknown");
     let extra = session.dispatch(json!({"command": "project.undo", "params": {"x": 1}}));
     assert_eq!(extra["error"]["code"], "malformed_request");
 

@@ -15,7 +15,7 @@
 use super::App;
 use crate::kit::{self, severity::Level, toast::ToastAction};
 use sparksmith_automation::live::{self, Admitted, ControlRequest, Endpoint, Verdict};
-use sparksmith_automation::{Mode, Policy, Question, Session};
+use sparksmith_automation::{Grant, Mode, Question, Session};
 use sparksmith_ui::{ui_kit, ui_kit::Button};
 use std::collections::VecDeque;
 use std::path::PathBuf;
@@ -119,7 +119,12 @@ impl LiveMcp {
         self.failure = None;
         if !on {
             if let Some(held) = self.held.take() {
-                let _ = held.request.reply.send(held.question.denied().reply());
+                let _ = held
+                    .request
+                    .reply
+                    .send(sparksmith_automation::gate::failure(
+                        &held.question.denied(),
+                    ));
             }
             self.endpoint = None;
             return;
@@ -222,7 +227,7 @@ impl App {
                 .started
                 .store(true, std::sync::atomic::Ordering::Relaxed);
             let busy = self.live_busy(ctx);
-            let policy = Policy::new(self.live.mode, folders(self.files.path()));
+            let policy = Grant::new(self.live.mode, folders(self.files.path()));
             let path = self.files.path().map(std::path::Path::to_path_buf);
             let verdict = self
                 .live
@@ -423,7 +428,12 @@ impl App {
         if allow {
             self.run_live(held.request, &held.admitted);
         } else {
-            let _ = held.request.reply.send(held.question.denied().reply());
+            let _ = held
+                .request
+                .reply
+                .send(sparksmith_automation::gate::failure(
+                    &held.question.denied(),
+                ));
             self.say(
                 Level::Info,
                 format!("Denied the AI assistant's {}", held.question.command),

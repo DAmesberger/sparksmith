@@ -29,7 +29,7 @@ fn block_on<F: Future>(future: F) -> Fallible<F::Output> {
 
 /// A server in the default mode (edits run, files ask), allowed `folder`.
 fn server(folder: &Path) -> Fallible<Server> {
-    let policy = Policy::new(Mode::AutoAllowEdits, [folder.to_path_buf()]);
+    let policy = Grant::new(Mode::AutoAllowEdits, [folder.to_path_buf()]);
     Ok(Server::new(Session::default(), policy)?)
 }
 

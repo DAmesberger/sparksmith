@@ -12,7 +12,7 @@ use crate::tools::{self, ToolOutcome};
 use crate::usage::Tally;
 use crate::{Error, Event, Goal, Outcome, Result, Stop};
 use serde_json::Value;
-use sparksmith_automation::{Mode, Policy, Session};
+use sparksmith_automation::{Grant, Mode, Session};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -42,7 +42,7 @@ pub struct RunConfig {
     pub budget: Budget,
     /// What the run's tool calls may do: every call goes through the gate
     /// with it. The hosts give it the output folder as its only folder.
-    pub policy: Policy,
+    pub policy: Grant,
 }
 
 impl RunConfig {
@@ -62,7 +62,7 @@ impl RunConfig {
             run_profile,
             base_prompt: shipped.system.clone(),
             budget: Budget::default(),
-            policy: Policy::default(),
+            policy: Grant::default(),
         })
     }
 
@@ -80,19 +80,19 @@ impl RunConfig {
 /// The default policy of a run: edits run inside its turn, files and
 /// publishing are refused (there is no one to ask yet), and the folder the
 /// run writes its project to is the only folder a request may name.
-pub fn output_policy(out: &std::path::Path) -> Result<Policy> {
+pub fn output_policy(out: &std::path::Path) -> Result<Grant> {
     let folder = match out.parent() {
         Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
         _ => std::path::PathBuf::from("."),
     };
     let folder = std::path::absolute(&folder)?;
-    Ok(Policy::new(Mode::AutoAllowEdits, [folder]))
+    Ok(Grant::new(Mode::AutoAllowEdits, [folder]))
 }
 
 /// What tools act on during a run.
 struct ToolContext<'a> {
     session: &'a mut Session,
-    policy: &'a Policy,
+    policy: &'a Grant,
     workspace: tools::Workspace,
     pages: PageStore,
     /// Reported in the review: which document's pages the model looked at.
