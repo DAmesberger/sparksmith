@@ -71,7 +71,17 @@ impl Ax {
         workspace: Workspace,
         sources: LibrarySources,
     ) -> Fallible<Self> {
-        let dir = tempfile::tempdir()?;
+        Self::in_dir(tempfile::tempdir()?, engine, workspace, sources)
+    }
+
+    /// [`Ax::with_sources`] in `dir`, which is also the recovery folder:
+    /// what earlier sessions left there is offered at startup.
+    pub(crate) fn in_dir(
+        dir: tempfile::TempDir,
+        engine: Engine,
+        workspace: Workspace,
+        sources: LibrarySources,
+    ) -> Fallible<Self> {
         let ctx = egui::Context::default();
         fonts::setup_bundled_fonts(&ctx);
         let mut files = FileUi::with_directory(

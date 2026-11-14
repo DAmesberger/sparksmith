@@ -33,6 +33,7 @@ use crate::library_sources::FolderPick;
 use crate::refusal::{self, Origin};
 use crate::template_gallery::{self, Found};
 use egui::{Rect, Ui, pos2};
+use sparksmith_automation::part_files::{self, BuiltinPart};
 use sparksmith_core::catalog::generic::{GenericCandidate, MAX_WORDS};
 use sparksmith_core::catalog::templates::TemplateHit;
 use sparksmith_core::catalog::{
@@ -66,6 +67,10 @@ const KEYS_GENERIC_NEW: &str = "↑↓ move   Enter create and place   click pic
 const KEYS_GENERIC: &str = "↑↓ move   Enter place   click pick   Esc close";
 /// The heading of the generic parts not yet in the project.
 const GENERIC_HEADING: &str = "Generic parts";
+/// The heading of the shipped library's part files the text names.
+const BUILTIN_HEADING: &str = "Built-in 3D parts";
+/// The footer on a built-in mechanical part: it is placed on the board.
+const KEYS_BUILTIN: &str = "↑↓ move   Enter place on the board   click pick   Esc close";
 /// The footer while the other-revision choice is open.
 const KEYS_CHOICE: &str = "Enter update project copy   Esc cancel";
 /// The footer while nothing can be placed.
@@ -143,6 +148,9 @@ pub enum PaletteEvent {
     UpdateProjectCopy(FolderPick),
     /// Open the Library sources card.
     ManageSources,
+    /// A built-in mechanical part file, by name: place it on the board
+    /// (PCB Layout's Place 3D part… at that part).
+    PlacePartFile(String),
 }
 
 /// What rows say about the project around them, rebuilt with the results:
@@ -209,6 +217,8 @@ struct Results {
     templates: Found,
     /// Place mode: the generic parts the text reads as.
     generic: Vec<GenericCandidate>,
+    /// Place mode: the shipped library's part files the text names.
+    builtins: Vec<&'static BuiltinPart>,
     /// The rows the highlight moves over, top to bottom.
     order: Vec<Slot>,
     /// Place mode: the words left out of a text that found nothing as a
@@ -221,6 +231,7 @@ struct Lookup {
     report: Result<SearchReport, String>,
     templates: Found,
     generic: Vec<GenericCandidate>,
+    builtins: Vec<&'static BuiltinPart>,
 }
 
 impl Lookup {
@@ -231,6 +242,7 @@ impl Lookup {
             .map_or(true, |r| r.results.is_empty() && r.hidden.is_empty())
             && self.templates.hits.is_empty()
             && self.generic.is_empty()
+            && self.builtins.is_empty()
     }
 }
 
@@ -240,6 +252,8 @@ enum Slot {
     Hit(usize),
     Generic(usize),
     Template(usize),
+    /// A built-in part file (`Results::builtins`).
+    Builtin(usize),
 }
 
 /// The captioned groups of the result list.
@@ -249,6 +263,7 @@ enum Group {
     Entries(usize),
     Generic,
     Template,
+    Builtin,
 }
 
 /// The list's order: the project's parts (a generic part it holds first), the
@@ -257,6 +272,7 @@ fn row_order(
     hits: &[Hit],
     generic: &[GenericCandidate],
     templates: &[TemplateHit],
+    builtins: usize,
     context: &CatalogContext,
 ) -> Vec<Slot> {
     let held = |c: &GenericCandidate| c.component().is_some();
@@ -282,6 +298,7 @@ fn row_order(
             .filter(|(_, h)| !in_project(h))
             .map(|(i, _)| Slot::Hit(i)),
     );
+    order.extend((0..builtins).map(Slot::Builtin));
     order
 }
 
@@ -530,9 +547,16 @@ impl PlacePalette {
             report,
             templates,
             generic,
+            builtins,
         } = found;
         let hits = report.as_ref().map_or(&[][..], |r| &r.results[..]);
-        let order = row_order(hits, &generic, &templates.hits, &self.context);
+        let order = row_order(
+            hits,
+            &generic,
+            &templates.hits,
+            builtins.len(),
+            &self.context,
+        );
         if !new_text
             && let Some(key) = kept
             && let Some(at) = order.iter().position(
@@ -548,6 +572,7 @@ impl PlacePalette {
             report,
             templates,
             generic,
+            builtins,
             order,
             ignored,
         });
@@ -596,12 +621,15 @@ impl PlacePalette {
             }
             report
         });
-        let (mut templates, generic) = match &self.mode {
+        let (mut templates, generic, builtins) = match &self.mode {
             Mode::Place => (
                 template_gallery::find(engine, text, ROWS, &self.context),
                 template_gallery::find_generic(engine, text),
+                // Read once per process; without a shipped library the
+                // Place 3D part sheet says why.
+                part_files::builtin_parts().map_or_else(|_| Vec::new(), |parts| parts.find(text)),
             ),
-            Mode::Assign { .. } => (Found::default(), Vec::new()),
+            Mode::Assign { .. } => (Found::default(), Vec::new(), Vec::new()),
         };
         template_gallery::drop_covered(&mut templates, &generic);
         // A text this grammar reads need not be one the search can: "10 kΩ
@@ -609,7 +637,7 @@ impl PlacePalette {
         // once, as that part.
         let report = report
             .or_else(|error| {
-                if generic.is_empty() {
+                if generic.is_empty() && builtins.is_empty() {
                     Err(error)
                 } else {
                     Ok(SearchReport::default())
@@ -630,6 +658,7 @@ impl PlacePalette {
             report,
             templates,
             generic,
+            builtins,
         }
     }
 
@@ -750,6 +779,33 @@ impl PlacePalette {
         match self.slot()? {
             Slot::Template(i) => self.templates().get(i),
             _ => None,
+        }
+    }
+
+    /// The highlighted built-in part file, if the highlight is on one.
+    fn highlighted_builtin(&self) -> Option<&'static BuiltinPart> {
+        match self.slot()? {
+            Slot::Builtin(i) => self.results.as_ref()?.builtins.get(i).copied(),
+            _ => None,
+        }
+    }
+
+    /// Choosing the highlighted built-in part file: a mechanical part asks
+    /// the app to place it on the board (Place 3D part… at that part) and
+    /// closes the sheet; a package body stays, saying where it is used.
+    fn choose_builtin(&mut self) -> Option<PaletteAction> {
+        let part = self.highlighted_builtin()?;
+        if part.mechanical {
+            self.events
+                .push(PaletteEvent::PlacePartFile(part.name.clone()));
+            self.close();
+            Some(PaletteAction::Close)
+        } else {
+            self.notice = Some(format!(
+                "{} is a package's 3D body: choose it in a component's 3D Body section.",
+                part.title
+            ));
+            None
         }
     }
 
@@ -882,7 +938,9 @@ impl PlacePalette {
         }
         self.highlighted = self.highlighted.min(count.saturating_sub(1));
         let mut action = None;
-        if keys.enter && self.highlighted_generic().is_some() {
+        if keys.enter && self.highlighted_builtin().is_some() {
+            action = self.choose_builtin();
+        } else if keys.enter && self.highlighted_generic().is_some() {
             action = self.choose_generic();
         } else if keys.enter && self.highlighted_template().is_some() {
             action = self.choose_template();
@@ -910,6 +968,12 @@ impl PlacePalette {
         let highlighted_entry = self.highlighted_hit().map(|h| &h.entry);
         let footer = if self.choice.is_some() {
             KEYS_CHOICE
+        } else if let Some(part) = self.highlighted_builtin() {
+            if part.mechanical {
+                KEYS_BUILTIN
+            } else {
+                KEYS_IDLE
+            }
         } else if let Some(candidate) = self.highlighted_generic() {
             match candidate.state {
                 GenericState::Existing { .. } => KEYS_GENERIC,
@@ -986,6 +1050,7 @@ impl PlacePalette {
                     let templates = found.map_or(&[][..], |f| &f.hits);
                     let more = found.map_or(0, |f| f.more);
                     let generic = self.results.as_ref().map_or(&[][..], |r| &r.generic[..]);
+                    let builtins = self.results.as_ref().map_or(&[][..], |r| &r.builtins[..]);
                     let order = self.results.as_ref().map_or(&[][..], |r| &r.order[..]);
                     if order.is_empty() {
                         kit::search_message(ui, empty, false);
@@ -1019,6 +1084,7 @@ impl PlacePalette {
                                         }
                                         Slot::Generic(_) => Group::Generic,
                                         Slot::Template(_) => Group::Template,
+                                        Slot::Builtin(_) => Group::Builtin,
                                     };
                                     if shown != Some(caption) {
                                         shown = Some(caption);
@@ -1053,6 +1119,9 @@ impl PlacePalette {
                                                 template_gallery::SEARCH_HEADING.to_owned(),
                                                 templates.len() + more,
                                             ),
+                                            Group::Builtin => {
+                                                (BUILTIN_HEADING.to_owned(), builtins.len())
+                                            }
                                         };
                                         kit::search_heading(ui, &label, count);
                                     }
@@ -1093,6 +1162,9 @@ impl PlacePalette {
                                                 &source,
                                             )
                                         }),
+                                        Slot::Builtin(i) => builtins
+                                            .get(i)
+                                            .map(|part| builtin_row(ui, i, part, &self.query, lit)),
                                     };
                                     if let Some(response) = response {
                                         if scroll && lit {
@@ -1132,7 +1204,9 @@ impl PlacePalette {
             && self.choice.is_none()
         {
             self.highlighted = i;
-            if self.highlighted_generic().is_some() {
+            if self.highlighted_builtin().is_some() {
+                action = self.choose_builtin();
+            } else if self.highlighted_generic().is_some() {
                 action = self.choose_generic();
             } else if self.highlighted_template().is_some() {
                 action = self.choose_template();
@@ -1882,6 +1956,33 @@ fn part_details(ui: &mut Ui, engine: &Engine, r: PartRef) {
     }
 }
 
+/// A built-in part file's row: its title, and what it is for.
+fn builtin_row(
+    ui: &mut Ui,
+    index: usize,
+    part: &BuiltinPart,
+    query: &str,
+    highlighted: bool,
+) -> egui::Response {
+    let detail = if part.mechanical {
+        "Built-in · placed on the board in PCB Layout"
+    } else {
+        "Built-in · a package's 3D body"
+    };
+    kit::search_row(
+        ui,
+        egui::Id::unique("place-palette-builtin").with(index),
+        &kit::SearchRow {
+            icon: "component",
+            label: &part.title,
+            query,
+            detail,
+            badges: &[],
+            highlighted,
+        },
+    )
+}
+
 fn row(
     ui: &mut Ui,
     hit: &Hit,
@@ -2161,6 +2262,7 @@ mod tests {
             context: (0, 0),
             query: palette.query.clone(),
             generic: Vec::new(),
+            builtins: Vec::new(),
             order: (0..report.results.len()).map(Slot::Hit).collect(),
             ignored: Vec::new(),
             report: Ok(report),
@@ -2383,6 +2485,7 @@ mod tests {
                 context: (0, 0),
                 query: palette.query.clone(),
                 generic: Vec::new(),
+                builtins: Vec::new(),
                 order: (0..report.results.len()).map(Slot::Hit).collect(),
                 ignored: Vec::new(),
                 report: Ok(report.clone()),
@@ -2548,6 +2651,7 @@ mod tests {
                 }
                 Slot::Generic(_) => "generic",
                 Slot::Template(_) => "template",
+                Slot::Builtin(_) => "builtin",
             })
             .collect();
         kinds.dedup();
@@ -2838,6 +2942,81 @@ mod tests {
         assert_eq!(
             shown,
             [("sym", true), ("fp", true), ("3D", true), ("MPN", false)]
+        );
+        Ok(())
+    }
+
+    /// E2E run 6, finding 9: the shipped library's part files are found.
+    /// "heatsink" lists the finned heatsink under its own caption, not "No
+    /// component or template matches"; Enter asks the app to place it on
+    /// the board and closes. "esp32" lists the module body, which stays
+    /// and says where a package body is used.
+    #[test]
+    fn shipped_part_files_are_found_and_placed_on_the_board()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let ctx = egui::Context::default();
+        sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+        let engine = Engine::profiled()?;
+        let mut palette = PlacePalette::default();
+        let run = |palette: &mut PlacePalette, events: Vec<egui::Event>| {
+            let mut action = None;
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(1200.0, 900.0),
+                    )),
+                    events,
+                    ..Default::default()
+                },
+                |ui| {
+                    let area = ui.max_rect();
+                    action = palette.show(ui, area, &engine, &|_| true);
+                },
+            );
+            output.textures_delta.clear();
+            (action, texts(&output))
+        };
+        let enter = || vec![key_event(egui::Key::Enter, egui::Modifiers::NONE)];
+        palette.open();
+        palette.query = "heatsink".into();
+        run(&mut palette, vec![]);
+        let (_, shown) = run(&mut palette, vec![]);
+        assert!(shown.iter().any(|t| t == "Finned heatsink"), "{shown:?}");
+        assert!(
+            shown.iter().any(|t| t.starts_with("BUILT-IN 3D PARTS")),
+            "{shown:?}"
+        );
+        assert!(
+            !shown
+                .iter()
+                .any(|t| t == "No component or template matches"),
+            "{shown:?}"
+        );
+        let (action, _) = run(&mut palette, enter());
+        assert_eq!(action, Some(PaletteAction::Close));
+        assert!(!palette.is_open());
+        assert_eq!(
+            palette.take_events(),
+            [PaletteEvent::PlacePartFile("finned-heatsink".into())]
+        );
+
+        palette.open();
+        palette.query = "esp32".into();
+        run(&mut palette, vec![]);
+        let (_, shown) = run(&mut palette, vec![]);
+        assert!(
+            shown.iter().any(|t| t == "ESP32-S31-WROOM-3 module body"),
+            "{shown:?}"
+        );
+        let (action, _) = run(&mut palette, enter());
+        assert_eq!(action, None);
+        assert!(palette.is_open(), "a package body is not placed");
+        assert!(palette.take_events().is_empty());
+        let (_, shown) = run(&mut palette, vec![]);
+        assert!(
+            shown.iter().any(|t| t.contains("package's 3D body")),
+            "{shown:?}"
         );
         Ok(())
     }

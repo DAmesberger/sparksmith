@@ -212,30 +212,54 @@ fn a_replaced_file_keeps_its_permissions() -> Result<()> {
     Ok(())
 }
 
-/// When the file is already in place but its folder cannot be synchronized
-/// (here: a folder that may be written but not opened), the error says so
-/// with its own code; it is not a refusal of the input.
+/// E2E run 6, finding 4: a folder the system will not let us open for its
+/// sync (here: one that may be written but not read, as macOS answers in
+/// Documents) does not fail the save. The file was synced and is in place,
+/// so a project save succeeds and reads back.
 #[cfg(unix)]
 #[test]
-fn an_unsynchronized_folder_is_reported_as_written_not_refused() -> Result<()> {
+fn a_folder_that_refuses_its_sync_still_saves() -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     let dir = tempfile::tempdir()?;
     let folder = dir.path().join("out");
     std::fs::create_dir(&folder)?;
-    let path = folder.join("board.txt");
-    atomic_write(&path, b"old")?;
+    let path = folder.join("board.sparksmith");
+    let file = Engine::demo()?.to_file();
+    write_project(&path, &file)?;
     std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o300))?;
-    // A privileged user opens it anyway; there is nothing to test then.
-    let opened = std::fs::File::open(&folder).is_ok();
-    let result = atomic_write(&path, b"new");
+    let refused = std::fs::File::open(&folder).is_err();
+    let result = write_project(&path, &file);
+    let plain = atomic_write(&folder.join("note.txt"), b"new");
     std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o700))?;
-    if !opened {
-        let error = result
-            .err()
-            .ok_or_else(|| Error::Invalid("not reported".into()))?;
-        assert_eq!(error.code(), "written_unsynced", "{error}");
-        assert!(error.to_string().contains("was written"), "{error}");
-    }
-    assert_eq!(std::fs::read(&path)?, b"new", "the file was replaced");
+    // A privileged user opens it anyway; the save succeeds either way.
+    assert!(refused || std::fs::File::open(&folder).is_ok());
+    result?;
+    plain?;
+    assert_eq!(read_project(&path)?.project, file.project);
+    assert_eq!(std::fs::read(folder.join("note.txt"))?, b"new");
     Ok(())
+}
+
+/// Which folder-sync failures mean "not offered here" (no notice) and
+/// which still say the file was written but its folder is unsynced.
+#[cfg(unix)]
+#[test]
+fn only_a_sync_the_system_does_not_offer_is_quiet() {
+    use std::io::{Error as IoError, ErrorKind};
+    for kind in [
+        ErrorKind::PermissionDenied,
+        ErrorKind::Unsupported,
+        ErrorKind::InvalidInput,
+    ] {
+        assert!(super::sync_not_offered(&IoError::from(kind)), "{kind:?}");
+    }
+    // EPERM, as macOS answers for a protected folder.
+    assert!(super::sync_not_offered(&IoError::from_raw_os_error(1)));
+    for kind in [
+        ErrorKind::Other,
+        ErrorKind::StorageFull,
+        ErrorKind::NotFound,
+    ] {
+        assert!(!super::sync_not_offered(&IoError::from(kind)), "{kind:?}");
+    }
 }

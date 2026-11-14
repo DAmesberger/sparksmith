@@ -157,19 +157,40 @@ fn temporary_in(parent: &Path, _path: &Path, _access: Access) -> Result<tempfile
 
 /// Make a rename in `directory` durable. A failure is [`Error::Unsynced`]:
 /// the file is already in place, so it is not reported as refused input.
+///
+/// A folder the system will not let us open or sync is not a failure: the
+/// file's own data was synced before the rename, and only the folder
+/// entry's flush is left to the file system. macOS refuses both in a
+/// protected folder such as Documents (E2E run 6, finding 4), and some
+/// file systems do not sync folders at all. Reporting that on every save
+/// would mark a saved project unsaved, so it is not reported.
 pub(crate) fn sync_directory(directory: &Path) -> Result<()> {
     #[cfg(unix)]
-    std::fs::File::open(directory)
-        .and_then(|directory| directory.sync_all())
-        .map_err(|error| {
-            Error::Unsynced(format!(
+    match std::fs::File::open(directory).and_then(|directory| directory.sync_all()) {
+        Ok(()) => {}
+        Err(error) if sync_not_offered(&error) => {}
+        Err(error) => {
+            return Err(Error::Unsynced(format!(
                 "The file was written, but synchronizing {} failed; power-loss durability is unconfirmed: {error}",
                 directory.display()
-            ))
-        })?;
+            )));
+        }
+    }
     #[cfg(not(unix))]
     let _ = directory;
     Ok(())
+}
+
+/// Whether a folder sync failed because the system does not offer it here
+/// (permission, an unsupported operation or file system), not because
+/// writing failed.
+#[cfg(unix)]
+fn sync_not_offered(error: &std::io::Error) -> bool {
+    use std::io::ErrorKind;
+    matches!(
+        error.kind(),
+        ErrorKind::PermissionDenied | ErrorKind::Unsupported | ErrorKind::InvalidInput
+    )
 }
 
 #[cfg(test)]

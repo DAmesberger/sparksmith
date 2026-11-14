@@ -106,6 +106,20 @@ impl TableRow {
     pub fn resolved(&self) -> bool {
         self.level == Level::Ok
     }
+
+    /// Why the Part cell has its mark: the most severe issue, else that no
+    /// part is chosen yet; nothing for a resolved line (E2E run 6, finding
+    /// 6: the red mark said nothing on hover).
+    pub fn why(&self) -> String {
+        match self.issues.first() {
+            Some((_, title)) => match self.issues.len() {
+                1 => title.clone(),
+                n => format!("{title} · and {} more", n - 1),
+            },
+            None if self.resolved() => String::new(),
+            None => "No part chosen yet".into(),
+        }
+    }
 }
 
 /// `library.resolve_groups`.
@@ -438,14 +452,18 @@ const COLUMNS: [kit::TableColumn<'static>; 6] = [
     },
 ];
 
-/// A severity glyph, then `text` clipped to the rest of the line.
-fn glyph_line(ui: &mut Ui, level: Level, text: &str) {
+/// A severity glyph, then `text` clipped to the rest of the line. `why`,
+/// when given, is the glyph's own hover: the reason for its severity.
+fn glyph_line(ui: &mut Ui, level: Level, text: &str, why: &str) {
     let t = Tokens::get();
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = t.space_4;
         let size = t.font_label;
-        let (rect, _) = ui.allocate_exact_size(vec2(size, t.control_height), Sense::hover());
+        let (rect, glyph) = ui.allocate_exact_size(vec2(size, t.control_height), Sense::hover());
         severity_glyph(ui.painter(), rect.center(), size, level);
+        if !why.is_empty() {
+            glyph.on_hover_text(why);
+        }
         kit::summary_row(ui, text, None);
     });
 }
@@ -538,9 +556,9 @@ impl ResolveParts {
             }
             Some(Ok(report)) => {
                 if report.groups.is_empty() {
-                    glyph_line(ui, Level::Ok, "Every instance has a part that fits");
+                    glyph_line(ui, Level::Ok, "Every instance has a part that fits", "");
                 } else {
-                    glyph_line(ui, Level::ToDo, &summary(report, bom));
+                    glyph_line(ui, Level::ToDo, &summary(report, bom), "");
                 }
                 kit::check_row(ui, "Unresolved only", &mut self.unresolved_only);
                 if let Some(Err(message)) = &issues {
@@ -630,7 +648,7 @@ impl ResolveParts {
                     3 => {
                         kit::summary_row(ui, &row.footprint, None);
                     }
-                    4 => glyph_line(ui, row.level, &row.part),
+                    4 => glyph_line(ui, row.level, &row.part, &row.why()),
                     _ => {
                         let label = if row.resolved() {
                             "Change…"
@@ -680,7 +698,7 @@ fn details(ui: &mut Ui, row: &TableRow) -> Option<ResolveAction> {
             }
             kit::list_frame(ui, row.issues.len(), row.issues.len(), |ui, index| {
                 if let Some((level, title)) = row.issues.get(index) {
-                    glyph_line(ui, *level, title);
+                    glyph_line(ui, *level, title, "");
                 }
             });
             kit::actions(ui, |ui| {
@@ -893,6 +911,86 @@ mod tests {
             })
         );
         assert!(card.is_open(), "Choose… keeps the table open");
+        Ok(())
+    }
+
+    /// E2E run 6, finding 6: the mark in a row's Part cell says why on its
+    /// own hover: the most severe issue of the row's instances, or that no
+    /// part is chosen; a resolved line has nothing to explain.
+    #[test]
+    fn the_part_mark_says_why_on_hover() -> TestResult {
+        let ctx = egui::Context::default();
+        sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+        // These frames carry no time: show a tooltip without its delay.
+        ctx.global_style_mut(|s| s.interaction.tooltip_delay = 0.0);
+        let engine = Engine::demo()?;
+        let mut card = ResolveParts::default();
+        card.open();
+        card.expanded = None;
+        let mut shown = Vec::new();
+        for _ in 0..3 {
+            shown = run(&ctx, &mut card, &engine, vec![]).0;
+        }
+        let issues = card
+            .issues
+            .as_ref()
+            .and_then(|(_, i)| i.clone().ok())
+            .ok_or("issues")?;
+        let Ok(QueryResult::ResolveGroups(report)) = engine.query(Query::ResolveGroups {}) else {
+            return Err("library.resolve_groups".into());
+        };
+        let rows = rows(&engine, &report, None, &issues, true);
+        let row = rows.first().ok_or("a row")?;
+        let why = row.why();
+        assert!(
+            why.starts_with(&row.issues.first().ok_or("an issue")?.1),
+            "{why}"
+        );
+        assert!(!shown.iter().any(|(t, _)| *t == why), "only on hover");
+        // The glyph is the Part cell's first thing, on the row of Choose….
+        let header = shown
+            .iter()
+            .find(|(t, _)| t == "PART")
+            .map(|(_, p)| *p)
+            .ok_or("the Part column")?;
+        let choose = shown
+            .iter()
+            .find(|(t, _)| t == "Choose…")
+            .map(|(_, p)| *p)
+            .ok_or("Choose…")?;
+        let size = Tokens::get().font_label;
+        let mut found = false;
+        // The header text's left edge is not known here: try along it.
+        for step in 0..40 {
+            let at = egui::pos2(header.x - 40.0 + step as f32 * 2.0, choose.y);
+            run(
+                &ctx,
+                &mut card,
+                &engine,
+                vec![egui::Event::PointerMoved(at)],
+            );
+            let mut texts = Vec::new();
+            for _ in 0..4 {
+                texts = run(&ctx, &mut card, &engine, vec![]).0;
+            }
+            if texts.iter().any(|(t, _)| *t == why) {
+                found = true;
+                break;
+            }
+        }
+        assert!(found, "no hover saying {why:?} near the Part mark ({size})");
+        let resolved = TableRow {
+            level: Level::Ok,
+            issues: Vec::new(),
+            ..row.clone()
+        };
+        assert_eq!(resolved.why(), "");
+        let unchosen = TableRow {
+            level: Level::ToDo,
+            issues: Vec::new(),
+            ..row.clone()
+        };
+        assert_eq!(unchosen.why(), "No part chosen yet");
         Ok(())
     }
 
