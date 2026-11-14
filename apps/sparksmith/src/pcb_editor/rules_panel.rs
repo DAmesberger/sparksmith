@@ -270,10 +270,13 @@ impl RulesPanel {
     fn refresh(&mut self) {
         self.listing = match &self.library {
             Some(library) => library.list().map_err(|e| e.to_string()),
-            None => rule_profiles::shipped_from_env()
-                .map(|builtins| Listing {
-                    builtins,
-                    ..Listing::default()
+            None => sparksmith_io::shipped::ShippedLibrary::locate()
+                .and_then(|shipped| {
+                    Ok(Listing {
+                        builtins: rule_profiles::shipped_profiles(&shipped)?,
+                        former_ids: rule_profiles::shipped_former_ids(&shipped)?,
+                        ..Listing::default()
+                    })
                 })
                 .map_err(|e| e.to_string()),
         };
@@ -967,9 +970,18 @@ fn picks(
     };
     let mut current = Pick::Board;
     let mut differs = None;
+    // A board that pinned a shipped profile under a former id no library
+    // profile has finds it under its current one, as one that differs.
+    let pinned = panel
+        .listing
+        .as_ref()
+        .ok()
+        .filter(|_| !choices.iter().any(|p| p.id == snapshot.id))
+        .and_then(|l| l.former_ids.get(&snapshot.id))
+        .unwrap_or(&snapshot.id);
     for p in &choices {
         let pick = Pick::User(p.id.clone());
-        if p.id == snapshot.id {
+        if p.id == *pinned {
             // The board's own choices of the profile's options are not a
             // difference from the library's.
             if snapshot.same_but_choices(p) {

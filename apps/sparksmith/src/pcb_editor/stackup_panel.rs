@@ -156,7 +156,7 @@ fn body(ui: &mut Ui, setup: &mut StackupSetup, carried: &[CopperLayer]) {
         .collect();
     let mut preset = counts().find(|n| {
         family.is_some_and(|f| {
-            f.preset(*n).is_ok_and(|p| {
+            setup.draft.preset(f, *n).is_ok_and(|p| {
                 p.copper == setup.draft.stackup.copper
                     && p.dielectrics == setup.draft.stackup.dielectrics
             })

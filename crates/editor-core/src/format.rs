@@ -18,6 +18,7 @@
 //! [`table`] (the table reply shape). Nothing saves through them yet.
 pub mod files;
 pub mod layout;
+pub mod order;
 pub mod records;
 pub mod table;
 
@@ -34,7 +35,7 @@ use std::sync::Arc;
 pub const MAX_FILE_BYTES: usize = 16 * 1024 * 1024;
 /// Raised on every incompatible change to a stored type, with a converter
 /// step from the previous version (`sparksmith_io::convert::STEPS`).
-pub const FILE_VERSION: u32 = 3;
+pub const FILE_VERSION: u32 = 4;
 /// The optional capabilities this build reads, by the name a file lists
 /// them under. None are defined yet; a feature is added here together with
 /// its test in [`features_used`].
@@ -171,23 +172,27 @@ pub fn features_used(file: &EditorFile) -> Vec<&'static str> {
 }
 
 /// The saved form of an [`EditorFile`]: its fields, with the features it
-/// uses after the version. The features are derived from the document, so
-/// the file in memory does not hold them a second time.
+/// uses after the version, and its collections in key order
+/// ([`order::sort`]). The features are derived from the document, so the
+/// file in memory does not hold them a second time.
 #[derive(Serialize)]
 struct Stored<'a> {
     version: u32,
     #[serde(skip_serializing_if = "<[_]>::is_empty")]
     features: Vec<&'static str>,
-    project: &'a Project,
+    project: Project,
     drafts: &'a Drafts,
 }
 
 impl<'a> Stored<'a> {
     fn of(file: &'a EditorFile) -> Self {
+        // A clone shares every section; sorting copies only one out of order.
+        let mut project = file.project.clone();
+        order::sort(&mut project);
         Self {
             version: file.version,
             features: features_used(file),
-            project: &file.project,
+            project,
             drafts: &file.drafts,
         }
     }
@@ -231,7 +236,8 @@ impl EditorFile {
             drafts: (*document.drafts).clone(),
         }
     }
-    pub fn into_document(self) -> Document {
+    pub fn into_document(mut self) -> Document {
+        order::sort(&mut self.project);
         Document {
             project: Arc::new(self.project),
             drafts: Arc::new(self.drafts),
@@ -241,6 +247,20 @@ impl EditorFile {
         check_version(u64::from(self.version))?;
         validate::document(&self.project, &self.drafts)
     }
+}
+
+/// `file` as saving and reopening gives it back: no fill copper (derived,
+/// never saved), collections in key order. For tests that compare a
+/// reopened document with the one saved.
+#[cfg(test)]
+pub(crate) fn as_saved(mut file: EditorFile) -> EditorFile {
+    order::sort(&mut file.project);
+    if file.project.fills.iter().any(|f| f.computed.is_some()) {
+        for fill in file.project.fills.iter_mut() {
+            fill.computed = None;
+        }
+    }
+    file
 }
 
 /// Parse and validate a document of the current format version.
@@ -275,7 +295,10 @@ fn parse_versioned(bytes: &[u8]) -> Result<EditorFile> {
             "this file uses the feature \"{unknown}\", which this build of {name} does not know; open it with a newer {name}"
         )));
     }
-    let file: EditorFile = serde_json::from_value(value)?;
+    let mut file: EditorFile = serde_json::from_value(value)?;
+    // A file this build wrote is in order already; one edited by hand is
+    // read as if it were, since the order of its collections means nothing.
+    order::sort(&mut file.project);
     let used = features_used(&file);
     if listed != used {
         let names = |features: &[&str]| match features {
@@ -339,8 +362,13 @@ pub fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>> {
         }
     }
     let mut buffer = Bounded(Vec::new());
-    serde_json::to_writer_pretty(&mut buffer, value)
-        .map_err(|_| Error::Limit("editor file exceeds 16 MiB".into()))?;
+    serde_json::to_writer_pretty(&mut buffer, value).map_err(|e| {
+        if e.is_io() {
+            Error::Limit("editor file exceeds 16 MiB".into())
+        } else {
+            Error::Invalid(format!("the document cannot be written: {e}"))
+        }
+    })?;
     Ok(buffer.0)
 }
 
@@ -462,6 +490,68 @@ mod tests {
         let message = refusal(&value)?;
         assert!(message.contains("from a newer"), "{message}");
         assert!(!message.contains("convert"), "{message}");
+        Ok(())
+    }
+
+    /// F2: a document saves with its collections in key order, its fill
+    /// copper left out and its waiver keys as JSON, and reopening and saving
+    /// it again gives the same bytes.
+    #[test]
+    fn a_saved_document_is_ordered_derived_free_and_reads_back_byte_for_byte() -> Result<()> {
+        use crate::model::production::Waiver;
+        let engine = crate::Engine::showcase()?;
+        let mut file = engine.to_file();
+        assert!(file.project.fills.iter().any(|f| f.computed.is_some()));
+        file.project.tracks.reverse();
+        file.project.production.waivers = vec![Waiver {
+            key: r#"board.clearance [{"kind":"track","id":4}]"#.into(),
+            reason: "checked".into(),
+        }];
+        let bytes = encode(&file)?;
+        let value: serde_json::Value = serde_json::from_slice(&bytes)?;
+        assert!(!String::from_utf8_lossy(&bytes).contains("\"computed\""));
+        assert_eq!(
+            value["project"]["production"]["waivers"][0]["key"],
+            serde_json::json!({"code": "board.clearance", "objects": [{"kind": "track", "id": 4}]})
+        );
+        let ids: Vec<u64> = value["project"]["tracks"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|t| t["id"].as_u64())
+            .collect();
+        assert!(ids.len() > 1 && ids.is_sorted());
+        let reread = decode(&bytes)?;
+        assert_eq!(reread, as_saved(file));
+        assert_eq!(encode(&reread)?, bytes);
+        Ok(())
+    }
+
+    /// A sketch is stored as a JSON object with sorted keys and reads back
+    /// as that sorted text; a waiver key that is not a finding's cannot be
+    /// written, and a key stored as a string is refused.
+    #[test]
+    fn sketches_and_waiver_keys_are_json_values() -> Result<()> {
+        use crate::library::footprint_source::SketchBlob;
+        use crate::model::production::Waiver;
+        let blob = SketchBlob(
+            r#"{"points":[{"id":"origin","pos":[0.0,0.0],"fixed":true}],"curves":[]}"#.into(),
+        );
+        let stored = serde_json::to_string(&blob)?;
+        assert_eq!(
+            stored,
+            r#"{"curves":[],"points":[{"fixed":true,"id":"origin","pos":[0.0,0.0]}]}"#
+        );
+        let read: SketchBlob = serde_json::from_str(&stored)?;
+        assert_eq!(read.0, stored);
+        assert_eq!(serde_json::to_string(&read)?, stored);
+        assert!(serde_json::from_str::<SketchBlob>(r#""{}""#).is_err());
+        let bad = Waiver {
+            key: "not a finding key".into(),
+            reason: String::new(),
+        };
+        assert!(serde_json::to_string(&bad).is_err());
+        assert!(serde_json::from_str::<Waiver>(r#"{"key":"fill.stale []","reason":""}"#).is_err());
         Ok(())
     }
 }

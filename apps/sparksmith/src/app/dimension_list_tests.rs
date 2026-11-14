@@ -15,7 +15,10 @@ use sparksmith_core::model::dimension::{BoardRef, FeatureRef};
 fn esp32() -> Fallible<Engine> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    Ok(Engine::from_file(sparksmith_io::read_project(&path)?)?)
+    let mut engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    // A file holds no fill copper; fill it as opening does.
+    engine.refill_stale()?;
+    Ok(engine)
 }
 
 /// Frames until the board's model is shown.

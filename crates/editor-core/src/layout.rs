@@ -329,7 +329,7 @@ declare_entries!(LayoutCommand in layout {
     Distribute "layout.distribute" Edit "Distribute parts evenly",
     DeleteObjects "layout.delete_objects" Edit "Delete several board objects",
     LockObjects "layout.lock_objects" Edit "Lock or unlock several board objects",
-    SetRefusedImportTracks "layout.set_refused_import_tracks" Edit "Record tracks an import refused" [since(0, 2)],
+    SetRefusedImportTracks "layout.set_refused_import_tracks" Edit "Record tracks an import refused" [since(0, 3)],
 });
 
 impl LayoutCommand {
@@ -719,15 +719,22 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
             if project.placements.iter().any(|p| p.instance == instance) {
                 return Err(Error::Conflict("component is already placed".into()));
             }
-            project.placements.push(Placement {
-                instance,
-                position,
-                rotation_deg,
-                layer,
-                locked: false,
-                fill_override: Default::default(),
-                pad_fill_overrides: Vec::new(),
-            });
+            // Placements stay in instance order, the order they are saved in.
+            let at = project
+                .placements
+                .partition_point(|p| p.instance < instance);
+            project.placements.insert(
+                at,
+                Placement {
+                    instance,
+                    position,
+                    rotation_deg,
+                    layer,
+                    locked: false,
+                    fill_override: Default::default(),
+                    pad_fill_overrides: Vec::new(),
+                },
+            );
         }
         LayoutCommand::Move {
             instance,

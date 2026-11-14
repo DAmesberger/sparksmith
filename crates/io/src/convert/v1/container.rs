@@ -63,10 +63,19 @@ pub fn convert(path: &Path, options: &Options) -> Result<Converted> {
         return Err(format!("{CONTAINER_DOCUMENT} exceeds {MAX_FILE_BYTES} bytes").into());
     }
     let mut file: Value = serde_json::from_slice(&document)?;
-    let notes = match file.get("version").and_then(Value::as_u64) {
+    let mut notes = match file.get("version").and_then(Value::as_u64) {
         Some(version) if version < 3 => crate::convert::v2::notes(&file),
         _ => Vec::new(),
     };
+    // Earlier steps leave waivers alone, so what step 3 to 4 removes is
+    // known from the original.
+    if file
+        .get("version")
+        .and_then(Value::as_u64)
+        .is_some_and(|v| v < 4)
+    {
+        notes.extend(crate::convert::v3::notes(&file));
+    }
     let Upgraded { from, values } = upgrade(&mut file, options)?;
     if from == FILE_VERSION {
         return Ok(Converted {

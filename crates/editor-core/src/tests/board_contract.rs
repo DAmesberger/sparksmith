@@ -211,8 +211,9 @@ fn board_operations_are_atomic_undoable_and_persist() -> Fallible<()> {
     };
     assert!(!impact.changes.is_empty());
 
+    // Everything but the derived fill copper, which a file does not hold.
     let reopened = format::decode(&format::encode(&engine.to_file())?)?;
-    assert_eq!(reopened, engine.to_file());
+    assert_eq!(reopened, format::as_saved(engine.to_file()));
     // Profile, class, assignment, fill and the refill.
     for _ in 0..5 {
         engine.undo()?;
