@@ -20,12 +20,16 @@
 //! (pattern count and pitch) and set lead width; a lead's bent side profile
 //! is a sketch drawn from the form when the model is built.
 //!
+//! A family whose builder has given way to its shipped generator (the pin
+//! header, phase C of docs/design/part-generation-plan.md) builds from the
+//! generator's part file instead ([`family`]), behind the same functions.
+//!
 //! As built: `docs/component-model.md` (M1–M3).
 mod chip;
+pub mod family;
 pub mod gltf_ext;
 mod grid;
 mod gull_wing;
-mod header;
 pub mod imported;
 pub mod inspect;
 pub mod look;
@@ -71,10 +75,8 @@ const MAX_STEM: usize = 64;
 pub fn family_rev(form: &PackageForm) -> Option<u16> {
     match form {
         PackageForm::Generic => None,
-        PackageForm::Chip(_)
-        | PackageForm::GullWing(_)
-        | PackageForm::NoLead(_)
-        | PackageForm::Header(_) => Some(1),
+        PackageForm::Chip(_) | PackageForm::GullWing(_) | PackageForm::NoLead(_) => Some(1),
+        PackageForm::Header(_) => Some(family::FAMILY_REV),
         PackageForm::Tabbed(_) => tabbed::FAMILY_REV,
         PackageForm::Molded(_) => molded::FAMILY_REV,
         PackageForm::Grid(_) => grid::FAMILY_REV,
@@ -151,6 +153,11 @@ pub fn build_definition(
             "model.name: the design already has a definition named {component}"
         )));
     }
+    if family::generator(&package.form).is_some() {
+        // The generator's part file, inserted as the board inserts it.
+        let design = named::generated(package)?;
+        return part_file::insert_design(native, component, design.source(), &design.generated);
+    }
     native.component(component, false)?;
     let bodies = build_bodies(native, component, package)?;
     native.activate_root()?;
@@ -222,7 +229,8 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
         PackageForm::Chip(c) => chip::check(c),
         PackageForm::GullWing(g) => gull_wing::check(g),
         PackageForm::NoLead(n) => no_lead::check(n),
-        PackageForm::Header(h) => header::check(h),
+        // Built from its generator (`family`), which checks its values.
+        PackageForm::Header(_) => Ok(()),
         PackageForm::Tabbed(f) => tabbed::check(f),
         PackageForm::Molded(f) => molded::check(f),
         PackageForm::Grid(f) => grid::check(f),
@@ -256,7 +264,12 @@ fn build_bodies(
         PackageForm::Chip(c) => chip::build(&mut b, c)?,
         PackageForm::GullWing(g) => gull_wing::build(&mut b, g)?,
         PackageForm::NoLead(n) => no_lead::build(&mut b, n)?,
-        PackageForm::Header(h) => header::build(&mut b, h)?,
+        PackageForm::Header(_) => {
+            return Err(Error::Invalid(format!(
+                "model.generator: {} models are built from their shipped generator",
+                package.form.label()
+            )));
+        }
         PackageForm::Tabbed(f) => tabbed::build(&mut b, f)?,
         PackageForm::Molded(f) => molded::build(&mut b, f)?,
         PackageForm::Grid(f) => grid::build(&mut b, f)?,
@@ -586,3 +599,4 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "chip_part_tests.rs"]
 mod chip_part_tests;
+

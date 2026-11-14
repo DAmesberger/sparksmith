@@ -17,6 +17,7 @@
 //! dimensions.
 //!
 //! `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`
+//! (`AUTHOR_ONLY=<name>` writes one part file only)
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use serde_json::json;
@@ -421,6 +422,143 @@ fn author_chip_ferrite() -> Vec<u8> {
 
 fn author_chip_led() -> Vec<u8> {
     author_chip(sparksmith_core::library::ChipKind::Led, "Chip LED")
+}
+
+/// The `header` generator's part file: a straight pin header of `rows` ×
+/// `pins` square posts through a moulded base, the in-code header
+/// builder's construction made parametric in its counts. The base is one
+/// pitch per pin long and one row pitch per row wide on the seating plane;
+/// a post of `pin_side` stands `pin_above` over the base and reaches
+/// `pin_below` under the seating plane at pin 1 (−x, −y), and a
+/// rectangular pattern of `pins` × `rows` replays it. The base's hole for
+/// each post is a cut of the post's own section, patterned the same way,
+/// so posts and base stay disjoint at any count and nothing names the
+/// pattern's bodies. Rounds on the base's upright corners and top edges.
+/// Saved at a 2 × 5 header of 2.54 mm; the generator gives every value.
+pub fn author_pin_header() -> Vec<u8> {
+    let mut s = Session::default();
+    run(&mut s, "file.new", json!({"name": "Pin header"}));
+    let params = [
+        ("rows", "2", "", "rows of pins (y)"),
+        ("pins", "5", "", "pins per row (x)"),
+        ("pitch", "2.54 mm", "mm", "pin pitch along a row"),
+        ("row_pitch", "2.54 mm", "mm", "pitch between rows"),
+        (
+            "body_height",
+            "2.54 mm",
+            "mm",
+            "base height above the seating plane",
+        ),
+        ("pin_side", "0.64 mm", "mm", "square post side"),
+        ("pin_above", "6 mm", "mm", "post length above the base"),
+        (
+            "pin_below",
+            "3 mm",
+            "mm",
+            "post length below the seating plane",
+        ),
+        ("corner_round", "0.3 mm", "mm", "round of the base's upright corners"),
+        ("edge_round", "0.2 mm", "mm", "round of the base's top edges"),
+    ];
+    let rows: Vec<serde_json::Value> = params
+        .iter()
+        .map(|(name, expression, unit, comment)| {
+            json!({"name": name, "expression": expression, "unit": unit, "comment": comment})
+        })
+        .collect();
+    run(
+        &mut s,
+        "parameters.import",
+        json!({"text": serde_json::to_string(&rows).unwrap()}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- pins * pitch / 2", "- rows * row_pitch / 2", "0 mm"],
+            "length": "pins * pitch", "width": "rows * row_pitch", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    let post = json!(["- (pins - 1) / 2 * pitch - pin_side / 2",
+        "- (rows - 1) / 2 * row_pitch - pin_side / 2", "- pin_below"]);
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": post, "length": "pin_side", "width": "pin_side",
+            "height": "pin_below + body_height + pin_above", "name": "pin", "body_name": "pin"}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": post, "length": "pin_side", "width": "pin_side",
+            "height": "pin_below + body_height + pin_above", "operation": "cut",
+            "targets": ["body"], "name": "pin hole"}),
+    );
+    let pattern = |what: serde_json::Value, name: &str| {
+        let mut p = json!({"dir1": [1, 0, 0], "count1": "pins", "spacing1": "pitch",
+            "dir2": [0, 1, 0], "count2": "rows", "spacing2": "row_pitch", "name": name});
+        if let (Some(map), Some(extra)) = (p.as_object_mut(), what.as_object()) {
+            map.extend(extra.clone());
+        }
+        p
+    };
+    run(
+        &mut s,
+        "solid.pattern.rectangular",
+        pattern(json!({"features": ["pin hole"]}), "pin holes"),
+    );
+    run(
+        &mut s,
+        "solid.pattern.rectangular",
+        pattern(json!({"bodies": ["pin"]}), "pin pattern"),
+    );
+    // The rounds, picked at the saved size: 12.7 × 5.08 × 2.54 mm.
+    let (x, y, z) = (6.35, 2.54, 2.54);
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "corner round", "body": "body", "radius": "corner_round",
+            "edges": [[-x, -y, z / 2.0], [x, -y, z / 2.0], [x, y, z / 2.0], [-x, y, z / 2.0]]}),
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, z], [x, 0.0, z], [0.0, y, z], [-x, 0.0, z]]}),
+    );
+    // Looks are kept by body name, and a pattern names its copies
+    // `pin (2)`, `pin (3)`, …: every post the generator can ask for (its
+    // 4 × 64 most) gets the gold look at that count, then the file goes
+    // back to 2 × 5.
+    let counts = |s: &mut Session, rows: u32, pins: u32| {
+        run(
+            s,
+            "parameters.change",
+            json!({"changes": {"rows": rows.to_string(), "pins": pins.to_string()}}),
+        );
+        s.refresh();
+    };
+    counts(&mut s, 4, 64);
+    let pins: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    assert_eq!(pins.len(), 256);
+    let pins: Vec<&str> = pins.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], MaterialId::Pbt);
+    assign_look(&mut s, &pins, MaterialId::Gold);
+    counts(&mut s, 2, 5);
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    solidcraft_engine::io::write_design(&s.doc)
 }
 
 /// Give `bodies` the Solidcraft appearance named after `material`, with
@@ -996,7 +1134,7 @@ pub fn author_usb4105() -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "writes library/parts/*.solidcraft, the chip generator's part files and the examples' part files"]
+#[ignore = "writes library/parts/*.solidcraft, the chip and header generators' part files and the examples' part files"]
 fn author_parts() {
     // The repository's shipped material library (the program loads it
     // through sparksmith-io at start-up).
@@ -1015,7 +1153,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 10] = [
+    let parts: [(&str, &str, Author); 11] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -1029,6 +1167,8 @@ fn author_parts() {
         ),
         ("generators/chip/parts", "chip-ferrite", author_chip_ferrite),
         ("generators/chip/parts", "chip-led", author_chip_led),
+        // The header generator's bundle (`generators/header/parts/`).
+        ("generators/header/parts", "pin-header", author_pin_header),
         ("library/parts", "esp32-s31-wroom-3", author_wroom3),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),
@@ -1048,7 +1188,12 @@ fn author_parts() {
             author_usb4105,
         ),
     ];
+    // `AUTHOR_ONLY=pin-header` writes that one part file only.
+    let only = std::env::var("AUTHOR_ONLY").ok();
     for (folder, name, author) in parts {
+        if only.as_deref().is_some_and(|o| o != name) {
+            continue;
+        }
         let dir = root.join(folder);
         std::fs::create_dir_all(&dir).unwrap();
         let bytes = author();

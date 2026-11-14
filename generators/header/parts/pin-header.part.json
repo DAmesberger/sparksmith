@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "pin-header",
+  "title": "Straight pin header",
+  "summary": "Straight pin header: a PBT base on the seating plane and rows × pins square gold posts through it, above the base and below the seating plane (rows, pins, pitch, row_pitch, body_height, pin_side, pin_above, pin_below, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code header builder's construction (crates/solidcraft-integration/src/models/header.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 2 × 5 header of 2.54 mm; the header generator gives every parameter its value. Typical square-post proportions and estimated rounds; no vendor drawing or EDA/CAD library data copied."
+}
