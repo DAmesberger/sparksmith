@@ -1,0 +1,727 @@
+[
+ {
+  "key": "no-lead-qfn-12-3x3-0.5",
+  "name": "QFN-12 3×3 0.5 EP 1.65",
+  "aliases": [
+   "QFN-12",
+   "VQFN-12",
+   "12-QFN"
+  ],
+  "description": "Quad flat no-lead, 12 terminals at 0.5 mm, body 3 × 3 × 0.90 mm, exposed pad 1.65 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 3,
+   "terminals_short": 3,
+   "pitch": 500000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 1650000,
+   "pad_width": 1650000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-16-3x3-0.5",
+  "name": "QFN-16 3×3 0.5 EP 1.7",
+  "aliases": [
+   "QFN-16",
+   "VQFN-16",
+   "16-QFN"
+  ],
+  "description": "Quad flat no-lead, 16 terminals at 0.5 mm, body 3 × 3 × 0.90 mm, exposed pad 1.7 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 4,
+   "terminals_short": 4,
+   "pitch": 500000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 1700000,
+   "pad_width": 1700000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-20-3x3-0.4",
+  "name": "QFN-20 3×3 0.4 EP 1.7",
+  "aliases": [
+   "QFN-20",
+   "VQFN-20",
+   "20-QFN"
+  ],
+  "description": "Quad flat no-lead, 20 terminals at 0.4 mm, body 3 × 3 × 0.90 mm, exposed pad 1.7 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 5,
+   "terminals_short": 5,
+   "pitch": 400000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 200000,
+   "exposed_pad": true,
+   "pad_length": 1700000,
+   "pad_width": 1700000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-16-4x4-0.65",
+  "name": "QFN-16 4×4 0.65 EP 2.1",
+  "aliases": [
+   "QFN-16",
+   "VQFN-16",
+   "16-QFN"
+  ],
+  "description": "Quad flat no-lead, 16 terminals at 0.65 mm, body 4 × 4 × 0.90 mm, exposed pad 2.1 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 4,
+   "terminals_short": 4,
+   "pitch": 650000,
+   "body_length": 4000000,
+   "body_width": 4000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 300000,
+   "exposed_pad": true,
+   "pad_length": 2100000,
+   "pad_width": 2100000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-20-4x4-0.5",
+  "name": "QFN-20 4×4 0.5 EP 2.6",
+  "aliases": [
+   "QFN-20",
+   "VQFN-20",
+   "20-QFN"
+  ],
+  "description": "Quad flat no-lead, 20 terminals at 0.5 mm, body 4 × 4 × 0.90 mm, exposed pad 2.6 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 5,
+   "terminals_short": 5,
+   "pitch": 500000,
+   "body_length": 4000000,
+   "body_width": 4000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 2600000,
+   "pad_width": 2600000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-24-4x4-0.5",
+  "name": "QFN-24 4×4 0.5 EP 2.6",
+  "aliases": [
+   "QFN-24",
+   "VQFN-24",
+   "24-QFN"
+  ],
+  "description": "Quad flat no-lead, 24 terminals at 0.5 mm, body 4 × 4 × 0.90 mm, exposed pad 2.6 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 6,
+   "terminals_short": 6,
+   "pitch": 500000,
+   "body_length": 4000000,
+   "body_width": 4000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 2600000,
+   "pad_width": 2600000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-28-4x4-0.4",
+  "name": "QFN-28 4×4 0.4 EP 2.6",
+  "aliases": [
+   "QFN-28",
+   "VQFN-28",
+   "28-QFN"
+  ],
+  "description": "Quad flat no-lead, 28 terminals at 0.4 mm, body 4 × 4 × 0.90 mm, exposed pad 2.6 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 7,
+   "terminals_short": 7,
+   "pitch": 400000,
+   "body_length": 4000000,
+   "body_width": 4000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 200000,
+   "exposed_pad": true,
+   "pad_length": 2600000,
+   "pad_width": 2600000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-20-5x5-0.65",
+  "name": "QFN-20 5×5 0.65 EP 3.1",
+  "aliases": [
+   "QFN-20",
+   "VQFN-20",
+   "20-QFN"
+  ],
+  "description": "Quad flat no-lead, 20 terminals at 0.65 mm, body 5 × 5 × 0.90 mm, exposed pad 3.1 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 5,
+   "terminals_short": 5,
+   "pitch": 650000,
+   "body_length": 5000000,
+   "body_width": 5000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 300000,
+   "exposed_pad": true,
+   "pad_length": 3100000,
+   "pad_width": 3100000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-28-5x5-0.5",
+  "name": "QFN-28 5×5 0.5 EP 3.25",
+  "aliases": [
+   "QFN-28",
+   "VQFN-28",
+   "28-QFN"
+  ],
+  "description": "Quad flat no-lead, 28 terminals at 0.5 mm, body 5 × 5 × 0.90 mm, exposed pad 3.25 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 7,
+   "terminals_short": 7,
+   "pitch": 500000,
+   "body_length": 5000000,
+   "body_width": 5000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 3250000,
+   "pad_width": 3250000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-32-5x5-0.5",
+  "name": "QFN-32 5×5 0.5 EP 3.45",
+  "aliases": [
+   "QFN-32",
+   "VQFN-32",
+   "32-QFN"
+  ],
+  "description": "Quad flat no-lead, 32 terminals at 0.5 mm, body 5 × 5 × 0.90 mm, exposed pad 3.45 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 8,
+   "terminals_short": 8,
+   "pitch": 500000,
+   "body_length": 5000000,
+   "body_width": 5000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 3450000,
+   "pad_width": 3450000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-40-5x5-0.4",
+  "name": "QFN-40 5×5 0.4 EP 3.5",
+  "aliases": [
+   "QFN-40",
+   "VQFN-40",
+   "40-QFN"
+  ],
+  "description": "Quad flat no-lead, 40 terminals at 0.4 mm, body 5 × 5 × 0.90 mm, exposed pad 3.5 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 10,
+   "terminals_short": 10,
+   "pitch": 400000,
+   "body_length": 5000000,
+   "body_width": 5000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 200000,
+   "exposed_pad": true,
+   "pad_length": 3500000,
+   "pad_width": 3500000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-36-6x6-0.5",
+  "name": "QFN-36 6×6 0.5 EP 4.1",
+  "aliases": [
+   "QFN-36",
+   "VQFN-36",
+   "36-QFN"
+  ],
+  "description": "Quad flat no-lead, 36 terminals at 0.5 mm, body 6 × 6 × 0.90 mm, exposed pad 4.1 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 9,
+   "terminals_short": 9,
+   "pitch": 500000,
+   "body_length": 6000000,
+   "body_width": 6000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 4100000,
+   "pad_width": 4100000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-40-6x6-0.5",
+  "name": "QFN-40 6×6 0.5 EP 4.5",
+  "aliases": [
+   "QFN-40",
+   "VQFN-40",
+   "40-QFN"
+  ],
+  "description": "Quad flat no-lead, 40 terminals at 0.5 mm, body 6 × 6 × 0.90 mm, exposed pad 4.5 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 10,
+   "terminals_short": 10,
+   "pitch": 500000,
+   "body_length": 6000000,
+   "body_width": 6000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 4500000,
+   "pad_width": 4500000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-48-6x6-0.4",
+  "name": "QFN-48 6×6 0.4 EP 4.4",
+  "aliases": [
+   "QFN-48",
+   "VQFN-48",
+   "48-QFN"
+  ],
+  "description": "Quad flat no-lead, 48 terminals at 0.4 mm, body 6 × 6 × 0.90 mm, exposed pad 4.4 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 12,
+   "terminals_short": 12,
+   "pitch": 400000,
+   "body_length": 6000000,
+   "body_width": 6000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 200000,
+   "exposed_pad": true,
+   "pad_length": 4400000,
+   "pad_width": 4400000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-44-7x7-0.5",
+  "name": "QFN-44 7×7 0.5 EP 5.15",
+  "aliases": [
+   "QFN-44",
+   "VQFN-44",
+   "44-QFN"
+  ],
+  "description": "Quad flat no-lead, 44 terminals at 0.5 mm, body 7 × 7 × 0.90 mm, exposed pad 5.15 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 11,
+   "terminals_short": 11,
+   "pitch": 500000,
+   "body_length": 7000000,
+   "body_width": 7000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 5150000,
+   "pad_width": 5150000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-48-7x7-0.5",
+  "name": "QFN-48 7×7 0.5 EP 5.3",
+  "aliases": [
+   "QFN-48",
+   "VQFN-48",
+   "48-QFN"
+  ],
+  "description": "Quad flat no-lead, 48 terminals at 0.5 mm, body 7 × 7 × 0.90 mm, exposed pad 5.3 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 12,
+   "terminals_short": 12,
+   "pitch": 500000,
+   "body_length": 7000000,
+   "body_width": 7000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 5300000,
+   "pad_width": 5300000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-56-8x8-0.5",
+  "name": "QFN-56 8×8 0.5 EP 6.0",
+  "aliases": [
+   "QFN-56",
+   "VQFN-56",
+   "56-QFN"
+  ],
+  "description": "Quad flat no-lead, 56 terminals at 0.5 mm, body 8 × 8 × 0.90 mm, exposed pad 6.0 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 14,
+   "terminals_short": 14,
+   "pitch": 500000,
+   "body_length": 8000000,
+   "body_width": 8000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 6000000,
+   "pad_width": 6000000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-68-8x8-0.4",
+  "name": "QFN-68 8×8 0.4 EP 6.4",
+  "aliases": [
+   "QFN-68",
+   "VQFN-68",
+   "68-QFN"
+  ],
+  "description": "Quad flat no-lead, 68 terminals at 0.4 mm, body 8 × 8 × 0.90 mm, exposed pad 6.4 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 17,
+   "terminals_short": 17,
+   "pitch": 400000,
+   "body_length": 8000000,
+   "body_width": 8000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 200000,
+   "exposed_pad": true,
+   "pad_length": 6400000,
+   "pad_width": 6400000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-64-9x9-0.5",
+  "name": "QFN-64 9×9 0.5 EP 7.15",
+  "aliases": [
+   "QFN-64",
+   "VQFN-64",
+   "64-QFN"
+  ],
+  "description": "Quad flat no-lead, 64 terminals at 0.5 mm, body 9 × 9 × 0.90 mm, exposed pad 7.15 mm.",
+  "params": {
+   "sides": "four",
+   "terminals": 16,
+   "terminals_short": 16,
+   "pitch": 500000,
+   "body_length": 9000000,
+   "body_width": 9000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 7150000,
+   "pad_width": 7150000
+  },
+  "citation": {
+   "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-dfn-6-2x2-0.65",
+  "name": "DFN-6 2×2 0.65",
+  "aliases": [
+   "DFN-6",
+   "SON-6",
+   "WSON-6"
+  ],
+  "description": "Dual flat no-lead, 6 terminals at 0.65 mm, body 2 × 2 × 0.90 mm, exposed pad 1.6 × 1.0 mm.",
+  "params": {
+   "sides": "two",
+   "terminals": 3,
+   "terminals_short": 0,
+   "pitch": 650000,
+   "body_length": 2000000,
+   "body_width": 2000000,
+   "body_height": 900000,
+   "terminal_length": 300000,
+   "terminal_width": 300000,
+   "exposed_pad": true,
+   "pad_length": 1600000,
+   "pad_width": 1000000
+  },
+  "citation": {
+   "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-dfn-8-2x2-0.5",
+  "name": "DFN-8 2×2 0.5",
+  "aliases": [
+   "DFN-8",
+   "SON-8",
+   "WSON-8"
+  ],
+  "description": "Dual flat no-lead, 8 terminals at 0.5 mm, body 2 × 2 × 0.90 mm, exposed pad 1.6 × 0.9 mm.",
+  "params": {
+   "sides": "two",
+   "terminals": 4,
+   "terminals_short": 0,
+   "pitch": 500000,
+   "body_length": 2000000,
+   "body_width": 2000000,
+   "body_height": 900000,
+   "terminal_length": 300000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 1600000,
+   "pad_width": 900000
+  },
+  "citation": {
+   "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-dfn-8-2x3-0.5",
+  "name": "DFN-8 2×3 0.5",
+  "aliases": [
+   "DFN-8",
+   "SON-8",
+   "WSON-8"
+  ],
+  "description": "Dual flat no-lead, 8 terminals at 0.5 mm, body 2 × 3 × 0.90 mm, exposed pad 1.6 × 1.3 mm.",
+  "params": {
+   "sides": "two",
+   "terminals": 4,
+   "terminals_short": 0,
+   "pitch": 500000,
+   "body_length": 2000000,
+   "body_width": 3000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 1600000,
+   "pad_width": 1300000
+  },
+  "citation": {
+   "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-dfn-6-3x3-0.95",
+  "name": "DFN-6 3×3 0.95",
+  "aliases": [
+   "DFN-6",
+   "SON-6",
+   "WSON-6"
+  ],
+  "description": "Dual flat no-lead, 6 terminals at 0.95 mm, body 3 × 3 × 0.90 mm, exposed pad 2.4 × 1.6 mm.",
+  "params": {
+   "sides": "two",
+   "terminals": 3,
+   "terminals_short": 0,
+   "pitch": 950000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 400000,
+   "exposed_pad": true,
+   "pad_length": 2400000,
+   "pad_width": 1600000
+  },
+  "citation": {
+   "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-dfn-8-3x3-0.65",
+  "name": "DFN-8 3×3 0.65",
+  "aliases": [
+   "DFN-8",
+   "SON-8",
+   "WSON-8"
+  ],
+  "description": "Dual flat no-lead, 8 terminals at 0.65 mm, body 3 × 3 × 0.90 mm, exposed pad 2.4 × 1.6 mm.",
+  "params": {
+   "sides": "two",
+   "terminals": 4,
+   "terminals_short": 0,
+   "pitch": 650000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 300000,
+   "exposed_pad": true,
+   "pad_length": 2400000,
+   "pad_width": 1600000
+  },
+  "citation": {
+   "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-dfn-10-3x3-0.5",
+  "name": "DFN-10 3×3 0.5",
+  "aliases": [
+   "DFN-10",
+   "SON-10",
+   "WSON-10"
+  ],
+  "description": "Dual flat no-lead, 10 terminals at 0.5 mm, body 3 × 3 × 0.90 mm, exposed pad 2.4 × 1.65 mm.",
+  "params": {
+   "sides": "two",
+   "terminals": 5,
+   "terminals_short": 0,
+   "pitch": 500000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 900000,
+   "terminal_length": 400000,
+   "terminal_width": 250000,
+   "exposed_pad": true,
+   "pad_length": 2400000,
+   "pad_width": 1650000
+  },
+  "citation": {
+   "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
+  },
+  "basis": "cited_unverified",
+  "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ }
+]

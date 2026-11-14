@@ -1,0 +1,34 @@
+{
+ "cases": [
+  {
+   "name": "QFN-16 3x3 0.5 EP 1.7, component",
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000}},
+   "result": "a0f8c239568c08153922696dd9ae9144614a782a1b1377097c7fd5fd9948cd64"
+  },
+  {
+   "name": "QFN-16 3x3 0.5 EP 1.7, package",
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000}},
+   "result": "6c216fd7ef6efa3bf3d5e081cf4754e9cb9ff9b4e2fcc9e8e6dee61d9b7084ae"
+  },
+  {
+   "name": "QFN-16 3x3 0.5 without exposed pad (corner lands cleared), component",
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 280000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000}},
+   "result": "b9bf1db72ef53773a8fc4f7d7c6ace41193075952607248cdaebf6e7b76cf629"
+  },
+  {
+   "name": "DFN-8 2x2 0.5 without exposed pad, component",
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "terminals": 4, "terminals_short": 0, "pitch": 500000, "terminal_length": 350000, "terminal_width": 250000, "body_length": 2000000, "body_width": 2000000, "body_height": 750000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000}},
+   "result": "57771ec2173377c8f91c7dd662a90bb2fd949f7c83ebe631eab72ccd90aca61e"
+  },
+  {
+   "name": "DFN-10 3x3 0.5 EP 2.4x1.65 (two-digit pin numbers), component",
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "terminals": 5, "terminals_short": 0, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 2400000, "pad_width": 1650000, "mask_web": 100000, "pad_clearance": 200000}},
+   "result": "69f290d72bf98a5163c449cbbf32dc6935963956620daf5691f0b577f4d53905"
+  },
+  {
+   "name": "QFN-64 9x9 0.5 EP 7.15 (largest row), component",
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 16, "terminals_short": 16, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 9000000, "body_width": 9000000, "body_height": 900000, "exposed_pad": true, "pad_length": 7150000, "pad_width": 7150000, "mask_web": 100000, "pad_clearance": 200000}},
+   "result": "18b95f58c43abe20ef41e162ac0fccd0c6a885e7308a3c95a1b8fcb9226abea7"
+  }
+ ]
+}

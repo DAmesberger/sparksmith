@@ -551,6 +551,30 @@ pub mod fixture {
                     part(bytes!("tht/parts/tht-to-formed.solidcraft")),
                 ],
             },
+            ShippedGenerator {
+                name: "no-lead".into(),
+                module: Arc::from(&bytes!("no-lead/no-lead.wasm")[..]),
+                parts: vec![
+                    part(bytes!("no-lead/parts/dfn.solidcraft")),
+                    part(bytes!("no-lead/parts/dfn-ep.solidcraft")),
+                    part(bytes!("no-lead/parts/qfn.solidcraft")),
+                    part(bytes!("no-lead/parts/qfn-ep.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
+                name: "molded".into(),
+                module: Arc::from(&bytes!("molded/molded.wasm")[..]),
+                parts: vec![
+                    part(bytes!("molded/parts/molded-flat.solidcraft")),
+                    part(bytes!("molded/parts/molded-flat-band.solidcraft")),
+                    part(bytes!("molded/parts/molded-bent.solidcraft")),
+                    part(bytes!("molded/parts/molded-bent-band.solidcraft")),
+                    part(bytes!("molded/parts/molded-j-lead.solidcraft")),
+                    part(bytes!("molded/parts/molded-j-lead-band.solidcraft")),
+                    part(bytes!("molded/parts/melf.solidcraft")),
+                    part(bytes!("molded/parts/melf-band.solidcraft")),
+                ],
+            },
         ]
     }
 

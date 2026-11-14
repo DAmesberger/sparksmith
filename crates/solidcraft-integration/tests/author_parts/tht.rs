@@ -38,12 +38,6 @@ impl E {
             v,
         }
     }
-    fn mm(v: f64) -> Self {
-        Self {
-            s: format!("{v} mm"),
-            v,
-        }
-    }
     fn add(&self, o: &Self) -> Self {
         Self {
             s: format!("({} + {})", self.s, o.s),

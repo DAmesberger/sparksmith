@@ -5155,6 +5155,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-molded"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-no-lead"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-tht"
 version = "0.1.0"
 dependencies = [

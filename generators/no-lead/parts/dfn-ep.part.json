@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "dfn-ep",
+  "title": "DFN package with exposed pad",
+  "summary": "DFN package with exposed pad: a moulded body on the seating plane with tin terminals on its two long sides, flush with its underside and side faces, and a centred exposed pad; top edges rounded, pin-1 dimple (terminals, pitch, body_length, body_width, body_height, terminal_length, terminal_width, frame, edge_round, mark_radius, mark_depth, pad_length, pad_width).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a DFN-8 3 × 3 mm, 0.65 mm, exposed pad 2.4 × 1.6 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied."
+}
