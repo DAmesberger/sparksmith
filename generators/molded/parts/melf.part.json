@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "melf",
+  "title": "MELF",
+  "summary": "MELF or MiniMELF (DO-213AB, DO-213AA): a round borosilicate glass body (body_length, body_diameter) between two matte-tin end caps (span, terminal_length, cap_diameter) on one axis along x, terminal 1 at -x; cap edges rounded (cap_round).",
+  "use": "package_body",
+  "prefix": "D",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code molded builder's construction (crates/solidcraft-integration/src/models/molded.rs, retired with these files) rebuilt by SolidCraft commands in `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a typical size of its class; the molded generator gives every parameter but the band's and the marking area's, which follow the body. Outline proportions from the public JEDEC DO-214 and DO-213 outlines, EIA-535 tantalum case sizes and estimated SOD values; estimated leadframe, bends and rounds; no vendor drawing or EDA/CAD library data copied."
+}

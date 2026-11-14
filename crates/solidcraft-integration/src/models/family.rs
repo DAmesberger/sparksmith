@@ -46,6 +46,27 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
             int("pin_below", h.pin_below_nm.get());
             Some(("header", params))
         }
+        PackageForm::Molded(m) => {
+            use sparksmith_core::library::package_form::molded::MoldedLead;
+            int("body_length", m.body_length_nm.get());
+            int("body_width", m.body_width_nm.get());
+            int("body_height", m.body_height_nm.get());
+            int("span", m.span_nm.get());
+            int("terminal_length", m.terminal_length_nm.get());
+            int("terminal_width", m.terminal_width_nm.get());
+            let lead = match m.lead {
+                MoldedLead::Flat => "flat",
+                MoldedLead::Bent => "bent",
+                MoldedLead::JLead => "j_lead",
+                MoldedLead::Melf => "melf",
+            };
+            params.insert("lead".into(), ParamValue::Text(lead.into()));
+            params.insert("polarised".into(), ParamValue::Bool(m.polarised));
+            // The package alone: what the part is (its symbol) leaves the
+            // model as it is.
+            params.insert("part".into(), ParamValue::Text("diode".into()));
+            Some(("molded", params))
+        }
         PackageForm::NoLead(n) => {
             let four = n.sides == LeadSides::Four;
             params.insert(
@@ -87,6 +108,11 @@ const EXPOSED_PAD: &str = "exposed pad";
 fn builder_role(form: &PackageForm, name: &str, role: BodyRole) -> BodyRole {
     match (form, role) {
         (PackageForm::Header(_), BodyRole::Termination) => BodyRole::Lead,
+        (PackageForm::Molded(m), BodyRole::Termination)
+            if m.lead != sparksmith_core::library::package_form::molded::MoldedLead::Melf =>
+        {
+            BodyRole::Lead
+        }
         (PackageForm::NoLead(_), BodyRole::Termination) if name == EXPOSED_PAD => {
             BodyRole::ExposedPad
         }
@@ -162,18 +188,27 @@ pub fn evaluate(
         .iter()
         .map(|b| {
             let role = part_file::role_of(b.material);
-            // The package's material for the builder's role of the body.
+            // The package's material for the builder's role of the body,
+            // else the part file's own (a MELF's glass, a band's ink), else
+            // the family's.
             let builder_role = builder_role(&package.form, &b.name, role);
+            let material = materials
+                .roles
+                .iter()
+                .find(|c| c.role == builder_role)
+                .map(|c| c.material)
+                .or(b.material)
+                .unwrap_or_else(|| materials.material(&package.form, builder_role));
             GeneratedBody {
                 name: b.name.clone(),
-                // An exposed pad keeps its own role; a post is the part
-                // file's termination where the header builder said lead.
+                // An exposed pad keeps its own role; a post or lead is the
+                // part file's termination where the builders said lead.
                 role: if builder_role == BodyRole::ExposedPad {
                     builder_role
                 } else {
                     role
                 },
-                material: materials.material(&package.form, builder_role),
+                material,
                 terminal: bound
                     .iter()
                     .find(|l| l.body == b.name)

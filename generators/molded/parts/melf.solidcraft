@@ -1,0 +1,523 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "MELF",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "3.5 mm",
+      "unit": "mm",
+      "comment": "glass body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_diameter",
+      "expr": "1.5 mm",
+      "unit": "mm",
+      "comment": "glass body diameter",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "3.5 mm",
+      "unit": "mm",
+      "comment": "overall length, cap to cap",
+      "model": false
+    },
+    {
+      "name": "terminal_length",
+      "expr": "0.4 mm",
+      "unit": "mm",
+      "comment": "end cap length",
+      "model": false
+    },
+    {
+      "name": "cap_diameter",
+      "expr": "1.5 mm",
+      "unit": "mm",
+      "comment": "end cap diameter",
+      "model": false
+    },
+    {
+      "name": "cap_round",
+      "expr": "0.06 mm",
+      "unit": "mm",
+      "comment": "round of each cap's outer edge",
+      "model": false
+    },
+    {
+      "name": "d2",
+      "expr": "body_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d5",
+      "expr": "cap_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d8",
+      "expr": "cap_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "(min(span / 2 - terminal_length, body_length / 2) - 0.08 * body_length) - (- min(span / 2 - terminal_length, body_length / 2) + 0.08 * body_length)",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.8 * body_diameter",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body sketch",
+      "suppressed": false,
+      "param_names": [
+        "d1"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- body_length / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              0.75
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "cap_diameter / 2"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.75,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 1.5,
+            "param": "d2"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d3"
+      ],
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "body_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "cap 1 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- span / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              0.75
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "cap_diameter / 2"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.75,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 1.5,
+            "param": "d5"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "cap 1",
+      "suppressed": false,
+      "body_names": [
+        "cap 1"
+      ],
+      "param_names": [
+        "d6"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "terminal_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "cap 2 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d7"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "span / 2 - terminal_length"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              0.75
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "cap_diameter / 2"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.75,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 1.5,
+            "param": "d8"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "cap 2",
+      "suppressed": false,
+      "body_names": [
+        "cap 2"
+      ],
+      "param_names": [
+        "d9"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "terminal_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "cap seats",
+      "suppressed": false,
+      "type": "combine",
+      "target": "body",
+      "tools": [
+        "cap 1",
+        "cap 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 8,
+      "name": "cap 1 round",
+      "suppressed": false,
+      "param_names": [
+        "d10"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -1.7500000000000002,
+            -0.7500000000000001,
+            5.589156211546322e-31
+          ],
+          "max": [
+            -1.3499999999999996,
+            0.75,
+            1.5000000000000002
+          ]
+        }
+      ],
+      "edge_names": [
+        "F4:side:c1|F4:start"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -1.75,
+          0.0,
+          1.5
+        ]
+      ],
+      "radius": "cap_round",
+      "body": "cap 1"
+    },
+    {
+      "id": 9,
+      "name": "cap 2 round",
+      "suppressed": false,
+      "param_names": [
+        "d11"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            1.3499999999999999,
+            -0.7500000000000001,
+            5.589156211546322e-31
+          ],
+          "max": [
+            1.7500000000000004,
+            0.75,
+            1.5000000000000002
+          ]
+        }
+      ],
+      "edge_names": [
+        "F6:side:c1|F6:top"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          1.75,
+          0.0,
+          1.5
+        ]
+      ],
+      "radius": "cap_round",
+      "body": "cap 2"
+    },
+    {
+      "id": 10,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d12"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "((- min(span / 2 - terminal_length, body_length / 2) + 0.08 * body_length) + (min(span / 2 - terminal_length, body_length / 2) - 0.08 * body_length)) / 2",
+            "0 mm",
+            "max((cap_diameter - body_diameter) / 2, 0 mm) + body_diameter"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 11,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "borosilicate-glass",
+        "color": [
+          237,
+          241,
+          239
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.05,
+          "dielectric_ior": 1.47
+        }
+      },
+      "cap 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "cap 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}
