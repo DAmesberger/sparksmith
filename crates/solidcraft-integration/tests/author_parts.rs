@@ -17,7 +17,7 @@
 //! dimensions.
 //!
 //! `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`
-//! (`AUTHOR_ONLY=<name>` writes one part file only)
+//! (`AUTHOR_ONLY=<name>[,<name>…]` writes those part files only)
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use serde_json::json;
@@ -1307,6 +1307,270 @@ fn author_melf_band() -> Vec<u8> {
     author_melf(true)
 }
 
+/// A part file of the `no-lead` generator's bundle: a DFN (terminals on
+/// the two long sides, `four` false) or QFN package, with or without an
+/// exposed pad (`pad`), the in-code no-lead builder's construction made
+/// parametric in its counts. A moulded body of `body_length` ×
+/// `body_width` × `body_height` stands on the seating plane; each side's
+/// first terminal (`terminal_width` along the side, `terminal_length` in
+/// from its edge, `frame` thick) lies flush with the underside and the side
+/// face, and a body pattern of `terminals` (long sides) or
+/// `terminals_short` (short sides) at `pitch` replays it. The body's pocket
+/// for each terminal is a cut of the terminal's own box, patterned the
+/// same way, so terminals and moulding stay disjoint at any count and
+/// nothing names the pattern's bodies; the exposed pad (`pad_length` ×
+/// `pad_width`, centred) is cut out the same way. The top edges are
+/// rounded by `edge_round`, and a dimple of `mark_radius`, `mark_depth`
+/// deep, two radii in from the −x, −y corner marks pin 1. Saved at a
+/// QFN-16 3 × 3 mm, 0.5 mm (four sides) or a DFN-8 3 × 3 mm, 0.65 mm; the
+/// generator gives every value.
+pub fn author_no_lead(four: bool, pad: bool) -> Vec<u8> {
+    let mut s = Session::default();
+    let title = match (four, pad) {
+        (false, false) => "DFN package",
+        (false, true) => "DFN package with exposed pad",
+        (true, false) => "QFN package",
+        (true, true) => "QFN package with exposed pad",
+    };
+    run(&mut s, "file.new", json!({"name": title}));
+    let (pitch, width, pad_size) = if four {
+        ("0.5 mm", "0.25 mm", ["1.7 mm", "1.7 mm"])
+    } else {
+        ("0.65 mm", "0.3 mm", ["2.4 mm", "1.6 mm"])
+    };
+    let mut params = vec![
+        ("terminals", "4", "", "terminals per long (±y) side"),
+        ("pitch", pitch, "mm", "terminal pitch"),
+        ("body_length", "3 mm", "mm", "body length (x)"),
+        ("body_width", "3 mm", "mm", "body width (y)"),
+        (
+            "body_height",
+            "0.9 mm",
+            "mm",
+            "body height above the seating plane",
+        ),
+        (
+            "terminal_length",
+            "0.4 mm",
+            "mm",
+            "terminal length in from the body edge",
+        ),
+        (
+            "terminal_width",
+            width,
+            "mm",
+            "terminal width along the edge",
+        ),
+        ("frame", "0.2 mm", "mm", "leadframe (terminal) thickness"),
+        (
+            "edge_round",
+            "0.06 mm",
+            "mm",
+            "round of the body's top edges",
+        ),
+        ("mark_radius", "0.24 mm", "mm", "pin-1 dimple radius"),
+        ("mark_depth", "0.03 mm", "mm", "pin-1 dimple depth"),
+    ];
+    if four {
+        params.insert(
+            1,
+            ("terminals_short", "4", "", "terminals per short (±x) side"),
+        );
+    }
+    if pad {
+        params.push(("pad_length", pad_size[0], "mm", "exposed pad length (x)"));
+        params.push(("pad_width", pad_size[1], "mm", "exposed pad width (y)"));
+    }
+    let rows: Vec<serde_json::Value> = params
+        .iter()
+        .map(|(name, expression, unit, comment)| {
+            json!({"name": name, "expression": expression, "unit": unit, "comment": comment})
+        })
+        .collect();
+    run(
+        &mut s,
+        "parameters.import",
+        json!({"text": serde_json::to_string(&rows).unwrap()}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", "0 mm"],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    // (row, corner, size, pattern direction, count), in the builder's
+    // order: −y, then (four sides) +x, +y, −x.
+    let first = |count: &str| format!("- ({count} - 1) / 2 * pitch - terminal_width / 2");
+    let along_x = ["terminal_width", "terminal_length", "frame"];
+    let along_y = ["terminal_length", "terminal_width", "frame"];
+    let south = (
+        "row_s",
+        [first("terminals"), "- body_width / 2".into(), "0 mm".into()],
+        along_x,
+        [1, 0, 0],
+        "terminals",
+    );
+    let north = (
+        "row_n",
+        [
+            first("terminals"),
+            "body_width / 2 - terminal_length".into(),
+            "0 mm".into(),
+        ],
+        along_x,
+        [1, 0, 0],
+        "terminals",
+    );
+    let rows_of = if four {
+        vec![
+            south,
+            (
+                "row_e",
+                [
+                    "body_length / 2 - terminal_length".into(),
+                    first("terminals_short"),
+                    "0 mm".into(),
+                ],
+                along_y,
+                [0, 1, 0],
+                "terminals_short",
+            ),
+            north,
+            (
+                "row_w",
+                [
+                    "- body_length / 2".into(),
+                    first("terminals_short"),
+                    "0 mm".into(),
+                ],
+                along_y,
+                [0, 1, 0],
+                "terminals_short",
+            ),
+        ]
+    } else {
+        vec![south, north]
+    };
+    let mut seeds = Vec::new();
+    for (row, corner, [l, w, h], dir, count) in rows_of {
+        let terminal = format!("{row} terminal");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": l, "width": w, "height": h,
+                "name": terminal, "body_name": terminal}),
+        );
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": l, "width": w, "height": h,
+                "operation": "cut", "targets": ["body"], "name": format!("{row} pocket")}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"features": [format!("{row} pocket")], "dir1": dir, "count1": count,
+                "spacing1": "pitch", "name": format!("{row} pockets")}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"bodies": [terminal], "dir1": dir, "count1": count, "spacing1": "pitch",
+                "name": format!("{row} pattern")}),
+        );
+        seeds.push(terminal);
+    }
+    if pad {
+        let corner = json!(["- pad_length / 2", "- pad_width / 2", "0 mm"]);
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": "pad_length", "width": "pad_width",
+                "height": "frame", "name": "exposed pad", "body_name": "exposed pad"}),
+        );
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner, "length": "pad_length", "width": "pad_width",
+                "height": "frame", "operation": "cut", "targets": ["body"],
+                "name": "exposed pad pocket"}),
+        );
+    }
+    // The top edges, picked at the saved size: 3 × 3 × 0.9 mm.
+    let (x, y, z) = (1.5, 1.5, 0.9);
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, z], [x, 0.0, z], [0.0, y, z], [-x, 0.0, z]]}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 mark",
+            "base": ["- body_length / 2 + 2 * mark_radius", "- body_width / 2 + 2 * mark_radius",
+                "body_height - mark_depth"],
+            "radius": "mark_radius", "height": "2 * mark_depth", "axis": "Z",
+            "operation": "cut", "targets": ["body"]}),
+    );
+    // Looks are kept by body name, and a pattern names its copies
+    // `row_s terminal (2)`, `(3)`, …: every terminal the generator can ask
+    // for (64 a side) gets the tin look at that count, on a body long
+    // enough to hold them, then the file goes back to its saved values.
+    let counts = |s: &mut Session, n: u32, body: &str| {
+        let mut changes = serde_json::Map::new();
+        changes.insert("terminals".into(), json!(n.to_string()));
+        if four {
+            changes.insert("terminals_short".into(), json!(n.to_string()));
+        }
+        changes.insert("body_length".into(), json!(body));
+        changes.insert("body_width".into(), json!(body));
+        run(s, "parameters.change", json!({ "changes": changes }));
+        s.refresh();
+    };
+    counts(&mut s, 64, "40 mm");
+    let metal: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    let sides = if four { 4 } else { 2 };
+    assert_eq!(metal.len(), sides * 64 + usize::from(pad), "{metal:?}");
+    assert!(seeds.iter().all(|seed| metal.contains(seed)));
+    let metal: Vec<&str> = metal.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
+    assign_look(&mut s, &metal, MaterialId::TinMatte);
+    counts(&mut s, 4, "3 mm");
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_dfn() -> Vec<u8> {
+    author_no_lead(false, false)
+}
+
+fn author_dfn_ep() -> Vec<u8> {
+    author_no_lead(false, true)
+}
+
+fn author_qfn() -> Vec<u8> {
+    author_no_lead(true, false)
+}
+
+fn author_qfn_ep() -> Vec<u8> {
+    author_no_lead(true, true)
+}
+
 /// Give `bodies` the Solidcraft appearance named after `material`, with
 /// Sparksmith's opaque PBR projection of its look.
 fn assign_look(s: &mut Session, bodies: &[&str], material: MaterialId) {
@@ -1880,7 +2144,7 @@ pub fn author_usb4105() -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "writes library/parts/*.solidcraft, the chip, header and molded generators' part files and the examples' part files"]
+#[ignore = "writes library/parts/*.solidcraft, the chip, header, no-lead and molded generators' part files and the examples' part files"]
 fn author_parts() {
     // The repository's shipped material library (the program loads it
     // through sparksmith-io at start-up).
@@ -1899,7 +2163,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 19] = [
+    let parts: [(&str, &str, Author); 23] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -1915,6 +2179,11 @@ fn author_parts() {
         ("generators/chip/parts", "chip-led", author_chip_led),
         // The header generator's bundle (`generators/header/parts/`).
         ("generators/header/parts", "pin-header", author_pin_header),
+        // The no-lead generator's bundle (`generators/no-lead/parts/`).
+        ("generators/no-lead/parts", "dfn", author_dfn),
+        ("generators/no-lead/parts", "dfn-ep", author_dfn_ep),
+        ("generators/no-lead/parts", "qfn", author_qfn),
+        ("generators/no-lead/parts", "qfn-ep", author_qfn_ep),
         // The molded generator's bundle (`generators/molded/parts/`): one
         // file per terminal form, each with and without the band.
         ("generators/molded/parts", "molded-flat", author_molded_flat),
@@ -1960,11 +2229,14 @@ fn author_parts() {
             author_usb4105,
         ),
     ];
-    // `AUTHOR_ONLY=pin-header` writes that one part file only;
-    // `AUTHOR_ONLY=generators/molded/parts` the files of one folder.
+    // `AUTHOR_ONLY=pin-header` (or `dfn,qfn`) writes those part files
+    // only; a folder (`generators/molded/parts`) writes its files.
     let only = std::env::var("AUTHOR_ONLY").ok();
     for (folder, name, author) in parts {
-        if only.as_deref().is_some_and(|o| o != name && o != folder) {
+        if only
+            .as_deref()
+            .is_some_and(|o| !o.split(',').any(|o| o == name || o == folder))
+        {
             continue;
         }
         let dir = root.join(folder);

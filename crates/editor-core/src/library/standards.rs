@@ -540,6 +540,16 @@ pub mod fixture {
                 parts: vec![part(bytes!("header/parts/pin-header.solidcraft"))],
             },
             ShippedGenerator {
+                name: "no-lead".into(),
+                module: Arc::from(&bytes!("no-lead/no-lead.wasm")[..]),
+                parts: vec![
+                    part(bytes!("no-lead/parts/dfn.solidcraft")),
+                    part(bytes!("no-lead/parts/dfn-ep.solidcraft")),
+                    part(bytes!("no-lead/parts/qfn.solidcraft")),
+                    part(bytes!("no-lead/parts/qfn-ep.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
                 name: "molded".into(),
                 module: Arc::from(&bytes!("molded/molded.wasm")[..]),
                 parts: vec![
