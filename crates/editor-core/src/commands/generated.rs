@@ -180,6 +180,18 @@ fn context_value(document: &Document, param: &v1::Param) -> Option<v1::ParamValu
                 .ok()
                 .map(|nm| v1::ParamValue::Int(nm.get()))
         }
+        "project.land.exposed_pad_clearance" => {
+            let rules = document.project.rules.land_estimators().ok()?;
+            crate::units::Nm::from_mm_f64_rounded(rules.land.exposed_pad_clearance)
+                .ok()
+                .map(|nm| v1::ParamValue::Int(nm.get()))
+        }
+        "project.mask.web_min" => {
+            let rules = document.project.rules.land_estimators().ok()?;
+            crate::units::Nm::from_mm_f64_rounded(rules.mask.web_min)
+                .ok()
+                .map(|nm| v1::ParamValue::Int(nm.get()))
+        }
         "project.symbols.resistor_style" => {
             let key = match document.drafts.symbols.resistor {
                 ResistorStyle::Iec => "iec",
