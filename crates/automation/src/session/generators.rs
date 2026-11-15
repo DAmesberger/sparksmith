@@ -28,18 +28,21 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use v1::Description;
 
-/// `library.generate_part`.
+/// `library.generate_part`. Required: `scope`, and `generator` or
+/// `module` (exactly one); the rest is optional.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratePartParams {
-    /// A shipped generator by name (`library.generators`), e.g. `chip`.
+    /// Required unless `module` is given: a shipped generator by name
+    /// (`library.generators`), e.g. `chip`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generator: Option<String>,
-    /// Or a module this project embeds, by its SHA-256.
+    /// Required unless `generator` is given: a module this project embeds,
+    /// by its SHA-256.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<ContentHash>,
-    /// `component` (component, symbol, package, footprint and binding) or
-    /// `package` (package and footprint).
+    /// Required. `component` (component, symbol, package, footprint and
+    /// binding) or `package` (package and footprint).
     pub scope: GeneratorScope,
     /// A preset of the module (`library.generators` lists them), whose
     /// values `params` override.

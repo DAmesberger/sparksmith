@@ -746,6 +746,14 @@ fn generators_are_found_and_called() -> Fallible<()> {
         unknown.to_string().contains("gull-wing"),
         "the refusal names the generators: {unknown}"
     );
+    // A generator is described by its name, as a catalog entry is.
+    let chip = tools.ok(DESCRIBE, json!({"name": "chip"}))?;
+    assert!(
+        chip["generator"]["description"]["params"].is_array(),
+        "{chip}"
+    );
+    let (failed, nothing) = tools.call(DESCRIBE, json!({"name": "no-such-thing"}));
+    assert!(failed && nothing["code"] == "catalog.unknown", "{nothing}");
     let before = tools.revision();
     let made = tools.ok(
         APPLY,

@@ -489,7 +489,8 @@ fn describe(desk: &mut Desk, args: DescribeArgs) -> Value {
         );
     }
     let Some(entry) = catalog::entry(&args.name) else {
-        return Unreachable::unknown(&args.name, None).reply();
+        return generator(desk, &args.name)
+            .unwrap_or_else(|| Unreachable::unknown(&args.name, None).reply());
     };
     let mut reply = desk.catalog(envelope(
         "project.schema",
@@ -521,6 +522,30 @@ fn describe(desk: &mut Desk, args: DescribeArgs) -> Value {
     }
     reply["result"] = described;
     reply
+}
+
+/// `describe` of a shipped generator's name (`gull-wing`): its
+/// `library.generators` entry in full, with the call that makes a part
+/// with it. `None` when no shipped generator has that name.
+fn generator(desk: &mut Desk, name: &str) -> Option<Value> {
+    let mut reply = desk.catalog(envelope(
+        "library.generators",
+        json!({"generator": name}),
+        None,
+    ));
+    if reply["ok"] != true {
+        return None;
+    }
+    let found = reply["result"]["shipped"].get(0)?.clone();
+    reply["result"] = json!({
+        "generator": found,
+        "call": {"tool": APPLY, "arguments": {
+            "project": "<project>", "expected_revision": "<revision>",
+            "operations": [{"op": "library.generate_part", "params": {
+                "generator": name, "scope": "component", "preset": "<preset key, optional>",
+                "params": "<params, optional>", "name": "<part name>"}}]}},
+    });
+    Some(reply)
 }
 
 /// How this surface sends `entry`.

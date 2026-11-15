@@ -213,7 +213,8 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     assert_eq!(schema["format"], 1, "{schema}");
 
     // Step 3: the generator whose families cover a QFN, and its preset
-    // for the drawing's package, from the compact listing.
+    // for the drawing's package, from the compact listing; then that
+    // generator's parameters by its name.
     let generators = ok(
         "generators",
         tools.query("library.generators", json!({"family": "no_lead"})),
@@ -238,6 +239,17 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
                 .is_some_and(|n| n.contains("7×7 0.5 EP 5.3"))
         })
         .ok_or_else(|| format!("the QFN-48 preset: {no_lead}"))?;
+    let described = tools.ok(super::tools::DESCRIBE, json!({"name": no_lead["name"]}))?;
+    assert!(
+        described["generator"]["description"]["params"]
+            .as_array()
+            .is_some_and(|p| !p.is_empty()),
+        "{described}"
+    );
+    assert_eq!(
+        described["call"]["arguments"]["operations"][0]["op"], "library.generate_part",
+        "{described}"
+    );
     // Step 4: make the part, draft its working set.
     let made = ok(
         "generate",

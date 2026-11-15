@@ -843,7 +843,7 @@ impl Request {
             ),
             info::<generators::GeneratePartParams>(
                 "library.generate_part",
-                "Make a part (component or package) with a generator module, e.g. a chip resistor 0603.",
+                "Make a part (component or package) with a generator module, e.g. a chip resistor 0603; requires scope and generator or module.",
                 "Make a part with a generator module, through library.generate in one undo step at expected_revision: generator (a shipped name) or module (an embedded SHA-256), scope component (component, symbol, package, footprint, binding) or package, an optional preset and params (lengths in integer nm, angles in integer millidegrees; the rest from project settings and the module's defaults). The module is embedded once by hash, so the project reopens without the generator folder; a part the project already holds with the same key, or that the same generator version made from the same parameters, is returned unchanged (created: false). A newer version of the generator that made a part with the same parameters makes the next revisions of the same lineages (replaced names the old root), and the reply carries update, the project.preview_update plan that moves the placed instances (apply it with project.apply_update); an older version is refused (generated.older_version). Refusals name the module's own problems (param.*) or the host's (generator.*); nothing changes.",
             ),
             info::<mechanical_parts::PlacePartFileParams>(
