@@ -294,11 +294,20 @@ impl App {
             #[cfg(target_os = "macos")]
             native_menu,
         } = parts;
+        // `library.generate` runs the shipped generators' modules through
+        // the host's runtime (slice D1); it stays across documents.
+        let mut engine = engine;
+        engine.set_generators(sparksmith_automation::session::generators::runtime());
         let mut pcb = pcb_editor::PcbEditor::default();
         *pcb.filter_mut() = sources.selection_filter();
         // The starting document's first page, framed like an opened one.
         let mut schematic = schematic_editor::SchematicEditor::default();
         schematic.document_opened(engine.project());
+        // What the shipped generators offer, read once off the UI thread.
+        let shelf = crate::generators::Shelf::load(ctx);
+        schematic.palette_mut().set_shelf(&shelf);
+        let mut part = part_editor::PartEditor::default();
+        part.set_shelf(&shelf);
         Self {
             scene: SceneController::new(ctx.clone(), viewport),
             fills: crate::fill_worker::FillWorker::start(ctx.clone()),
@@ -306,7 +315,7 @@ impl App {
             sources,
             engine,
             workspace: Workspace::Pcb,
-            part: Default::default(),
+            part,
             schematic,
             pcb,
             toasts: Toasts::default(),
@@ -839,9 +848,6 @@ impl App {
                     match read.purpose {
                         BundlePurpose::Place(_) => self.schematic.palette_mut().refuse(error),
                         BundlePurpose::Update(_) => self.say(Level::Error, error),
-                        BundlePurpose::Template => {
-                            self.part.template_row_read(read.pick, Err(error))
-                        }
                     }
                     continue;
                 }
@@ -853,7 +859,6 @@ impl App {
                 BundlePurpose::Update(only) => {
                     self.update_project_copy(read.pick, bundle, only.as_deref());
                 }
-                BundlePurpose::Template => self.part.template_row_read(read.pick, Ok(bundle)),
             }
         }
     }
@@ -1011,9 +1016,6 @@ impl App {
         let sources = &self.sources;
         self.part
             .set_sources(names, sources.generation(), || sources.context());
-        for pick in self.part.take_template_reads() {
-            self.sources.read_bundle(pick, BundlePurpose::Template);
-        }
         for action in self.part.take_folder_actions() {
             match action {
                 part_editor::FolderAction::Preview(pick) => {

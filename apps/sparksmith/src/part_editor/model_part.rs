@@ -16,9 +16,7 @@ use crate::part_chooser::{self, ChooserMode, Evaluator, PartSource};
 use egui::Ui;
 use sparksmith_automation::part_files::{self, UsePartFile};
 use sparksmith_core::library::package_model::PartFileModel;
-use sparksmith_core::library::{
-    GeneratedMaterials, PackageDefinition, PackageEdit, PackageForm, PackageModel,
-};
+use sparksmith_core::library::{GeneratedMaterials, PackageDefinition, PackageEdit, PackageModel};
 use sparksmith_core::materials::MaterialId;
 use sparksmith_core::{DefinitionId, Engine, ModelRef, Operation};
 use sparksmith_solidcraft::models::part_file::PartValues;
@@ -38,7 +36,7 @@ pub struct PartFileCard {
 /// The model Use generated model sets: the generated model for a typed
 /// form, the envelope for a generic one.
 pub fn own_model(package: &PackageDefinition) -> PackageModel {
-    if package.form == PackageForm::Generic {
+    if package.form.envelope().is_none() {
         PackageModel::Envelope {
             material: MaterialId::EpoxyMould,
         }

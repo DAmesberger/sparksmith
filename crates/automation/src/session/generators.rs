@@ -13,7 +13,7 @@ use super::Session;
 use crate::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::Value;
 use sparksmith_core::Operation;
 use sparksmith_core::commands::{Generate, LibraryCommand, ModuleSource};
 use sparksmith_core::ids::{ComponentRef, ContentHash, DefinitionKind, DefinitionRef};
@@ -21,11 +21,12 @@ use sparksmith_core::library::bundle::{AssetBytes, asset_hash};
 use sparksmith_core::library::generated::{
     self, GeneratorParams, GeneratorRuntime, GeneratorScope, ParamValue,
 };
-use sparksmith_generators::abi::v1::{self, Description};
+pub use sparksmith_generators::abi::v1;
 use sparksmith_io::generator_bundle::GeneratorBundle;
 use sparksmith_io::shipped::ShippedLibrary;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use v1::Description;
 
 /// `library.generate_part`.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -141,7 +142,11 @@ impl Session {
             .map_err(|f| crate::Error::Document(generated::failure(&f)))
     }
 
-    pub(super) fn generate_part(&mut self, params: GeneratePartParams) -> Result<Value> {
+    /// The `library.generate` that `params` ask for, its 3D model
+    /// evaluated (GP2), not yet applied: what `library.generate_part`
+    /// applies, and what a host that applies commands on its own engine (the
+    /// desktop, off its UI thread) sends.
+    pub fn generate_request(&self, params: GeneratePartParams) -> Result<Generate> {
         let module = self.module_bytes(params.generator.as_deref(), params.module)?;
         let mut values = GeneratorParams::new();
         if let Some(preset) = &params.preset {
@@ -199,9 +204,15 @@ impl Session {
             &made.generation,
             module.bundle.as_ref(),
         )?);
+        Ok(generate)
+    }
+
+    pub(super) fn generate_part(&mut self, params: GeneratePartParams) -> Result<Value> {
+        let expected_revision = params.expected_revision;
+        let generate = self.generate_request(params)?;
         let operation = Operation::Library(LibraryCommand::Generate(Box::new(generate)));
         self.ensure_generators();
-        let mut reply = self.apply(params.expected_revision, operation)?;
+        let mut reply = self.apply(expected_revision, operation)?;
         // Made again over an older version: preview moving the instances
         // that pin the old component revision (never applied here).
         let report = &reply["outcome"]["report"];
@@ -234,6 +245,12 @@ impl Session {
     }
 
     pub(super) fn generators(&self) -> Result<Value> {
+        Ok(serde_json::to_value(self.generators_report()?)?)
+    }
+
+    /// `library.generators` as typed data: what the desktop reads to build
+    /// its catalog rows and its one generator form.
+    pub fn generators_report(&self) -> Result<GeneratorsReport> {
         let library = &self.engine.project().library;
         // The shipped modules: name, hash and what each offers.
         let mut shipped_by_lineage: BTreeMap<String, (ContentHash, u32)> = BTreeMap::new();
@@ -249,25 +266,22 @@ impl Session {
                 let bundle_hash = bundle.hash;
                 let bytes = bundle.module;
                 let hash = asset_hash(&bytes);
-                match self.describe(&bytes) {
+                let (description, refused) = match self.describe(&bytes) {
                     Ok(description) => {
                         shipped_by_lineage
                             .insert(description.id.clone(), (hash, description.version));
-                        shipped.push(json!({
-                            "name": name,
-                            "module": hash,
-                            "bundle": bundle_hash,
-                            "bytes": bytes.len(),
-                            "description": summary(&description),
-                        }));
+                        (Some(GeneratorSummary::of(&description)), None)
                     }
-                    Err(error) => shipped.push(json!({
-                        "name": name,
-                        "module": hash,
-                        "bundle": bundle_hash,
-                        "refused": error.to_string(),
-                    })),
-                }
+                    Err(error) => (None, Some(error.to_string())),
+                };
+                shipped.push(ShippedGenerator {
+                    name,
+                    module: hash,
+                    bundle: bundle_hash,
+                    bytes: bytes.len(),
+                    description,
+                    refused,
+                });
             }
         }
         // The embedded modules, each described once.
@@ -278,14 +292,18 @@ impl Session {
             .filter(|a| a.media_type == generated::MODULE_MEDIA_TYPE)
         {
             let description = self.describe(&asset.data).ok();
-            embedded.push(json!({
-                "module": asset.hash,
-                "bytes": asset.data.len(),
-                "generator": description.as_ref().map(|d| d.id.clone()),
-                "version": description.as_ref().map(|d| d.version),
-                "name": description.as_ref().map(|d| d.title.clone()),
-                "parts": library.generated.iter().filter(|g| g.from.module == asset.hash).count(),
-            }));
+            embedded.push(EmbeddedGenerator {
+                module: asset.hash,
+                bytes: asset.data.len(),
+                generator: description.as_ref().map(|d| d.id.clone()),
+                version: description.as_ref().map(|d| d.version),
+                name: description.as_ref().map(|d| d.title.clone()),
+                parts: library
+                    .generated
+                    .iter()
+                    .filter(|g| g.from.module == asset.hash)
+                    .count(),
+            });
         }
         // Each part names its generator and version itself (slice B4).
         let mut parts = Vec::new();
@@ -304,26 +322,178 @@ impl Session {
             let shipped_module = shipped_now
                 .map(|(hash, _)| hash)
                 .filter(|hash| *hash != part.from.module);
-            parts.push(json!({
-                "root": part.root,
-                "name": generated::describe(library, part),
-                "scope": part.from.scope,
-                "module": part.from.module,
-                "bundle": part.from.bundle,
-                "key": part.from.key()?,
-                "result": part.from.result,
-                "generator": part.from.generator,
-                "version": part.from.version,
-                "state": state,
-                "shipped_module": shipped_module,
-            }));
+            parts.push(GeneratedPartState {
+                root: part.root,
+                name: generated::describe(library, part),
+                scope: part.from.scope,
+                module: part.from.module,
+                bundle: part.from.bundle,
+                key: part.from.key()?,
+                result: part.from.result,
+                generator: part.from.generator.clone(),
+                version: part.from.version,
+                state: state.to_owned(),
+                shipped_module,
+            });
         }
-        Ok(json!({
-            "shipped": shipped,
-            "shipped_library": located.as_ref().ok().map(|l| l.root().display().to_string()),
-            "embedded": embedded,
-            "parts": parts,
-        }))
+        Ok(GeneratorsReport {
+            shipped,
+            shipped_library: located
+                .as_ref()
+                .ok()
+                .map(|l| l.root().display().to_string()),
+            embedded,
+            parts,
+        })
+    }
+}
+
+/// The generator runtime a host gives an engine that applies
+/// `library.generate` itself (`Engine::set_generators`): a worker thread
+/// per call with the host's limits and wall time, as the session's own.
+pub fn runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
+    Arc::new(sparksmith_generators::worker::Worker::default())
+}
+
+/// `library.generators`' answer.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratorsReport {
+    /// The modules the program ships (`library/generators/`).
+    pub shipped: Vec<ShippedGenerator>,
+    /// Where the shipped library is.
+    pub shipped_library: Option<String>,
+    /// The modules this project embeds.
+    pub embedded: Vec<EmbeddedGenerator>,
+    /// Each generated part, with the state of its module.
+    pub parts: Vec<GeneratedPartState>,
+}
+
+/// A shipped generator bundle and what its module offers.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ShippedGenerator {
+    /// The bundle's name: `library.generate_part`'s `generator`.
+    pub name: String,
+    pub module: ContentHash,
+    pub bundle: ContentHash,
+    pub bytes: usize,
+    /// What it offers, when the host could describe it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<GeneratorSummary>,
+    /// Why the host could not describe it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub refused: Option<String>,
+}
+
+/// A module this project embeds.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct EmbeddedGenerator {
+    pub module: ContentHash,
+    pub bytes: usize,
+    pub generator: Option<String>,
+    pub version: Option<u32>,
+    pub name: Option<String>,
+    /// How many of the project's generated parts it made.
+    pub parts: usize,
+}
+
+/// A generated part and the state of its module ([`state`]).
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratedPartState {
+    pub root: DefinitionRef,
+    pub name: String,
+    pub scope: GeneratorScope,
+    pub module: ContentHash,
+    pub bundle: Option<ContentHash>,
+    pub key: generated::PartKey,
+    pub result: ContentHash,
+    pub generator: String,
+    pub version: u32,
+    /// `current`, `update_available`, `shipped_older`, `superseded` or
+    /// `not_shipped`.
+    pub state: String,
+    pub shipped_module: Option<ContentHash>,
+}
+
+/// What a module offers, for people and models choosing parameters: its
+/// description's part capability, flattened.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratorSummary {
+    /// The generator's id.
+    pub generator: String,
+    pub name: String,
+    pub licence: String,
+    pub families: Vec<String>,
+    pub scopes: Vec<v1::Scope>,
+    /// Each parameter: key, label, help, type and range, default, group and
+    /// the project setting it is filled from.
+    pub params: Vec<v1::Param>,
+    /// The cross-field rules, in plain words (the module enforces them).
+    pub rules: Vec<String>,
+    /// Each preset with its values, citation and basis.
+    pub presets: Vec<v1::Preset>,
+    pub version: u32,
+    pub abi: u32,
+}
+
+impl GeneratorSummary {
+    pub fn of(description: &Description) -> Self {
+        Self {
+            generator: description.id.clone(),
+            name: description.title.clone(),
+            licence: description.licence.clone(),
+            families: description
+                .offer()
+                .map(|o| o.families.clone())
+                .unwrap_or_default(),
+            scopes: description.scopes().to_vec(),
+            params: description.params().to_vec(),
+            rules: description.rules().iter().map(|r| r.text.clone()).collect(),
+            presets: description.presets().to_vec(),
+            version: description.version,
+            abi: v1::ABI,
+        }
+    }
+
+    /// The description this summary was made from, as far as a host needs
+    /// it to complete and check parameters and to know where a part stands
+    /// (`sparksmith_core::library::generated::standing`): the part
+    /// capability with its parameters, rules, presets, families and scopes.
+    pub fn description(&self) -> Description {
+        Description {
+            abi: self.abi,
+            id: self.generator.clone(),
+            version: self.version,
+            title: self.name.clone(),
+            licence: self.licence.clone(),
+            deterministic: true,
+            capabilities: vec![v1::Capability {
+                name: v1::GENERATE_PART.into(),
+                effect: v1::Effect::None,
+                title: None,
+                params: self.params.clone(),
+                rules: self
+                    .rules
+                    .iter()
+                    .map(|text| v1::Rule {
+                        text: text.clone(),
+                        fields: Vec::new(),
+                    })
+                    .collect(),
+                presets: self.presets.clone(),
+                part: Some(v1::PartOffer {
+                    families: self.families.clone(),
+                    scopes: self.scopes.clone(),
+                    grammar: Vec::new(),
+                    instance_fields: Vec::new(),
+                }),
+            }],
+            needs: Vec::new(),
+        }
     }
 }
 
@@ -350,42 +520,6 @@ fn state(
         (Some((_, shipped)), Some(own)) if shipped < own => "shipped_older",
         (Some(_), _) => "current",
     }
-}
-
-/// What a module offers, for people and models choosing parameters.
-fn summary(description: &Description) -> Value {
-    let params: Vec<Value> = description
-        .params()
-        .iter()
-        .map(|p| {
-            json!({
-                "key": p.key,
-                "label": p.label,
-                "help": p.help,
-                "type": p.ty,
-                "default": p.default,
-                "group": p.group,
-                "context": p.context,
-            })
-        })
-        .collect();
-    let presets: Vec<Value> = description
-        .presets()
-        .iter()
-        .map(|p| json!({"key": p.key, "name": p.name, "aliases": p.aliases}))
-        .collect();
-    json!({
-        "generator": description.id,
-        "name": description.title,
-        "licence": description.licence,
-        "families": description.offer().map(|o| o.families.clone()).unwrap_or_default(),
-        "scopes": description.scopes(),
-        "params": params,
-        "rules": description.rules().iter().map(|r| r.text.clone()).collect::<Vec<_>>(),
-        "presets": presets,
-        "version": description.version,
-        "abi": v1::ABI,
-    })
 }
 
 #[cfg(test)]

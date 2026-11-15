@@ -163,6 +163,201 @@ pub fn complete(
     })
 }
 
+/// The value of a project setting a parameter declares as its context, if
+/// the core knows the setting.
+fn context_value(
+    rules: &crate::rules::ProjectRules,
+    drafts: &super::Drafts,
+    param: &v1::Param,
+) -> Option<v1::ParamValue> {
+    // Without a fab profile the board has no land margins.
+    let land = |pick: fn(&crate::rules::LandRules) -> f64| {
+        let mm = pick(&rules.land_estimators().ok()?.land);
+        crate::units::Nm::from_mm_f64_rounded(mm)
+            .ok()
+            .map(|nm| v1::ParamValue::Int(nm.get()))
+    };
+    match param.context.as_deref()? {
+        "project.land.chip_gap_min" => land(|l| l.chip_gap_min),
+        "project.land.gull_wing_width_extra" => land(|l| l.gull_wing_width_extra),
+        "project.land.exposed_pad_clearance" => land(|l| l.exposed_pad_clearance),
+        "project.mask.web_min" => {
+            let rules = rules.land_estimators().ok()?;
+            crate::units::Nm::from_mm_f64_rounded(rules.mask.web_min)
+                .ok()
+                .map(|nm| v1::ParamValue::Int(nm.get()))
+        }
+        "project.symbols.resistor_style" => {
+            let key = match drafts.symbols.resistor {
+                super::symbol_style::ResistorStyle::Iec => "iec",
+                super::symbol_style::ResistorStyle::Us => "us",
+            };
+            Some(v1::ParamValue::Text(key.into()))
+        }
+        _ => None,
+    }
+}
+
+/// The complete request `params` make in a project with these `rules` and
+/// `drafts` (its symbol conventions): a parameter the request leaves out
+/// whose description names a project setting takes the project's value,
+/// every other the module's default (G7).
+pub fn completed(
+    rules: &crate::rules::ProjectRules,
+    drafts: &super::Drafts,
+    description: &v1::Description,
+    scope: GeneratorScope,
+    params: &GeneratorParams,
+) -> std::result::Result<v1::Request, Failure> {
+    let mut given = wire_params(params);
+    for param in description.params() {
+        if given.contains_key(&param.key) {
+            continue;
+        }
+        if let Some(value) = context_value(rules, drafts, param)
+            && sparksmith_generator_abi::params::fits(&param.ty, &value)
+        {
+            given.insert(param.key.clone(), value);
+        }
+    }
+    complete(description, scope.wire(), &given)
+}
+
+/// Whether a part recorded with `old` parameters was made from the same
+/// parameters as `wire`: every recorded value is the same, and a parameter
+/// the newer module adds was not given (it takes the module's default or
+/// the project's setting).
+fn same_params(old: &GeneratorParams, wire: &v1::Request, given: &GeneratorParams) -> bool {
+    old.iter()
+        .all(|(k, v)| wire.params.get(k) == Some(&v.wire()))
+        && wire
+            .params
+            .keys()
+            .all(|k| old.contains_key(k) || !given.contains_key(k))
+}
+
+/// The newest part (highest version, then revision) the generator
+/// `description` names made from the same parameters in `scope`: `given`
+/// as asked, `wire` as completed.
+pub fn predecessor<'a>(
+    library: &'a Library,
+    description: &v1::Description,
+    scope: GeneratorScope,
+    given: &GeneratorParams,
+    wire: &v1::Request,
+) -> Option<&'a GeneratedPart> {
+    library
+        .generated
+        .iter()
+        .filter(|part| {
+            part.from.scope == scope
+                && part.from.generator == description.id
+                && same_params(&part.from.params, wire, given)
+        })
+        .max_by_key(|p| (p.from.version, p.root.revision, p.root.id))
+}
+
+/// Where a part a generator would make from given parameters stands in a
+/// project (the regenerate rule, G15): what `library.generate` with that
+/// module would do, decided without running it.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "state", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Standing {
+    /// The project holds no part from these parameters: making it creates
+    /// one.
+    New,
+    /// The same version of the generator made it: making it again changes
+    /// nothing.
+    Held { root: DefinitionRef, version: u32 },
+    /// An older version made it: this one makes its next revisions, and
+    /// placed instances keep theirs until the update is applied.
+    Update {
+        root: DefinitionRef,
+        made_by: u32,
+        version: u32,
+    },
+    /// A newer version made it: this module is refused, a generated part
+    /// is never downgraded.
+    Newer {
+        root: DefinitionRef,
+        made_by: u32,
+        version: u32,
+    },
+    /// The parameters are not ones the module takes: each problem with the
+    /// parameter it names, if any.
+    Invalid { problems: Vec<ParamProblem> },
+}
+
+/// One parameter problem of [`Standing::Invalid`], in the module's words.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ParamProblem {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+    pub message: String,
+}
+
+impl Standing {
+    /// The part the project holds from these parameters, if any.
+    pub fn root(&self) -> Option<DefinitionRef> {
+        match self {
+            Self::Held { root, .. } | Self::Update { root, .. } | Self::Newer { root, .. } => {
+                Some(*root)
+            }
+            Self::New | Self::Invalid { .. } => None,
+        }
+    }
+}
+
+/// Where the part `description`'s module makes from `params` in `scope`
+/// stands in a project of `library`, `rules` and `drafts` ([`Standing`]),
+/// by the rule `library.generate` applies: the newest part the same
+/// generator made from the same parameters in the same scope, and its
+/// version against this one.
+pub fn standing(
+    library: &Library,
+    rules: &crate::rules::ProjectRules,
+    drafts: &super::Drafts,
+    description: &v1::Description,
+    scope: GeneratorScope,
+    params: &GeneratorParams,
+) -> Standing {
+    let wire = match completed(rules, drafts, description, scope, params) {
+        Ok(wire) => wire,
+        Err(failure) => {
+            return Standing::Invalid {
+                problems: failure
+                    .problems
+                    .into_iter()
+                    .map(|p| ParamProblem {
+                        field: p.field,
+                        message: p.message,
+                    })
+                    .collect(),
+            };
+        }
+    };
+    match predecessor(library, description, scope, params, &wire) {
+        None => Standing::New,
+        Some(part) => {
+            let (root, made_by, version) = (part.root, part.from.version, description.version);
+            match made_by.cmp(&version) {
+                std::cmp::Ordering::Equal => Standing::Held { root, version },
+                std::cmp::Ordering::Less => Standing::Update {
+                    root,
+                    made_by,
+                    version,
+                },
+                std::cmp::Ordering::Greater => Standing::Newer {
+                    root,
+                    made_by,
+                    version,
+                },
+            }
+        }
+    }
+}
+
 /// Parameters by key.
 pub type GeneratorParams = BTreeMap<String, ParamValue>;
 

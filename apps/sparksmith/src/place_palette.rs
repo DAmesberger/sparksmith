@@ -10,12 +10,14 @@
 //! lineage the sheet offers Keep both / Update project copy / Cancel
 //! inline. Cmd+D marks the highlighted row a favourite; favourites and
 //! recents rank after the match tier and are kept per user by the app.
-//! Below every component, "From template" lists the template rows the same
-//! text finds (`template_gallery::find`); choosing one asks the editor to
-//! create the component and arm its placement. A text that reads as an
-//! on-demand generic part (`template_gallery::find_generic`) lists that part
-//! too: first when the project holds it, else after the project's components,
-//! "not yet created". Choosing one needs no form. Library folder rows follow
+//! Below every component, "From generator" lists the generator presets
+//! the same text finds (`generators::find_presets`, slice D1); choosing one
+//! asks the editor to make the component with its generator and arm its
+//! placement. A text that reads as an on-demand generic part
+//! (`generators::find_generic`) lists that part too: first when the
+//! project holds it, else after the project's components, "not yet
+//! created". Choosing one needs no form; one an older generator version
+//! made opens the generator form, which says what making it again does. Library folder rows follow
 //! everything the project can make itself.
 //!
 //! In *assign mode* the same search chooses a manufacturer part for one or
@@ -25,26 +27,27 @@
 //! requirements, lists the fitting Parts, and Choose returns the Part,
 //! which the editor turns into one `instance.assign_part`. A refusal comes
 //! back to the dialog's refusal row; success closes it with a toast.
+use crate::generator_gallery;
+use crate::generators::{self, Found, Shelf};
 use crate::kit::dialog::{DialogAction, DialogPanel};
 use crate::kit::severity::Level;
 use crate::kit::toast::ToastAction;
 use crate::kit::{self, Tone};
 use crate::library_sources::FolderPick;
 use crate::refusal::{self, Origin};
-use crate::template_gallery::{self, Found};
 use egui::{Rect, Ui, pos2};
 use sparksmith_automation::part_files::{self, BuiltinPart};
-use sparksmith_core::catalog::generic::{GenericCandidate, MAX_WORDS};
-use sparksmith_core::catalog::templates::TemplateHit;
+use sparksmith_core::catalog::generic::MAX_WORDS;
+use sparksmith_core::catalog::generic::generators::{GeneratorCandidate, PresetHit};
 use sparksmith_core::catalog::{
     self, CatalogContext, CatalogEntry, EntryKey, Hit, ItemReport, MAX_CONTEXT, MAX_QUERY,
     SearchReport, Source, UpdateAvailable,
 };
 use sparksmith_core::ids::{LibraryId, SourceLineageId};
 use sparksmith_core::issues::MAX_TITLE;
+use sparksmith_core::library::generated::Standing;
 use sparksmith_core::library::import::OtherRevision;
 use sparksmith_core::library::templates::catalog::readable_provenance;
-use sparksmith_core::library::templates::generic::GenericState;
 use sparksmith_core::{
     ComponentRef, DefinitionId, DefinitionKind, Engine, Id, PartRef, Query, QueryResult, Revision,
 };
@@ -65,6 +68,8 @@ const KEYS_TEMPLATE: &str = "↑↓ move   Enter create and place   click pick  
 /// The footer on a generic part that is not yet created, and on one that is.
 const KEYS_GENERIC_NEW: &str = "↑↓ move   Enter create and place   click pick   Esc close";
 const KEYS_GENERIC: &str = "↑↓ move   Enter place   click pick   Esc close";
+/// The footer on a generic part an older generator version made.
+const KEYS_GENERIC_UPDATE: &str = "↑↓ move   Enter review making it again   Esc close";
 /// The heading of the generic parts not yet in the project.
 const GENERIC_HEADING: &str = "Generic parts";
 /// The heading of the shipped library's parts the text names: components,
@@ -120,15 +125,12 @@ pub enum PaletteAction {
         part: PartRef,
         target: ComponentRef,
     },
-    /// A template row: create the component from it, then arm placement.
+    /// A generator preset: make the component from it, then arm placement.
     /// `query` is the search that found it, for the form if it takes one.
-    FromTemplate {
-        hit: Box<TemplateHit>,
-        query: String,
-    },
+    FromTemplate { hit: Box<PresetHit>, query: String },
     /// A generic part: arm its placement, creating it first if needed, and
     /// give each placed instance the values the text named.
-    Generic(Box<GenericCandidate>),
+    Generic(Box<GeneratorCandidate>),
     /// Esc: the palette closed without a choice.
     Close,
 }
@@ -219,7 +221,7 @@ struct Results {
     /// Place mode: the template rows below the components.
     templates: Found,
     /// Place mode: the generic parts the text reads as.
-    generic: Vec<GenericCandidate>,
+    generic: Vec<GeneratorCandidate>,
     /// Place mode: the shipped library's part files the text names.
     builtins: Vec<&'static BuiltinPart>,
     /// The rows the highlight moves over, top to bottom.
@@ -233,7 +235,7 @@ struct Results {
 struct Lookup {
     report: Result<SearchReport, String>,
     templates: Found,
-    generic: Vec<GenericCandidate>,
+    generic: Vec<GeneratorCandidate>,
     builtins: Vec<&'static BuiltinPart>,
 }
 
@@ -273,14 +275,14 @@ enum Group {
 /// generic parts it could make, the template rows, then library folders.
 fn row_order(
     hits: &[Hit],
-    generic: &[GenericCandidate],
-    templates: &[TemplateHit],
+    generic: &[GeneratorCandidate],
+    templates: &[PresetHit],
     builtins: usize,
     context: &CatalogContext,
 ) -> Vec<Slot> {
-    let held = |c: &GenericCandidate| c.component().is_some();
+    let held = |c: &GeneratorCandidate| c.component().is_some();
     let in_project = |h: &&Hit| group_of(&h.entry, context) == 0;
-    let index_of = |g: &[GenericCandidate], keep: &dyn Fn(&GenericCandidate) -> bool| {
+    let index_of = |g: &[GeneratorCandidate], keep: &dyn Fn(&GeneratorCandidate) -> bool| {
         (0..g.len())
             .filter(|i| g.get(*i).is_some_and(keep))
             .map(Slot::Generic)
@@ -318,6 +320,10 @@ pub struct PlacePalette {
     /// Favourites, recents and folder catalogs, set by the app.
     context: CatalogContext,
     context_generation: u64,
+    /// The shipped generators (slice D1), and whether the last search saw
+    /// them read.
+    shelf: Shelf,
+    shelf_seen: bool,
     /// Library folders are still being read: an empty result says
     /// "Searching…", not "No component matches".
     loading: bool,
@@ -403,7 +409,7 @@ impl PlacePalette {
         &self.mode
     }
 
-    #[cfg(test)]
+    /// The text typed.
     pub fn query(&self) -> &str {
         &self.query
     }
@@ -469,6 +475,12 @@ impl PlacePalette {
 
     /// The app's favourites, recents and folder catalogs; `generation`
     /// changes whenever they do, and `context` is only built then.
+    /// The shipped generators whose presets and generic parts the palette
+    /// lists.
+    pub fn set_shelf(&mut self, shelf: &Shelf) {
+        self.shelf = shelf.clone();
+    }
+
     pub fn set_context(&mut self, generation: u64, context: impl FnOnce() -> CatalogContext) {
         if generation != self.context_generation {
             self.context = context();
@@ -509,6 +521,12 @@ impl PlacePalette {
 
     /// Run `library.search` when the text or the document changed.
     fn refresh(&mut self, engine: &Engine) {
+        // The generators arrive off the UI thread: search again once they do.
+        let ready = self.shelf.offers().is_some();
+        if ready != self.shelf_seen {
+            self.shelf_seen = ready;
+            self.local_generation = self.local_generation.wrapping_add(1);
+        }
         let generations = (self.context_generation, self.local_generation);
         let fresh = self.results.as_ref().is_some_and(|r| {
             r.revision == engine.revision() && r.context == generations && r.query == self.query
@@ -626,15 +644,15 @@ impl PlacePalette {
         });
         let (mut templates, generic, builtins) = match &self.mode {
             Mode::Place => (
-                template_gallery::find(engine, text, ROWS, &self.context),
-                template_gallery::find_generic(engine, text),
+                generators::find_presets(engine, &self.shelf, text, ROWS),
+                generators::find_generic(engine, &self.shelf, text),
                 // Read once per process; without a shipped library the
                 // Place 3D part sheet says why.
                 part_files::builtin_parts().map_or_else(|_| Vec::new(), |parts| parts.find(text)),
             ),
             Mode::Assign { .. } => (Found::default(), Vec::new(), Vec::new()),
         };
-        template_gallery::drop_covered(&mut templates, &generic);
+        generators::drop_covered(&mut templates, &generic);
         // A text this grammar reads need not be one the search can: "10 kΩ
         // 0603" still finds its generic part. A part the project holds lists
         // once, as that part.
@@ -724,7 +742,7 @@ impl PlacePalette {
     }
 
     /// The highlighted generic part, if the highlight is on one.
-    fn highlighted_generic(&self) -> Option<&GenericCandidate> {
+    fn highlighted_generic(&self) -> Option<&GeneratorCandidate> {
         match self.slot()? {
             Slot::Generic(i) => self.results.as_ref()?.generic.get(i),
             _ => None,
@@ -735,23 +753,12 @@ impl PlacePalette {
     /// One its family refuses, or a draft, stays with the reason.
     fn choose_generic(&mut self) -> Option<PaletteAction> {
         let candidate = self.highlighted_generic()?.clone();
-        match &candidate.state {
-            GenericState::Refused { reason } => {
-                self.notice = Some(reason.clone());
-                None
-            }
-            GenericState::Draft { .. } => {
-                self.notice = Some(format!(
-                    "{} is a draft: publish it in the Component workspace, then place it.",
-                    candidate.name
-                ));
-                None
-            }
-            GenericState::Existing { .. } | GenericState::NotCreated => {
-                self.close();
-                Some(PaletteAction::Generic(Box::new(candidate)))
-            }
+        if let Some(reason) = candidate.refusal() {
+            self.notice = Some(reason);
+            return None;
         }
+        self.close();
+        Some(PaletteAction::Generic(Box::new(candidate)))
     }
 
     /// Assign mode: the revision a Part's component is newer than every
@@ -768,7 +775,7 @@ impl PlacePalette {
     }
 
     /// The template rows below the components.
-    fn templates(&self) -> &[TemplateHit] {
+    fn templates(&self) -> &[PresetHit] {
         self.results.as_ref().map_or(&[], |r| &r.templates.hits)
     }
 
@@ -778,7 +785,7 @@ impl PlacePalette {
     }
 
     /// The highlighted template row, if the highlight is on one.
-    fn highlighted_template(&self) -> Option<&TemplateHit> {
+    fn highlighted_template(&self) -> Option<&PresetHit> {
         match self.slot()? {
             Slot::Template(i) => self.templates().get(i),
             _ => None,
@@ -994,9 +1001,10 @@ impl PlacePalette {
                 KEYS_IDLE
             }
         } else if let Some(candidate) = self.highlighted_generic() {
-            match candidate.state {
-                GenericState::Existing { .. } => KEYS_GENERIC,
-                GenericState::NotCreated => KEYS_GENERIC_NEW,
+            match candidate.standing {
+                Standing::Held { .. } => KEYS_GENERIC,
+                Standing::New => KEYS_GENERIC_NEW,
+                Standing::Update { .. } => KEYS_GENERIC_UPDATE,
                 _ => KEYS_IDLE,
             }
         } else if self.highlighted_template().is_some() {
@@ -1015,9 +1023,9 @@ impl PlacePalette {
             if self.loading {
                 "Searching…"
             } else if self.query.trim().is_empty() {
-                "Type to find a component or a template"
+                "Type to find a component or a part a generator makes"
             } else {
-                "No component or template matches"
+                "No component or generated part matches"
             },
             "In this project",
         );
@@ -1135,7 +1143,7 @@ impl PlacePalette {
                                                 (GENERIC_HEADING.to_owned(), generic.len() - held)
                                             }
                                             Group::Template => (
-                                                template_gallery::SEARCH_HEADING.to_owned(),
+                                                generator_gallery::SEARCH_HEADING.to_owned(),
                                                 templates.len() + more,
                                             ),
                                             Group::Builtin => {
@@ -1159,7 +1167,7 @@ impl PlacePalette {
                                             )
                                         }),
                                         Slot::Generic(i) => generic.get(i).map(|candidate| {
-                                            template_gallery::generic_row(
+                                            generator_gallery::generic_row(
                                                 ui,
                                                 egui::Id::unique("place-palette-generic").with(i),
                                                 candidate,
@@ -1168,17 +1176,12 @@ impl PlacePalette {
                                             )
                                         }),
                                         Slot::Template(i) => templates.get(i).map(|hit| {
-                                            let source =
-                                                template_gallery::source_label(hit, |library| {
-                                                    self.rows.name(library)
-                                                });
-                                            template_gallery::search_row(
+                                            generator_gallery::preset_row(
                                                 ui,
                                                 egui::Id::unique("place-palette-template").with(i),
                                                 hit,
                                                 &self.query,
                                                 lit,
-                                                &source,
                                             )
                                         }),
                                         Slot::Builtin(i) => builtins
@@ -1654,40 +1657,58 @@ impl PlacePalette {
 }
 
 /// What choosing the highlighted generic part does.
-fn generic_preview(ui: &mut Ui, candidate: &GenericCandidate) {
+fn generic_preview(ui: &mut Ui, candidate: &GeneratorCandidate) {
     kit::section(ui, "palette-generic", "Generic part", true, None, |ui| {
         kit::value_row(ui, "Part", &candidate.name);
-        if let GenericState::Refused { reason } = &candidate.state {
-            kit::refusal(ui, reason);
+        if let Some(reason) = candidate.refusal() {
+            kit::refusal(ui, &reason);
             return;
         }
         for badge in &candidate.badges {
             kit::hint(ui, &badge.label, &badge.tip);
         }
         kit::value_row(ui, "Values", &candidate.detail);
-        if matches!(candidate.state, GenericState::NotCreated) {
-            kit::hint(
-                ui,
-                "Not a component yet: choosing it creates one, then you place it",
-                "It starts with no manufacturer part; choose one per instance when you know it.",
-            );
+        match candidate.standing {
+            Standing::New => {
+                kit::hint(
+                    ui,
+                    "Not a component yet: choosing it makes one with its generator, then you place it",
+                    "It starts with no manufacturer part; choose one per instance when you know it.",
+                );
+            }
+            Standing::Update {
+                made_by, version, ..
+            } => {
+                kit::hint(
+                    ui,
+                    &format!(
+                        "Made by version {made_by}; version {version} would make its next revision"
+                    ),
+                    "Choosing it opens the generator form; placed parts keep their revision until you update them.",
+                );
+            }
+            _ => {}
         }
     });
 }
 
-/// What choosing the highlighted template row makes.
-fn template_preview(ui: &mut Ui, hit: &TemplateHit) {
-    kit::section(ui, "palette-template", "From template", true, None, |ui| {
-        kit::value_row(ui, "Template", &hit.name);
-        for (label, value) in template_gallery::summary(hit, &hit.values) {
-            kit::value_row(ui, label, &value);
-        }
-        kit::value_row(ui, "Values", template_gallery::basis(hit));
-        kit::hint(
+/// What choosing the highlighted generator preset makes.
+fn template_preview(ui: &mut Ui, hit: &PresetHit) {
+    kit::section(ui, "palette-template", "From generator", true, None, |ui| {
+        kit::value_row(ui, "Preset", &hit.name);
+        kit::value_row(
             ui,
-            "Not a component yet: choosing it creates one, then you place it",
-            "",
+            "Generator",
+            &format!("{} · version {}", hit.title, hit.version),
         );
+        kit::value_row(ui, "Values", &hit.detail);
+        if matches!(hit.standing, Standing::New) {
+            kit::hint(
+                ui,
+                "Not a component yet: choosing it makes one with its generator, then you place it",
+                "",
+            );
+        }
     });
 }
 
@@ -2630,20 +2651,25 @@ mod tests {
     #[test]
     fn the_list_keeps_its_order() -> Result<(), Box<dyn std::error::Error>> {
         let mut engine = Engine::profiled()?;
-        let found = template_gallery::find_generic(&engine, "resistor 0603");
-        let request = found.first().and_then(|c| c.would_create.clone());
-        let request = request.ok_or("a request")?;
-        // Another prefix makes it a part of its own, not the generic one.
-        let own = sparksmith_core::library::templates::catalog::NewFromTemplate {
-            name: "Resistor 0603 house".into(),
-            designator_prefix: Some("RH".into()),
-            ..request
-        };
+        engine.set_generators(sparksmith_automation::session::generators::runtime());
+        let shelf = generators::test_shelf();
+        let found = generators::find_generic(&engine, &shelf, "resistor 0603");
+        let mut request =
+            generators::MakeRequest::of_candidate(found.first().ok_or("a generic part")?);
+        // Another land gap makes it a part of its own, not the generic one.
+        request.params.insert(
+            "land_gap_min".into(),
+            sparksmith_core::library::generated::ParamValue::Int(250_000),
+        );
+        request.name = Some("Resistor 0603 house".into());
+        let own = generators::command(
+            &engine,
+            &request,
+            generators::Into::Part(sparksmith_core::library::generated::GeneratorScope::Component),
+        )?;
         engine.apply_hosted(
             engine.revision(),
-            sparksmith_core::Operation::Library(
-                sparksmith_core::LibraryCommand::PublishFromTemplate(Box::new(own)),
-            ),
+            own,
             sparksmith_core::Evaluators::default(),
         )?;
         let library = sparksmith_core::ids::LibraryId(0xabc);
@@ -2652,6 +2678,7 @@ mod tests {
             entry.name = "Resistor 0603 team".into();
         }
         let mut palette = PlacePalette::default();
+        palette.set_shelf(&shelf);
         palette.set_context(1, || CatalogContext {
             sources: vec![std::sync::Arc::new(folder)],
             ..Default::default()
@@ -2687,6 +2714,7 @@ mod tests {
     fn an_unknown_word_is_ignored_and_named() -> Result<(), Box<dyn std::error::Error>> {
         let engine = Engine::profiled()?;
         let mut palette = PlacePalette::default();
+        palette.set_shelf(&generators::test_shelf());
         palette.open();
         let mut shown = |query: &str| -> Result<_, Box<dyn std::error::Error>> {
             palette.query = query.into();
@@ -3011,7 +3039,7 @@ mod tests {
         assert!(
             !shown
                 .iter()
-                .any(|t| t == "No component or template matches"),
+                .any(|t| t == "No component or generated part matches"),
             "{shown:?}"
         );
         let (action, _) = run(&mut palette, enter());

@@ -16,7 +16,6 @@ use crate::refusal::{self, Origin};
 use crate::resolve_parts::{self, ResolveAction, ResolveParts};
 use crate::symbol_view;
 use egui::{Pos2, Rect, Sense, Stroke, Vec2, pos2};
-use sparksmith_core::catalog::templates::TemplateHit;
 use sparksmith_core::completeness::{InstanceReport, PurchasingState};
 use sparksmith_core::geometry::{Bounds, Transform2};
 use sparksmith_core::instances::{self, NewInstance};
@@ -335,7 +334,9 @@ pub struct SchematicEditor {
     /// at and the component lineages then published.
     template_sent: Option<(u64, Vec<DefinitionId>)>,
     /// A template row that takes the form first, and the search it came from.
-    template_form: Option<(Box<TemplateHit>, String)>,
+    template_form: Option<(Box<crate::generators::MakeRequest>, String)>,
+    /// A part being made off the UI thread for placement (slice D1).
+    making: Option<crate::generators::Making>,
     /// Placement armed on a just-created component, at the revision that
     /// created it: Esc before anything else changed creates nothing.
     template_armed: Option<u64>,
@@ -439,6 +440,7 @@ impl Default for SchematicEditor {
             palette: PlacePalette::default(),
             template_sent: None,
             template_form: None,
+            making: None,
             template_armed: None,
             place_values: Vec::new(),
             template_undo: None,
@@ -610,7 +612,7 @@ impl SchematicEditor {
     /// The Place palette, for the app's library sources (S3): its context,
     /// its events and the other-revision choice.
     /// A template row the palette chose that takes the form, once.
-    pub fn take_template_form(&mut self) -> Option<(Box<TemplateHit>, String)> {
+    pub fn take_template_form(&mut self) -> Option<(Box<crate::generators::MakeRequest>, String)> {
         self.template_form.take()
     }
 
@@ -648,23 +650,86 @@ impl SchematicEditor {
         kit::toast::post(ctx, Level::Ok, text, Vec::new());
     }
 
-    /// The answer to a template row sent for create-and-place: a refusal
-    /// reopens the palette with it, success arms placement.
-    fn settle_template(&mut self, ctx: &egui::Context, engine: &Engine) {
-        let Some((revision, before)) = &self.template_sent else {
-            return;
-        };
+    /// A generator preset or generic part chosen in the palette: place the
+    /// part the project holds, open the generator form on one an older
+    /// version made (it says what making it again does), or make it off
+    /// the UI thread and arm its placement once it is applied.
+    fn choose_made(
+        &mut self,
+        ctx: &egui::Context,
+        engine: &Engine,
+        standing: &sparksmith_core::library::generated::Standing,
+        request: crate::generators::MakeRequest,
+        query: String,
+    ) {
+        use sparksmith_core::library::generated::Standing;
+        self.place_values.clone_from(&request.values);
+        match standing {
+            Standing::Held { .. } | Standing::Newer { .. } => {
+                if let Some(component) =
+                    sparksmith_core::catalog::generic::generators::component_of(standing)
+                {
+                    self.component = Some(component);
+                    self.tool = Tool::Place;
+                }
+            }
+            Standing::Update { .. } => {
+                self.tool = Tool::Select;
+                self.template_form = Some((Box::new(request), query));
+            }
+            Standing::New | Standing::Invalid { .. } => {
+                self.tool = Tool::Select;
+                self.making = crate::generators::make(
+                    ctx,
+                    engine,
+                    request,
+                    crate::generators::Into::Part(
+                        sparksmith_core::library::generated::GeneratorScope::Component,
+                    ),
+                );
+            }
+        }
+    }
+
+    /// The answer to a part chosen for make-and-place: the command once the
+    /// part is made; a refusal reopens the palette with it, success arms
+    /// placement.
+    fn settle_template(&mut self, ctx: &egui::Context, engine: &Engine) -> Option<Operation> {
+        if let Some(done) = self
+            .making
+            .as_mut()
+            .and_then(crate::generators::Making::poll)
+        {
+            self.making = None;
+            match done {
+                Ok(operation) => {
+                    refusal::mark(ctx, Origin::Dialog(egui::Id::unique(PLACE_TEMPLATE)));
+                    self.template_sent = Some((
+                        engine.revision(),
+                        crate::generators::published_components(engine),
+                    ));
+                    return Some(operation);
+                }
+                Err(why) => {
+                    self.tool = Tool::Place;
+                    self.palette.refuse(why);
+                    return None;
+                }
+            }
+        }
+        let (revision, before) = self.template_sent.as_ref()?;
         if let Some(why) = refusal::claim(ctx, Origin::Dialog(egui::Id::unique(PLACE_TEMPLATE))) {
             self.template_sent = None;
             self.tool = Tool::Place;
             self.palette.refuse(why);
         } else if engine.revision() != *revision {
-            let created = crate::template_gallery::new_component(engine, before);
+            let created = crate::generators::new_component(engine, before);
             self.template_sent = None;
             if let Some(component) = created {
                 self.arm_created(ctx, engine, component);
             }
         }
+        None
     }
 
     pub fn palette_mut(&mut self) -> &mut PlacePalette {
@@ -1786,7 +1851,7 @@ impl SchematicEditor {
             }
         }
         // The palette owns Esc, arrows and Enter while it is open.
-        self.settle_template(ui.ctx(), engine);
+        let made = self.settle_template(ui.ctx(), engine);
         let placeable = |c: ComponentRef| first_choices(project, c).is_some();
         let chosen = self.palette.show(ui, clear, engine, &placeable);
         if chosen.is_some() {
@@ -1835,37 +1900,19 @@ impl SchematicEditor {
                 );
             }
             Some(PaletteAction::FromTemplate { hit, query }) => {
-                self.tool = Tool::Select;
-                match crate::template_gallery::ready_request(&hit) {
-                    Some(operation) => {
-                        refusal::mark(ui.ctx(), Origin::Dialog(egui::Id::unique(PLACE_TEMPLATE)));
-                        self.template_sent = Some((
-                            engine.revision(),
-                            crate::template_gallery::published_components(engine),
-                        ));
-                        output = Some(operation);
-                    }
-                    None => self.template_form = Some((hit, query)),
-                }
+                let request = crate::generators::MakeRequest::of_preset(&hit);
+                self.choose_made(ui.ctx(), engine, &hit.standing, request, query);
             }
             Some(PaletteAction::Generic(candidate)) => {
-                self.place_values.clone_from(&candidate.values);
-                if let Some(component) = candidate.component() {
-                    self.component = Some(component);
-                    self.tool = Tool::Place;
-                } else if let Some(operation) = crate::template_gallery::generic_request(&candidate)
-                {
-                    self.tool = Tool::Select;
-                    refusal::mark(ui.ctx(), Origin::Dialog(egui::Id::unique(PLACE_TEMPLATE)));
-                    self.template_sent = Some((
-                        engine.revision(),
-                        crate::template_gallery::published_components(engine),
-                    ));
-                    output = Some(operation);
-                }
+                let request = crate::generators::MakeRequest::of_candidate(&candidate);
+                let query = self.palette.query().to_owned();
+                self.choose_made(ui.ctx(), engine, &candidate.standing, request, query);
             }
             Some(PaletteAction::Close) => self.tool = Tool::Select,
             None => {}
+        }
+        if made.is_some() {
+            output = made;
         }
         if let Some(op) = self.wire_keys(ui.ctx(), engine) {
             output = Some(op);
@@ -3318,6 +3365,8 @@ fn endpoint_label(project: &Project, endpoint: Endpoint) -> String {
 #[cfg(test)]
 mod canvas_pictures;
 #[cfg(test)]
+mod generator_tests;
+#[cfg(test)]
 mod junction_tests;
 #[cfg(test)]
 mod part_tests;
@@ -3325,8 +3374,6 @@ mod part_tests;
 mod path_edit_tests;
 #[cfg(test)]
 mod sheet_tests;
-#[cfg(test)]
-mod template_tests;
 #[cfg(test)]
 mod wire_end_tests;
 #[cfg(test)]

@@ -102,9 +102,9 @@ const EXCEPTIONS: &[(&str, usize, &str)] = &[
         "text field: Esc reverts the placement field",
     ),
     (
-        "template_gallery.rs",
-        2,
-        "dialog: Esc closes it and Tab moves between its fields",
+        "generator_gallery.rs",
+        1,
+        "dialog: Esc in a value field returns to the search",
     ),
     (
         "place_palette.rs",

@@ -157,6 +157,22 @@ fn quoted(line: &str) -> String {
         .collect()
 }
 
+/// An automation error in the window's words: the core's refusal wording,
+/// or the message without its code.
+pub fn automation_error(error: &sparksmith_automation::Error) -> String {
+    match error {
+        sparksmith_automation::Error::Document(e) => shown_error(e),
+        other => {
+            let text = other.to_string();
+            let text = match text.split_once(": ") {
+                Some((code, rest)) if code.contains('.') && !code.contains(' ') => rest.to_owned(),
+                _ => text,
+            };
+            clip(&text, MAX_SHOWN)
+        }
+    }
+}
+
 /// `text` within `max` characters, cut at a word and ending in "…".
 pub fn clip(text: &str, max: usize) -> String {
     if text.chars().count() <= max {

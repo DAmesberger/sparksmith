@@ -520,9 +520,6 @@ pub enum BundlePurpose {
     Place(OtherRevision),
     /// "Update project copy", for these instances only when given.
     Update(Option<Vec<sparksmith_core::Id>>),
-    /// A folder package row the New-from-template gallery builds from
-    /// (`RowSource::Bundle`).
-    Template,
 }
 
 /// A finished bundle read.

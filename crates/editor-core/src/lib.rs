@@ -1600,6 +1600,13 @@ impl Engine {
                     .map(|r| r as &dyn library::generated::GeneratorRuntime);
                 commands::generated::generate(&mut candidate, *request, runtime)?
             }
+            Operation::Library(commands::LibraryCommand::PackageFromGenerator(request)) => {
+                let runtime = self
+                    .generators
+                    .as_deref()
+                    .map(|r| r as &dyn library::generated::GeneratorRuntime);
+                commands::generated::package_from_generator(&mut candidate, *request, runtime)?
+            }
             Operation::Library(command) => {
                 commands::apply_library(&mut candidate, command, evaluator)?
             }

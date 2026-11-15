@@ -258,7 +258,9 @@ fn read_slot(standards: &Standards, slot: Slot, words: &[&str]) -> Option<Bound>
                     })
                 })
         }
-        Slot::Package => generic::diode_row(&text).map(|r| Bound::Package(r.name.clone())),
+        // A listed package is one word; the family's rows or presets
+        // decide whether it names one.
+        Slot::Package => (words.len() == 1).then(|| Bound::Package(text.clone())),
     }
 }
 
@@ -504,12 +506,14 @@ fn spec_of(
         GenericFamily::Inductor => chip_spec(ChipPart::Inductor, bounds),
         GenericFamily::Led => chip_spec(ChipPart::Led, bounds),
         GenericFamily::Diode => bounds.iter().find_map(|(_, b)| match b {
-            Bound::Package(package) => Some((
-                GenericSpec::Diode {
-                    package: package.clone(),
-                },
-                Vec::new(),
-            )),
+            Bound::Package(word) => generic::diode_row(word).map(|row| {
+                (
+                    GenericSpec::Diode {
+                        package: row.name.clone(),
+                    },
+                    Vec::new(),
+                )
+            }),
             _ => None,
         }),
     }
@@ -612,6 +616,8 @@ pub fn search(project: &Project, drafts: &Drafts, query: &str) -> Result<Generic
     }
     Ok(GenericReport { candidates })
 }
+
+pub mod generators;
 
 #[cfg(test)]
 mod tests;

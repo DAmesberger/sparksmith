@@ -198,7 +198,7 @@ fn the_component_group_is_new_open_and_publish() -> TestResult {
     assert!(editor.on_tool("component-new", &engine).is_none());
     assert_eq!(
         editor.gallery.scope(),
-        Some(&crate::template_gallery::Scope::NewComponent)
+        Some(&crate::generator_gallery::Scope::NewComponent)
     );
     assert!(editor.on_tool("component-open", &engine).is_none());
     assert!(editor.lineage().is_none() && editor.draft.is_none());
@@ -390,10 +390,11 @@ fn state_chips_are_legible_and_do_not_look_selected() {
 /// opens the New from template form on it, whose Esc changes nothing and
 /// whose primary makes the drafts and opens them.
 #[test]
-fn the_open_page_finds_templates_and_opens_the_form() -> TestResult {
+fn the_open_page_finds_presets_and_opens_the_form() -> TestResult {
     let ctx = context();
     let mut engine = Engine::default();
     let mut editor = PartEditor::default();
+    editor.set_shelf(&crate::generators::test_shelf());
     create(&mut editor, &mut engine, &ctx, Template::TwoTerminal)?;
     let lineage = editor.lineage().ok_or("a component")?;
     editor.show_start();
@@ -441,7 +442,7 @@ fn the_open_page_finds_templates_and_opens_the_form() -> TestResult {
             .map(|(_, at)| *at)
     };
     assert!(chip(&texts).is_some(), "led finds the row: {texts:?}");
-    assert!(texts.iter().any(|(t, _)| t.starts_with("FROM TEMPLATE")));
+    assert!(texts.iter().any(|(t, _)| t.starts_with("FROM GENERATOR")));
     // Nothing else is called "led" here, so the group stands alone.
     assert!(!texts.iter().any(|(t, _)| t.starts_with("COMPONENTS")));
 
@@ -461,7 +462,7 @@ fn the_open_page_finds_templates_and_opens_the_form() -> TestResult {
             .find(|(t, _)| t.starts_with(text))
             .map(|(_, at)| at.y)
     };
-    let group = y(&texts, "FROM TEMPLATE").ok_or("the template group")?;
+    let group = y(&texts, "FROM GENERATOR").ok_or("the generator group")?;
     let components = y(&texts, "COMPONENTS").ok_or("the component group")?;
     let component = y(&texts, "Resistor").ok_or("the component row")?;
     assert!(components < component && component < group, "{texts:?}");
@@ -493,7 +494,7 @@ fn the_open_page_finds_templates_and_opens_the_form() -> TestResult {
     run(&mut editor, &engine, vec![]);
     assert_eq!(
         editor.gallery.scope(),
-        Some(&crate::template_gallery::Scope::NewComponent)
+        Some(&crate::generator_gallery::Scope::NewComponent)
     );
     let (texts, _) = run(&mut editor, &engine, vec![]);
     assert!(
@@ -522,6 +523,7 @@ fn the_open_page_rows_show_in_full_on_hover() -> TestResult {
     let ctx = context();
     let mut engine = Engine::default();
     let mut editor = PartEditor::default();
+    editor.set_shelf(&crate::generators::test_shelf());
     create(&mut editor, &mut engine, &ctx, Template::TwoTerminal)?;
     editor.show_start();
     let screen = crate::kit::text::tests::Screen::new(egui::vec2(1000.0, 800.0));
@@ -660,5 +662,81 @@ fn the_open_page_bounds_results_as_the_cards_do() -> TestResult {
     run(&mut editor, vec![]);
     let texts = run(&mut editor, vec![]);
     assert!(!texts.iter().any(|(t, _)| *t == count), "{texts:?}");
+    Ok(())
+}
+
+/// Change package… (slice D1): a generator's package becomes the working
+/// set's own in one command and one undo step: its part file is the model,
+/// its lands the footprint's pads, and the terminals keep their identities
+/// by number, so the binding's mappings stand.
+#[test]
+fn change_package_takes_a_generators_package_in_one_step() -> TestResult {
+    use crate::generators::{self, Into, MakeRequest};
+    use sparksmith_core::library::{Definition, PackageModel};
+    let ctx = context();
+    let mut engine = Engine::profiled()?;
+    engine.set_generators(sparksmith_automation::session::generators::runtime());
+    let mut editor = PartEditor::default();
+    editor.set_shelf(&generators::test_shelf());
+    create(&mut editor, &mut engine, &ctx, Template::TwoTerminal)?;
+    let set = editor.draft.as_ref().ok_or("a working set")?;
+    let ids = set.ids;
+    let terminals: Vec<_> = set.package.terminals.iter().map(|t| t.id).collect();
+    let mappings = set.binding.mappings.clone();
+    assert_eq!(terminals.len(), 2);
+    let before = engine.project().clone();
+    let request = MakeRequest {
+        generator: "chip".into(),
+        preset: Some("resistor-0603".into()),
+        params: Default::default(),
+        name: None,
+        values: Vec::new(),
+    };
+    let operation = generators::command(
+        &engine,
+        &request,
+        Into::WorkingPackage {
+            draft: ids.package,
+            replace: true,
+        },
+    )?;
+    assert!(matches!(
+        operation,
+        Operation::Library(sparksmith_core::LibraryCommand::PackageFromGenerator(_))
+    ));
+    engine.apply_hosted(
+        engine.revision(),
+        operation,
+        sparksmith_core::Evaluators::default(),
+    )?;
+    let draft = |id| engine.drafts().get(id).map(|d| d.definition.clone());
+    let Some(Definition::Package(package)) = draft(ids.package) else {
+        return Err("the package draft".into());
+    };
+    assert!(
+        matches!(package.model, PackageModel::PartFile(_)),
+        "{:?}",
+        package.model
+    );
+    let kept: Vec<_> = package.terminals.iter().map(|t| t.id).collect();
+    assert_eq!(kept, terminals, "terminals kept by number");
+    let Some(Definition::Footprint(footprint)) = draft(ids.footprint) else {
+        return Err("the footprint draft".into());
+    };
+    assert_eq!(footprint.pads.len(), 2);
+    assert!(
+        footprint
+            .pads
+            .iter()
+            .all(|p| p.terminal.is_some_and(|t| kept.contains(&t)))
+    );
+    let Some(Definition::Binding(binding)) = draft(ids.binding) else {
+        return Err("the binding draft".into());
+    };
+    assert_eq!(binding.mappings, mappings, "mappings stand");
+    // The generated package stays in the library with its record.
+    assert_eq!(engine.project().library.generated.len(), 1);
+    engine.undo()?;
+    assert_eq!(*engine.project(), before);
     Ok(())
 }

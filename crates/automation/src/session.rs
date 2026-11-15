@@ -1631,7 +1631,7 @@ mod assembly_link;
 pub mod discovery;
 mod firmware;
 mod generated_models;
-mod generators;
+pub mod generators;
 mod interface;
 mod marking;
 pub mod mechanical_parts;
@@ -1649,6 +1649,8 @@ pub mod sources;
 
 #[cfg(test)]
 mod assembly_link_tests;
+#[cfg(test)]
+mod catalog_tests;
 #[cfg(test)]
 mod dimension_tests;
 #[cfg(test)]

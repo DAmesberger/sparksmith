@@ -20,8 +20,9 @@ pub use sparksmith_generator_abi::surface::{
 /// at `1.0` with the MCP cut-over (`docs/design/decisions-2026-11-14.md`);
 /// `cargo xtask surface --check` holds each against `surface.lock`.
 pub const MODULES: &[ModuleDecl] = &[
-    module(
+    module_at(
         "project",
+        (2, 0),
         "Project",
         "The open design: inspect, properties, undo, redo, bill of materials.",
     ),
@@ -46,8 +47,9 @@ pub const MODULES: &[ModuleDecl] = &[
         "Library",
         "Component definitions, drafts, publishing, folders, updates and pinout import.",
     ),
-    module(
+    module_at(
         "generators",
+        (1, 1),
         "Generators",
         "Generator modules and the parts they make.",
     ),

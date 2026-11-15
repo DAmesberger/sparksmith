@@ -313,23 +313,12 @@ impl PartEditor {
         if self.identity.context.0 != generation {
             self.identity.context = (generation, context());
         }
-        let shared = &self.identity.context.1;
-        self.gallery.set_context(generation, || shared.clone());
     }
 
-    /// Folder template rows the gallery needs read (io `read_bundle`, off
-    /// the UI thread); hand each back with [`Self::template_row_read`].
-    pub fn take_template_reads(&mut self) -> Vec<FolderPick> {
-        self.gallery.take_reads()
-    }
-
-    /// A folder template row's bundle, read for `pick`.
-    pub fn template_row_read(
-        &mut self,
-        pick: FolderPick,
-        result: Result<sparksmith_core::library::Bundle, String>,
-    ) {
-        self.gallery.bundle_read(pick, result);
+    /// The shipped generators the gallery and the start page offer.
+    pub fn set_shelf(&mut self, shelf: &crate::generators::Shelf) {
+        self.gallery.set_shelf(shelf);
+        self.shelf = shelf.clone();
     }
 
     pub(super) fn go_back(&mut self, engine: &Engine) {

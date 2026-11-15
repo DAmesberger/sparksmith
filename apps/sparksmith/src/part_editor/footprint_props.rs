@@ -15,8 +15,6 @@ use sparksmith_core::library::{
 use sparksmith_core::units::{Angle, Nm, PointNm};
 use sparksmith_core::{PackageTerminalId, PadId};
 
-use super::family_rows::nm_row;
-
 const COORD: std::ops::RangeInclusive<f64> = -10000.0..=10000.0;
 const SIZE: std::ops::RangeInclusive<f64> = 0.01..=1000.0;
 const ANGLE: std::ops::RangeInclusive<f64> = -360.0..=360.0;
@@ -597,5 +595,26 @@ fn opening_rows(ui: &mut Ui, pad: &mut Pad, defaults: &sparksmith_core::library:
             "Through-hole pads and fiducials inherit no paste",
             "Openings are display overlays, never saved in the 3D model",
         );
+    }
+}
+
+/// A row editing a stored length in millimetres, within `range` (mm);
+/// returns whether it changed.
+pub(super) fn nm_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    value: &mut sparksmith_core::units::Nm,
+    range: std::ops::RangeInclusive<f64>,
+) -> bool {
+    let mut mm = value.to_mm_f64();
+    if !crate::kit::number_row(ui, label, &mut mm, "mm", range) {
+        return false;
+    }
+    match sparksmith_core::units::Nm::from_mm_f64_rounded(mm) {
+        Ok(nm) => {
+            *value = nm;
+            true
+        }
+        Err(_) => false,
     }
 }

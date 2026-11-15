@@ -303,6 +303,13 @@ pub enum LibraryCommand {
     /// included, changes nothing. Needs the host's generator runtime.
     #[serde(rename = "library.generate")]
     Generate(Box<super::generated::Generate>),
+    /// D1: give a working set's package and footprint a generator's
+    /// package, terminals matched by number. Made as `library.generate`
+    /// makes it (package scope); the pads land the matched terminals and the
+    /// generator's part file is the model. One undo step; a non-empty footprint is refused unless
+    /// `replace`. Needs the host's generator runtime.
+    #[serde(rename = "library.package_from_generator")]
+    PackageFromGenerator(Box<super::generated::PackageFromGenerator>),
 }
 
 // A new command chooses its permission class here.
@@ -339,6 +346,7 @@ declare_entries!(LibraryCommand in library {
     ImportModel "library.import_model" Edit "Import a 3D model",
     PackArtwork "library.pack_artwork" Edit "Pack marking artwork",
     Generate "library.generate" Edit "Generate a part" [in generators],
+    PackageFromGenerator "library.package_from_generator" Edit "Package from a generator" [in generators, since(1, 1)],
 });
 
 fn close_by_default() -> bool {
@@ -961,6 +969,9 @@ pub(crate) fn apply_library(
         // The engine passes its generator runtime (`Engine::apply_inner`);
         // reached here, the host has none.
         LibraryCommand::Generate(request) => super::generated::generate(document, *request, None),
+        LibraryCommand::PackageFromGenerator(request) => {
+            super::generated::package_from_generator(document, *request, None)
+        }
         LibraryCommand::DiscardDraft { id } => {
             let before = super::assets::named_by_drafts(&document.drafts, [id]);
             drafts::discard(Arc::make_mut(&mut document.drafts), id)?;
