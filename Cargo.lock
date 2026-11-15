@@ -5155,6 +5155,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-gull-wing"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-header"
 version = "0.1.0"
 dependencies = [
@@ -5180,6 +5188,14 @@ dependencies = [
 
 [[package]]
 name = "sparksmith-gen-tabbed"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-tht"
 version = "0.1.0"
 dependencies = [
  "sparksmith-generator-abi",

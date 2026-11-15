@@ -1,0 +1,499 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "Radial through-hole part",
+  "units": "mm",
+  "params": [
+    {
+      "name": "lead_pitch",
+      "expr": "2 mm",
+      "unit": "mm",
+      "comment": "lead pitch on the board",
+      "model": false
+    },
+    {
+      "name": "lead_diameter",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "lead diameter (a strip's width, a square lead's side)",
+      "model": false
+    },
+    {
+      "name": "lead_below",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "lead length below the seating plane",
+      "model": false
+    },
+    {
+      "name": "standoff",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "body underside above the seating plane",
+      "model": false
+    },
+    {
+      "name": "root",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "how far each lead reaches into the body",
+      "model": false
+    },
+    {
+      "name": "body_diameter",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "body diameter",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "11 mm",
+      "unit": "mm",
+      "comment": "body height above its standoff",
+      "model": false
+    },
+    {
+      "name": "top_round",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edge",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.8 * (body_diameter - 2 * top_round)",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.6 * (body_diameter - 2 * top_round)",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    },
+    {
+      "name": "d2",
+      "expr": "body_diameter / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d5",
+      "expr": "lead_diameter / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d8",
+      "expr": "lead_diameter / 2",
+      "unit": "mm",
+      "model": true
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body profile",
+      "suppressed": false,
+      "param_names": [
+        "d1"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "standoff"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.5,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "radius",
+            "c": 0,
+            "value": 2.5,
+            "param": "d2"
+          },
+          {
+            "id": "k2",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d3"
+      ],
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "body_height",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "lead 1 profile",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "- lead_below"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -1.0,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- lead_pitch / 2"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "radius",
+            "c": 0,
+            "value": 0.25,
+            "param": "d5"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "lead 1",
+      "suppressed": false,
+      "body_names": [
+        "lead 1"
+      ],
+      "param_names": [
+        "d6"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_below + standoff + root",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "lead 2 profile",
+      "suppressed": false,
+      "param_names": [
+        "d7"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "- lead_below"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              1.0,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "lead_pitch / 2"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "radius",
+            "c": 0,
+            "value": 0.25,
+            "param": "d8"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "lead 2",
+      "suppressed": false,
+      "body_names": [
+        "lead 2"
+      ],
+      "param_names": [
+        "d9"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_below + standoff + root",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "lead roots",
+      "suppressed": false,
+      "type": "combine",
+      "target": "body",
+      "tools": [
+        "lead 1",
+        "lead 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 8,
+      "name": "top round",
+      "suppressed": false,
+      "param_names": [
+        "d10"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.5,
+            -2.5,
+            0.0
+          ],
+          "max": [
+            2.5,
+            2.5,
+            11.000000000000002
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:side:c1|F2:top"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          2.5,
+          0.0,
+          11.0
+        ]
+      ],
+      "radius": "top_round",
+      "body": "body"
+    },
+    {
+      "id": 9,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d11"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "standoff + body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 10,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "lead 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "lead 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}
