@@ -16,13 +16,25 @@
 //!  "licence": "MIT OR Apache-2.0", "provenance": "Original work, …"}
 //! ```
 //!
-//! `use` is `mechanical` (placed on the board) or `package_body` (a
-//! package's 3D model); a land is `annulus` (a round copper land around a
-//! non-plated hole at the origin) or `hole` (a bare non-plated hole), each
-//! diameter `scale × value(param) + add_mm` over a length parameter of the
-//! part (its value in mm; `scale` defaults to 1).
+//! `use` is `mechanical` (placed on the board), `package_body` (a
+//! package's 3D model) or `component` (a whole shipped component whose
+//! package uses this part file as its body, part-generation job I); a land
+//! is `annulus` (a round copper land around a non-plated hole at the
+//! origin) or `hole` (a bare non-plated hole), each diameter `scale ×
+//! value(param) + add_mm` over a length parameter of the part (its value
+//! in mm; `scale` defaults to 1).
+//!
+//! A `component` part has a second sidecar, `NAME.component.json`, format
+//! 1: `{"format": 1, "bundle": BUNDLE}`, the component's revision records
+//! as `library.place_from` carries them (symbol, package, footprint,
+//! binding, the part file's Model and, as the root, the manufacturer Part
+//! or the component) with `"assets": []`. The loader packs the part file
+//! as the bundle's one asset: every record names exactly that file.
 use crate::Result;
 use serde::Deserialize;
+use sparksmith_core::DefinitionKind;
+use sparksmith_core::library::bundle::{self, AssetBytes, PackedAsset};
+use sparksmith_core::library::{Bundle, Definition};
 use sparksmith_io::shipped::{Shelf, ShippedLibrary};
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
@@ -33,6 +45,10 @@ pub const SIDECAR_FORMAT: u32 = 1;
 pub const SIDECAR_SUFFIX: &str = ".part.json";
 /// The suffix of a part file.
 pub const PART_SUFFIX: &str = ".solidcraft";
+/// The suffix of a component part's records.
+pub const COMPONENT_SUFFIX: &str = ".component.json";
+/// Largest component records file read, bytes.
+const MAX_COMPONENT_BYTES: u64 = 4 * 1024 * 1024;
 /// Largest sidecar read, bytes.
 const MAX_SIDECAR_BYTES: u64 = 64 * 1024;
 /// Largest built-in part file read, bytes.
@@ -81,6 +97,16 @@ pub enum PartUse {
     Mechanical,
     /// A package's 3D model.
     PackageBody,
+    /// A whole component, placed in the schematic: its package's 3D body.
+    Component,
+}
+
+/// `NAME.component.json` as stored.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ComponentFile {
+    format: u32,
+    bundle: Bundle,
 }
 
 /// A sidecar as stored.
@@ -110,8 +136,11 @@ pub struct BuiltinPart {
     pub summary: String,
     pub prefix: String,
     /// Whether it is a mechanical part (placed on the board) rather than a
-    /// package body (used by a package).
+    /// package body (used by a package) or a component's body.
     pub mechanical: bool,
+    /// A component part's records with the part file packed: what
+    /// `library.place_from` imports and places. `None` for the others.
+    pub component: Option<Arc<Bundle>>,
     pub lands: Vec<LandRule>,
     /// SPDX licence of the file.
     pub licence: String,
@@ -139,6 +168,7 @@ impl BuiltinParts {
         let folder = shipped.shelf(Shelf::Parts);
         let files = shipped.list(Shelf::Parts, PART_SUFFIX)?;
         let sidecars = shipped.list(Shelf::Parts, SIDECAR_SUFFIX)?;
+        let components = shipped.list(Shelf::Parts, COMPONENT_SUFFIX)?;
         if files.len() > MAX_PARTS {
             return Err(invalid(format!(
                 "{}: more than {MAX_PARTS} part files",
@@ -161,6 +191,18 @@ impl BuiltinParts {
             .iter()
             .map(|file| load_part(shipped, &folder, file))
             .collect::<Result<Vec<_>>>()?;
+        for records in &components {
+            let stem = records.trim_end_matches(COMPONENT_SUFFIX);
+            if !parts
+                .iter()
+                .any(|p| p.name == stem && p.component.is_some())
+            {
+                return Err(invalid(format!(
+                    "{}: no component part {stem} beside it (a part file whose sidecar says \"use\": \"component\")",
+                    folder.join(records).display()
+                )));
+            }
+        }
         Ok(Self { parts })
     }
 
@@ -189,6 +231,19 @@ impl BuiltinParts {
                 words.iter().all(|word| text.contains(word.as_str()))
             })
             .collect()
+    }
+
+    /// The shipped component whose bundle is of `library` with root
+    /// `root`: what a palette row or a place request names.
+    pub fn component(
+        &self,
+        library: sparksmith_core::ids::LibraryId,
+        root: bundle::SourceRevision,
+    ) -> Option<&Arc<Bundle>> {
+        self.parts
+            .iter()
+            .filter_map(|p| p.component.as_ref())
+            .find(|b| b.library == library && b.root == root)
     }
 
     /// The built-in `name`, or an error listing the ones there are.
@@ -238,7 +293,7 @@ fn load_part(shipped: &ShippedLibrary, folder: &Path, file: &str) -> Result<Buil
     if sidecar.lands.len() > MAX_LANDS {
         return Err(named(format!("lands: at most {MAX_LANDS}")));
     }
-    if sidecar.part_use == PartUse::PackageBody && !sidecar.lands.is_empty() {
+    if sidecar.part_use != PartUse::Mechanical && !sidecar.lands.is_empty() {
         return Err(named(
             "lands: a package body takes its package's footprint, not lands".into(),
         ));
@@ -257,17 +312,86 @@ fn load_part(shipped: &ShippedLibrary, folder: &Path, file: &str) -> Result<Buil
     let bytes = shipped
         .read(Shelf::Parts, file, MAX_PART_BYTES)
         .map_err(|e| invalid(format!("{}: {e}", folder.join(file).display())))?;
+    let component = match sidecar.part_use {
+        PartUse::Component => Some(Arc::new(load_component(shipped, folder, stem, &bytes)?)),
+        PartUse::Mechanical | PartUse::PackageBody => None,
+    };
     Ok(BuiltinPart {
         name: sidecar.name,
         title: sidecar.title,
         summary: sidecar.summary,
         prefix: sidecar.prefix,
         mechanical: sidecar.part_use == PartUse::Mechanical,
+        component,
         lands: sidecar.lands,
         licence: sidecar.licence,
         provenance: sidecar.provenance,
         bytes: bytes.into(),
     })
+}
+
+/// A component part's records (`NAME.component.json`) with the part file
+/// `bytes` packed as the one asset its records name.
+fn load_component(
+    shipped: &ShippedLibrary,
+    folder: &Path,
+    stem: &str,
+    bytes: &[u8],
+) -> Result<Bundle> {
+    let name = format!("{stem}{COMPONENT_SUFFIX}");
+    let named = |why: String| invalid(format!("{}: {why}", folder.join(&name).display()));
+    let text = shipped
+        .read(Shelf::Parts, &name, MAX_COMPONENT_BYTES)
+        .map_err(|e| named(format!("the component part {stem} needs this file: {e}")))?;
+    let file: ComponentFile = serde_json::from_slice(&text).map_err(|e| named(e.to_string()))?;
+    if file.format != SIDECAR_FORMAT {
+        return Err(named(format!(
+            "format {} is not supported (this version reads format {SIDECAR_FORMAT})",
+            file.format
+        )));
+    }
+    let mut bundle = file.bundle;
+    if !bundle.assets.is_empty() {
+        return Err(named(
+            "assets: the part file beside it is the one asset; list none".into(),
+        ));
+    }
+    let hash = bundle::asset_hash(bytes);
+    let mut media_type = None;
+    for record in &bundle.records {
+        let assets = bundle::named_assets(&record.definition).map_err(|e| named(e.to_string()))?;
+        if assets.iter().any(|h| *h != hash) {
+            return Err(named(format!(
+                "‘{}’ names an asset other than {stem}{PART_SUFFIX} (sha256 {hash})",
+                record.meta.name
+            )));
+        }
+        if let Definition::Model(model) = &record.definition {
+            media_type = Some(model.asset.media_type.clone());
+        }
+    }
+    let media_type = media_type.ok_or_else(|| {
+        named(format!(
+            "no Model record names {stem}{PART_SUFFIX} (sha256 {hash})"
+        ))
+    })?;
+    let root = bundle
+        .records
+        .iter()
+        .find(|r| r.lineage == bundle.root.lineage && r.revision == bundle.root.revision)
+        .ok_or_else(|| named("its root is not one of its records".into()))?;
+    if !matches!(root.kind, DefinitionKind::Component | DefinitionKind::Part) {
+        return Err(named(
+            "its root must be a component or a manufacturer Part".into(),
+        ));
+    }
+    bundle.assets.push(PackedAsset {
+        hash,
+        media_type,
+        data: AssetBytes::new(bytes.to_vec()),
+    });
+    bundle::validate_bundle(&bundle).map_err(|e| named(e.to_string()))?;
+    Ok(bundle)
 }
 
 fn invalid(message: String) -> crate::Error {
@@ -299,13 +423,64 @@ mod tests {
     fn the_shipped_parts_load_with_their_sidecars() -> TestResult {
         let parts = builtin_parts()?;
         let names: Vec<&str> = parts.all().iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names.len(), 4, "{names:?}");
+        assert_eq!(names.len(), 5, "{names:?}");
         for part in parts.all() {
             assert!(!part.bytes.is_empty() && !part.title.is_empty());
         }
         let mechanical = parts.all().iter().filter(|p| p.mechanical).count();
         assert_eq!(mechanical, 3);
         assert!(parts.require("no-such-part").is_err());
+        // The USB-C receptacle is a whole component: its records with the
+        // part file packed as their one asset, the GCT Part as the root.
+        let usb = parts.require("gct-usb4105")?;
+        let bundle = usb.component.as_ref().ok_or("a component part")?;
+        assert_eq!(bundle.assets.len(), 1);
+        assert_eq!(bundle.assets[0].hash, bundle::asset_hash(&usb.bytes));
+        let root = bundle
+            .records
+            .iter()
+            .find(|r| r.lineage == bundle.root.lineage)
+            .ok_or("root")?;
+        assert_eq!(root.kind, DefinitionKind::Part);
+        assert_eq!(
+            parts.component(bundle.library, bundle.root).map(|b| b.root),
+            Some(bundle.root)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_component_part_names_only_its_part_file() -> TestResult {
+        let temp = tempfile::tempdir()?;
+        let root = temp.path().join("library");
+        let parts = root.join("parts");
+        std::fs::create_dir_all(&parts)?;
+        std::fs::write(root.join(sparksmith_io::shipped::MARKER), "{\"format\":1}")?;
+        let shipped = ShippedLibrary::at(&root)?;
+        let real = builtin_parts()?.require("gct-usb4105")?;
+        let bundle = real.component.as_ref().ok_or("component")?;
+        let mut stored = Bundle::clone(bundle);
+        stored.assets.clear();
+        let records = serde_json::json!({"format": 1, "bundle": stored}).to_string();
+        let sidecar = r#"{"format": 1, "name": "usb", "title": "USB", "summary": "A receptacle.",
+            "use": "component", "prefix": "J", "licence": "MIT", "provenance": "Invented."}"#;
+        std::fs::write(parts.join("usb.part.json"), sidecar)?;
+        // Other bytes than the records name: refused, naming the file.
+        std::fs::write(parts.join("usb.solidcraft"), b"other bytes")?;
+        std::fs::write(parts.join("usb.component.json"), &records)?;
+        let error = BuiltinParts::load(&shipped).err().ok_or("refused")?;
+        assert!(error.to_string().contains("usb.component.json"), "{error}");
+        // The file it names: loaded, packed.
+        std::fs::write(parts.join("usb.solidcraft"), &*real.bytes)?;
+        let loaded = BuiltinParts::load(&shipped)?;
+        assert!(loaded.require("usb")?.component.is_some());
+        // Records without their component part: refused.
+        std::fs::write(parts.join("orphan.component.json"), &records)?;
+        let error = BuiltinParts::load(&shipped).err().ok_or("refused")?;
+        assert!(
+            error.to_string().contains("orphan.component.json"),
+            "{error}"
+        );
         Ok(())
     }
 
@@ -322,6 +497,9 @@ mod tests {
         assert_eq!(names("heatsink"), ["finned-heatsink"]);
         assert_eq!(names("spacer"), ["round-spacer"]);
         assert_eq!(names("nut"), ["smd-nut"]);
+        for usb in ["usb-c", "USB C", "type-c", "usb connector", "receptacle"] {
+            assert_eq!(names(usb), ["gct-usb4105"], "{usb}");
+        }
         assert!(names("heatsink nut").is_empty(), "every word counts");
         assert!(names("10k 0603").is_empty());
         assert!(names("  ").is_empty());

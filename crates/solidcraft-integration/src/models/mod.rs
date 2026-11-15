@@ -151,7 +151,7 @@ pub fn build_definition(
             "model.name: the design already has a definition named {component}"
         )));
     }
-    if family::generator(&package.form).is_some() {
+    if family::retired(&package.form) {
         // The generator's part file, inserted as the board inserts it.
         let design = named::generated(package)?;
         return part_file::insert_design(native, component, design.source(), &design.generated);

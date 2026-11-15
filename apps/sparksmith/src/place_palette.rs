@@ -67,10 +67,13 @@ const KEYS_GENERIC_NEW: &str = "↑↓ move   Enter create and place   click pic
 const KEYS_GENERIC: &str = "↑↓ move   Enter place   click pick   Esc close";
 /// The heading of the generic parts not yet in the project.
 const GENERIC_HEADING: &str = "Generic parts";
-/// The heading of the shipped library's part files the text names.
-const BUILTIN_HEADING: &str = "Built-in 3D parts";
+/// The heading of the shipped library's parts the text names: components,
+/// package bodies and mechanical parts.
+const BUILTIN_HEADING: &str = "Built-in parts";
 /// The footer on a built-in mechanical part: it is placed on the board.
 const KEYS_BUILTIN: &str = "↑↓ move   Enter place on the board   click pick   Esc close";
+/// The footer on a built-in component: it is placed in the schematic.
+const KEYS_BUILTIN_COMPONENT: &str = "↑↓ move   Enter place   click pick   Esc close";
 /// The footer while the other-revision choice is open.
 const KEYS_CHOICE: &str = "Enter update project copy   Esc cancel";
 /// The footer while nothing can be placed.
@@ -795,7 +798,21 @@ impl PlacePalette {
     /// closes the sheet; a package body stays, saying where it is used.
     fn choose_builtin(&mut self) -> Option<PaletteAction> {
         let part = self.highlighted_builtin()?;
-        if part.mechanical {
+        if let Some(bundle) = &part.component {
+            // A shipped component: imported and placed in the schematic,
+            // as a library folder's entry is.
+            self.events.push(PaletteEvent::PlaceFrom {
+                pick: FolderPick {
+                    library: bundle.library,
+                    lineage: bundle.root.lineage,
+                    revision: bundle.root.revision,
+                    name: part.title.clone(),
+                },
+                other_revision: OtherRevision::Refuse,
+            });
+            self.close();
+            Some(PaletteAction::Close)
+        } else if part.mechanical {
             self.events
                 .push(PaletteEvent::PlacePartFile(part.name.clone()));
             self.close();
@@ -969,7 +986,9 @@ impl PlacePalette {
         let footer = if self.choice.is_some() {
             KEYS_CHOICE
         } else if let Some(part) = self.highlighted_builtin() {
-            if part.mechanical {
+            if part.component.is_some() {
+                KEYS_BUILTIN_COMPONENT
+            } else if part.mechanical {
                 KEYS_BUILTIN
             } else {
                 KEYS_IDLE
@@ -1964,7 +1983,9 @@ fn builtin_row(
     query: &str,
     highlighted: bool,
 ) -> egui::Response {
-    let detail = if part.mechanical {
+    let detail = if part.component.is_some() {
+        "Built-in · component with symbol, footprint and 3D body"
+    } else if part.mechanical {
         "Built-in · placed on the board in PCB Layout"
     } else {
         "Built-in · a package's 3D body"
@@ -2984,7 +3005,7 @@ mod tests {
         let (_, shown) = run(&mut palette, vec![]);
         assert!(shown.iter().any(|t| t == "Finned heatsink"), "{shown:?}");
         assert!(
-            shown.iter().any(|t| t.starts_with("BUILT-IN 3D PARTS")),
+            shown.iter().any(|t| t.starts_with("BUILT-IN PARTS")),
             "{shown:?}"
         );
         assert!(

@@ -942,3 +942,50 @@ fn a_generated_package_model_round_trips_through_a_folder() -> TestResult {
     ));
     Ok(())
 }
+
+/// The shipped USB-C receptacle (part-generation job I) is a whole
+/// component: `library.part_files` lists it with the ids
+/// `library.place_from_folder` takes, which imports its records (the GCT
+/// Part as the root, the part file packed) and places J1 with the Part
+/// assigned, without any configured folder.
+#[test]
+fn the_shipped_usb_c_component_is_placed_like_a_folder_entry() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let mut session = user_session(Engine::demo()?, &dirs(temp.path()))?;
+    let listed = ok(&mut session, "library.part_files", json!({}))?;
+    let usb = listed["builtin"]
+        .as_array()
+        .and_then(|b| b.iter().find(|p| p["name"] == "gct-usb4105"))
+        .ok_or_else(|| format!("no gct-usb4105: {listed}"))?
+        .clone();
+    assert_eq!(usb["kind"], "component", "{usb}");
+    let place = &usb["place"];
+    let revision = session.engine().revision();
+    let placed = ok(
+        &mut session,
+        "library.place_from_folder",
+        json!({"expected_revision": revision, "library": place["library"],
+            "lineage": place["lineage"], "position": [10.0, 10.0]}),
+    )?;
+    assert_eq!(placed["outcome"]["outcome"], "placed_from", "{placed}");
+    let designator = placed["outcome"]["designator"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(designator.starts_with('J'), "{placed}");
+    let project = session.engine().project();
+    let instance = project
+        .instances
+        .iter()
+        .find(|i| i.designator == designator)
+        .ok_or("the placed instance")?;
+    assert!(instance.part.is_some(), "the GCT Part is assigned");
+    assert!(
+        project.library.packages.iter().any(|p| matches!(
+            p.definition.model,
+            sparksmith_core::library::PackageModel::PartFile(_)
+        )),
+        "the package's body is the part file"
+    );
+    Ok(())
+}

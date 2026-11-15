@@ -1203,6 +1203,23 @@ impl LibrarySources {
     /// still file I/O, kept off the UI thread. The result comes back from
     /// [`Self::take_bundles`] tagged with `purpose`.
     pub fn read_bundle(&mut self, pick: FolderPick, purpose: BundlePurpose) {
+        // A shipped component (the palette's built-in parts): read with
+        // the shipped library, so it is here already.
+        let root = SourceRevision {
+            lineage: pick.lineage,
+            revision: pick.revision,
+        };
+        if let Some(bundle) = sparksmith_automation::part_files::builtin_parts()
+            .ok()
+            .and_then(|parts| parts.component(pick.library, root))
+        {
+            self.bundles.push(ReadBundle {
+                pick,
+                purpose,
+                result: Ok(Bundle::clone(bundle)),
+            });
+            return;
+        }
         let folder = match self.folder(pick.library) {
             Ok(folder) => folder.clone(),
             Err(error) => {

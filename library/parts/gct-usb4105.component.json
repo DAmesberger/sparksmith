@@ -1,0 +1,1777 @@
+{
+  "bundle": {
+    "assets": [],
+    "library": "f94c168fc18b4d5b8a57f1dcd2600a34",
+    "name": "Sparksmith built-in parts",
+    "records": [
+      {
+        "assets": [
+          "6913f3039dd63deff63f42c8f60b08f1d18f0c01f7a50b729617afa2f3b0b208"
+        ],
+        "definition": {
+          "body": {
+            "asset": {
+              "bytes": 32746,
+              "file_name": "gct-usb4105.solidcraft",
+              "hash": "6913f3039dd63deff63f42c8f60b08f1d18f0c01f7a50b729617afa2f3b0b208",
+              "media_type": "application/x-solidcraft"
+            },
+            "bodies": [],
+            "bounds_nm": [
+              [
+                -4470000,
+                -3675000,
+                -950000
+              ],
+              [
+                4470000,
+                4140000,
+                3310000
+              ]
+            ],
+            "custom_materials": [],
+            "format": "solidcraft",
+            "frame": {
+              "origin_offset_nm": [
+                0,
+                0,
+                0
+              ],
+              "unit_mm": 1.0,
+              "up": "z"
+            },
+            "hints": {
+              "family": null,
+              "mount": null,
+              "pins": null,
+              "pitch_nm": null
+            },
+            "leads": [],
+            "marking_area": null,
+            "pair": null,
+            "provenance": {
+              "record": {
+                "basis": {
+                  "basis": "imported"
+                },
+                "licence": "MIT OR Apache-2.0",
+                "origin": null
+              },
+              "redistribution": "permitted",
+              "retrieved": null,
+              "url": null,
+              "vendor": null
+            }
+          },
+          "kind": "model"
+        },
+        "kind": "model",
+        "lineage": "87a97fd3de794565b8c1b180bf964095",
+        "links": [],
+        "meta": {
+          "description": "",
+          "name": "GCT USB4105 receptacle body",
+          "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+        },
+        "revision": 1
+      },
+      {
+        "definition": {
+          "body": {
+            "datums": [
+              {
+                "external": true,
+                "geometry": {
+                  "frame": {
+                    "origin_nm": [
+                      0,
+                      -3675000,
+                      1730000
+                    ],
+                    "x": [
+                      1.0,
+                      0.0,
+                      0.0
+                    ],
+                    "y": [
+                      -0.0,
+                      0.0,
+                      1.0
+                    ]
+                  },
+                  "height_nm": 1850000,
+                  "kind": "volume",
+                  "profile": {
+                    "corner_radius_nm": 1280000,
+                    "shape": "rect",
+                    "size_nm": [
+                      8340000,
+                      2560000
+                    ]
+                  }
+                },
+                "name": "opening",
+                "origin": "part_file"
+              }
+            ],
+            "envelope_nm": [
+              8940000,
+              7350000,
+              3310000
+            ],
+            "form": {
+              "family": "generic"
+            },
+            "model": {
+              "derived": {
+                "bodies": 21,
+                "bounds_nm": [
+                  [
+                    -4470000,
+                    -3675000,
+                    -950000
+                  ],
+                  [
+                    4470000,
+                    4140000,
+                    3310000
+                  ]
+                ],
+                "datums": [
+                  {
+                    "external": true,
+                    "geometry": {
+                      "frame": {
+                        "origin_nm": [
+                          0,
+                          -3675000,
+                          1730000
+                        ],
+                        "x": [
+                          1.0,
+                          0.0,
+                          0.0
+                        ],
+                        "y": [
+                          -0.0,
+                          0.0,
+                          1.0
+                        ]
+                      },
+                      "height_nm": 1850000,
+                      "kind": "volume",
+                      "profile": {
+                        "corner_radius_nm": 1280000,
+                        "shape": "rect",
+                        "size_nm": [
+                          8340000,
+                          2560000
+                        ]
+                      }
+                    },
+                    "name": "opening",
+                    "origin": "part_file"
+                  }
+                ],
+                "leads": [
+                  {
+                    "body": "stake 1",
+                    "terminal": "S"
+                  },
+                  {
+                    "body": "stake 2",
+                    "terminal": "S"
+                  },
+                  {
+                    "body": "stake 3",
+                    "terminal": "S"
+                  },
+                  {
+                    "body": "stake 4",
+                    "terminal": "S"
+                  },
+                  {
+                    "body": "tail 1",
+                    "terminal": "A1B12"
+                  },
+                  {
+                    "body": "tail 10",
+                    "terminal": "B5"
+                  },
+                  {
+                    "body": "tail 11",
+                    "terminal": "B4A9"
+                  },
+                  {
+                    "body": "tail 12",
+                    "terminal": "B1A12"
+                  },
+                  {
+                    "body": "tail 2",
+                    "terminal": "A4B9"
+                  },
+                  {
+                    "body": "tail 3",
+                    "terminal": "B8"
+                  },
+                  {
+                    "body": "tail 4",
+                    "terminal": "A5"
+                  },
+                  {
+                    "body": "tail 5",
+                    "terminal": "B7"
+                  },
+                  {
+                    "body": "tail 6",
+                    "terminal": "A6"
+                  },
+                  {
+                    "body": "tail 7",
+                    "terminal": "A7"
+                  },
+                  {
+                    "body": "tail 8",
+                    "terminal": "B6"
+                  },
+                  {
+                    "body": "tail 9",
+                    "terminal": "A8"
+                  }
+                ],
+                "surfaces": []
+              },
+              "model": {
+                "id": 1,
+                "revision": 1
+              },
+              "source": "part_file",
+              "values": {}
+            },
+            "next_local": 14,
+            "placement": {
+              "rotation_mdeg": [
+                0,
+                0,
+                0
+              ],
+              "translation_nm": [
+                0,
+                0,
+                0
+              ]
+            },
+            "terminals": [
+              {
+                "designation": "A1B12",
+                "id": 1
+              },
+              {
+                "designation": "A4B9",
+                "id": 2
+              },
+              {
+                "designation": "B8",
+                "id": 3
+              },
+              {
+                "designation": "A5",
+                "id": 4
+              },
+              {
+                "designation": "B7",
+                "id": 5
+              },
+              {
+                "designation": "A6",
+                "id": 6
+              },
+              {
+                "designation": "A7",
+                "id": 7
+              },
+              {
+                "designation": "B6",
+                "id": 8
+              },
+              {
+                "designation": "A8",
+                "id": 9
+              },
+              {
+                "designation": "B5",
+                "id": 10
+              },
+              {
+                "designation": "B4A9",
+                "id": 11
+              },
+              {
+                "designation": "B1A12",
+                "id": 12
+              },
+              {
+                "designation": "S",
+                "id": 13
+              }
+            ]
+          },
+          "kind": "package"
+        },
+        "kind": "package",
+        "lineage": "e0fd511555174fecbec0f6d31af40f4a",
+        "links": [
+          {
+            "lineage": "87a97fd3de794565b8c1b180bf964095",
+            "local": 1
+          }
+        ],
+        "meta": {
+          "description": "",
+          "name": "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105) package",
+          "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+        },
+        "revision": 1
+      },
+      {
+        "definition": {
+          "body": {
+            "datum": {
+              "offset": {
+                "x_nm": 0,
+                "y_nm": 0
+              },
+              "rotation_mdeg": 0
+            },
+            "defaults": {
+              "mask_expansion_nm": 50000,
+              "paste_reduction_nm": 0
+            },
+            "graphics": [
+              {
+                "id": 19,
+                "item": {
+                  "shape": {
+                    "fill": "none",
+                    "shape": {
+                      "rect": {
+                        "a": {
+                          "x_nm": -4470000,
+                          "y_nm": -3675000
+                        },
+                        "b": {
+                          "x_nm": 4470000,
+                          "y_nm": 3675000
+                        }
+                      }
+                    },
+                    "width_nm": 100000
+                  }
+                },
+                "layer": "assembly",
+                "side": "component"
+              },
+              {
+                "id": 20,
+                "item": {
+                  "shape": {
+                    "fill": "none",
+                    "shape": {
+                      "line": {
+                        "a": {
+                          "x_nm": -4620000,
+                          "y_nm": -3825000
+                        },
+                        "b": {
+                          "x_nm": 4620000,
+                          "y_nm": -3825000
+                        }
+                      }
+                    },
+                    "width_nm": 150000
+                  }
+                },
+                "layer": "silkscreen",
+                "side": "component"
+              },
+              {
+                "id": 21,
+                "item": {
+                  "shape": {
+                    "fill": "none",
+                    "shape": {
+                      "line": {
+                        "a": {
+                          "x_nm": 4620000,
+                          "y_nm": -3825000
+                        },
+                        "b": {
+                          "x_nm": 4620000,
+                          "y_nm": -2200000
+                        }
+                      }
+                    },
+                    "width_nm": 150000
+                  }
+                },
+                "layer": "silkscreen",
+                "side": "component"
+              },
+              {
+                "id": 22,
+                "item": {
+                  "shape": {
+                    "fill": "none",
+                    "shape": {
+                      "line": {
+                        "a": {
+                          "x_nm": 4620000,
+                          "y_nm": 50000
+                        },
+                        "b": {
+                          "x_nm": 4620000,
+                          "y_nm": 1830000
+                        }
+                      }
+                    },
+                    "width_nm": 150000
+                  }
+                },
+                "layer": "silkscreen",
+                "side": "component"
+              },
+              {
+                "id": 23,
+                "item": {
+                  "shape": {
+                    "fill": "none",
+                    "shape": {
+                      "line": {
+                        "a": {
+                          "x_nm": -4620000,
+                          "y_nm": -3825000
+                        },
+                        "b": {
+                          "x_nm": -4620000,
+                          "y_nm": -2200000
+                        }
+                      }
+                    },
+                    "width_nm": 150000
+                  }
+                },
+                "layer": "silkscreen",
+                "side": "component"
+              },
+              {
+                "id": 24,
+                "item": {
+                  "shape": {
+                    "fill": "none",
+                    "shape": {
+                      "line": {
+                        "a": {
+                          "x_nm": -4620000,
+                          "y_nm": 50000
+                        },
+                        "b": {
+                          "x_nm": -4620000,
+                          "y_nm": 1830000
+                        }
+                      }
+                    },
+                    "width_nm": 150000
+                  }
+                },
+                "layer": "silkscreen",
+                "side": "component"
+              },
+              {
+                "id": 25,
+                "item": {
+                  "shape": {
+                    "fill": "none",
+                    "shape": {
+                      "rect": {
+                        "a": {
+                          "x_nm": -5100000,
+                          "y_nm": -3950000
+                        },
+                        "b": {
+                          "x_nm": 5100000,
+                          "y_nm": 4550000
+                        }
+                      }
+                    },
+                    "width_nm": 50000
+                  }
+                },
+                "layer": "courtyard",
+                "side": "component"
+              },
+              {
+                "id": 26,
+                "item": {
+                  "text": {
+                    "at": {
+                      "x_nm": 0,
+                      "y_nm": 5200000
+                    },
+                    "content": "designator",
+                    "height_nm": 1000000,
+                    "justify": {
+                      "h": "center",
+                      "v": "middle"
+                    },
+                    "line_spacing": 1.6,
+                    "rotation": "r0",
+                    "visible": true
+                  }
+                },
+                "layer": "silkscreen",
+                "side": "component"
+              },
+              {
+                "id": 27,
+                "item": {
+                  "text": {
+                    "at": {
+                      "x_nm": 0,
+                      "y_nm": 0
+                    },
+                    "content": "designator",
+                    "height_nm": 1000000,
+                    "justify": {
+                      "h": "center",
+                      "v": "middle"
+                    },
+                    "line_spacing": 1.6,
+                    "rotation": "r0",
+                    "visible": true
+                  }
+                },
+                "layer": "assembly",
+                "side": "component"
+              },
+              {
+                "id": 28,
+                "item": {
+                  "shape": {
+                    "fill": "solid",
+                    "shape": {
+                      "circle": {
+                        "center": {
+                          "x_nm": -3200000,
+                          "y_nm": 4805000
+                        },
+                        "radius_nm": 200000
+                      }
+                    },
+                    "width_nm": 0
+                  }
+                },
+                "layer": "silkscreen",
+                "side": "component"
+              }
+            ],
+            "next_local": 29,
+            "package": {
+              "id": 1,
+              "revision": 1
+            },
+            "pads": [
+              {
+                "hole": null,
+                "id": 1,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "A1B12",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -3200000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 600000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 1,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 2,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "A4B9",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -2400000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 600000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 2,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 3,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "B8",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -1750000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 3,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 4,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "A5",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -1250000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 4,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 5,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "B7",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -750000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 5,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 6,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "A6",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -250000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 6,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 7,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "A7",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 250000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 7,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 8,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "B6",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 750000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 8,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 9,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "A8",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 1250000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 9,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 10,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "B5",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 1750000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 300000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 10,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 11,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "B4A9",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 2400000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 600000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 11,
+                "vias": []
+              },
+              {
+                "hole": null,
+                "id": 12,
+                "kind": "smd",
+                "mask": "inherit",
+                "number": "B1A12",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 3200000,
+                  "y_nm": 3680000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "rect": {
+                    "size": {
+                      "x_nm": 600000,
+                      "y_nm": 1150000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 12,
+                "vias": []
+              },
+              {
+                "hole": {
+                  "offset": {
+                    "x_nm": 0,
+                    "y_nm": 0
+                  },
+                  "plated": true,
+                  "shape": {
+                    "slot": {
+                      "angle_mdeg": 90000,
+                      "length_nm": 1400000,
+                      "width_nm": 600000
+                    }
+                  }
+                },
+                "id": 13,
+                "kind": "plated_through",
+                "mask": "inherit",
+                "number": "S",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -4320000,
+                  "y_nm": -1075000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "oblong": {
+                    "size": {
+                      "x_nm": 1000000,
+                      "y_nm": 1800000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 13,
+                "vias": []
+              },
+              {
+                "hole": {
+                  "offset": {
+                    "x_nm": 0,
+                    "y_nm": 0
+                  },
+                  "plated": true,
+                  "shape": {
+                    "slot": {
+                      "angle_mdeg": 90000,
+                      "length_nm": 1400000,
+                      "width_nm": 600000
+                    }
+                  }
+                },
+                "id": 14,
+                "kind": "plated_through",
+                "mask": "inherit",
+                "number": "S",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 4320000,
+                  "y_nm": -1075000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "oblong": {
+                    "size": {
+                      "x_nm": 1000000,
+                      "y_nm": 1800000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 13,
+                "vias": []
+              },
+              {
+                "hole": {
+                  "offset": {
+                    "x_nm": 0,
+                    "y_nm": 0
+                  },
+                  "plated": true,
+                  "shape": {
+                    "slot": {
+                      "angle_mdeg": 90000,
+                      "length_nm": 1700000,
+                      "width_nm": 600000
+                    }
+                  }
+                },
+                "id": 15,
+                "kind": "plated_through",
+                "mask": "inherit",
+                "number": "S",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -4320000,
+                  "y_nm": 3105000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "oblong": {
+                    "size": {
+                      "x_nm": 1000000,
+                      "y_nm": 2100000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 13,
+                "vias": []
+              },
+              {
+                "hole": {
+                  "offset": {
+                    "x_nm": 0,
+                    "y_nm": 0
+                  },
+                  "plated": true,
+                  "shape": {
+                    "slot": {
+                      "angle_mdeg": 90000,
+                      "length_nm": 1700000,
+                      "width_nm": 600000
+                    }
+                  }
+                },
+                "id": 16,
+                "kind": "plated_through",
+                "mask": "inherit",
+                "number": "S",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 4320000,
+                  "y_nm": 3105000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "oblong": {
+                    "size": {
+                      "x_nm": 1000000,
+                      "y_nm": 2100000
+                    }
+                  }
+                },
+                "side": "top",
+                "terminal": 13,
+                "vias": []
+              },
+              {
+                "hole": {
+                  "offset": {
+                    "x_nm": 0,
+                    "y_nm": 0
+                  },
+                  "plated": false,
+                  "shape": {
+                    "round": {
+                      "diameter_nm": 650000
+                    }
+                  }
+                },
+                "id": 17,
+                "kind": "non_plated_hole",
+                "mask": {
+                  "expansion_nm": 0
+                },
+                "number": "",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": -2890000,
+                  "y_nm": 2605000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "circle": {
+                    "diameter_nm": 650000
+                  }
+                },
+                "side": "top",
+                "terminal": null,
+                "vias": []
+              },
+              {
+                "hole": {
+                  "offset": {
+                    "x_nm": 0,
+                    "y_nm": 0
+                  },
+                  "plated": false,
+                  "shape": {
+                    "round": {
+                      "diameter_nm": 650000
+                    }
+                  }
+                },
+                "id": 18,
+                "kind": "non_plated_hole",
+                "mask": {
+                  "expansion_nm": 0
+                },
+                "number": "",
+                "paste": "inherit",
+                "position": {
+                  "x_nm": 2890000,
+                  "y_nm": 2605000
+                },
+                "rotation_mdeg": 0,
+                "shape": {
+                  "circle": {
+                    "diameter_nm": 650000
+                  }
+                },
+                "side": "top",
+                "terminal": null,
+                "vias": []
+              }
+            ],
+            "polarity": {
+              "markers": [
+                28
+              ],
+              "pad": 1
+            },
+            "source": null
+          },
+          "kind": "footprint"
+        },
+        "kind": "footprint",
+        "lineage": "5fab9c6903814ec68784cfcbf212f087",
+        "links": [
+          {
+            "lineage": "e0fd511555174fecbec0f6d31af40f4a",
+            "local": 1
+          }
+        ],
+        "meta": {
+          "description": "",
+          "name": "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105) footprint",
+          "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+        },
+        "revision": 1
+      },
+      {
+        "definition": {
+          "body": {
+            "component": 1,
+            "footprints": [
+              {
+                "id": 3,
+                "revision": 1
+              }
+            ],
+            "mappings": [
+              {
+                "package_terminal": 1,
+                "terminal": 8
+              },
+              {
+                "package_terminal": 2,
+                "terminal": 1
+              },
+              {
+                "package_terminal": 3,
+                "terminal": 7
+              },
+              {
+                "package_terminal": 4,
+                "terminal": 2
+              },
+              {
+                "package_terminal": 5,
+                "terminal": 5
+              },
+              {
+                "package_terminal": 6,
+                "terminal": 4
+              },
+              {
+                "package_terminal": 7,
+                "terminal": 5
+              },
+              {
+                "package_terminal": 8,
+                "terminal": 4
+              },
+              {
+                "package_terminal": 9,
+                "terminal": 6
+              },
+              {
+                "package_terminal": 10,
+                "terminal": 3
+              },
+              {
+                "package_terminal": 11,
+                "terminal": 1
+              },
+              {
+                "package_terminal": 12,
+                "terminal": 8
+              },
+              {
+                "package_terminal": 13,
+                "terminal": 9
+              }
+            ],
+            "package": {
+              "id": 2,
+              "revision": 1
+            },
+            "unavailable": []
+          },
+          "kind": "binding"
+        },
+        "kind": "binding",
+        "lineage": "5b19dbd98f1c4be793e0684da1932e90",
+        "links": [
+          {
+            "lineage": "a3943c2f645b42e6990f38ff7a6f194a",
+            "local": 1
+          },
+          {
+            "lineage": "e0fd511555174fecbec0f6d31af40f4a",
+            "local": 2
+          },
+          {
+            "lineage": "5fab9c6903814ec68784cfcbf212f087",
+            "local": 3
+          }
+        ],
+        "meta": {
+          "description": "",
+          "name": "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105) binding",
+          "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+        },
+        "revision": 1
+      },
+      {
+        "definition": {
+          "body": {
+            "component": 1,
+            "next_local": 5,
+            "pin_text_height_nm": 1000000,
+            "units": [
+              {
+                "graphics": [
+                  {
+                    "id": 2,
+                    "item": {
+                      "shape": {
+                        "fill": "body",
+                        "shape": {
+                          "rect": {
+                            "a": {
+                              "x_nm": -5000000,
+                              "y_nm": -22500000
+                            },
+                            "b": {
+                              "x_nm": 5000000,
+                              "y_nm": 2500000
+                            }
+                          }
+                        },
+                        "width_nm": 250000
+                      }
+                    }
+                  },
+                  {
+                    "id": 3,
+                    "item": {
+                      "text": {
+                        "at": {
+                          "x_nm": 0,
+                          "y_nm": 3000000
+                        },
+                        "content": "designator",
+                        "height_nm": 1250000,
+                        "justify": {
+                          "h": "center",
+                          "v": "bottom"
+                        },
+                        "line_spacing": 1.6,
+                        "rotation": "r0",
+                        "visible": true
+                      }
+                    }
+                  },
+                  {
+                    "id": 4,
+                    "item": {
+                      "text": {
+                        "at": {
+                          "x_nm": 0,
+                          "y_nm": -23000000
+                        },
+                        "content": "component_name",
+                        "height_nm": 1250000,
+                        "justify": {
+                          "h": "center",
+                          "v": "top"
+                        },
+                        "line_spacing": 1.6,
+                        "rotation": "r0",
+                        "visible": true
+                      }
+                    }
+                  }
+                ],
+                "id": 1,
+                "label": "A",
+                "pins": [
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 10000000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -15000000,
+                      "y_nm": 0
+                    },
+                    "terminal": 1
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 5000000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -10000000,
+                      "y_nm": -2500000
+                    },
+                    "terminal": 2
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 5000000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -10000000,
+                      "y_nm": -5000000
+                    },
+                    "terminal": 3
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 7500000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -12500000,
+                      "y_nm": -7500000
+                    },
+                    "terminal": 4
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 7500000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -12500000,
+                      "y_nm": -10000000
+                    },
+                    "terminal": 5
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 5000000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -10000000,
+                      "y_nm": -12500000
+                    },
+                    "terminal": 6
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 5000000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -10000000,
+                      "y_nm": -15000000
+                    },
+                    "terminal": 7
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 12500000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -17500000,
+                      "y_nm": -17500000
+                    },
+                    "terminal": 8
+                  },
+                  {
+                    "decorations": {
+                      "clock": false,
+                      "inverted": false
+                    },
+                    "direction": "right",
+                    "length_nm": 2500000,
+                    "name": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "number": {
+                      "offset_nm": 500000,
+                      "visible": true
+                    },
+                    "position": {
+                      "x_nm": -7500000,
+                      "y_nm": -20000000
+                    },
+                    "terminal": 9
+                  }
+                ]
+              }
+            ]
+          },
+          "kind": "symbol"
+        },
+        "kind": "symbol",
+        "lineage": "25622c085dcb49cbb28880b4a21446db",
+        "links": [
+          {
+            "lineage": "a3943c2f645b42e6990f38ff7a6f194a",
+            "local": 1
+          }
+        ],
+        "meta": {
+          "description": "",
+          "name": "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105) symbol",
+          "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+        },
+        "revision": 1
+      },
+      {
+        "definition": {
+          "body": {
+            "constraints": [],
+            "designator_prefix": "J",
+            "fields": [],
+            "implementations": [
+              {
+                "id": 2,
+                "revision": 1
+              }
+            ],
+            "next_local": 19,
+            "representations": [
+              {
+                "id": 1,
+                "revision": 1
+              }
+            ],
+            "resources": [],
+            "terminals": [
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "power_output",
+                        "drive": "none",
+                        "id": 10,
+                        "label": "power output",
+                        "resource_role": null,
+                        "signal": "power"
+                      }
+                    ]
+                  }
+                },
+                "id": 1,
+                "name": "VBUS"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 11,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 2,
+                "name": "CC1"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 12,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 3,
+                "name": "CC2"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 13,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 4,
+                "name": "D+"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 14,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 5,
+                "name": "D-"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 15,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 6,
+                "name": "SBU1"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 16,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 7,
+                "name": "SBU2"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 17,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 8,
+                "name": "GND"
+              },
+              {
+                "class": {
+                  "electrical": {
+                    "design_default": null,
+                    "functions": [
+                      {
+                        "direction": "passive",
+                        "drive": "none",
+                        "id": 18,
+                        "label": "passive",
+                        "resource_role": null,
+                        "signal": "unspecified"
+                      }
+                    ]
+                  }
+                },
+                "id": 9,
+                "name": "SHIELD"
+              }
+            ]
+          },
+          "kind": "component"
+        },
+        "kind": "component",
+        "lineage": "a3943c2f645b42e6990f38ff7a6f194a",
+        "links": [
+          {
+            "lineage": "25622c085dcb49cbb28880b4a21446db",
+            "local": 1
+          },
+          {
+            "lineage": "5b19dbd98f1c4be793e0684da1932e90",
+            "local": 2
+          }
+        ],
+        "meta": {
+          "description": "USB Type-C receptacle for USB 2.0: 16 contacts on 12 SMD lands (VBUS and GND shared by the A and B rows), shell on four through-hole stakes, two locating pegs; 8.94 × 7.35 × 3.31 mm, mating face at the board edge. The drawing's land pattern needs a fab with finer limits than a standard 2-layer service (see the note). Dimensions read from the manufacturer's public drawing, as the ESP32-S31 example's USB4105 records. The 3D model's tongue, insulator, tail thickness and peg length are estimates. Place the mating face (−y) at the board edge. Land pattern re-checked against the drawing's Recommended PCB Layout (read 2026-11-13, same URL and revision) and kept as drawn: the 0.65 mm peg holes stand 0.175 mm from the A1B12 and B1A12 lands, and the shell stake lands (1.00 mm round a 0.60 mm slot) leave a 0.20 mm ring. Both are below JLCPCB's standard 2-layer limits (0.2 mm NPTH to copper; 0.25 mm recommended PTH ring, 0.18 mm absolute minimum), so the production check reports them there: order from a fab that accepts the drawing's geometry, or waive those findings after checking with the fab.",
+          "name": "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105)",
+          "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+        },
+        "revision": 1
+      },
+      {
+        "definition": {
+          "body": {
+            "binding": {
+              "id": 2,
+              "revision": 1
+            },
+            "component": {
+              "id": 1,
+              "revision": 1
+            },
+            "manufacturer": "GCT",
+            "mpn": "USB4105-GF-A",
+            "next_local": 2,
+            "offers": [],
+            "provenance": {
+              "basis": {
+                "basis": "authored"
+              },
+              "licence": null,
+              "origin": null
+            },
+            "references": [
+              {
+                "asset": null,
+                "document_revision": "B4 (2023-12-18)",
+                "id": 1,
+                "kind": "datasheet",
+                "licence": null,
+                "provenance": {
+                  "basis": {
+                    "basis": "authored"
+                  },
+                  "licence": null,
+                  "origin": null
+                },
+                "title": "GCT USB4105, USB Type C receptacle for USB 2.0, SMT type, PCB top mount: drawing sheet 1, outline and recommended PCB layout",
+                "url": "https://gct.co/files/drawings/usb4105.pdf"
+              }
+            ],
+            "specs": []
+          },
+          "kind": "part"
+        },
+        "kind": "part",
+        "lineage": "0244a5a1928d4f37ab3c9e3868121cbb",
+        "links": [
+          {
+            "lineage": "a3943c2f645b42e6990f38ff7a6f194a",
+            "local": 1
+          },
+          {
+            "lineage": "5b19dbd98f1c4be793e0684da1932e90",
+            "local": 2
+          }
+        ],
+        "meta": {
+          "description": "USB-C receptacle, USB 2.0, top mount",
+          "name": "USB4105-GF-A",
+          "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+        },
+        "revision": 1
+      }
+    ],
+    "root": {
+      "lineage": "0244a5a1928d4f37ab3c9e3868121cbb",
+      "revision": 1
+    }
+  },
+  "format": 1
+}

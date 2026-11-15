@@ -12,13 +12,21 @@
 //! and its part files come from the context the host made from the
 //! shipped library; a host without them refuses the build, naming why.
 //!
-//! One arm of [`generator`] per retired family; nothing else here knows a
-//! family.
+//! The USB-C receptacle is one shipped part, not a family (job I): its
+//! stored forms evaluate the shipped library part file
+//! (`library/parts/gct-usb4105.solidcraft`) at the form's values
+//! ([`library_part`]), the file the context carries.
+//!
+//! One arm of [`generator`] or [`library_part`] per retired family;
+//! nothing else here knows a family.
 use super::GeneratedBody;
 use super::part_file::{self, PartValues};
 use crate::{Error, Result};
+use sparksmith_core::library::package_model::PartValue;
 use sparksmith_core::library::standards::Context;
-use sparksmith_core::library::{BodyRole, LeadSides, PackageDefinition, PackageForm, PackageModel};
+use sparksmith_core::library::{
+    BodyRole, LeadSides, PackageDefinition, PackageForm, PackageModel, UsbCForm,
+};
 use sparksmith_core::units::Nm;
 use sparksmith_generators::abi::v1::{self, Model, ParamValue, Scope};
 use sparksmith_generators::abi::{Failure, GeneratorRuntime};
@@ -162,6 +170,144 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
     }
 }
 
+/// The shipped library part file (`library/parts/<name>.solidcraft`) that
+/// now carries the model of `form`'s family, with the form's values as its
+/// parameters; `None` for every other family. A single shipped part, not a
+/// family (part-generation job I): the USB-C receptacle's former builder
+/// made exactly the shipped USB4105 body, so a stored receptacle form
+/// keeps its model through that part file.
+pub fn library_part(form: &PackageForm) -> Option<(&'static str, PartValues)> {
+    let PackageForm::UsbC(f) = form else {
+        return None;
+    };
+    let mut values = PartValues::new();
+    let [front, rear] = f.tabs;
+    for (name, nm) in [
+        ("width", f.width_nm),
+        ("depth", f.depth_nm),
+        ("height", f.height_nm),
+        ("opening_w", f.opening_nm[0]),
+        ("opening_h", f.opening_nm[1]),
+        ("opening_z", f.opening_z_nm),
+        ("shell_t", f.shell_thickness_nm),
+        ("pitch", f.pitch_nm),
+        ("land_y", f.land_y_nm),
+        ("land_length", f.land_length_nm),
+        ("signal_land_w", f.signal_land_width_nm),
+        ("power_land_w", f.power_land_width_nm),
+        ("vbus_x", f.vbus_x_nm),
+        ("gnd_x", f.gnd_x_nm),
+        ("front_y", front.y_nm),
+        ("front_slot", front.slot.y_nm),
+        ("rear_y", rear.y_nm),
+        ("rear_slot", rear.slot.y_nm),
+        ("stake_length", f.stake_length_nm),
+        ("peg_x", f.peg_x_nm),
+        ("peg_y", f.peg_y_nm),
+        ("peg_d", f.peg_diameter_nm),
+    ] {
+        values.insert(name.into(), PartValue::Nm(nm.get()));
+    }
+    Some(("gct-usb4105", values))
+}
+
+/// Whether `form`'s family builds from a shipped generator or library part
+/// file rather than an in-code builder.
+pub fn retired(form: &PackageForm) -> bool {
+    generator(form).is_some() || library_part(form).is_some()
+}
+
+/// The lead contacts of a stored USB-C form, `(terminal id, [x, y] mm)`:
+/// each contact land's centre for its terminal and the four shell stakes'
+/// for the shell, when the package lists its 13 terminals (the builder's
+/// rule); none otherwise.
+fn usb_c_contacts(f: &UsbCForm, package: &PackageDefinition) -> Vec<(String, [f64; 2])> {
+    let lands = f.contact_lands();
+    if package.terminals.len() != lands.len() + 1 {
+        return Vec::new();
+    }
+    let mut out: Vec<(String, [f64; 2])> = lands
+        .iter()
+        .zip(&package.terminals)
+        .map(|((x, _), t)| (t.id.0.to_string(), [*x, f.land_y()]))
+        .collect();
+    if let Some(shell) = package.terminals.last() {
+        out.extend(
+            f.stake_centres()
+                .into_iter()
+                .map(|c| (shell.id.0.to_string(), c)),
+        );
+    }
+    out
+}
+
+/// The roles the retired USB-C builder gave the shipped part file's
+/// bodies: what it draws them as, and the role whose material the package
+/// chooses for them. The shell is the body's metal (`other`); the stakes
+/// are leads in the shell's metal; the tails leads; the plastic the body.
+fn usb_c_roles(name: &str) -> (BodyRole, BodyRole) {
+    if name == "shell" {
+        (BodyRole::Other, BodyRole::Other)
+    } else if name.starts_with("stake ") {
+        (BodyRole::Termination, BodyRole::Other)
+    } else if name.starts_with("tail ") {
+        (BodyRole::Termination, BodyRole::Lead)
+    } else {
+        (BodyRole::Body, BodyRole::Body)
+    }
+}
+
+/// The model of a stored form whose family is a shipped library part
+/// (`library_part`): that part file at the form's values, its lead bodies
+/// bound to the package's terminals by the form's contacts.
+fn evaluate_library_part(
+    package: &PackageDefinition,
+    materials: &sparksmith_core::library::GeneratedMaterials,
+    name: &str,
+    values: &PartValues,
+) -> Result<(Arc<part_file::EvaluatedPart>, Vec<GeneratedBody>)> {
+    let refused = |why: String| {
+        Error::Invalid(format!(
+            "model.part_file: the shipped part file {name} could not make this package's model: {why}"
+        ))
+    };
+    let context = Context::current().map_err(|e| refused(e.to_string()))?;
+    let shipped = context.part(name).map_err(|e| refused(e.to_string()))?;
+    let part = part_file::evaluate(&shipped.bytes, values)?;
+    if let Some(refusal) = part.refusal() {
+        return Err(refused(refusal.to_string()));
+    }
+    let contacts = match &package.form {
+        PackageForm::UsbC(f) => usb_c_contacts(f, package),
+        _ => Vec::new(),
+    };
+    let bound = part_file::lead_bodies(&part, &contacts, false).map_err(refused)?;
+    let bodies = part
+        .bodies
+        .iter()
+        .map(|b| {
+            let (role, material_role) = usb_c_roles(&b.name);
+            let material = materials
+                .roles
+                .iter()
+                .find(|c| c.role == material_role)
+                .map(|c| c.material)
+                .or(b.material)
+                .unwrap_or_else(|| materials.material(&package.form, material_role));
+            GeneratedBody {
+                name: b.name.clone(),
+                role,
+                material,
+                terminal: bound
+                    .iter()
+                    .find(|l| l.body == b.name)
+                    .and_then(|l| l.terminal.parse().ok()),
+            }
+        })
+        .collect();
+    Ok((part, bodies))
+}
+
 /// The body of a no-lead part file that is the exposed pad.
 const EXPOSED_PAD: &str = "exposed pad";
 
@@ -209,6 +355,9 @@ pub fn evaluate(
             "model.unsupported: only generated package models are built here".into(),
         ));
     };
+    if let Some((name, values)) = library_part(&package.form) {
+        return evaluate_library_part(package, materials, name, &values);
+    }
     let (name, params) = generator(&package.form).ok_or_else(|| {
         Error::Invalid(format!(
             "model.unsupported: no shipped generator makes {} models",

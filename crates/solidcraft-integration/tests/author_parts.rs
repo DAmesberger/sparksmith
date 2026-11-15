@@ -2860,6 +2860,275 @@ pub fn author_usb4105() -> Vec<u8> {
     finish_part(s, "height")
 }
 
+/// The shipped USB-C receptacle's body (`library/parts/gct-usb4105`, the
+/// GCT USB4105 of its drawing, rev B4 sheet 1): the bodies, names and
+/// looks the retired in-code USB-C builder made, by the same construction,
+/// so a package that stored that builder's model keeps it. Origin at the
+/// outline centre, mating face at −y, z = 0 the seating plane.
+///
+/// - **shell**: a nickel stadium tube over the depth, open at the mating
+///   face, its inner outline the opening, its outer one the opening grown
+///   by the sheet.
+/// - **insulator** (LCP) closing the shell's rear, and the **tongue** (LCP),
+///   a plate centred in the opening.
+/// - **tail 1**–**tail 12** (gold), in the lands' x order, from under the
+///   shell's rear onto their lands.
+/// - **stake 1**–**stake 4** (nickel), in the side walls' plane at ±x, the
+///   front and the rear pair, from below the board up to where the shell's
+///   rounded underside meets their inner face.
+/// - **peg 1**, **peg 2** (LCP): the locating pegs, up to the shell's
+///   underside from the seating plane (a part file's lowest non-lead body
+///   is its seating plane).
+/// - The **`opening` datum**: a construction plane on the mating face at
+///   the opening's centre, its normal out along the plug's way in, the
+///   opening's size with round ends, `opening_depth` deep (the drawing's
+///   mating view, "1.85 Min", where the plug's overmold begins).
+///
+/// The parameters are the drawing's values under the names a stored USB-C
+/// form maps to; the tongue, insulator, tails' thickness and run under the
+/// shell and the stakes' clearance in their slots are estimates, as their
+/// comments say. No CAD or EDA library data was copied.
+pub fn author_usb_c_receptacle() -> Vec<u8> {
+    let mut s = Session::default();
+    run(
+        &mut s,
+        "file.new",
+        json!({"name": "USB-C receptacle, USB 2.0 (GCT USB4105)"}),
+    );
+    let rows: Vec<serde_json::Value> = [
+        ("width", "8.94 mm", "shell across (x), over the stakes"),
+        ("depth", "7.35 mm", "shell deep (y), mating face at -y"),
+        ("height", "3.31 mm", "seated height"),
+        ("opening_w", "8.34 mm", "mating opening across"),
+        ("opening_h", "2.56 mm", "mating opening high"),
+        ("opening_z", "1.73 mm", "mating opening centre height"),
+        ("shell_t", "0.3 mm", "shell sheet thickness"),
+        ("pitch", "0.5 mm", "signal land pitch"),
+        ("land_y", "3.68 mm", "contact lands' centre line (y)"),
+        ("land_length", "1.15 mm", "contact land length (y)"),
+        ("signal_land_w", "0.3 mm", "signal land width"),
+        ("power_land_w", "0.6 mm", "shared VBUS and GND land width"),
+        ("vbus_x", "2.4 mm", "VBUS land centres from x = 0"),
+        ("gnd_x", "3.2 mm", "GND land centres from x = 0"),
+        ("front_y", "-1.075 mm", "front stake slot centre (y)"),
+        ("front_slot", "1.4 mm", "front stake slot length (y)"),
+        ("rear_y", "3.105 mm", "rear stake slot centre (y)"),
+        ("rear_slot", "1.7 mm", "rear stake slot length (y)"),
+        (
+            "stake_length",
+            "0.95 mm",
+            "how far the stakes reach below the seating plane",
+        ),
+        ("peg_x", "2.89 mm", "locating peg centres from x = 0"),
+        ("peg_y", "2.605 mm", "locating peg centre (y)"),
+        ("peg_d", "0.5 mm", "locating peg diameter"),
+        (
+            "tongue_w",
+            "opening_w * 0.8",
+            "tongue across (estimate: about 6.7 mm in the 8.34 mm opening)",
+        ),
+        (
+            "tongue_t",
+            "opening_h * 0.27",
+            "tongue thickness (estimate: about 0.7 mm)",
+        ),
+        (
+            "tongue_recess",
+            "0.6 mm",
+            "tongue tip behind the mating face (estimate)",
+        ),
+        (
+            "insulator_depth",
+            "2.5 mm",
+            "insulator closing the shell's rear (estimate)",
+        ),
+        ("tail_t", "0.15 mm", "solder tail thickness (estimate)"),
+        (
+            "tail_under",
+            "0.6 mm",
+            "how far the tails run under the shell's rear (estimate)",
+        ),
+        (
+            "signal_tail_w",
+            "signal_land_w * 2 / 3",
+            "signal tail width: the drawing's 0.20 mm on its 0.30 mm land",
+        ),
+        (
+            "power_tail_w",
+            "power_land_w * 0.75",
+            "shared tail width: the drawing's 0.45 mm on its 0.60 mm land",
+        ),
+        (
+            "tail_end",
+            "land_y + land_length * 0.4",
+            "where the tails end, short of their lands' outer end",
+        ),
+        (
+            "stake_clearance",
+            "0.3 mm",
+            "how much shorter a stake is than its slot (estimate: 1.10 mm in the 1.40 mm slot)",
+        ),
+        (
+            "shell_r",
+            "opening_h / 2 + shell_t",
+            "outer radius of the shell's round ends",
+        ),
+        (
+            "stake_beyond",
+            "min(max(width / 2 - shell_t - (opening_w / 2 + shell_t - shell_r), 0 mm), shell_r)",
+            "how far a stake's inner face lies beyond the start of the shell's round end",
+        ),
+        (
+            "stake_top",
+            "opening_z - sqrt(shell_r * shell_r - stake_beyond * stake_beyond)",
+            "where the shell's rounded underside meets the stakes",
+        ),
+        (
+            "opening_u",
+            "opening_w",
+            "opening datum across: the plug's shell",
+        ),
+        (
+            "opening_v",
+            "opening_h",
+            "opening datum high: the plug's shell",
+        ),
+        (
+            "opening_r",
+            "opening_h / 2",
+            "opening datum corner radius: round ends",
+        ),
+        (
+            "opening_depth",
+            "1.85 mm",
+            "opening datum depth: the plug's shell before its overmold (mating view, 1.85 min)",
+        ),
+    ]
+    .iter()
+    .map(|(name, expression, comment)| param(name, expression, "mm", comment))
+    .collect();
+    import(&mut s, &rows);
+    let (ow, oh, oz, t) = (8.34, 2.56, 1.73, 0.3);
+    let inner = ["opening_w", "opening_h", "-opening_z"];
+    // The XZ plane maps sketch (u, v) to (u, offset, −v), normal +y.
+    run(
+        &mut s,
+        "sketch.create",
+        json!({"plane": "XZ", "offset": "-depth / 2", "name": "Shell profile"}),
+    );
+    stadium(
+        &mut s,
+        "o",
+        [
+            "opening_w + 2 * shell_t",
+            "opening_h + 2 * shell_t",
+            "-opening_z",
+        ],
+        [ow + 2.0 * t, oh + 2.0 * t, -oz],
+    );
+    stadium(&mut s, "i", inner, [ow, oh, -oz]);
+    run(&mut s, "sketch.finish", json!({}));
+    run(
+        &mut s,
+        "solid.extrude",
+        json!({"sketch": "Shell profile", "distance": "depth", "operation": "new",
+            "name": "Shell", "body_name": "shell"}),
+    );
+    run(
+        &mut s,
+        "sketch.create",
+        json!({"plane": "XZ", "offset": "depth / 2 - insulator_depth", "name": "Insulator profile"}),
+    );
+    stadium(&mut s, "i", inner, [ow, oh, -oz]);
+    run(&mut s, "sketch.finish", json!({}));
+    run(
+        &mut s,
+        "solid.extrude",
+        json!({"sketch": "Insulator profile", "distance": "insulator_depth",
+            "operation": "new", "name": "Insulator", "body_name": "insulator"}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["-tongue_w / 2", "-depth / 2 + tongue_recess", "opening_z - tongue_t / 2"],
+            "length": "tongue_w", "width": "depth - insulator_depth - tongue_recess",
+            "height": "tongue_t", "name": "Tongue", "body_name": "tongue"}),
+    );
+    // The tails in the lands' x order.
+    let mut centres: Vec<(String, &str)> = vec![
+        ("-gnd_x".into(), "power_tail_w"),
+        ("-vbus_x".into(), "power_tail_w"),
+    ];
+    for k in 0..8 {
+        centres.push((format!("({k} - 3.5) * pitch"), "signal_tail_w"));
+    }
+    centres.push(("vbus_x".into(), "power_tail_w"));
+    centres.push(("gnd_x".into(), "power_tail_w"));
+    let mut tails = Vec::new();
+    for (k, (x, w)) in centres.iter().enumerate() {
+        let name = format!("tail {}", k + 1);
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [format!("{x} - {w} / 2"), "depth / 2 - tail_under", "0 mm"],
+                "length": w, "width": "tail_end - (depth / 2 - tail_under)", "height": "tail_t",
+                "name": format!("Tail {}", k + 1), "body_name": name}),
+        );
+        tails.push(name);
+    }
+    // The stakes: front −x, front +x, rear −x, rear +x.
+    let mut stakes = Vec::new();
+    for (k, (x, y, slot)) in [
+        ("-width / 2", "front_y", "front_slot"),
+        ("width / 2 - shell_t", "front_y", "front_slot"),
+        ("-width / 2", "rear_y", "rear_slot"),
+        ("width / 2 - shell_t", "rear_y", "rear_slot"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let name = format!("stake {}", k + 1);
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [x, format!("{y} - ({slot} - stake_clearance) / 2"), "-stake_length"],
+                "length": "shell_t", "width": format!("{slot} - stake_clearance"),
+                "height": "stake_length + stake_top",
+                "name": format!("Stake {}", k + 1), "body_name": name}),
+        );
+        stakes.push(name);
+    }
+    for (k, x) in ["-peg_x", "peg_x"].into_iter().enumerate() {
+        run(
+            &mut s,
+            "solid.cylinder",
+            json!({"diameter": "peg_d", "height": "opening_z - shell_r",
+                "base": [x, "peg_y", "0 mm"],
+                "name": format!("Peg {}", k + 1), "body_name": format!("peg {}", k + 1)}),
+        );
+    }
+    let mut nickel: Vec<&str> = vec!["shell"];
+    nickel.extend(stakes.iter().map(String::as_str));
+    assign_look(&mut s, &nickel, MaterialId::Nickel);
+    assign_look(
+        &mut s,
+        &["insulator", "tongue", "peg 1", "peg 2"],
+        MaterialId::Lcp,
+    );
+    let tails: Vec<&str> = tails.iter().map(String::as_str).collect();
+    assign_look(&mut s, &tails, MaterialId::Gold);
+    // The opening plane on the mating face at the opening's centre: x
+    // across, y up, so its normal (x × y) is −y, out along the plug's way in.
+    run(
+        &mut s,
+        "construct.plane.offset",
+        json!({"base": {"origin": ["0 mm", "-depth / 2", "opening_z"], "x_dir": [1, 0, 0],
+            "y_dir": [0, 0, 1]}, "offset": "0 mm", "name": "opening"}),
+    );
+    assert_evaluates(&mut s);
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
 #[test]
 #[ignore = "writes library/parts/*.solidcraft, the chip, header, no-lead, molded and tabbed generators' part files and the examples' part files"]
 fn author_parts() {
@@ -2880,7 +3149,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 30] = [
+    let parts: [(&str, &str, Author); 31] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -2957,6 +3226,8 @@ fn author_parts() {
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),
         ("library/parts", "finned-heatsink", author_finned_heatsink),
+        // The shipped USB-C receptacle component's body.
+        ("library/parts", "gct-usb4105", author_usb_c_receptacle),
         // The ESP32 dev board example's switches: the example's own part
         // file, not a built-in.
         (

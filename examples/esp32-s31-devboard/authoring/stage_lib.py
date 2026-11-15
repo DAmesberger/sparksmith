@@ -56,8 +56,12 @@ def from_template(s, row, name, skeleton, symbol=None, prefix=None):
     return r["result"]["outcome"]["ids"]  # component, symbol, package, footprint, binding
 
 
-def package_from(s, package, row):
-    req = {"draft": package, "row": {"source": "starter", "name": row}}
+def package_from(s, package, row, values=None):
+    """`row` is a starter row's name, or a typed form's family with `values`."""
+    if values is None:
+        req = {"draft": package, "row": {"source": "starter", "name": row}}
+    else:
+        req = {"draft": package, "row": {"source": "custom", "family": row}, "values": values}
     s.query("library.package_plan", {"request": req})
     r = s.op("library.package_from_template", req, f"package {row}")
     return r["result"]["outcome"]["plan"]["footprint"]
