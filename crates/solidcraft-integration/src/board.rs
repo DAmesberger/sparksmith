@@ -1439,6 +1439,7 @@ fn add_free_form(sk: &mut Sketch, curve: &FreeFormCurve) -> Outcome<usize> {
                     degree: 3,
                     periodic: *periodic,
                     nurbs: None,
+                    handles: Vec::new(),
                 },
                 *construction,
             )
