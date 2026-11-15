@@ -21,7 +21,8 @@
 //! is a sketch drawn from the form when the model is built.
 //!
 //! A family whose builder has given way to its shipped generator (the pin
-//! header, tabbed, no-lead, molded two-terminal and grid families, phase C of
+//! header, gull-wing, tabbed, no-lead, molded two-terminal, grid and
+//! through-hole families, phase C of
 //! docs/design/part-generation-plan.md) builds from the generator's part
 //! file instead ([`family`]), behind the same functions.
 //!
@@ -29,7 +30,6 @@
 mod chip;
 pub mod family;
 pub mod gltf_ext;
-mod gull_wing;
 pub mod imported;
 pub mod inspect;
 pub mod look;
@@ -71,8 +71,9 @@ const MAX_STEM: usize = 64;
 pub fn family_rev(form: &PackageForm) -> Option<u16> {
     match form {
         PackageForm::Generic => None,
-        PackageForm::Chip(_) | PackageForm::GullWing(_) => Some(1),
+        PackageForm::Chip(_) => Some(1),
         PackageForm::Header(_)
+        | PackageForm::GullWing(_)
         | PackageForm::NoLead(_)
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
@@ -224,9 +225,9 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
     }
     match &package.form {
         PackageForm::Chip(c) => chip::check(c),
-        PackageForm::GullWing(g) => gull_wing::check(g),
         // Built from their generators (`family`), which check their values.
         PackageForm::Header(_)
+        | PackageForm::GullWing(_)
         | PackageForm::NoLead(_)
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
@@ -259,8 +260,8 @@ fn build_bodies(
     };
     match &package.form {
         PackageForm::Chip(c) => chip::build(&mut b, c)?,
-        PackageForm::GullWing(g) => gull_wing::build(&mut b, g)?,
         PackageForm::Header(_)
+        | PackageForm::GullWing(_)
         | PackageForm::NoLead(_)
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
@@ -319,13 +320,6 @@ impl Build<'_> {
     fn length(&mut self, name: &str, value: f64) -> Result<String> {
         let p = self.p(name);
         self.native.parameter(&p, crate::native::mm(value))?;
-        Ok(p)
-    }
-
-    /// Add a count (unitless) parameter; returns its name.
-    fn count(&mut self, name: &str, value: u32) -> Result<String> {
-        let p = self.p(name);
-        self.native.count_parameter(&p, value)?;
         Ok(p)
     }
 
@@ -480,29 +474,6 @@ fn top_edges(lo: [f64; 3], hi: [f64; 3]) -> [[f64; 3]; 4] {
         [mid[0], hi[1], hi[2]],
         [lo[0], mid[1], hi[2]],
     ]
-}
-
-/// A point on each of the four upright edges of the box `lo`..`hi`.
-fn upright_edges(lo: [f64; 3], hi: [f64; 3]) -> [[f64; 3]; 4] {
-    let z = (lo[2] + hi[2]) / 2.0;
-    [
-        [lo[0], lo[1], z],
-        [hi[0], lo[1], z],
-        [hi[0], hi[1], z],
-        [lo[0], hi[1], z],
-    ]
-}
-
-/// Bounds of a lead count.
-fn check_count(what: &str, n: u32) -> Result<()> {
-    if (1..=sparksmith_core::library::package_form::MAX_FORM_LEADS).contains(&n) {
-        Ok(())
-    } else {
-        Err(Error::Invalid(format!(
-            "model.form: {what} must be 1–{}",
-            sparksmith_core::library::package_form::MAX_FORM_LEADS
-        )))
-    }
 }
 
 /// Every value positive and finite.

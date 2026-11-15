@@ -62,7 +62,7 @@ A part never exists without its 3D model, so every generation carries `model`, a
 - **The host** (`library.generate_part`) finds the file in the bundle (or, for a module the project embeds, in the project), evaluates it at the values through the part-file path (`sparksmith_solidcraft::models::part_file`), and refuses a blocking finding, bounds more than 10 µm off the generation's envelope, or a lead contact under no body of a lead material. `library.generate` then stores the file as a Model of format `solidcraft` (one per file, shared by every part that uses it) and the package as `PackageModel::PartFile`, so the 3D view, the exact export, markings and the load check treat it like any part file.
 - **The bundle** (`library/generators/<name>/`) is the manifest `generator.json` (`format`, `name`, the module and each part file by path and SHA-256, with each part file's title, licence and provenance), the module and `parts/`. Its identity is the SHA-256 of the manifest's bytes (`library.generators` reports it as `bundle`), which names every other file by hash. `sparksmith_io::generator_bundle` reads a bundle and refuses a missing or changed file by name.
 
-The header generator (phase C) ships one part file, `pin-header`, parametric in its row and pin counts; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-header-14-november-2026)).
+The header generator (phase C) ships one part file, `pin-header`, parametric in its row and pin counts; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-header-14-november-2026)). The gull-wing generator ships two, `gull-wing-two-sided` and `gull-wing-four-sided`, parametric in their lead counts; its in-code builder is deleted too ([plan](../docs/design/part-generation-plan.md#done-gull-wing-15-november-2026)).
 
 The no-lead generator (phase C) makes DFN and QFN parts with or without an exposed pad and ships four part files (`dfn`, `dfn-ep`, `qfn`, `qfn-ep`), one per outline class, each parametric in its terminal counts; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-no-lead-14-november-2026)).
 
@@ -122,6 +122,7 @@ Measured with `cargo xtask generators measure` on an Apple M-series Mac, macOS, 
 | --- | --- | --- |
 | chip | 281 021 (274 KiB); 283 970 naming its part files (GP2); 234 868 without `serde_json` or floats (B3, 14 November 2026) | sign-extension, bulk-memory, reference-types (floats refused since B3) |
 | header (14 November 2026) | 232 533 | as chip |
+| gull-wing (15 November 2026) | 248 095 | as chip |
 | no-lead (14 November 2026) | 245 883 | as chip |
 | molded (14 November 2026) | 228 961 | as chip |
 | tht (14 November 2026) | 261 313 | as chip |

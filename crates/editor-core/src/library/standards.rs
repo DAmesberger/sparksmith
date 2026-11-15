@@ -540,6 +540,14 @@ pub mod fixture {
                 parts: vec![part(bytes!("header/parts/pin-header.solidcraft"))],
             },
             ShippedGenerator {
+                name: "gull-wing".into(),
+                module: Arc::from(&bytes!("gull-wing/gull-wing.wasm")[..]),
+                parts: vec![
+                    part(bytes!("gull-wing/parts/gull-wing-four-sided.solidcraft")),
+                    part(bytes!("gull-wing/parts/gull-wing-two-sided.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
                 name: "tht".into(),
                 module: Arc::from(&bytes!("tht/tht.wasm")[..]),
                 parts: vec![

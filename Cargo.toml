@@ -17,6 +17,7 @@ members = [
     "crates/kicad",
     "generators/chip",
     "generators/grid",
+    "generators/gull-wing",
     "generators/header",
     "generators/molded",
     "generators/no-lead",
