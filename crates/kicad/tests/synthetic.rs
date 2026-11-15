@@ -400,3 +400,63 @@ fn a_definition_frame_is_independent_of_placement() -> Fallible<()> {
     ));
     Ok(())
 }
+
+/// Run 7, finding 1: a resistor, an LED and a capacitor whose KiCad
+/// footprints have equal pads but different names stay three components,
+/// each under its own footprint's name, and three BOM lines; two copies
+/// of one footprint still share one.
+#[test]
+fn distinct_footprints_with_equal_pads_stay_distinct() -> Fallible<()> {
+    let pads = || {
+        vec![
+            Pad::smd("1", "roundrect", [-0.95, 0.0, 0.0], [0.9, 1.3])
+                .with("(roundrect_rratio 0.25)"),
+            Pad::smd("2", "roundrect", [0.95, 0.0, 0.0], [0.9, 1.3])
+                .with("(roundrect_rratio 0.25)"),
+        ]
+    };
+    let part = |name: &str, reference: &str, x: f64| {
+        let mut fp = Footprint::new(reference, [x, 10.0, 0.0], false, pads());
+        fp.name = name.to_owned();
+        fp
+    };
+    let board = Board {
+        copper: 2,
+        origin: None,
+        setup: String::new(),
+        footprints: vec![
+            part("Lib:R_0805", "R1", 10.0),
+            part("Lib:LED_0805", "D1", 15.0),
+            part("Lib:C_0805", "C1", 20.0),
+            part("Lib:R_0805", "R2", 25.0),
+        ],
+        items: String::new(),
+    };
+    let imported = import(board.text().as_bytes())?;
+    assert_eq!(imported.report.counts.definitions, 3);
+    let project = imported.engine.project();
+    let component = |designator: &str| -> Fallible<String> {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or(designator.to_owned())?;
+        Ok(project
+            .library
+            .component(instance.component)
+            .ok_or("component")?
+            .meta
+            .name
+            .clone())
+    };
+    assert_eq!(component("R1")?, "Lib:R_0805");
+    assert_eq!(component("D1")?, "Lib:LED_0805");
+    assert_eq!(component("C1")?, "Lib:C_0805");
+    assert_eq!(component("R2")?, "Lib:R_0805");
+    let bom = sparksmith_core::completeness::bom(project)?;
+    let lines: Vec<Vec<&str>> = bom
+        .lines
+        .iter()
+        .map(|l| l.designators.iter().map(String::as_str).collect())
+        .collect();
+    assert_eq!(lines, [vec!["C1"], vec!["D1"], vec!["R1", "R2"]]);
+    Ok(())
+}

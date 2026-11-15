@@ -114,6 +114,9 @@ impl Pad {
 }
 
 pub struct Footprint {
+    /// The footprint's `library:name`; footprints sharing one are one
+    /// KiCad footprint.
+    pub name: String,
     pub reference: String,
     pub at: [f64; 3],
     pub back: bool,
@@ -124,6 +127,7 @@ pub struct Footprint {
 impl Footprint {
     pub fn new(reference: &str, at: [f64; 3], back: bool, pads: Vec<Pad>) -> Self {
         Self {
+            name: "Synthetic:Part".to_owned(),
             reference: reference.to_owned(),
             at,
             back,
@@ -193,8 +197,8 @@ impl Board {
             let side = if fp.back { "B" } else { "F" };
             let _ = writeln!(
                 s,
-                "  (footprint \"Synthetic:{}\" (layer \"{side}.Cu\") (uuid \"{}\") (at {} {} {}){}",
-                fp.reference,
+                "  (footprint \"{}\" (layer \"{side}.Cu\") (uuid \"{}\") (at {} {} {}){}",
+                fp.name,
                 next(),
                 n(fp.at[0]),
                 n(fp.at[1]),

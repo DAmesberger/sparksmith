@@ -180,7 +180,10 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         .map(crate::sheets::symbols_by_reference)
         .unwrap_or_default();
     // Each footprint's pads in its own definition frame, with its KiCad
-    // symbol; equal definitions are shared.
+    // symbol; copies of one KiCad footprint (by its `library:name`) with
+    // equal pads and symbol share a definition. Distinct KiCad footprints
+    // never do, however alike their pads: identity is never inferred from
+    // geometry.
     let mut definitions: Vec<(Vec<Pad>, Option<crate::schematic::LibSymbol>)> = Vec::new();
     let mut by_key: BTreeMap<String, usize> = BTreeMap::new();
     let mut uses: Vec<usize> = Vec::with_capacity(board.footprints.len());
@@ -207,10 +210,13 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         let symbol = by_reference
             .get(&fp.reference.to_ascii_uppercase())
             .cloned();
-        let mut key = serde_json::to_string(&pads).map_err(|e| ImportError::Refused {
-            step: "footprint key",
-            reason: e.to_string(),
-        })?;
+        let mut key = format!("{:?}\u{0}", fp.lib_id);
+        key.push_str(
+            &serde_json::to_string(&pads).map_err(|e| ImportError::Refused {
+                step: "footprint key",
+                reason: e.to_string(),
+            })?,
+        );
         if let Some(symbol) = &symbol {
             key.push_str(&format!("{symbol:?}"));
         }
