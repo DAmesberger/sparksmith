@@ -815,6 +815,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 }),
                 mask: Opening::Default,
                 paste: Opening::Default,
+                number: None,
             }
         })
         .collect()
@@ -1199,6 +1200,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         courtyard,
         silk,
         assembly: land::assembly(body),
+        keepouts: Vec::new(),
     };
     let symbol = if d.symbol == Sym::Box {
         box_symbol(d.pins)

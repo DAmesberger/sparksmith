@@ -1148,6 +1148,8 @@ pub fn rename_net(project: &mut Project, net: Id, name: String) -> Result<()> {
 
 /// Direct edits may not change the membership of a routed net; the update
 /// planner previews and applies such changes with explicit track removal.
+/// The refusal names the routed nets and the first pin that would join or
+/// leave one (a placed part's pin landing on a wire joins it).
 pub fn protect_routed_nets(before: &Project, after: &Project) -> Result<()> {
     let routed: BTreeSet<Id> = before
         .tracks
@@ -1155,16 +1157,47 @@ pub fn protect_routed_nets(before: &Project, after: &Project) -> Result<()> {
         .map(|t| t.net)
         .chain(before.vias.iter().map(|v| v.net))
         .collect();
+    let mut names = Vec::new();
+    let mut pin = None;
     for id in routed {
         let a = before.net(id).map(|net| &net.terminals);
         let b = after.net(id).map(|net| &net.terminals);
-        if a != b {
-            return Err(conflict(
-                "This connectivity change affects routed copper. Review it first: the review lists the tracks and vias it removes.",
-            ));
+        if a == b {
+            continue;
         }
+        let name = before.net_name(id).to_owned();
+        let empty: Vec<Endpoint> = Vec::new();
+        let (a, b) = (a.unwrap_or(&empty), b.unwrap_or(&empty));
+        if pin.is_none() {
+            let joins = b
+                .iter()
+                .find(|t| !a.contains(t))
+                .map(|t| (*t, "joins", after));
+            let leaves = || {
+                a.iter()
+                    .find(|t| !b.contains(t))
+                    .map(|t| (*t, "leaves", before))
+            };
+            pin = joins.or_else(leaves).map(|(t, verb, project)| {
+                let who = wiring::describe(project, WireEnd::Terminal(t));
+                format!("{who} {verb} {name}")
+            });
+        }
+        names.push(name);
     }
-    Ok(())
+    if names.is_empty() {
+        return Ok(());
+    }
+    names.sort();
+    let nets = match names.len() {
+        1 => names[0].clone(),
+        2 => format!("{} and {}", names[0], names[1]),
+        n => format!("{}, {} and {} more", names[0], names[1], n - 2),
+    };
+    let pin = pin.map(|p| format!(" ({p})")).unwrap_or_default();
+    Err(conflict(&format!(
+        "This connectivity change affects routed copper on {nets}{pin}. Review it first: the review lists the tracks and vias it removes."
+    )))
 }
 
 /// Wire, occurrence, label and sheet records. Per-instance wiring rules

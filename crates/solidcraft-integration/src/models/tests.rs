@@ -770,6 +770,135 @@ fn grid_packages_build_from_their_generator_with_no_ball_where_a_position_is_emp
     Ok(())
 }
 
+/// An original synthetic LGA module: 16 × 20 mm, 3 mm high, pads on four
+/// sides at 1.0 mm, a 2 × 2 ground array turned 45°, two corner pads.
+fn lga_module() -> PackageForm {
+    use sparksmith_core::library::package_form::ModuleForm;
+    use sparksmith_core::library::package_form::module::{
+        AntennaKeepout, GroundPads, ModuleSide, PadRow, SinglePad,
+    };
+    let row = |side, count, first| PadRow {
+        side,
+        count,
+        first: pt(first),
+    };
+    let single = |number: &str, centre| SinglePad {
+        number: number.into(),
+        centre: pt(centre),
+        size: pt([0.8, 0.8]),
+    };
+    PackageForm::Module(Box::new(ModuleForm {
+        width_nm: nm(16.0),
+        length_nm: nm(20.0),
+        height_nm: nm(3.0),
+        pcb_thickness_nm: nm(0.8),
+        antenna_length_nm: nm(5.0),
+        can_size: pt([15.0, 14.0]),
+        can_centre: pt([0.0, -2.5]),
+        pitch_nm: nm(1.0),
+        pad_size_nm: [nm(0.8), nm(0.5)],
+        rows: vec![
+            row(ModuleSide::Left, 10, [-7.4, 3.5]),
+            row(ModuleSide::Bottom, 8, [-3.5, -9.4]),
+            row(ModuleSide::Right, 10, [7.4, -5.5]),
+            row(ModuleSide::Top, 8, [3.5, 4.4]),
+        ],
+        castellation_nm: nm(0.0),
+        land_width_nm: nm(0.5),
+        land_extend_nm: [nm(0.0), nm(0.0)],
+        ground: Some(GroundPads {
+            rows: 2,
+            cols: 2,
+            pitch: pt([2.0, 2.0]),
+            size: pt([1.2, 1.2]),
+            centre: pt([0.0, -2.5]),
+            rotation_mdeg: sparksmith_core::units::Angle::new(45_000).unwrap_or_default(),
+            number: "37".into(),
+        }),
+        singles: vec![single("38", [-7.4, -9.4]), single("39", [7.4, -9.4])],
+        keepout: Some(AntennaKeepout {
+            beyond_nm: [nm(0.0); 3],
+        }),
+    }))
+}
+
+/// Stored module packages build from the module generator's part files:
+/// each row pad gold on the seating plane over its lead point, bound to
+/// its terminal; every pad of the ground array bound to the ground
+/// terminal; the can nickel silver up to the seated height, clear of the
+/// antenna end; the board soldermask green at the outline; the antenna
+/// copper under the mask. On a castellated module each pad's plated notch
+/// is bound with it.
+#[test]
+fn module_packages_build_from_their_generator_with_every_pad_bound() -> Result<()> {
+    use sparksmith_core::library::package_form::ModuleForm;
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let form = lga_module();
+    let points = form.lead_points();
+    let (native, def) = built(form, 39)?;
+    let bound = |k: u32| -> Vec<&GeneratedBody> {
+        def.bodies
+            .iter()
+            .filter(|b| b.terminal == Some(k))
+            .collect()
+    };
+    for (k, p) in points.iter().take(36).enumerate() {
+        let k = u32::try_from(k + 1).unwrap_or(0);
+        let bodies = bound(k);
+        assert_eq!(bodies.len(), 1, "terminal {k}: {bodies:?}");
+        let c = centre(&native, &bodies[0].name)?;
+        near(c[0], p[0], "pad x");
+        near(c[1], p[1], "pad y");
+        let (lo, hi) = bounds(&native, &bodies[0].name)?;
+        near(lo[2], 0.0, "on the seating plane");
+        near(hi[2], 0.035, "pad thickness");
+        assert_eq!(bodies[0].material, MaterialId::Gold);
+    }
+    assert_eq!(bound(37).len(), 4, "the turned ground array");
+    assert!(bound(37).iter().all(|b| b.role == BodyRole::ExposedPad));
+    assert_eq!((bound(38).len(), bound(39).len()), (1, 1));
+    let by = |m: MaterialId| {
+        def.bodies
+            .iter()
+            .find(|b| b.material == m)
+            .ok_or_else(|| Error::Verification(format!("no {m:?} body")))
+    };
+    let can = by(MaterialId::NickelSilver)?;
+    assert_eq!(can.role, BodyRole::Other);
+    let (lo, hi) = bounds(&native, &can.name)?;
+    near(hi[2], 3.0, "can top");
+    near(lo[2], 0.835, "can on the board");
+    near(hi[1], 4.5, "clear of the antenna end");
+    let board = by(MaterialId::SolderMaskGreen)?;
+    let (lo, hi) = bounds(&native, &board.name)?;
+    near(hi[0] - lo[0], 16.0, "board width");
+    near(hi[1] - lo[1], 20.0, "board length");
+    assert_eq!(by(MaterialId::SolderMaskOverCopper)?.role, BodyRole::Other);
+    // Castellated: pin 1's land and its plated notch, both terminal 1, the
+    // plating in the −x edge's notch through the board; nine ground pads.
+    let (native, def) = built(PackageForm::Module(Box::new(ModuleForm::typical())), 39)?;
+    let one: Vec<&GeneratedBody> = def
+        .bodies
+        .iter()
+        .filter(|b| b.terminal == Some(1))
+        .collect();
+    assert_eq!(one.len(), 2, "{one:?}");
+    let plate = one
+        .iter()
+        .find(|b| b.name.contains("castellation"))
+        .ok_or_else(|| Error::Verification("no plating".into()))?;
+    let (lo, hi) = bounds(&native, &plate.name)?;
+    near(lo[0], -9.0, "plating at the edge");
+    assert!(hi[0] < -9.0 + 0.31, "{lo:?} {hi:?}");
+    near(hi[2] - lo[2], 0.8, "plating through the board");
+    assert_eq!(
+        def.bodies.iter().filter(|b| b.terminal == Some(39)).count(),
+        9,
+        "the ground array"
+    );
+    Ok(())
+}
+
 #[test]
 fn role_materials_override_the_family_defaults() -> Result<()> {
     let _context = crate::looks::test_context().map(|c| c.enter());

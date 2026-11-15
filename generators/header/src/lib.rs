@@ -341,6 +341,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 }),
                 mask: Opening::Default,
                 paste: Opening::Default,
+                number: None,
             }
         })
         .collect()
@@ -482,6 +483,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         courtyard,
         silk,
         assembly: land::assembly(body),
+        keepouts: Vec::new(),
     };
     let component_part = request.scope == Scope::Component;
     let name = format!("Pin header {}×{} {} mm", d.rows, d.columns, mm(d.pitch));

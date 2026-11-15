@@ -121,6 +121,7 @@ impl Generator for Fixture {
                     hole: None,
                     mask: Opening::Default,
                     paste: Opening::Default,
+                    number: None,
                 }],
                 courtyard: vec![
                     [-1_250_000, -1_250_000],
@@ -135,6 +136,7 @@ impl Generator for Fixture {
                     stroke_nm: 100_000,
                     fill: Fill::None,
                 }],
+                keepouts: Vec::new(),
             },
             binding: Vec::new(),
             model: Some(Model::PartFile {

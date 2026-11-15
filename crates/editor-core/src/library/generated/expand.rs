@@ -32,9 +32,9 @@ use crate::library::graphics::{
 use crate::library::package_model::PartValue;
 use crate::library::{
     BindingDefinition, ComponentDefinition, CornerMask, Definition, DrawingLayer,
-    FootprintDefinition, Hole, HoleShape, MaskRule, ModelPlacement, Outline, PackageDefinition,
-    PackageForm, PackageModel, PackageTerminal, Pad, PadKind, PadShape, PadSide, PasteRule,
-    Segment, SymbolDefinition, Terminal, TerminalClass, TerminalMap, Unit,
+    FootprintDefinition, FootprintKeepout, Hole, HoleShape, KeepoutScope, MaskRule, ModelPlacement,
+    Outline, PackageDefinition, PackageForm, PackageModel, PackageTerminal, Pad, PadKind, PadShape,
+    PadSide, PasteRule, Segment, SymbolDefinition, Terminal, TerminalClass, TerminalMap, Unit,
 };
 use crate::units::{Angle, ArcDirection, MILLIDEGREES_PER_TURN, Nm, PointNm};
 use schemars::JsonSchema;
@@ -653,7 +653,7 @@ fn footprint(
             terminal: Some(PackageTerminalId(
                 terminals.of(&format!("t:{}", pad.terminal), "package terminal")?,
             )),
-            number: pad.key.clone(),
+            number: pad.number.clone().unwrap_or_else(|| pad.key.clone()),
             position: point(pad.at)?,
             rotation_mdeg: rotation,
             side: match pad.side {
@@ -723,6 +723,31 @@ fn footprint(
         polarity: None,
         datum: Default::default(),
         defaults: Default::default(),
-        keepouts: Vec::new(),
+        keepouts: source.keepouts.iter().map(keepout).collect::<Result<_>>()?,
+    })
+}
+
+/// A generated copper keep-out: its polygon on every copper layer.
+fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
+    let mm = |p: &v1::Point| point(*p).map(PointNm::to_mm_f64);
+    let Some(first) = k.outline.first() else {
+        return Err(refused(format!(
+            "the keep-out \"{}\" has no points",
+            k.name
+        )));
+    };
+    let start = mm(first)?;
+    let mut segments = k
+        .outline
+        .iter()
+        .skip(1)
+        .map(|p| Ok(Segment::Line { to: mm(p)? }))
+        .collect::<Result<Vec<_>>>()?;
+    segments.push(Segment::Line { to: start });
+    Ok(FootprintKeepout {
+        name: k.name.clone(),
+        outline: Outline { start, segments },
+        scope: KeepoutScope::AllCopper,
+        forbid_pads: false,
     })
 }

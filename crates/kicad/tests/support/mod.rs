@@ -114,7 +114,12 @@ impl Pad {
 }
 
 pub struct Footprint {
+    /// The footprint's `library:name`; footprints sharing one are one
+    /// KiCad footprint.
+    pub name: String,
     pub reference: String,
+    /// Its Value property, when it has one.
+    pub value: Option<String>,
     pub at: [f64; 3],
     pub back: bool,
     pub extra: String,
@@ -124,7 +129,9 @@ pub struct Footprint {
 impl Footprint {
     pub fn new(reference: &str, at: [f64; 3], back: bool, pads: Vec<Pad>) -> Self {
         Self {
+            name: "Synthetic:Part".to_owned(),
             reference: reference.to_owned(),
+            value: None,
             at,
             back,
             extra: String::new(),
@@ -193,8 +200,8 @@ impl Board {
             let side = if fp.back { "B" } else { "F" };
             let _ = writeln!(
                 s,
-                "  (footprint \"Synthetic:{}\" (layer \"{side}.Cu\") (uuid \"{}\") (at {} {} {}){}",
-                fp.reference,
+                "  (footprint \"{}\" (layer \"{side}.Cu\") (uuid \"{}\") (at {} {} {}){}",
+                fp.name,
                 next(),
                 n(fp.at[0]),
                 n(fp.at[1]),
@@ -207,6 +214,13 @@ impl Board {
                 fp.reference,
                 next()
             );
+            if let Some(value) = &fp.value {
+                let _ = writeln!(
+                    s,
+                    "    (property \"Value\" \"{value}\" (at 0 2 0) (layer \"{side}.Fab\") (hide yes) (uuid \"{}\") (effects (font (size 1 1) (thickness 0.15))))",
+                    next()
+                );
+            }
             for pad in &fp.pads {
                 let _ = writeln!(
                     s,

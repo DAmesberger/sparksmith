@@ -73,6 +73,8 @@ The grid generator (phase C) makes BGA, WLCSP and LGA parts, full or with empty 
 
 The tabbed generator (phase C) ships three part files, one per outline class (`tabbed-rows`, `tabbed-tab-lead`, `tabbed-flange`), parametric in their lead counts, grid steps and lead profile; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-tabbed-14-november-2026)).
 
+The module generator (phase C) makes radio and processor modules: pad rows on up to eight sides' slots (castellated or LGA), a ground array turned by any multiple of 45°, single pads and the antenna keep-out as a footprint keep-out. It ships four part files (LGA or castellated, ground array along the axes or turned 45°) that park what a module lacks beyond its −x edge and cut it away; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-module-15-november-2026)).
+
 The chip generator ships four part files (resistor, capacitor, ferrite or inductor, LED), saved from the in-code chip builder's construction (`cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`); evaluated at the module's values they equal the builder to 0 mm in bounds and volume for resistors and capacitors 0402–1206, a ferrite bead 0603 and an LED 0603 (`models::chip_part_tests`).
 
 ## ABI 1 changes
@@ -84,6 +86,7 @@ ABI 1 is open to change until the first release; each change is listed here, and
 | 11 November 2026 | GP0 | First version. | — |
 | 14 November 2026 | GP2 | `Description.version` (required, from 1). `Generation.model` required; `Model::PartFile { asset, values }` defined (a bundled part file by SHA-256, integer values). Modules ship as bundles (`library/generators/<name>/`). New refusal codes `generator.invalid_model`, and `generator.invalid_description` for version 0. | A module built before GP2 is refused (no version, no model). The chip module's hash and every golden result hash changed; the lock was rewritten on macOS aarch64, which dropped the Linux x86_64 hash (the CI runner); record it again there. |
 | 14 November 2026 | B1, B3, B4, S8 | The one plugin ABI: exports `sparksmith_abi`, `sparksmith_alloc`, `sparksmith_describe`, `sparksmith_invoke` (the `Invoke` envelope); the optional imports `sparksmith.call`, `log`, `cancelled`, answered as a pure invoke; the description format with capabilities, effects and needs (`id` and `title` replace `id_hint` and `name`). `Graphic.key`. `Primitive::Arc { center, start, end, clockwise }` with exact ends. Floats refused; the codec without `serde_json`. Part key by generator id. New refusal codes `generator.float`, `capability.unknown`. | Every older module is refused (`generator.missing_export`); file version 3 detaches parts recorded by one. The chip module shrank to 234 868 bytes; its hash and every golden result hash changed; the lock was rewritten on macOS aarch64, which dropped the Linux x86_64 hash: record it again there (it should now equal the macOS hash, see "Reproducibility"). |
+| 15 November 2026 | Module (phase C) | Optional `Footprint.keepouts` (copper keep-outs: a name and a polygon) and `Pad.number` (the shown number when pads share one), both left out when empty. | Other generators' results and golden hashes unchanged; every module's bytes changed (the SDK's code) and every bundle was reshipped. A crate building `Footprint { .. }` or `Pad { .. }` adds `keepouts: Vec::new()` and `number: None`. |
 
 ## Build and check
 
@@ -127,6 +130,7 @@ Measured with `cargo xtask generators measure` on an Apple M-series Mac, macOS, 
 | molded (14 November 2026) | 228 961 | as chip |
 | tht (14 November 2026) | 261 313 | as chip |
 | grid (15 November 2026) | 237 788 | as chip |
+| module (15 November 2026) | 266 517 | as chip |
 | tabbed (14 November 2026) | 233 846 | as chip |
 | probe (host for wasm32, test only) | 1 772 010 | — |
 

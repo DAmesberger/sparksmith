@@ -760,13 +760,30 @@ pub struct Footprint {
     pub courtyard: Vec<Point>,
     pub silk: Vec<Graphic>,
     pub assembly: Vec<Graphic>,
+    /// Areas of the host board kept free of copper on every copper layer
+    /// (no fills, tracks or vias): a radio module's antenna clearance.
+    /// Optional, so a generation without one encodes as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub keepouts: Vec<Keepout>,
+}
+
+/// A copper keep-out of the host board under a footprint: a closed polygon
+/// in the footprint frame, applying to every copper layer.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Keepout {
+    /// Its name in the user's words, e.g. "antenna".
+    pub name: String,
+    /// The outline, at least three points, closed back to the first.
+    pub outline: Vec<Point>,
 }
 
 /// A pad.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Pad {
-    /// The pad number shown, also its generation key.
+    /// The pad's generation key, unique in the footprint; also the number
+    /// shown unless [`Pad::number`] gives one.
     pub key: String,
     /// The package terminal it lands.
     pub terminal: String,
@@ -778,6 +795,11 @@ pub struct Pad {
     pub hole: Option<Hole>,
     pub mask: Opening,
     pub paste: Opening,
+    /// The number shown when several pads share one (a module's ground
+    /// array: nine pads numbered "95", each with its own key); the key
+    /// when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub number: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

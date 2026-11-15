@@ -21,8 +21,8 @@
 //! is a sketch drawn from the form when the model is built.
 //!
 //! A family whose builder has given way to its shipped generator (the pin
-//! header, gull-wing, tabbed, no-lead, molded two-terminal, grid and
-//! through-hole families, phase C of
+//! header, gull-wing, tabbed, no-lead, molded two-terminal, grid,
+//! through-hole and module families, phase C of
 //! docs/design/part-generation-plan.md) builds from the generator's part
 //! file instead ([`family`]), behind the same functions; the USB-C
 //! receptacle, one shipped part rather than a family, from the shipped
@@ -35,10 +35,8 @@ pub mod gltf_ext;
 pub mod imported;
 pub mod inspect;
 pub mod look;
-mod module;
 pub mod named;
 pub mod part_file;
-mod profile;
 
 use crate::material::BodyKind;
 use crate::native::{BoxBody, Expr, Native};
@@ -78,9 +76,9 @@ pub fn family_rev(form: &PackageForm) -> Option<u16> {
         | PackageForm::NoLead(_)
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
-        | PackageForm::Grid(_) => Some(family::FAMILY_REV),
+        | PackageForm::Grid(_)
+        | PackageForm::Module(_) => Some(family::FAMILY_REV),
         PackageForm::Tht(_) => Some(family::FAMILY_REV),
-        PackageForm::Module(_) => module::FAMILY_REV,
         PackageForm::UsbC(_) => Some(family::FAMILY_REV),
     }
 }
@@ -232,9 +230,9 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
         | PackageForm::NoLead(_)
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
-        | PackageForm::Grid(_) => Ok(()),
+        | PackageForm::Grid(_)
+        | PackageForm::Module(_) => Ok(()),
         PackageForm::Tht(_) => Ok(()),
-        PackageForm::Module(f) => module::check(f),
         // Built from the shipped library part file (`family`).
         PackageForm::UsbC(_) => Ok(()),
         PackageForm::Generic => Ok(()),
@@ -268,13 +266,13 @@ fn build_bodies(
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
         | PackageForm::Grid(_)
-        | PackageForm::Tht(_) => {
+        | PackageForm::Tht(_)
+        | PackageForm::Module(_) => {
             return Err(Error::Invalid(format!(
                 "model.generator: {} models are built from their shipped generator",
                 package.form.label()
             )));
         }
-        PackageForm::Module(f) => module::build(&mut b, f)?,
         PackageForm::UsbC(_) => {
             return Err(Error::Invalid(
                 "model.part_file: USB-C receptacle models are built from the shipped library part file"
@@ -383,47 +381,6 @@ impl Build<'_> {
         self.native.fillet(&feature, body, edges, Expr::from(r))
     }
 
-    /// Record bodies a pattern added (its originals are already recorded).
-    fn push_copies(&mut self, all: &[String], role: BodyRole, material: MaterialId) {
-        for name in all {
-            if !self.bodies.iter().any(|b| &b.name == name) {
-                self.push(name.clone(), role, material);
-            }
-        }
-    }
-
-    /// The centre of a body's box in the definition, as evaluated now.
-    fn centre(&self, name: &str) -> Result<[f64; 3]> {
-        let state = self.native.session().model.state();
-        let body = state
-            .body(name)
-            .ok_or_else(|| Error::Verification(format!("model.build: no body {name}")))?;
-        let b = body.outline_bounds();
-        Ok([
-            (b.min.x + b.max.x) / 2.0,
-            (b.min.y + b.max.y) / 2.0,
-            (b.min.z + b.max.z) / 2.0,
-        ])
-    }
-
-    /// Number `rows` of lead bodies in order: each row sorted along its
-    /// direction (`axis`, `ascending`). Returns the names in lead order.
-    fn order(&self, rows: &[(Vec<String>, usize, bool)]) -> Result<Vec<String>> {
-        let mut out = Vec::new();
-        for (names, axis, ascending) in rows {
-            let mut keyed = names
-                .iter()
-                .map(|n| Ok((self.centre(n)?[*axis], n.clone())))
-                .collect::<Result<Vec<_>>>()?;
-            keyed.sort_by(|a, b| a.0.total_cmp(&b.0));
-            if !ascending {
-                keyed.reverse();
-            }
-            out.extend(keyed.into_iter().map(|(_, n)| n));
-        }
-        Ok(out)
-    }
-
     /// Give the bodies in `ordered` lead numbers 1, 2, … (kept on the
     /// bodies until [`Self::assign_terminals`] binds them).
     fn number(&mut self, ordered: &[String]) {
@@ -436,7 +393,7 @@ impl Build<'_> {
 
     /// Bind lead numbers to the package's terminals in their listed
     /// order, when the package lists exactly one terminal per lead number
-    /// (several bodies may share one: a module's ground pads); otherwise
+    /// (several bodies may share one); otherwise
     /// the bodies keep no terminal (never guessed).
     fn assign_terminals(&mut self, package: &PackageDefinition) {
         let numbered = self

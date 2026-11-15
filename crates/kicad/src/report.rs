@@ -581,6 +581,21 @@ pub struct LooserRule {
     pub profile_mm: f64,
 }
 
+/// A net class pattern not taken ([`Case::NetClassPatternRefused`]): the
+/// pattern as the project file has it, and why.
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct RefusedPattern {
+    pub pattern: String,
+    pub reason: &'static str,
+}
+
+impl RefusedPattern {
+    /// "+5*: its class was not imported".
+    pub fn line(&self) -> String {
+        format!("{}: {}", self.pattern, self.reason)
+    }
+}
+
 impl LooserRule {
     /// "min drill: KiCad 0.2 mm, fab profile 0.3 mm (min_through_hole_diameter)".
     pub fn line(&self) -> String {
@@ -641,6 +656,7 @@ pub struct Report {
     rows: BTreeMap<Case, usize>,
     details: Vec<Detail>,
     looser: Vec<LooserRule>,
+    patterns: Vec<RefusedPattern>,
 }
 
 impl Report {
@@ -675,6 +691,22 @@ impl Report {
         if self.looser.len() < MAX_DETAILS {
             self.looser.push(rule);
         }
+    }
+
+    /// A net class pattern not taken, counted and named with its reason.
+    pub fn refused_pattern(&mut self, pattern: &str, reason: &'static str) {
+        self.add(Case::NetClassPatternRefused);
+        if self.patterns.len() < MAX_DETAILS {
+            self.patterns.push(RefusedPattern {
+                pattern: pattern.to_owned(),
+                reason,
+            });
+        }
+    }
+
+    /// The net class patterns not taken, in the project file's order.
+    pub fn refused_patterns(&self) -> &[RefusedPattern] {
+        &self.patterns
     }
 
     /// The limits not taken, in the order the project file's rules were read.
@@ -765,8 +797,9 @@ impl Report {
     }
 
     /// [`Self::summary`] with each rule not taken named under its count,
-    /// with the KiCad and fab profile values: for the person importing
-    /// their own project.
+    /// with the KiCad and fab profile values, and each net class pattern
+    /// not taken with its reason: for the person importing their own
+    /// project.
     pub fn summary_named(&self) -> String {
         let mut out = String::new();
         for line in self.summary().lines() {
@@ -775,6 +808,11 @@ impl Report {
             if line.contains("looser than the fab profile") && line.ends_with("not taken") {
                 for rule in &self.looser {
                     out.push_str(&format!("    {}\n", rule.line()));
+                }
+            }
+            if line.ends_with(Case::NetClassPatternRefused.describe().2) {
+                for pattern in &self.patterns {
+                    out.push_str(&format!("    {}\n", pattern.line()));
                 }
             }
         }
@@ -788,6 +826,7 @@ impl Report {
             "counts": self.counts,
             "rows": self.rows(),
             "looser_rules": self.looser,
+            "refused_patterns": self.patterns,
             "details": self.details,
         })
     }
