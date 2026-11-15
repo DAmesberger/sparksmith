@@ -572,12 +572,8 @@ fn the_pinout_applies_without_a_base_or_with_it_as_text() -> Fallible {
             "library_pinout_preview",
             &json!({"target": {"target": "new", "name": "EXR-22"}}),
         ))?;
-        // A base a double would round reaches the model as text.
-        let exact = match &plan["base"] {
-            Value::String(text) => text.parse::<u64>()?,
-            other => other.as_u64().ok_or("a base")?,
-        };
-        assert_eq!(plan["base"].is_string(), exact > (1u64 << 53));
+        // The base reaches the model as text, which a double cannot round.
+        let exact = plan["base"].as_str().ok_or("a base")?.parse::<u64>()?;
         let input = match base {
             None => json!({}),
             Some("text") => json!({"base": exact.to_string()}),

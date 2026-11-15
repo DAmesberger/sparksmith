@@ -352,6 +352,7 @@ fn write_readability_pictures() -> TestResult {
     let base = match engine.query(sparksmith_core::Query::PinoutPreview {
         target: target.clone(),
         document: Box::new(document.clone()),
+        detail: false,
     })? {
         sparksmith_core::QueryResult::PinoutPlan(plan) => plan.base,
         other => return Err(format!("unexpected {other:?}").into()),

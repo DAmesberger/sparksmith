@@ -28,18 +28,21 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 use v1::Description;
 
-/// `library.generate_part`.
+/// `library.generate_part`. Required: `scope`, and `generator` or
+/// `module` (exactly one); the rest is optional.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratePartParams {
-    /// A shipped generator by name (`library.generators`), e.g. `chip`.
+    /// Required unless `module` is given: a shipped generator by name
+    /// (`library.generators`), e.g. `chip`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generator: Option<String>,
-    /// Or a module this project embeds, by its SHA-256.
+    /// Required unless `generator` is given: a module this project embeds,
+    /// by its SHA-256.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub module: Option<ContentHash>,
-    /// `component` (component, symbol, package, footprint and binding) or
-    /// `package` (package and footprint).
+    /// Required. `component` (component, symbol, package, footprint and
+    /// binding) or `package` (package and footprint).
     pub scope: GeneratorScope,
     /// A preset of the module (`library.generators` lists them), whose
     /// values `params` override.
@@ -59,6 +62,95 @@ pub struct GeneratePartParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replaces: Option<DefinitionRef>,
     pub expected_revision: u64,
+}
+
+/// The longest name, family or text `library.generators` filters by, in
+/// bytes.
+const MAX_FILTER: usize = 128;
+
+/// `library.generators`: which shipped generators to list, and how much of
+/// each. Without filters every one is listed; without `generator` or
+/// `detail`, each by name, title, families, scopes, version and its
+/// presets' keys and names.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratorsParams {
+    /// One shipped generator by name or id, e.g. `gull-wing`: listed in
+    /// full, with its parameters, rules and presets with their values.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generator: Option<String>,
+    /// Only generators that make this family, e.g. `no_lead`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<String>,
+    /// Only generators whose name, title, families or a preset's key, name
+    /// or alias contain this text, ignoring case, e.g. `SOT-23`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// Every listed generator in full: parameters, rules and presets with
+    /// their values.
+    #[serde(default)]
+    pub detail: bool,
+}
+
+impl GeneratorsParams {
+    fn check(&self) -> Result<()> {
+        for (what, given) in [
+            ("generator", &self.generator),
+            ("family", &self.family),
+            ("text", &self.text),
+        ] {
+            if given.as_ref().is_some_and(|g| g.len() > MAX_FILTER) {
+                return Err(invalid(format!("{what} is longer than {MAX_FILTER} bytes")));
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether `shipped` passes every filter given.
+    fn keeps(&self, shipped: &ShippedGenerator) -> bool {
+        let summary = shipped.description.as_ref();
+        let named = self
+            .generator
+            .as_ref()
+            .is_none_or(|n| shipped.name == *n || summary.is_some_and(|d| d.generator == *n));
+        let family = self.family.as_ref().is_none_or(|f| {
+            summary.is_some_and(|d| d.families.iter().any(|g| g.eq_ignore_ascii_case(f)))
+        });
+        let text = self.text.as_ref().is_none_or(|t| {
+            let wanted = t.to_lowercase();
+            let has = |s: &str| s.to_lowercase().contains(&wanted);
+            has(&shipped.name)
+                || summary.is_some_and(|d| {
+                    has(&d.name)
+                        || d.families.iter().any(|f| has(f))
+                        || d.presets.iter().any(|p| {
+                            has(&p.key) || has(&p.name) || p.aliases.iter().any(|a| has(a))
+                        })
+                })
+        });
+        named && family && text
+    }
+}
+
+/// A shipped generator as the default listing gives it: what a caller
+/// needs to pick one, and the presets by key and name.
+fn listed(shipped: &ShippedGenerator) -> Value {
+    let mut out = serde_json::json!({"name": shipped.name});
+    if let Some(d) = &shipped.description {
+        out["title"] = Value::from(d.name.clone());
+        out["families"] = serde_json::json!(d.families);
+        out["scopes"] = serde_json::json!(d.scopes);
+        out["version"] = Value::from(d.version);
+        out["presets"] = d
+            .presets
+            .iter()
+            .map(|p| serde_json::json!({"key": p.key, "name": p.name}))
+            .collect();
+    }
+    if let Some(refused) = &shipped.refused {
+        out["refused"] = Value::from(refused.clone());
+    }
+    out
 }
 
 fn invalid(message: String) -> crate::Error {
@@ -280,8 +372,31 @@ impl Session {
         Ok(reply)
     }
 
-    pub(super) fn generators(&self) -> Result<Value> {
-        Ok(serde_json::to_value(self.generators_report()?)?)
+    /// `library.generators`: the report, its shipped list filtered, and
+    /// in full only for one named generator or with `detail`.
+    pub(super) fn generators(&self, params: &GeneratorsParams) -> Result<Value> {
+        params.check()?;
+        let mut report = self.generators_report()?;
+        let names: Vec<String> = report.shipped.iter().map(|g| g.name.clone()).collect();
+        report.shipped.retain(|g| params.keeps(g));
+        if let Some(name) = &params.generator
+            && report.shipped.is_empty()
+        {
+            return Err(crate::Error::Document(sparksmith_core::Error::NotFound(
+                format!(
+                    "no shipped generator {name} matches: the generators are {}",
+                    names.join(", ")
+                ),
+            )));
+        }
+        let mut value = serde_json::to_value(&report)?;
+        if !params.detail && params.generator.is_none() {
+            value["shipped"] = report.shipped.iter().map(listed).collect();
+            value["detail"] = Value::from(
+                "library.generators {generator: <name>} gives one generator's parameters, rules and presets with their values",
+            );
+        }
+        Ok(value)
     }
 
     /// `library.generators` as typed data: what the desktop reads to build
@@ -397,7 +512,10 @@ pub fn runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
 pub struct GeneratorsReport {
     /// The modules the program ships (`library/generators/`).
     pub shipped: Vec<ShippedGenerator>,
-    /// Where the shipped library is.
+    /// Where the shipped library is, for the host. Never on the wire: a
+    /// reply reaches models and their transcripts, and the host's paths
+    /// are private.
+    #[serde(skip)]
     pub shipped_library: Option<String>,
     /// The modules this project embeds.
     pub embedded: Vec<EmbeddedGenerator>,

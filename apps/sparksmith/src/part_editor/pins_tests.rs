@@ -954,6 +954,7 @@ fn mcu_paste_has_no_combination_findings() -> TestResult {
                 row: None,
             },
             document: Box::new(document.clone()),
+            detail: true,
         }) {
             Ok(sparksmith_core::QueryResult::PinoutPlan(plan)) => plan,
             other => return Err(format!("unexpected {other:?}")),

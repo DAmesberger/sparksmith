@@ -85,8 +85,17 @@ pub struct OpenParams {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InspectParams {
-    /// A JSON pointer into the snapshot, such as `/project/vias` or
-    /// `/project/nets`: just what it names is returned.
+    /// A JSON pointer (RFC 6901) into the snapshot that `verbose: true`
+    /// returns; just what it names is returned. Its top-level keys are
+    /// `revision`, `project`, `drafts`, `can_undo`, `can_redo`, `erc` and
+    /// `board_checks`. A list is indexed by position from 0, not by id:
+    /// `/drafts` lists each draft as `{draft, check}` in order, so
+    /// `/drafts/0/draft` is the first draft (its `id` is the draft id),
+    /// `/drafts/0/draft/definition/body/pads/0` a footprint draft's first
+    /// pad and `/drafts/0/check` its publish findings. Others:
+    /// `/project/vias`, `/project/nets`, `/project/library`. A pointer
+    /// that names nothing is refused with the keys or indices valid where
+    /// it stopped matching.
     #[serde(default)]
     pub at: Option<String>,
 }
@@ -436,7 +445,7 @@ pub enum Request {
     PartFiles(NoParams),
     /// GP1: shipped and embedded generator modules and generated parts.
     #[serde(rename = "library.generators")]
-    Generators(NoParams),
+    Generators(generators::GeneratorsParams),
     /// GP1: make a part with a generator module (`library.generate`).
     #[serde(rename = "library.generate_part")]
     GeneratePart(generators::GeneratePartParams),
@@ -641,7 +650,7 @@ impl Request {
             info::<InspectParams>(
                 "project.inspect",
                 "Read the revision, object counts, drafts and open findings; at reads one part of the document.",
-                "Return the revision, object counts, each draft's state and open findings by code. verbose: true returns the whole snapshot (project, drafts with their publish findings, ERC and board-check findings; about 0.5 MB on a small board); at: a JSON pointer into it (/project/vias, /project/nets) returns just what it names.",
+                "Return the revision, object counts, each draft's state and open findings by code. verbose: true returns the whole snapshot (project, drafts with their publish findings, ERC and board-check findings; about 0.5 MB on a small board); at: a JSON pointer into it returns just what it names, with lists indexed by position: /project/vias, /project/nets, /drafts (each {draft, check}), /drafts/0/draft/definition/body/pads/0. A pointer that names nothing is refused with the valid keys or indices where it stopped.",
             ),
             info::<SchemaParams>(
                 "project.schema",
@@ -827,14 +836,14 @@ impl Request {
                 "List the SolidCraft part files this project can place or use.",
                 "List the SolidCraft part files this project can place or use (docs/mechanical-parts.md): the built-ins (name, title, summary, designator prefix, kind pads, mechanical or package, parameters with units and defaults, licence) and the project's Models of format solidcraft (model, name, file, licence). Not a document change.",
             ),
-            info::<NoParams>(
+            info::<generators::GeneratorsParams>(
                 "library.generators",
-                "List generator modules (shipped and embedded) and the project's generated parts.",
-                "List the generator modules that ship with the program (name, module SHA-256, parameters with types, defaults and the project setting that fills them, presets, scopes), the modules this project embeds, and its generated parts, each with its part key (module and parameters hashes), result hash, generator version and state: current (the shipped module of its generator is this one or the same version), update_available (a newer version ships: library.generate_part with the same parameters makes the next revision of the part), shipped_older (the shipped version is older; the part is never downgraded), superseded (a newer version already made the next revision of this part) or not_shipped (the embedded copy is the only one). Not a document change.",
+                "List generator modules (shipped and embedded) and the project's generated parts; generator: <name> for one in full.",
+                "List the generator modules that ship with the program, filtered by generator (a name), family or text: by default each by name, title, families, scopes, version and preset keys and names; with generator or detail: true in full (module SHA-256, parameters with types, defaults and the project setting that fills them, rules, presets with their values), the modules this project embeds, and its generated parts, each with its part key (module and parameters hashes), result hash, generator version and state: current (the shipped module of its generator is this one or the same version), update_available (a newer version ships: library.generate_part with the same parameters makes the next revision of the part), shipped_older (the shipped version is older; the part is never downgraded), superseded (a newer version already made the next revision of this part) or not_shipped (the embedded copy is the only one). Not a document change.",
             ),
             info::<generators::GeneratePartParams>(
                 "library.generate_part",
-                "Make a part (component or package) with a generator module, e.g. a chip resistor 0603.",
+                "Make a part (component or package) with a generator module, e.g. a chip resistor 0603; requires scope and generator or module.",
                 "Make a part with a generator module, through library.generate in one undo step at expected_revision: generator (a shipped name) or module (an embedded SHA-256), scope component (component, symbol, package, footprint, binding) or package, an optional preset and params (lengths in integer nm, angles in integer millidegrees; the rest from project settings and the module's defaults). The module is embedded once by hash, so the project reopens without the generator folder; a part the project already holds with the same key, or that the same generator version made from the same parameters, is returned unchanged (created: false). A newer version of the generator that made a part with the same parameters makes the next revisions of the same lineages (replaced names the old root), and the reply carries update, the project.preview_update plan that moves the placed instances (apply it with project.apply_update); an older version is refused (generated.older_version). Refusals name the module's own problems (param.*) or the host's (generator.*); nothing changes.",
             ),
             info::<mechanical_parts::PlacePartFileParams>(
@@ -1315,7 +1324,7 @@ impl Session {
             Request::UsePartFile(params) => return self.use_part_file(params),
             Request::SetPartValues(params) => return self.set_part_values(params),
             Request::PartFiles(_) => return self.part_files(),
-            Request::Generators(_) => return self.generators(),
+            Request::Generators(params) => return self.generators(&params),
             Request::GeneratePart(params) => return self.generate_part(params),
             Request::PlacePartFile(params) => return self.place_part_file(*params),
             Request::SetPartFileValues(params) => return self.set_part_file_values(params),

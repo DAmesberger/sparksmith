@@ -147,10 +147,7 @@ pub fn add_peripheral(component: &mut ComponentDefinition) -> Result<ResourceId,
 }
 
 /// Add a role to a peripheral with a fresh ID.
-pub fn add_role(
-    component: &mut ComponentDefinition,
-    resource: ResourceId,
-) -> Result<(), &'static str> {
+pub fn add_role(component: &mut ComponentDefinition, resource: ResourceId) -> Result<(), String> {
     let count = component
         .resources
         .iter()
@@ -158,7 +155,7 @@ pub fn add_role(
         .map(|r| r.roles.len())
         .ok_or("No such peripheral")?;
     if count >= MAX_ROLES {
-        return Err("A peripheral has at most 16 roles");
+        return Err(format!("A peripheral has at most {MAX_ROLES} roles"));
     }
     let id = RoleId(allocate_local(component).ok_or("Role identity exhausted")?);
     let resource = component
@@ -690,6 +687,7 @@ impl PartEditor {
                         let query = Query::PinoutPreview {
                             target,
                             document: Box::new(document.clone()),
+                            detail: true,
                         };
                         match engine.query(query) {
                             Ok(QueryResult::PinoutPlan(plan)) => {

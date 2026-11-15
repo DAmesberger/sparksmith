@@ -67,11 +67,13 @@ fn stage(
     Ok(staged)
 }
 
-/// `library.pinout_preview`.
+/// `library.pinout_preview`: in full with `detail`, else compact
+/// ([`PinoutPlan::compact`]).
 pub(crate) fn preview(
     document: &Document,
     target: &PinoutTarget,
     pinout: &PinoutDocument,
+    detail: bool,
 ) -> Result<PinoutPlan> {
     let base = pinout::base_token(&document.project.library, &document.drafts, target)?;
     let mut scratch = document.clone();
@@ -100,13 +102,24 @@ pub(crate) fn preview(
             _ => None,
         })
         .unwrap_or_default();
-    Ok(PinoutPlan {
+    let mut change_counts = std::collections::BTreeMap::new();
+    for change in &staged.changes {
+        *change_counts
+            .entry(format!("{} {}", change.object, change.kind.name()))
+            .or_default() += 1;
+    }
+    let plan = PinoutPlan {
         base,
+        change_counts,
         changes: staged.changes,
         findings,
         review: staged.review,
+        finding_groups: Vec::new(),
+        review_groups: Vec::new(),
         rules,
-    })
+        detail: true,
+    };
+    Ok(if detail { plan } else { plan.compact() })
 }
 
 /// Drop exact repeats, keeping the first.

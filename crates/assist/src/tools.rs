@@ -236,7 +236,9 @@ pub fn execute(
             )
         }
         "library_package_schema" => return reply(package_schema(), false, None),
-        "library_templates" => json!({"command": "library.generators", "params": {}}),
+        "library_templates" => {
+            json!({"command": "library.generators", "params": {"detail": true}})
+        }
         "library_package_plan" | "library_package_from_template" => {
             let request = match package_request(session, revision, &input["request"]) {
                 Ok(params) => library("library.package_from_generator", params),
@@ -683,7 +685,7 @@ fn preview(
         policy,
         json!({"command": "project.query", "params": {
             "query": "library.pinout_preview",
-            "params": {"target": input["target"], "document": document},
+            "params": {"target": input["target"], "document": document, "detail": true},
         }}),
     );
     if response["ok"] != true {
@@ -713,11 +715,13 @@ fn apply_inputs(workspace: &Workspace, input: &Value) -> Result<(Value, Value, V
         return Err("the working document changed since the last preview; preview it again".into());
     }
     let given = &input["base"];
-    let same = match given {
-        Value::Null => true,
-        Value::String(text) => text.trim().parse::<u64>().ok() == base.as_u64(),
-        other => other == base,
+    // The plan writes its base as a decimal string; a model may copy it
+    // as text or as an exact integer.
+    let token = |value: &Value| match value {
+        Value::String(text) => text.trim().parse::<u64>().ok(),
+        other => other.as_u64(),
     };
+    let same = given.is_null() || (token(given).is_some() && token(given) == token(base));
     if !same {
         let float = if given.is_f64() {
             " (it arrived as a rounded number: an integer this long loses digits as a float)"

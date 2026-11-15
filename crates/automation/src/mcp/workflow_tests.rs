@@ -29,7 +29,28 @@ fn apply(tools: &Tools, step: &str, op: &str, params: Value) -> Fallible<Value> 
     Ok(reply["outcomes"][0].clone())
 }
 
-/// Preview `document` onto `target` and apply exactly that plan.
+/// What a JSON client that reads numbers as doubles (JavaScript, Claude
+/// Code's transport) sends back of `value`: every integer above 2^53
+/// loses its last digits.
+fn as_doubles(value: &Value) -> Value {
+    match value {
+        Value::Number(n) => match n.as_u64() {
+            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+            Some(u) => json!(u as f64 as u64),
+            None => value.clone(),
+        },
+        Value::Array(items) => Value::Array(items.iter().map(as_doubles).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), as_doubles(v)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// Preview `document` onto `target` and apply exactly that plan, its base
+/// copied as such a client copies it.
 fn import(tools: &Tools, step: &str, target: Value, document: &Value) -> Fallible<Value> {
     let plan = query(
         tools,
@@ -41,8 +62,10 @@ fn import(tools: &Tools, step: &str, target: Value, document: &Value) -> Fallibl
         tools,
         step,
         "library.pinout_apply",
-        json!({"target": target, "document": document, "base": plan["base"],
+        as_doubles(
+            &json!({"target": target, "document": document, "base": plan["base"],
             "accept": {"accept": "all"}}),
+        ),
     )
 }
 
@@ -190,19 +213,23 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     assert_eq!(schema["format"], 1, "{schema}");
 
     // Step 3: the generator whose families cover a QFN, and its preset
-    // for the drawing's package.
-    let generators = ok("generators", tools.query("library.generators", json!({})))?;
+    // for the drawing's package, from the compact listing; then that
+    // generator's parameters by its name.
+    let generators = ok(
+        "generators",
+        tools.query("library.generators", json!({"family": "no_lead"})),
+    )?;
     let no_lead = generators["shipped"]
         .as_array()
         .into_iter()
         .flatten()
         .find(|g| {
-            g["description"]["families"]
+            g["families"]
                 .as_array()
                 .is_some_and(|f| f.iter().any(|f| f == "no_lead"))
         })
         .ok_or_else(|| format!("a no-lead generator: {generators}"))?;
-    let preset = no_lead["description"]["presets"]
+    let preset = no_lead["presets"]
         .as_array()
         .into_iter()
         .flatten()
@@ -212,6 +239,17 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
                 .is_some_and(|n| n.contains("7×7 0.5 EP 5.3"))
         })
         .ok_or_else(|| format!("the QFN-48 preset: {no_lead}"))?;
+    let described = tools.ok(super::tools::DESCRIBE, json!({"name": no_lead["name"]}))?;
+    assert!(
+        described["generator"]["description"]["params"]
+            .as_array()
+            .is_some_and(|p| !p.is_empty()),
+        "{described}"
+    );
+    assert_eq!(
+        described["call"]["arguments"]["operations"][0]["op"], "library.generate_part",
+        "{described}"
+    );
     // Step 4: make the part, draft its working set.
     let made = ok(
         "generate",
@@ -289,13 +327,26 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
         "library.pinout_preview",
         json!({"target": target, "document": document}),
     )?;
-    // Every row kept a generated terminal by number.
-    for change in plan["changes"].as_array().into_iter().flatten() {
-        assert!(
-            change["object"] != "terminal" || change["kind"] == "changed",
-            "{change}"
-        );
-    }
+    // Every row kept a generated terminal by number: the compact plan's
+    // counts say so, and it lists no change one by one.
+    let counts = plan["change_counts"].as_object().ok_or("change counts")?;
+    assert!(
+        counts
+            .keys()
+            .all(|k| !k.starts_with("terminal ") || k == "terminal changed"),
+        "{plan}"
+    );
+    assert!(plan.get("changes").is_none(), "{plan}");
+    // The review items by reason, with every row: the uncertain one.
+    let uncertain = plan["review_groups"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|g| g["reason"] == "uncertain")
+        .ok_or_else(|| format!("the uncertain row: {plan}"))?;
+    assert_eq!(uncertain["rows"], json!(["r20"]), "{plan}");
+    // The base is text, which a client that reads numbers as doubles keeps.
+    assert!(plan["base"].is_string(), "{plan}");
     import(&tools, "import", target.clone(), &document)?;
 
     // An early review check: no open question for the uncertain row, and

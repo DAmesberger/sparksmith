@@ -132,7 +132,7 @@ pub struct Resource {
     /// firmware templates; never used for compatibility.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
-    /// 1–16 roles.
+    #[schemars(description = format!("1–{MAX_ROLES} roles."))]
     pub roles: Vec<Role>,
 }
 
@@ -642,7 +642,7 @@ pub fn declaration_findings(
         if !(1..=MAX_ROLES).contains(&resource.roles.len()) {
             out.push(publish_issue(
                 "resource.role_count",
-                format!("Resource ‘{}’ needs 1–16 roles.", resource.label),
+                format!("Resource ‘{}’ needs 1–{MAX_ROLES} roles.", resource.label),
                 at,
             ));
         }
@@ -1015,4 +1015,35 @@ pub fn explain_rules(
     let evaluation = rules::evaluate(&compiled, &view, rules::RuleBudget::default())?;
     rules::apply(&mut resolution, &compiled, &evaluation);
     Ok((resolution, rules::explanations(&compiled, &evaluation)))
+}
+
+#[cfg(test)]
+mod role_limit_tests {
+    use super::{MAX_ROLES, Resource, declaration_findings};
+    use crate::ids::{DefinitionId, ResourceId};
+
+    /// The schema a model reads and the refusal both state the limit the
+    /// check holds.
+    #[test]
+    fn the_role_limit_is_stated_from_its_constant() -> Result<(), serde_json::Error> {
+        let schema = serde_json::to_value(schemars::schema_for!(Resource))?;
+        let stated = format!("1–{MAX_ROLES} roles.");
+        assert_eq!(
+            schema["properties"]["roles"]["description"],
+            stated.as_str()
+        );
+        let empty = Resource {
+            id: ResourceId(1),
+            label: "LCD".into(),
+            kind: None,
+            roles: Vec::new(),
+        };
+        let found = declaration_findings(DefinitionId(1), &[], &[empty], &[]);
+        assert!(
+            found.iter().any(|f| f.code == "resource.role_count"
+                && f.message.ends_with(&format!("needs {stated}"))),
+            "{found:?}"
+        );
+        Ok(())
+    }
 }

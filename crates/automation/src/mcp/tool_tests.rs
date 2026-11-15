@@ -668,6 +668,11 @@ fn projects_are_kept_apart_by_handle() -> Fallible<()> {
     })?
 }
 
+/// The most bytes the default `library.generators` reply may take for the
+/// shipped library: a model reads it whole, below a client's tool-output
+/// limit.
+const GENERATORS_BUDGET: usize = 16 * 1024;
+
 /// The generator entries, which the old server hid to fit its list, are
 /// found and called like any other: the shipped chip module lists and
 /// makes a part through `query` and `apply`.
@@ -698,6 +703,57 @@ fn generators_are_found_and_called() -> Fallible<()> {
     let listed = tools.ok(QUERY, json!({"name": "library.generators"}))?;
     let shipped = listed["shipped"].as_array().ok_or("shipped")?;
     assert!(shipped.iter().any(|g| g["name"] == "chip"), "{listed}");
+    // The default listing names each generator, its families and preset
+    // keys, within a reply budget; the parameters come by name.
+    let compact = listed.to_string().len();
+    assert!(compact <= GENERATORS_BUDGET, "{compact} bytes");
+    assert!(
+        shipped.iter().all(|g| g.get("description").is_none()),
+        "{listed}"
+    );
+    let chip = shipped.iter().find(|g| g["name"] == "chip").ok_or("chip")?;
+    assert!(
+        chip["presets"]
+            .as_array()
+            .is_some_and(|p| p.iter().any(|p| p["key"] == "resistor-0603")),
+        "{chip}"
+    );
+    let full = tools.ok(
+        QUERY,
+        json!({"name": "library.generators", "params": {"detail": true}}),
+    )?;
+    assert!(full.to_string().len() > compact);
+    for (filter, expected) in [
+        (json!({"generator": "chip"}), vec!["chip"]),
+        (json!({"text": "resistor-0603"}), vec!["chip"]),
+        (json!({"family": "no_lead"}), vec!["no-lead"]),
+    ] {
+        let got = tools.ok(
+            QUERY,
+            json!({"name": "library.generators", "params": filter}),
+        )?;
+        let names: Vec<&str> = got["shipped"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|g| g["name"].as_str())
+            .collect();
+        assert_eq!(names, expected, "{filter}");
+    }
+    let (failed, unknown) = tools.query("library.generators", json!({"generator": "gullwing"}));
+    assert!(failed, "{unknown}");
+    assert!(
+        unknown.to_string().contains("gull-wing"),
+        "the refusal names the generators: {unknown}"
+    );
+    // A generator is described by its name, as a catalog entry is.
+    let chip = tools.ok(DESCRIBE, json!({"name": "chip"}))?;
+    assert!(
+        chip["generator"]["description"]["params"].is_array(),
+        "{chip}"
+    );
+    let (failed, nothing) = tools.call(DESCRIBE, json!({"name": "no-such-thing"}));
+    assert!(failed && nothing["code"] == "catalog.unknown", "{nothing}");
     let before = tools.revision();
     let made = tools.ok(
         APPLY,

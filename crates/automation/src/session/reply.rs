@@ -162,9 +162,9 @@ impl Session {
     pub(super) fn inspect(&self, params: InspectParams) -> Result<Value> {
         if let Some(at) = params.at {
             let snapshot = self.snapshot();
-            let value = snapshot.pointer(&at).ok_or_else(|| {
-                sparksmith_core::Error::NotFound(format!("nothing at {at} in the snapshot"))
-            })?;
+            let value = snapshot
+                .pointer(&at)
+                .ok_or_else(|| sparksmith_core::Error::NotFound(nothing_at(&snapshot, &at)))?;
             return Ok(json!({"revision": self.engine.revision(), "at": at, "value": value}));
         }
         if self.compact {
@@ -284,6 +284,68 @@ impl Session {
             out.push(row);
         }
         Ok(out)
+    }
+}
+
+/// The keys a refusal lists at most.
+const MAX_LISTED_KEYS: usize = 40;
+
+/// Why `at` names nothing in `snapshot`, with what is valid where it
+/// stopped matching: an object's keys, a list's index range.
+fn nothing_at(snapshot: &Value, at: &str) -> String {
+    if !at.starts_with('/') {
+        return format!(
+            "at {at} is not a JSON pointer: start it with /, as in /drafts/0/draft; the top-level keys are {}",
+            valid_below(snapshot)
+        );
+    }
+    let mut here = snapshot;
+    let mut matched = String::new();
+    for raw in at.split('/').skip(1) {
+        let token = raw.replace("~1", "/").replace("~0", "~");
+        let next = match here {
+            Value::Object(map) => map.get(&token),
+            Value::Array(items) => token.parse::<usize>().ok().and_then(|i| items.get(i)),
+            _ => None,
+        };
+        match next {
+            Some(value) => {
+                here = value;
+                matched.push('/');
+                matched.push_str(raw);
+            }
+            None => {
+                let place = if matched.is_empty() { "/" } else { &matched };
+                return format!(
+                    "nothing at {at} in the snapshot: {raw} is not in {place}, where {}",
+                    valid_below(here)
+                );
+            }
+        }
+    }
+    format!("nothing at {at} in the snapshot")
+}
+
+/// What may follow a pointer that reached `value`.
+fn valid_below(value: &Value) -> String {
+    match value {
+        Value::Object(map) if map.is_empty() => "there is nothing (an empty object)".into(),
+        Value::Object(map) => {
+            let keys: Vec<&str> = map.keys().map(String::as_str).collect();
+            let more = keys.len().saturating_sub(MAX_LISTED_KEYS);
+            let listed = keys[..keys.len().min(MAX_LISTED_KEYS)].join(", ");
+            if more > 0 {
+                format!("the keys are {listed} and {more} more")
+            } else {
+                format!("the keys are {listed}")
+            }
+        }
+        Value::Array(items) if items.is_empty() => "the list is empty".into(),
+        Value::Array(items) => format!(
+            "the list takes a position from 0 to {} (not an id)",
+            items.len().saturating_sub(1)
+        ),
+        _ => "the value has nothing inside it".into(),
     }
 }
 

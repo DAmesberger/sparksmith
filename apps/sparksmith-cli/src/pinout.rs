@@ -85,7 +85,7 @@ fn preview(session: &mut Session, target: &Value, document: &Value) -> Result<Va
         session,
         json!({"command": "project.query", "params": {
             "query": "library.pinout_preview",
-            "params": {"target": target, "document": document},
+            "params": {"target": target, "document": document, "detail": true},
         }}),
     )?;
     Ok(plan["result"].clone())

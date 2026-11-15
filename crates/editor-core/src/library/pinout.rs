@@ -229,6 +229,16 @@ pub enum ChangeKind {
     Removed,
 }
 
+impl ChangeKind {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Changed => "changed",
+            Self::Removed => "removed",
+        }
+    }
+}
+
 /// One planned change, by document row.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -270,16 +280,114 @@ pub struct ReviewItem {
 pub struct PinoutPlan {
     /// The draft revision token the plan was made against; `pinout_apply`
     /// refuses when it no longer matches.
-    pub base: u64,
+    pub base: PlanBase,
+    /// How many changes of each object and kind (`terminal changed`).
+    #[serde(default)]
+    pub change_counts: BTreeMap<String, usize>,
+    /// Each change; listed only with `detail: true`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<PinoutChange>,
-    /// Every publish finding the result would have.
+    /// Every publish finding the result would have; listed one by one
+    /// only with `detail: true`, else grouped in `finding_groups`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub findings: Vec<Finding>,
+    /// Each row a person must look at; listed one by one only with
+    /// `detail: true`, else grouped in `review_groups`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub review: Vec<ReviewItem>,
+    /// Without `detail`: the findings by code, with their count and the
+    /// first messages.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finding_groups: Vec<FindingGroup>,
+    /// Without `detail`: the review items by reason, with every row and
+    /// the first messages.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub review_groups: Vec<ReviewGroup>,
     /// Each pin rule evaluated without selections and over the samples it
     /// names ([`crate::functions::rules::check_samples`]): what it says
     /// and where it fails. Failures are also blocking findings.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<crate::functions::rules::RuleCheck>,
+    /// Whether changes, findings and review items are listed one by one.
+    #[serde(default)]
+    pub detail: bool,
+}
+
+/// The messages a compact plan quotes per group.
+pub const PLAN_EXAMPLES: usize = 3;
+
+/// Findings of one code in a compact plan.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FindingGroup {
+    pub code: String,
+    #[serde(default)]
+    pub blocks: Option<Stage>,
+    pub count: usize,
+    /// The first [`PLAN_EXAMPLES`] messages.
+    pub examples: Vec<String>,
+}
+
+/// Review items of one reason in a compact plan.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewGroup {
+    pub reason: ReviewReason,
+    /// Every row with this reason.
+    pub rows: Vec<String>,
+    /// The first [`PLAN_EXAMPLES`] messages.
+    pub examples: Vec<String>,
+}
+
+impl PinoutPlan {
+    /// The plan without what only `detail` lists one by one: the changes
+    /// (their counts stay), the findings (grouped by code and blocking
+    /// stage, counted, the first messages quoted) and the review items
+    /// (grouped by reason with every row). The rule checks stay whole.
+    #[must_use]
+    pub fn compact(mut self) -> Self {
+        self.changes.clear();
+        let mut groups: Vec<FindingGroup> = Vec::new();
+        for finding in std::mem::take(&mut self.findings) {
+            match groups
+                .iter_mut()
+                .find(|g| g.code == finding.code && g.blocks == finding.blocks)
+            {
+                Some(group) => {
+                    group.count = group.count.saturating_add(1);
+                    if group.examples.len() < PLAN_EXAMPLES {
+                        group.examples.push(finding.message);
+                    }
+                }
+                None => groups.push(FindingGroup {
+                    code: finding.code,
+                    blocks: finding.blocks,
+                    count: 1,
+                    examples: vec![finding.message],
+                }),
+            }
+        }
+        self.finding_groups = groups;
+        let mut review: Vec<ReviewGroup> = Vec::new();
+        for item in std::mem::take(&mut self.review) {
+            match review.iter_mut().find(|g| g.reason == item.reason) {
+                Some(group) => {
+                    group.rows.push(item.row);
+                    if group.examples.len() < PLAN_EXAMPLES {
+                        group.examples.push(item.message);
+                    }
+                }
+                None => review.push(ReviewGroup {
+                    reason: item.reason,
+                    rows: vec![item.row],
+                    examples: vec![item.message],
+                }),
+            }
+        }
+        self.review_groups = review;
+        self.detail = false;
+        self
+    }
 }
 
 /// Which rows `pinout_apply` takes. `Except` lists pin row keys and
@@ -328,9 +436,71 @@ impl ImportReview {
 pub struct PinoutApply {
     pub target: PinoutTarget,
     pub document: PinoutDocument,
-    pub base: u64,
+    /// The plan's `base`, as the preview wrote it.
+    pub base: PlanBase,
     #[serde(default)]
     pub accept: PinoutAccept,
+}
+
+/// A plan's base token (`PinoutPlan::base`): a digest, so usually above
+/// 2^53. It is written as a decimal string, which a JSON client that reads
+/// numbers as doubles keeps exactly; an integer is read too.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, JsonSchema)]
+#[schemars(with = "String")]
+pub struct PlanBase(pub u64);
+
+impl std::fmt::Display for PlanBase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Serialize for PlanBase {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for PlanBase {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        struct Token;
+        impl serde::de::Visitor<'_> for Token {
+            type Value = PlanBase;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("the plan's base as a decimal string, as the preview wrote it")
+            }
+            fn visit_str<E: serde::de::Error>(
+                self,
+                text: &str,
+            ) -> std::result::Result<PlanBase, E> {
+                text.parse().map(PlanBase).map_err(|_| {
+                    E::custom(format!(
+                        "base ‘{text}’ is not a plan base: copy the preview's base string exactly"
+                    ))
+                })
+            }
+            fn visit_u64<E: serde::de::Error>(
+                self,
+                value: u64,
+            ) -> std::result::Result<PlanBase, E> {
+                Ok(PlanBase(value))
+            }
+            fn visit_i64<E: serde::de::Error>(
+                self,
+                value: i64,
+            ) -> std::result::Result<PlanBase, E> {
+                u64::try_from(value)
+                    .map(PlanBase)
+                    .map_err(|_| E::custom("a plan base is never negative"))
+            }
+        }
+        deserializer.deserialize_any(Token)
+    }
 }
 
 /// The planned drafts of an import.
@@ -390,7 +560,7 @@ pub fn review_findings(component: DefinitionId, review: &ImportReview) -> Vec<Fi
 /// target draft and every binding draft of it (they decide how rows match
 /// terminals by number), or, for a new component, of the package rows it
 /// names. `pinout_apply` refuses when the token changed.
-pub fn base_token(library: &Library, drafts: &Drafts, target: &PinoutTarget) -> Result<u64> {
+pub fn base_token(library: &Library, drafts: &Drafts, target: &PinoutTarget) -> Result<PlanBase> {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     match target {
@@ -419,7 +589,7 @@ pub fn base_token(library: &Library, drafts: &Drafts, target: &PinoutTarget) -> 
     for (b, d) in bytes.iter_mut().zip(digest.iter()) {
         *b = *d;
     }
-    Ok(u64::from_le_bytes(bytes))
+    Ok(PlanBase(u64::from_le_bytes(bytes)))
 }
 
 /// JSON schema of [`PinoutDocument`] (`pinout.schema`).

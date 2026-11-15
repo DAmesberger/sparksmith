@@ -249,7 +249,7 @@ impl Imported {
 
 /// The `library.pinout_preview` query parameters.
 pub(super) fn preview_params(target: Value, document: &Value) -> Value {
-    json!({"target": target, "document": document})
+    json!({"target": target, "document": document, "detail": true})
 }
 
 /// The `library.pinout_apply` operation.
@@ -327,7 +327,8 @@ pub(super) fn import_reviewed(s: &mut Scenario) -> Fallible<Imported> {
     // 3. A plan whose base no longer matches is refused as a conflict that
     // names the stale-plan rule (the base is a content token, not the
     // document revision); nothing changes.
-    let stale = json!(plan["base"].as_u64().ok_or("base")? + 1);
+    let base: u64 = plan["base"].as_str().ok_or("base")?.parse()?;
+    let stale = json!(base.wrapping_add(1).to_string());
     let refusal = s.refuse_apply(
         "pinout_apply stale",
         apply_op(target.clone(), &document, &stale, json!({"accept": "all"})),
@@ -425,15 +426,22 @@ pub(super) fn import_reviewed(s: &mut Scenario) -> Fallible<Imported> {
     // the draft. Terminals are kept by number; only r20 changes.
     let corrected = exm48_corrected()?;
     let target = json!({"target": "draft", "id": component});
+    // The default, compact plan: counts, findings and review items.
     let plan = s.query(
         "pinout_preview corrected",
         "library.pinout_preview",
-        preview_params(target.clone(), &corrected),
+        json!({"target": target, "document": corrected}),
     )?;
-    assert_eq!(count(&plan["changes"], "terminal", "added"), 0, "{plan}");
-    assert_eq!(count(&plan["changes"], "terminal", "removed"), 0, "{plan}");
     assert!(
-        plan["review"].as_array().is_some_and(Vec::is_empty),
+        plan.get("changes").is_none() && plan["detail"] == false,
+        "{plan}"
+    );
+    let counts = &plan["change_counts"];
+    assert!(counts.is_object(), "{plan}");
+    assert!(counts.get("terminal added").is_none(), "{plan}");
+    assert!(counts.get("terminal removed").is_none(), "{plan}");
+    assert!(
+        plan.get("review").is_none() && plan.get("review_groups").is_none(),
         "{plan}"
     );
     s.apply(
