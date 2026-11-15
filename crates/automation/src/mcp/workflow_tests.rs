@@ -50,7 +50,7 @@ fn import(tools: &Tools, step: &str, target: Value, document: &Value) -> Fallibl
 fn report(open_questions: Value) -> Value {
     json!({"report": {
         "part": "EXM-48",
-        "summary": "48-pin QFN MCU: pins, functions and rules from Table 4; footprint from the QFN-48 7x7 0.5 EP 5.3 row.",
+        "summary": "48-pin QFN MCU: pins, functions and rules from Table 4; package and footprint from the no-lead generator's QFN-48 7x7 0.5 EP 5.3 preset.",
         "sources": [{"name": "DS", "title": "EXM-48 datasheet", "revision": "rev 3"}],
         "values": [
             {"item": "pin count", "value": "48 + EP", "source": {"document": "DS", "page": 11, "location": "Table 4"}, "confidence": "high"},
@@ -121,8 +121,9 @@ fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
         "library.pinout_schema",
         "library.pinout_preview",
         "library.pinout_apply",
-        "library.package_plan",
-        "library.package_from_template",
+        "library.generators",
+        "library.generate_part",
+        "library.draft_closure",
         "component.check_drafts",
         "library.review_check",
         "Verification checklist",
@@ -168,24 +169,112 @@ fn the_skill_file_and_the_prompt_are_one_source() -> Fallible<()> {
     Ok(())
 }
 
-/// The whole workflow over MCP with no model: schema, preview, apply,
-/// footprint, checks, the review check refusing an incomplete report and
+/// The whole workflow over MCP with no model: schema, a generator found and
+/// its part made, the working set drafted, the pinout previewed and applied
+/// onto it, checks, the review check refusing an incomplete report and
 /// accepting the fixed one, and publishing refused by the review gate until
 /// the person has confirmed the rows.
 #[test]
 fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallible<()> {
     // Publishing is Ask-class: allow-all stands in for the person's Allow,
-    // so the test reaches the review gate that must still refuse it. The
-    // board has a fab profile, whose margins the estimated lands take.
+    // so the test reaches the review gate that must still refuse it.
+    let mut session = Session::new(sparksmith_core::Engine::profiled()?);
+    session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(
+        std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../library")),
+    )?);
     let tools = Tools::new(
-        Session::new(sparksmith_core::Engine::profiled()?),
+        session,
         Grant::new(Mode::AllowAll, Vec::<std::path::PathBuf>::new()),
     )?;
     let schema = ok("schema", tools.query("library.pinout_schema", json!({})))?;
     assert_eq!(schema["format"], 1, "{schema}");
 
-    // The agent forgot one row's source.
-    let complete: Value = serde_json::from_str(EXM48)?;
+    // Step 3: the generator whose families cover a QFN, and its preset
+    // for the drawing's package.
+    let generators = ok("generators", tools.query("library.generators", json!({})))?;
+    let no_lead = generators["shipped"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|g| {
+            g["description"]["families"]
+                .as_array()
+                .is_some_and(|f| f.iter().any(|f| f == "no_lead"))
+        })
+        .ok_or_else(|| format!("a no-lead generator: {generators}"))?;
+    let preset = no_lead["description"]["presets"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|p| {
+            p["name"]
+                .as_str()
+                .is_some_and(|n| n.contains("7×7 0.5 EP 5.3"))
+        })
+        .ok_or_else(|| format!("the QFN-48 preset: {no_lead}"))?;
+    // Step 4: make the part, draft its working set.
+    let made = ok(
+        "generate",
+        tools.apply(
+            "library.generate_part",
+            json!({"generator": no_lead["name"], "scope": "component",
+                "preset": preset["key"], "name": "EXM-48"}),
+        ),
+    )?;
+    let root = &made["outcome"]["report"]["root"];
+    assert_eq!(root["kind"], "component", "{made}");
+    let drafted = apply(
+        &tools,
+        "draft closure",
+        "library.draft_closure",
+        json!({"component": {"id": root["id"], "revision": root["revision"]}}),
+    )?;
+    let drafts: Vec<u64> = drafted["ids"]
+        .as_array()
+        .ok_or_else(|| format!("the drafted set: {drafted}"))?
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect();
+    let of_kind = |kind: &str| {
+        drafts
+            .iter()
+            .copied()
+            .find(|&id| {
+                draft_of(&tools, id).is_ok_and(|d| d["draft"]["definition"]["kind"] == kind)
+            })
+            .ok_or_else(|| format!("the {kind} draft"))
+    };
+    let (component, symbol, package, footprint, binding) = (
+        of_kind("component")?,
+        of_kind("symbol")?,
+        of_kind("package")?,
+        of_kind("footprint")?,
+        of_kind("binding")?,
+    );
+    // The review: 48 terminals and the exposed pad, numbered EP.
+    let pads = draft_of(&tools, footprint)?["draft"]["definition"]["body"]["pads"].clone();
+    let numbers: Vec<&str> = pads
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|p| p["number"].as_str())
+        .collect();
+    assert_eq!(numbers.len(), 49, "{pads}");
+    assert_eq!(numbers.first(), Some(&"1"));
+    assert!(numbers.contains(&"EP"), "{numbers:?}");
+
+    // Step 5. The datasheet calls the exposed pad 49; the generator EP: the
+    // row takes the generator's number, and its note says so. The agent
+    // forgot one row's source.
+    let mut complete: Value = serde_json::from_str(EXM48)?;
+    let ep = complete["pins"]
+        .as_array_mut()
+        .and_then(|pins| pins.iter_mut().find(|p| p["row"] == "r49"))
+        .ok_or("row r49")?;
+    ep["number"]["QFN-48"] = json!("EP");
+    ep["note"] = json!(
+        "Exposed pad, pin 49 in the datasheet (EP in the footprint); internally connected to VSS."
+    );
     let mut document = complete.clone();
     let r2 = document["pins"]
         .as_array_mut()
@@ -193,20 +282,21 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
         .ok_or("row r2")?;
     let name = r2["name"].clone();
     r2["source"] = Value::Null;
-    let applied = import(
+    let target = json!({"target": "draft", "id": component});
+    let plan = query(
         &tools,
-        "import",
-        json!({"target": "new", "name": "EXM-48"}),
-        &document,
+        "preview",
+        "library.pinout_preview",
+        json!({"target": target, "document": document}),
     )?;
-    let drafts: Vec<u64> = applied["report"]["drafts"]
-        .as_array()
-        .ok_or_else(|| format!("the import's drafts: {applied}"))?
-        .iter()
-        .filter_map(Value::as_u64)
-        .collect();
-    let component = drafts.first().copied().ok_or("the component draft")?;
-    let symbol = drafts.get(1).copied().ok_or("the symbol draft")?;
+    // Every row kept a generated terminal by number.
+    for change in plan["changes"].as_array().into_iter().flatten() {
+        assert!(
+            change["object"] != "terminal" || change["kind"] == "changed",
+            "{change}"
+        );
+    }
+    import(&tools, "import", target.clone(), &document)?;
 
     // An early review check: no open question for the uncertain row, and
     // the imported pin without a source page, named.
@@ -226,56 +316,8 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
         "{problems}"
     );
 
-    // The agent restores the source (before the footprint, which renumbers
-    // pad 49 as EP) and asks about the uncertain row.
-    import(
-        &tools,
-        "re-import",
-        json!({"target": "draft", "id": component}),
-        &complete,
-    )?;
-    // The footprint from a starter row; 49 is the form's EP.
-    let binding = drafts
-        .iter()
-        .copied()
-        .find(|&id| {
-            draft_of(&tools, id).is_ok_and(|d| d["draft"]["definition"]["kind"] == "binding")
-        })
-        .ok_or("the binding draft")?;
-    let package = draft_of(&tools, binding)?["draft"]["definition"]["body"]["package"]["id"]
-        .as_u64()
-        .ok_or("the package draft")?;
-    let rows = query(
-        &tools,
-        "templates",
-        "library.templates",
-        json!({"query": "qfn pins:48 pitch:0.5 body:7x7"}),
-    )?;
-    let starter = rows["hits"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find_map(|h| h["starter"].as_str().filter(|n| n.contains("EP 5.3")))
-        .ok_or_else(|| format!("a starter row: {rows}"))?
-        .to_owned();
-    let request = json!({"draft": package, "row": {"source": "starter", "name": starter},
-        "renumber": [{"from": "49", "to": "EP"}]});
-    let plan = query(
-        &tools,
-        "package plan",
-        "library.package_plan",
-        json!({"request": request}),
-    )?;
-    assert_eq!(plan["footprint_created"], true, "{plan}");
-    let built = apply(
-        &tools,
-        "package from template",
-        "library.package_from_template",
-        request,
-    )?;
-    let footprint = built["plan"]["footprint"]
-        .as_u64()
-        .ok_or_else(|| format!("the footprint: {built}"))?;
+    // The agent restores the source and asks about the uncertain row.
+    import(&tools, "re-import", target, &complete)?;
     query(&tools, "check drafts", "component.check_drafts", json!({}))?;
 
     let checked = ok(
@@ -311,7 +353,6 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     let draft = draft_of(&tools, component)?;
     let mut body = draft["draft"]["definition"]["body"].clone();
     body["review"] = Value::Null;
-    body["designator_prefix"] = json!("U");
     apply(
         &tools,
         "the person confirms",
@@ -337,5 +378,102 @@ fn the_review_check_passes_the_strictest_gate() -> Fallible<()> {
     let (failed, checked) = tools.query("library.review_check", report(json!([])));
     assert!(!failed, "{checked}");
     assert_eq!(checked["accepted"], false, "no drafts yet: {checked}");
+    Ok(())
+}
+
+/// The skill's other branch, for a package no generator covers: the
+/// pinout imported as new drafts, a footprint draft of the package made
+/// and built from the land pattern's pad table, and listed in the binding,
+/// all through the verbs.
+#[test]
+fn without_a_generator_the_part_is_authored_by_commands() -> Fallible<()> {
+    let tools = Tools::new(
+        Session::new(sparksmith_core::Engine::profiled()?),
+        Grant::default(),
+    )?;
+    let mut document: Value = serde_json::from_str(EXM48)?;
+    // Four terminals stand in for a part no family draws.
+    document["variants"][0]["terminal_count"] = json!(4);
+    if let Some(pins) = document["pins"].as_array_mut() {
+        pins.retain(|p| ["r1", "r2", "r3", "r4"].contains(&p["row"].as_str().unwrap_or("")));
+    }
+    document["rules"] = json!([]);
+    document["peripherals"] = json!([]);
+    for pin in document["pins"].as_array_mut().into_iter().flatten() {
+        let gpio = json!([{"label": "gpio_in", "direction": "input", "signal": "digital"}]);
+        pin["functions"] = gpio;
+        pin["default"] = json!("gpio_in");
+    }
+    let applied = import(
+        &tools,
+        "import",
+        json!({"target": "new", "name": "ODD-4"}),
+        &document,
+    )?;
+    let drafts: Vec<u64> = applied["report"]["drafts"]
+        .as_array()
+        .ok_or_else(|| format!("the import's drafts: {applied}"))?
+        .iter()
+        .filter_map(Value::as_u64)
+        .collect();
+    let binding = drafts
+        .iter()
+        .copied()
+        .find(|&id| {
+            draft_of(&tools, id).is_ok_and(|d| d["draft"]["definition"]["kind"] == "binding")
+        })
+        .ok_or("the binding draft")?;
+    let bound = draft_of(&tools, binding)?;
+    let package = bound["draft"]["definition"]["body"]["package"].clone();
+    // The package's body from the drawing, then a footprint draft of it.
+    let package_draft = draft_of(&tools, package["id"].as_u64().ok_or("package id")?)?;
+    let mut sized = package_draft["draft"]["definition"]["body"].clone();
+    sized["envelope_nm"] = json!([6_000_000, 4_000_000, 1_000_000]);
+    apply(
+        &tools,
+        "envelope",
+        "library.edit",
+        json!({"edits": [{"id": package["id"], "meta": package_draft["draft"]["meta"],
+            "definition": {"kind": "package", "body": sized}}]}),
+    )?;
+    let made = apply(
+        &tools,
+        "new footprint",
+        "library.new_draft",
+        json!({"meta": {"name": "ODD-4 footprint", "description": "", "provenance": ""},
+            "definition": {"kind": "footprint", "body": {
+                "package": package, "next_local": 1, "source": null, "pads": [], "graphics": [],
+                "polarity": null, "datum": {"offset": {"x_nm": 0, "y_nm": 0}, "rotation_mdeg": 0},
+                "defaults": {"mask_expansion_nm": 50000, "paste_reduction_nm": 0}}}}),
+    )?;
+    let footprint = made["id"]
+        .as_u64()
+        .or_else(|| made["report"]["id"].as_u64())
+        .ok_or_else(|| format!("the footprint draft: {made}"))?;
+    // Its pads from the land pattern, landing terminals by number.
+    let pads: Vec<Value> = (0..4)
+        .map(|k| json!({"number": (k + 1).to_string(), "at": [f64::from(k) * 1.27 - 1.905, 0.0], "size": [0.6, 1.2]}))
+        .collect();
+    let built = apply(
+        &tools,
+        "pads",
+        "library.footprint_from_pads",
+        json!({"draft": footprint, "pads": pads, "assign_by_number": true}),
+    )?;
+    assert_eq!(built["report"]["unlanded"], json!([]), "{built}");
+    // Listed in the binding.
+    let mut body = bound["draft"]["definition"]["body"].clone();
+    let footprint_ref = json!({"id": footprint, "revision": package["revision"]});
+    body["footprints"] = json!([footprint_ref]);
+    apply(
+        &tools,
+        "list the footprint",
+        "library.edit",
+        json!({"edits": [{"id": binding, "meta": bound["draft"]["meta"],
+            "definition": {"kind": "binding", "body": body}}]}),
+    )?;
+    let checked = query(&tools, "check drafts", "component.check_drafts", json!({}))?;
+    let text = checked.to_string();
+    assert!(!text.contains("binding.no_footprint"), "{text}");
     Ok(())
 }

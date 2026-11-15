@@ -940,6 +940,7 @@ fn a_shrinking_prompt_count_warns_of_truncation() -> Fallible {
 
 mod board;
 mod flash_next;
+mod generator_flow;
 mod local_run;
 mod profiles;
 mod run1;

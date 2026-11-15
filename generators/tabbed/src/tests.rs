@@ -154,6 +154,59 @@ fn a_tab_lead_is_the_last_terminal_its_land_moved_out() -> Result<(), Vec<Proble
 }
 
 #[test]
+fn a_given_land_pattern_replaces_the_estimates() -> Result<(), Vec<Problem>> {
+    // TI's DBV0005A land pattern (5 × 0.6 × 1.1 mm, rows 2.6 mm apart
+    // centre to centre) on the SOT-23-5 preset's leads.
+    let mut given = preset("tabbed-sot-23-5");
+    given.push(("lands".into(), ParamValue::Text("explicit".into())));
+    given.extend([
+        kv("land_width", 600_000),
+        kv("land_length", 1_100_000),
+        kv("land_span", 2_600_000),
+    ]);
+    let g = Tabbed::generate(&request(Scope::Component, &given))?;
+    let lands: Vec<([i64; 2], PadShape)> = g
+        .footprint
+        .pads
+        .iter()
+        .map(|p| (p.at, p.shape.clone()))
+        .collect();
+    let size = PadShape::Rect {
+        size: [600_000, 1_100_000],
+    };
+    assert_eq!(
+        lands,
+        vec![
+            ([-950_000, -1_300_000], size.clone()),
+            ([0, -1_300_000], size.clone()),
+            ([950_000, -1_300_000], size.clone()),
+            ([950_000, 1_300_000], size.clone()),
+            ([-950_000, 1_300_000], size),
+        ]
+    );
+    // The leads and the model are the estimate's: only the lands moved.
+    let estimated = Tabbed::generate(&request(Scope::Component, &preset("tabbed-sot-23-5")))?;
+    assert_eq!(g.package, estimated.package);
+    assert_eq!(g.model, estimated.model);
+    assert!(g.notes.iter().any(|n| n.contains("given land pattern")));
+
+    // Lands that touch across the rows or along a row are refused.
+    for (key, value, field) in [
+        ("land_span", 1_000_000, "land_span"),
+        ("land_width", 1_000_000, "land_width"),
+    ] {
+        let mut bad = given.clone();
+        bad.push(kv(key, value));
+        let refused = Tabbed::generate(&request(Scope::Package, &bad)).err();
+        assert!(
+            refused.is_some_and(|p| p.iter().any(|p| p.field.as_deref() == Some(field))),
+            "{key}"
+        );
+    }
+    Ok(())
+}
+
+#[test]
 fn package_scope_has_no_component_symbol_or_binding() -> Result<(), Vec<Problem>> {
     let g = Tabbed::generate(&request(Scope::Package, &[]))?;
     assert!(g.component.is_none() && g.symbol.is_none() && g.binding.is_empty());
