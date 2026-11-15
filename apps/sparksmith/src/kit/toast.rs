@@ -18,6 +18,8 @@ use std::collections::VecDeque;
 
 /// How long a toast stays, in seconds (upstream `STATUS_TOAST_MS = 6000`).
 pub const TOAST_SECONDS: f64 = 6.0;
+/// How long a toast stays after the pointer leaves it, in seconds.
+pub const LEAVE_SECONDS: f64 = 2.0;
 /// The most toasts shown at once: a new toast replaces the shown one,
 /// which stays in Messages, so quick actions don't pile up on the canvas.
 pub const MAX_TOASTS: usize = 1;
@@ -169,6 +171,19 @@ impl Toasts {
     /// Draw the stack bottom-centre of `canvas` (clear of the bottom-left
     /// hint line), oldest on top.
     pub fn show(&mut self, ctx: &egui::Context, canvas: Rect, now: f64) -> Option<ToastEvent> {
+        // A toast under the pointer stays, so its text can be read and its
+        // actions reached; it goes [`LEAVE_SECONDS`] after the pointer
+        // leaves (run 7: Details went with the toast before the click).
+        let area = egui::Id::unique("toasts");
+        if ctx
+            .memory(|m| m.area_rect(area))
+            .zip(ctx.pointer_hover_pos())
+            .is_some_and(|(rect, pointer)| rect.contains(pointer))
+        {
+            for toast in &mut self.items {
+                toast.at = toast.at.max(now - (TOAST_SECONDS - LEAVE_SECONDS));
+            }
+        }
         self.expire(now);
         let first_due = self
             .items
@@ -192,7 +207,7 @@ impl Toasts {
             .frame(ctx, t.panel, Side::Left)
             .inner_margin(toast_margin());
         let mut event = None;
-        host.area(egui::Id::unique("toasts"))
+        host.area(area)
             .pivot(egui::Align2::CENTER_BOTTOM)
             .fixed_pos(at)
             .constrain_to(canvas)
@@ -526,6 +541,72 @@ mod tests {
         assert!(canvas.contains_rect(drawn), "{drawn:?} in {canvas:?}");
         assert!((drawn.center().x - canvas.center().x).abs() < 1.0);
         assert!(drawn.bottom() > canvas.center().y, "bottom half");
+    }
+
+    /// A refusal with Details stays while the pointer is over it, past
+    /// [`TOAST_SECONDS`], so Details can be clicked; it goes
+    /// [`LEAVE_SECONDS`] after the pointer leaves (run 7, finding 5).
+    #[test]
+    fn a_hovered_toast_stays_until_its_details_are_clicked() -> Result<(), String> {
+        let ctx = egui::Context::default();
+        sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+        let mut toasts = Toasts::default();
+        toasts.push(
+            Level::Error,
+            "Can't place a component: this change affects routed copper on GND",
+            vec![ToastAction::Details],
+            0.0,
+        );
+        let canvas = Rect::from_min_size(egui::pos2(0.0, 0.0), vec2(800.0, 600.0));
+        let run = |toasts: &mut Toasts, now: f64, events: Vec<egui::Event>| {
+            let mut event = None;
+            let mut output = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(canvas),
+                    events,
+                    ..Default::default()
+                },
+                |ui| event = toasts.show(ui.ctx(), canvas, now),
+            );
+            output.textures_delta.clear();
+            (output, event)
+        };
+        let mut output = None;
+        for _ in 0..3 {
+            output = Some(run(&mut toasts, 1.0, vec![]).0);
+        }
+        let details = crate::kit::text::tests::painted(&output.unwrap_or_default())
+            .into_iter()
+            .find(|(text, ..)| text == "Details")
+            .map(|(_, rect, ..)| rect.center())
+            .ok_or("no Details")?;
+        // The pointer reaches the toast; time passes well past its life.
+        for now in [5.0, 8.0, 12.0] {
+            run(&mut toasts, now, vec![egui::Event::PointerMoved(details)]);
+            if toasts.is_empty() {
+                return Err(format!("gone at {now} s while hovered"));
+            }
+        }
+        let press = |pressed| egui::Event::PointerButton {
+            pos: details,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let (_, event) = run(&mut toasts, 12.5, vec![press(true), press(false)]);
+        assert_eq!(
+            event,
+            Some(ToastEvent::Action {
+                toast: 0,
+                action: ToastAction::Details
+            })
+        );
+        // Away from it, it goes after LEAVE_SECONDS.
+        run(&mut toasts, 12.6, vec![egui::Event::PointerGone]);
+        assert!(!toasts.is_empty());
+        run(&mut toasts, 12.6 + LEAVE_SECONDS, vec![]);
+        assert!(toasts.is_empty(), "gone once the pointer left");
+        Ok(())
     }
 
     /// A long refusal wraps to several lines inside the canvas, at most

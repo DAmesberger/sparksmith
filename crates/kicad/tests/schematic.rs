@@ -465,3 +465,116 @@ fn an_unmapped_pad_gets_a_visible_pin_added_by_import() -> Fallible<()> {
     );
     Ok(())
 }
+
+/// Run 7, finding 5: a new QFN with an exposed pad placed on an imported,
+/// routed sheet. Clear of the wires it places and the routed nets keep
+/// their terminals; with a pin on the routed SIG wire it would join SIG
+/// (a pin on a wire joins it), so it is refused, naming the net and pin.
+#[test]
+fn a_new_qfn_places_on_a_routed_imported_sheet() -> Fallible<()> {
+    use sparksmith_core::library::PackageForm;
+    use sparksmith_core::library::package_form::{LeadSides, NoLeadForm};
+    use sparksmith_core::library::templates::catalog::{
+        FamilyKind, NewFromTemplate, RowSource, SkeletonHint,
+    };
+    use sparksmith_core::units::{Nm, PointNm};
+    use sparksmith_core::{InstanceCommand, Operation};
+    let mut b = board();
+    b.items
+        .push_str("  (segment (start 11 10) (end 19 10) (width 0.25) (layer \"F.Cu\") (net 2))\n");
+    let mut files = BTreeMap::new();
+    files.insert("synthetic.kicad_sch".to_owned(), schematic().into_bytes());
+    let imported = support::import_with_schematic(
+        b.text().as_bytes(),
+        None,
+        Some(("synthetic.kicad_sch", &files)),
+    )?;
+    let mut engine = imported.engine;
+    assert_eq!(engine.project().tracks.len(), 1, "SIG is routed");
+    let mm = Nm::from_mm_f64_rounded;
+    let form = PackageForm::NoLead(Box::new(NoLeadForm {
+        sides: LeadSides::Four,
+        terminals_per_side: [3, 3],
+        pitch_nm: mm(0.5)?,
+        body_length_nm: mm(3.0)?,
+        body_width_nm: mm(3.0)?,
+        body_height_nm: mm(0.9)?,
+        terminal_length_nm: mm(0.4)?,
+        terminal_width_nm: mm(0.25)?,
+        exposed_pad: Some(PointNm::from_mm_f64_rounded([1.65, 1.65])?),
+    }));
+    engine.apply(
+        engine.revision(),
+        Operation::Library(sparksmith_core::LibraryCommand::PublishFromTemplate(
+            Box::new(NewFromTemplate {
+                row: RowSource::Custom {
+                    family: FamilyKind::NoLead,
+                },
+                values: Some(form),
+                skeleton: SkeletonHint::IcBox,
+                name: "QFN-12 3x3 0.5 EP 1.65".into(),
+                designator_prefix: None,
+                symbol: None,
+                without_fields: false,
+            }),
+        )),
+    )?;
+    let component = engine
+        .project()
+        .library
+        .components
+        .iter()
+        .find(|c| c.meta.name.starts_with("QFN-12"))
+        .ok_or("the QFN component")?;
+    let id = component.id;
+    let definition = component.definition.clone();
+    let binding = *definition.implementations.first().ok_or("binding")?;
+    let footprint = engine
+        .project()
+        .library
+        .binding(binding)
+        .and_then(|b| b.definition.footprints.first().copied())
+        .ok_or("footprint")?;
+    let symbol = *definition.representations.first().ok_or("symbol")?;
+    let place = |at: [f64; 2]| -> Fallible<Operation> {
+        Ok(Operation::Instance(InstanceCommand::Place(
+            sparksmith_core::instances::NewInstance {
+                sheet: None,
+                component: sparksmith_core::ComponentRef::new(id, sparksmith_core::Revision::FIRST),
+                designator: None,
+                properties: vec![],
+                representation: symbol.id,
+                unit: sparksmith_core::UnitId(1),
+                position: PointNm::from_mm_f64_rounded(at)?,
+                physical: Some(sparksmith_core::PhysicalChoice {
+                    binding: binding.id,
+                    footprint: footprint.id,
+                }),
+            },
+        )))
+    };
+    // A pin on the SIG wire, which runs from R1 pin 2 at (20, −23.81)
+    // to (25, −23.81) on our sheet: refused, naming its net and the pin.
+    let sig = net_of(engine.project(), "R1", "2").ok_or("SIG")?;
+    let sig = engine.project().net_name(sig).to_owned();
+    let revision = engine.revision();
+    let refused = engine
+        .apply(revision, place([13.65, -23.81])?)
+        .err()
+        .ok_or("a pin on the routed wire joins SIG")?
+        .to_string();
+    assert!(
+        refused.contains(&format!("routed copper on {sig} (U1 pin "))
+            && refused.contains(&format!(" joins {sig})")),
+        "{refused}"
+    );
+    assert_eq!(engine.revision(), revision);
+    // Clear of the wires it places; no routed net changes.
+    let before = engine.project().nets.clone();
+    engine.apply(engine.revision(), place([100.0, -100.0])?)?;
+    for net in &before {
+        let after = engine.project().net(net.id).ok_or("a net went")?;
+        assert_eq!(after.terminals, net.terminals, "{}", net.name);
+    }
+    Ok(())
+}
