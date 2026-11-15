@@ -343,6 +343,27 @@ pub enum GenericFamily {
 #[serde(deny_unknown_fields)]
 pub struct FamilyPatterns {
     pub family: GenericFamily,
+    /// The generator that makes this family's parts: its description's
+    /// `id` (slice D1 of the part-generation plan).
+    pub generator: String,
+    /// The parameters a preset of the generator must have to serve this
+    /// family: a size code or a listed package chooses among these.
+    #[serde(default)]
+    pub presets: crate::library::generated::GeneratorParams,
+    /// Parameters every part of the family is given on top of its preset
+    /// (an inductor on the ferrite bead's body: `part` = `inductor`).
+    #[serde(default)]
+    pub params: crate::library::generated::GeneratorParams,
+    /// The parameters a count or length slot fills, by slot name; a slot
+    /// not listed fills the parameter of its own name.
+    #[serde(default)]
+    pub slots: std::collections::BTreeMap<String, Vec<String>>,
+    /// The part's name, with `{slot}` for what the text gave
+    /// (`Pin header {rows}×{columns} {pitch} mm`).
+    pub label: String,
+    /// The two length parameters a body badge shows as `length × width`.
+    #[serde(default)]
+    pub body: Vec<String>,
     pub patterns: Vec<String>,
     pub examples: Vec<String>,
 }
@@ -382,6 +403,10 @@ pub struct GenericGrammar {
     pub length_units: Vec<LengthUnit>,
     /// A header's pitch when the text gives none, as an exact decimal.
     pub header_pitch_mm: String,
+    /// The preset alias a metric size code goes by, `{code}` replaced
+    /// (`1608M` is the preset alias `1608 metric`); an imperial code is an
+    /// alias as it is written.
+    pub metric_alias: String,
 }
 
 /// Families, patterns per family, value slots and bare suffixes a grammar
@@ -411,6 +436,24 @@ impl GenericGrammar {
             if family.examples.len() > MAX_GRAMMAR_ITEMS {
                 return Err(too_many("examples of a family"));
             }
+            if family.generator.trim().is_empty() || family.label.trim().is_empty() {
+                return Err(Error::Invalid(
+                    "each generic family names its generator and its part's label".into(),
+                ));
+            }
+            if family.presets.len() + family.params.len() + family.slots.len() > MAX_GRAMMAR_ITEMS
+                || family.slots.values().any(|p| p.len() > MAX_GRAMMAR_ITEMS)
+                || !(family.body.is_empty() || family.body.len() == 2)
+            {
+                return Err(Error::Invalid(
+                    "a generic family's presets, params and slots are bounded, and its body names two parameters or none".into(),
+                ));
+            }
+        }
+        if !self.metric_alias.contains("{code}") {
+            return Err(Error::Invalid(
+                "the generic-part grammar's metric alias needs {code}".into(),
+            ));
         }
         if self.value_slots.len() > MAX_GRAMMAR_ITEMS
             || self

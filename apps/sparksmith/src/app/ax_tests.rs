@@ -154,12 +154,25 @@ fn the_place_palette_places_a_generic_part() -> Fallible {
     ax.settle();
     assert!(ax.ctx.text_edit_focused(), "the search has the keyboard");
     ax.type_text("capacitor 0603");
-    ax.settle();
-    ax.find(
-        Role::Label,
-        "Not a component yet: choosing it creates one, then you place it",
-    )?;
-    ax.button("Chip capacitor 0603 (1608 metric)")?;
+    // The shipped generators are read off the UI thread.
+    let hint = "Not a component yet: choosing it makes one with its generator, then you place it";
+    for _ in 0..400 {
+        ax.settle();
+        if ax.find(Role::Label, hint).is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    ax.find(Role::Label, hint)?;
+    ax.button("Chip capacitor 0603")?;
+    // Made off the UI thread, applied, then armed.
+    for _ in 0..600 {
+        ax.settle();
+        if ax.app.engine.project().library.components.len() > components {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
     ax.settle();
     let free = on_sheet(&ax, [20.0, -30.0])?;
     ax.click_at(free);
@@ -173,7 +186,7 @@ fn the_place_palette_places_a_generic_part() -> Fallible {
     assert_eq!(
         ax.app.engine.project().library.components.len(),
         components + 1,
-        "the generic part was created"
+        "the generic part was made"
     );
     Ok(())
 }

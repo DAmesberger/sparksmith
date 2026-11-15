@@ -13,7 +13,6 @@ mod details_card;
 mod drawing;
 #[cfg(test)]
 mod drawing_tests;
-mod family_rows;
 mod folder_preview;
 mod footprint_canvas;
 mod footprint_card;
@@ -255,7 +254,9 @@ pub struct PartEditor {
     /// C5: the Pins tab.
     pins: pins_tab::PinsTab,
     /// B4: the New-from-template gallery sheet.
-    gallery: crate::template_gallery::TemplateGallery,
+    gallery: crate::generator_gallery::GeneratorGallery,
+    /// D1: the shipped generators the gallery and start page offer.
+    shelf: crate::generators::Shelf,
     /// D3: the model chooser sheet and import wizard.
     model_chooser: crate::model_library::ModelChooser,
     model_import: model_import::ModelImport,
@@ -319,6 +320,7 @@ impl Default for PartEditor {
             assist: Default::default(),
             pins: Default::default(),
             gallery: Default::default(),
+            shelf: Default::default(),
             model_chooser: Default::default(),
             model_import: Default::default(),
             part_chooser: Default::default(),
@@ -610,9 +612,9 @@ impl PartEditor {
         let mut tools = vec![
             Tool::new("component-new", "new", "New")
                 .selected(
-                    self.gallery.scope() == Some(&crate::template_gallery::Scope::NewComponent),
+                    self.gallery.scope() == Some(&crate::generator_gallery::Scope::NewComponent),
                 )
-                .tip("Start a new component from a package template"),
+                .tip("Start a new component with a generator"),
             Tool::new("component-open", "open", "Open")
                 .tip("Open a component of this project or a library source"),
         ];
@@ -694,17 +696,17 @@ impl PartEditor {
         crate::shell::Tool::new(
             footprint_template_picker::TOOL,
             "component",
-            "From template",
+            "From generator",
         )
         .enabled(has_draft)
         .selected(
             self.template_picker.is_open()
                 || matches!(
                     self.gallery.scope(),
-                    Some(crate::template_gallery::Scope::Package { .. })
+                    Some(crate::generator_gallery::Scope::Package { .. })
                 ),
         )
-        .tip("Build the package, footprint and model from a package row or family template")
+        .tip("Take the package, footprint and model from a generator")
     }
 
     /// The Symbol tab's drawing ribbon: Select; Draw; Pins; Arrange; Grid

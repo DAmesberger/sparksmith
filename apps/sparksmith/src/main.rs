@@ -6,6 +6,9 @@ mod commands;
 mod context_menu;
 mod file_ui;
 mod fill_worker;
+mod generator_form;
+mod generator_gallery;
+mod generators;
 mod issues;
 mod keymap;
 mod keys;
@@ -35,7 +38,6 @@ mod scene;
 mod schematic_editor;
 mod shell;
 mod symbol_view;
-mod template_gallery;
 mod update_preview;
 mod viewport;
 

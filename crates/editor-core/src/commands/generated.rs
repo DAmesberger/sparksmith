@@ -18,7 +18,6 @@ use crate::library::generated::{
 };
 use crate::library::model3d::{self, ImportModel, ModelDefinition, ModelFormat};
 use crate::library::package_model::{PartDerived, PartFileModel, PartValue};
-use crate::library::symbol_style::ResistorStyle;
 use crate::library::{DefinitionMeta, MAX_LABEL, MAX_NOTE, drafts};
 use crate::model::Document;
 use schemars::JsonSchema;
@@ -81,6 +80,90 @@ pub struct GeneratedModel {
     pub values: std::collections::BTreeMap<String, PartValue>,
     /// What the part file evaluated to at those values.
     pub derived: PartDerived,
+}
+
+/// `library.package_from_generator`'s parameters (slice D1): a generator's
+/// package as the open working set's own.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PackageFromGenerator {
+    /// The package draft of the open working set.
+    pub draft: crate::ids::DefinitionId,
+    /// The package-scope `library.generate` to make (or find) the package
+    /// with, its model evaluated by the host.
+    pub generate: Generate,
+    /// Replace a non-empty footprint instead of refusing it.
+    #[serde(default)]
+    pub replace: bool,
+    /// How the package's current terminals carry over to the generated
+    /// package's (and with them the binding's mappings): by number unless
+    /// the request chooses position.
+    #[serde(default)]
+    pub terminals: crate::library::templates::catalog::TerminalMatch,
+    /// With matching by number: current terminals that are a generated
+    /// terminal under another number, stated explicitly. Never inferred.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub renumber: Vec<crate::library::templates::catalog::Renumber>,
+}
+
+/// `library.package_from_generator`: make the package with its generator
+/// (`library.generate`, package scope; the part the project already holds
+/// is found, not made again), then give the working set's package and
+/// footprint drafts its content, terminals matched as asked. One undo
+/// step; any refusal changes nothing.
+pub(crate) fn package_from_generator(
+    document: &mut Document,
+    request: PackageFromGenerator,
+    runtime: Option<&dyn GeneratorRuntime>,
+) -> Result<Outcome> {
+    if request.generate.scope != GeneratorScope::Package {
+        return Err(Error::Invalid(
+            "generated.scope: a working set's package comes from a package-scope generation".into(),
+        ));
+    }
+    super::templates::check_working_package(document, request.draft, request.replace)?;
+    let Outcome::Generated { report } = generate(document, request.generate, runtime)? else {
+        return Err(Error::Invalid(
+            "generated.record: the generator made no package".into(),
+        ));
+    };
+    let library = &document.project.library;
+    let package = report
+        .revisions
+        .iter()
+        .find(|r| r.kind == crate::ids::DefinitionKind::Package)
+        .and_then(|r| library.package(PackageRef::new(r.id, r.revision)))
+        .map(|p| p.definition.clone());
+    let footprint = report
+        .revisions
+        .iter()
+        .find(|r| r.kind == crate::ids::DefinitionKind::Footprint)
+        .and_then(|r| library.footprint(FootprintRef::new(r.id, r.revision)))
+        .map(|f| f.definition.clone());
+    let (Some(package), Some(footprint)) = (package, footprint) else {
+        return Err(Error::Invalid(
+            "generated.record: the generated package or its footprint is missing".into(),
+        ));
+    };
+    let provenance = format!(
+        "Package made by the generator ‘{}’ version {} (parameters recorded with its generated package {}); verify against the component datasheet.",
+        report.key.generator,
+        library
+            .generated
+            .iter()
+            .find(|g| g.root == report.root)
+            .map_or(0, |g| g.from.version),
+        report.root.id
+    );
+    super::templates::adopt_generated_package(
+        document,
+        request.draft,
+        request.replace,
+        request.terminals,
+        &request.renumber,
+        (&package, &footprint),
+        provenance,
+    )
 }
 
 /// A module by hash, with its bytes when they are not embedded yet.
@@ -163,37 +246,6 @@ fn module_bytes(document: &Document, source: &ModuleSource) -> Result<(AssetByte
     }
 }
 
-/// The value of a project setting a parameter declares as its context, if
-/// the core knows the setting.
-fn context_value(document: &Document, param: &v1::Param) -> Option<v1::ParamValue> {
-    // Without a fab profile the board has no land margins.
-    let land = |pick: fn(&crate::rules::LandRules) -> f64| {
-        let mm = pick(&document.project.rules.land_estimators().ok()?.land);
-        crate::units::Nm::from_mm_f64_rounded(mm)
-            .ok()
-            .map(|nm| v1::ParamValue::Int(nm.get()))
-    };
-    match param.context.as_deref()? {
-        "project.land.chip_gap_min" => land(|l| l.chip_gap_min),
-        "project.land.gull_wing_width_extra" => land(|l| l.gull_wing_width_extra),
-        "project.land.exposed_pad_clearance" => land(|l| l.exposed_pad_clearance),
-        "project.mask.web_min" => {
-            let rules = document.project.rules.land_estimators().ok()?;
-            crate::units::Nm::from_mm_f64_rounded(rules.mask.web_min)
-                .ok()
-                .map(|nm| v1::ParamValue::Int(nm.get()))
-        }
-        "project.symbols.resistor_style" => {
-            let key = match document.drafts.symbols.resistor {
-                ResistorStyle::Iec => "iec",
-                ResistorStyle::Us => "us",
-            };
-            Some(v1::ParamValue::Text(key.into()))
-        }
-        _ => None,
-    }
-}
-
 /// What `library.generate` will run: the module's bytes (and whether the
 /// project must embed them), its description and the complete request.
 struct Prepared {
@@ -236,19 +288,14 @@ fn prepare(
     let description = runtime
         .describe(&bytes)
         .map_err(|f| generated::failure(&f))?;
-    let mut given = generated::wire_params(&request.params);
-    for param in description.params() {
-        if given.contains_key(&param.key) {
-            continue;
-        }
-        if let Some(value) = context_value(document, param)
-            && sparksmith_generator_abi::params::fits(&param.ty, &value)
-        {
-            given.insert(param.key.clone(), value);
-        }
-    }
-    let wire = generated::complete(&description, request.scope.wire(), &given)
-        .map_err(|f| generated::failure(&f))?;
+    let wire = generated::completed(
+        &document.project.rules,
+        &document.drafts,
+        &description,
+        request.scope,
+        &request.params,
+    )
+    .map_err(|f| generated::failure(&f))?;
     Ok(Prepared {
         bytes,
         embed,
@@ -277,7 +324,13 @@ pub(crate) fn generate(
     // the same scope (the regenerate rule, `docs/generator-plugins.md`).
     let replaces = match request.replaces {
         Some(root) => Some(root),
-        None => match predecessor(document, &description, &request, &wire) {
+        None => match generated::predecessor(
+            &document.project.library,
+            &description,
+            request.scope,
+            &request.params,
+            &wire,
+        ) {
             Some(part) if part.from.version == description.version => {
                 // The same version of the generator, whatever bytes it was
                 // built to: the part it made stands, and nothing changes.
@@ -616,40 +669,6 @@ fn found(existing: &GeneratedPart, key: PartKey) -> Outcome {
             notes: Vec::new(),
         },
     }
-}
-
-/// Whether a part recorded with `old` parameters was made from the same
-/// parameters as `wire`: every recorded value is the same, and a parameter
-/// the newer module adds was not given (it takes the module's default or
-/// the project's setting).
-fn same_params(old: &GeneratorParams, wire: &v1::Request, given: &GeneratorParams) -> bool {
-    old.iter()
-        .all(|(k, v)| wire.params.get(k) == Some(&v.wire()))
-        && wire
-            .params
-            .keys()
-            .all(|k| old.contains_key(k) || !given.contains_key(k))
-}
-
-/// The newest part (highest version, then revision) the same generator
-/// made from the same parameters in the same scope.
-fn predecessor<'a>(
-    document: &'a Document,
-    description: &v1::Description,
-    request: &Generate,
-    wire: &v1::Request,
-) -> Option<&'a GeneratedPart> {
-    document
-        .project
-        .library
-        .generated
-        .iter()
-        .filter(|part| {
-            part.from.scope == request.scope
-                && part.from.generator == description.id
-                && same_params(&part.from.params, wire, &request.params)
-        })
-        .max_by_key(|p| (p.from.version, p.root.revision, p.root.id))
 }
 
 /// Refuse making `part` again with an older version of its generator.

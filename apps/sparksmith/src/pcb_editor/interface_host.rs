@@ -63,22 +63,6 @@ impl Running {
     }
 }
 
-/// An automation error in the window's words: the core's refusal wording,
-/// or the message without its code.
-pub(super) fn words(error: &sparksmith_automation::Error) -> String {
-    match error {
-        sparksmith_automation::Error::Document(e) => crate::refusal::shown_error(e),
-        other => {
-            let text = other.to_string();
-            let text = match text.split_once(": ") {
-                Some((code, rest)) if code.contains('.') && !code.contains(' ') => rest.to_owned(),
-                _ => text,
-            };
-            crate::refusal::clip(&text, crate::refusal::MAX_SHOWN)
-        }
-    }
-}
-
 /// Run `job` on a session over a fork of `engine`, whose file is
 /// `project` (relative linked design paths are read against its folder).
 /// `None` when no thread could be started.
@@ -109,7 +93,7 @@ pub(super) fn run(session: &mut Session, job: Job) -> Done {
         Job::PublishPreview(params) => Done::PublishPreview(
             session
                 .execute(Request::InterfacePreview(params))
-                .map_err(|e| words(&e))
+                .map_err(|e| crate::refusal::automation_error(&e))
                 .and_then(|v| serde_json::from_value(v).map_err(|e| e.to_string())),
         ),
         Job::Publish(params) => Done::Published(
@@ -122,19 +106,19 @@ pub(super) fn run(session: &mut Session, job: Job) -> Done {
                         .unwrap_or_default();
                     (operation, revision)
                 })
-                .map_err(|e| words(&e)),
+                .map_err(|e| crate::refusal::automation_error(&e)),
         ),
         Job::AssemblyPreview(params) => Done::AssemblyPreview(
             session
                 .execute(Request::AssemblyPreview(params))
-                .map_err(|e| words(&e))
+                .map_err(|e| crate::refusal::automation_error(&e))
                 .and_then(|v| serde_json::from_value(v).map_err(|e| e.to_string())),
         ),
         Job::AssemblyUpdate(params) => Done::AssemblyRead(
             session
                 .assembly_update_command(&params)
                 .map(Operation::Assembly)
-                .map_err(|e| words(&e)),
+                .map_err(|e| crate::refusal::automation_error(&e)),
         ),
     }
 }

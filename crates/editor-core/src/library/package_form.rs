@@ -207,6 +207,32 @@ pub enum PackageForm {
     UsbC(#[params] Box<UsbCForm>),
 }
 
+/// A family form as its package form: hosts and tests build a typed form
+/// without naming the variant, which the generator migration retires
+/// (slice D2 removes the forms).
+macro_rules! form_from {
+    ($($form:ident => $variant:ident),* $(,)?) => {
+        $(impl From<$form> for PackageForm {
+            fn from(form: $form) -> Self {
+                Self::$variant(Box::new(form))
+            }
+        })*
+    };
+}
+
+form_from!(
+    ChipForm => Chip,
+    GullWingForm => GullWing,
+    NoLeadForm => NoLead,
+    HeaderForm => Header,
+    TabbedForm => Tabbed,
+    MoldedForm => Molded,
+    GridForm => Grid,
+    ThtForm => Tht,
+    ModuleForm => Module,
+    UsbCForm => UsbC,
+);
+
 /// Which chip construction the body is: sets default materials.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

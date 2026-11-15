@@ -1,24 +1,25 @@
 //! Slice A1: the Component workspace start page, shown whenever the
 //! workspace has no subject: a catalog search (the same `library.search`
 //! as the Place palette, project and every ready library source), Recent,
-//! New from a template, Create from datasheet… and Import pinout…. A search
-//! also lists the template rows it finds, below the components; choosing one
-//! opens the New from template form on it. A text that reads as an on-demand
-//! generic part lists that part as well: choosing it opens the part the
-//! project holds, or creates and publishes it and opens that, with no form.
+//! New from a generator, Create from datasheet… and Import pinout…. A search
+//! also lists the generator presets it finds, below the components;
+//! choosing one opens the generator form on it (slice D1). A text that
+//! reads as an on-demand generic part lists that part as well: choosing it
+//! opens the part the project holds, or makes it with its generator
+//! (`library.generate`, off the UI thread) and opens that, with no form.
 use super::PartEditor;
 use super::identity::Subject;
 #[cfg(test)]
 use super::{Request, Template};
+use crate::generator_gallery;
+use crate::generators::{self, MakeRequest, Making};
 use crate::kit;
 use crate::library_sources::FolderPick;
 use crate::refusal::{self, Origin};
-use crate::template_gallery::{self, Found};
 use egui::{RichText, Ui};
-use sparksmith_core::catalog::generic::GenericCandidate;
-use sparksmith_core::catalog::templates::TemplateHit;
+use sparksmith_core::catalog::generic::generators::{GeneratorCandidate, PresetHit};
 use sparksmith_core::catalog::{CatalogEntry, Source};
-use sparksmith_core::library::templates::generic::GenericState;
+use sparksmith_core::library::generated::{GeneratorScope, Standing};
 use sparksmith_core::{DefinitionId, DefinitionKind, Engine, Operation, Query, QueryResult};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::type_face;
@@ -42,10 +43,12 @@ pub struct StartPage {
     all: bool,
     /// (query, engine revision, context generation, limit) → hits.
     results: Option<(Key, Answer)>,
-    /// The template rows of the same search.
-    templates: Found,
+    /// The generator presets of the same search, and how many more.
+    presets: generators::Found,
     /// The generic parts the same search reads as.
-    generic: Vec<GenericCandidate>,
+    generic: Vec<GeneratorCandidate>,
+    /// A generic part being made off the UI thread.
+    making: Option<Making>,
     /// A create chosen here, for the app to apply.
     outgoing: Option<Operation>,
     /// A create was sent: the revision and components it started from.
@@ -64,8 +67,8 @@ impl StartPage {
 /// What a start page row asks for.
 enum Chosen {
     Subject(Subject),
-    Template(Box<TemplateHit>),
-    Generic(Box<GenericCandidate>),
+    Preset(Box<PresetHit>),
+    Generic(Box<GeneratorCandidate>),
 }
 
 type Key = (String, u64, u64, usize);
@@ -79,6 +82,7 @@ impl PartEditor {
         if self.lineage.is_some() || self.is_read_only() {
             return false;
         }
+        self.settle_making(ui.ctx(), engine);
         if self.settle_create(ui.ctx(), engine) {
             return false;
         }
@@ -122,10 +126,10 @@ impl PartEditor {
         if let Some(chosen) = open {
             match chosen {
                 Chosen::Subject(subject) => self.open_subject(subject, engine),
-                Chosen::Template(hit) => {
+                Chosen::Preset(hit) => {
                     let query = self.start.query.clone();
                     self.gallery
-                        .open_on(&hit, query, false, Some(super::model_body::form_rows));
+                        .open_on(&MakeRequest::of_preset(&hit), query, false);
                 }
                 Chosen::Generic(candidate) => self.choose_generic(ui.ctx(), engine, &candidate),
             }
@@ -140,21 +144,54 @@ impl PartEditor {
         &mut self,
         ctx: &egui::Context,
         engine: &Engine,
-        candidate: &GenericCandidate,
+        candidate: &GeneratorCandidate,
     ) {
         self.start.notice = None;
-        match &candidate.state {
-            GenericState::Existing { component } => self.open(component.id, engine),
-            GenericState::Draft { id } => self.open(*id, engine),
-            GenericState::Refused { reason } => self.start.notice = Some(reason.clone()),
-            GenericState::NotCreated => {
-                refusal::mark(ctx, Origin::Dialog(egui::Id::unique(START_CREATE)));
-                self.start.sent = Some((
-                    engine.revision(),
-                    template_gallery::published_components(engine),
-                ));
-                self.start.outgoing = template_gallery::generic_request(candidate);
+        if let Some(reason) = candidate.refusal() {
+            self.start.notice = Some(reason);
+            return;
+        }
+        match (&candidate.standing, candidate.component()) {
+            (Standing::Held { .. }, Some(component)) => self.open(component.id, engine),
+            // An older version made it: the form says what making it
+            // again does.
+            (Standing::Update { .. }, _) => {
+                let query = self.start.query.clone();
+                self.gallery
+                    .open_on(&MakeRequest::of_candidate(candidate), query, false);
             }
+            _ => {
+                if self.start.making.is_some() {
+                    return;
+                }
+                self.start.making = generators::make(
+                    ctx,
+                    engine,
+                    MakeRequest::of_candidate(candidate),
+                    generators::Into::Part(GeneratorScope::Component),
+                );
+                if self.start.making.is_none() {
+                    self.start.notice = Some("The part could not be made: no worker thread".into());
+                }
+            }
+        }
+    }
+
+    /// A generic part made off the UI thread: send its command, or say why
+    /// it was not made.
+    fn settle_making(&mut self, ctx: &egui::Context, engine: &Engine) {
+        let Some(done) = self.start.making.as_mut().and_then(Making::poll) else {
+            return;
+        };
+        self.start.making = None;
+        match done {
+            Ok(operation) => {
+                refusal::mark(ctx, Origin::Dialog(egui::Id::unique(START_CREATE)));
+                self.start.sent =
+                    Some((engine.revision(), generators::published_components(engine)));
+                self.start.outgoing = Some(operation);
+            }
+            Err(why) => self.start.notice = Some(why),
         }
     }
 
@@ -168,7 +205,7 @@ impl PartEditor {
             self.start.sent = None;
             self.start.notice = Some(why);
         } else if engine.revision() != *revision {
-            let created = template_gallery::new_component(engine, before);
+            let created = generators::new_component(engine, before);
             self.start.sent = None;
             if let Some(component) = created {
                 self.open(component.id, engine);
@@ -209,10 +246,10 @@ impl PartEditor {
         if self.start.results.as_ref().is_none_or(|(k, _)| *k != key) {
             let context = &self.identity.context.1;
             let answer = search(engine, &self.start.query, limit, context);
-            self.start.generic = template_gallery::find_generic(engine, &self.start.query);
-            self.start.templates =
-                template_gallery::find(engine, &self.start.query, limit, context);
-            template_gallery::drop_covered(&mut self.start.templates, &self.start.generic);
+            self.start.generic = generators::find_generic(engine, &self.shelf, &self.start.query);
+            self.start.presets =
+                generators::find_presets(engine, &self.shelf, &self.start.query, limit);
+            generators::drop_covered(&mut self.start.presets, &self.start.generic);
             self.start.notice = None;
             // A text this grammar reads need not be one the search can. A
             // part the project holds lists once, as that part.
@@ -246,24 +283,23 @@ impl PartEditor {
         }
         match &self.start.results {
             Some((_, Ok((entries, total)))) => {
-                let templates = &self.start.templates;
+                let (presets, more) = (&self.start.presets.hits, &self.start.presets.more);
                 let generic = &self.start.generic;
                 let query = &self.start.query;
                 let held = generic.iter().filter(|c| c.component().is_some());
                 let held = held.count();
-                let mut generic_row = |ui: &mut Ui, (i, candidate): (usize, &GenericCandidate)| {
-                    let id = egui::Id::unique("component-start-generic").with(i);
-                    if template_gallery::generic_row(ui, id, candidate, query, false).clicked() {
-                        open = Some(Chosen::Generic(Box::new(candidate.clone())));
-                    }
-                };
-                if !entries.is_empty()
-                    || held > 0
-                    || (generic.is_empty() && templates.hits.is_empty())
-                {
+                let mut generic_row =
+                    |ui: &mut Ui, (i, candidate): (usize, &GeneratorCandidate)| {
+                        let id = egui::Id::unique("component-start-generic").with(i);
+                        if generator_gallery::generic_row(ui, id, candidate, query, false).clicked()
+                        {
+                            open = Some(Chosen::Generic(Box::new(candidate.clone())));
+                        }
+                    };
+                if !entries.is_empty() || held > 0 || (generic.is_empty() && presets.is_empty()) {
                     kit::search_heading(ui, "Components", *total + held);
                 }
-                if entries.is_empty() && templates.hits.is_empty() && generic.is_empty() {
+                if entries.is_empty() && presets.is_empty() && generic.is_empty() {
                     kit::search_message(ui, "Nothing matches; try fewer words", false);
                 }
                 generic
@@ -306,29 +342,23 @@ impl PartEditor {
                     .enumerate()
                     .filter(|(_, c)| c.component().is_none())
                     .for_each(|row| generic_row(ui, row));
-                if !templates.hits.is_empty() {
-                    let count = templates.hits.len() + templates.more;
-                    kit::search_heading(ui, template_gallery::SEARCH_HEADING, count);
+                if !presets.is_empty() {
+                    let count = presets.len() + more;
+                    kit::search_heading(ui, generator_gallery::SEARCH_HEADING, count);
                 }
-                for (i, hit) in templates.hits.iter().enumerate() {
-                    let source =
-                        template_gallery::source_label(hit, |l| self.identity.library_name(l));
-                    let id = egui::Id::unique("component-start-template").with(i);
+                for (i, hit) in presets.iter().enumerate() {
+                    let id = egui::Id::unique("component-start-preset").with(i);
                     let query = &self.start.query;
-                    if template_gallery::search_row(ui, id, hit, query, false, &source).clicked() {
-                        open = Some(Chosen::Template(Box::new(hit.clone())));
+                    if generator_gallery::preset_row(ui, id, hit, query, false).clicked() {
+                        open = Some(Chosen::Preset(Box::new(hit.clone())));
                     }
                 }
-                if templates.more > 0 {
+                if *more > 0 {
                     if self.start.all {
-                        kit::note(ui, &format!("{} more: narrow the search", templates.more));
+                        kit::note(ui, &format!("{more} more: narrow the search"));
                     } else if kit::summary_row(
                         ui,
-                        &format!(
-                            "{} of {}",
-                            templates.hits.len(),
-                            templates.hits.len() + templates.more
-                        ),
+                        &format!("{} of {}", presets.len(), presets.len() + more),
                         Some("Show all \u{203a}"),
                     ) {
                         show_all = true;
@@ -392,15 +422,15 @@ impl PartEditor {
     }
 }
 
-/// New from template… (the one searchable gallery of package rows and
-/// family entries), Create from datasheet… (opens the assistant's form
+/// New from generator… (the one searchable gallery of every generator's
+/// presets and values), Create from datasheet… (opens the assistant's form
 /// below), and Import pinout….
 fn start_new(ui: &mut Ui, assist: &mut super::datasheet_assist::DatasheetAssist) -> bool {
     kit::search_heading(ui, "New", 1);
     let mut chosen = false;
     ui.horizontal_wrapped(|ui| {
-        chosen = ui_kit::button(ui, "New from template…", Button::Normal)
-            .on_hover_text("Search package rows by name, size code, pins, pitch or body")
+        chosen = ui_kit::button(ui, "New from generator…", Button::Normal)
+            .on_hover_text("Make a part with a generator: chip, SOIC, QFN, SOT, BGA, header, module…")
             .clicked();
         if ui_kit::button(ui, "Create from datasheet…", Button::Normal)
             .on_hover_text("Draft a part from its datasheets with a model you configure: Claude or any OpenAI-compatible endpoint, local or hosted")
@@ -507,12 +537,15 @@ mod generic_tests {
         Ok(())
     }
 
-    /// Open lists the generic part; choosing it creates, publishes and opens
-    /// it with no form, and the same text then opens that part.
+    /// Open lists the generic part; choosing it makes it with its
+    /// generator (off the UI thread) and opens it with no form, and the
+    /// same text then opens that part.
     #[test]
-    fn open_creates_the_part_and_opens_it() -> TestResult {
+    fn open_makes_the_part_and_opens_it() -> TestResult {
         let mut engine = Engine::profiled()?;
+        engine.set_generators(sparksmith_automation::session::generators::runtime());
         let mut editor = PartEditor::default();
+        editor.set_shelf(&generators::test_shelf());
         let screen = Screen::new(vec2(1000.0, 700.0));
         editor.start.query = "header 1x4".to_owned();
         let drawn = screen.run(vec![], |ui| {
@@ -523,20 +556,23 @@ mod generic_tests {
         assert!(
             !editor
                 .start
-                .templates
+                .presets
                 .hits
                 .iter()
                 .any(|h| h.name == "Pin header 1×4 2.54 mm"),
-            "the fixed row is the same part: listed once"
+            "the preset is the same part: listed once"
         );
 
         let candidate = editor.start.generic[0].clone();
         editor.choose_generic(&screen.ctx, &engine, &candidate);
-        let operation = editor.start.take_outgoing().ok_or("one create")?;
+        let making = editor.start.making.as_mut().ok_or("being made")?;
+        let operation = generators::wait(making)?;
+        editor.start.making = None;
         assert!(matches!(
             operation,
-            Operation::Library(sparksmith_core::LibraryCommand::PublishFromTemplate(_))
+            Operation::Library(sparksmith_core::LibraryCommand::Generate(_))
         ));
+        editor.start.sent = Some((engine.revision(), generators::published_components(&engine)));
         apply(&mut engine, operation)?;
         screen.run(vec![], |ui| {
             editor.canvas(ui, &engine);
@@ -551,6 +587,7 @@ mod generic_tests {
         assert_eq!(editor.lineage, Some(component), "it opened");
 
         let mut again = PartEditor::default();
+        again.set_shelf(&generators::test_shelf());
         again.start.query = "header 1x4".to_owned();
         screen.run(vec![], |ui| {
             again.canvas(ui, &engine);
@@ -558,30 +595,31 @@ mod generic_tests {
         let found = again.start.generic.first().cloned().ok_or("the part")?;
         assert_eq!(found.component().map(|c| c.id), Some(component));
         again.choose_generic(&screen.ctx, &engine, &found);
-        assert!(again.start.take_outgoing().is_none(), "nothing to create");
+        assert!(again.start.making.is_none(), "nothing to make");
         assert_eq!(again.lineage, Some(component));
         Ok(())
     }
 
-    /// A refused part says why on the page and sends nothing.
+    /// A refused part says why on the page and makes nothing.
     #[test]
     fn open_says_why_a_part_is_refused() -> TestResult {
         let engine = Engine::default();
         let mut editor = PartEditor::default();
+        editor.set_shelf(&generators::test_shelf());
         let screen = Screen::new(vec2(1000.0, 700.0));
-        editor.start.query = "header 1x9999".to_owned();
+        editor.start.query = "resistor 0604".to_owned();
         screen.run(vec![], |ui| {
             editor.canvas(ui, &engine);
         });
         let candidate = editor.start.generic.first().cloned().ok_or("the row")?;
         editor.choose_generic(&screen.ctx, &engine, &candidate);
-        assert!(editor.start.take_outgoing().is_none());
+        assert!(editor.start.making.is_none());
         assert!(
             editor
                 .start
                 .notice
                 .as_deref()
-                .is_some_and(|n| n.contains("at most 512 pins"))
+                .is_some_and(|n| n.contains("0604"))
         );
         assert_eq!(editor.lineage, None);
         Ok(())

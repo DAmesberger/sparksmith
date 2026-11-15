@@ -26,10 +26,8 @@ use crate::kit::toast::{ToastAction, post};
 use crate::kit::{self, DialogPanel, Tone, dialog::DialogAction, dialog::PrimaryKind};
 use crate::refusal::{self, Origin};
 use egui::Ui;
-use sparksmith_core::catalog::templates::TemplateHit;
 use sparksmith_core::library::footprint_edit::{self, AssignRule, TerminalChange};
 use sparksmith_core::library::footprint_source::{Expr, NumberingScheme};
-use sparksmith_core::library::templates::catalog::FamilyKind;
 use sparksmith_core::library::templates::footprint_family::{
     self, ExposedPad, ExposedVias, FootprintTemplate, MAX_PASTE_GRID, TemplateKind,
 };
@@ -475,35 +473,33 @@ fn form(ui: &mut Ui, template: &mut FootprintTemplate) {
 }
 
 impl PartEditor {
-    /// The ribbon's "From template" tool: the New-from-template gallery in
-    /// package scope (slice B4), on the working set's package draft. One
-    /// `library.package_from_template` replaces the package, footprint and
-    /// generated model; a footprint with pads is replaced in the same
-    /// atomic step. The chip starts on the package's own family.
+    /// The ribbon's "From generator" tool (and the 3D tab's Change
+    /// package…): the generator gallery in package scope (slice D1), on the
+    /// working set's package draft. One `library.package_from_generator`
+    /// gives the package, footprint and model the generator's; a footprint
+    /// with pads is replaced in the same atomic step.
     pub(super) fn open_template_picker(&mut self) {
         if let Some(set) = &self.draft {
             self.template_picker.close();
-            self.gallery.open_package(
-                set.ids.package,
-                set.footprint.pads.len(),
-                FamilyKind::of(&set.package.form),
-                String::new(),
-                Some(super::model_body::form_rows),
-            );
+            self.gallery
+                .open_package(set.ids.package, set.footprint.pads.len(), String::new());
         }
     }
 
     /// The gallery in new-component scope: the ribbon's New and the start
-    /// page's New from template… open it.
+    /// page's New from generator… open it.
     pub(super) fn open_template_gallery(&mut self) {
-        self.gallery.open_new(Some(super::model_body::form_rows));
+        self.gallery.open_new();
     }
 
-    /// The gallery on `hit` for the Schematic's Place palette: its primary
-    /// continues to placement ([`Self::take_template_to_place`]).
-    pub fn open_template_to_place(&mut self, hit: &TemplateHit, query: String) {
-        self.gallery
-            .open_on(hit, query, true, Some(super::model_body::form_rows));
+    /// The gallery on `request` for the Schematic's Place palette: its
+    /// primary continues to placement ([`Self::take_template_to_place`]).
+    pub fn open_template_to_place(
+        &mut self,
+        request: &crate::generators::MakeRequest,
+        query: String,
+    ) {
+        self.gallery.open_on(request, query, true);
     }
 
     /// The gallery sheet where the Component workspace is not drawing it.
@@ -770,12 +766,12 @@ impl PartEditor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::template_gallery::Scope;
+    use crate::generator_gallery::Scope;
     use sparksmith_core::Engine;
 
     /// The Footprint tab's From template opens the gallery in package scope
     /// on the working set's package draft (not the footprint-only dialog),
-    /// starting on the package's own family; the footprint-only dialog
+    /// the footprint-only dialog
     /// stays one call away and closes the gallery.
     #[test]
     fn from_template_opens_the_gallery_on_the_package() -> Result<(), Box<dyn std::error::Error>> {

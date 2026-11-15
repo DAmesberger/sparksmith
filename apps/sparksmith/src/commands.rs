@@ -1341,7 +1341,7 @@ fn defaults() -> Vec<Command> {
         .chord(keys::COMPONENT_NEW)
         .in_place()
         .icon("new")
-        .keywords("template gallery part"),
+        .keywords("generator template gallery part"),
         Command::new(
             "component.open",
             "Open component…",

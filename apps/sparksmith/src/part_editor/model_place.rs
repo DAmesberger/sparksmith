@@ -75,8 +75,6 @@ pub struct Drag {
 pub struct ModelTab {
     /// Typed placement values not yet committed.
     pub fields: Option<ModelPlacement>,
-    /// Typed form values not yet committed.
-    pub form: Option<sparksmith_core::library::PackageForm>,
     pub drag: Option<Drag>,
     /// Esc ended the triad drag; ignore it until the button is released.
     pub cancelled: bool,
@@ -374,11 +372,11 @@ mod tests {
     use super::*;
     use crate::schematic_editor::pt;
     use sparksmith_core::library::package_form::typical_nm as nm;
-    use sparksmith_core::library::{GullWingForm, LeadSides, PackageForm, PackageTerminal, Pad};
+    use sparksmith_core::library::{PackageTerminal, Pad};
     use sparksmith_core::{PackageTerminalId, PadId};
     use sparksmith_solidcraft::geom::Vec3;
 
-    /// An original SOIC-8-like form whose rows run along x.
+    /// The SOIC-8 sample form, whose rows run along x.
     pub fn soic() -> PackageDefinition {
         PackageDefinition {
             terminals: (1..=8)
@@ -387,19 +385,7 @@ mod tests {
                     designation: i.to_string(),
                 })
                 .collect(),
-            form: PackageForm::GullWing(Box::new(GullWingForm {
-                sides: LeadSides::Two,
-                leads_per_side: [4, 0],
-                pitch_nm: nm(1.27),
-                body_length_nm: nm(4.9),
-                body_width_nm: nm(3.9),
-                body_height_nm: nm(1.5),
-                standoff_nm: nm(0.1),
-                span_nm: [nm(6.0), nm(0.0)],
-                lead_width_nm: nm(0.4),
-                lead_thickness_nm: nm(0.2),
-                foot_length_nm: nm(0.6),
-            })),
+            form: sparksmith_core::library::samples::Preset::Soic8.form(),
             envelope_nm: [nm(4.9), nm(6.0), nm(1.6)],
             ..PackageDefinition::default()
         }

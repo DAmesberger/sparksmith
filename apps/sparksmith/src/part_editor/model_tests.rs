@@ -28,14 +28,15 @@ struct Harness {
 }
 
 fn chip() -> PackageForm {
-    PackageForm::Chip(Box::new(ChipForm {
+    ChipForm {
         kind: ChipKind::Resistor,
         // Terminations centred at ±0.8 mm, on the template's lands.
         length_nm: nm(2.0),
         width_nm: nm(1.2),
         height_nm: nm(0.55),
         termination_nm: nm(0.4),
-    }))
+    }
+    .into()
 }
 
 impl Harness {
@@ -411,6 +412,13 @@ fn offset_and_quick_actions_start_folded_with_a_summary() -> TestResult {
 fn an_invalid_body_length_stays_marked_until_esc() -> TestResult {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let mut h = Harness::new()?;
+    // An authored envelope: no typed values.
+    let draft = h.editor.draft.as_ref().ok_or("draft")?.ids.package;
+    h.sent.push(model_place::edit(
+        draft,
+        vec![PackageEdit::SetForm(PackageForm::default())],
+    ));
+    h.apply_sent()?;
     let texts = h.inspector(vec![]);
     let length = texts
         .iter()
@@ -511,85 +519,33 @@ fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
     }
 }
 
-fn package_of(
-    h: &Harness,
-) -> Result<sparksmith_core::library::PackageDefinition, Box<dyn std::error::Error>> {
-    let id = h.editor.draft.as_ref().ok_or("draft")?.ids.package;
-    match &h.engine.drafts().get(id).ok_or("package")?.definition {
-        Definition::Package(p) => Ok(p.clone()),
-        _ => Err("not a package".into()),
-    }
-}
-
+/// Slice D1: the Body section edits no typed values; Change package…
+/// opens the generator gallery on the working set's package.
 #[test]
-fn the_form_chooser_sends_one_typed_form_and_parameters_commit_when_left() -> TestResult {
+fn change_package_opens_the_generator_gallery_on_the_package() -> TestResult {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let mut h = Harness::new()?;
-    // The Body section offers every family; the chip's parameters show.
     let texts = h.inspector(vec![]);
-    for label in ["Form", "Chip (R, C, L)", "Termination", "Lands from body"] {
-        assert!(texts.iter().any(|(t, _)| t == label), "{label}");
+    for label in ["Envelope", "Change package…"] {
+        assert!(texts.iter().any(|(t, _)| t == label), "{label}: {texts:?}");
     }
     assert!(
-        !texts.iter().any(|(t, _)| t == "Model offset"),
-        "placement has one control"
+        !texts.iter().any(|(t, _)| t == "Termination"),
+        "no typed rows"
     );
-    h.click_label("Chip (R, C, L)")?;
-    h.click_label("Gull-wing (SOIC, QFP)")?;
-    assert!(
-        matches!(
-            h.sent.as_slice(),
-            [Operation::Library(LibraryCommand::EditPackage { edits, .. })]
-                if matches!(edits.as_slice(), [PackageEdit::SetForm(PackageForm::GullWing(_))])
-        ),
-        "{:?}",
-        h.sent
-    );
-    h.apply_sent()?;
-    let texts = h.inspector(vec![]);
-    for label in [
-        "Leads per side",
-        "Span",
-        "Foot length",
-        "Generated parametric model",
-    ] {
-        assert!(texts.iter().any(|(t, _)| t == label), "{label}");
-    }
-    // The terminal mismatch is a package finding: named in Issues, not
-    // repeated in the card.
-    assert!(
-        h.issue_codes()?
-            .iter()
-            .any(|c| c == "package.form_terminals"),
-        "the terminal mismatch is named"
+    h.click_label("Change package…")?;
+    let draft = h.editor.draft.as_ref().ok_or("draft")?;
+    assert_eq!(
+        h.editor.gallery.scope(),
+        Some(&crate::generator_gallery::Scope::Package {
+            draft: draft.ids.package,
+            pads: draft.footprint.pads.len(),
+        })
     );
     assert!(
-        !texts
-            .iter()
-            .any(|(t, _)| t.contains("leads; the package has"))
+        h.sent.is_empty(),
+        "nothing changes until the gallery's primary"
     );
-    // A typed pitch is previewed and sent once the field is left.
-    let pitch = texts
-        .iter()
-        .find(|(t, _)| t == "1.27 mm")
-        .map(|(_, p)| *p)
-        .ok_or("no pitch field")?;
-    h.time += 1.0;
-    h.inspector(vec![egui::Event::PointerMoved(pitch)]);
-    h.inspector(vec![Harness::button(pitch, true)]);
-    h.inspector(vec![Harness::button(pitch, false)]);
-    h.inspector(vec![
-        key(egui::Key::A, egui::Modifiers::COMMAND),
-        egui::Event::Text("1.1 mm".into()),
-    ]);
-    assert!(h.sent.is_empty(), "nothing while typing");
-    h.inspector(vec![key(egui::Key::Enter, egui::Modifiers::NONE)]);
-    h.inspector(vec![]);
-    assert_eq!(h.apply_sent()?, 1);
-    match package_of(&h)?.form {
-        PackageForm::GullWing(g) => assert!((g.pitch() - 1.1).abs() < 1e-12),
-        other => return Err(format!("{other:?}").into()),
-    }
     Ok(())
 }
 
@@ -600,15 +556,13 @@ fn a_residual_from_mismatched_spacing_is_explained() -> TestResult {
     let draft = h.editor.draft.as_ref().ok_or("draft")?.ids.package;
     h.sent.push(model_place::edit(
         draft,
-        vec![PackageEdit::SetForm(PackageForm::Chip(Box::new(
-            ChipForm {
-                kind: ChipKind::Resistor,
-                length_nm: nm(2.8),
-                width_nm: nm(1.2),
-                height_nm: nm(0.55),
-                termination_nm: nm(0.4),
-            },
-        )))],
+        vec![PackageEdit::SetForm(PackageForm::from(ChipForm {
+            kind: ChipKind::Resistor,
+            length_nm: nm(2.8),
+            width_nm: nm(1.2),
+            height_nm: nm(0.55),
+            termination_nm: nm(0.4),
+        }))],
     ));
     h.apply_sent()?;
     let texts = h.inspector(vec![]);

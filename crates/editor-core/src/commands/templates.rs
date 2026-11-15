@@ -639,7 +639,26 @@ fn replaced_package(
 ) -> Result<Replaced> {
     let count = usize::try_from(samples::form_terminal_count(&form)).unwrap_or(0);
     let designations = samples::form_designations(&form, count);
-    check_renumber(package, &designations, strategy, renumber)?;
+    let mut replaced = matched_terminals(package, &designations, floor, strategy, renumber)?;
+    replaced.package.envelope_nm = form.envelope_nm()?.unwrap_or(replaced.package.envelope_nm);
+    replaced.package.form = form;
+    Ok(replaced)
+}
+
+/// `package` with terminals designated `designations`, in that order:
+/// `strategy` says which current terminals carry over (their identities,
+/// and so the binding mappings that name them), as
+/// [`replaced_package`] describes; other new terminals get fresh
+/// identities from `floor`.
+fn matched_terminals(
+    package: &PackageDefinition,
+    designations: &[String],
+    floor: u32,
+    strategy: TerminalMatch,
+    renumber: &[Renumber],
+) -> Result<Replaced> {
+    let count = designations.len();
+    check_renumber(package, designations, strategy, renumber)?;
     // The current number a new number takes its terminal from: itself,
     // unless the request renumbers another one to it.
     let source = |designation: &str| -> String {
@@ -735,8 +754,6 @@ fn replaced_package(
         summary,
     };
     next.terminals = terminals;
-    next.envelope_nm = form.envelope_nm()?.unwrap_or(next.envelope_nm);
-    next.form = form;
     Ok(Replaced {
         package: next,
         report,
@@ -992,4 +1009,310 @@ fn mapping_findings(
         }
     }
     out
+}
+
+/// The open working set's package and footprint drafts taking a generated
+/// package's content (`library.package_from_generator`, slice D1): the
+/// package's terminals (matched to the current ones as `strategy` says),
+/// envelope, model and placement, and the footprint's pads, drawings,
+/// polarity, keep-outs, defaults and datum, with fresh local identities
+/// and pads landing the matched terminals. The drafts are the person's
+/// own afterwards; the generated revisions stay in the library with their
+/// record. One undo step with the generation, applied by the caller.
+pub(crate) fn adopt_generated_package(
+    document: &mut Document,
+    draft: DefinitionId,
+    replace: bool,
+    strategy: TerminalMatch,
+    renumber: &[Renumber],
+    generated: (&PackageDefinition, &FootprintDefinition),
+    provenance: String,
+) -> Result<Outcome> {
+    let fresh = DefinitionId(document.project.next_id);
+    let Candidate {
+        edits,
+        created,
+        plan,
+    } = adopted(
+        document,
+        draft,
+        replace,
+        strategy,
+        renumber,
+        (generated.0, generated.1, provenance),
+        fresh,
+    )?;
+    if let Some(created) = created {
+        let project = Arc::make_mut(&mut document.project);
+        let id = DefinitionId(project.allocate()?);
+        if id != created.id {
+            return Err(Error::Conflict(
+                "template.footprint: the footprint identity changed while it was planned".into(),
+            ));
+        }
+        drafts::create(
+            Arc::make_mut(&mut document.drafts),
+            &project.library,
+            created.id,
+            None,
+            created.meta,
+            created.definition,
+        )?;
+    }
+    drafts::edit(Arc::make_mut(&mut document.drafts), edits)?;
+    Ok(Outcome::PackageReplaced { plan })
+}
+
+/// The package draft `draft` and the footprint draft landing it, if one;
+/// refused when the draft is gone or not a package, or several footprint
+/// drafts land it, or (without `replace`) its footprint has content.
+#[allow(clippy::type_complexity)]
+fn working_package(
+    document: &Document,
+    draft: DefinitionId,
+    replace: bool,
+) -> Result<(
+    &crate::library::Draft,
+    &PackageDefinition,
+    Option<(&crate::library::Draft, &FootprintDefinition)>,
+)> {
+    let current = document
+        .drafts
+        .get(draft)
+        .ok_or_else(|| Error::NotFound("That draft no longer exists".into()))?;
+    let Definition::Package(package) = &current.definition else {
+        return Err(Error::Invalid(format!(
+            "The draft ‘{}’ is not a package",
+            current.meta.name
+        )));
+    };
+    let mut landing = document
+        .drafts
+        .items
+        .iter()
+        .filter_map(|d| match &d.definition {
+            Definition::Footprint(f) if f.package.id == draft => Some((d, f)),
+            _ => None,
+        });
+    let landing = match (landing.next(), landing.next()) {
+        (None, _) => None,
+        (Some(one), None) => Some(one),
+        (Some(_), Some(_)) => {
+            return Err(Error::Invalid(format!(
+                "package.footprint_ambiguous: several footprint drafts land the package ‘{}’; open one working set",
+                current.meta.name
+            )));
+        }
+    };
+    if let Some((footprint_draft, footprint)) = landing
+        && !replace
+        && (!footprint.pads.is_empty() || footprint.source.is_some())
+    {
+        return Err(Error::Conflict(format!(
+            "footprint.template_not_empty: the footprint ‘{}’ already has pads; pass replace to rebuild it from the generator",
+            footprint_draft.meta.name
+        )));
+    }
+    Ok((current, package, landing))
+}
+
+/// Whether the working set's package draft can take a generated package:
+/// what [`adopt_generated_package`] checks before anything is generated.
+pub(crate) fn check_working_package(
+    document: &Document,
+    draft: DefinitionId,
+    replace: bool,
+) -> Result<()> {
+    working_package(document, draft, replace).map(|_| ())
+}
+
+fn adopted(
+    document: &Document,
+    draft: DefinitionId,
+    replace: bool,
+    strategy: TerminalMatch,
+    renumber: &[Renumber],
+    (generated, generated_footprint, provenance): (
+        &PackageDefinition,
+        &FootprintDefinition,
+        String,
+    ),
+    fresh: DefinitionId,
+) -> Result<Candidate> {
+    let (current, package, landing) = working_package(document, draft, replace)?;
+    let floor = package_floor(document, current, package);
+    let designations: Vec<String> = generated
+        .terminals
+        .iter()
+        .map(|t| t.designation.clone())
+        .collect();
+    let replaced = matched_terminals(package, &designations, floor, strategy, renumber)?;
+    let unmatched = if package.terminals.is_empty() {
+        None
+    } else {
+        unmatched_finding(draft, &replaced)
+    };
+    let terminals = replaced.report.clone();
+    // The generated terminal each new terminal is, by position.
+    let ids: Vec<(PackageTerminalId, PackageTerminalId)> = generated
+        .terminals
+        .iter()
+        .zip(&replaced.package.terminals)
+        .map(|(g, n)| (g.id, n.id))
+        .collect();
+    let mut next = replaced.package;
+    next.form = generated.form.clone();
+    next.envelope_nm = generated.envelope_nm;
+    next.model = generated.model.clone();
+    next.placement = generated.placement;
+    let mut meta = current.meta.clone();
+    meta.provenance = provenance;
+    let (footprint_id, footprint_meta, footprint, floor, create) = match landing {
+        Some((footprint_draft, footprint)) => (
+            footprint_draft.id,
+            footprint_draft.meta.clone(),
+            footprint.clone(),
+            footprint_floor(document, footprint_draft, footprint),
+            false,
+        ),
+        None => {
+            let revision = current.pending().ok_or_else(|| {
+                Error::Limit(format!(
+                    "the package ‘{}’ has no next revision",
+                    current.meta.name
+                ))
+            })?;
+            let footprint = FootprintDefinition {
+                package: PackageRef::new(draft, revision),
+                next_local: 1,
+                ..FootprintDefinition::default()
+            };
+            let mut footprint_meta = meta.clone();
+            footprint_meta.name = footprint_name(&current.meta.name);
+            (fresh, footprint_meta, footprint, 1, true)
+        }
+    };
+    let rebuilt = adopted_footprint(&footprint, generated_footprint, &ids, floor)?;
+    let pads_after = u32::try_from(rebuilt.pads.len()).unwrap_or(u32::MAX);
+    let mut findings = package_fit::placement_findings(&next, &rebuilt, footprint_id);
+    let footprint_edit = DraftEdit {
+        id: footprint_id,
+        meta: footprint_meta,
+        definition: Definition::Footprint(rebuilt),
+    };
+    let mut edits = Vec::new();
+    let mut bound = None;
+    let created = if create {
+        let reference = FootprintRef::new(footprint_id, Revision::FIRST);
+        match bind_created(document, draft, reference) {
+            Ok(edit) => {
+                bound = Some(edit.id);
+                edits.push(edit);
+            }
+            Err(finding) => findings.push(finding),
+        }
+        Some(footprint_edit)
+    } else {
+        edits.push(footprint_edit);
+        None
+    };
+    findings.extend(unmatched);
+    findings.extend(mapping_findings(document, draft, &next));
+    if terminals.strategy == TerminalMatch::ByPosition {
+        findings.extend(retained_findings(
+            document,
+            draft,
+            package,
+            &next,
+            terminals.renumbered,
+        ));
+    }
+    let plan = PackagePlan {
+        terminals_before: u32::try_from(package.terminals.len()).unwrap_or(u32::MAX),
+        terminals_after: u32::try_from(next.terminals.len()).unwrap_or(u32::MAX),
+        pads_after,
+        model_family_rev: None,
+        footprint: Some(footprint_id),
+        footprint_created: created.is_some(),
+        footprint_bound: bound,
+        terminals,
+        findings,
+    };
+    edits.insert(
+        0,
+        DraftEdit {
+            id: draft,
+            meta,
+            definition: Definition::Package(next),
+        },
+    );
+    Ok(Candidate {
+        edits,
+        created,
+        plan,
+    })
+}
+
+/// `footprint` (the working set's, keeping its lineage and landing
+/// reference) with `generated`'s content: pads, drawings, polarity,
+/// keep-outs, defaults and datum, every pad and drawing given a fresh
+/// identity from `floor` and each pad landing the terminal `ids` maps its
+/// generated terminal to.
+fn adopted_footprint(
+    footprint: &FootprintDefinition,
+    generated: &FootprintDefinition,
+    ids: &[(PackageTerminalId, PackageTerminalId)],
+    floor: u32,
+) -> Result<FootprintDefinition> {
+    let mut next_local = floor;
+    let mut fresh = || -> Result<u32> {
+        let id = next_local;
+        next_local = next_local
+            .checked_add(1)
+            .ok_or_else(|| Error::Limit("footprint local identities exhausted".into()))?;
+        Ok(id)
+    };
+    let mut pads = Vec::with_capacity(generated.pads.len());
+    let mut pad_ids = Vec::with_capacity(generated.pads.len());
+    for pad in &generated.pads {
+        let mut pad = pad.clone();
+        let id = PadId(fresh()?);
+        pad_ids.push((pad.id, id));
+        pad.id = id;
+        pad.terminal = pad
+            .terminal
+            .and_then(|t| ids.iter().find(|(g, _)| *g == t).map(|(_, n)| *n));
+        pads.push(pad);
+    }
+    let mut graphics = Vec::with_capacity(generated.graphics.len());
+    let mut graphic_ids = Vec::with_capacity(generated.graphics.len());
+    for graphic in &generated.graphics {
+        let mut graphic = graphic.clone();
+        let id = crate::ids::GraphicId(fresh()?);
+        graphic_ids.push((graphic.id, id));
+        graphic.id = id;
+        graphics.push(graphic);
+    }
+    let polarity = generated.polarity.as_ref().and_then(|p| {
+        let pad = pad_ids.iter().find(|(g, _)| *g == p.pad).map(|(_, n)| *n)?;
+        Some(crate::library::Polarity {
+            pad,
+            markers: p
+                .markers
+                .iter()
+                .filter_map(|m| graphic_ids.iter().find(|(g, _)| g == m).map(|(_, n)| *n))
+                .collect(),
+        })
+    });
+    Ok(FootprintDefinition {
+        package: footprint.package,
+        next_local,
+        source: None,
+        pads,
+        graphics,
+        polarity,
+        datum: generated.datum,
+        defaults: generated.defaults,
+        keepouts: generated.keepouts.clone(),
+    })
 }

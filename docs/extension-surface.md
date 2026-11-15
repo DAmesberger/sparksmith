@@ -16,7 +16,7 @@ A **module** is the unit of identity and versioning. Each entry belongs to exact
 | `layout` | `layout.*`, `fill.*`, `keepout.*`, `board.*`, `diff_pair.*`, `length_group.*`, dimensions |
 | `rules` | `rules.*`, `net_class.*`, `impedance.*` |
 | `library` | definitions, drafts, publishing, folders and sources, updates (`project.preview_update`, `project.apply_update`, `update`), pinout import, markings |
-| `generators` | `library.generators`, `library.generate`, `library.generate_part` |
+| `generators` | `library.generators`, `library.generate`, `library.generate_part`, `library.package_from_generator` (1.1) |
 | `checks` | `project.issues`, `fabrication.preflight`, the fabrication waivers |
 | `fab` | fabrication output, the schematic PDF, firmware pin configuration |
 | `model3d` | the exact 3D export, the board interface, the assembly link, part files |

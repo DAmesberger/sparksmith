@@ -523,22 +523,22 @@ fn generated_packages() -> Vec<(&'static str, sparksmith_core::library::PackageD
     vec![
         (
             "chip-resistor-0603",
-            package(PackageForm::Chip(Box::new(chip(ChipKind::Resistor))), 2),
+            package(PackageForm::from(chip(ChipKind::Resistor)), 2),
         ),
         (
             "chip-capacitor-0603",
             package(
-                PackageForm::Chip(Box::new(ChipForm {
+                PackageForm::from(ChipForm {
                     height_nm: nm(0.8),
                     ..chip(ChipKind::Capacitor)
-                })),
+                }),
                 2,
             ),
         ),
         (
             "soic-8",
             package(
-                PackageForm::GullWing(Box::new(GullWingForm {
+                PackageForm::from(GullWingForm {
                     sides: LeadSides::Two,
                     leads_per_side: [4, 0],
                     pitch_nm: nm(1.27),
@@ -550,14 +550,14 @@ fn generated_packages() -> Vec<(&'static str, sparksmith_core::library::PackageD
                     lead_width_nm: nm(0.41),
                     lead_thickness_nm: nm(0.2),
                     foot_length_nm: nm(0.6),
-                })),
+                }),
                 8,
             ),
         ),
         (
             "tqfp-32",
             package(
-                PackageForm::GullWing(Box::new(GullWingForm {
+                PackageForm::from(GullWingForm {
                     sides: LeadSides::Four,
                     leads_per_side: [8, 8],
                     pitch_nm: nm(0.8),
@@ -569,14 +569,14 @@ fn generated_packages() -> Vec<(&'static str, sparksmith_core::library::PackageD
                     lead_width_nm: nm(0.37),
                     lead_thickness_nm: nm(0.15),
                     foot_length_nm: nm(0.6),
-                })),
+                }),
                 32,
             ),
         ),
         (
             "qfn-16",
             package(
-                PackageForm::NoLead(Box::new(NoLeadForm {
+                PackageForm::from(NoLeadForm {
                     sides: LeadSides::Four,
                     terminals_per_side: [4, 4],
                     pitch_nm: nm(0.5),
@@ -586,14 +586,14 @@ fn generated_packages() -> Vec<(&'static str, sparksmith_core::library::PackageD
                     terminal_length_nm: nm(0.4),
                     terminal_width_nm: nm(0.25),
                     exposed_pad: Some(pt([1.7, 1.7])),
-                })),
+                }),
                 17,
             ),
         ),
         (
             "header-2x5",
             package(
-                PackageForm::Header(Box::new(HeaderForm {
+                PackageForm::from(HeaderForm {
                     rows: 2,
                     pins_per_row: 5,
                     pitch_nm: nm(2.54),
@@ -602,7 +602,7 @@ fn generated_packages() -> Vec<(&'static str, sparksmith_core::library::PackageD
                     pin_side_nm: nm(0.64),
                     pin_above_nm: nm(6.0),
                     pin_below_nm: nm(3.0),
-                })),
+                }),
                 10,
             ),
         ),
@@ -647,13 +647,13 @@ fn write_model_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let mut project = project(Fabrication::default())?;
     let package = &mut project.library.packages[0].definition;
     package.form =
-        sparksmith_core::library::PackageForm::Chip(Box::new(sparksmith_core::library::ChipForm {
+        sparksmith_core::library::PackageForm::from(sparksmith_core::library::ChipForm {
             kind: sparksmith_core::library::ChipKind::Resistor,
             length_nm: nm(2.0),
             width_nm: nm(1.2),
             height_nm: nm(0.6),
             termination_nm: nm(0.4),
-        }));
+        });
     package.model = sparksmith_core::library::PackageModel::Generated {
         family_rev: 1,
         materials: Default::default(),
@@ -695,7 +695,7 @@ fn part_at(
 #[test]
 #[ignore = "writes showcase pictures"]
 fn write_showcase_pictures() -> Result<(), Box<dyn std::error::Error>> {
-    use sparksmith_core::library::{LeadSides, PackageForm};
+    use sparksmith_core::library::PackageForm;
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };
@@ -769,31 +769,31 @@ fn write_showcase_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let shots: [(&str, Wanted, f64, f64); 5] = [
         (
             "03-soic",
-            Box::new(|f| matches!(f, PackageForm::GullWing(g) if g.sides == LeadSides::Two)),
+            Box::new(|f| f.label() == "Gull-wing" && f.lead_count() <= 16),
             14.0,
             30.0,
         ),
         (
             "04-qfn",
-            Box::new(|f| matches!(f, PackageForm::NoLead(n) if n.sides == LeadSides::Four)),
+            Box::new(|f| f.label() == "No-lead" && f.lead_count() > 8),
             9.0,
             35.0,
         ),
         (
             "05-header",
-            Box::new(|f| matches!(f, PackageForm::Header(_))),
+            Box::new(|f| f.label() == "Pin header"),
             34.0,
             30.0,
         ),
         (
             "06-passive-0603",
-            Box::new(|f| matches!(f, PackageForm::Chip(c) if c.length() < 1.8)),
+            Box::new(|f| f.label() == "Chip" && f.envelope().is_some_and(|e| e[0] < 1.8)),
             6.0,
             30.0,
         ),
         (
             "07-passive-0805",
-            Box::new(|f| matches!(f, PackageForm::Chip(c) if c.length() >= 1.8)),
+            Box::new(|f| f.label() == "Chip" && f.envelope().is_some_and(|e| e[0] >= 1.8)),
             7.0,
             210.0,
         ),
@@ -1165,7 +1165,7 @@ fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let (cap, volt) = (DefinitionId(1), DefinitionId(2));
     let field = |id| FieldRef::new(id, Revision::FIRST);
     let radial = picture_package(
-        PackageForm::Tht(Box::new(ThtForm::new(
+        PackageForm::from(ThtForm::new(
             ThtKind::Radial {
                 body_diameter_nm: nm(6.3),
                 body_height_nm: nm(11.0),
@@ -1173,7 +1173,7 @@ fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
             nm(2.5),
             nm(0.5),
             nm(3.0),
-        ))),
+        )),
         2,
     );
     let on = |name: &str| Placement {
@@ -1237,7 +1237,7 @@ fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
 
     // An axial part: its value's colour bands wrapped round the body.
     let axial = picture_package(
-        PackageForm::Tht(Box::new(ThtForm::new(
+        PackageForm::from(ThtForm::new(
             ThtKind::Axial {
                 body_diameter_nm: nm(2.5),
                 body_length_nm: nm(6.5),
@@ -1245,7 +1245,7 @@ fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
             nm(10.16),
             nm(0.6),
             nm(3.0),
-        ))),
+        )),
         2,
     );
     let value = DefinitionId(3);
