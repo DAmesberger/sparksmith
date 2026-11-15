@@ -46,6 +46,132 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
             int("pin_below", h.pin_below_nm.get());
             Some(("header", params))
         }
+        PackageForm::GullWing(g) => {
+            int("leads", i64::from(g.leads_per_side[0]));
+            int("leads_short", i64::from(g.leads_per_side[1]));
+            int("pitch", g.pitch_nm.get());
+            int("body_length", g.body_length_nm.get());
+            int("body_width", g.body_width_nm.get());
+            int("body_height", g.body_height_nm.get());
+            int("standoff", g.standoff_nm.get());
+            int("span", g.span_nm[0].get());
+            int("span_x", g.span_nm[1].get());
+            int("lead_width", g.lead_width_nm.get());
+            int("lead_thickness", g.lead_thickness_nm.get());
+            int("foot_length", g.foot_length_nm.get());
+            let sides = if g.sides == LeadSides::Four {
+                "four"
+            } else {
+                "two"
+            };
+            params.insert("sides".into(), ParamValue::Text(sides.into()));
+            Some(("gull-wing", params))
+        }
+        PackageForm::Tht(t) => {
+            use sparksmith_core::library::package_form::tht::ThtKind;
+            let mut text = |key: &str, v: &str| {
+                params.insert(key.into(), ParamValue::Text(v.into()));
+            };
+            let construction = match t.kind {
+                ThtKind::Axial { .. } => "axial",
+                ThtKind::Radial { .. } => "radial",
+                ThtKind::Dip { .. } => "dip",
+                ThtKind::To { .. } => "to",
+            };
+            text("construction", construction);
+            if t.standoff_nm.is_some() {
+                text("standoff_basis", "given");
+            }
+            let mut int = |key: &str, v: i64| {
+                params.insert(key.into(), ParamValue::Int(v));
+            };
+            int("lead_pitch", t.lead_pitch_nm.get());
+            int("lead_diameter", t.lead_diameter_nm.get());
+            int("lead_below", t.lead_below_nm.get());
+            if let Some(s) = t.standoff_nm {
+                int("standoff", s.get());
+            }
+            if let Some(r) = t.bend_radius_nm {
+                int("bend_radius", r.get());
+            }
+            if let Some(p) = t.body_pitch_nm {
+                int("body_pitch", p.get());
+            }
+            match t.kind {
+                ThtKind::Axial {
+                    body_diameter_nm,
+                    body_length_nm,
+                } => {
+                    int("pins", 2);
+                    int("body_diameter", body_diameter_nm.get());
+                    int("body_length", body_length_nm.get());
+                }
+                ThtKind::Radial {
+                    body_diameter_nm,
+                    body_height_nm,
+                } => {
+                    int("pins", 2);
+                    int("body_diameter", body_diameter_nm.get());
+                    int("body_height", body_height_nm.get());
+                }
+                ThtKind::Dip {
+                    pins,
+                    row_pitch_nm,
+                    body_length_nm,
+                    body_width_nm,
+                    body_height_nm,
+                } => {
+                    int("pins", i64::from(pins));
+                    int("row_pitch", row_pitch_nm.get());
+                    int("body_length", body_length_nm.get());
+                    int("body_width", body_width_nm.get());
+                    int("body_height", body_height_nm.get());
+                }
+                ThtKind::To {
+                    pins,
+                    body_length_nm,
+                    body_width_nm,
+                    body_height_nm,
+                } => {
+                    int("pins", i64::from(pins));
+                    int("body_length", body_length_nm.get());
+                    int("body_width", body_width_nm.get());
+                    int("body_height", body_height_nm.get());
+                }
+            }
+            Some(("tht", params))
+        }
+        PackageForm::Tabbed(t) => {
+            int("leads_s", i64::from(t.leads_per_side[0]));
+            int("leads_n", i64::from(t.leads_per_side[1]));
+            int("step_s", i64::from(t.lead_step[0]));
+            int("step_n", i64::from(t.lead_step[1]));
+            int("pitch", t.pitch_nm.get());
+            int("body_length", t.body_length_nm.get());
+            int("body_width", t.body_width_nm.get());
+            int("body_height", t.body_height_nm.get());
+            int("standoff", t.standoff_nm.get());
+            int("span", t.span_nm.get());
+            int("lead_width", t.lead_width_nm.get());
+            int("lead_thickness", t.lead_thickness_nm.get());
+            int("foot_length", t.foot_length_nm.get());
+            let kind = match t.tab {
+                None => "none",
+                Some(tab) => {
+                    int("tab_width", tab.width_nm.get());
+                    int("tab_length", tab.length_nm.get());
+                    match tab.flange_nm {
+                        None => "lead",
+                        Some(p) => {
+                            int("flange", p.get());
+                            "flange"
+                        }
+                    }
+                }
+            };
+            params.insert("tab".into(), ParamValue::Text(kind.into()));
+            Some(("tabbed", params))
+        }
         PackageForm::Molded(m) => {
             use sparksmith_core::library::package_form::molded::MoldedLead;
             int("body_length", m.body_length_nm.get());

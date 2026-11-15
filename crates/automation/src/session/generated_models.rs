@@ -125,13 +125,19 @@ pub(super) fn generated_model(
     if let Some(bottom) = part_file::seated_bottom(&part.bodies) {
         lo[2] = lo[2].max(bottom);
     }
-    let envelope = [[-l / 2.0, -w / 2.0, 0.0], [l / 2.0, w / 2.0, h]];
-    let off = lo
-        .iter()
-        .chain(&hi)
-        .zip(envelope[0].iter().chain(&envelope[1]))
-        .map(|(a, b)| (a - b).abs())
-        .fold(0.0, f64::max);
+    // The envelope is centred, so in x and y it is the smallest centred box
+    // that holds the bounds: a part whose sides differ (a DPAK's leads on
+    // one side, its flange on the other) reaches the envelope on one side
+    // only.
+    let reach = |axis: usize| lo[axis].abs().max(hi[axis].abs());
+    let off = [
+        (reach(0) - l / 2.0).abs(),
+        (reach(1) - w / 2.0).abs(),
+        lo[2].abs(),
+        (hi[2] - h).abs(),
+    ]
+    .into_iter()
+    .fold(0.0, f64::max);
     if off.is_nan() || off > TOLERANCE_MM {
         return Err(refused(format!(
             "its part file at the generator's values spans {lo:?} to {hi:?} mm, not the generation's {l} × {w} × {h} mm envelope"

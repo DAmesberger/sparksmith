@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "module": {
+    "file": "gull-wing.wasm",
+    "sha256": "3068a2756831c7c1b6eca0fc0c3627ca67bdd3664480685adb7a856bf6d1584b"
+  },
+  "name": "gull-wing",
+  "parts": [
+    {
+      "file": "parts/gull-wing-four-sided.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code gull-wing builder's construction (crates/solidcraft-integration/src/models/gull_wing.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at an LQFP-48 of 7 × 7 mm, 0.5 mm pitch (JEDEC MS-026 proportions); the gull-wing generator gives every dimension. Estimated bends, rounds and dimple; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "24866fb804f46c31d67d8d2879b575b90ef2480ca79e57df87f870cef898679e",
+      "title": "Gull-wing package, four sides"
+    },
+    {
+      "file": "parts/gull-wing-two-sided.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code gull-wing builder's construction (crates/solidcraft-integration/src/models/gull_wing.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a SOIC-8 of 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. Estimated bends, rounds and dimple; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "f8b5c813f85664b9f64a96619b7a6151ba6ab8eed2ec28cf62f06ce6bd6103f4",
+      "title": "Gull-wing package, two sides"
+    }
+  ]
+}

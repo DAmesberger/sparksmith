@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tht-to",
+  "title": "TO package, straight leads",
+  "summary": "Single-row TO package: a moulded block on its standoff over a pattern of pins square leads straight down at the lead pitch (pins, lead_pitch, lead_diameter, lead_below, standoff, root, body_length, body_width, body_height, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a TO-220-3, 10 × 4.5 × 15.5 mm, 0.8 mm leads at 2.54 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied."
+}

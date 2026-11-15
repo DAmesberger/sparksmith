@@ -1,6 +1,8 @@
 use super::*;
 use crate::material::BodyKind;
 use crate::project;
+use sparksmith_core::library::package_form::TabbedForm;
+use sparksmith_core::library::package_form::tabbed::Tab;
 use sparksmith_core::library::{
     ChipForm, ChipKind, GullWingForm, HeaderForm, LeadSides, NoLeadForm, PackageTerminal,
     RoleMaterial,
@@ -123,6 +125,71 @@ fn header2x5() -> PackageForm {
         pin_side_nm: nm(0.64),
         pin_above_nm: nm(6.0),
         pin_below_nm: nm(3.0),
+    }))
+}
+
+/// Original tabbed fixtures (round numbers in the outlines' range): a
+/// SOT-23-5 whose +y row skips the middle, a SOT-223 with its tab lead and
+/// a DPAK with its flange.
+fn sot23_5() -> PackageForm {
+    PackageForm::Tabbed(Box::new(TabbedForm {
+        leads_per_side: [3, 2],
+        pitch_nm: nm(0.95),
+        body_length_nm: nm(2.9),
+        body_width_nm: nm(1.6),
+        body_height_nm: nm(1.1),
+        standoff_nm: nm(0.05),
+        span_nm: nm(2.8),
+        lead_width_nm: nm(0.4),
+        lead_thickness_nm: nm(0.12),
+        foot_length_nm: nm(0.45),
+        tab: None,
+        lead_step: [1, 2],
+        lands: Default::default(),
+    }))
+}
+
+fn sot223() -> PackageForm {
+    PackageForm::Tabbed(Box::new(TabbedForm {
+        leads_per_side: [3, 0],
+        pitch_nm: nm(2.3),
+        body_length_nm: nm(6.5),
+        body_width_nm: nm(3.5),
+        body_height_nm: nm(1.6),
+        standoff_nm: nm(0.05),
+        span_nm: nm(7.0),
+        lead_width_nm: nm(0.7),
+        lead_thickness_nm: nm(0.25),
+        foot_length_nm: nm(0.9),
+        tab: Some(Tab {
+            width_nm: nm(3.0),
+            length_nm: nm(0.9),
+            flange_nm: None,
+        }),
+        lead_step: [1, 1],
+        lands: Default::default(),
+    }))
+}
+
+fn dpak() -> PackageForm {
+    PackageForm::Tabbed(Box::new(TabbedForm {
+        leads_per_side: [2, 0],
+        pitch_nm: nm(2.3),
+        body_length_nm: nm(6.5),
+        body_width_nm: nm(6.0),
+        body_height_nm: nm(2.3),
+        standoff_nm: nm(0.0),
+        span_nm: nm(11.0),
+        lead_width_nm: nm(0.8),
+        lead_thickness_nm: nm(0.5),
+        foot_length_nm: nm(1.5),
+        tab: Some(Tab {
+            width_nm: nm(5.3),
+            length_nm: nm(5.5),
+            flange_nm: Some(nm(1.0)),
+        }),
+        lead_step: [2, 1],
+        lands: Default::default(),
     }))
 }
 
@@ -476,6 +543,9 @@ fn every_lead_body_stands_over_the_core_s_lead_point() -> Result<()> {
         (qfn16(), 17),
         (dfn8(), 8),
         (header2x5(), 10),
+        (sot23_5(), 5),
+        (sot223(), 4),
+        (dpak(), 3),
     ] {
         let points = form.lead_points();
         let (native, definition) = built(form, terminals)?;
@@ -523,6 +593,42 @@ fn header_pins_are_gold_through_a_pbt_base_numbered_across_rows() -> Result<()> 
         .find(|b| b.role == BodyRole::Body)
         .ok_or_else(|| Error::Verification("no base".into()))?;
     assert_eq!(body.material, MaterialId::Pbt);
+    disjoint(&mut native, &definition)
+}
+
+/// Tabbed packages (from the tabbed generator's part files): moulded
+/// bodies with tin leads, the tab the last terminal, a DPAK's flange flat
+/// on the seating plane under the body, every body disjoint.
+#[test]
+fn tabbed_tabs_come_last_and_a_flange_lies_flat_under_the_body() -> Result<()> {
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let (mut native, definition) = built(sot23_5(), 5)?;
+    assert_eq!(leads(&definition).len(), 5);
+    assert!(definition.bodies.iter().all(|b| match b.role {
+        BodyRole::Body => b.material == MaterialId::EpoxyMould,
+        _ => b.material == MaterialId::TinMatte,
+    }));
+    disjoint(&mut native, &definition)?;
+    let (mut native, definition) = built(sot223(), 4)?;
+    let tab = leads(&definition)
+        .last()
+        .map(|b| centre(&native, &b.name))
+        .transpose()?
+        .ok_or_else(|| Error::Verification("no tab".into()))?;
+    near(tab[0], 0.0, "the tab is the last terminal, centred");
+    assert!(tab[1] > 0.0, "the tab on +y");
+    disjoint(&mut native, &definition)?;
+    let (mut native, definition) = built(dpak(), 3)?;
+    let flange = leads(&definition)
+        .last()
+        .map(|b| bounds(&native, &b.name))
+        .transpose()?
+        .ok_or_else(|| Error::Verification("no flange".into()))?;
+    let (lo, hi) = flange;
+    near(lo[2], 0.0, "flange on the seating plane");
+    near(hi[2], 0.5, "flange as thick as the leads");
+    near(hi[1], 4.0, "flange 1 mm past the body");
+    near(lo[1], -1.5, "flange 5.5 mm long");
     disjoint(&mut native, &definition)
 }
 
