@@ -452,6 +452,38 @@ fn a_pin_on_a_wires_end_joins_the_wire() -> Result<()> {
     Ok(())
 }
 
+/// Placing reports which pins joined a net (run 8, finding 5): a pin on a
+/// wire's end joins it and is named; a part clear of every wire joins
+/// nothing.
+#[test]
+fn a_placement_names_the_pins_it_joins() -> Result<()> {
+    let mut engine = Engine::default();
+    let resistor = two_pin(&mut engine)?;
+    let point = component(&mut engine, &probe("Test point", passive()))?;
+    let (u1, _) = place(&mut engine, &resistor, "U1", 1, [0.0, 0.0])?;
+    let (u2, _) = place(&mut engine, &resistor, "U2", 1, [40.0, 0.0])?;
+    connect(&mut engine, ep(u1, 2), ep(u2, 1))?;
+    let net = net_of(&engine, ep(u1, 2))?;
+    let name = engine.project().net_name(net).to_owned();
+    let before = engine.project_arc().clone();
+    let (tp, _) = place(&mut engine, &point, "TP1", 1, [35.0, 0.0])?;
+    let pin = engine
+        .project()
+        .instance(tp)
+        .and_then(|i| engine.project().library.component(i.component))
+        .and_then(|c| c.definition.terminal(crate::TerminalId(1)))
+        .map(|t| t.name.clone())
+        .ok_or_else(|| Error::Invalid("TP1 pin 1".into()))?;
+    assert_eq!(
+        schematic::placement_joins(&before, engine.project(), tp),
+        vec![format!("TP1 pin {pin} joins {name}")]
+    );
+    let before = engine.project_arc().clone();
+    let (clear, _) = place(&mut engine, &point, "TP2", 1, [100.0, 100.0])?;
+    assert!(schematic::placement_joins(&before, engine.project(), clear).is_empty());
+    Ok(())
+}
+
 #[test]
 fn the_showcase_keeps_its_netlist_and_no_wire_runs_over_a_pin() -> Result<()> {
     let engine = Engine::showcase()?;

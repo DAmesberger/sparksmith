@@ -565,6 +565,49 @@ fn a_named_net_merge_refused_by_core_opens_the_review() -> Fallible {
     Ok(())
 }
 
+/// Run 8, finding 5: a placement says what it joined and how many issues
+/// it added, with Undo and Show; a part clear of every wire joins no net.
+#[test]
+fn a_placement_says_what_it_joined_and_the_issues_it_added() -> Fallible {
+    let mut h = Harness::new()?;
+    let first = h.app.engine.project().instances[0].clone();
+    let total = |h: &mut Harness| {
+        let workspace = h.app.workspace;
+        h.app
+            .issues
+            .summary(&h.app.engine, workspace)
+            .counts()
+            .map(|c| c.error + c.warning + c.to_do + c.info)
+            .ok_or("not counted")
+    };
+    let before = total(&mut h)?;
+    h.app.apply(
+        &h.ctx,
+        Origin::Canvas,
+        Some(Operation::Instance(
+            sparksmith_core::InstanceCommand::Place(sparksmith_core::instances::NewInstance {
+                sheet: None,
+                component: first.component,
+                designator: Some("R9".into()),
+                properties: vec![],
+                representation: first.representation,
+                unit: sparksmith_core::UnitId(1),
+                position: crate::schematic_editor::pt([150.0, -150.0]),
+                physical: first.physical,
+            }),
+        )),
+    );
+    let added = total(&mut h)? - before;
+    assert!(added > 0, "an unwired part adds issues");
+    let toast = h.app.toasts.items().last().cloned().ok_or("no toast")?;
+    assert_eq!(
+        toast.text,
+        format!("Placed R9, joining no net; {added} new issues")
+    );
+    assert_eq!(toast.actions, vec![ToastAction::Undo, ToastAction::Show]);
+    Ok(())
+}
+
 /// Demo run item 11: the Production dialog belongs to the project it
 /// checked; opening another project closes it, so the previous project's
 /// written files are never shown for the new one.

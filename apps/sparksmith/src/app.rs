@@ -385,6 +385,17 @@ impl App {
             Operation::Schematic(command) => Some(command.clone()),
             _ => None,
         };
+        // A placement says what it joined and the issues it added.
+        let placing = matches!(
+            &operation,
+            Operation::Instance(sparksmith_core::InstanceCommand::Place(_))
+        )
+        .then(|| {
+            (
+                self.engine.project_arc().clone(),
+                self.issues.summary(&self.engine, self.workspace).counts(),
+            )
+        });
         match self.engine.apply_hosted(
             self.engine.revision(),
             operation,
@@ -404,6 +415,17 @@ impl App {
                     );
                 }
                 self.clear_error();
+                if let (
+                    sparksmith_core::Outcome::InstancePlaced {
+                        instance,
+                        designator,
+                        ..
+                    },
+                    Some((before, counts)),
+                ) = (&outcome, placing)
+                {
+                    self.placed(&before, counts, *instance, designator);
+                }
                 // Moved parts' dragged copper the engine re-routed, or
                 // left unrouted, in the same undo step.
                 let rerouted = self.engine.rerouted();
@@ -422,6 +444,44 @@ impl App {
                 }) => {}
             Err(error) => self.refuse(ctx, origin, error, action.as_deref()),
         }
+    }
+
+    /// What placing `instance` changed, as a toast with Undo: the pins it
+    /// joined to nets (a pin on a wire joins it), or that it joined none,
+    /// and how many issues the Issues bar gained, with Show to open them.
+    fn placed(
+        &mut self,
+        before: &sparksmith_core::Project,
+        counts: Option<sparksmith_core::issues::IssueCounts>,
+        instance: sparksmith_core::Id,
+        designator: &str,
+    ) {
+        let joins =
+            sparksmith_core::schematic::placement_joins(before, self.engine.project(), instance);
+        let joined = if joins.is_empty() {
+            ", joining no net".to_owned()
+        } else {
+            format!("; {}", joins.join(", "))
+        };
+        let total =
+            |c: sparksmith_core::issues::IssueCounts| c.error + c.warning + c.to_do + c.info;
+        let added = counts
+            .zip(self.issues.summary(&self.engine, self.workspace).counts())
+            .map_or(0, |(a, b)| total(b).saturating_sub(total(a)));
+        let mut actions = vec![ToastAction::Undo];
+        let issues = match added {
+            0 => String::new(),
+            1 => "; 1 new issue".to_owned(),
+            n => format!("; {n} new issues"),
+        };
+        if added > 0 {
+            actions.push(ToastAction::Show);
+        }
+        self.say_with(
+            Level::Ok,
+            format!("Placed {designator}{joined}{issues}"),
+            actions,
+        );
     }
 
     /// A refused operation: Messages keeps the full engine text; a field or

@@ -1200,6 +1200,34 @@ pub fn protect_routed_nets(before: &Project, after: &Project) -> Result<()> {
     )))
 }
 
+/// What placing `instance` joined, as a person reads it: "TP1 pin 1 joins
+/// VBUS" for each of its pins on a net that was there before the placement
+/// (a pin whose connection point lies on a wire or label joins it), sorted
+/// by net. Empty when every pin starts a net of its own.
+pub fn placement_joins(before: &Project, after: &Project, instance: Id) -> Vec<String> {
+    let mut joins: Vec<(&str, String)> = after
+        .nets
+        .iter()
+        .filter(|net| before.net(net.id).is_some())
+        .flat_map(|net| {
+            net.terminals
+                .iter()
+                .filter(|t| t.instance == instance)
+                .map(|t| {
+                    (
+                        net.name.as_str(),
+                        wiring::describe(after, WireEnd::Terminal(*t)),
+                    )
+                })
+        })
+        .collect();
+    joins.sort();
+    joins
+        .into_iter()
+        .map(|(net, pin)| format!("{pin} joins {net}"))
+        .collect()
+}
+
 /// Wire, occurrence, label and sheet records. Per-instance wiring rules
 /// belong to `instances::check_instance`.
 pub fn validate(project: &Project) -> Result<()> {
