@@ -14,7 +14,12 @@
 //! of thumb, not a land-pattern standard): a lead's land is 0.2 mm wider
 //! than the lead and 0.6 mm longer than its foot, its centre 0.1 mm outside
 //! the foot's; a tab lead's land likewise; a flange's land is 0.2 mm wider
-//! and 0.4 mm longer than its solderable area and centred on it.
+//! and 0.4 mm longer than its solderable area and centred on it. With
+//! `lands` set to `explicit`, the datasheet's recommended land pattern
+//! replaces the estimates: every lead's land is `land_width` across the
+//! lead by `land_length`, the two rows `land_span` apart centre to centre,
+//! and the tab's land `tab_land_width` by `tab_land_length` where the
+//! estimate puts it.
 //!
 //! The presets are the tabbed starter table, in nm, with its citations
 //! (JEDEC TO-236, MO-178, TO-261, MO-203) and notes.
@@ -42,7 +47,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most leads on one side, and most grid positions between neighbours.
 pub const MAX_LEADS_PER_SIDE: i64 = 16;
@@ -118,6 +123,26 @@ fn description() -> Description {
 /// The description, with `presets` (generate checks parameters against it
 /// without reading the preset table).
 fn description_with(presets: Vec<Preset>) -> Description {
+    // The lands: estimated from the leads, or the datasheet's land pattern
+    // as given (the land defaults are the default package's estimates).
+    let lands = Param {
+        key: "lands".into(),
+        label: "Lands".into(),
+        help: Some(
+            "Given: every lead's land is land width × land length, the rows land span apart \
+             (centre to centre), the tab's land tab land width × tab land length."
+                .into(),
+        ),
+        ty: ParamType::Enum {
+            choices: vec![
+                choice("estimated", "Estimated from the leads"),
+                choice("explicit", "Given"),
+            ],
+        },
+        default: ParamValue::Text("estimated".into()),
+        group: Some("lands".into()),
+        context: None,
+    };
     // The defaults: an original SOT-23-3 in round numbers, from no drawing
     // (the host's typical tabbed form).
     let params = vec![
@@ -215,6 +240,40 @@ fn description_with(presets: Vec<Preset>) -> Description {
             MM,
             "tab",
         ),
+        lands,
+        length(
+            "land_width",
+            "Land width across the lead",
+            50 * UM,
+            10 * MM,
+            600 * UM,
+            "lands",
+        ),
+        length("land_length", "Land length", 50 * UM, 10 * MM, MM, "lands"),
+        length(
+            "land_span",
+            "Rows' land span, centre to centre",
+            100 * UM,
+            60 * MM,
+            2_200_000,
+            "lands",
+        ),
+        length(
+            "tab_land_width",
+            "Tab land width",
+            100 * UM,
+            50 * MM,
+            3_200_000,
+            "lands",
+        ),
+        length(
+            "tab_land_length",
+            "Tab land length",
+            100 * UM,
+            50 * MM,
+            1_500_000,
+            "lands",
+        ),
     ];
     let rules = vec![
         Rule {
@@ -250,6 +309,15 @@ fn description_with(presets: Vec<Preset>) -> Description {
         Rule {
             text: "A tab takes the whole +y side: no +y leads with a tab".into(),
             fields: vec!["tab".into(), "leads_n".into()],
+        },
+        Rule {
+            text: "Given lands must not touch: land span > land length, step × pitch > land width"
+                .into(),
+            fields: vec![
+                "land_span".into(),
+                "land_length".into(),
+                "land_width".into(),
+            ],
         },
     ];
     let offer = PartOffer {
@@ -321,6 +389,17 @@ struct Dims {
     tab_width: i64,
     tab_length: i64,
     flange: i64,
+    /// The datasheet's land pattern, when given.
+    lands: Option<Lands>,
+}
+
+/// A given land pattern: the lead land `[across the lead, along it]`, the
+/// rows' land span (centre to centre) and the tab land.
+#[derive(Clone, Copy)]
+struct Lands {
+    lead: Point2,
+    span: i64,
+    tab: Point2,
 }
 
 type Point2 = [i64; 2];
@@ -454,6 +533,20 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         tab_width: args.int("tab_width").map_err(one)?,
         tab_length: args.int("tab_length").map_err(one)?,
         flange: args.int("flange").map_err(one)?,
+        lands: match args.text("lands").map_err(one)? {
+            "explicit" => Some(Lands {
+                lead: [
+                    args.int("land_width").map_err(one)?,
+                    args.int("land_length").map_err(one)?,
+                ],
+                span: args.int("land_span").map_err(one)?,
+                tab: [
+                    args.int("tab_land_width").map_err(one)?,
+                    args.int("tab_land_length").map_err(one)?,
+                ],
+            }),
+            _ => None,
+        },
     };
     let problems = problems(&d);
     if problems.is_empty() {
@@ -547,6 +640,22 @@ fn problems(d: &Dims) -> Vec<Problem> {
         ),
         Tab::None => {}
     }
+    if let Some(given) = d.lands {
+        rule(
+            given.span > given.lead[1],
+            "land_span",
+            "The two rows' lands must not touch (land span > land length).",
+        );
+        for row in 0..2 {
+            if d.leads[row] >= 2 {
+                rule(
+                    d.step[row] * d.pitch > given.lead[0],
+                    "land_width",
+                    "Neighbouring lands must not touch (step × pitch > land width).",
+                );
+            }
+        }
+    }
     if out.is_empty() {
         if d.rounds().0 <= 0 {
             out.push(problem(
@@ -621,10 +730,14 @@ fn mm(nm: i64) -> String {
 }
 
 fn pads(d: &Dims) -> Vec<Pad> {
-    let lead = [
-        d.lead_width + LAND_WIDTH_EXTRA_NM,
-        d.foot_length + LAND_LENGTH_EXTRA_NM,
-    ];
+    let lead = match d.lands {
+        Some(given) => given.lead,
+        None => [
+            d.lead_width + LAND_WIDTH_EXTRA_NM,
+            d.foot_length + LAND_LENGTH_EXTRA_NM,
+        ],
+    };
+    let given_tab = d.lands.map(|l| l.tab);
     let leads = d.leads[0] + d.leads[1];
     d.lead_points()
         .into_iter()
@@ -635,21 +748,25 @@ fn pads(d: &Dims) -> Vec<Pad> {
             let tab = k >= leads;
             let (size, at) = match (tab, d.tab) {
                 (true, Tab::Flange) => (
-                    [
+                    given_tab.unwrap_or([
                         d.tab_width + LAND_WIDTH_EXTRA_NM,
                         d.tab_length + FLANGE_LAND_LENGTH_EXTRA_NM,
-                    ],
+                    ]),
                     [x, y],
                 ),
                 (true, _) => (
-                    [
+                    given_tab.unwrap_or([
                         d.tab_width + LAND_WIDTH_EXTRA_NM,
                         d.tab_length + LAND_LENGTH_EXTRA_NM,
-                    ],
+                    ]),
                     [x, y + TOE_HEEL_SHIFT_NM],
                 ),
-                // A toe-heavy land just outside the foot.
-                (false, _) => (lead, [x, y + y.signum() * TOE_HEEL_SHIFT_NM]),
+                (false, _) => match d.lands {
+                    // The datasheet's rows, centre to centre.
+                    Some(given) => (lead, [x, y.signum() * half(given.span)]),
+                    // A toe-heavy land just outside the foot.
+                    None => (lead, [x, y + y.signum() * TOE_HEEL_SHIFT_NM]),
+                },
             };
             Pad {
                 terminal: key.clone(),
@@ -868,11 +985,15 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         },
         model: Some(model(&d)),
         fields: Vec::new(),
-        notes: vec![
+        notes: vec![if d.lands.is_some() {
+            "Lands are the given land pattern; confirm them against the device's recommended \
+             land pattern."
+                .into()
+        } else {
             "Lands are estimated from the leads (0.2 mm wider, 0.6 mm longer than the foot); \
              confirm them against the device's recommended land pattern."
-                .into(),
-        ],
+                .into()
+        }],
     })
 }
 
