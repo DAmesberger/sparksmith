@@ -742,3 +742,59 @@ fn a_restored_session_is_not_asked_for_the_launch_profile() -> Fallible {
     );
     Ok(())
 }
+
+/// The VM run's smallest window.
+const SMALL: egui::Vec2 = egui::vec2(1024.0, 560.0);
+
+/// E2E run 9, finding 3: a pointer click on Change package… in the 3D
+/// tab's Body section shows the generator gallery at 1024 × 560 (the 3D
+/// view did not draw the sheet, so it opened unseen).
+#[test]
+fn a_pointer_click_on_change_package_opens_the_gallery_at_a_small_window() -> Fallible {
+    let mut ax = Ax::new(Workspace::Part)?;
+    ax.window = SMALL;
+    let component = ax
+        .app
+        .engine
+        .project()
+        .library
+        .latest_components()
+        .first()
+        .map(|c| c.id)
+        .ok_or("the demo has a component")?;
+    ax.app.part.open(component, &ax.app.engine);
+    ax.settle();
+    ax.app.part.on_tab("model");
+    ax.settle();
+    // Wheel the Properties card until the button is clear of its bottom
+    // edge (the issue slot and the Issues bar sit below it).
+    let clear = SMALL.y - 120.0;
+    let mut node = ax.find(Role::Button, "Change package…")?;
+    for _ in 0..40 {
+        if node.rect.bottom() < clear {
+            break;
+        }
+        let over = egui::pos2(node.rect.center().x, SMALL.y * 0.5);
+        ax.hover(over);
+        ax.frame(vec![egui::Event::MouseWheel {
+            source: egui::MouseWheelSource::Unknown,
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -60.0),
+            modifiers: Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+        }]);
+        ax.settle();
+        node = ax.find(Role::Button, "Change package…")?;
+    }
+    assert!(node.rect.bottom() < clear, "{node:?}");
+    ax.click_at(node.center());
+    ax.settle();
+    // The sheet's key hints name its package-scope primary.
+    assert!(
+        ax.texts.iter().any(|t| t.contains("use package")),
+        "the gallery opened in package scope: {:?}\n{}",
+        ax.texts,
+        ax.dump()
+    );
+    Ok(())
+}
