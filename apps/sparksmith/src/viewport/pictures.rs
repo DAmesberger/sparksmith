@@ -1086,6 +1086,7 @@ fn marked_preview(
 #[test]
 #[ignore = "writes marking pictures"]
 fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
     use sparksmith_core::FieldRef;
     use sparksmith_core::ids::{DefinitionId, Revision};
     use sparksmith_core::library::Definition;
@@ -1280,6 +1281,7 @@ fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 #[ignore = "writes WROOM-3 board pictures"]
 fn write_wroom_board_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };
@@ -1385,6 +1387,7 @@ pub(crate) fn mechanical_board() -> Result<sparksmith_core::Engine, Box<dyn std:
 #[test]
 #[ignore = "writes mechanical-part board pictures"]
 fn write_mechanical_board_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };

@@ -23,9 +23,9 @@ use sparksmith_generator_sdk::land::{self, Box2};
 use sparksmith_generator_sdk::units::{DEG, MM, div_round, mm_text};
 use sparksmith_generator_sdk::v1::{
     self, BindingEntry, Capability, Choice, Component, Description, Direction, Effect, Fill,
-    Footprint, Generation, Grammar, InstanceField, Lead, Opening, Package, PackageGeometry, Pad,
-    PadShape, Param, ParamType, ParamValue, PartOffer, Preset, Primitive, Problem, Request, Rule,
-    Scope, Side, Symbol, Terminal,
+    Footprint, Generation, Grammar, Graphic, InstanceField, Lead, Opening, Package,
+    PackageGeometry, Pad, PadShape, Param, ParamType, ParamValue, PartOffer, Preset, Primitive,
+    Problem, Request, Rule, Scope, Side, Symbol, Terminal,
 };
 use sparksmith_generator_sdk::{Generator, export_generator};
 
@@ -38,8 +38,14 @@ const LAND_EXTRA_LENGTH_NM: i64 = 600_000;
 const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 
 /// The generator's version (`Description::version`): 1, the first with a
-/// 3D model.
-const VERSION: u32 = 1;
+/// 3D model; 2 marks an LED's pin 1 (its cathode) with a silkscreen dot.
+const VERSION: u32 = 2;
+
+/// The pin-1 dot of a polarised chip (an LED): a filled silkscreen circle
+/// of this radius beyond pad 1's −x edge, clear of its mask opening by the
+/// silkscreen clearance (as the host's template marked a polarised
+/// two-terminal part).
+const PIN_ONE_DOT_RADIUS_NM: i64 = 200_000;
 
 pub struct Chip;
 
@@ -560,6 +566,27 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
     let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
     silk.push(land::silk_designator(body, top));
+    if d.part == Part::Led
+        && let Some(first) = pads.first()
+    {
+        let half = land::pad_box(first).size()[0] / 2;
+        silk.push(Graphic {
+            key: "pin1".into(),
+            shape: Primitive::Circle {
+                center: [
+                    first.at[0]
+                        - half
+                        - land::DEFAULT_MASK_NM
+                        - land::SILK_PAD_CLEARANCE_NM
+                        - 2 * PIN_ONE_DOT_RADIUS_NM,
+                    first.at[1],
+                ],
+                radius_nm: PIN_ONE_DOT_RADIUS_NM,
+            },
+            stroke_nm: 0,
+            fill: Fill::Solid,
+        });
+    }
     let lead_x = div_round(d.length - d.termination, 2).unwrap_or(0);
     let package = Package {
         terminals: vec!["1".into(), "2".into()],
