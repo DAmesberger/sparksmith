@@ -149,6 +149,27 @@ fn led_uses_the_recommended_lands_and_names_its_pins() -> Result<(), Vec<Problem
         .collect();
     assert_eq!(names, vec!["K", "A"]);
     assert!(g.notes.is_empty());
+    // Polarised: the pin-1 (cathode) dot, as the in-code template marked
+    // it: 0.825 + 0.4 + 0.05 + 0.1 + 0.4 = 1.775 mm left of the centre.
+    for scope in [Scope::Component, Scope::Package] {
+        let g = Chip::generate(&request(scope, &preset("led-0603")))?;
+        let dot = g.footprint.silk.iter().find(|s| s.key == "pin1");
+        assert_eq!(
+            dot.map(|d| (d.shape.clone(), d.fill)),
+            Some((
+                Primitive::Circle {
+                    center: [-1_775_000, 0],
+                    radius_nm: 200_000
+                },
+                Fill::Solid
+            ))
+        );
+    }
+    // Unpolarised chips carry no dot.
+    for key in ["resistor-0603", "capacitor-0805", "ferrite-0603"] {
+        let g = Chip::generate(&request(Scope::Component, &preset(key)))?;
+        assert!(g.footprint.silk.iter().all(|s| s.key != "pin1"), "{key}");
+    }
     Ok(())
 }
 

@@ -38,7 +38,7 @@
   {
    "name": "LED 0603 (given lands), component",
    "request": {"abi": 1, "scope": "component", "params": {"part": "led", "length": 1600000, "width": 800000, "height": 750000, "termination": 300000, "lands": "explicit", "land_length": 800000, "land_width": 800000, "land_pitch": 1650000, "land_gap_min": 200000, "resistor_style": "iec"}},
-   "result": "2f3244630894f97778ecbe1d1eaa66a3697762b8dcf931f1934d85a5cf5fa199"
+   "result": "703a1482d03220bdcf2ce73514fa289a2eb9647fdbba3881c070121e3541f1d1"
   }
  ]
 }
