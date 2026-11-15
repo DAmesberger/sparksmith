@@ -161,6 +161,37 @@ fn a_row_click_locates_and_its_controls_do_only_their_own_thing() {
     assert_eq!(out.events, vec![row_event(0, 0, RowAction::Toggle)]);
 }
 
+/// A long title ends before the shown hover actions, cut with "…", never
+/// under Waive…; its hover shows the whole text, even where core already
+/// clipped the title (run 8, finding 3).
+#[test]
+fn a_long_title_ends_before_its_actions_and_hovers_in_full() {
+    let full = "Track on +5V (Top) stops at (10, 7) mm: import refused the rest \
+                (schematic keeps a pad off the net)";
+    let title =
+        "Track on +5V (Top) stops at (10, 7) mm: import refused the rest (schematic\u{2026}";
+    let mut h = Harness::new(360.0, 400.0);
+    crate::kit::text::tests::tooltips_at_once(h.ctx());
+    let mut rows = Rows::one("Track ends joining nothing", &[title]);
+    rows.detail.cause = Some(full.to_owned());
+    let mut out = IssueListOutput::default();
+    h.frame(vec![Event::PointerGone], |ui| draw(ui, &rows, &mut out));
+    let rest = h.frame(vec![], |ui| draw(ui, &rows, &mut out));
+    let at = rect_of(&rest, title).left_center() + vec2(8.0, 0.0);
+    h.frame(vec![Event::PointerMoved(at)], |ui| {
+        draw(ui, &rows, &mut out)
+    });
+    h.frame(vec![], |ui| draw(ui, &rows, &mut out));
+    let hovered = h.frame(vec![], |ui| draw(ui, &rows, &mut out));
+    let name = rect_of(&hovered, title);
+    let waive = rect_of(&hovered, "Waive\u{2026}");
+    assert!(name.right() < waive.left(), "{name:?} runs under {waive:?}");
+    assert!(
+        hovered.iter().any(|p| p.text.contains(full) && !p.elided),
+        "the whole text shows on hover: {hovered:?}"
+    );
+}
+
 /// A row is a button: dragging across its title selects no text, so Copy
 /// afterwards copies nothing (B-b).
 #[test]

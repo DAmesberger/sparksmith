@@ -104,6 +104,9 @@ pub struct Row<'a> {
     pub icon: Option<&'a str>,
     pub swatch: Option<Swatch>,
     pub name: &'a [&'a str],
+    /// The whole text when the name is already a shortened form of it (a
+    /// title core clipped with "…"): the name's hover shows it.
+    pub full: Option<&'a str>,
     pub secondary: Option<&'a str>,
     pub badge: Option<(Level, &'a str)>,
     pub value: Value<'a>,
@@ -132,6 +135,7 @@ impl<'a> Row<'a> {
             icon: None,
             swatch: None,
             name,
+            full: None,
             secondary: None,
             badge: None,
             value: Value::None,
@@ -229,8 +233,18 @@ pub fn name_text(parts: &[&str]) -> String {
     parts.join(ARROW)
 }
 
-fn name_galley(ui: &Ui, l: &ListTokens, parts: &[&str], width: f32, ink: Color32) -> Arc<Galley> {
-    let layout = |size: f32, rows: usize| {
+/// The name laid out in `width`; its size (one line, or two smaller ones
+/// when one line would cut) is chosen at `fit`, the row's room without
+/// its hover actions, so the font does not change while they show.
+fn name_galley(
+    ui: &Ui,
+    l: &ListTokens,
+    parts: &[&str],
+    fit: f32,
+    width: f32,
+    ink: Color32,
+) -> Arc<Galley> {
+    let layout = |size: f32, rows: usize, width: f32| {
         let font = FontId::proportional(size);
         let mut job = LayoutJob::default();
         for (i, part) in parts.iter().enumerate() {
@@ -244,8 +258,11 @@ fn name_galley(ui: &Ui, l: &ListTokens, parts: &[&str], width: f32, ink: Color32
         job.wrap.overflow_character = Some(super::super::text::ELLIPSIS);
         ui.painter().layout_job(job)
     };
-    let one = layout(l.fs, 1);
-    if one.elided { layout(l.fs_s, 2) } else { one }
+    if layout(l.fs, 1, fit).elided {
+        layout(l.fs_s, 2, width)
+    } else {
+        layout(l.fs, 1, width)
+    }
 }
 
 fn line_galley(ui: &Ui, text: &str, font: FontId, ink: Color32, width: f32) -> Arc<Galley> {
@@ -440,10 +457,23 @@ pub fn paint(ui: &mut Ui, id: egui::Id, rect: Rect, row: &Row<'_>, cols: &Column
         painter.galley(chip.center() - g.size() / 2.0, g, ink);
         right -= size.x + l.gap;
     }
+    // Shown hover actions cover the row's end: the name and secondary
+    // text end before their backdrop, cut with "…", never under them.
+    let rects = action_rects(ui, &l, rect, row);
+    let focused = ui.memory(|m| (0..rects.len()).any(|i| m.has_focus(id.with(("action", i)))));
+    let shown = hovered || row.selected || focused;
+    let fit = (right - x).max(1.0);
+    // Where the name's hover ends: at the first shown action, so the
+    // place a cut name was at rest still shows its full text.
+    let mut slot_right = right;
+    if let Some(first) = rects.first().filter(|_| shown) {
+        slot_right = right.min(first.left());
+        right = right.min(first.left() - FADE);
+    }
     // The name keeps its own width before the secondary text gets any.
     let room = (right - x).max(1.0);
     let ink = l.fg;
-    let galley = name_galley(ui, &l, row.name, room, ink);
+    let galley = name_galley(ui, &l, row.name, fit, room, ink);
     let name_w = galley.size().x;
     let name_rect = Rect::from_min_size(pos2(x, cy - galley.size().y / 2.0), galley.size());
     let cut = galley.elided;
@@ -482,11 +512,15 @@ pub fn paint(ui: &mut Ui, id: egui::Id, rect: Rect, row: &Row<'_>, cols: &Column
         }
         info
     });
-    if cut {
-        ui.interact(name_rect, id.with("name"), Sense::hover())
-            .on_hover_text(&full);
+    if cut || row.full.is_some() {
+        let slot = Rect::from_min_max(
+            pos2(x, rect.top()),
+            pos2(slot_right.max(name_rect.right()), rect.bottom()),
+        );
+        ui.interact(slot, id.with("name"), Sense::hover())
+            .on_hover_text(row.full.unwrap_or(&full));
     }
-    let action = actions(ui, &l, rect, id, row, hovered);
+    let action = actions(ui, &l, rect, id, row, &rects, shown);
     let actions_hovered = action.1;
     // A click on the grip is a click on the row; only its drag reorders.
     let grip_clicked = grip.as_ref().is_some_and(Response::clicked);
@@ -582,19 +616,11 @@ fn paint_value(
     }
 }
 
-/// The hover actions: an overlay at the row's end with a fading backdrop.
-/// Returns the clicked action and whether the pointer is on one.
-fn actions(
-    ui: &mut Ui,
-    l: &ListTokens,
-    rect: Rect,
-    id: egui::Id,
-    row: &Row<'_>,
-    hovered: bool,
-) -> (Option<usize>, bool) {
-    if row.actions.is_empty() {
-        return (None, false);
-    }
+/// Where the backdrop of the hover actions starts, left of the first.
+const FADE: f32 = 16.0;
+
+/// Where the hover actions sit at the row's end, first to last.
+fn action_rects(ui: &Ui, l: &ListTokens, rect: Rect, row: &Row<'_>) -> Vec<Rect> {
     let size = rect.height() - 8.0;
     let font = FontId::proportional(l.fs_s);
     let widths: Vec<f32> = row
@@ -610,29 +636,46 @@ fn actions(
         .collect();
     let total: f32 = widths.iter().sum::<f32>() + 2.0 * (widths.len() as f32 - 1.0).max(0.0);
     let mut x = rect.right() - 6.0 - total;
-    let rects: Vec<Rect> = widths
+    widths
         .iter()
         .map(|w| {
             let r = Rect::from_min_size(pos2(x, rect.center().y - size / 2.0), vec2(*w, size));
             x += w + 2.0;
             r
         })
-        .collect();
+        .collect()
+}
+
+/// The hover actions at `rects`: an overlay at the row's end with a fading
+/// backdrop, while `shown`. Returns the clicked action and whether the
+/// pointer is on one.
+fn actions(
+    ui: &mut Ui,
+    l: &ListTokens,
+    rect: Rect,
+    id: egui::Id,
+    row: &Row<'_>,
+    rects: &[Rect],
+    shown: bool,
+) -> (Option<usize>, bool) {
+    if row.actions.is_empty() {
+        return (None, false);
+    }
+    let size = rect.height() - 8.0;
+    let font = FontId::proportional(l.fs_s);
     let responses: Vec<Response> = rects
         .iter()
         .enumerate()
         .map(|(i, r)| ui.interact(*r, id.with(("action", i)), Sense::click()))
         .collect();
-    let focused = responses.iter().any(Response::has_focus);
     let on = responses.iter().any(Response::hovered);
-    let shown = hovered || row.selected || focused;
     let alpha = ui
         .ctx()
         .animate_bool_with_time(id.with("actions"), shown, l.motion_fast);
     let mut clicked = None;
     if alpha > 0.0 {
         let back = fill(l, row.selected, row.highlighted, true).unwrap_or(l.hover);
-        let left = rects.first().map_or(rect.right(), |r| r.left()) - 16.0;
+        let left = rects.first().map_or(rect.right(), |r| r.left()) - FADE;
         backdrop(
             ui,
             Rect::from_min_max(pos2(left, rect.top()), rect.max),
