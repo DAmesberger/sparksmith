@@ -23,7 +23,9 @@
 //! A family whose builder has given way to its shipped generator (the pin
 //! header, tabbed, no-lead, molded two-terminal and grid families, phase C of
 //! docs/design/part-generation-plan.md) builds from the generator's part
-//! file instead ([`family`]), behind the same functions.
+//! file instead ([`family`]), behind the same functions; the USB-C
+//! receptacle, one shipped part rather than a family, from the shipped
+//! library part file `library/parts/gct-usb4105.solidcraft`.
 //!
 //! As built: `docs/component-model.md` (M1–M3).
 mod chip;
@@ -38,7 +40,6 @@ pub mod named;
 pub mod part_file;
 mod profile;
 mod tht;
-mod usb_c;
 
 use crate::material::BodyKind;
 use crate::native::{BoxBody, Expr, Native};
@@ -80,7 +81,7 @@ pub fn family_rev(form: &PackageForm) -> Option<u16> {
         | PackageForm::Grid(_) => Some(family::FAMILY_REV),
         PackageForm::Tht(_) => tht::FAMILY_REV,
         PackageForm::Module(_) => module::FAMILY_REV,
-        PackageForm::UsbC(_) => usb_c::FAMILY_REV,
+        PackageForm::UsbC(_) => Some(family::FAMILY_REV),
     }
 }
 
@@ -234,7 +235,8 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
         | PackageForm::Grid(_) => Ok(()),
         PackageForm::Tht(f) => tht::check(f),
         PackageForm::Module(f) => module::check(f),
-        PackageForm::UsbC(f) => usb_c::check(f),
+        // Built from the shipped library part file (`family`).
+        PackageForm::UsbC(_) => Ok(()),
         PackageForm::Generic => Ok(()),
     }
 }
@@ -273,7 +275,12 @@ fn build_bodies(
         }
         PackageForm::Tht(f) => tht::build(&mut b, f)?,
         PackageForm::Module(f) => module::build(&mut b, f)?,
-        PackageForm::UsbC(f) => usb_c::build(&mut b, f)?,
+        PackageForm::UsbC(_) => {
+            return Err(Error::Invalid(
+                "model.part_file: USB-C receptacle models are built from the shipped library part file"
+                    .into(),
+            ));
+        }
         PackageForm::Generic => {
             return Err(Error::Invalid(
                 "model.unsupported: a generic package has no generated model".into(),

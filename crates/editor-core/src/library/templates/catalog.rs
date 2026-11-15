@@ -69,7 +69,11 @@ pub enum FamilyKind {
 }
 
 impl FamilyKind {
-    pub const ALL: [Self; 10] = [
+    /// The families the galleries, the template search and the 3D library
+    /// offer. Not `UsbC`: the receptacle ships as an authored library part
+    /// (`library/parts/gct-usb4105`); the variant stays for stored rows and
+    /// forms until the forms go (plan D2).
+    pub const ALL: [Self; 9] = [
         Self::Chip,
         Self::GullWing,
         Self::NoLead,
@@ -79,7 +83,6 @@ impl FamilyKind {
         Self::Grid,
         Self::Tht,
         Self::Module,
-        Self::UsbC,
     ];
 
     /// The parametric footprint template kind that builds this family's

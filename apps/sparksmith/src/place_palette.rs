@@ -3039,6 +3039,43 @@ mod tests {
             shown.iter().any(|t| t.contains("package's 3D body")),
             "{shown:?}"
         );
+
+        // The shipped USB-C receptacle is a whole component: Enter places
+        // it as a folder entry is placed (its records come with the
+        // shipped library).
+        palette.open();
+        palette.query = "usb-c".into();
+        run(&mut palette, vec![]);
+        let (_, shown) = run(&mut palette, vec![]);
+        assert!(
+            shown.iter().any(|t| t.starts_with("USB-C receptacle")),
+            "{shown:?}"
+        );
+        assert!(
+            shown.iter().any(|t| t.contains("component with symbol")),
+            "{shown:?}"
+        );
+        let (action, _) = run(&mut palette, enter());
+        assert_eq!(action, Some(PaletteAction::Close));
+        let bundle = part_files::builtin_parts()?
+            .require("gct-usb4105")?
+            .component
+            .clone()
+            .ok_or("a component part")?;
+        let events = palette.take_events();
+        let [
+            PaletteEvent::PlaceFrom {
+                pick,
+                other_revision: OtherRevision::Refuse,
+            },
+        ] = events.as_slice()
+        else {
+            return Err(format!("{events:?}").into());
+        };
+        assert_eq!(
+            (pick.library, pick.lineage, pick.revision),
+            (bundle.library, bundle.root.lineage, bundle.root.revision)
+        );
         Ok(())
     }
 }

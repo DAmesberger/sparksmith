@@ -466,7 +466,7 @@ fn the_open_page_finds_templates_and_opens_the_form() -> TestResult {
     let component = y(&texts, "Resistor").ok_or("the component row")?;
     assert!(components < component && component < group, "{texts:?}");
 
-    // "usb" and choosing its row.
+    // "led" again, and choosing its row.
     let erase = vec![egui::Event::Key {
         key: egui::Key::A,
         physical_key: None,
@@ -475,12 +475,12 @@ fn the_open_page_finds_templates_and_opens_the_form() -> TestResult {
         modifiers: egui::Modifiers::COMMAND,
     }];
     run(&mut editor, &engine, erase);
-    let (texts, _) = run(&mut editor, &engine, typed("usb"));
+    let (texts, _) = run(&mut editor, &engine, typed("led"));
     let row = texts
         .iter()
-        .find(|(t, _)| t.starts_with("USB-C receptacle"))
+        .find(|(t, _)| t.starts_with("Chip LED 0603"))
         .map(|(_, at)| *at)
-        .ok_or_else(|| format!("usb finds the row: {texts:?}"))?;
+        .ok_or_else(|| format!("led finds the row: {texts:?}"))?;
     let click = |pressed| egui::Event::PointerButton {
         pos: row,
         button: egui::PointerButton::Primary,

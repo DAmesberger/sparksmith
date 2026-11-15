@@ -88,23 +88,24 @@ fn templates_list_below_the_components() -> TestResult {
     Ok(())
 }
 
-/// "usb" and "led", which found nothing in the tester's runs, find the new
-/// templates; Place is offered in a project with no component yet.
+/// "usb" and "led", which found nothing in the tester's runs, find the
+/// shipped USB-C receptacle among the built-in parts and the chip LED
+/// template; Place is offered in a project with no component yet.
 #[test]
 fn usb_and_led_find_the_templates_in_place() -> TestResult {
     let engine = empty_engine();
     let ctx = context();
-    for (text, row) in [("usb", "USB-C receptacle"), ("led", "Chip LED 0603")] {
+    for (text, row, group) in [
+        ("usb", "USB-C receptacle", "BUILT-IN PARTS"),
+        ("led", "Chip LED 0603", "FROM TEMPLATE"),
+    ] {
         let mut editor = SchematicEditor::default();
         let rows = typed(&mut editor, &engine, &ctx, text);
         assert!(
             rows.iter().any(|(t, _)| t.starts_with(row)),
             "{text} finds {row}: {rows:?}"
         );
-        assert!(
-            rows.iter().any(|(t, _)| t.starts_with("FROM TEMPLATE")),
-            "{rows:?}"
-        );
+        assert!(rows.iter().any(|(t, _)| t.starts_with(group)), "{rows:?}");
         assert!(!rows.iter().any(|(t, _)| t.starts_with("IN THIS PROJECT")));
     }
     let ribbon = SchematicEditor::default().ribbon(&engine);
@@ -125,7 +126,7 @@ fn choosing_a_row_creates_the_component_and_arms_placement() -> TestResult {
     let mut engine = empty_engine();
     let ctx = context();
     let mut editor = SchematicEditor::default();
-    typed(&mut editor, &engine, &ctx, "usb");
+    typed(&mut editor, &engine, &ctx, "led");
     assert!(editor.palette.highlighted().is_none(), "no component row");
     let (_, operations) = workspace_frame(
         &mut editor,
@@ -151,7 +152,7 @@ fn choosing_a_row_creates_the_component_and_arms_placement() -> TestResult {
         .library
         .component(component)
         .ok_or("published")?;
-    assert!(published.meta.name.starts_with("USB-C receptacle"));
+    assert!(published.meta.name.starts_with("Chip LED"));
     assert!(engine.drafts().items.is_empty(), "no draft left open");
     assert!(first_choices(engine.project(), component).is_some());
 
@@ -173,22 +174,23 @@ fn usb_c_pin_numbers_sit_clear_and_no_name_is_its_value() -> TestResult {
     use sparksmith_core::geometry::Bounds;
     use sparksmith_core::schematic::{self, PIN_RING_MM};
     let mut engine = empty_engine();
-    let ctx = context();
-    let mut editor = SchematicEditor::default();
-    typed(&mut editor, &engine, &ctx, "usb");
-    let (_, operations) = workspace_frame(
-        &mut editor,
-        &engine,
-        &ctx,
-        vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
-    );
-    apply_hosted(&mut engine, operations.into_iter().next().ok_or("one")?)?;
-    workspace_frame(&mut editor, &engine, &ctx, vec![]);
-    let component = editor.component.ok_or("armed")?;
-    let (request, _) = first_choices(engine.project(), component).ok_or("a symbol")?;
+    // The shipped receptacle (library/parts/gct-usb4105), placed as the
+    // palette places it.
+    let bundle = sparksmith_automation::part_files::builtin_parts()?
+        .require("gct-usb4105")?
+        .component
+        .clone()
+        .ok_or("a component part")?;
     apply_hosted(
         &mut engine,
-        Operation::Instance(InstanceCommand::Place(request)),
+        Operation::Library(sparksmith_core::LibraryCommand::PlaceFrom {
+            source: sparksmith_core::library::import::PlaceSource::Bundle {
+                bundle: Box::new(sparksmith_core::library::Bundle::clone(&bundle)),
+            },
+            position: sparksmith_core::units::PointNm::ORIGIN,
+            designator: None,
+            other_revision: Default::default(),
+        }),
     )?;
     let project = engine.project();
     let occurrence = project.occurrences.first().ok_or("placed")?.id;
@@ -246,11 +248,12 @@ fn usb_c_pin_numbers_sit_clear_and_no_name_is_its_value() -> TestResult {
             number.height
         );
     }
-    // The component name ("USB-C receptacle …, GCT USB4105 …") is no value.
+    // The component name ("USB-C receptacle …, GCT USB4105 …") is no value;
+    // the assigned GCT Part shows its part number, USB4105-GF-A.
     assert!(
         unit.texts
             .iter()
-            .all(|t| !t.text.contains("USB4105") && !t.text.contains("receptacle")),
+            .all(|t| !t.text.contains("receptacle") && !t.text.contains("GCT")),
         "{:?}",
         unit.texts
     );
@@ -312,7 +315,7 @@ fn esc_after_a_placement_keeps_the_component() -> TestResult {
     let mut engine = empty_engine();
     let ctx = context();
     let mut editor = SchematicEditor::default();
-    typed(&mut editor, &engine, &ctx, "usb");
+    typed(&mut editor, &engine, &ctx, "led");
     let (_, operations) = workspace_frame(
         &mut editor,
         &engine,
@@ -347,7 +350,7 @@ fn a_refusal_comes_back_to_the_palette() -> TestResult {
     let engine = empty_engine();
     let ctx = context();
     let mut editor = SchematicEditor::default();
-    typed(&mut editor, &engine, &ctx, "usb");
+    typed(&mut editor, &engine, &ctx, "led");
     let (_, operations) = workspace_frame(
         &mut editor,
         &engine,

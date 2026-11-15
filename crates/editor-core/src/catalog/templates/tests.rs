@@ -2121,109 +2121,79 @@ fn draft_findings(engine: &Engine) -> Fallible<Vec<String>> {
 
 const USB_C: &str = "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105)";
 
-/// Decision 5 (12 November 2026): the USB-C template emits its opening as
-/// package data from the drawing, external, on the mating face (−y), the
-/// plug's shell (the 8.34 × 2.56 mm opening with round ends) out to the
-/// mating view's 1.85 mm, where the plug's overmold begins.
-#[test]
-fn the_usb_c_template_emits_its_opening() -> Fallible<()> {
-    use crate::library::datum::{DatumProfile, PackageDatumGeometry, PackageDatumOrigin};
-    let mut engine = Engine::profiled()?;
-    let row = crate::library::templates::starter::row(USB_C)?;
-    let ids = new_from(
-        &mut engine,
-        NewFromTemplate {
-            row: RowSource::Starter { name: USB_C.into() },
-            values: None,
-            skeleton: row.definition.skeleton,
-            name: "USB-C".into(),
-            designator_prefix: None,
-            symbol: None,
-            without_fields: false,
-        },
-    )?;
-    let package = ids
-        .iter()
-        .filter_map(|id| engine.drafts().get(*id))
-        .find_map(|d| match &d.definition {
-            Definition::Package(p) => Some(p.clone()),
-            _ => None,
-        })
-        .ok_or("the package")?;
-    let [opening] = package.datums.as_slice() else {
-        return Err(format!("{:?}", package.datums).into());
-    };
-    assert_eq!(opening.name.0, "opening");
-    assert!(opening.external);
-    assert_eq!(opening.origin, PackageDatumOrigin::Form);
-    let PackageDatumGeometry::Volume {
-        frame,
-        profile,
-        height_nm,
-    } = opening.geometry
-    else {
-        return Err("a volume".into());
-    };
-    assert_eq!(frame.origin(), [0.0, -3.675, 1.73]);
-    assert_eq!(frame.z().map(|v| v + 0.0), [0.0, -1.0, 0.0]);
-    assert_eq!(
-        profile,
-        DatumProfile::Rect {
-            size_nm: [nm(8.34), nm(2.56)],
-            corner_radius_nm: nm(1.28)
-        }
-    );
-    assert_eq!(height_nm, nm(1.85));
-    assert_eq!(draft_findings(&engine)?, Vec::<String>::new());
-    Ok(())
+/// The shipped USB-C receptacle (`library/parts/gct-usb4105`, part
+/// generation job I) as the program loads it: its records with the part
+/// file packed as their one asset.
+fn shipped_usb_c() -> Fallible<Bundle> {
+    #[derive(serde::Deserialize)]
+    struct File {
+        format: u32,
+        bundle: Bundle,
+    }
+    let file: File = serde_json::from_str(include_str!(
+        "../../../../../library/parts/gct-usb4105.component.json"
+    ))?;
+    assert_eq!(file.format, 1);
+    let bytes = include_bytes!("../../../../../library/parts/gct-usb4105.solidcraft");
+    let mut bundle = file.bundle;
+    bundle.assets.push(crate::library::PackedAsset {
+        hash: crate::library::bundle::asset_hash(bytes),
+        media_type: "application/x-solidcraft".into(),
+        data: crate::library::bundle::AssetBytes::new(bytes.to_vec()),
+    });
+    Ok(bundle)
 }
 
-/// The designer's path: search finds the receptacle, Create builds it with
-/// USB-named pins, the A and B rows' duplicates carried by one terminal,
-/// the drawing's lands and its provenance, and it publishes.
+/// The project's one published revision of `name`'s `kind`.
+fn published<'a, T>(
+    list: &'a [crate::library::Published<T>],
+    what: &str,
+) -> Fallible<&'a crate::library::Published<T>> {
+    match list {
+        [one] => Ok(one),
+        _ => Err(format!("{} {what} revisions", list.len()).into()),
+    }
+}
+
+/// The designer's path, on the shipped receptacle: no template row offers
+/// it any more; placing it imports its records with USB-named pins, the A
+/// and B rows' duplicates carried by one terminal, the drawing's lands, the
+/// opening the part file declares (decision 5, 12 November 2026: package
+/// data from the drawing, external, on the mating face (−y), the plug's
+/// shell, the 8.34 × 2.56 mm opening with round ends, out to the mating
+/// view's 1.85 mm, where the plug's overmold begins) and the GCT Part.
 #[test]
-fn a_usb_c_receptacle_is_found_built_mapped_and_published() -> Fallible<()> {
+fn the_shipped_usb_c_receptacle_is_placed_mapped_and_landed() -> Fallible<()> {
+    use crate::library::datum::{DatumProfile, PackageDatumGeometry, PackageDatumOrigin};
+    use crate::library::import::{OtherRevision, PlaceSource};
     let mut engine = Engine::profiled()?;
-    for query in ["usb", "USB-C", "usb-c", "type-c", "Type-C", "connector"] {
+    for query in ["usb", "USB-C", "type-c"] {
         assert!(
-            starter_hits(&engine, query)?.iter().any(|n| n == USB_C),
-            "{query} finds the receptacle"
+            starter_hits(&engine, query)?.is_empty(),
+            "{query}: the receptacle is a library part, not a template row"
         );
     }
-    assert_eq!(
-        starter_hits(&engine, "usb")?.first().map(String::as_str),
-        Some(USB_C)
-    );
-    let report = templates_with(&engine, "usb", &CatalogContext::default())?;
-    let hit = report
-        .hits
-        .iter()
-        .find(|h| h.name == USB_C)
-        .ok_or("the row")?;
-    assert!(hit.cited && hit.citation_checked && hit.lands_cited);
-    assert_eq!(hit.skeleton, SkeletonHint::Connector);
-
-    let row = crate::library::templates::starter::row(USB_C)?;
-    let ids = new_from(
+    let placed = apply(
         &mut engine,
-        NewFromTemplate {
-            row: RowSource::Starter { name: USB_C.into() },
-            values: None,
-            skeleton: row.definition.skeleton,
-            name: "USB-C".into(),
-            designator_prefix: None,
-            symbol: None,
-            without_fields: false,
+        LibraryCommand::PlaceFrom {
+            source: PlaceSource::Bundle {
+                bundle: Box::new(shipped_usb_c()?),
+            },
+            position: pt([10.0, 10.0]),
+            designator: None,
+            other_revision: OtherRevision::Refuse,
         },
     )?;
-    let draft = |k: usize| {
-        ids.get(k)
-            .and_then(|id| engine.drafts().get(*id))
-            .ok_or_else(|| format!("draft {k}"))
+    let Outcome::PlacedFrom { designator, .. } = placed else {
+        return Err(format!("{placed:?}").into());
     };
-    let Definition::Component(component) = &draft(0)?.definition else {
-        return Err("component".into());
-    };
+    assert_eq!(designator, "J1");
+    let library = &engine.project().library;
+    let component = &published(&library.components, "component")?.definition;
+    assert_eq!(
+        published(&library.components, "component")?.meta.name,
+        USB_C
+    );
     assert_eq!(component.designator_prefix, "J");
     let pins: Vec<(&str, Vec<&str>)> = component
         .terminals
@@ -2259,12 +2229,8 @@ fn a_usb_c_receptacle_is_found_built_mapped_and_published() -> Fallible<()> {
             .find(|t| t.name == name)
             .map(|t| t.id)
     };
-    let Definition::Package(package) = &draft(2)?.definition else {
-        return Err("package".into());
-    };
-    let Definition::Binding(binding) = &draft(4)?.definition else {
-        return Err("binding".into());
-    };
+    let package = &published(&library.packages, "package")?.definition;
+    let binding = &published(&library.bindings, "binding")?.definition;
     // Hand-read from the Type-C pinout, pad by pad.
     let carried = [
         ("A1B12", "GND"),
@@ -2292,10 +2258,39 @@ fn a_usb_c_receptacle_is_found_built_mapped_and_published() -> Fallible<()> {
             .ok_or(designation)?;
         assert_eq!(binding.terminal_of(id), terminal(name), "{designation}");
     }
-
-    let Definition::Footprint(footprint) = &draft(3)?.definition else {
-        return Err("footprint".into());
+    // No typed form; the envelope and the 3D body are the part file's.
+    assert_eq!(package.form, PackageForm::Generic);
+    assert_eq!(package.envelope_nm, [nm(8.94), nm(7.35), nm(3.31)]);
+    assert!(matches!(
+        package.model,
+        crate::library::PackageModel::PartFile(_)
+    ));
+    let [opening] = package.datums.as_slice() else {
+        return Err(format!("{:?}", package.datums).into());
     };
+    assert_eq!(opening.name.0, "opening");
+    assert!(opening.external);
+    assert_eq!(opening.origin, PackageDatumOrigin::PartFile);
+    let PackageDatumGeometry::Volume {
+        frame,
+        profile,
+        height_nm,
+    } = opening.geometry
+    else {
+        return Err("a volume".into());
+    };
+    assert_eq!(frame.origin(), [0.0, -3.675, 1.73]);
+    assert_eq!(frame.z().map(|v| v + 0.0), [0.0, -1.0, 0.0]);
+    assert_eq!(
+        profile,
+        DatumProfile::Rect {
+            size_nm: [nm(8.34), nm(2.56)],
+            corner_radius_nm: nm(1.28)
+        }
+    );
+    assert_eq!(height_nm, nm(1.85));
+
+    let footprint = &published(&library.footprints, "footprint")?.definition;
     use crate::library::PadKind;
     let kind = |k: PadKind| footprint.pads.iter().filter(|p| p.kind == k).count();
     assert_eq!(kind(PadKind::Smd), 12);
@@ -2346,18 +2341,23 @@ fn a_usb_c_receptacle_is_found_built_mapped_and_published() -> Fallible<()> {
             .all(|p| p.terminal.is_none() && p.hole.as_ref().is_some_and(|h| !h.plated))
     );
 
-    let provenance = &draft(0)?.meta.provenance;
+    let provenance = &published(&library.components, "component")?.meta.provenance;
     for text in [
-        "GCT USB4105",
-        "rev. B4",
-        "p. 1",
-        "lands from the cited drawing",
+        "GCT",
+        "USB4105",
+        "revision B4",
+        "sheet 1",
+        "Recommended PCB Layout",
     ] {
         assert!(provenance.contains(text), "{provenance}");
     }
-    let Definition::Symbol(symbol) = &draft(1)?.definition else {
-        return Err("symbol".into());
-    };
+    assert!(!provenance.contains("starter table"), "{provenance}");
+    let part = &published(&library.parts, "part")?.definition;
+    assert_eq!(
+        (part.manufacturer.as_str(), part.mpn.as_str()),
+        ("GCT", "USB4105-GF-A")
+    );
+    let symbol = &published(&library.symbols, "symbol")?.definition;
     assert_eq!(symbol.units.iter().map(|u| u.pins.len()).sum::<usize>(), 9);
     // Run 4, finding 12: each pin's stacked pad numbers ("A1B12,B1A12")
     // fit along its stub at the pin text height, so none is cut to
@@ -2392,16 +2392,6 @@ fn a_usb_c_receptacle_is_found_built_mapped_and_published() -> Fallible<()> {
         .find(|p| p.terminal == gnd)
         .ok_or("the GND pin")?;
     assert_eq!(gnd.length_nm, nm(12.5));
-
-    let findings = draft_findings(&engine)?;
-    assert_eq!(findings, Vec::<String>::new());
-    apply(
-        &mut engine,
-        LibraryCommand::Publish {
-            drafts: ids,
-            close: false,
-        },
-    )?;
     Ok(())
 }
 

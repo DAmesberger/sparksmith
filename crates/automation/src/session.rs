@@ -1691,8 +1691,6 @@ mod templates_tests;
 mod tests;
 #[cfg(test)]
 mod two_way_tests;
-#[cfg(test)]
-mod usb_c_part_tests;
 
 /// The shipped showcase ([`sparksmith_core::Engine::showcase_hosted`]) on
 /// SolidCraft's sketch engine: its sketched board, cutout, slot and
