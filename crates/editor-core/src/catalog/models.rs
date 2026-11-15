@@ -1,6 +1,5 @@
 //! Slice D1: the 3D library is the catalog filtered to
-//! models, over the project and every source, plus the generated families
-//! as virtual entries. Facets: format, mount, pins, pitch, body L×W×H
+//! models, over the project and every source. Facets: format, mount, pins, pitch, body L×W×H
 //! (from bounds), licence/redistribution, source, `has:leads`,
 //! `has:marking`, `has:textures`. Opened from a package, hits are ranked
 //! "fits this package": lead-tagged models by `fit_leads` rms against the
@@ -15,7 +14,6 @@ use crate::library::model3d::{
     bounds_excess,
 };
 use crate::library::package_fit::{self, FitRotation, LeadPair};
-use crate::library::templates::catalog::FamilyKind;
 use crate::library::{
     Definition, Drafts, FootprintDefinition, Library, ModelPlacement, PackageDefinition, PadKind,
     Published,
@@ -52,8 +50,6 @@ pub enum ModelHitKind {
         has_marking: bool,
         has_textures: bool,
     },
-    /// "Generated · gull-wing": picks a template row.
-    Generated { family: FamilyKind },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -92,8 +88,6 @@ pub struct ModelFacets {
     pub has_leads: usize,
     pub has_marking: usize,
     pub has_textures: usize,
-    /// Generated-family entries among the matches.
-    pub generated: usize,
 }
 
 /// `library.models`'s result.
@@ -139,8 +133,6 @@ enum Filter {
     Source(SourceFilter),
     Has(Flag, bool),
     Family(String),
-    /// `kind:generated`: generated-family entries only.
-    Generated,
 }
 
 fn invalid(term: &str, message: &str) -> Error {
@@ -174,11 +166,8 @@ fn filter(token: &str) -> Result<Option<Filter>> {
         "kind" => match lower.as_str() {
             // Every entry is a model.
             "model" | "models" => return Ok(None),
-            "generated" => Filter::Generated,
             _ => {
-                return Err(fail(
-                    "the 3D library lists models only (kind:model or kind:generated)",
-                ));
+                return Err(fail("the 3D library lists models only (kind:model)"));
             }
         },
         "format" => Filter::Format(match lower.as_str() {
@@ -278,13 +267,6 @@ struct Candidate<'a> {
 }
 
 impl Candidate<'_> {
-    fn generated(&self) -> Option<FamilyKind> {
-        match self.kind {
-            ModelHitKind::Generated { family } => Some(family),
-            ModelHitKind::Library { .. } => None,
-        }
-    }
-
     fn meets(&self, filter: &Filter, tier: &mut u8) -> bool {
         let model = self.definition;
         match filter {
@@ -336,7 +318,6 @@ impl Candidate<'_> {
                 .family
                 .as_deref()
                 .is_some_and(|f| fold(f).contains(text.as_str())),
-            Filter::Generated => self.generated().is_some(),
         }
     }
 }
@@ -348,22 +329,6 @@ fn body_matches(size: [f64; 3], dims: &[f64]) -> bool {
     };
     let plan = (near(size[0], *l) && near(size[1], *w)) || (near(size[0], *w) && near(size[1], *l));
     plan && dims.get(2).is_none_or(|h| near(size[2], *h))
-}
-
-/// The label of a generated family entry.
-fn family_label(family: FamilyKind) -> &'static str {
-    match family {
-        FamilyKind::Chip => "chip",
-        FamilyKind::GullWing => "gull-wing",
-        FamilyKind::NoLead => "QFN / DFN",
-        FamilyKind::Header => "pin header",
-        FamilyKind::Tabbed => "SOT / DPAK",
-        FamilyKind::Molded => "SOD / SMA / MELF",
-        FamilyKind::Grid => "BGA / LGA",
-        FamilyKind::Tht => "through-hole",
-        FamilyKind::Module => "module",
-        FamilyKind::UsbC => "USB-C receptacle",
-    }
 }
 
 /// The latest revision of each model lineage, oldest lineage first.
@@ -411,27 +376,6 @@ fn library_candidate(source: Source, model: &Published<ModelDefinition>) -> Cand
         },
         definition: Some(d),
         licence: fold(d.provenance.record.licence.as_deref().unwrap_or_default()),
-    }
-}
-
-fn generated_candidate<'a>(family: FamilyKind) -> Candidate<'a> {
-    let label = family_label(family);
-    let mount = match family {
-        FamilyKind::Header | FamilyKind::Tht => Mount::Tht,
-        _ => Mount::Smd,
-    };
-    Candidate {
-        kind: ModelHitKind::Generated { family },
-        source: Source::Project,
-        name: format!("Generated · {label}"),
-        other: "generated parametric".into(),
-        hints: ModelHints {
-            mount: Some(mount),
-            family: Some(label.to_owned()),
-            ..ModelHints::default()
-        },
-        definition: None,
-        licence: String::new(),
     }
 }
 
@@ -599,7 +543,6 @@ fn facets(hits: &[ModelHit]) -> ModelFacets {
                 out.has_marking += usize::from(*has_marking);
                 out.has_textures += usize::from(*has_textures);
             }
-            ModelHitKind::Generated { .. } => out.generated += 1,
         }
     }
     out.format = count(format);
@@ -612,7 +555,7 @@ fn facets(hits: &[ModelHit]) -> ModelFacets {
 }
 
 /// `library.models`: the project's models and every loaded source's
-/// (their latest revisions), plus the built generated families, filtered by
+/// (their latest revisions), filtered by
 /// `query` and ranked by fit (when `fits` names a package draft or
 /// lineage), then match tier, then name. `fits` scores; it never assigns.
 ///
@@ -639,16 +582,12 @@ pub fn search(
                 .map(|m| library_candidate(Source::Library(source.library), m)),
         );
     }
-    candidates.extend(FamilyKind::ALL.into_iter().map(generated_candidate));
     if candidates.len() > super::MAX_INDEX_ENTRIES {
         return Err(Error::Limit(format!(
             "models.query: at most {} models are searched",
             super::MAX_INDEX_ENTRIES
         )));
     }
-    let own_family = target
-        .as_ref()
-        .and_then(|t| FamilyKind::of(&t.package.form));
     let mut ranked: Vec<(u8, ModelHit)> = Vec::new();
     for candidate in candidates {
         let mut tier = 0u8;
@@ -657,11 +596,6 @@ pub fn search(
         }
         let fit = match (&target, candidate.definition) {
             (Some(t), Some(model)) => Some(fit(t, model)),
-            // The package's own generated family is built from its form,
-            // so it fills the envelope exactly.
-            (Some(_), None) if candidate.generated() == own_family && own_family.is_some() => {
-                Some(FitScore::Bounds { excess_mm: 0.0 })
-            }
             _ => None,
         };
         ranked.push((
@@ -678,15 +612,6 @@ pub fn search(
     }
     let id_of = |hit: &ModelHit| match hit.kind {
         ModelHitKind::Library { model, .. } => (0u8, model.id.0, model.revision.0),
-        ModelHitKind::Generated { family } => (
-            1,
-            FamilyKind::ALL
-                .iter()
-                .position(|f| *f == family)
-                .and_then(|p| u64::try_from(p).ok())
-                .unwrap_or(u64::MAX),
-            0,
-        ),
     };
     ranked.sort_by(|(ta, a), (tb, b)| {
         let (ca, sa) = fit_key(a.fit);
@@ -694,8 +619,6 @@ pub fn search(
         ca.cmp(&cb)
             .then(sa.total_cmp(&sb))
             .then(ta.cmp(tb))
-            // The library's own models before the generated families.
-            .then_with(|| id_of(a).0.cmp(&id_of(b).0))
             .then_with(|| fold(&a.name).cmp(&fold(&b.name)))
             .then(a.source.cmp(&b.source))
             .then_with(|| id_of(a).cmp(&id_of(b)))

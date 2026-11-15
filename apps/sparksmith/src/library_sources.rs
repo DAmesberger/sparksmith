@@ -97,17 +97,10 @@ impl SourceView {
     pub fn secondary(&self) -> String {
         match &self.status {
             Status::Loading => "loading…".into(),
-            Status::Ready { catalog, .. } => {
-                let entries = match catalog.entries.len() {
-                    1 => "1 entry".to_owned(),
-                    n => format!("{n} entries"),
-                };
-                match catalog.rows.len() {
-                    0 => entries,
-                    1 => format!("{entries} · 1 package row"),
-                    n => format!("{entries} · {n} package rows"),
-                }
-            }
+            Status::Ready { catalog, .. } => match catalog.entries.len() {
+                1 => "1 entry".to_owned(),
+                n => format!("{n} entries"),
+            },
             _ => self.reason().unwrap_or_default(),
         }
     }
@@ -742,7 +735,6 @@ impl LibrarySources {
                     _ => None,
                 })
                 .collect(),
-            without_starter_rows: false,
         }
     }
 

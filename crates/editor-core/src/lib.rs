@@ -43,7 +43,7 @@ use completeness::{CheckTarget, DefinitionReport, InstanceReport};
 pub use diagnostics::{Diagnostic, Error, Finding, ObjectRef, Result, Stage};
 pub use geometry::point_valid;
 pub use ids::*;
-use library::samples::{self, SampleRefs};
+use library::part_refs::SampleRefs;
 use library::{Definition, DefinitionMeta, Drafts};
 pub use model::*;
 pub use permission::Class;
@@ -289,30 +289,10 @@ pub enum Query {
     /// findings merged into one row and every finding kept.
     #[serde(rename = "project.issues")]
     Issues { scope: issues::IssueScope },
-    /// B1: template rows (project, sources and each family's custom entry)
-    /// for a one-line query with `pins:`, `pitch:`, `body:` and `pkg:`
-    /// filters. At most 500 hits; 50 when omitted.
-    #[serde(rename = "library.templates")]
-    Templates {
-        query: String,
-        #[serde(default)]
-        limit: Option<usize>,
-    },
-    /// On-demand generic parts a text such as "header 1x4" or "10k 0603" reads
-    /// as, under the families' patterns. Each says how the text was read,
-    /// whether the part already exists, and what `library.find_or_create` would
-    /// make. Empty when it reads as none.
-    #[serde(rename = "library.generic_parts")]
-    GenericParts { query: String },
     /// The built-in standard fields as a bundle `library.import` takes
     /// (`library.import_standard_fields` does both in one step).
     #[serde(rename = "library.standard_fields")]
     StandardFields {},
-    /// B1: what `library.package_from_template` would change.
-    #[serde(rename = "library.package_plan")]
-    PackagePlan {
-        request: Box<library::templates::catalog::PackageFromTemplate>,
-    },
     /// D1: 3D library models (and generated families) for a query, ranked
     /// by fit when `fits` names the package draft the chooser serves.
     #[serde(rename = "library.models")]
@@ -480,7 +460,6 @@ declare_entries!(Query in project {
     CheckDefinition "component.check" Read "Check a definition" [in library, link],
     CheckDrafts "component.check_drafts" Read "Check all drafts" [in library, link],
     Search "library.search" Read "Search the library" [in library, link],
-    GenericParts "library.generic_parts" Read "Find generic parts" [in library, link],
     Facets "library.facets" Read "List search filters" [in library, link],
     InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link],
     Bom "project.bom" Read "Bill of materials" [link],
@@ -489,9 +468,7 @@ declare_entries!(Query in project {
     UpdatesAvailable "library.updates_available" Read "List library updates" [in library, link],
     PromotePreview "library.promote_preview" Read "Preview a promotion" [in library, link],
     Issues "project.issues" Read "List issues" [in checks, long, link],
-    Templates "library.templates" Read "List package rows" [in library, link],
     StandardFields "library.standard_fields" Read "List standard fields" [in library, link],
-    PackagePlan "library.package_plan" Read "Plan a package from a row" [in library, long, link],
     Models "library.models" Read "Find 3D models" [in library, link],
     PinoutPreview "library.pinout_preview" Read "Preview a pinout import" [in library, long, link],
     SuggestPins "functions.suggest" Read "Suggest pin assignments" [in schematic, link],
@@ -539,9 +516,6 @@ pub enum QueryResult {
     /// `library.standard_fields`: a bundle for `library.import`.
     StandardFields(Box<library::Bundle>),
     Issues(issues::IssueReport),
-    Templates(catalog::templates::TemplateReport),
-    GenericParts(catalog::generic::GenericReport),
-    PackagePlan(library::templates::catalog::PackagePlan),
     Models(catalog::models::ModelReport),
     PinoutPlan(Box<library::pinout::PinoutPlan>),
     SuggestPins(functions::suggest::SuggestReport),
@@ -881,7 +855,8 @@ impl Engine {
     /// The PCB realism showcase: a 4-layer board with an SOIC-8, a QFN-16,
     /// a 2x5 header, 0603/0805 passives and a polarised part, routed on top
     /// and bottom through tented and open vias, built through the public
-    /// commands. The sample parts live in `library::samples`.
+    /// commands. The parts are shipped data the host's `context` carries
+    /// (`library::showcase_parts`).
     ///
     /// Unconnected terminals are marked no-connect. The board's rules are
     /// `profile`. The undo history is cleared.
@@ -941,7 +916,6 @@ impl Engine {
         profile: rules::RuleProfile,
     ) -> Result<Self> {
         let _scope = context.enter();
-        let showcase_rules = profile.rules().clone();
         let mut engine = Self::new(&NewBoard {
             size: layout::showcase::BOARD_MM,
             stackup: presets.preset(MIN_COPPER_LAYERS)?,
@@ -961,40 +935,65 @@ impl Engine {
             }),
         )?;
         let mut refs = Vec::new();
-        for part in samples::showcase_parts() {
+        let parts = context.showcase()?.parts.clone();
+        for part in &parts {
             let lineages = engine.reserve_lineages()?;
-            let mut part_edits = samples::packaged_symbol(
-                part.name,
-                part.form,
-                part.prefix,
-                part.symbol,
-                lineages,
-                &showcase_rules,
+            let edits = library::showcase_parts::remap(&part.edits, lineages)?;
+            engine.apply(
+                engine.revision,
+                Operation::Library(LibraryCommand::Edit { edits }),
             )?;
-            samples::trim_heels(&mut part_edits, part.heel_trim_mm)?;
-            if part.pin_one {
-                samples::mark_pin_one(&mut part_edits);
+            let mut drafts = vec![
+                lineages.component,
+                lineages.symbol.id,
+                lineages.package.id,
+                lineages.footprint.id,
+                lineages.binding.id,
+            ];
+            if let Some(model) = &part.model {
+                let hash = model.definition.asset.hash;
+                let bytes = context.bundled_part(hash).ok_or_else(|| {
+                    Error::NotFound(format!(
+                        "showcase parts: no shipped generator bundle has the part file sha256 {hash} of {}",
+                        part.name
+                    ))
+                })?;
+                let outcome = engine.apply(
+                    engine.revision,
+                    Operation::Library(LibraryCommand::ImportModel(Box::new(
+                        library::model3d::ImportModel {
+                            name: model.name.clone(),
+                            assets: vec![library::PackedAsset {
+                                hash,
+                                media_type: model.definition.asset.media_type.clone(),
+                                data: library::bundle::AssetBytes::new(bytes.to_vec()),
+                            }],
+                            definition: Box::new(model.definition.clone()),
+                            assign: Some(library::model3d::AssignModel {
+                                package: lineages.package.id,
+                                lead_map: Vec::new(),
+                                part: Some(library::model3d::AssignPart {
+                                    values: model.values.clone(),
+                                    derived: model.derived.clone(),
+                                }),
+                            }),
+                        },
+                    ))),
+                )?;
+                if let Outcome::DraftCreated { id } = outcome {
+                    drafts.push(id);
+                }
             }
             engine.apply(
                 engine.revision,
-                Operation::Library(LibraryCommand::Edit { edits: part_edits }),
-            )?;
-            engine.apply(
-                engine.revision,
                 Operation::Library(LibraryCommand::Publish {
-                    drafts: vec![
-                        lineages.component,
-                        lineages.symbol.id,
-                        lineages.package.id,
-                        lineages.footprint.id,
-                        lineages.binding.id,
-                    ],
+                    drafts,
                     close: false,
                 }),
             )?;
             refs.push(lineages);
         }
-        for (k, (designator, part)) in samples::SHOWCASE_INSTANCES.iter().enumerate() {
+        for (k, (designator, part)) in layout::showcase::INSTANCES.iter().enumerate() {
             let lineages = refs
                 .get(*part)
                 .ok_or_else(|| Error::Invalid("showcase part index".into()))?;
@@ -1017,7 +1016,7 @@ impl Engine {
                 })),
             )?;
         }
-        for (name, terminals) in samples::SHOWCASE_NETS {
+        for (name, terminals) in layout::showcase::NETS {
             let mut ends = Vec::with_capacity(terminals.len());
             for (designator, terminal) in *terminals {
                 ends.push(layout::showcase::endpoint(
@@ -1199,7 +1198,8 @@ impl Engine {
         let refs = engine.reserve_lineages()?;
         let kind = engine.reserve(DefinitionKind::QuantityKind)?;
         let field = engine.reserve(DefinitionKind::Field)?;
-        let mut edits = samples::two_terminal("Resistor", samples::Kind::RESISTOR, refs)?;
+        let mut edits =
+            library::fixtures::two_terminal("Resistor", library::fixtures::Kind::RESISTOR, refs)?;
         for edit in &mut edits {
             if let Definition::Component(component) = &mut edit.definition {
                 component.fields.push(fields::FieldSelection {
@@ -1209,7 +1209,7 @@ impl Engine {
                 });
             }
         }
-        edits.extend(samples::resistance_field(
+        edits.extend(library::fixtures::resistance_field(
             QuantityKindRef::new(kind, Revision::FIRST),
             field,
         ));
@@ -2197,23 +2197,6 @@ impl Engine {
                 &self.copper_graph(),
                 &self.check_settings,
             )?)),
-            Query::Templates { query, limit } => {
-                Ok(QueryResult::Templates(catalog::templates::search(
-                    &self.document.project,
-                    &self.document.drafts,
-                    context,
-                    &query,
-                    limit
-                        .unwrap_or(catalog::DEFAULT_LIMIT)
-                        .min(catalog::templates::MAX_TEMPLATE_HITS),
-                )?))
-            }
-            Query::GenericParts { query } => Ok(QueryResult::GenericParts(
-                catalog::generic::search(&self.document.project, &self.document.drafts, &query)?,
-            )),
-            Query::PackagePlan { request } => Ok(QueryResult::PackagePlan(
-                commands::templates::package_plan(&self.document, &request, evaluator)?,
-            )),
             Query::Models { query, fits, limit } => {
                 Ok(QueryResult::Models(catalog::models::search(
                     &self.document.project,

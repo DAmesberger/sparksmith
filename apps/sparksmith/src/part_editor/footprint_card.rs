@@ -11,7 +11,7 @@ use sparksmith_core::Operation;
 impl PartEditor {
     /// What the Footprint tab's subject slot holds now.
     pub(super) fn footprint_subject(&self) -> Subject {
-        if self.template_picker.is_open() || self.template_picker.is_assigning() {
+        if self.template_picker.is_assigning() {
             Subject::Dialog
         } else if self.footprint_tool_armed().is_some() {
             Subject::Tool

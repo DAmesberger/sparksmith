@@ -13,10 +13,9 @@
 //! No temperature field: a unit here is a scale of the SI unit, and a
 //! Celsius reading needs an offset.
 use super::bundle::{self, Bundle};
-use super::package_form::ChipKind;
 use super::{Definition, Library, standards};
 use crate::diagnostics::{Error, Result};
-use crate::fields::{FieldSelection, ValueType};
+use crate::fields::ValueType;
 use crate::ids::{DefinitionKind, FieldRef, LibraryId, SourceLineageId};
 use crate::quantity::UnitSet;
 use schemars::JsonSchema;
@@ -33,15 +32,6 @@ pub struct ChipFields {
 }
 
 impl ChipFields {
-    fn of(&self, kind: ChipKind) -> &[SourceLineageId] {
-        match kind {
-            ChipKind::Resistor => &self.resistor,
-            ChipKind::Capacitor => &self.capacitor,
-            ChipKind::Inductor => &self.inductor,
-            ChipKind::Led => &self.led,
-        }
-    }
-
     fn all(&self) -> impl Iterator<Item = &SourceLineageId> {
         self.resistor
             .iter()
@@ -196,32 +186,6 @@ impl StandardFields {
                 && self.roles.value_fields.contains(&o.origin.lineage)
         })
     }
-
-    /// The selections a chip component of `kind` starts with, all shown on
-    /// the symbol, from the project's imported copies. `NotFound` when they
-    /// were not imported.
-    pub fn chip_fields(&self, library: &Library, kind: ChipKind) -> Result<Vec<FieldSelection>> {
-        let source = self.library();
-        self.roles
-            .chip_fields
-            .of(kind)
-            .iter()
-            .map(|lineage| {
-                let local = library
-                    .origins
-                    .iter()
-                    .find(|o| o.origin.library == source && o.origin.lineage == *lineage)
-                    .map(|o| o.local)
-                    .filter(|local| local.kind == DefinitionKind::Field)
-                    .ok_or_else(|| Error::NotFound("a standard field is not imported".into()))?;
-                Ok(FieldSelection {
-                    field: FieldRef::new(local.id, local.revision),
-                    default: None,
-                    show_on_symbol: true,
-                })
-            })
-            .collect()
-    }
 }
 
 /// The bundle of every standard kind and field, from the installed
@@ -240,9 +204,4 @@ pub fn library_id() -> Option<LibraryId> {
 /// installed, which the program refuses to start without.
 pub fn is_value_field(library: &Library, field: FieldRef) -> bool {
     standards::get().is_ok_and(|s| s.fields.is_value_field(library, field))
-}
-
-/// [`StandardFields::chip_fields`] of the installed standards.
-pub fn chip_fields(library: &Library, kind: ChipKind) -> Result<Vec<FieldSelection>> {
-    standards::get()?.fields.chip_fields(library, kind)
 }

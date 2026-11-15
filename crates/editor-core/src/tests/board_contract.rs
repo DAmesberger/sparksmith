@@ -53,10 +53,7 @@ fn the_prototype_fixture_holds_the_former_hardcoded_limits() -> Fallible<()> {
         r.silkscreen.text_height_min,
         library::MIN_SILK_TEXT_HEIGHT_MM
     );
-    assert_eq!(
-        r.land.exposed_pad_clearance,
-        library::samples::EXPOSED_PAD_CLEARANCE_MM
-    );
+    assert_eq!(r.land.exposed_pad_clearance, 0.2);
     // The library's interim land-estimator values are the same set.
     assert_eq!(DesignRules::default(), r);
     Ok(())

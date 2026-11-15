@@ -88,7 +88,10 @@ impl PartEditor {
         };
         let mut h = std::collections::hash_map::DefaultHasher::new();
         serde_json::to_vec(&spec).unwrap_or_default().hash(&mut h);
-        serde_json::to_vec(&package.form)
+        serde_json::to_vec(&package.model)
+            .unwrap_or_default()
+            .hash(&mut h);
+        serde_json::to_vec(&package.envelope_nm)
             .unwrap_or_default()
             .hash(&mut h);
         format!("{inputs:?}").hash(&mut h);

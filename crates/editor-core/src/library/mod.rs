@@ -8,7 +8,10 @@ pub mod bundle;
 mod component;
 pub mod datum;
 pub mod drafts;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod fixtures;
 mod footprint;
+pub mod footprint_drawings;
 pub mod footprint_edit;
 pub mod footprint_source;
 pub mod generated;
@@ -20,18 +23,20 @@ pub mod model3d;
 pub mod names;
 mod package;
 pub mod package_fit;
-pub mod package_form;
 pub mod package_model;
+pub mod package_row;
 pub mod pad_table;
 mod part;
+pub mod part_refs;
 pub mod pinout;
 mod publish;
-pub mod samples;
+pub mod sample_parts;
+pub mod showcase_parts;
 pub mod standard_fields;
 pub mod standards;
 mod symbol;
+pub mod symbol_blocks;
 pub mod symbol_style;
-pub mod templates;
 
 pub use binding::{BindingDefinition, TerminalMap};
 pub use bundle::{Bundle, OriginRecord, PackedAsset, RevisionRecord, SourceRevision};
@@ -55,14 +60,11 @@ pub use graphics::{
     lint_with,
 };
 pub use model3d::{LibraryModel, ModelDefinition};
-pub use package::{PackageDefinition, PackageTerminal};
-pub use package_form::{
-    ChipForm, ChipKind, GullWingForm, HeaderForm, LeadSides, NoLeadForm, PackageForm, UsbCForm,
-};
+pub use package::{PackageDefinition, PackageJoints, PackageLead, PackageTerminal};
 pub use package_model::{
-    Axis, BodyRole, GeneratedMaterials, ModelPlacement, PackageEdit, PackageModel, QuickAction,
-    RoleMaterial, model_frame,
+    Axis, BodyRole, ModelPlacement, PackageEdit, PackageModel, QuickAction, model_frame,
 };
+pub use package_row::PackageRowDefinition;
 pub use part::{
     Basis, DistributorOffer, MAX_OFFERS, MAX_REFERENCES, MAX_URL, Origin, PartDefinition,
     Provenance, Reference, ReferenceKind,
@@ -71,7 +73,6 @@ pub use publish::{
     MAX_PUBLISH_SET, candidate, pending_revision, publish, publish_findings, publish_set, stageable,
 };
 pub use symbol::{SymbolDefinition, Unit};
-pub use templates::catalog::PackageRowDefinition;
 
 use crate::diagnostics::{Error, Result};
 use crate::fields::{FieldDefinition, QuantityKind};

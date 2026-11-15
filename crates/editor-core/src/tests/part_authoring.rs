@@ -1,19 +1,16 @@
 //! Part authoring through the public commands: a footprint from a pad table,
-//! the standard fields, redrawing a symbol, an envelope's default place and a
-//! tabbed form's datasheet land pattern. Expected geometry is by hand from the
-//! rows in each test.
+//! the standard fields, redrawing a symbol and an envelope's default place.
+//! Expected geometry is by hand from the rows in each test.
 use super::support::{self, Fixture, Snapshot, Spec, apply, body, dec, passive};
 use crate::fields;
 use crate::geometry::Bounds;
 use crate::library::bundle::content_hash;
 use crate::library::graphics::{DrawingLayer, Item};
-use crate::library::package_form::tabbed::{TabbedForm, TabbedLands};
 use crate::library::pad_table::{FootprintFromPads, HoleRow, PadRow, PadTableReport, SlotRow};
 use crate::library::symbol_style::SymbolKind;
-use crate::library::templates::catalog::{FamilyKind, NewFromTemplate, RowSource, SkeletonHint};
 use crate::library::{
     Definition, FootprintDefinition, HoleShape, ModelPlacement, PackageDefinition, PackageEdit,
-    PackageForm, PadKind, QuickAction, SymbolDefinition, standard_fields,
+    PadKind, QuickAction, SymbolDefinition, standard_fields,
 };
 use crate::tests::support::{mdeg, nm, pt};
 use crate::{
@@ -404,9 +401,8 @@ fn a_set_placement_stays_and_a_plain_edit_is_stored_as_given() -> Result<()> {
 }
 
 #[test]
-fn a_typed_form_or_another_model_keeps_its_placement() -> Result<()> {
+fn a_package_with_leads_or_another_model_keeps_its_placement() -> Result<()> {
     use crate::library::package_fit::envelope_default;
-    use crate::library::package_form::{ChipForm, ChipKind};
     let footprint = FootprintDefinition {
         pads: vec![crate::library::Pad::smd_rect(
             crate::PadId(1),
@@ -420,22 +416,19 @@ fn a_typed_form_or_another_model_keeps_its_placement() -> Result<()> {
     let generic = PackageDefinition::default();
     let moved = envelope_default(&generic, &footprint)?.ok_or(Error::NotFound("moved".into()))?;
     assert_eq!(moved.translation(), [5.0, 0.0, 0.0]);
-    let typed = PackageDefinition {
-        form: PackageForm::Chip(Box::new(ChipForm::new(
-            ChipKind::Resistor,
-            [nm(1.0), nm(0.5), nm(0.5)],
-        ))),
+    let leaded = PackageDefinition {
+        leads: vec![crate::library::PackageLead {
+            terminal: crate::ids::PackageTerminalId(1),
+            contact: pt([0.0, 0.0]),
+        }],
         ..PackageDefinition::default()
     };
-    assert_eq!(envelope_default(&typed, &footprint)?, None);
-    let generated = PackageDefinition {
-        model: crate::library::PackageModel::Generated {
-            family_rev: 1,
-            materials: Default::default(),
-        },
+    assert_eq!(envelope_default(&leaded, &footprint)?, None);
+    let library_model = PackageDefinition {
+        model: crate::library::PackageModel::Library(Default::default()),
         ..PackageDefinition::default()
     };
-    assert_eq!(envelope_default(&generated, &footprint)?, None);
+    assert_eq!(envelope_default(&library_model, &footprint)?, None);
     // Nothing to centre over.
     assert_eq!(
         envelope_default(&generic, &FootprintDefinition::default())?,
@@ -726,144 +719,5 @@ fn a_symbol_of_several_units_is_not_redrawn() -> Result<()> {
         "{error}"
     );
     before.assert_kept(&engine, "several units");
-    Ok(())
-}
-
-/// TI's DBZ land pattern for a SOT-23-3 in the gap log: pads 0.6 × 1.3 at a
-/// 2.1 mm row span.
-fn dbz() -> TabbedForm {
-    let mut form = TabbedForm::typical();
-    form.lands = TabbedLands {
-        size: Some(pt([0.6, 1.3])),
-        span_nm: Some(nm(2.1)),
-        tab_size: None,
-    };
-    form
-}
-
-#[test]
-fn a_tabbed_form_s_land_pattern_builds_the_pads() -> Result<()> {
-    let mut engine = Engine::profiled()?;
-    let new = |form: TabbedForm, name: &str| NewFromTemplate {
-        row: RowSource::Custom {
-            family: FamilyKind::Tabbed,
-        },
-        values: Some(PackageForm::Tabbed(Box::new(form))),
-        skeleton: SkeletonHint::IcBox,
-        name: name.into(),
-        designator_prefix: None,
-        symbol: None,
-        without_fields: false,
-    };
-    let footprint_of = |engine: &mut Engine, request| -> Result<FootprintDefinition> {
-        let Outcome::DraftsCreated { ids } =
-            library(engine, LibraryCommand::NewFromTemplate(Box::new(request)))?
-        else {
-            return Err(Error::Invalid("no drafts".into()));
-        };
-        let id = ids
-            .get(3)
-            .copied()
-            .ok_or(Error::NotFound("footprint".into()))?;
-        footprint(engine, id)
-    };
-    let cited = footprint_of(&mut engine, new(dbz(), "Cited"))?;
-    assert_eq!(cited.pads.len(), 3);
-    for pad in &cited.pads {
-        assert_eq!(pad.shape.extent(), [0.6, 1.3]);
-        assert!(close(pad.position()[1].abs(), 1.05), "{:?}", pad.position);
-    }
-    // Along x the grid stays the form's: 0.95 mm either side of the middle.
-    assert!(close(cited.pads[0].position()[0], -0.95));
-    assert!(close(cited.pads[1].position()[0], 0.95));
-    assert!(close(cited.pads[2].position()[0], 0.0));
-
-    // Without it, the estimates: 0.4 + 0.2 wide, 0.4 + 0.6 long; a 2.4 span,
-    // foot 0.4, so land centres at 1.2 − 0.2 + 0.1.
-    let estimated = footprint_of(&mut engine, new(TabbedForm::typical(), "Estimated"))?;
-    let extent = estimated.pads[0].shape.extent();
-    assert!(close(extent[0], 0.6) && close(extent[1], 1.0), "{extent:?}");
-    assert!(close(estimated.pads[0].position()[1], -1.1));
-    Ok(())
-}
-
-#[test]
-fn a_tab_keeps_its_place_and_takes_its_own_land() -> Result<()> {
-    use crate::library::package_form::tabbed::Tab;
-    use crate::library::samples::form_lands;
-    let mut form = TabbedForm {
-        leads_per_side: [3, 0],
-        pitch_nm: nm(2.3),
-        body_length_nm: nm(6.5),
-        body_width_nm: nm(3.5),
-        body_height_nm: nm(1.6),
-        standoff_nm: nm(0.05),
-        span_nm: nm(7.0),
-        lead_width_nm: nm(0.7),
-        lead_thickness_nm: nm(0.25),
-        foot_length_nm: nm(0.9),
-        tab: Some(Tab {
-            width_nm: nm(3.0),
-            length_nm: nm(0.9),
-            flange_nm: None,
-        }),
-        lead_step: [1, 1],
-        lands: TabbedLands::default(),
-    };
-    let ids: Vec<_> = (1..=4).map(crate::ids::PackageTerminalId).collect();
-    let estimate = form_lands(&PackageForm::Tabbed(Box::new(form)), &ids)
-        .ok_or(Error::NotFound("lands".into()))?;
-    form.lands = TabbedLands {
-        size: Some(pt([1.0, 2.0])),
-        span_nm: Some(nm(6.0)),
-        tab_size: Some(pt([3.5, 2.5])),
-    };
-    let cited = form_lands(&PackageForm::Tabbed(Box::new(form)), &ids)
-        .ok_or(Error::NotFound("lands".into()))?;
-    assert_eq!(cited[0].shape.extent(), [1.0, 2.0]);
-    assert!(close(cited[0].position()[1], -3.0));
-    assert_eq!(cited[3].shape.extent(), [3.5, 2.5]);
-    assert_eq!(
-        cited[3].position, estimate[3].position,
-        "the tab is not a row"
-    );
-    Ok(())
-}
-
-#[test]
-fn bad_land_values_are_the_form_s_range_problems() {
-    let mut form = dbz();
-    assert!(
-        PackageForm::Tabbed(Box::new(form))
-            .range_problems()
-            .is_empty()
-    );
-    form.lands.size = Some(pt([0.0, 1.3]));
-    assert!(
-        !PackageForm::Tabbed(Box::new(form))
-            .range_problems()
-            .is_empty()
-    );
-    form = dbz();
-    form.lands.span_nm = Some(nm(f64::NAN));
-    assert!(
-        !PackageForm::Tabbed(Box::new(form))
-            .range_problems()
-            .is_empty()
-    );
-}
-
-#[test]
-fn a_form_without_lands_serialises_as_before() -> Result<()> {
-    let text =
-        serde_json::to_string(&TabbedForm::typical()).map_err(|e| Error::Invalid(e.to_string()))?;
-    assert!(!text.contains("lands"), "{text}");
-    let back: TabbedForm =
-        serde_json::from_str(&text).map_err(|e| Error::Invalid(e.to_string()))?;
-    assert_eq!(back, TabbedForm::typical());
-    let text = serde_json::to_string(&dbz()).map_err(|e| Error::Invalid(e.to_string()))?;
-    let back: TabbedForm =
-        serde_json::from_str(&text).map_err(|e| Error::Invalid(e.to_string()))?;
-    assert_eq!(back, dbz());
     Ok(())
 }

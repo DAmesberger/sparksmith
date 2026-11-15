@@ -5,7 +5,6 @@
 //! datum D = F ∘ `Datum { offset, rotation }` → model frame M = D ∘
 //! [`ModelPlacement`]. z = 0 is the seating plane (top of land copper).
 use super::datum::{DatumName, PackageDatum, PackageDatumOrigin};
-use super::package_form::PackageForm;
 use super::{Datum, PackageDefinition};
 use crate::diagnostics::{Error, Result};
 use crate::geometry::{Transform3, finite_within};
@@ -14,22 +13,12 @@ use crate::units::{self, Angle, MILLIDEGREES_PER_TURN, Nm};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// Body-role → material entries one generated model may list.
-pub const MAX_ROLE_MATERIALS: usize = 16;
-
 /// Where a package's 3D model comes from.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(tag = "source", rename_all = "snake_case", deny_unknown_fields)]
 pub enum PackageModel {
     /// A box of the package envelope, labelled approximate.
     Envelope { material: MaterialId },
-    /// Built by the integration crate from the typed [`PackageForm`]; one
-    /// shared native definition per package revision.
-    Generated {
-        /// Revision of the family builder the model was authored against.
-        family_rev: u16,
-        materials: GeneratedMaterials,
-    },
     /// A revisioned 3D library model with an explicit lead map
     /// ([`super::model3d`]).
     Library(super::model3d::LibraryModel),
@@ -333,7 +322,6 @@ impl PackageModel {
                 "approximate envelope ({})",
                 material.key().replace('_', " ")
             ),
-            Self::Generated { family_rev, .. } => format!("generated (builder rev {family_rev})"),
             Self::Library(library) => format!("library model {}", library.model),
             Self::PartFile(part) => format!(
                 "part file {} with {} value(s)",
@@ -379,74 +367,6 @@ impl BodyRole {
         Self::Marking,
         Self::Other,
     ];
-}
-
-/// One body role's material override.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct RoleMaterial {
-    pub role: BodyRole,
-    pub material: MaterialId,
-}
-
-/// Body-role materials of a generated model. Roles without an entry use the
-/// family default ([`default_material`]). Each role at most once.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GeneratedMaterials {
-    pub roles: Vec<RoleMaterial>,
-}
-
-impl GeneratedMaterials {
-    /// The material of `role` for `form`: the override, else the family
-    /// default.
-    pub fn material(&self, form: &PackageForm, role: BodyRole) -> MaterialId {
-        self.roles
-            .iter()
-            .find(|r| r.role == role)
-            .map(|r| r.material)
-            .unwrap_or_else(|| default_material(form, role))
-    }
-}
-
-/// The family default material of each body role, from the form's typed
-/// family and chip kind (never from names). Gull-wing leads are satin
-/// bright tin over a copper-alloy frame, terminations matte tin, header
-/// pins gold-plated, header bodies PBT.
-pub fn default_material(form: &PackageForm, role: BodyRole) -> MaterialId {
-    use super::package_form::ChipKind;
-    match (form, role) {
-        (PackageForm::Chip(c), BodyRole::Body) => match c.kind {
-            ChipKind::Resistor => MaterialId::Alumina96,
-            ChipKind::Capacitor => MaterialId::BariumTitanate,
-            ChipKind::Inductor => MaterialId::Ferrite,
-            // A chip LED's white substrate (its lens is role `Lens`).
-            ChipKind::Led => MaterialId::Alumina96,
-        },
-        // A module: green board, nickel-silver can (role `Other`), gold
-        // (ENIG) pads and castellations.
-        (PackageForm::Module(_), BodyRole::Body) => MaterialId::SolderMaskGreen,
-        (PackageForm::Module(_), BodyRole::Other) => MaterialId::NickelSilver,
-        (PackageForm::Module(_), BodyRole::Lead | BodyRole::Termination | BodyRole::ExposedPad) => {
-            MaterialId::Gold
-        }
-        // A USB-C receptacle: LCP insulator and pegs, nickel-plated shell
-        // (role `Other`), gold solder tails.
-        (PackageForm::UsbC(_), BodyRole::Body) => MaterialId::Lcp,
-        (PackageForm::UsbC(_), BodyRole::Other) => MaterialId::Nickel,
-        (PackageForm::UsbC(_), BodyRole::Lead | BodyRole::Termination | BodyRole::ExposedPad) => {
-            MaterialId::Gold
-        }
-        (PackageForm::Header(_), BodyRole::Body) => MaterialId::Pbt,
-        (PackageForm::Header(_), BodyRole::Lead) => MaterialId::Gold,
-        // Formed leads are bright (satin) tin; chip terminations matte.
-        (PackageForm::GullWing(_), BodyRole::Lead) => MaterialId::TinBright,
-        (_, BodyRole::Lead | BodyRole::Termination | BodyRole::ExposedPad) => MaterialId::TinMatte,
-        (_, BodyRole::Marking) => MaterialId::EpoxyLaserMarked,
-        (_, BodyRole::Lens) => MaterialId::SiliconeClear,
-        (_, BodyRole::Sleeve) => MaterialId::PvcSleeve,
-        (_, BodyRole::Body | BodyRole::Other) => MaterialId::EpoxyMould,
-    }
 }
 
 /// The model's rigid placement in the package datum frame: a translation,
@@ -586,12 +506,6 @@ pub enum Axis {
     deny_unknown_fields
 )]
 pub enum PackageEdit {
-    /// The form in millimetres.
-    SetForm(
-        #[serde(with = "super::package_form::form_mm")]
-        #[schemars(with = "super::package_form::PackageFormParams")]
-        PackageForm,
-    ),
     SetModel(PackageModel),
     /// The placement in millimetres and degrees.
     SetPlacement(
@@ -666,16 +580,6 @@ pub fn edit_package(
     let mut out = package.clone();
     for edit in edits {
         match edit {
-            PackageEdit::SetForm(form) => {
-                out.form = form.clone();
-                // A typed form derives the envelope; `Generic` keeps the
-                // authored one.
-                if let Some(envelope) = form.envelope_nm()? {
-                    out.envelope_nm = envelope;
-                }
-                // A connector form emits its openings (decision 5).
-                out.replace_datums(PackageDatumOrigin::Form, &form.datums());
-            }
             PackageEdit::SetModel(model) => {
                 out.model = model.clone();
                 // A part file's declared datums come with it, and go when
@@ -808,30 +712,8 @@ mod tests {
 #[cfg(test)]
 mod frame_tests {
     use super::*;
-    use crate::library::package_form::{ChipForm, ChipKind};
     use crate::library::{FootprintDefinition, PackageDefinition};
     use crate::tests::support::{mdeg, nm, pt};
-
-    #[test]
-    fn a_typed_form_sets_the_envelope_in_the_same_edit() -> Result<()> {
-        let package = PackageDefinition {
-            envelope_nm: [nm(9.0), nm(9.0), nm(9.0)],
-            ..PackageDefinition::default()
-        };
-        let form = PackageForm::Chip(Box::new(ChipForm::new(
-            ChipKind::Capacitor,
-            [nm(1.0), nm(0.5), nm(0.5)],
-        )));
-        let edited = edit_package(&package, &[PackageEdit::SetForm(form)])?;
-        assert_eq!(edited.envelope(), [1.0, 0.5, 0.5]);
-        let generic = edit_package(&edited, &[PackageEdit::SetForm(PackageForm::Generic)])?;
-        assert_eq!(
-            generic.envelope(),
-            [1.0, 0.5, 0.5],
-            "generic keeps the authored envelope"
-        );
-        Ok(())
-    }
 
     #[test]
     fn quarter_turn_frames_are_exact_and_compose() -> Result<()> {

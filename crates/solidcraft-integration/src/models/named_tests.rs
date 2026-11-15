@@ -1,29 +1,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-//! Slice S4: generated, envelope and STEP models built as named designs
-//! give the same face names on every build, in this process and in a
-//! fresh one, and the board inserts the generated design it is traced on.
+//! Slice S4: envelope and STEP models built as named designs give the
+//! same face names on every build, in this process and in a fresh one.
 use super::*;
-use crate::models::family_rev;
 use crate::models::imported::tests::{fixture_step, model};
 #[allow(unused_imports)]
 use crate::models::tests::{nm, pt};
 use solidcraft_engine::doc::naming;
 use sparksmith_core::PackageTerminalId;
-use sparksmith_core::library::{
-    ChipForm, ChipKind, GeneratedMaterials, PackageForm, PackageModel, PackageTerminal,
-};
+use sparksmith_core::library::{PackageModel, PackageTerminal};
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// A 0603 chip resistor with a generated model.
+/// A 0603 chip resistor's package with its envelope as its model.
 pub(crate) fn resistor() -> PackageDefinition {
-    let form = PackageForm::Chip(Box::new(ChipForm {
-        kind: ChipKind::Resistor,
-        length_nm: nm(1.6),
-        width_nm: nm(0.8),
-        height_nm: nm(0.45),
-        termination_nm: nm(0.3),
-    }));
     PackageDefinition {
         next_local: 3,
         terminals: (1..=2)
@@ -32,12 +21,8 @@ pub(crate) fn resistor() -> PackageDefinition {
                 designation: i.to_string(),
             })
             .collect(),
-        model: PackageModel::Generated {
-            family_rev: family_rev(&form).unwrap_or(0),
-            materials: GeneratedMaterials::default(),
-        },
+        model: PackageModel::default(),
         envelope_nm: [nm(1.6), nm(0.8), nm(0.45)],
-        form,
         ..PackageDefinition::default()
     }
 }
@@ -54,24 +39,18 @@ fn names(state: &ModelState) -> Names {
         .collect()
 }
 
-/// The names of the resistor's generated design, its envelope design and
-/// the STEP fixture's design, each built anew (not from the cache).
+/// The names of the resistor's envelope design and the STEP fixture's
+/// design, each built anew (not from the cache).
 fn built_names() -> Fallible<Vec<Names>> {
-    let package = resistor();
-    let mut native = Native::new("Package model")?;
-    super::super::build_standalone(&mut native, &package)?;
-    let generated = names(&*native.world_state()?);
-    let mut envelope_package = package.clone();
-    envelope_package.model = PackageModel::default();
-    let envelope = names(envelope(&envelope_package)?.state());
+    let envelope = names(envelope(&resistor())?.state());
     let bytes = fixture_step()?;
     let seen = crate::models::inspect::inspect(&bytes, ModelFormat::Step)?;
     let step = names(step(&model(ModelFormat::Step, &bytes, &seen), &bytes)?.state());
-    Ok(vec![generated, envelope, step])
+    Ok(vec![envelope, step])
 }
 
-/// The resistor's face names as this builder revision makes them. Solidcraft
-/// writes a fillet's nested edge in parentheses (`F5:blend(<edge>)`, upstream
+/// The retired chip builder's resistor face names, as saved references
+/// name them. Solidcraft writes a fillet's nested edge in parentheses (`F5:blend(<edge>)`, upstream
 /// #11359); names saved in the older colon form (`F5:blend:<edge>`) still read
 /// as the same names (`old_blend_names_read_as_the_current_ones`).
 const RESISTOR_NAMES: [(&str, &[&str]); 4] = [
@@ -126,24 +105,6 @@ const RESISTOR_NAMES: [(&str, &[&str]); 4] = [
     ),
 ];
 
-/// The resistor's design: its bodies by their own names, each face named
-/// after the feature that made it, and these exact names: a change here is
-/// a change every reference to the model sees (a new Solidcraft naming or
-/// another builder), so it needs a new builder revision (`family_rev`).
-#[test]
-fn a_generated_model_is_a_design_with_its_own_names() -> Fallible {
-    let _context = crate::looks::test_context().map(|c| c.enter());
-    let design = generated(&resistor())?;
-    let got = names(design.state());
-    let expected: Names = RESISTOR_NAMES
-        .iter()
-        .map(|(b, f)| ((*b).to_owned(), f.iter().map(|s| (*s).to_owned()).collect()))
-        .collect();
-    assert_eq!(got, expected);
-    assert!(design.generated.iter().any(|b| b.terminal == Some(1)));
-    Ok(())
-}
-
 /// A reference saved before Solidcraft wrote nested names in parentheses
 /// names a fillet face `F5:blend:F1:+y|F1:+z`: it reads as the same face
 /// name as the current text, so it still finds its face.
@@ -172,8 +133,8 @@ fn a_named_design_has_the_same_names_on_every_build() -> Fallible {
     let _context = crate::looks::test_context().map(|c| c.enter());
     assert_eq!(built_names()?, built_names()?);
     let package = resistor();
-    let a = generated(&package)?;
-    let b = generated(&package)?;
+    let a = super::package(&package)?;
+    let b = super::package(&package)?;
     assert!(Arc::ptr_eq(&a, &b));
     Ok(())
 }
@@ -217,9 +178,7 @@ fn a_named_design_has_the_same_names_in_a_fresh_process() -> Fallible {
 /// The envelope design is one box: six faces of one feature.
 #[test]
 fn an_envelope_is_a_one_box_design() -> Fallible {
-    let mut package = resistor();
-    package.model = PackageModel::default();
-    let design = super::package(&package)?;
+    let design = super::package(&resistor())?;
     let got = names(design.state());
     assert_eq!(got.len(), 1);
     assert_eq!(got[0].0, ENVELOPE_BODY);

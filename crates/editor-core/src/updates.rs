@@ -12,11 +12,10 @@ use crate::ids::{
 };
 use crate::instances::{self, Regroup, Resolved, UnitCarry};
 pub use crate::instances::{RegroupAction, UnitTarget};
-use crate::library::footprint_source::ParamValue;
 use crate::library::{
-    BindingDefinition, BodyRole, ComponentDefinition, Decorations, FootprintDefinition, Graphic,
-    PackageDefinition, PackageForm, PackageModel, Pad, PadKind, PadShape, PasteRule, Pin,
-    PinDirection, PinText, SymbolDefinition, Terminal, TerminalClass,
+    BindingDefinition, ComponentDefinition, Decorations, FootprintDefinition, Graphic,
+    PackageDefinition, Pad, PadKind, PadShape, PasteRule, Pin, PinDirection, PinText,
+    SymbolDefinition, Terminal, TerminalClass,
 };
 use crate::model::{
     ComponentInstance, EditPolicy, LabelKind, PhysicalChoice, Project, SheetItem, SymbolOccurrence,
@@ -1198,47 +1197,20 @@ fn size_text(size: &[f64; 3]) -> String {
     format!("{:?}×{:?}×{:?}", size[0], size[1], size[2])
 }
 
-/// Physical differences between two package revisions: the form family and
-/// each changed `pkg_*` value, the envelope, the model source and body
-/// materials, and the model placement. Empty when they agree.
+/// Physical differences between two package revisions: the lead
+/// contacts, the envelope, the model source and the model placement.
+/// Empty when they agree.
 pub fn package_details(a: &PackageDefinition, b: &PackageDefinition) -> Vec<String> {
     let mut out = Vec::new();
-    if a.form.label() != b.form.label() {
+    if a.leads != b.leads {
         out.push(format!(
-            "package form {} → {}.",
-            a.form.label(),
-            b.form.label()
+            "lead contacts {} → {}.",
+            a.leads.len(),
+            b.leads.len()
         ));
-    } else if a.form != b.form {
-        let before = a.form.values();
-        let after = b.form.values();
-        for value in &after {
-            match before.iter().find(|v| v.name == value.name) {
-                Some(old) if old.value != value.value => out.push(format!(
-                    "package parameter {} {} → {}.",
-                    value.name.0,
-                    show_value(&old.value),
-                    show_value(&value.value)
-                )),
-                Some(_) => {}
-                None => out.push(format!(
-                    "package parameter {} added ({}).",
-                    value.name.0,
-                    show_value(&value.value)
-                )),
-            }
-        }
-        for old in before
-            .iter()
-            .filter(|v| after.iter().all(|n| n.name != v.name))
-        {
-            out.push(format!("package parameter {} removed.", old.name.0));
-        }
-        if let (PackageForm::Chip(x), PackageForm::Chip(y)) = (&a.form, &b.form)
-            && x.kind != y.kind
-        {
-            out.push(format!("chip kind {:?} → {:?}.", x.kind, y.kind));
-        }
+    }
+    if a.joints != b.joints {
+        out.push(format!("solder joints {:?} → {:?}.", a.joints, b.joints));
     }
     if a.envelope() != b.envelope() {
         out.push(format!(
@@ -1248,26 +1220,6 @@ pub fn package_details(a: &PackageDefinition, b: &PackageDefinition) -> Vec<Stri
         ));
     }
     match (&a.model, &b.model) {
-        (
-            PackageModel::Generated {
-                family_rev: ra,
-                materials: ma,
-            },
-            PackageModel::Generated {
-                family_rev: rb,
-                materials: mb,
-            },
-        ) => {
-            if ra != rb {
-                out.push(format!("generated model builder rev {ra} → {rb}."));
-            }
-            for role in BodyRole::ALL {
-                let (x, y) = (ma.material(&a.form, role), mb.material(&b.form, role));
-                if x != y {
-                    out.push(format!("{role:?} material {x:?} → {y:?}."));
-                }
-            }
-        }
         (x, y) if x != y => out.push(format!("3D model {} → {}.", x.describe(), y.describe())),
         _ => {}
     }
@@ -1292,14 +1244,6 @@ pub fn package_details(a: &PackageDefinition, b: &PackageDefinition) -> Vec<Stri
         out.push(format!("datum {} removed.", old.name.0));
     }
     out
-}
-
-fn show_value(value: &ParamValue) -> String {
-    match value {
-        ParamValue::Length(v) => format!("{v} mm"),
-        ParamValue::Angle(v) => format!("{v}°"),
-        ParamValue::Count(n) => n.to_string(),
-    }
 }
 
 /// Definition differences reachable from two resolved states of one instance.

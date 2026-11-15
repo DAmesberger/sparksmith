@@ -11,13 +11,14 @@
 //! (`catalog/generic-families.json`); a size code or a listed package picks
 //! one of the generator's presets, counts and lengths fill parameters, and
 //! the family's own parameters go on top. Nothing here knows a family.
-use super::{Bound, GenericBadge, GenericFamily, MAX_WORDS, badge, parse_pattern, walk};
+use super::{
+    Bound, GenericBadge, GenericFamily, GenericValue, MAX_WORDS, badge, parse_pattern, walk,
+};
 use crate::catalog::MAX_QUERY;
 use crate::diagnostics::{Error, Result};
 use crate::ids::{ComponentRef, DefinitionKind};
 use crate::library::generated::{self, GeneratorParams, GeneratorScope, ParamValue, Standing};
 use crate::library::standards::{self, FamilyPatterns, GenericGrammar, Standards};
-use crate::library::templates::generic::GenericValue;
 use crate::model::Document;
 use crate::quantity::Decimal;
 use schemars::JsonSchema;

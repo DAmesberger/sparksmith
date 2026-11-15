@@ -1,39 +1,47 @@
-//! Original fixtures: a SOIC-8-like gull-wing form on a hand-placed land
+//! Original fixtures: a SOIC-8-like package (lead contacts of a two-sided
+//! gull-wing, 1.27 mm pitch, rows 5.4 mm apart) on a hand-placed land
 //! pattern whose rows run along y (pin 1 top left, counter-clockwise), the
 //! model's rows along x, so the fit must find a quarter turn.
 use super::*;
 use crate::ids::{DefinitionId, PadId};
 use crate::library::footprint::Pad;
-use crate::library::package_form::{ChipForm, ChipKind, GullWingForm, LeadSides};
-use crate::library::{PackageTerminal, footprint::FootprintDefinition};
+use crate::library::{PackageLead, PackageTerminal, footprint::FootprintDefinition};
 use crate::tests::support::nm;
 use crate::tests::support::pt;
 
-fn soic_form() -> PackageForm {
-    PackageForm::GullWing(Box::new(GullWingForm {
-        sides: LeadSides::Two,
-        leads_per_side: [4, 0],
-        pitch_nm: nm(1.27),
-        body_length_nm: nm(4.9),
-        body_width_nm: nm(3.9),
-        body_height_nm: nm(1.5),
-        standoff_nm: nm(0.1),
-        span_nm: [nm(6.0), nm(0.0)],
-        lead_width_nm: nm(0.4),
-        lead_thickness_nm: nm(0.2),
-        foot_length_nm: nm(0.6),
-    }))
+/// The SOIC's lead contacts in lead order: the −y row in +x, then the +y
+/// row in −x.
+fn soic_leads() -> Vec<[f64; 2]> {
+    let x = |k: u32| -1.905 + 1.27 * f64::from(k);
+    let mut out: Vec<[f64; 2]> = (0..4).map(|k| [x(k), -2.7]).collect();
+    out.extend((0..4).rev().map(|k| [x(k), 2.7]));
+    out
 }
 
-fn package(form: PackageForm, terminals: u32) -> PackageDefinition {
+/// A package of `terminals` terminals with the SOIC's body (4.9 × 3.9 mm,
+/// 1.6 mm high) and, for eight terminals, its lead contacts.
+fn package(terminals: u32) -> PackageDefinition {
+    let ids: Vec<PackageTerminalId> = (1..=terminals).map(PackageTerminalId).collect();
     PackageDefinition {
-        terminals: (1..=terminals)
-            .map(|i| PackageTerminal {
-                id: PackageTerminalId(i),
-                designation: i.to_string(),
+        terminals: ids
+            .iter()
+            .map(|id| PackageTerminal {
+                id: *id,
+                designation: id.0.to_string(),
             })
             .collect(),
-        form,
+        envelope_nm: [nm(4.9), nm(3.9), nm(1.6)],
+        leads: if terminals == 8 {
+            ids.iter()
+                .zip(soic_leads())
+                .map(|(id, at)| PackageLead {
+                    terminal: *id,
+                    contact: pt(at),
+                })
+                .collect()
+        } else {
+            Vec::new()
+        },
         ..PackageDefinition::default()
     }
 }
@@ -73,29 +81,7 @@ fn close(a: f64, b: f64) -> bool {
 }
 
 fn soic_pairs(fp: &FootprintDefinition) -> Result<Vec<LeadPair>> {
-    form_pairs(&package(soic_form(), 8), fp)
-}
-
-#[test]
-fn lead_points_count_counter_clockwise_from_pin_one() {
-    let leads = soic_form().lead_points();
-    assert_eq!(leads.len(), 8);
-    assert_eq!(leads[0], [-1.905, -2.7, 0.0]);
-    assert_eq!(leads[3], [1.905, -2.7, 0.0]);
-    assert_eq!(leads[4], [1.905, 2.7, 0.0]);
-    assert_eq!(leads[7], [-1.905, 2.7, 0.0]);
-    let chip = PackageForm::Chip(Box::new(ChipForm {
-        kind: ChipKind::Resistor,
-        length_nm: nm(1.6),
-        width_nm: nm(0.8),
-        height_nm: nm(0.45),
-        termination_nm: nm(0.3),
-    }));
-    assert_eq!(
-        chip.lead_points(),
-        vec![[-0.65, 0.0, 0.0], [0.65, 0.0, 0.0]]
-    );
-    assert!(PackageForm::Generic.lead_points().is_empty());
+    form_pairs(&package(8), fp)
 }
 
 #[test]
@@ -159,10 +145,9 @@ fn a_flipped_model_keeps_its_tilt_and_is_lifted_onto_the_plane() -> Result<()> {
     // tilt is kept and the leads sit on the seating plane.
     let frame = fit.placement.transform();
     assert!(close(frame.apply_vector([0.0, 0.0, 1.0])[2], -1.0));
-    let lowest = soic_form()
-        .lead_points()
+    let lowest = soic_leads()
         .into_iter()
-        .map(|p| frame.apply(p)[2])
+        .map(|[x, y]| frame.apply([x, y, 0.0])[2])
         .fold(f64::INFINITY, f64::min);
     assert!(close(lowest, 0.0));
     Ok(())
@@ -225,7 +210,7 @@ fn intrinsic_angles_round_trip_and_quarter_turns_stay_exact() {
 
 #[test]
 fn quick_turns_keep_the_body_centre_and_undo_each_other() -> Result<()> {
-    let mut p = package(soic_form(), 8);
+    let mut p = package(8);
     p.placement.translation_nm = crate::tests::support::nm3([1.0, 2.0, 0.0]);
     let centre = body_centre(&p, &p.placement);
     for axis in [Axis::X, Axis::Y, Axis::Z] {
@@ -276,7 +261,7 @@ fn quick_turns_keep_the_body_centre_and_undo_each_other() -> Result<()> {
 
 #[test]
 fn seat_and_stand_up_put_the_leads_on_the_plane() -> Result<()> {
-    let mut p = package(soic_form(), 8);
+    let mut p = package(8);
     p.placement.translation_nm = crate::tests::support::nm3([0.0, 0.0, 0.8]);
     assert!(close(
         apply_quick(&p, None, QuickAction::Seat)?.translation()[2],
@@ -287,11 +272,9 @@ fn seat_and_stand_up_put_the_leads_on_the_plane() -> Result<()> {
     // The source's +y now points up.
     let up = stood.transform().apply_vector([0.0, 1.0, 0.0]);
     assert_eq!(up, [0.0, 0.0, 1.0]);
-    let lowest = p
-        .form
-        .lead_points()
+    let lowest = soic_leads()
         .into_iter()
-        .map(|q| stood.transform().apply(q)[2])
+        .map(|[x, y]| stood.transform().apply([x, y, 0.0])[2])
         .fold(f64::INFINITY, f64::min);
     assert!(close(lowest, 0.0));
     Ok(())
@@ -300,7 +283,7 @@ fn seat_and_stand_up_put_the_leads_on_the_plane() -> Result<()> {
 #[test]
 fn pad_relative_actions_need_the_footprint_and_match_the_fit() -> Result<()> {
     let fp = soic_footprint(false);
-    let mut p = package(soic_form(), 8);
+    let mut p = package(8);
     p.placement.translation_nm = crate::tests::support::nm3([0.5, 0.5, 0.0]);
     assert!(apply_quick(&p, None, QuickAction::CentreOnPads).is_err());
     assert!(
@@ -335,7 +318,7 @@ fn pad_relative_actions_need_the_footprint_and_match_the_fit() -> Result<()> {
 fn findings_report_leads_off_lands_unseated_leads_and_a_sunken_body() -> Result<()> {
     let fp = soic_footprint(false);
     let footprint_id = DefinitionId(7);
-    let mut p = package(soic_form(), 8);
+    let mut p = package(8);
     p.placement = fit_leads(&p.placement, &form_pairs(&p, &fp)?, FitRotation::Free)?.placement;
     assert!(placement_findings(&p, &fp, footprint_id).is_empty());
     // Across the 0.6 mm land: 0.1 mm stays within 25 %, 0.2 mm does not.
@@ -356,7 +339,7 @@ fn findings_report_leads_off_lands_unseated_leads_and_a_sunken_body() -> Result<
 }
 
 /// A drafted SOIC-8 working set in an engine: the package carries the
-/// typed form, the footprint the hand-placed land pattern.
+/// SOIC's lead contacts, the footprint the hand-placed land pattern.
 fn soic_engine() -> Result<(crate::Engine, crate::tests::support::Fixture)> {
     use crate::library::Definition;
     use crate::tests::support::{self, Spec};
@@ -375,7 +358,17 @@ fn soic_engine() -> Result<(crate::Engine, crate::tests::support::Fixture)> {
     )?;
     support::rewrite(&mut engine, fixture.package, |d| {
         if let Definition::Package(p) = d {
-            p.form = soic_form();
+            let soic = package(8);
+            p.envelope_nm = soic.envelope_nm;
+            p.leads = p
+                .terminals
+                .iter()
+                .zip(soic.leads)
+                .map(|(t, l)| crate::library::PackageLead {
+                    terminal: t.id,
+                    contact: l.contact,
+                })
+                .collect();
         }
     })?;
     support::rewrite(&mut engine, fixture.footprint, |d| {

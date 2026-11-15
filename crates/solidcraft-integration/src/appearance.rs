@@ -16,7 +16,7 @@ use sparksmith_core::geometry::{Bounds, cos_sin, is_quarter_turn};
 use sparksmith_core::layout::grid::BoundsGrid;
 use sparksmith_core::library::offset_polygon;
 use sparksmith_core::library::{
-    ChipKind, FootprintDefinition, PackageDefinition, PackageForm, PadKind, PadSide,
+    FootprintDefinition, PackageDefinition, PackageJoints, PadKind, PadSide,
 };
 use sparksmith_core::materials::AppearanceSizes;
 use sparksmith_core::{CopperLayer, Fabrication, Layer, Placement, Point, Project, layout};
@@ -295,12 +295,12 @@ impl Body {
     /// The body a package declares. Explicit data only: never guessed from
     /// a designator, name or value.
     pub fn of(package: &PackageDefinition) -> Self {
-        match package.chip_kind() {
+        match package.chip() {
             None => Self::Moulded,
-            Some(ChipKind::Resistor) => Self::Resistor,
+            Some(true) => Self::Resistor,
             // An inductor's envelope shows the ceramic chip's wrapped
-            // terminations; its generated model is ferrite.
-            Some(ChipKind::Capacitor | ChipKind::Inductor | ChipKind::Led) => Self::Ceramic,
+            // terminations; its model is ferrite.
+            Some(false) => Self::Ceramic,
         }
     }
 
@@ -986,10 +986,10 @@ struct Foot {
     thickness: f64,
 }
 
-/// The solder joints of a generated package's leads, from its form: a toe
-/// and a heel fillet at each gull-wing foot (SOIC, QFP, SOT, DPAK), and a
-/// cone round each pin of a pin header on the far side's land. Other
-/// families get none here (a chip's fillets are drawn by [`package`]).
+/// The solder joints of a package's leads, as it declares them
+/// ([`PackageJoints`]): a toe and a heel fillet at each flat foot (SOIC,
+/// QFP, SOT, DPAK), and a cone round each pin of a pin header on the far
+/// side's land. A chip's fillets are drawn by [`package`].
 fn lead_joints(
     out: &mut Vec<Geometry>,
     board: Option<&Board>,
@@ -1000,47 +1000,43 @@ fn lead_joints(
     let (Some(footprint), Some(board)) = (part.footprint, board) else {
         return Ok(());
     };
-    match &part.package.form {
-        PackageForm::GullWing(g) => feet(
+    let mm = sparksmith_core::units::Nm::to_mm_f64;
+    match part.package.joints {
+        Some(PackageJoints::Feet {
+            length_nm,
+            width_nm,
+            thickness_nm,
+        }) => feet(
             out,
             board,
             frame,
             part,
             footprint,
             Foot {
-                length: g.foot_length(),
-                width: g.lead_width(),
-                thickness: g.lead_thickness(),
+                length: mm(length_nm),
+                width: mm(width_nm),
+                thickness: mm(thickness_nm),
             },
             sizes,
         ),
-        PackageForm::Tabbed(t) => feet(
-            out,
-            board,
-            frame,
-            part,
-            footprint,
-            Foot {
-                length: t.foot_length(),
-                width: t.lead_width(),
-                thickness: t.lead_thickness(),
-            },
-            sizes,
-        ),
-        PackageForm::Header(h) => pins(out, board, frame, part, footprint, h.pin_side(), sizes),
+        Some(PackageJoints::Pins { side_nm }) => {
+            pins(out, board, frame, part, footprint, mm(side_nm), sizes)
+        }
         _ => Ok(()),
     }
 }
 
-/// The form's lead points in the package frame (the datum's), on the
-/// seating plane.
+/// The package's lead contacts in the package frame (the datum's), on
+/// the seating plane.
 fn lead_points(package: &PackageDefinition) -> Vec<Point> {
     let offset = package.placement.translation();
     package
-        .form
-        .lead_points()
-        .into_iter()
-        .map(|p| [p[0] + offset[0], p[1] + offset[1]])
+        .leads
+        .iter()
+        .map(|l| {
+            let p = l.contact.to_mm_f64();
+            [p[0] + offset[0], p[1] + offset[1]]
+        })
         .collect()
 }
 

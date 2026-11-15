@@ -1120,88 +1120,43 @@ fn array_growth_and_shrink_list_new_and_retired_pads() {
 
 #[test]
 fn package_details_name_each_physical_change() {
-    use crate::library::{
-        ChipForm, ChipKind, GeneratedMaterials, ModelPlacement, PackageForm, PackageModel,
-        RoleMaterial,
-    };
+    use crate::library::{ModelPlacement, PackageLead, PackageModel};
     use crate::materials::MaterialId;
-    let chip = |kind| PackageDefinition {
-        form: PackageForm::Chip(Box::new(ChipForm::new(kind, [nm(1.6), nm(0.8), nm(0.45)]))),
+    let a = PackageDefinition {
         envelope_nm: [nm(1.6), nm(0.8), nm(0.45)],
-        model: PackageModel::Generated {
-            family_rev: 1,
-            materials: GeneratedMaterials::default(),
-        },
         ..PackageDefinition::default()
     };
-    let a = chip(ChipKind::Resistor);
     assert!(package_details(&a, &a).is_empty());
-    // A thicker termination: one changed pkg value, nothing else.
+    // Lead contacts, a body, a model source, a placement.
     let mut b = a.clone();
-    if let PackageForm::Chip(c) = &mut b.form {
-        c.termination_nm = nm(0.4);
-    }
-    let lines = package_details(&a, &b);
-    assert_eq!(lines.len(), 1, "{lines:?}");
-    assert!(lines[0].starts_with("package parameter pkg_a ") && lines[0].ends_with("→ 0.4 mm."));
-    // Another chip kind changes the body's default material too.
-    let lines = package_details(&a, &chip(ChipKind::Capacitor));
-    assert!(
-        lines
-            .iter()
-            .any(|l| l.contains("chip kind Resistor → Capacitor")),
-        "{lines:?}"
-    );
-    assert!(
-        lines
-            .iter()
-            .any(|l| l.contains("Body material Alumina96 → BariumTitanate")),
-        "{lines:?}"
-    );
-    // A family change, a model source change, a role override, a placement.
-    let generic = PackageDefinition {
-        envelope_nm: [nm(1.6), nm(0.8), nm(0.45)],
-        ..PackageDefinition::default()
-    };
-    let lines = package_details(&a, &generic);
-    assert!(
-        lines
-            .iter()
-            .any(|l| l.contains("package form Chip → Generic")),
-        "{lines:?}"
-    );
-    assert!(
-        lines.iter().any(|l| l.contains("3D model generated")),
-        "{lines:?}"
-    );
+    b.leads = vec![PackageLead {
+        terminal: crate::PackageTerminalId(1),
+        contact: crate::tests::support::pt([-0.65, 0.0]),
+    }];
+    assert_eq!(package_details(&a, &b), ["lead contacts 0 → 1."]);
     let mut c = a.clone();
-    c.model = PackageModel::Generated {
-        family_rev: 1,
-        materials: GeneratedMaterials {
-            roles: vec![RoleMaterial {
-                role: BodyRole::Termination,
-                material: MaterialId::Gold,
-            }],
-        },
+    c.envelope_nm = [nm(2.0), nm(0.8), nm(0.45)];
+    c.model = PackageModel::Envelope {
+        material: MaterialId::Alumina96,
     };
     c.placement = ModelPlacement {
         translation_nm: crate::tests::support::nm3([0.0, 0.0, 0.05]),
         rotation_mdeg: [0, 0, 90_000].map(crate::units::Angle::normalized),
     };
     let lines = package_details(&a, &c);
-    assert_eq!(lines.len(), 2, "{lines:?}");
-    assert!(lines[0].contains("Termination material TinMatte → Gold"));
-    assert!(lines[1].starts_with("model placement"));
+    assert_eq!(lines.len(), 3, "{lines:?}");
+    assert!(lines[0].starts_with("body "), "{lines:?}");
+    assert!(lines[1].starts_with("3D model "), "{lines:?}");
+    assert!(lines[2].starts_with("model placement"), "{lines:?}");
 }
 
 /// A package datum a linked design may reference is named in the update
 /// preview when a revision adds, changes or removes it.
 #[test]
 fn package_details_name_each_datum_change() {
-    use crate::library::{PackageForm, UsbCForm};
     let plain = PackageDefinition::default();
     let usb = PackageDefinition {
-        datums: PackageForm::UsbC(Box::new(UsbCForm::typical())).datums(),
+        datums: vec![crate::interface::tests::package_datums::usb4105_opening()],
         ..PackageDefinition::default()
     };
     assert_eq!(package_details(&plain, &usb), ["datum opening added."]);

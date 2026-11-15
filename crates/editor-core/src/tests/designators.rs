@@ -5,10 +5,10 @@ use crate::catalog::synthetic;
 use crate::completeness::CheckTarget;
 use crate::format::{EditorFile, FILE_VERSION};
 use crate::instances::{self, NewInstance};
-use crate::library::{ChipForm, ChipKind, Drafts, PackageForm, PackageTerminal};
+use crate::library::Drafts;
 use crate::{
-    ComponentRef, Engine, Error, InstanceCommand, Operation, Outcome, PackageTerminalId,
-    PhysicalChoice, Result, Stage, UnitId,
+    ComponentRef, Engine, Error, InstanceCommand, Operation, Outcome, PhysicalChoice, Result,
+    Stage, UnitId,
 };
 
 /// An engine over the synthetic catalog: resistors, capacitors and headers
@@ -201,48 +201,17 @@ fn prefix_and_chip_body_are_checked_at_publication() -> Result<()> {
             "{prefix:?}: {codes:?}"
         );
     }
-    with(&mut engine, f.component, component_body, |c| {
-        c.designator_prefix = "C".into()
-    })?;
-    // A chip form needs exactly two package terminals.
-    let chip_finding = |engine: &Engine| -> Result<bool> {
-        Ok(blocking(engine, f.package)?
-            .iter()
-            .any(|c| c == "package.form_terminals"))
-    };
-    with(&mut engine, f.package, package_body, |p| {
-        p.form = PackageForm::Chip(Box::new(ChipForm::new(
-            ChipKind::Capacitor,
-            (p.envelope()).map(nm),
-        )))
-    })?;
-    assert!(!chip_finding(&engine)?);
-    with(&mut engine, f.package, package_body, |p| {
-        p.terminals.push(PackageTerminal {
-            id: PackageTerminalId(p.next_local),
-            designation: "X".into(),
-        });
-        p.next_local += 1;
-    })?;
-    assert!(chip_finding(&engine)?);
-    with(&mut engine, f.package, package_body, |p| {
-        p.form = PackageForm::Generic
-    })?;
-    assert!(!chip_finding(&engine)?);
     Ok(())
 }
 
-/// Each synthetic family carries its own prefix and package body: a
-/// resistor and a capacitor of one size code are different packages.
+/// Each synthetic family carries its own prefix and package: a resistor
+/// and a capacitor of one size code are different packages.
 #[test]
 fn synthetic_families_carry_prefix_and_body() -> Result<()> {
     let engine = catalog()?;
     let library = &engine.project().library;
-    for (prefix, body) in [
-        ("R", Some(ChipKind::Resistor)),
-        ("C", Some(ChipKind::Capacitor)),
-        ("J", None),
-    ] {
+    let mut packages = Vec::new();
+    for prefix in ["R", "C", "J"] {
         let component = with_prefix(&engine, prefix)?;
         let binding = library
             .component(component)
@@ -252,7 +221,11 @@ fn synthetic_families_carry_prefix_and_body() -> Result<()> {
         let package = library
             .package(binding.definition.package)
             .ok_or_else(|| Error::NotFound("package".into()))?;
-        assert_eq!(package.definition.chip_kind(), body, "{prefix}");
+        assert!(package.definition.envelope_valid(), "{prefix}");
+        packages.push(binding.definition.package);
     }
+    packages.sort();
+    packages.dedup();
+    assert_eq!(packages.len(), 3);
     Ok(())
 }

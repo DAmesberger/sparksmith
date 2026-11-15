@@ -10,7 +10,6 @@ use crate::schematic_editor::pt;
 use sparksmith_core::ids::PackageTerminalId;
 use sparksmith_core::library::footprint_edit;
 use sparksmith_core::library::footprint_source::{FootprintEdit, PadTemplate};
-use sparksmith_core::library::package_form::typical_nm as nm;
 use sparksmith_core::library::{
     DrawingLayer, FootprintDefinition, HoleShape, PackageDefinition, PackageTerminal, Pad, PadKind,
     PadShape,
@@ -19,6 +18,10 @@ use sparksmith_solidcraft::footprint::SketchEvaluator;
 use sparksmith_solidcraft::footprint::view::{SketchView, sketch_view};
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+fn nm(mm: f64) -> sparksmith_core::units::Nm {
+    sparksmith_core::units::Nm::from_mm_f64_rounded(mm).unwrap_or(sparksmith_core::units::Nm::ZERO)
+}
 
 fn package(terminals: u32) -> PackageDefinition {
     PackageDefinition {

@@ -101,16 +101,16 @@ Hashes in messages are written in full. The "stored part" hash is the SHA-256 ov
 The allowlist (`xtask/src/no_builtin_data.rs`) names a source file and an included path for each entry:
 
 - interface assets: the IBM Plex fonts and the blur shader (`crates/ui`);
-- the MCP skill prompt (`crates/automation/src/mcp/prompts.rs`);
-- **being moved** to `library/` by parallel changes: assistant profiles (`crates/assist`), fab profiles (`crates/io/src/rule_profiles.rs`), built-in part files (`crates/solidcraft-integration/src/models/part_file.rs`);
-- **until GP5**: the starter package rows (`library/templates/starter.rs`), which the generator modules replace.
+- the MCP skill prompt (`crates/automation/src/mcp/prompts.rs`).
+
+The starter package rows went with part generation D2: the generator modules replaced them.
 
 An entry that matches nothing fails the gate, so each is removed with the data it allowed.
 
 ## Limits of GP1
 
 - **Fields.** A generation's `component.fields` (standard field keys such as `value`) and derived `fields` stay in the generation and its result hash; GP1 selects no field definitions on the component. Mapping keys to the project's field lineages comes with the catalog switch.
-- **Package geometry.** The package keeps the generation's envelope with `PackageForm::Generic` and the generator's part file (GP2), the seating height as the model's lift. No footprint polarity is set from pin 1 yet.
+- **Package geometry.** The package keeps the generation's envelope and the generator's part file (GP2), the seating height as the model's lift. Its lead contacts are not stored on the package yet (`PackageDefinition::leads`), and no footprint polarity is set from pin 1.
 - **Part-file bodies and terminals**: see slice B2 below.
 - **The chip part files' overcoat inset** is the builder's 0.04 mm, a literal in the saved file; the builder narrows it below 0.16 mm of body width, which no chip preset reaches.
 - **Arcs** (since B3) carry exact ends: `Arc { center, start, end, clockwise }`; the module computes them (the SDK's `draw::arc`, integer trigonometry) and the host does no trigonometry.
@@ -119,7 +119,6 @@ An entry that matches nothing fails the gate, so each is removed with the data i
 
 ## Tests
 
-- `crates/solidcraft-integration/src/models/chip_part_tests.rs` (GP2): the chip parity above; every bundled part file passes the part-file check.
 - `crates/generators/tests/refusals.rs` (GP2): `missing_or_malformed_models_are_refused_in_plain_words`.
 - `crates/editor-core/src/library/generated/tests.rs` (GP2): the part file published as one shared Model, refusals of a missing evaluation, another file and other values, a stored value edited refused on load.
 - `crates/io/src/generator_bundle.rs` (GP2): `a_bundle_is_read_by_name_and_checked_file_by_file`.

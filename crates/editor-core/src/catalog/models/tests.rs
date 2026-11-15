@@ -1,4 +1,4 @@
-//! Slice D1: `library.models` filters, facets, generated entries, sources
+//! Slice D1: `library.models` filters, facets, sources
 //! and "fits this package" ranking. Fixtures are original.
 use super::*;
 use crate::catalog::SourceCatalog;
@@ -139,38 +139,8 @@ fn filters_select_by_every_facet() -> Fallible<()> {
     for (query, expected) in cases {
         assert_eq!(library_names(&engine, query)?, expected, "{query}");
     }
-    // Generated entries take text, mount and has:/missing: but no data
-    // filter.
-    assert_eq!(
-        names(&search(&engine, "mount:tht")?),
-        [
-            "Header 1x8",
-            "Generated · pin header",
-            "Generated · through-hole"
-        ]
-    );
-    assert!(
-        search(&engine, "pins:8")?
-            .hits
-            .iter()
-            .all(|h| matches!(h.kind, ModelHitKind::Library { .. }))
-    );
-    let generated = search(&engine, "kind:generated")?;
-    assert_eq!(
-        names(&generated),
-        [
-            "Generated · BGA / LGA",
-            "Generated · chip",
-            "Generated · gull-wing",
-            "Generated · module",
-            "Generated · pin header",
-            "Generated · QFN / DFN",
-            "Generated · SOD / SMA / MELF",
-            "Generated · SOT / DPAK",
-            "Generated · through-hole",
-        ]
-    );
-    assert_eq!(search(&engine, "missing:leads")?.hits.len(), 2 + 9);
+    assert_eq!(names(&search(&engine, "mount:tht")?), ["Header 1x8"]);
+    assert_eq!(search(&engine, "missing:leads")?.hits.len(), 2);
     Ok(())
 }
 
@@ -179,6 +149,7 @@ fn bad_queries_are_refused_with_the_term() -> Fallible<()> {
     let engine = Engine::default();
     for query in [
         "kind:part",
+        "kind:generated",
         "colour:red",
         "pins:eight",
         "body:4",
@@ -201,21 +172,18 @@ fn facets_count_every_match_and_the_limit_reports_more() -> Fallible<()> {
     let mut engine = Engine::default();
     three(&mut engine)?;
     let all = search(&engine, "")?;
-    assert_eq!(all.hits.len(), 3 + 9);
+    assert_eq!(all.hits.len(), 3);
     let f = &all.facets;
     let value = |values: &[ModelFacetValue], v: &str| {
         values.iter().find(|x| x.value == v).map_or(0, |x| x.count)
     };
     assert_eq!(value(&f.format, "step"), 2);
     assert_eq!(value(&f.format, "gltf"), 1);
-    assert_eq!(value(&f.mount, "smd"), 2 + 7);
-    assert_eq!(value(&f.mount, "tht"), 1 + 2);
+    assert_eq!(value(&f.mount, "smd"), 2);
+    assert_eq!(value(&f.mount, "tht"), 1);
     assert_eq!(value(&f.pins, "8"), 2);
     assert_eq!(value(&f.licence, "unknown"), 1);
-    assert_eq!(
-        (f.has_leads, f.has_marking, f.has_textures, f.generated),
-        (1, 1, 1, 9)
-    );
+    assert_eq!((f.has_leads, f.has_marking, f.has_textures), (1, 1, 1));
     let limited = super::search(
         engine.project(),
         engine.drafts(),
@@ -224,7 +192,7 @@ fn facets_count_every_match_and_the_limit_reports_more() -> Fallible<()> {
         None,
         2,
     )?;
-    assert_eq!((limited.hits.len(), limited.more), (2, 10));
+    assert_eq!((limited.hits.len(), limited.more), (2, 1));
     assert_eq!(limited.facets, all.facets, "facets cover the whole match");
     // Text tiers: an exact name first.
     assert_eq!(
@@ -259,9 +227,7 @@ fn only_the_latest_revision_is_listed_and_the_query_is_on_the_wire() -> Fallible
         return Err("a model report".into());
     };
     assert_eq!(report.hits.len(), 1);
-    let ModelHitKind::Library { model, .. } = report.hits[0].kind else {
-        return Err("a library hit".into());
-    };
+    let ModelHitKind::Library { model, .. } = report.hits[0].kind;
     assert_eq!(model.revision, Revision(2));
     assert_eq!(report.hits[0].hints.pins, Some(3));
     assert_eq!(report.hits[0].body_mm, Some([4.0, 3.0, 1.0]));
@@ -380,14 +346,6 @@ fn fits_rank_lead_fits_then_bounds_and_never_assign() -> Fallible<()> {
         matches!(order[1], ("Wide leads", Some(FitScore::Leads { rms_mm })) if rms_mm > 0.1),
         "{order:?}"
     );
-    // The package's own generated family fills the envelope exactly.
-    let own = crate::library::templates::catalog::FamilyKind::of(&package.form);
-    if own.is_some() {
-        assert!(
-            matches!(order[2], (_, Some(FitScore::Bounds { excess_mm })) if excess_mm == 0.0),
-            "{order:?}"
-        );
-    }
     let untagged = report
         .hits
         .iter()
@@ -398,8 +356,8 @@ fn fits_rank_lead_fits_then_bounds_and_never_assign() -> Fallible<()> {
     };
     assert!((excess_mm - 0.3).abs() < 1e-9, "{excess_mm}");
     assert!(
-        report.hits.last().is_some_and(|h| h.fit.is_none()),
-        "unscored last"
+        report.hits.iter().all(|h| h.fit.is_some()),
+        "every model scored"
     );
     assert_eq!(engine.to_file(), before, "a search changes nothing");
     // A package that does not exist is named.

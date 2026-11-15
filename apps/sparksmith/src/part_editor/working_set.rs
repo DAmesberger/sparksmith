@@ -2,7 +2,7 @@
 //! symbol, its package, one footprint and the binding between them. Every
 //! change reaches the engine as public library commands.
 #[cfg(test)]
-use sparksmith_core::library::samples::{self, SampleRefs};
+use sparksmith_core::library::fixtures::{self, SampleRefs};
 use sparksmith_core::library::{
     BindingDefinition, ComponentDefinition, Definition, DefinitionMeta, DraftEdit, Drafts,
     FootprintDefinition, PackageDefinition, SymbolDefinition,
@@ -67,8 +67,9 @@ struct Revisions {
 pub enum Template {
     TwoTerminal,
     Header,
-    /// A component on a typed package preset with a generated model.
-    Package(samples::Preset),
+    /// A preset part (`fixtures::presets`): lead contacts, solder joints
+    /// and an envelope model, by its label ("SOIC-8").
+    Package(&'static str),
 }
 
 #[cfg(test)]
@@ -77,21 +78,18 @@ impl Template {
         match self {
             Self::TwoTerminal => "Resistor",
             Self::Header => "Connector",
-            Self::Package(preset) => preset.label(),
+            Self::Package(label) => label,
         }
     }
     fn edits(self, refs: SampleRefs) -> sparksmith_core::Result<Vec<DraftEdit>> {
         match self {
-            Self::TwoTerminal => samples::two_terminal(self.name(), samples::Kind::RESISTOR, refs),
-            Self::Header => {
-                samples::two_terminal_header(self.name(), samples::Kind::CONNECTOR, refs)
+            Self::TwoTerminal => {
+                fixtures::two_terminal(self.name(), fixtures::Kind::RESISTOR, refs)
             }
-            Self::Package(preset) => samples::packaged(
-                self.name(),
-                preset,
-                refs,
-                &sparksmith_core::rules::DesignRules::default(),
-            ),
+            Self::Header => {
+                fixtures::two_terminal_header(self.name(), fixtures::Kind::CONNECTOR, refs)
+            }
+            Self::Package(label) => fixtures::preset(label, refs),
         }
     }
 }

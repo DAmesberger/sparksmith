@@ -1,4 +1,4 @@
-//! Generated, envelope and STEP models as standalone named designs
+//! Envelope and STEP models as standalone named designs
 //! (docs/board-sketch-references.md §6.2; slice S4).
 //!
 //! Solidcraft names a face after the feature that made it, by feature id,
@@ -6,11 +6,6 @@
 //! design are. Each model kind without a part file gets a design of its
 //! own, built by a fixed command sequence from the package alone:
 //!
-//! - **Generated**: the family builder in the root of a new design
-//!   ([`super::build_standalone`]), parameters and bodies by their own
-//!   names. The board inserts this design ([`super::part_file::
-//!   insert_design`]), so the 3D build, the saved `.solidcraft` and face
-//!   references share the one build.
 //! - **Envelope**: one box feature, `envelope`, from the package envelope.
 //!   The board keeps its own per-placement box (its size is a placement
 //!   parameter a 2D edit replays in place); the box is the same.
@@ -23,8 +18,8 @@
 //!
 //! Designs are kept in one process-wide cache by what they are built from,
 //! least recently used last, like the part-file cache.
+use super::GeneratedBody;
 use super::imported::{self, checked_source};
-use super::{GeneratedBody, is_generated};
 use crate::native::{BoxBody, Expr, Native};
 use crate::{Error, Result};
 use serde_json::json;
@@ -49,8 +44,8 @@ pub struct NamedDesign {
     source: Arc<Document>,
     /// Its bodies with their persistent face names, in the model frame.
     state: Arc<ModelState>,
-    /// A generated model's bodies by their names in the design, with role,
-    /// material and terminal (what the board inserts); empty otherwise.
+    /// Bodies by their names in the design, with role, material and
+    /// terminal, when the board inserts the design; empty otherwise.
     pub generated: Vec<GeneratedBody>,
 }
 
@@ -140,44 +135,9 @@ fn finish(native: &Native, generated: Vec<GeneratedBody>) -> Result<NamedDesign>
 }
 
 /// The design of a package's model when it has no part file or library
-/// model: the generated model, or else the envelope (as the board builds
-/// it).
+/// model: its envelope (as the board builds it).
 pub fn package(package: &PackageDefinition) -> Result<Arc<NamedDesign>> {
-    if is_generated(package) {
-        generated(package)
-    } else {
-        envelope(package)
-    }
-}
-
-/// The standalone design of a generated model.
-pub fn generated(package: &PackageDefinition) -> Result<Arc<NamedDesign>> {
-    let terminals: Vec<u32> = package.terminals.iter().map(|t| t.id.0).collect();
-    let what = json!({
-        "generated": package.form,
-        "model": package.model,
-        "terminals": terminals,
-    });
-    cached(&what, || {
-        if super::family::retired(&package.form) {
-            // A family whose builder gave way to its generator: the
-            // generator's part file at the form's values.
-            let (part, generated) = super::family::evaluate(package)?;
-            return Ok(NamedDesign {
-                key: [0; 32],
-                source: Arc::clone(part.source()),
-                state: Arc::clone(part.shared_state()),
-                generated,
-            });
-        }
-        let mut native = Native::new("Package model")?;
-        // Evaluated once at the end, as the board build evaluates it.
-        native.defer_evaluation()?;
-        let bodies = super::build_standalone(&mut native, package)?;
-        native.evaluate_deferred()?;
-        native.forget_history();
-        finish(&native, bodies)
-    })
+    envelope(package)
 }
 
 /// The one-box design of a package envelope: corner (−l/2, −w/2, 0), size

@@ -129,7 +129,8 @@ fn an_svg_lands_on_footprint_silkscreen_not_the_courtyard() -> TestResult {
     let package = new_draft(
         &mut session,
         Definition::Package(PackageDefinition {
-            envelope_nm: [2.0, 1.2, 0.5].map(sparksmith_core::library::package_form::typical_nm),
+            envelope_nm: [2.0, 1.2, 0.5]
+                .map(|mm| sparksmith_core::units::Nm::from_mm_f64_rounded(mm).unwrap_or_default()),
             ..PackageDefinition::default()
         }),
     )?;

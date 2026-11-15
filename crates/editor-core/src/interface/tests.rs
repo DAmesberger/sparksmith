@@ -16,7 +16,7 @@ mod b3;
 mod b4;
 mod b5;
 mod p1;
-mod package_datums;
+pub(crate) mod package_datums;
 mod skeletons;
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;

@@ -219,7 +219,6 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     use super::*;
     use serde_json::json;
-    use sparksmith_core::library::PackageForm;
 
     fn converted(kind: &str, mut body: Value) -> (Value, usize) {
         let n = definition(kind, body.as_object_mut().unwrap()).unwrap();
@@ -228,10 +227,22 @@ mod tests {
         (body, n)
     }
 
-    fn form_of(old: Value) -> PackageForm {
+    /// The converted version 2 form JSON of `old` (the typed forms left
+    /// the file in version 5; step 4 to 5 reads this JSON).
+    fn form_of(old: Value) -> Value {
         let (body, n) = converted("package_row", json!({ "values": old }));
         assert!(n > 0);
-        serde_json::from_value(body["values"].clone()).unwrap()
+        body["values"].clone()
+    }
+
+    /// Every number under `v` is a whole number.
+    fn integers(v: &Value) -> bool {
+        match v {
+            Value::Number(n) => n.is_i64() || n.is_u64(),
+            Value::Array(a) => a.iter().all(integers),
+            Value::Object(o) => o.values().all(integers),
+            _ => true,
+        }
     }
 
     #[test]
@@ -249,20 +260,14 @@ mod tests {
         assert_eq!(n, 5);
         assert_eq!(body["envelope_nm"], json!([1_600_000, 800_000, 450_000]));
         assert_eq!(body["form"]["termination_nm"], 320_000);
-        // The model and placement belong to other domains; the form and
-        // envelope read as the app's.
-        let form: PackageForm = serde_json::from_value(body["form"].clone()).unwrap();
-        assert_eq!(
-            form.envelope_nm().unwrap().map(|e| e[0].get()),
-            Some(1_600_000)
-        );
+        assert_eq!(body["form"]["length_nm"], 1_600_000);
         let envelope: [sparksmith_core::units::Nm; 3] =
             serde_json::from_value(body["envelope_nm"].clone()).unwrap();
         assert_eq!(envelope[2].get(), 450_000);
     }
 
     #[test]
-    fn every_family_reads_back_as_the_app_types() {
+    fn every_family_converts_to_whole_nanometres() {
         let forms = [
             json!({"family": "gull_wing", "sides": "two", "leads_per_side": [4, 0],
                    "pitch": 1.27, "body_length": 4.9, "body_width": 3.9, "body_height": 1.45,
@@ -316,34 +321,22 @@ mod tests {
         ];
         for old in forms {
             let form = form_of(old.clone());
-            // The wire form of the converted form is the old millimetres.
-            let wire = serde_json::to_value(
-                sparksmith_core::library::package_form::PackageFormParams::from(form),
-            )
-            .unwrap();
-            let mut expected = old.clone();
-            if expected["family"] == "module" {
-                // The turn reads back reduced to one turn.
-                expected["ground"]["rotation_deg"] = json!(315.0);
-            }
-            assert_eq!(wire, expected);
+            assert_eq!(form["family"], old["family"]);
+            assert!(integers(&form), "{form}");
         }
     }
 
     #[test]
     fn spot_values() {
-        let PackageForm::Module(m) = form_of(json!({"family": "module", "width": 18.0,
+        let m = form_of(json!({"family": "module", "width": 18.0,
             "length": 25.0, "height": 3.2, "pcb_thickness": 0.8, "antenna_length": 0.0,
             "can_size": [16.6, 17.4], "can_centre": [0.0, -2.5], "pitch": 1.27,
             "pad_size": [1.2, 0.9], "rows": [], "land_width": 0.9,
             "ground": {"rows": 1, "cols": 1, "pitch": [1.6, 1.6], "size": [1.1, 1.1],
-                       "centre": [0.0, -2.0], "number": "1"}}))
-        else {
-            panic!("a module");
-        };
-        assert_eq!(m.can_centre.y_nm.get(), -2_500_000);
-        assert_eq!(m.pad_size_nm[1].get(), 900_000);
-        assert_eq!(m.pitch_nm.get(), 1_270_000);
-        assert_eq!(m.ground.map(|g| g.rotation_mdeg.millidegrees()), Some(0));
+                       "centre": [0.0, -2.0], "number": "1"}}));
+        assert_eq!(m["can_centre"]["y_nm"], -2_500_000);
+        assert_eq!(m["pad_size_nm"][1], 900_000);
+        assert_eq!(m["pitch_nm"], 1_270_000);
+        assert_eq!(m["ground"]["rotation_mdeg"].as_i64().unwrap_or(0), 0);
     }
 }

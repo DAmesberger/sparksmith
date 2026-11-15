@@ -342,7 +342,7 @@ pub struct SchematicEditor {
     template_armed: Option<u64>,
     /// The values each instance placed now takes: what a generic part's
     /// search text named.
-    place_values: Vec<sparksmith_core::library::templates::generic::GenericValue>,
+    place_values: Vec<sparksmith_core::catalog::generic::GenericValue>,
     /// Esc cancelled that placement: the app undoes the create at this
     /// revision.
     template_undo: Option<u64>,
@@ -2383,7 +2383,7 @@ impl SchematicEditor {
                         output = Some(Operation::Instance(InstanceCommand::Place(NewInstance {
                             sheet: Some(self.sheet),
                             position,
-                            properties: sparksmith_core::library::templates::generic::properties(
+                            properties: sparksmith_core::catalog::generic::properties(
                                 &project.library,
                                 request.component,
                                 &self.place_values,

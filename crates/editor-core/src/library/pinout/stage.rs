@@ -18,8 +18,7 @@ use crate::ids::{
 };
 use crate::library::{
     BindingDefinition, ComponentDefinition, Definition, DefinitionMeta, Drafts, Library, MAX_NOTE,
-    PackageDefinition, PackageForm, PackageTerminal, SymbolDefinition, Terminal, TerminalClass,
-    TerminalMap,
+    PackageDefinition, PackageTerminal, SymbolDefinition, Terminal, TerminalClass, TerminalMap,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -907,7 +906,7 @@ fn provenance(document: &PinoutDocument) -> String {
 fn block_symbol(component: DefinitionId, terminals: &[Terminal]) -> Result<SymbolDefinition> {
     let named: Vec<(TerminalId, &str)> =
         terminals.iter().map(|t| (t.id, t.name.as_str())).collect();
-    crate::library::samples::named_block_symbol(component, &named)
+    crate::library::symbol_blocks::named_block_symbol(component, &named)
 }
 
 /// Stage an import. `allocate` reserves a new lineage; it is called only
@@ -979,7 +978,7 @@ pub fn stage(
                         .find(|t| t.id == terminal)
                         .map(|t| t.name.clone())
                 };
-                if crate::library::samples::fit_pin_names(&mut symbol, name) {
+                if crate::library::symbol_blocks::fit_pin_names(&mut symbol, name) {
                     symbols.push(StagedDraft {
                         id: representation.id,
                         create: false,
@@ -1002,7 +1001,7 @@ pub fn stage(
                     "a new component needs a name of 1–256 bytes".into(),
                 ));
             }
-            let forms = variant_forms(library, document, *row)?;
+            refuse_rows(document, *row)?;
             let id = allocate()?;
             let symbol_id = allocate()?;
             let mut lineages = Vec::new();
@@ -1046,9 +1045,7 @@ pub fn stage(
                 .filter(|p| accepted(accept, &p.row))
                 .zip(&component.terminals)
                 .collect();
-            for ((variant, form), (package_id, binding_id)) in
-                document.variants.iter().zip(forms).zip(&lineages)
-            {
+            for (variant, (package_id, binding_id)) in document.variants.iter().zip(&lineages) {
                 let mut terminals = Vec::new();
                 let mut mappings = Vec::new();
                 for (pin, terminal) in &rows {
@@ -1077,7 +1074,6 @@ pub fn stage(
                 }
                 let next_local = u32::try_from(terminals.len() + 1)
                     .map_err(|_| Error::Limit("too many package terminals".into()))?;
-                let envelope_nm = form.envelope_nm()?.unwrap_or_default();
                 staged.push(StagedDraft {
                     id: *package_id,
                     create: true,
@@ -1085,8 +1081,6 @@ pub fn stage(
                     definition: Definition::Package(PackageDefinition {
                         next_local,
                         terminals,
-                        form,
-                        envelope_nm,
                         ..PackageDefinition::default()
                     }),
                 });
@@ -1109,33 +1103,18 @@ pub fn stage(
     Ok(out)
 }
 
-/// The package form of each variant: its own row, else (first variant
-/// only) the target's row, else generic.
-fn variant_forms(
-    library: &Library,
+/// A pinout names no package row: a row is a generator's values now
+/// (format 5), so its package is made with `library.generate_part` and the
+/// pinout imported onto it (`target: draft`).
+fn refuse_rows(
     document: &PinoutDocument,
     target_row: Option<crate::ids::PackageRowRef>,
-) -> Result<Vec<PackageForm>> {
-    document
-        .variants
-        .iter()
-        .enumerate()
-        .map(|(k, variant)| {
-            let row = variant
-                .package_row
-                .or(if k == 0 { target_row } else { None });
-            match row {
-                None => Ok(PackageForm::Generic),
-                Some(r) => library
-                    .package_row(r)
-                    .map(|p| p.definition.values.clone())
-                    .ok_or_else(|| {
-                        Error::NotFound(format!(
-                            "The package row of variant ‘{}’ is not in the project library",
-                            variant.name
-                        ))
-                    }),
-            }
-        })
-        .collect()
+) -> Result<()> {
+    let named = target_row.is_some() || document.variants.iter().any(|v| v.package_row.is_some());
+    if named {
+        return Err(Error::Invalid(
+            "pinout.package_row: a package row holds a generator's values; make the package with library.generate_part and import the pinout onto its drafts".into(),
+        ));
+    }
+    Ok(())
 }

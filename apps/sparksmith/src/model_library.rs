@@ -20,20 +20,13 @@ use sparksmith_core::catalog::models::{FitScore, ModelHit, ModelHitKind, ModelRe
 use sparksmith_core::library::model3d::{
     LeadMapEntry, LibraryModel, ModelDefinition, ModelFormat, Mount, Redistribution,
 };
-use sparksmith_core::library::templates::catalog::FamilyKind;
-use sparksmith_core::library::{
-    Definition, GeneratedMaterials, PackageDefinition, PackageEdit, PackageModel,
-};
+use sparksmith_core::library::{Definition, PackageDefinition, PackageEdit, PackageModel};
 use sparksmith_core::{
     DefinitionId, Engine, LibraryCommand, ModelRef, Operation, Query, QueryResult,
 };
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::type_face;
 use sparksmith_ui::ui_kit::{self, Button};
-
-/// The builder revision new generated models are authored against
-/// (`models::family_rev` in the integration crate).
-pub const GENERATED_FAMILY_REV: u16 = 1;
 
 /// Hits one search asks for (the core caps `library.models` at 500).
 const HITS: usize = 120;
@@ -119,21 +112,6 @@ pub fn format_label(format: ModelFormat) -> &'static str {
     }
 }
 
-pub fn family_label(family: FamilyKind) -> &'static str {
-    match family {
-        FamilyKind::Chip => "chip",
-        FamilyKind::GullWing => "gull-wing",
-        FamilyKind::NoLead => "no-lead",
-        FamilyKind::Header => "pin header",
-        FamilyKind::Tabbed => "tabbed",
-        FamilyKind::Molded => "molded",
-        FamilyKind::Grid => "grid array",
-        FamilyKind::Tht => "through-hole",
-        FamilyKind::Module => "module",
-        FamilyKind::UsbC => "USB-C receptacle",
-    }
-}
-
 pub fn redistribution_label(redistribution: Redistribution) -> &'static str {
     match redistribution {
         Redistribution::Permitted => "shareable",
@@ -149,12 +127,8 @@ fn size_label(body: [f64; 3]) -> String {
 /// The hit's dim second line: format, mount, pins, pitch, size, licence.
 pub fn hit_detail(hit: &ModelHit) -> String {
     let mut parts: Vec<String> = Vec::new();
-    match &hit.kind {
-        ModelHitKind::Library { format, .. } => parts.push(format_label(*format).into()),
-        ModelHitKind::Generated { family } => {
-            parts.push(format!("Generated · {}", family_label(*family)));
-        }
-    }
+    let ModelHitKind::Library { format, .. } = &hit.kind;
+    parts.push(format_label(*format).into());
     if let Some(mount) = hit.hints.mount {
         parts.push(
             match mount {
@@ -177,9 +151,8 @@ pub fn hit_detail(hit: &ModelHit) -> String {
     if let Some(body) = hit.body_mm {
         parts.push(size_label(body));
     }
-    if let ModelHitKind::Library { redistribution, .. } = &hit.kind {
-        parts.push(redistribution_label(*redistribution).into());
-    }
+    let ModelHitKind::Library { redistribution, .. } = &hit.kind;
+    parts.push(redistribution_label(*redistribution).into());
     parts.join(" · ")
 }
 
@@ -252,19 +225,6 @@ pub fn assignment(
     hit: &ModelHit,
 ) -> Result<PackageModel, String> {
     match &hit.kind {
-        ModelHitKind::Generated { family } => {
-            if FamilyKind::of(&package.form) == Some(*family) {
-                Ok(PackageModel::Generated {
-                    family_rev: GENERATED_FAMILY_REV,
-                    materials: GeneratedMaterials::default(),
-                })
-            } else {
-                Err(format!(
-                    "Needs a {} form: change the package's form first",
-                    family_label(*family)
-                ))
-            }
-        }
         ModelHitKind::Library { model, .. } => {
             if hit.source != Source::Project {
                 return Err("Import this model into the project first".into());
@@ -619,10 +579,7 @@ fn card(ui: &mut Ui, id: egui::Id, hit: &ModelHit, highlighted: bool) -> egui::R
         vec2(CARD_WIDTH - t.space_12, THUMB_HEIGHT - t.space_6),
     );
     painter.rect_filled(thumb, radius, t.dialog_footer);
-    let body = hit.body_mm.unwrap_or(match hit.kind {
-        ModelHitKind::Generated { .. } => [3.0, 3.0, 1.0],
-        ModelHitKind::Library { .. } => [2.0, 2.0, 1.0],
-    });
+    let body = hit.body_mm.unwrap_or([2.0, 2.0, 1.0]);
     thumbnail(&painter, thumb.shrink(t.space_8), body, hit.hints.pins);
     if let Some(fit) = &hit.fit {
         let ink = if fit_good(fit) { t.accent } else { t.warning };
@@ -905,27 +862,9 @@ mod tests {
     }
 
     #[test]
-    fn a_generated_hit_needs_the_packages_own_family() -> Result<(), String> {
+    fn a_model_the_project_does_not_hold_is_not_assigned() -> Result<(), String> {
         let engine = Engine::default();
-        let mut p = package(&["1", "2"]);
-        p.form = sparksmith_core::library::samples::Preset::Soic8.form();
-        let hit = |family| ModelHit {
-            kind: ModelHitKind::Generated { family },
-            source: Source::Project,
-            name: "Generated".into(),
-            hints: Default::default(),
-            body_mm: None,
-            fit: None,
-        };
-        assert!(matches!(
-            assignment(&engine, &p, &hit(FamilyKind::GullWing))?,
-            PackageModel::Generated {
-                family_rev: GENERATED_FAMILY_REV,
-                ..
-            }
-        ));
-        let refused = assignment(&engine, &p, &hit(FamilyKind::Chip));
-        assert!(refused.is_err_and(|why| why.contains("chip")));
+        let p = package(&["1", "2"]);
         // A library model the project does not hold is not assigned.
         let library = ModelHit {
             kind: ModelHitKind::Library {
@@ -936,7 +875,11 @@ mod tests {
                 has_marking: false,
                 has_textures: false,
             },
-            ..hit(FamilyKind::Chip)
+            source: Source::Project,
+            name: "Model".into(),
+            hints: Default::default(),
+            body_mm: None,
+            fit: None,
         };
         assert!(assignment(&engine, &p, &library).is_err());
         assert_eq!(

@@ -102,7 +102,6 @@ fn key(part: &PlacedPart<'_>) -> u64 {
             digest(&("library", &part.stem, part.package, model, use_))
         }
         PartModel::PartFile(use_, _) => digest(&("part file", &part.stem, part.package, use_)),
-        PartModel::Generated => digest(&("generated", &part.stem, part.package)),
         PartModel::Envelope => digest(&("envelope", &part.stem, part.package)),
     }
 }
@@ -172,9 +171,6 @@ fn make(
         PartModel::PartFile(use_, bytes) => {
             let stem = b.define_part(&part.stem, use_, bytes, Some(part.package))?;
             b.model_occurrence(&stem)?;
-        }
-        PartModel::Generated => {
-            b.model(&part.stem, part.package)?;
         }
         PartModel::Envelope => {
             if !part.package.envelope_valid() {

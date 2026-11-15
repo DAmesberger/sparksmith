@@ -321,18 +321,6 @@ impl PartEditor {
                 );
             }
         }
-        // The template picker's ghost: the pads Build would make.
-        if let Some(ghost) = self.template_picker.ghost() {
-            for pad in ghost {
-                symbol_view::paint_shape(
-                    &painter,
-                    view,
-                    &pad.land(chord),
-                    Some(t.accent.gamma_multiply(0.18)),
-                    Some(Stroke::new(1.0, t.accent)),
-                );
-            }
-        }
         if layers.paste {
             for pad in &set.footprint.pads {
                 for paste in pad.paste_openings(&defaults, chord) {

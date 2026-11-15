@@ -1,11 +1,11 @@
 //! A footprint from a datasheet's pad table (`library.footprint_from_pads`):
 //! rows of lands, slots and holes become an explicit footprint with the
-//! standard drawings (`templates::footprint`). Pure; the command stores the
+//! standard drawings (`footprint_drawings`). Pure; the command stores the
 //! result. Pads land terminals only as the request says: a row's `terminal`,
 //! or `assign_by_number` through the same rule as `library.assign_terminals`.
+use super::footprint_drawings::add_standard_graphics;
 use super::footprint_edit::{self, AssignRule};
 use super::package_fit;
-use super::templates::footprint::add_standard_graphics;
 use super::{
     CornerMask, FootprintDefinition, Hole, HoleShape, MAX_PADS, MaskRule, ModelPlacement,
     PackageDefinition, Pad, PadKind, PadShape, PadSide, PasteRule,
@@ -373,7 +373,7 @@ pub fn build(
         return Err(invalid("every pad and slot row needs a number".into()));
     }
 
-    let mut next = super::templates::footprint_family::cleared(footprint);
+    let mut next = super::footprint_drawings::cleared(footprint);
     next.graphics.clear();
     next.next_local = next.next_local.max(1);
     let first = next.next_local;

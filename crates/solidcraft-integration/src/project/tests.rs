@@ -3,14 +3,21 @@ use super::*;
 use crate::models::tests::{nm, pt};
 use crate::test_units::deg;
 use sparksmith_core::geometry::cos_sin;
-use sparksmith_core::library::{ChipForm, ChipKind, PackageDefinition, PackageForm, PackageModel};
+use sparksmith_core::library::{PackageDefinition, PackageJoints, PackageModel};
 
-/// Give `package` a chip form of `kind` over its envelope, or a generic
-/// (moulded) one, with an envelope model: these tests exercise the
-/// envelope path (generated models are `models::tests`).
+/// A chip body of the tests: a resistor's or a capacitor's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ChipKind {
+    Resistor,
+    Capacitor,
+}
+
+/// Give `package` a chip's terminations of `kind` over its envelope, or a
+/// moulded body, with an envelope model: these tests exercise the envelope
+/// path.
 pub(super) fn set_body(package: &mut PackageDefinition, kind: Option<ChipKind>) {
-    package.form = kind.map_or(PackageForm::Generic, |kind| {
-        PackageForm::Chip(Box::new(ChipForm::new(kind, (package.envelope()).map(nm))))
+    package.joints = kind.map(|kind| PackageJoints::Chip {
+        resistor: kind == ChipKind::Resistor,
     });
     package.model = PackageModel::default();
 }
@@ -1078,19 +1085,24 @@ fn chip_terminations_wrap_the_ends_and_solder_wets_the_lands_on_both_sides() -> 
     Ok(())
 }
 
-/// The demo's generated chips: a display-only fillet at every land, each
-/// on its land and against the end face of a real termination body.
+/// The showcase's chips (part files with chip terminations): a
+/// display-only fillet at each of R1's lands, each on its land and against
+/// the end face of a real termination body.
 #[test]
-fn generated_chips_get_solder_fillets_against_their_terminations() -> Result<()> {
+fn part_file_chips_get_solder_fillets_against_their_terminations() -> Result<()> {
     let _context = crate::looks::test_context().map(|c| c.enter());
-    let demo = build(
-        Engine::demo()
-            .map_err(|error| Error::Verification(error.to_string()))?
-            .project(),
-    )?;
-    assert!(!demo.models.is_empty(), "the demo chips are generated");
-    let fillets = kind(&demo, BodyKind::Solder);
-    assert_eq!(fillets.len(), 4);
+    let demo = build(&showcase()?)?;
+    let r1 = demo
+        .sources
+        .iter()
+        .find(|s| s.pad.is_none() && s.label == "R1 model")
+        .ok_or_else(|| Error::Verification("no R1".into()))?;
+    let fillets: Vec<&Geometry> = demo
+        .geometry
+        .iter()
+        .filter(|g| g.kind == BodyKind::Solder && g.item == Some(r1.pick_id))
+        .collect();
+    assert_eq!(fillets.len(), 2);
     for solder in fillets {
         let land = demo.sources.iter().filter(|s| s.pad.is_some()).any(|s| {
             source_geometry(&demo, BodyKind::PadCopper, |x| x.pick_id == s.pick_id).is_ok_and(
@@ -1724,103 +1736,6 @@ fn an_envelope_follows_its_turned_placement_and_datum_like_its_2d_outline() -> R
         }
     }
     bounds(body, lo, hi);
-    Ok(())
-}
-
-#[test]
-fn a_saved_board_reopens_with_every_instance_on_its_one_shared_generated_definition() -> Result<()>
-{
-    let _context = crate::looks::test_context().map(|c| c.enter());
-    use sparksmith_core::library::GeneratedMaterials;
-    // The demo's chip package with a generated model: two instances, one
-    // on each side, both occurrences of one definition.
-    let mut project = Engine::demo()
-        .map_err(|error| Error::Verification(error.to_string()))?
-        .project()
-        .clone();
-    let package = &mut project.library.packages[0];
-    package.definition.model = PackageModel::Generated {
-        family_rev: 1,
-        materials: GeneratedMaterials::default(),
-    };
-    let stem = models::definition_name(package.id, package.revision.0);
-    if let Some(bottom) = project.placements.get_mut(1) {
-        bottom.layer = Layer::Bottom;
-    }
-    let (r1, r2) = instances(&project)?;
-    let original = build(&project)?;
-    assert_eq!(original.models.len(), 1);
-    let temporary = tempfile::tempdir()?;
-    let path = temporary
-        .path()
-        .join("shared.solidcraft")
-        .to_string_lossy()
-        .into_owned();
-    original.save(&path)?;
-    let reopened = Native::open(&path)?;
-    let retained = saved_sources(&reopened)?;
-    let before = finish(reopened, retained)?;
-    // Every generated body keeps its instance's pick, bounds and look.
-    let generated = |model: &NativeModel| -> Vec<Geometry> {
-        model
-            .geometry
-            .iter()
-            .filter(|g| g.kind.is_generated())
-            .cloned()
-            .collect()
-    };
-    let (was, now) = (generated(&original), generated(&before));
-    assert!(!was.is_empty());
-    assert_eq!(was.len(), now.len());
-    for previous in &was {
-        let restored = now
-            .iter()
-            .find(|g| {
-                g.item == previous.item
-                    && g.kind == previous.kind
-                    && (0..3).all(|a| (g.min[a] - previous.min[a]).abs() < 1e-6)
-            })
-            .ok_or_else(|| {
-                Error::Verification(format!(
-                    "reopen lost {:?} of pick {:?}",
-                    previous.kind, previous.item
-                ))
-            })?;
-        bounds(restored, previous.min, previous.max);
-        assert_eq!(restored.surface, previous.surface);
-    }
-    let pick_of = |model: &NativeModel, instance: Id| {
-        model
-            .sources
-            .iter()
-            .find(|s| s.instance == Some(instance) && s.occurrence.is_some())
-            .map(|s| s.pick_id)
-    };
-    // One definition parameter moves both occurrences; an instance's own
-    // position moves only its occurrence.
-    let span = |model: &NativeModel, pick: Option<u64>| {
-        let bodies: Vec<&Geometry> = model
-            .geometry
-            .iter()
-            .filter(|g| g.kind.is_generated() && g.item == pick)
-            .collect();
-        let lo = bodies.iter().map(|g| g.min[0]).fold(f64::MAX, f64::min);
-        let hi = bodies.iter().map(|g| g.max[0]).fold(f64::MIN, f64::max);
-        (lo, hi)
-    };
-    let (p1, p2) = (pick_of(&before, r1), pick_of(&before, r2));
-    let (a1, a2) = (span(&before, p1), span(&before, p2));
-    let mut native = before.native.ok_or_else(crate::project::no_design)?;
-    let mut changes = json!({ format!("{stem}_length"): "3 mm" });
-    changes[format!("instance_{r1}_x")] = json!("5 mm");
-    native.change_parameters(changes)?;
-    let changed = finish(native, before.sources)?;
-    let (b1, b2) = (span(&changed, p1), span(&changed, p2));
-    near(b1.1 - b1.0, 3.0);
-    near(b2.1 - b2.0, 3.0);
-    near((b1.0 + b1.1) / 2.0, 5.0);
-    near((b2.0 + b2.1) / 2.0, (a2.0 + a2.1) / 2.0);
-    assert!(((a1.0 + a1.1) / 2.0 - 5.0).abs() > 1.0, "R1 moved");
     Ok(())
 }
 

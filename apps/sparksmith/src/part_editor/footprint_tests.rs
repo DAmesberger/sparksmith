@@ -672,38 +672,6 @@ fn the_mapping_canvas_draws_no_link_for_an_unmapped_row() -> Result<(), Box<dyn 
     Ok(())
 }
 
-/// The picker previews what Build makes and warns when its pad count
-/// differs from the package.
-#[test]
-fn the_template_picker_previews_and_warns() -> Result<(), Box<dyn std::error::Error>> {
-    use super::footprint_template_picker::count_warning;
-    use sparksmith_core::library::templates::footprint_family::TemplateKind;
-    let ctx = egui::Context::default();
-    let engine = Engine::demo()?;
-    let mut editor = footprint_editor(&ctx, &engine)?;
-    let package = editor.draft.as_ref().ok_or("draft")?.package.clone();
-    editor.template_picker.open(TemplateKind::Qfn, &package);
-    let pads = editor
-        .template_picker
-        .preview(&package)
-        .ok_or("a preview")?
-        .clone()?;
-    assert!(pads.len() > package.terminals.len());
-    assert!(
-        editor
-            .template_picker
-            .ghost()
-            .is_some_and(|g| g.len() == pads.len())
-    );
-    let warning = count_warning(&pads, &package).ok_or("a count warning")?;
-    assert!(warning.contains("terminals"), "{warning}");
-    assert!(
-        sparksmith_core::issues::style::check(&warning).is_empty(),
-        "{warning}"
-    );
-    Ok(())
-}
-
 /// One inspector frame of `editor` with a click on the drawn text `text`.
 fn click_text(
     editor: &mut PartEditor,
@@ -796,123 +764,39 @@ fn texts_of(shown: &[(String, Rect)]) -> Vec<&str> {
     shown.iter().map(|(t, _)| t.as_str()).collect()
 }
 
-/// On a footprint that has pads, the template dialog's primary is
-/// "Replace footprint": one atomic `replace` command, one undo step. The
-/// dialog stays open until the engine answers, then closes with a toast
-/// offering Undo; the Pad card is not shown while it is open.
-#[test]
-fn the_template_dialog_replaces_a_footprint_in_one_undo_step()
--> Result<(), Box<dyn std::error::Error>> {
-    use sparksmith_core::library::templates::footprint_family::TemplateKind;
-    let ctx = egui::Context::default();
-    let mut engine = Engine::demo()?;
-    let mut editor = footprint_editor(&ctx, &engine)?;
-    let before = committed_pads(&engine, &editor).ok_or("pads")?;
-    let package = editor.draft.as_ref().ok_or("draft")?.package.clone();
-    editor.template_picker.open(TemplateKind::Chip, &package);
-    editor.selected_pad = before.first().map(|p| p.id);
-    let (_, shown) = inspector_op(&mut editor, &engine, &ctx, vec![]);
-    let texts = texts_of(&shown);
-    for text in [
-        "Footprint from template",
-        "Replace footprint",
-        "Cancel",
-        "Builds 2 pads; assign them to terminals afterwards",
-    ] {
-        assert!(texts.contains(&text), "{text} in {texts:?}");
-    }
-    assert!(
-        texts.contains(&"Replaces 2 pads and the sketch; one undo step"),
-        "{texts:?}"
-    );
-    assert!(
-        !texts.contains(&"HOLE") && !texts.contains(&"TERMINALS"),
-        "{texts:?}"
-    );
-    let operation = press(&mut editor, &engine, &ctx, "Replace footprint")?.ok_or("sent")?;
-    assert!(
-        matches!(
-            &operation,
-            Operation::Library(LibraryCommand::FootprintFromTemplate { replace: true, .. })
-        ),
-        "{operation:?}"
-    );
-    let revision = engine.revision();
-    engine.apply_with(
-        revision,
-        operation,
-        &sparksmith_solidcraft::footprint::SketchEvaluator,
-    )?;
-    let _ = crate::kit::toast::take_posted(&ctx);
-    inspector_op(&mut editor, &engine, &ctx, vec![]);
-    assert!(!editor.template_picker.is_open(), "closed once applied");
-    let posted = crate::kit::toast::take_posted(&ctx);
-    assert!(
-        posted.iter().any(|p| p.text == "Footprint built: 2 pads"
-            && p.actions.contains(&crate::kit::toast::ToastAction::Undo)),
-        "{posted:?}"
-    );
-    let built = committed_pads(&engine, &editor).ok_or("built")?;
-    assert_ne!(built, before);
-    engine.undo()?;
-    assert_eq!(
-        committed_pads(&engine, &editor),
-        Some(before),
-        "one undo step restores the old footprint"
-    );
-    Ok(())
-}
-
-/// A refusal of the dialog's command comes back to its refusal row on the
-/// next frame (no toast); the dialog stays open and usable.
-#[test]
-fn a_refused_template_shows_on_the_dialog() -> Result<(), Box<dyn std::error::Error>> {
-    use super::footprint_template_picker::TEMPLATE_DIALOG;
-    use crate::refusal::{Origin, Refused};
-    use sparksmith_core::library::templates::footprint_family::TemplateKind;
-    let ctx = egui::Context::default();
-    let engine = Engine::demo()?;
-    let mut editor = footprint_editor(&ctx, &engine)?;
-    let package = editor.draft.as_ref().ok_or("draft")?.package.clone();
-    editor.template_picker.open(TemplateKind::Chip, &package);
-    press(&mut editor, &engine, &ctx, "Replace footprint")?.ok_or("sent")?;
-    assert!(editor.template_picker.is_waiting());
-    crate::refusal::hand_back(
-        &ctx,
-        Refused {
-            origin: Origin::Dialog(egui::Id::unique(TEMPLATE_DIALOG)),
-            error: sparksmith_core::Error::Conflict("The land is wider than the package".into()),
-        },
-        false,
-    );
-    inspector_op(&mut editor, &engine, &ctx, vec![]);
-    let (_, shown) = inspector_op(&mut editor, &engine, &ctx, vec![]);
-    assert!(editor.template_picker.is_open());
-    assert!(!editor.template_picker.is_waiting(), "usable again");
-    assert!(
-        texts_of(&shown).contains(&"The land is wider than the package"),
-        "{:?}",
-        texts_of(&shown)
-    );
-    Ok(())
-}
-
-/// Pads a template built land no terminal yet: the footprint card offers
-/// Assign by number, whose dialog lists each pad's terminal and sends one
-/// confirmed `library.assign_terminals`, then closes with a toast.
+/// Pads of a sketched footprint that land no terminal yet: the footprint
+/// card offers Assign by
+/// number, whose dialog lists each pad's terminal and sends one confirmed
+/// `library.assign_terminals`, then closes with a toast.
 #[test]
 fn assign_by_number_is_a_dialog_with_one_command() -> Result<(), Box<dyn std::error::Error>> {
-    use super::footprint_template_picker::request;
-    use sparksmith_core::library::templates::footprint_family::{FootprintTemplate, TemplateKind};
+    use sparksmith_core::library::{Definition, DraftEdit};
     let ctx = egui::Context::default();
     let mut engine = Engine::demo()?;
     let mut editor = footprint_editor(&ctx, &engine)?;
     let set = editor.draft.as_ref().ok_or("draft")?;
-    let template = FootprintTemplate::defaults(TemplateKind::Chip, &set.package);
-    engine.apply_with(
+    // A sketched footprint (the card counts unassigned pads only there)
+    // whose pads land no terminal yet.
+    let mut footprint = set.footprint.clone();
+    footprint.source = Some(Box::default());
+    for pad in &mut footprint.pads {
+        pad.terminal = None;
+    }
+    let meta = engine
+        .drafts()
+        .get(set.ids.footprint)
+        .ok_or("the footprint draft")?
+        .meta
+        .clone();
+    engine.apply(
         engine.revision(),
-        request(set.ids.footprint, template, true),
-        &sparksmith_solidcraft::footprint::SketchEvaluator,
+        Operation::Library(LibraryCommand::Edit {
+            edits: vec![DraftEdit {
+                id: set.ids.footprint,
+                meta,
+                definition: Definition::Footprint(footprint),
+            }],
+        }),
     )?;
     editor.commit(&ctx, &engine);
     editor.selected_pad = None;
@@ -960,45 +844,6 @@ fn assign_by_number_is_a_dialog_with_one_command() -> Result<(), Box<dyn std::er
             .ok_or("pads")?
             .iter()
             .all(|p| p.terminal.is_some())
-    );
-    Ok(())
-}
-
-/// A derived pad is one summary row with Edit sketch, not a stack of
-/// disabled fields; Edit sketch returns to the footprint card with the
-/// pad's sketch role selected.
-#[test]
-fn a_derived_pad_is_one_summary_row() -> Result<(), Box<dyn std::error::Error>> {
-    use super::footprint_template_picker::request;
-    use sparksmith_core::library::templates::footprint_family::{FootprintTemplate, TemplateKind};
-    let ctx = egui::Context::default();
-    let mut engine = Engine::demo()?;
-    let mut editor = footprint_editor(&ctx, &engine)?;
-    let set = editor.draft.as_ref().ok_or("draft")?;
-    let template = FootprintTemplate::defaults(TemplateKind::Chip, &set.package);
-    engine.apply_with(
-        engine.revision(),
-        request(set.ids.footprint, template, true),
-        &sparksmith_solidcraft::footprint::SketchEvaluator,
-    )?;
-    editor.commit(&ctx, &engine);
-    let pad = pads(&editor).first().ok_or("a pad")?.clone();
-    editor.selected_pad = Some(pad.id);
-    let (_, shown) = inspector_op(&mut editor, &engine, &ctx, vec![]);
-    let texts = texts_of(&shown);
-    let shape = footprint_props::pad_shape_text(&pad);
-    assert!(shape.starts_with("Rounded "), "{shape}");
-    for text in [shape.as_str(), "Top · SMD", "From the sketch"] {
-        assert!(texts.contains(&text), "{text} in {texts:?}");
-    }
-    for absent in ["Number", "Position", "Corner ratio", "HOLE"] {
-        assert!(!texts.contains(&absent), "{absent} in {texts:?}");
-    }
-    press(&mut editor, &engine, &ctx, "Edit sketch \u{203a}")?;
-    assert_eq!(editor.inspected_pad(), None);
-    assert_eq!(
-        editor.footprint_tool.selection,
-        vec![super::footprint_tools::Pick::Pad(pad.id)]
     );
     Ok(())
 }

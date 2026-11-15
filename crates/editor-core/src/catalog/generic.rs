@@ -1,7 +1,7 @@
 //! The search grammar of on-demand generic parts. Each family declares its
 //! patterns as data with typed slots (`header {rows}x{columns}
-//! {pitch:length}?`); one matcher reads them all, and the family's own form
-//! decides whether the values can be built (`library::templates::generic`).
+//! {pitch:length}?`); one matcher reads them all, and the family's
+//! generator makes the part ([`generators`]).
 //!
 //! The families, their patterns and examples, the value slot types and the
 //! defaults are data (the shipped library's `catalog/generic-families.json`,
@@ -12,16 +12,9 @@
 //! whatever the PCB's display units, unless spelled `1608M` or `metric 1608`.
 //! Matching is bounded: at most [`MAX_WORDS`] words over patterns of at most
 //! [`MAX_STEPS`] steps, each trying at most two spans.
-use super::{MAX_QUERY, rkm};
+use super::rkm;
 use crate::diagnostics::{Error, Result};
-use crate::ids::ComponentRef;
-use crate::library::Drafts;
-use crate::library::standards::{self, GenericGrammar, Standards};
-use crate::library::templates::catalog::NewFromTemplate;
-use crate::library::templates::generic::{
-    self, ChipPart, GenericPlan, GenericSpec, GenericState, GenericValue,
-};
-use crate::model::Project;
+use crate::library::standards::{GenericGrammar, Standards};
 use crate::quantity::{self, Decimal};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -324,19 +317,6 @@ fn walk(
     step.optional && walk(standards, rest, words, found)
 }
 
-/// The slots of `words` when `pattern` reads all of them; an error when the
-/// pattern does not parse.
-fn read_pattern(
-    standards: &Standards,
-    pattern: &str,
-    words: &[&str],
-) -> Result<Option<Vec<(String, Bound)>>> {
-    let steps = parse_pattern(&standards.generic, pattern)
-        .map_err(|why| Error::Invalid(format!("the generic-part grammar: {why}")))?;
-    let mut found = Vec::new();
-    Ok(walk(standards, &steps, words, &mut found).then_some(found))
-}
-
 /// One interpretation badge of a result row.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -346,49 +326,39 @@ pub struct GenericBadge {
     pub tip: String,
 }
 
-/// One part a text reads as.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+/// One value a query gave a placed instance, as field text core parses.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
-pub struct GenericCandidate {
-    pub family: GenericFamily,
-    /// The declared pattern that read the text.
-    pub pattern: String,
-    /// The component's name, or the part's label when refused.
-    pub name: String,
-    /// The dim line: its pins and how its values are sourced, or why it is
-    /// refused.
-    pub detail: String,
-    pub badges: Vec<GenericBadge>,
-    /// Identity: the generating parameters.
-    pub spec: GenericSpec,
-    pub state: GenericState,
-    /// What choosing it creates (`library.publish_from_template`), when it
-    /// is not yet created.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub would_create: Option<NewFromTemplate>,
-    /// Values for each placed instance, not part of the identity.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub values: Vec<GenericValue>,
-    /// The starter row that is this same part, not to list beside it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub covers_row: Option<String>,
+pub struct GenericValue {
+    /// The field's name, as the standard fields spell it.
+    pub field: String,
+    pub text: String,
 }
 
-impl GenericCandidate {
-    /// The published part, when it is one.
-    pub fn component(&self) -> Option<ComponentRef> {
-        match self.state {
-            GenericState::Existing { component } => Some(component),
-            _ => None,
-        }
-    }
-}
-
-/// `library.generic_parts`'s result.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct GenericReport {
-    pub candidates: Vec<GenericCandidate>,
+/// The instance property edits of `values`, for the fields `component`
+/// selects by these names; a value with no such field is left out.
+pub fn properties(
+    library: &crate::library::Library,
+    component: crate::ids::ComponentRef,
+    values: &[GenericValue],
+) -> Vec<crate::fields::PropertyEdit> {
+    let Some(published) = library.component(component) else {
+        return Vec::new();
+    };
+    values
+        .iter()
+        .filter_map(|value| {
+            let selection = published.definition.fields.iter().find(|s| {
+                library
+                    .field(s.field)
+                    .is_some_and(|f| f.meta.name == value.field)
+            })?;
+            Some(crate::fields::PropertyEdit {
+                field: selection.field.id,
+                input: crate::fields::PropertyInput::Text(value.text.clone()),
+            })
+        })
+        .collect()
 }
 
 fn badge(label: impl Into<String>, tip: impl Into<String>) -> GenericBadge {
@@ -396,225 +366,6 @@ fn badge(label: impl Into<String>, tip: impl Into<String>) -> GenericBadge {
         label: label.into(),
         tip: tip.into(),
     }
-}
-
-/// `length × width` of a chip or a molded body, from the form.
-fn body_badge(plan: &GenericPlan) -> Option<GenericBadge> {
-    let [l, w, _] = plan.form.envelope()?;
-    let (l, w) = (quantity::format_number(l), quantity::format_number(w));
-    Some(badge(
-        format!("{l} × {w} mm"),
-        "Body length × width of this package",
-    ))
-}
-
-fn count(bounds: &[(String, Bound)], name: &str) -> Option<u32> {
-    bounds.iter().find_map(|(n, b)| match b {
-        Bound::Count(c) if n == name => Some(*c),
-        _ => None,
-    })
-}
-
-/// The values a text gave each placed instance, as badges and values.
-fn value_parts(bounds: &[(String, Bound)]) -> (Vec<GenericBadge>, Vec<GenericValue>) {
-    let values: Vec<GenericValue> = bounds
-        .iter()
-        .filter_map(|(_, b)| match b {
-            Bound::Value(v) => Some(v.clone()),
-            _ => None,
-        })
-        .collect();
-    let badges = values
-        .iter()
-        .map(|v| badge(&v.text, format!("{} of each instance you place", v.field)))
-        .collect();
-    (badges, values)
-}
-
-fn chip_spec(
-    part: ChipPart,
-    bounds: &[(String, Bound)],
-) -> Option<(GenericSpec, Vec<GenericBadge>)> {
-    bounds.iter().find_map(|(_, b)| {
-        let Bound::Code { code, metric } = b else {
-            return None;
-        };
-        let (imperial, system, tip) = if *metric {
-            let tip = |imperial: &str| format!("{code} is the metric code of imperial {imperial}");
-            match generic::imperial_of(part, code) {
-                Some(imperial) => {
-                    let tip = tip(&imperial);
-                    (imperial, "metric", tip)
-                }
-                // Refused by the plan, under the code as typed.
-                None => (format!("{code}M"), "metric", tip("no row")),
-            }
-        } else {
-            let tip = format!("Size codes read as imperial; {code}M names the metric {code}");
-            (code.clone(), "imperial", tip)
-        };
-        let badges = vec![badge(system, tip)];
-        Some((GenericSpec::Chip { part, imperial }, badges))
-    })
-}
-
-fn header_spec(
-    grammar: &GenericGrammar,
-    bounds: &[(String, Bound)],
-) -> Option<(GenericSpec, Vec<GenericBadge>)> {
-    let (rows, columns) = (count(bounds, "rows")?, count(bounds, "columns")?);
-    let typed = bounds.iter().find_map(|(_, b)| match b {
-        Bound::Length(mm) => Some(*mm),
-        _ => None,
-    });
-    let pitch_mm = match typed {
-        Some(mm) => mm,
-        None => grammar.header_pitch_mm.parse().ok()?,
-    };
-    let badges = vec![
-        badge(
-            "rows × columns",
-            format!("{rows} rows of {columns} pins; {columns}x{rows} is a different part"),
-        ),
-        match typed {
-            Some(_) => badge(format!("{pitch_mm} mm"), "The pitch as typed"),
-            None => badge(
-                format!("{pitch_mm} mm (default)"),
-                "No pitch typed: add one, such as 2 mm",
-            ),
-        },
-    ];
-    let spec = GenericSpec::Header {
-        rows,
-        columns,
-        pitch_mm,
-    };
-    Some((spec, badges))
-}
-
-/// The spec a family's bound slots name, with the badges that say how the
-/// text was read.
-fn spec_of(
-    grammar: &GenericGrammar,
-    family: GenericFamily,
-    bounds: &[(String, Bound)],
-) -> Option<(GenericSpec, Vec<GenericBadge>)> {
-    match family {
-        GenericFamily::Header => header_spec(grammar, bounds),
-        GenericFamily::Resistor => chip_spec(ChipPart::Resistor, bounds),
-        GenericFamily::Capacitor => chip_spec(ChipPart::Capacitor, bounds),
-        GenericFamily::Inductor => chip_spec(ChipPart::Inductor, bounds),
-        GenericFamily::Led => chip_spec(ChipPart::Led, bounds),
-        GenericFamily::Diode => bounds.iter().find_map(|(_, b)| match b {
-            Bound::Package(word) => generic::diode_row(word).map(|row| {
-                (
-                    GenericSpec::Diode {
-                        package: row.name.clone(),
-                    },
-                    Vec::new(),
-                )
-            }),
-            _ => None,
-        }),
-    }
-}
-
-fn candidate(
-    grammar: &GenericGrammar,
-    project: &Project,
-    drafts: &Drafts,
-    family: GenericFamily,
-    pattern: &str,
-    bounds: &[(String, Bound)],
-) -> Option<GenericCandidate> {
-    let (spec, mut badges) = spec_of(grammar, family, bounds)?;
-    let (value_badges, values) = value_parts(bounds);
-    let plan = match spec.plan() {
-        Ok(plan) => plan,
-        // A word of the family's own makes this a request for this family; a
-        // pattern of slots alone may simply be another search.
-        Err(reason) if pattern.split_whitespace().any(|t| !t.contains('{')) => {
-            return Some(GenericCandidate {
-                family,
-                pattern: pattern.to_owned(),
-                name: spec.label(),
-                detail: reason.clone(),
-                badges: Vec::new(),
-                spec,
-                state: GenericState::Refused { reason },
-                would_create: None,
-                values,
-                covers_row: None,
-            });
-        }
-        Err(_) => return None,
-    };
-    if !matches!(family, GenericFamily::Header) {
-        badges.extend(body_badge(&plan));
-    }
-    badges.extend(value_badges);
-    let state = generic::existing(&project.library, drafts, &spec, &plan.form)
-        .unwrap_or(GenericState::NotCreated);
-    let pins = plan.form.lead_count();
-    let body = format!("{pins} pins · {} values", plan.basis);
-    let detail = match &state {
-        GenericState::Existing { component } => {
-            format!("In this project, {} · {body}", component.revision)
-        }
-        GenericState::Draft { .. } => format!("A draft in this project · {body}"),
-        _ => body,
-    };
-    Some(GenericCandidate {
-        family,
-        pattern: pattern.to_owned(),
-        name: match &state {
-            GenericState::Existing { component } => project
-                .library
-                .component(*component)
-                .map_or_else(|| plan.request.name.clone(), |c| c.meta.name.clone()),
-            _ => plan.request.name.clone(),
-        },
-        detail,
-        badges,
-        would_create: matches!(state, GenericState::NotCreated).then(|| plan.request.clone()),
-        spec,
-        state,
-        values,
-        covers_row: plan.covers_row,
-    })
-}
-
-/// `library.generic_parts`: every part `query` reads as under the declared
-/// patterns, in family order; none when it reads as none. "10u 0603" is a
-/// capacitor and an inductor: both are listed, each saying which it is.
-/// The grammar is the installed standards'; a pattern of it that does not
-/// parse is an error.
-pub fn search(project: &Project, drafts: &Drafts, query: &str) -> Result<GenericReport> {
-    let words: Vec<&str> = query.split_whitespace().collect();
-    if query.len() > MAX_QUERY || words.is_empty() || words.len() > MAX_WORDS {
-        return Ok(GenericReport::default());
-    }
-    let standards = standards::get()?;
-    let grammar = &standards.generic;
-    let mut candidates: Vec<GenericCandidate> = Vec::new();
-    for family in &grammar.families {
-        for pattern in &family.patterns {
-            let Some(bounds) = read_pattern(&standards, pattern, &words)? else {
-                continue;
-            };
-            let Some(found) = candidate(grammar, project, drafts, family.family, pattern, &bounds)
-            else {
-                continue;
-            };
-            if !candidates
-                .iter()
-                .any(|c| c.spec == found.spec && c.values == found.values)
-            {
-                candidates.push(found);
-            }
-        }
-    }
-    Ok(GenericReport { candidates })
 }
 
 pub mod generators;

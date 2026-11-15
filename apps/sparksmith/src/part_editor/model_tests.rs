@@ -3,17 +3,14 @@
 //! transform and sends one command on release, Esc cancels it, quick
 //! actions and "Fit" are one command each, point-to-point moves a model
 //! point onto a pad, and placement edits never change the preview's build
-//! key (no rebuild). Original fixture: the Resistor template turned into a
-//! typed chip whose terminations sit on its lands.
+//! key (no rebuild). Original fixture: the Resistor sample, a chip whose
+//! lead contacts sit on its lands.
 use super::model_place::PointToPoint;
 use super::*;
 use crate::scene::ModelKey;
 use crate::viewport::Viewport;
 use sparksmith_core::geometry::Transform3;
-use sparksmith_core::library::package_form::typical_nm as nm;
-use sparksmith_core::library::{
-    Axis, ChipForm, ChipKind, Definition, ModelPlacement, PackageEdit, PackageForm, QuickAction,
-};
+use sparksmith_core::library::{Axis, Definition, ModelPlacement, PackageEdit, QuickAction};
 use sparksmith_ui::gizmo;
 
 type TestResult = Result<(), Box<dyn std::error::Error>>;
@@ -25,18 +22,6 @@ struct Harness {
     viewport: Viewport,
     time: f64,
     sent: Vec<Operation>,
-}
-
-fn chip() -> PackageForm {
-    ChipForm {
-        kind: ChipKind::Resistor,
-        // Terminations centred at ±0.8 mm, on the template's lands.
-        length_nm: nm(2.0),
-        width_nm: nm(1.2),
-        height_nm: nm(0.55),
-        termination_nm: nm(0.4),
-    }
-    .into()
 }
 
 impl Harness {
@@ -51,10 +36,14 @@ impl Harness {
         }
         editor.commit(&ctx, &engine);
         editor.on_tab("model");
+        // At the identity placement, so the gestures read from zero.
         let draft = editor.draft.as_ref().ok_or("draft")?.ids.package;
         engine.apply(
             engine.revision(),
-            model_place::edit(draft, vec![PackageEdit::SetForm(chip())]),
+            model_place::edit(
+                draft,
+                vec![PackageEdit::SetPlacement(ModelPlacement::default())],
+            ),
         )?;
         editor.commit(&ctx, &engine);
         let package = editor.preview_package().ok_or("package")?;
@@ -412,13 +401,6 @@ fn offset_and_quick_actions_start_folded_with_a_summary() -> TestResult {
 fn an_invalid_body_length_stays_marked_until_esc() -> TestResult {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let mut h = Harness::new()?;
-    // An authored envelope: no typed values.
-    let draft = h.editor.draft.as_ref().ok_or("draft")?.ids.package;
-    h.sent.push(model_place::edit(
-        draft,
-        vec![PackageEdit::SetForm(PackageForm::default())],
-    ));
-    h.apply_sent()?;
     let texts = h.inspector(vec![]);
     let length = texts
         .iter()
@@ -501,12 +483,8 @@ fn package_fit_lead(
     package: &sparksmith_core::library::PackageDefinition,
     k: usize,
 ) -> Result<[f64; 3], Box<dyn std::error::Error>> {
-    package
-        .form
-        .lead_points()
-        .get(k)
-        .copied()
-        .ok_or_else(|| "no lead".into())
+    let [x, y] = package.leads.get(k).ok_or("no lead")?.contact.to_mm_f64();
+    Ok([x, y, 0.0])
 }
 
 fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
@@ -519,14 +497,14 @@ fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
     }
 }
 
-/// Slice D1: the Body section edits no typed values; Change package…
+/// Slice D1: the Body section edits the envelope only; Change package…
 /// opens the generator gallery on the working set's package.
 #[test]
 fn change_package_opens_the_generator_gallery_on_the_package() -> TestResult {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let mut h = Harness::new()?;
     let texts = h.inspector(vec![]);
-    for label in ["Envelope", "Change package…"] {
+    for label in ["Length", "Change package…"] {
         assert!(texts.iter().any(|(t, _)| t == label), "{label}: {texts:?}");
     }
     assert!(
@@ -553,17 +531,28 @@ fn change_package_opens_the_generator_gallery_on_the_package() -> TestResult {
 fn a_residual_from_mismatched_spacing_is_explained() -> TestResult {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let mut h = Harness::new()?;
+    // The lead contacts 2.4 mm apart over lands 1.6 mm apart.
     let draft = h.editor.draft.as_ref().ok_or("draft")?.ids.package;
-    h.sent.push(model_place::edit(
-        draft,
-        vec![PackageEdit::SetForm(PackageForm::from(ChipForm {
-            kind: ChipKind::Resistor,
-            length_nm: nm(2.8),
-            width_nm: nm(1.2),
-            height_nm: nm(0.55),
-            termination_nm: nm(0.4),
-        }))],
-    ));
+    let mut package = h.editor.draft.as_ref().ok_or("draft")?.package.clone();
+    for lead in &mut package.leads {
+        let x = lead.contact.to_mm_f64()[0].signum() * 1.2;
+        lead.contact = sparksmith_core::units::PointNm::from_mm_f64_rounded([x, 0.0])?;
+    }
+    let meta = h
+        .engine
+        .drafts()
+        .get(draft)
+        .ok_or("the package draft")?
+        .meta
+        .clone();
+    h.sent
+        .push(Operation::Library(sparksmith_core::LibraryCommand::Edit {
+            edits: vec![sparksmith_core::library::DraftEdit {
+                id: draft,
+                meta,
+                definition: Definition::Package(package),
+            }],
+        }));
     h.apply_sent()?;
     let texts = h.inspector(vec![]);
     assert!(
@@ -596,9 +585,8 @@ fn arrow_keys_over_the_view_nudge_the_model_one_command_each() -> TestResult {
 }
 
 #[test]
-fn package_templates_start_a_generated_model_on_fitted_lands() -> TestResult {
-    use sparksmith_core::library::samples::Preset;
-    for preset in [Preset::Soic8, Preset::Qfn16, Preset::Header2x5] {
+fn preset_parts_start_with_lead_contacts_on_fitted_lands() -> TestResult {
+    for preset in ["SOIC-8", "QFN-16", "Header 2×5"] {
         let ctx = egui::Context::default();
         let mut engine = Engine::default();
         let mut editor = PartEditor::default();
@@ -608,11 +596,9 @@ fn package_templates_start_a_generated_model_on_fitted_lands() -> TestResult {
         }
         editor.commit(&ctx, &engine);
         let set = editor.draft.as_ref().ok_or("draft")?;
-        assert_eq!(set.package.form, preset.form());
-        assert!(matches!(
-            set.package.model,
-            sparksmith_core::library::PackageModel::Generated { .. }
-        ));
+        assert_eq!(set.package.leads.len(), set.package.terminals.len());
+        // Gull-wing feet and header pins have joints; a no-lead package none.
+        assert_eq!(set.package.joints.is_some(), preset != "QFN-16", "{preset}");
         assert_eq!(set.footprint.pads.len(), set.package.terminals.len());
         let pairs =
             sparksmith_core::library::package_fit::form_pairs(&set.package, &set.footprint)?;
@@ -621,7 +607,7 @@ fn package_templates_start_a_generated_model_on_fitted_lands() -> TestResult {
             &pairs,
             sparksmith_core::library::package_fit::FitRotation::Free,
         )?;
-        assert!(fit.rms_mm < 1e-9, "{preset:?}");
+        assert!(fit.rms_mm < 1e-9, "{preset}: {}", fit.rms_mm);
     }
     Ok(())
 }
@@ -676,10 +662,19 @@ fn the_preview_shows_marking_decals_and_edits_rebuild_only_them() -> TestResult 
     let first: Vec<_> = h.viewport.decal_geometry().to_vec();
     assert!(!first.is_empty(), "{:?}", h.viewport.decal_problems());
     assert!(first.iter().all(|g| g.kind == DECAL_KIND));
-    // On the chip's top (0.55 mm), white ink's lift above it.
+    // On the resistor's overcoat over the envelope's top (0.6 mm), white
+    // ink's lift above it.
+    let overcoat = sparksmith_solidcraft::looks::get()?
+        .appearance
+        .overcoat_mm
+        .value;
     let lift = Finish::InkWhite.lift_mm();
     for g in &first {
-        assert!((g.min[2] - (0.55 + lift)).abs() < 1e-4, "{}", g.min[2]);
+        assert!(
+            (g.min[2] - (0.6 + overcoat + lift)).abs() < 1e-4,
+            "{}",
+            g.min[2]
+        );
     }
     let builds = h.viewport.decal_builds();
     // Frames without a change make nothing again.
@@ -861,17 +856,17 @@ fn a_committed_part_value_is_one_operation_and_one_undo_step() -> TestResult {
 }
 
 #[test]
-fn use_generated_model_restores_the_generated_model() -> TestResult {
+fn use_envelope_box_leaves_the_part_file() -> TestResult {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     use sparksmith_core::library::PackageModel;
     let mut h = Harness::new()?;
     use_builtin(&mut h)?;
     settle_card(&mut h)?;
-    h.click_label("Use generated model")?;
+    h.click_label("Use envelope box")?;
     assert_eq!(h.apply_sent()?, 1);
     assert!(
-        matches!(package_model(&h)?, PackageModel::Generated { .. }),
-        "the typed chip form shows its generated model again"
+        matches!(package_model(&h)?, PackageModel::Envelope { .. }),
+        "the package shows its envelope box again"
     );
     Ok(())
 }

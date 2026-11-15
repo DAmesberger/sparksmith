@@ -91,7 +91,7 @@ impl Session {
 
     /// Give the engine a generator runtime when it has none: a worker
     /// thread per call with the host's limits, a wall time and no state.
-    pub(super) fn ensure_generators(&mut self) {
+    pub fn ensure_generators(&mut self) {
         if !self.engine.has_generators() {
             self.engine
                 .set_generators(Arc::new(sparksmith_generators::worker::Worker::default()));

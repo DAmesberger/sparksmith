@@ -805,7 +805,6 @@ mod tests {
                 favourites: favourites.iter().copied().collect(),
                 recent: Vec::new(),
                 sources: vec![Arc::clone(catalog)],
-                without_starter_rows: false,
             }),
             sources: Arc::new(vec![
                 SourceRow {

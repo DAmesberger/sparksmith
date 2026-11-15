@@ -18,7 +18,6 @@ pub use crate::library::graphics::PlacedText;
 use crate::library::graphics::{
     PIN_NUMBER_ADVANCE, PIN_NUMBER_CLEARANCE_MM, TEXT_LINE_SPACING, VALUE_TEXT_HEIGHT_MM,
 };
-use crate::library::templates::catalog::{FamilyKind, SkeletonHint};
 use crate::library::{
     BindingDefinition, ComponentDefinition, Fill, HAlign, Item, Justify, Library,
     PackageDefinition, Rotation, SymbolDefinition, SymbolHit, TextContent, TextMetric, Unit,
@@ -1550,12 +1549,17 @@ fn draw(
     // (`instances::value_text`, the value the BOM shows too), else the
     // Part's MPN, else the component name, which identifies an IC
     // ("AP2112K-3.3") or a rail symbol ("GND"). A two-terminal part or a
-    // connector (a header or receptacle package) without a value shows
-    // none: its component name ("Chip capacitor 0603", a receptacle's
-    // description) is never a value.
-    let connector = r
-        .physical
-        .is_some_and(|(_, p)| FamilyKind::default_skeleton(&p.form) == SkeletonHint::Connector);
+    // connector (designator J, P, CN or CON: a header or receptacle)
+    // without a value shows none: its component name ("Chip capacitor
+    // 0603", a receptacle's description) is never a value.
+    let connector = matches!(
+        component
+            .designator_prefix
+            .trim()
+            .to_ascii_uppercase()
+            .as_str(),
+        "J" | "P" | "CN" | "CON"
+    );
     let value = r
         .value
         .clone()

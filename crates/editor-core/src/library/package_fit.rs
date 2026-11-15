@@ -1,14 +1,10 @@
 //! "Fit leads to pads": a pure rigid fit of tagged lead-contact points onto
 //! pad centres, the one-click placement actions, and the advisory placement
 //! findings. The core never reads geometry files: lead contacts come from
-//! the typed [`PackageForm`] ([`PackageForm::lead_points`]) or from the host
-//! (the integration crate, for imported models) as [`LeadPair`]s.
-//!
-//! Lead `k` of [`PackageForm::lead_points`] belongs to
-//! `package.terminals[k]`; the lead order (shared with the generated
-//! models) is documented in [`super::package_form`].
+//! the package's stored lead contacts ([`PackageDefinition::leads`], each
+//! naming its terminal) or from the host (the integration crate, for
+//! imported models) as [`LeadPair`]s.
 use super::footprint::{FootprintDefinition, PAD_ARC_TOLERANCE_MM, PadKind};
-use super::package_form::{MAX_FORM_LEADS, PackageForm};
 use super::package_model::{
     self, Axis, ModelPlacement, PackageEdit, PackageModel, QuickAction, model_frame,
 };
@@ -332,39 +328,23 @@ pub fn turn_about(axis: Axis, deg: f64, pivot: Point3) -> Transform3 {
         .then(&Transform3::translation(pivot.map(|v| -v)))
 }
 
-/// The body's box in the model frame (min, max), leads excluded.
+/// The body's box in the model frame (min, max): the envelope.
 fn body_box(package: &PackageDefinition) -> (Point3, Point3) {
-    let centred =
-        |l: f64, w: f64, z0: f64, z1: f64| ([-l / 2.0, -w / 2.0, z0], [l / 2.0, w / 2.0, z1]);
-    match &package.form {
-        PackageForm::Generic => {
-            let s = package.envelope();
-            centred(s[0], s[1], 0.0, s[2])
-        }
-        PackageForm::Chip(c) => centred(c.length(), c.width(), 0.0, c.height()),
-        PackageForm::GullWing(g) => centred(
-            g.body_length(),
-            g.body_width(),
-            g.standoff(),
-            g.standoff() + g.body_height(),
-        ),
-        PackageForm::NoLead(n) => centred(n.body_length(), n.body_width(), 0.0, n.body_height()),
-        PackageForm::Header(h) => centred(
-            h.pitch() * f64::from(h.pins_per_row.min(MAX_FORM_LEADS)),
-            h.row_pitch() * f64::from(h.rows.min(MAX_FORM_LEADS)),
-            0.0,
-            h.body_height(),
-        ),
-        PackageForm::Tabbed(_)
-        | PackageForm::Molded(_)
-        | PackageForm::Grid(_)
-        | PackageForm::Tht(_)
-        | PackageForm::Module(_)
-        | PackageForm::UsbC(_) => {
-            let s = package.form.envelope().unwrap_or(package.envelope());
-            centred(s[0], s[1], 0.0, s[2])
-        }
-    }
+    let [l, w, h] = package.envelope();
+    ([-l / 2.0, -w / 2.0, 0.0], [l / 2.0, w / 2.0, h])
+}
+
+/// Each stored lead contact of `package` (model frame, on the seating
+/// plane) with its terminal.
+fn contacts(package: &PackageDefinition) -> Vec<(PackageTerminalId, Point3)> {
+    package
+        .leads
+        .iter()
+        .map(|l| {
+            let [x, y] = l.contact.to_mm_f64();
+            (l.terminal, [x, y, 0.0])
+        })
+        .collect()
 }
 
 fn box_corners((min, max): (Point3, Point3)) -> [Point3; 8] {
@@ -404,37 +384,27 @@ fn copper(kind: PadKind) -> bool {
     matches!(kind, PadKind::Smd | PadKind::PlatedThrough)
 }
 
-/// The lead/pad pairs of a typed form on `footprint`: lead `k` of
-/// [`PackageForm::lead_points`] with the centroid of the copper pads landing
-/// `package.terminals[k]`, in the datum frame. Terminals without a pad are
-/// left out; never inferred from numbers or names.
+/// The lead/pad pairs of `package`'s stored lead contacts on `footprint`:
+/// each contact with the centroid of the copper pads landing its terminal,
+/// in the datum frame. Terminals without a pad are left out; never inferred
+/// from numbers or names.
 pub fn form_pairs(
     package: &PackageDefinition,
     footprint: &FootprintDefinition,
 ) -> Result<Vec<LeadPair>> {
-    let contacts = package.form.lead_points();
+    let contacts = contacts(package);
     if contacts.is_empty() {
-        return Err(Error::Invalid(format!(
-            "package.fit_no_leads: a {} package has no typed lead contacts; pass lead pairs",
-            package.form.label()
-        )));
+        return Err(Error::Invalid(
+            "package.fit_no_leads: the package has no lead contacts; pass lead pairs".into(),
+        ));
     }
-    if contacts.len() != package.terminals.len() {
-        return Err(Error::Invalid(format!(
-            "package.fit_terminal_count: the form has {} lead contacts but the package has {} terminals",
-            contacts.len(),
-            package.terminals.len()
-        )));
-    }
-    let pairs: Vec<LeadPair> = package
-        .terminals
-        .iter()
-        .zip(contacts)
+    let pairs: Vec<LeadPair> = contacts
+        .into_iter()
         .filter_map(|(terminal, lead)| {
             let pads: Vec<_> = footprint
                 .pads
                 .iter()
-                .filter(|p| p.terminal == Some(terminal.id) && copper(p.kind))
+                .filter(|p| p.terminal == Some(terminal) && copper(p.kind))
                 .collect();
             let first = pads.first()?;
             let centres: Vec<Point> = pads
@@ -442,7 +412,7 @@ pub fn form_pairs(
                 .map(|p| to_datum(&footprint.datum, p.position()))
                 .collect();
             Some(LeadPair::from_mm(
-                terminal.id,
+                terminal,
                 first.id,
                 lead,
                 centroid(&centres),
@@ -522,7 +492,7 @@ fn needs_footprint(action: QuickAction) -> Error {
 /// onto the seating plane.
 fn seat(package: &PackageDefinition, placement: &ModelPlacement) -> Result<ModelPlacement> {
     let t = placement.transform();
-    let contacts = package.form.lead_points();
+    let contacts: Vec<Point3> = contacts(package).into_iter().map(|(_, p)| p).collect();
     let lowest = if contacts.is_empty() {
         body_corners(package, placement)
             .iter()
@@ -686,15 +656,15 @@ pub fn courtyard_centre(footprint: &FootprintDefinition) -> Option<Point> {
 /// Where an envelope model sits by default on `footprint`: over the
 /// courtyard, so a footprint whose origin is not its middle (a connector
 /// drawn from the board edge) does not leave the box hanging off it. Only an
-/// untyped package's envelope at the default placement has a default: a
-/// typed form's body is located by its leads, and a placement someone set
-/// stays. `None` when nothing would move.
+/// envelope without lead contacts at the default placement has a default:
+/// a body with lead contacts is located by its leads, and a placement
+/// someone set stays. `None` when nothing would move.
 pub fn envelope_default(
     package: &PackageDefinition,
     footprint: &FootprintDefinition,
 ) -> Result<Option<ModelPlacement>> {
     if !matches!(package.model, PackageModel::Envelope { .. })
-        || package.form != PackageForm::Generic
+        || !package.leads.is_empty()
         || package.placement != ModelPlacement::default()
     {
         return Ok(None);
@@ -746,30 +716,23 @@ pub struct LeadState {
     pub pads: Vec<PadId>,
 }
 
-/// The typed lead contacts of `package` under `placement` against the
-/// footprint's lands; empty when the form has no leads or its lead count
-/// differs from the terminals.
+/// The stored lead contacts of `package` under `placement` against the
+/// footprint's lands; empty when the package has none.
 pub fn lead_states(
     package: &PackageDefinition,
     footprint: &FootprintDefinition,
     placement: &ModelPlacement,
 ) -> Vec<LeadState> {
-    let contacts = package.form.lead_points();
-    if contacts.len() != package.terminals.len() {
-        return Vec::new();
-    }
     let datum = placement.transform();
     let frame = model_frame(&footprint.datum, placement);
-    package
-        .terminals
-        .iter()
-        .zip(contacts)
+    contacts(package)
+        .into_iter()
         .map(|(terminal, lead)| {
             let q = frame.apply(lead);
             let pads: Vec<_> = footprint
                 .pads
                 .iter()
-                .filter(|p| p.terminal == Some(terminal.id) && copper(p.kind))
+                .filter(|p| p.terminal == Some(terminal) && copper(p.kind))
                 .collect();
             let miss_mm = pads
                 .iter()
@@ -786,7 +749,7 @@ pub fn lead_states(
                 })
                 .reduce(f64::min);
             LeadState {
-                terminal: terminal.id,
+                terminal,
                 at: datum.apply(lead),
                 miss_mm,
                 pads: pads.iter().map(|p| p.id).collect(),

@@ -355,7 +355,7 @@ pub(super) fn import_reviewed(s: &mut Scenario) -> Fallible<Imported> {
         .collect();
     let component = drafts.first().copied().ok_or("component first")?;
     // The component, its block symbol, and the package and binding of its
-    // one variant (the footprint step, `templates_tests`, adds the pads).
+    // one variant (the footprint step, [`build_footprint`], adds the pads).
     assert_eq!(drafts.len(), 4, "{report}");
     let mut unreviewed: Vec<String> = report["unreviewed"]
         .as_array()
@@ -479,11 +479,87 @@ pub(super) struct Placed {
     pub designator: String,
 }
 
-/// Steps 8–9: build the footprint from a package row
-/// (`templates_tests::build_footprint`), publish the whole working set and
-/// place U1 with its physical side.
+/// The package, footprint and binding drafts the footprint step leaves.
+pub(super) struct Physical {
+    pub package: u64,
+    pub footprint: u64,
+    pub binding: u64,
+}
+
+/// Step 8: the package from the drawing's values. The pinout import left
+/// the package without pads; the no-lead generator's QFN-48 7×7 0.5 EP
+/// 5.3 preset makes the package and lands, and one
+/// `library.package_from_generator` gives them to the working set (a new
+/// footprint draft listed in its binding), terminals matched by number.
+/// The datasheet numbers the exposed pad 49, the generator EP: the
+/// person states it.
+fn build_footprint(s: &mut Scenario, imported: &Imported) -> Fallible<Physical> {
+    use super::generators::GeneratePartParams;
+    use sparksmith_core::library::generated::GeneratorScope;
+    let binding = imported.binding;
+    let binding_body = s.draft(binding)?["draft"]["definition"]["body"].clone();
+    assert_eq!(
+        binding_body["footprints"],
+        json!([]),
+        "the import made no footprint"
+    );
+    let package = binding_body["package"]["id"]
+        .as_u64()
+        .ok_or("the imported package")?;
+    let terminals = s.draft(package)?["draft"]["definition"]["body"]["terminals"]
+        .as_array()
+        .ok_or("package terminals")?
+        .clone();
+    assert_eq!(terminals.len(), 49, "48 leads and the exposed pad");
+    let generate = s.session.generate_request(GeneratePartParams {
+        generator: Some("no-lead".into()),
+        module: None,
+        scope: GeneratorScope::Package,
+        preset: Some("no-lead-qfn-48-7x7-0.5".into()),
+        params: Default::default(),
+        name: None,
+        replaces: None,
+        expected_revision: s.session.engine().revision(),
+    })?;
+    let applied = s.apply(
+        "package from generator",
+        library_op(
+            "library.package_from_generator",
+            json!({"draft": package, "generate": generate,
+                "renumber": [{"from": "49", "to": "EP"}]}),
+        ),
+    )?;
+    let plan = &applied["outcome"]["plan"];
+    assert_eq!(plan["footprint_created"], true, "{plan}");
+    let footprint = plan["footprint"]
+        .as_u64()
+        .ok_or_else(|| format!("the created footprint: {plan}"))?;
+    // Terminal identities are kept, so the import's mappings still hold;
+    // leads keep their numbers and the 49th is designated EP.
+    let after = s.draft(package)?["draft"]["definition"]["body"]["terminals"]
+        .as_array()
+        .ok_or("package terminals")?
+        .clone();
+    let ids = |list: &[Value]| -> Vec<Value> { list.iter().map(|t| t["id"].clone()).collect() };
+    assert_eq!(ids(&after), ids(&terminals), "terminal identity survives");
+    assert_eq!(after[48]["designation"], "EP");
+    assert_eq!(
+        s.draft(binding)?["draft"]["definition"]["body"]["footprints"],
+        json!([{"id": footprint, "revision": 1}]),
+        "the binding lists the created footprint"
+    );
+    Ok(Physical {
+        package,
+        footprint,
+        binding,
+    })
+}
+
+/// Steps 8–9: build the footprint from the package drawing
+/// ([`build_footprint`]), publish the whole working set and place U1
+/// with its physical side.
 pub(super) fn publish_and_place(s: &mut Scenario, imported: Imported) -> Fallible<Placed> {
-    let physical = super::templates_tests::build_footprint(s, &imported)?;
+    let physical = build_footprint(s, &imported)?;
     let symbol = imported.symbol;
     let mut component = imported.body.clone();
     if component["designator_prefix"]

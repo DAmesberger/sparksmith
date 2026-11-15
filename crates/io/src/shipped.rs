@@ -51,8 +51,8 @@ pub enum Shelf {
     Assist,
     /// Part files (`parts/*.solidcraft` with their sidecars).
     Parts,
-    /// Package templates and starter rows (`templates/`).
-    Templates,
+    /// The PCB realism showcase's parts (`showcase/parts.json`).
+    Showcase,
     /// Generator bundles (`generators/<name>/`, see
     /// [`crate::generator_bundle`]).
     Generators,
@@ -72,7 +72,7 @@ impl Shelf {
             Self::Catalog => "catalog",
             Self::Assist => "assist",
             Self::Parts => "parts",
-            Self::Templates => "templates",
+            Self::Showcase => "showcase",
             Self::Generators => "generators",
             Self::Defaults => "defaults",
         }

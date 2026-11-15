@@ -48,10 +48,40 @@ pub struct ComponentDefinition {
     /// C3/C5: import review state (F8); `None` when nothing is pending.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub review: Option<Box<super::pinout::ImportReview>>,
-    /// The generating parameters of an on-demand generic part: what a
-    /// search for the same part finds instead of building another.
+    /// The generating parameters of an on-demand generic part the
+    /// retired in-code templates built: a record of where the part came
+    /// from. Nothing reads it to build a part any more; generated parts
+    /// carry their generator's record instead (`library.generated`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub generic: Option<Box<super::templates::generic::GenericSpec>>,
+    pub generic: Option<Box<GenericSpec>>,
+}
+
+/// The chip constructions a generic part names.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChipPart {
+    Resistor,
+    Capacitor,
+    Inductor,
+    Led,
+}
+
+/// A generic part's generating parameters, as the retired templates
+/// recorded them on the component they built. Per-instance values (10 kΩ,
+/// Red) are not part of it.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum GenericSpec {
+    /// A straight pin header; 5×2 and 2×5 are different parts.
+    Header {
+        rows: u32,
+        columns: u32,
+        pitch_mm: crate::quantity::Decimal,
+    },
+    /// A chip part by its imperial size code.
+    Chip { part: ChipPart, imperial: String },
+    /// A diode in a molded package, by the starter row's name.
+    Diode { package: String },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]

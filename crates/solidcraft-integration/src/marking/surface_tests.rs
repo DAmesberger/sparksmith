@@ -10,12 +10,8 @@ use sparksmith_core::library::marking::surface::{self as core_surface, Wrap};
 use sparksmith_core::library::marking::{
     BoxFace, Ecc, LaidText, MarkingItem, MarkingSpec, SurfaceRef, Symbology, Template,
 };
-use sparksmith_core::library::package_form::module::ModuleForm;
-use sparksmith_core::library::package_form::tht::{ThtForm, ThtKind};
-use sparksmith_core::library::package_form::{FamilyForm, PackageForm};
-use sparksmith_core::library::{GeneratedMaterials, PackageDefinition, PackageModel};
+use sparksmith_core::library::{PackageDefinition, PackageModel};
 use sparksmith_core::materials::MaterialId;
-use std::collections::BTreeMap;
 use std::f64::consts::{PI, TAU};
 
 type TestResult = std::result::Result<(), Box<dyn std::error::Error>>;
@@ -46,72 +42,38 @@ fn on(name: &str) -> Placement {
     }
 }
 
-fn radial_form() -> ThtForm {
-    ThtForm {
-        kind: ThtKind::Radial {
-            body_diameter_nm: nm(5.0),
-            body_height_nm: nm(11.0),
-        },
-        ..ThtForm::typical()
-    }
-}
-
-/// The demo board with its package made a generated radial can (two
-/// leads, as the demo's parts have), every part turned a quarter and the
-/// second one on the bottom.
-fn radial_board() -> std::result::Result<sparksmith_core::Project, Box<dyn std::error::Error>> {
-    let mut project = sparksmith_core::Engine::demo()?.project().clone();
-    let package = &mut project.library.packages[0].definition;
-    let form = radial_form();
-    package.envelope_nm = (form.envelope().ok_or("envelope")?).map(nm);
-    package.form = PackageForm::Tht(Box::new(form));
-    package.model = PackageModel::Generated {
-        family_rev: 1,
-        materials: GeneratedMaterials::default(),
-    };
-    for p in &mut project.placements {
-        p.rotation_deg = 90.0;
-    }
-    if let Some(bottom) = project.placements.get_mut(1) {
-        bottom.layer = sparksmith_core::Layer::Bottom;
-    }
-    Ok(project)
-}
-
+/// The demo's package as an 18 × 25 × 3.2 mm box (a radio module's size).
 fn module_package() -> std::result::Result<PackageDefinition, Box<dyn std::error::Error>> {
     let mut package = sparksmith_core::Engine::demo()?.project().library.packages[0]
         .definition
         .clone();
-    package.form = PackageForm::Module(Box::new(ModuleForm::typical()));
-    package.envelope_nm = (package.form.envelope().ok_or("envelope")?).map(nm);
-    package.model = PackageModel::Generated {
-        family_rev: 1,
-        materials: GeneratedMaterials::default(),
-    };
+    package.envelope_nm = [nm(18.0), nm(25.0), nm(3.2)];
+    package.model = PackageModel::default();
+    // A module: a box on the board, no chip terminations.
+    package.joints = None;
+    package.leads.clear();
+    package.placement = Default::default();
     Ok(package)
 }
 
-fn bounds(geometry: &[Geometry]) -> ([f64; 3], [f64; 3]) {
-    geometry
-        .iter()
-        .fold(([f64::MAX; 3], [f64::MIN; 3]), |(lo, hi), g| {
-            (
-                std::array::from_fn(|k| lo[k].min(g.min[k])),
-                std::array::from_fn(|k| hi[k].max(g.max[k])),
-            )
-        })
+/// The sleeve of a 5 × 11 mm radial can on the board (its top's 0.3 mm
+/// round left bare), angle 0 facing +x.
+fn sleeve_area() -> std::result::Result<CylinderArea, Box<dyn std::error::Error>> {
+    Ok(CylinderArea::from_mm(
+        [0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        2.5,
+        10.7,
+        false,
+    )?)
 }
 
-/// The sleeve of a 5 × 11 mm radial can as a wrap map.
+/// [`sleeve_area`] as a wrap map.
 fn sleeve(
     wrap: Wrap,
 ) -> std::result::Result<(CylinderArea, WrapChart), Box<dyn std::error::Error>> {
-    let form = PackageForm::Tht(Box::new(radial_form()));
-    let Some(core_surface::SurfaceGeometry::Cylinder(c)) =
-        core_surface::anchor_of(&form, "sleeve").map(|a| a.geometry)
-    else {
-        return Err("no sleeve".into());
-    };
+    let c = sleeve_area()?;
     let chart = c.chart(&wrap).ok_or("chart")?;
     Ok((c, chart))
 }
@@ -253,7 +215,7 @@ fn the_stripe_wraps_the_seam_on_the_negative_lead_side() -> TestResult {
 /// The generated electrolytic marking end to end: the core lays out the
 /// µF/V lines opposite the stripe on the sleeve, the decal draws both.
 #[test]
-fn a_generated_electrolytic_marking_wraps_its_sleeve() -> TestResult {
+fn an_electrolytic_marking_wraps_its_sleeve() -> TestResult {
     use sparksmith_core::FieldRef;
     use sparksmith_core::ids::{DefinitionId, Revision};
     use sparksmith_core::library::marking::{self as core, MarkingInputs};
@@ -270,17 +232,14 @@ fn a_generated_electrolytic_marking_wraps_its_sleeve() -> TestResult {
         placement: on("sleeve"),
         ..Default::default()
     };
-    let form = PackageForm::Tht(Box::new(radial_form()));
+    let geometry = core_surface::SurfaceGeometry::Cylinder(sleeve_area()?);
     let mut inputs = MarkingInputs {
         designator: "C1".into(),
         ..Default::default()
     };
     inputs.fields.insert(cap, ("470u".into(), Some(470e-6)));
     inputs.fields.insert(volt, ("16".into(), Some(16.0)));
-    let region = |s: &MarkingSpec| {
-        let found = core_surface::anchor_of(&form, "sleeve")?;
-        core_surface::region(&found.geometry, &s.placement)
-    };
+    let region = |s: &MarkingSpec| core_surface::region(&geometry, &s.placement);
     let layout = core::layout_with(&spec, &inputs, &region)?;
     let lines: Vec<&str> = layout
         .elements
@@ -570,174 +529,6 @@ fn a_2d_code_fills_its_dark_modules() -> TestResult {
 /// On a module preview, anchors place decals exactly: the can's top, and
 /// the board beyond the can in silkscreen; box faces are found in the
 /// mesh (the +x side of the outermost body).
-#[test]
-fn module_anchors_place_the_can_and_board_markings() -> TestResult {
-    let _context = crate::looks::test_context().map(|c| c.enter());
-    let package = module_package()?;
-    let preview = crate::project::preview(&package)?;
-    let form = ModuleForm::typical();
-    let layout = MarkingLayout {
-        decals: vec![
-            laid(
-                vec![text_line("ANT", 1.0, [0.0, 0.0])],
-                Finish::InkWhite,
-                on("pcb_top"),
-            ),
-            laid(
-                vec![text_line("SIDE", 0.5, [0.0, 0.0])],
-                Finish::LaserEtch,
-                Placement {
-                    on: SurfaceRef::Face {
-                        face: BoxFace::PosX,
-                    },
-                    ..Placement::default()
-                },
-            ),
-        ],
-        ..laid(
-            vec![text_line("MODULE-1", 1.5, [0.0, 0.0])],
-            Finish::LaserEtchMetal,
-            on("can_top"),
-        )
-    };
-    let mut cache = DecalCache::default();
-    let (decals, problems) = board::preview_decals(
-        &layout,
-        &preview.geometry,
-        Some(&package),
-        &no_artwork,
-        &mut cache,
-    );
-    assert!(problems.is_empty(), "{problems:?}");
-    let can_top = form.height() + Finish::LaserEtchMetal.lift_mm();
-    let pcb_top = core_surface::MODULE_PAD_MM
-        + form.pcb_thickness()
-        + core_surface::MODULE_TRACE_MM
-        + Finish::InkWhite.lift_mm();
-    let can: Vec<&Geometry> = decals
-        .iter()
-        .filter(|g| (g.min[2] - can_top).abs() < 1e-4)
-        .collect();
-    let pcb: Vec<&Geometry> = decals
-        .iter()
-        .filter(|g| (g.min[2] - pcb_top).abs() < 1e-4)
-        .collect();
-    assert!(
-        !can.is_empty() && !pcb.is_empty(),
-        "{:?}",
-        decals.iter().map(|g| g.min).collect::<Vec<_>>()
-    );
-    let (lo, hi) = bounds(&pcb.iter().map(|g| (*g).clone()).collect::<Vec<_>>());
-    // Beyond the can (y > 6.2) on the board (y < 12.5).
-    assert!(lo[1] > 6.2 && hi[1] < 12.5, "{lo:?} {hi:?}");
-    let (lo, hi) = bounds(&can.iter().map(|g| (*g).clone()).collect::<Vec<_>>());
-    assert!(lo[1] > -2.5 - 8.7 && hi[1] < 6.2);
-    // The +x face is the board's edge (the outermost body along +x).
-    let side: Vec<&Geometry> = decals
-        .iter()
-        .filter(|g| (g.min[0] - (9.0 + Finish::LaserEtch.lift_mm())).abs() < 1e-4)
-        .collect();
-    assert!(!side.is_empty());
-    for g in decals {
-        assert_eq!(g.kind, DECAL_KIND);
-    }
-    // An anchor the package does not offer is reported, not guessed.
-    let lost = laid(
-        vec![text_line("X", 1.0, [0.0, 0.0])],
-        Finish::LaserEtch,
-        on("sleeve"),
-    );
-    let (none, problems) = board::preview_decals(
-        &lost,
-        &preview.geometry,
-        Some(&package),
-        &no_artwork,
-        &mut cache,
-    );
-    assert!(none.is_empty() && problems.len() == 1);
-    Ok(())
-}
-
-/// On a board, an anchored wrap follows each instance's placement: turned
-/// a quarter, and turned over on the bottom side, the sleeve decal stays
-/// on its can with its stripe towards that instance's lead 2.
-#[test]
-fn board_wraps_follow_each_instance_s_placement() -> TestResult {
-    let _context = crate::looks::test_context().map(|c| c.enter());
-    let project = radial_board()?;
-    let model = crate::project::build(&project)?;
-    let stripe = |w: f64, h: f64| LaidElement::Polarity {
-        mark: PolarityMark::Stripe,
-        origin: [w / 2.0, 0.0],
-        size_mm: [0.22 * w, h],
-    };
-    let (c, chart) = sleeve(Wrap::default())?;
-    let region = Region::wrap(&c, &chart);
-    let layouts: BTreeMap<_, _> = project
-        .placements
-        .iter()
-        .map(|p| {
-            (
-                p.instance,
-                laid(
-                    vec![stripe(region.size[0], region.size[1])],
-                    Finish::InkWhite,
-                    on("sleeve"),
-                ),
-            )
-        })
-        .collect();
-    let mut cache = DecalCache::default();
-    let (decals, problems) = board::board_decals_reporting(
-        &project,
-        &model.geometry,
-        &model.sources,
-        &layouts,
-        &mut cache,
-    );
-    assert!(problems.is_empty(), "{problems:?}");
-    // One flat decal serves both instances.
-    assert_eq!(cache.built(), 1);
-    for placement in &project.placements {
-        let picks: Vec<u64> = model
-            .sources
-            .iter()
-            .filter(|s| s.instance == Some(placement.instance) && s.pad.is_none())
-            .map(|s| s.pick_id)
-            .collect();
-        let mine: Vec<Geometry> = decals
-            .iter()
-            .filter(|g| g.item.is_some_and(|i| picks.contains(&i)))
-            .cloned()
-            .collect();
-        assert!(!mine.is_empty());
-        let body = model
-            .geometry
-            .iter()
-            .find(|g| g.kind == BodyKind::ModelBody && g.item.is_some_and(|i| picks.contains(&i)))
-            .ok_or("body")?;
-        let place = body.place.ok_or("placed")?;
-        // Lead 2 is at package +x: where is it on the board?
-        let lead2 = place.point(Vec3::new(1.25, 0.0, 5.0));
-        let axis = place.point(Vec3::new(0.0, 0.0, 5.0));
-        let toward = lead2 - axis;
-        let (lo, hi) = bounds(&mine);
-        let centre = Vec3::new(
-            (lo[0] + hi[0]) / 2.0,
-            (lo[1] + hi[1]) / 2.0,
-            (lo[2] + hi[2]) / 2.0,
-        ) - axis;
-        assert!(
-            centre.x * toward.x + centre.y * toward.y > 0.0,
-            "{:?}: stripe {centre:?} vs lead 2 {toward:?}",
-            placement.layer
-        );
-        // On the can's side, within its height.
-        assert!(lo[2] >= body.min[2] - 1e-6 && hi[2] <= body.max[2] + 1e-6);
-    }
-    Ok(())
-}
-
 /// Two hundred marked instances: every decal is laid out, filled, placed
 /// and meshed, and a second pass with one value changed rebuilds one.
 /// Debug-build timings are printed as evidence, not asserted.

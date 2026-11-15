@@ -6,8 +6,7 @@
 //! parameters as a form; each committed field (Enter or focus loss) is
 //! evaluated off the UI thread and then sent as the one operation of
 //! `library.set_part_values` (`part_files::set_part_values_operation`):
-//! one undo step. Use generated model returns to the package's own model:
-//! the generated model of a typed form, the envelope of a generic one.
+//! one undo step. Use envelope box returns to the package's envelope.
 use super::PartEditor;
 use super::model_place;
 use crate::kit;
@@ -16,7 +15,7 @@ use crate::part_chooser::{self, ChooserMode, Evaluator, PartSource};
 use egui::Ui;
 use sparksmith_automation::part_files::{self, UsePartFile};
 use sparksmith_core::library::package_model::PartFileModel;
-use sparksmith_core::library::{GeneratedMaterials, PackageDefinition, PackageEdit, PackageModel};
+use sparksmith_core::library::{PackageDefinition, PackageEdit, PackageModel};
 use sparksmith_core::materials::MaterialId;
 use sparksmith_core::{DefinitionId, Engine, ModelRef, Operation};
 use sparksmith_solidcraft::models::part_file::PartValues;
@@ -33,18 +32,10 @@ pub struct PartFileCard {
     pub(super) pending: Option<PartValues>,
 }
 
-/// The model Use generated model sets: the generated model for a typed
-/// form, the envelope for a generic one.
-pub fn own_model(package: &PackageDefinition) -> PackageModel {
-    if package.form.envelope().is_none() {
-        PackageModel::Envelope {
-            material: MaterialId::EpoxyMould,
-        }
-    } else {
-        PackageModel::Generated {
-            family_rev: crate::model_library::GENERATED_FAMILY_REV,
-            materials: GeneratedMaterials::default(),
-        }
+/// The model Use envelope box sets.
+pub fn own_model(_package: &PackageDefinition) -> PackageModel {
+    PackageModel::Envelope {
+        material: MaterialId::EpoxyMould,
     }
 }
 

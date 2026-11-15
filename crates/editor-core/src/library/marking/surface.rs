@@ -16,11 +16,9 @@
 //! **Surfaces.** [`SurfaceRef::Model`] is the model's marking area (the top
 //! face of the outermost body, as before); [`SurfaceRef::Face`] a box face
 //! of the model's outermost body (top, bottom or a side); and
-//! [`SurfaceRef::Anchor`] a named place a generated family offers
-//! ([`anchors`]): a module's `can_top`, `pcb_top` (the board beyond the
-//! can) and `antenna_area`, a radial part's `top` and `sleeve`, an axial
-//! part's or a MELF's `body`. Anchors are exact, from the form; box faces
-//! of an imported model are found in its built mesh.
+//! [`SurfaceRef::Anchor`] a named place a part file offers (its
+//! `marking-*` planes, [`package_anchors`]). Box faces of an imported model
+//! are found in its built mesh.
 //!
 //! **Placement.** [`Placement`] moves the laid-out marking inside its
 //! chart region: an offset, a rotation, a scale and a mirror, then a clip
@@ -28,9 +26,6 @@
 //! placement (a quarter turn swaps its sides, a scale divides it), so
 //! auto-fitted text fills the placed region.
 use super::super::model3d::MarkingArea;
-use super::super::package_form::PackageForm;
-use super::super::package_form::molded::MoldedLead;
-use super::super::package_form::tht::ThtBody;
 use super::MAX_AREA_NM;
 use crate::diagnostics::Result;
 use crate::units::{Angle, MILLIDEGREES_PER_TURN, Nm, PointNm};
@@ -43,21 +38,6 @@ pub const MAX_ANCHOR_NAME: usize = 32;
 pub const MAX_WRAP_REPEAT: u32 = 8;
 /// Accepted placement scales.
 pub const SCALE: std::ops::RangeInclusive<f64> = 0.05..=20.0;
-/// Clear margin a module's can-top anchor keeps from the can's rounded
-/// edge, mm (its bend radius, est.).
-pub const CAN_EDGE_MM: f64 = 0.3;
-/// Thickness of a generated module's pads under its board, mm (est.:
-/// ENIG over 35 µm copper); the module model builder stands the board on
-/// them, so the board's top is this plus its thickness.
-pub const MODULE_PAD_MM: f64 = 0.035;
-/// Thickness of a generated module's printed antenna trace, mm (est.: 35 µm
-/// copper). Board anchors (`pcb_top`, `antenna_area`) stand on it, so a
-/// silkscreen prints over the trace as it does over the mask on it.
-pub const MODULE_TRACE_MM: f64 = 0.035;
-/// The share of a round can top's diameter the `top` anchor's rectangle
-/// spans across and along (a rectangle inscribed in the disc).
-const DISC_RECT: [f64; 2] = [0.8, 0.6];
-
 /// A box face of the model, in the package frame (z up from the seating
 /// plane, +x along the package).
 #[derive(
@@ -135,7 +115,7 @@ pub enum SurfaceRef {
     Model,
     /// A box face of the model's outermost body.
     Face { face: BoxFace },
-    /// A named anchor of the package family ([`anchors`]).
+    /// A named anchor the package's part file offers ([`package_anchors`]).
     Anchor { name: String },
 }
 
@@ -514,217 +494,17 @@ pub struct AnchorInfo {
     pub geometry: SurfaceGeometry,
 }
 
-/// An upward plane of `size` at `origin`, mm. Computed from a form's
-/// stored lengths, it always lies within `Nm`'s range; a value that could
-/// not be stored offers no anchor.
-fn plane(origin: [f64; 3], size: [f64; 2]) -> Option<MarkingArea> {
-    MarkingArea::from_mm(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0], size).ok()
-}
-
-fn anchor(name: &str, description: &str, geometry: SurfaceGeometry) -> AnchorInfo {
-    AnchorInfo {
-        name: name.into(),
-        description: description.into(),
-        geometry,
-    }
-}
-
 /// A plane with a positive size (at least 1 nm).
 fn sized(a: &MarkingArea) -> bool {
     a.size_nm.iter().all(|s| *s > Nm::ZERO)
 }
 
-/// `area` as an anchor's geometry when it is sized.
-fn sized_plane(area: Option<MarkingArea>) -> Option<SurfaceGeometry> {
-    area.filter(sized).map(SurfaceGeometry::Plane)
-}
-
-/// A cylinder anchor's geometry from millimetres; a value that could not
-/// be stored offers no anchor.
-fn cylinder(
-    base: [f64; 3],
-    axis: [f64; 3],
-    zero: [f64; 3],
-    radius: f64,
-    length: f64,
-    along_u: bool,
-) -> Option<SurfaceGeometry> {
-    CylinderArea::from_mm(base, axis, zero, radius, length, along_u)
-        .ok()
-        .map(SurfaceGeometry::Cylinder)
-}
-
-/// The named anchors a package form offers, in the package frame. Empty
-/// for families without any (their box faces and model area still serve).
-pub fn anchors(form: &PackageForm) -> Vec<AnchorInfo> {
-    let mut out = Vec::new();
-    let mut push = |name: &str, what: &str, geometry: Option<SurfaceGeometry>| {
-        if let Some(geometry) = geometry {
-            out.push(anchor(name, what, geometry));
-        }
-    };
-    match form {
-        PackageForm::Module(m) => {
-            let top = m.height();
-            // The board stands on its pads; its top is the can's seat.
-            let pcb = MODULE_PAD_MM + m.pcb_thickness();
-            let [cw, cl] = m.can_size();
-            let [cx, cy] = m.can_centre();
-            let inset = 2.0 * CAN_EDGE_MM;
-            let can = plane([cx, cy, top], [cw - inset, cl - inset]);
-            push(
-                "can_top",
-                "the shield can's flat top (laser marking: model, logo, certifications, 2D code)",
-                can.map(SurfaceGeometry::Plane),
-            );
-            for (name, face, origin, size, what) in [
-                (
-                    "can_pos_x",
-                    BoxFace::PosX,
-                    [cx + cw / 2.0, cy, (pcb + top) / 2.0],
-                    [cl, top - pcb],
-                    "the can's +x side",
-                ),
-                (
-                    "can_neg_x",
-                    BoxFace::NegX,
-                    [cx - cw / 2.0, cy, (pcb + top) / 2.0],
-                    [cl, top - pcb],
-                    "the can's −x side",
-                ),
-                (
-                    "can_pos_y",
-                    BoxFace::PosY,
-                    [cx, cy + cl / 2.0, (pcb + top) / 2.0],
-                    [cw, top - pcb],
-                    "the can's +y side, towards the antenna",
-                ),
-                (
-                    "can_neg_y",
-                    BoxFace::NegY,
-                    [cx, cy - cl / 2.0, (pcb + top) / 2.0],
-                    [cw, top - pcb],
-                    "the can's −y side",
-                ),
-            ] {
-                let (normal, u_axis) = face.frame();
-                let area = MarkingArea::from_mm(origin, normal, u_axis, size).ok();
-                push(name, what, sized_plane(area));
-            }
-            // The board beyond the can towards the antenna end.
-            let (hl, hw) = (m.length() / 2.0, m.width() / 2.0);
-            let from = (cy + cl / 2.0).max(-hl);
-            let beyond = plane(
-                [0.0, (from + hl) / 2.0, pcb + MODULE_TRACE_MM],
-                [2.0 * hw, hl - from],
-            );
-            push(
-                "pcb_top",
-                "the module board's top beyond the can (silkscreen)",
-                sized_plane(beyond),
-            );
-            if m.antenna_length() > 0.0 {
-                let from = hl - m.antenna_length().min(m.length());
-                let antenna = plane(
-                    [0.0, (from + hl) / 2.0, pcb + MODULE_TRACE_MM],
-                    [2.0 * hw, hl - from],
-                );
-                push(
-                    "antenna_area",
-                    "the antenna end of the module board (silkscreen beside the trace)",
-                    sized_plane(antenna),
-                );
-            }
-        }
-        PackageForm::Tht(t) => match t.kind.mm() {
-            ThtBody::Radial {
-                body_diameter,
-                body_height,
-            } => {
-                let s = t.standoff();
-                let r = body_diameter / 2.0;
-                // The top's round edge (the model's, est.) is left bare.
-                let round = 0.3f64.min(0.1 * body_diameter).min(body_height / 6.0);
-                let top = plane(
-                    [0.0, 0.0, s + body_height],
-                    [
-                        DISC_RECT[0] * (body_diameter - 2.0 * round),
-                        DISC_RECT[1] * (body_diameter - 2.0 * round),
-                    ],
-                );
-                push(
-                    "top",
-                    "the can top (vent score, a planar mark)",
-                    sized_plane(top),
-                );
-                if r > 0.0 && body_height > 2.0 * round {
-                    push(
-                        "sleeve",
-                        "the sleeve round the body; angle 0 faces lead 2 (+x, the negative lead)",
-                        cylinder(
-                            [0.0, 0.0, s],
-                            [0.0, 0.0, 1.0],
-                            [1.0, 0.0, 0.0],
-                            r,
-                            body_height - round,
-                            false,
-                        ),
-                    );
-                }
-            }
-            ThtBody::Axial {
-                body_diameter,
-                body_length,
-            } => {
-                let r = body_diameter / 2.0;
-                let round = 0.3f64.min(0.2 * body_diameter).min(body_length / 6.0);
-                let zc = t.standoff() + r;
-                if r > 0.0 && body_length > 2.0 * round {
-                    push(
-                        "body",
-                        "the round body lying along x; u runs along it, angle 0 faces down",
-                        cylinder(
-                            [-body_length / 2.0 + round, 0.0, zc],
-                            [1.0, 0.0, 0.0],
-                            [0.0, 0.0, -1.0],
-                            r,
-                            body_length - 2.0 * round,
-                            true,
-                        ),
-                    );
-                }
-            }
-            _ => {}
-        },
-        PackageForm::Molded(m) if m.lead == MoldedLead::Melf => {
-            let r = m.body_width() / 2.0;
-            let half = (m.span() / 2.0 - m.terminal_length()).min(m.body_length() / 2.0);
-            if r > 0.0 && half > 0.0 {
-                push(
-                    "body",
-                    "the round MELF body between its caps; u runs along it, angle 0 faces down",
-                    cylinder(
-                        [-half, 0.0, m.body_bottom() + r],
-                        [1.0, 0.0, 0.0],
-                        [0.0, 0.0, -1.0],
-                        r,
-                        2.0 * half,
-                        true,
-                    ),
-                );
-            }
-        }
-        _ => {}
-    }
-    out
-}
-
 /// The named anchors a package offers: a part file's derived surfaces
-/// (docs/part-templates.md §11), else its form's ([`anchors`]).
+/// (docs/part-templates.md §11); none for any other model.
 pub fn package_anchors(package: &super::super::PackageDefinition) -> Vec<AnchorInfo> {
     match &package.model {
         super::super::PackageModel::PartFile(part) => part.derived.surfaces.clone(),
-        _ => anchors(&package.form),
+        _ => Vec::new(),
     }
 }
 
@@ -733,11 +513,6 @@ pub fn package_anchor(package: &super::super::PackageDefinition, name: &str) -> 
     package_anchors(package)
         .into_iter()
         .find(|a| a.name == name)
-}
-
-/// The anchor `name` of `form`, if it offers one.
-pub fn anchor_of(form: &PackageForm, name: &str) -> Option<AnchorInfo> {
-    anchors(form).into_iter().find(|a| a.name == name)
 }
 
 /// The chart region and layout chart of a resolved surface under
@@ -770,8 +545,6 @@ pub fn region(geometry: &SurfaceGeometry, placement: &Placement) -> Option<([f64
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::library::package_form::module::ModuleForm;
-    use crate::library::package_form::tht::{ThtForm, ThtKind};
     use crate::tests::support::nm;
 
     type Fallible = std::result::Result<(), Box<dyn std::error::Error>>;
@@ -825,66 +598,6 @@ mod tests {
             .ok_or("partial")?;
         assert!((part.region[0] - 2.5 * std::f64::consts::FRAC_PI_2).abs() < 1e-12);
         assert!((part.region[1] - 3.0).abs() < 1e-12 && (part.mid - 2.5).abs() < 1e-12);
-        Ok(())
-    }
-
-    #[test]
-    fn module_anchors_are_the_can_top_and_the_board_beyond_it() -> Fallible {
-        let m = ModuleForm::typical();
-        let form = PackageForm::Module(Box::new(m.clone()));
-        let names: Vec<String> = anchors(&form).into_iter().map(|a| a.name).collect();
-        for n in ["can_top", "pcb_top", "antenna_area", "can_pos_x"] {
-            assert!(names.iter().any(|x| x == n), "{n} in {names:?}");
-        }
-        let Some(SurfaceGeometry::Plane(can)) = anchor_of(&form, "can_top").map(|a| a.geometry)
-        else {
-            return Err("can top".into());
-        };
-        assert_eq!(can.origin(), [0.0, -2.5, m.height()]);
-        assert!((can.size()[0] - 16.0).abs() < 1e-9 && (can.size()[1] - 16.8).abs() < 1e-9);
-        let Some(SurfaceGeometry::Plane(pcb)) = anchor_of(&form, "pcb_top").map(|a| a.geometry)
-        else {
-            return Err("pcb top".into());
-        };
-        // The can ends at y = −2.5 + 8.7 = 6.2; the board at 12.5.
-        assert!((pcb.size()[1] - (12.5 - 6.2)).abs() < 1e-9);
-        assert!(
-            (pcb.origin()[2] - (MODULE_PAD_MM + m.pcb_thickness() + MODULE_TRACE_MM)).abs() < 1e-12
-        );
-        assert!((pcb.origin()[1] - (6.2 + 12.5) / 2.0).abs() < 1e-9);
-        Ok(())
-    }
-
-    #[test]
-    fn a_radial_sleeve_faces_its_negative_lead_at_angle_zero() -> Fallible {
-        let form = PackageForm::Tht(Box::new(ThtForm {
-            kind: ThtKind::Radial {
-                body_diameter_nm: nm(5.0),
-                body_height_nm: nm(11.0),
-            },
-            ..ThtForm::typical()
-        }));
-        let Some(SurfaceGeometry::Cylinder(c)) = anchor_of(&form, "sleeve").map(|a| a.geometry)
-        else {
-            return Err("sleeve".into());
-        };
-        assert_eq!(c.zero, [1.0, 0.0, 0.0]);
-        assert_eq!(c.radius(), 2.5);
-        let p = Placement {
-            on: SurfaceRef::Anchor {
-                name: "sleeve".into(),
-            },
-            wrap: Some(Wrap {
-                repeat: 2,
-                ..Wrap::default()
-            }),
-            ..Placement::default()
-        };
-        let (region, chart) = region(&SurfaceGeometry::Cylinder(c), &p).ok_or("region")?;
-        assert!((region[0] - std::f64::consts::PI * 2.5).abs() < 1e-9);
-        assert!(
-            matches!(chart, Chart::Wrap { span, .. } if (span - std::f64::consts::PI).abs() < 1e-12)
-        );
         Ok(())
     }
 

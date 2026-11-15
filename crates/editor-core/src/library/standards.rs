@@ -101,6 +101,9 @@ pub struct Context {
     /// retired builder's model whose shape now ships as a library part (the
     /// USB-C receptacle) evaluates that part file.
     parts: std::result::Result<Arc<Vec<ShippedPart>>, String>,
+    /// The PCB realism showcase's parts (`library/showcase/parts.json`),
+    /// or why reading them failed.
+    showcase: std::result::Result<Arc<crate::library::showcase_parts::ShowcaseParts>, String>,
 }
 
 /// A shipped part file as the host read it: its name (the file's stem)
@@ -186,7 +189,38 @@ impl Context {
                 "the shipped part files were not loaded: the program reads the shipped library's parts/ folder before it builds a 3D model"
                     .into(),
             ),
+            showcase: Err(
+                "the showcase parts were not loaded: the program reads the shipped library's showcase/ folder before it builds the showcase"
+                    .into(),
+            ),
         }
+    }
+
+    /// This context with the showcase's parts, or why reading them failed.
+    #[must_use]
+    pub fn with_showcase(
+        mut self,
+        showcase: std::result::Result<crate::library::showcase_parts::ShowcaseParts, String>,
+    ) -> Self {
+        self.showcase = showcase.map(Arc::new);
+        self
+    }
+
+    /// The showcase's parts, or why they are not there.
+    pub fn showcase(&self) -> Result<&crate::library::showcase_parts::ShowcaseParts> {
+        self.showcase
+            .as_deref()
+            .map_err(|why| Error::Invalid(why.clone()))
+    }
+
+    /// The bytes of the shipped part file of SHA-256 `hash`, from any
+    /// shipped generator bundle.
+    pub fn bundled_part(&self, hash: crate::ids::ContentHash) -> Option<&Arc<[u8]>> {
+        self.generators
+            .as_ref()
+            .ok()?
+            .iter()
+            .find_map(|g| g.part(hash))
     }
 
     /// This context with the shipped part files, or why reading them
@@ -300,7 +334,8 @@ impl Context {
                             Context::new(standards)
                                 .with_materials(materials)
                                 .with_generators(Ok(fixture::generators()))
-                                .with_parts(Ok(fixture::parts())),
+                                .with_parts(Ok(fixture::parts()))
+                                .with_showcase(fixture::showcase()),
                         )
                     })
                     .map_err(|e| e.to_string())
@@ -616,6 +651,15 @@ pub mod fixture {
 
     /// The repository's shipped part files a 3D build evaluates for a
     /// package that stored a retired builder's model, as committed.
+    pub fn showcase() -> std::result::Result<crate::library::showcase_parts::ShowcaseParts, String>
+    {
+        crate::library::showcase_parts::ShowcaseParts::parse(include_str!(
+            "../../../../library/showcase/parts.json"
+        ))
+        .map_err(|e| e.to_string())
+    }
+
+    /// The repository's shipped part files, as committed.
     pub fn parts() -> Vec<ShippedPart> {
         vec![ShippedPart {
             name: "gct-usb4105".into(),
@@ -636,6 +680,16 @@ pub mod fixture {
         }
         let part = |bytes: &[u8]| (crate::library::bundle::asset_hash(bytes), Arc::from(bytes));
         vec![
+            ShippedGenerator {
+                name: "chip".into(),
+                module: Arc::from(&bytes!("chip/chip.wasm")[..]),
+                parts: vec![
+                    part(bytes!("chip/parts/chip-capacitor.solidcraft")),
+                    part(bytes!("chip/parts/chip-ferrite.solidcraft")),
+                    part(bytes!("chip/parts/chip-led.solidcraft")),
+                    part(bytes!("chip/parts/chip-resistor.solidcraft")),
+                ],
+            },
             ShippedGenerator {
                 name: "header".into(),
                 module: Arc::from(&bytes!("header/header.wasm")[..]),
@@ -763,25 +817,18 @@ pub mod fixture {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Engine, Query, QueryResult};
+    use crate::Engine;
 
-    /// A resistor the shipped grammar's own example names.
-    fn example() -> Result<String> {
-        Context::fixture()?
-            .standards()
+    /// The resistor families the engine's own standards declare, read
+    /// inside its context as its calls read them.
+    fn resistors(engine: &Engine) -> Result<usize> {
+        let _scope = engine.enter_context();
+        Ok(get()?
             .generic
             .families
             .iter()
-            .find(|family| family.family == GenericFamily::Resistor)
-            .and_then(|family| family.examples.first().cloned())
-            .ok_or_else(|| Error::NotFound("a resistor example".into()))
-    }
-
-    fn resistors(engine: &Engine) -> Result<usize> {
-        match engine.query(Query::GenericParts { query: example()? })? {
-            QueryResult::GenericParts(report) => Ok(report.candidates.len()),
-            _ => Err(Error::Invalid("not a generic-parts report".into())),
-        }
+            .filter(|family| family.family == GenericFamily::Resistor)
+            .count())
     }
 
     /// Two engines in one process, handed different standards, answer the

@@ -38,7 +38,7 @@ pub mod publish;
 pub mod report;
 pub mod sidecar;
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 pub use command::{ExportTarget, InterfaceCommand, PublishParams, PublishPreviewParams};
 pub use report::{

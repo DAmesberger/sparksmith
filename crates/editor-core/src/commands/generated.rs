@@ -99,11 +99,11 @@ pub struct PackageFromGenerator {
     /// package's (and with them the binding's mappings): by number unless
     /// the request chooses position.
     #[serde(default)]
-    pub terminals: crate::library::templates::catalog::TerminalMatch,
+    pub terminals: super::working_package::TerminalMatch,
     /// With matching by number: current terminals that are a generated
     /// terminal under another number, stated explicitly. Never inferred.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub renumber: Vec<crate::library::templates::catalog::Renumber>,
+    pub renumber: Vec<super::working_package::Renumber>,
 }
 
 /// `library.package_from_generator`: make the package with its generator
@@ -121,7 +121,7 @@ pub(crate) fn package_from_generator(
             "generated.scope: a working set's package comes from a package-scope generation".into(),
         ));
     }
-    super::templates::check_working_package(document, request.draft, request.replace)?;
+    super::working_package::check_working_package(document, request.draft, request.replace)?;
     let Outcome::Generated { report } = generate(document, request.generate, runtime)? else {
         return Err(Error::Invalid(
             "generated.record: the generator made no package".into(),
@@ -155,7 +155,7 @@ pub(crate) fn package_from_generator(
             .map_or(0, |g| g.from.version),
         report.root.id
     );
-    super::templates::adopt_generated_package(
+    super::working_package::adopt_generated_package(
         document,
         request.draft,
         request.replace,

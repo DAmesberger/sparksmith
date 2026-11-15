@@ -180,7 +180,7 @@ _Avoid_: Preset (test and sample data only), wizard
 A family's built-in template entry of original typical values (estimated) that the author edits; listed with the rows, never a citation.
 
 **Template gallery**:
-The one searchable "New from template" sheet over package rows and custom entries (`library.templates`): new-component scope from New and the start page, package scope from the Footprint tab's From template.
+The generator gallery: one searchable sheet over the shipped generators, their presets and custom values (`library.generators`), new-component scope from New and the start page, package scope from the package panel's Change package….
 
 **Start page**:
 What the Component workspace shows when no component is open: catalog search, Recent and New from template…. The workspace never opens a component the user did not choose.

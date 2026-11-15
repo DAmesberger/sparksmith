@@ -13,14 +13,14 @@ pub mod models;
 pub mod preview;
 mod query;
 pub mod synthetic;
-pub mod templates;
 
 pub use query::{
     BODY_TOLERANCE_MM, Badge, CatalogQuery, FieldTest, MAX_QUERY, MAX_TERMS, Op,
     PITCH_TOLERANCE_MM, QueryError, RESERVED, SizeSystem, Term, Test, Vocabulary, VocabularyField,
     VocabularyKind, fold, parse, parse_query, rkm, term_spans,
 };
-pub use templates::{PackageShape, SourceRow};
+mod shape;
+pub use shape::PackageShape;
 
 use crate::diagnostics::{Error, Result};
 use crate::fields::{
@@ -104,10 +104,6 @@ pub struct SourceCatalog {
     /// them) to survive io's cache; [`Index::with_sources`] puts them back.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ratings: Vec<EntryRating>,
-    /// The source's package template rows at their latest revisions, in
-    /// source-lineage order (`library.templates` searches them).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub rows: Vec<SourceRow>,
 }
 
 /// One rated reading of a [`SourceCatalog`] entry field.
@@ -209,7 +205,6 @@ pub fn source_catalog(
         fields: held.fields.clone(),
         ..Library::default()
     };
-    let rows = templates::source_rows(held, &source_of)?;
     Ok(SourceCatalog {
         library,
         name: name.to_owned(),
@@ -218,7 +213,6 @@ pub fn source_catalog(
         fields,
         revisions,
         ratings,
-        rows,
     })
 }
 
@@ -475,9 +469,9 @@ pub struct CatalogEntry {
     /// entry are kept under this library identity (see [`Self::user_key`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub origin: Option<Origin>,
-    /// The typed shapes of the entry's packages (lead count, pitch, body),
-    /// in `packages` order where a package has a typed form: what the
-    /// `pins:`, `pitch:` and `body:` filters test.
+    /// The shapes of the entry's packages (lead count, pitch, body), in
+    /// `packages` order: what the `pins:`, `pitch:` and `body:` filters
+    /// test.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shapes: Vec<PackageShape>,
 }
@@ -579,7 +573,7 @@ fn entry_of(
             if !packages.contains(&package.meta.name) {
                 packages.push(package.meta.name.clone());
             }
-            if let Some(shape) = PackageShape::of(&package.definition.form)
+            if let Some(shape) = PackageShape::of(&package.definition)
                 && !shapes.contains(&shape)
             {
                 shapes.push(shape);
@@ -661,7 +655,7 @@ fn part_entry(
         if let Some(package) = library.package(binding.definition.package) {
             badges.model = package.definition.envelope_valid();
             packages.push(package.meta.name.clone());
-            shapes.extend(PackageShape::of(&package.definition.form));
+            shapes.extend(PackageShape::of(&package.definition));
         }
     }
     CatalogEntry {
@@ -860,11 +854,6 @@ pub struct CatalogContext {
     /// project's own entries; never part of a request on the wire.
     #[serde(skip)]
     pub sources: Vec<Arc<SourceCatalog>>,
-    /// Leave the built-in starter package rows out of
-    /// `library.templates` (tests of project rows alone); hosts list them,
-    /// the default.
-    #[serde(skip)]
-    pub without_starter_rows: bool,
 }
 
 impl CatalogContext {
@@ -875,7 +864,6 @@ impl CatalogContext {
             favourites: favourites.iter().map(key).collect(),
             recent: recent.iter().map(key).collect(),
             sources: Vec::new(),
-            without_starter_rows: false,
         }
     }
 }

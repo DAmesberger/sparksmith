@@ -356,9 +356,7 @@ fn trace_model<'a>(
                 }
             }
         }
-        PackageModel::Generated { .. } | PackageModel::Envelope { .. } => {
-            TraceModel::Package { package }
-        }
+        PackageModel::Envelope { .. } => TraceModel::Package { package },
     };
     Ok((model, design_key(&model)?))
 }
@@ -386,7 +384,6 @@ pub fn design_key(model: &TraceModel<'_>) -> Result<ContentHash> {
             "values": part.values,
         }),
         TraceModel::Package { package } => serde_json::json!({
-            "form": package.form,
             "model": package.model,
             "envelope": package.envelope(),
         }),

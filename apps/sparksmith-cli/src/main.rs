@@ -10,7 +10,6 @@ mod part;
 mod pinout;
 mod plugin;
 mod review_diff;
-mod sample_packages;
 
 use serde_json::{Value, json};
 use sparksmith_automation::{Caller, Grant, Mode, Session, lines, live, mcp, session};
@@ -79,7 +78,6 @@ fn usage() -> String {
     [
         convert::USAGE,
         pinout::USAGE,
-        sample_packages::USAGE,
         firmware::USAGE,
         fab_profile::USAGE,
         design_part::USAGE,
@@ -355,7 +353,6 @@ fn run() -> Result<()> {
         }
         [command, rest @ ..] if command == "fab" => fab::run(rest),
         [command, rest @ ..] if command == "pinout" => pinout::run(rest),
-        [command, rest @ ..] if command == "sample-packages" => sample_packages::run(rest),
         [command, rest @ ..] if command == "firmware" => firmware::run(rest),
         [command, rest @ ..] if command == "fab-profile" => fab_profile::run(rest),
         [command, rest @ ..] if command == "design-part" => design_part::run(rest),

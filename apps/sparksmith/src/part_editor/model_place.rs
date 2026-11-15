@@ -203,7 +203,10 @@ pub fn model_points(package: &PackageDefinition, placement: &ModelPlacement) -> 
         }
     }
     let t = placement.transform();
-    out.extend(package.form.lead_points().into_iter().map(|p| t.apply(p)));
+    out.extend(package.leads.iter().map(|l| {
+        let [x, y] = l.contact.to_mm_f64();
+        t.apply([x, y, 0.0])
+    }));
     out
 }
 
@@ -371,12 +374,23 @@ pub fn overlay(footprint: &FootprintDefinition, package: &PackageDefinition) -> 
 mod tests {
     use super::*;
     use crate::schematic_editor::pt;
-    use sparksmith_core::library::package_form::typical_nm as nm;
-    use sparksmith_core::library::{PackageTerminal, Pad};
+    use sparksmith_core::library::{PackageLead, PackageTerminal, Pad};
+    use sparksmith_core::units::{Nm, PointNm};
     use sparksmith_core::{PackageTerminalId, PadId};
+
+    fn nm(mm: f64) -> Nm {
+        Nm::from_mm_f64_rounded(mm).unwrap_or(Nm::ZERO)
+    }
+
+    /// The SOIC-8 preset's lead contacts: rows along x at y = ∓2.7 mm,
+    /// 1.27 mm pitch, pin 1 at the −x end of the −y row.
+    fn soic_contact(k: u32) -> [f64; 2] {
+        let x = -1.905 + 1.27 * f64::from(k % 4);
+        if k < 4 { [x, -2.7] } else { [-x, 2.7] }
+    }
     use sparksmith_solidcraft::geom::Vec3;
 
-    /// The SOIC-8 sample form, whose rows run along x.
+    /// The SOIC-8 preset package, whose rows run along x.
     pub fn soic() -> PackageDefinition {
         PackageDefinition {
             terminals: (1..=8)
@@ -385,7 +399,12 @@ mod tests {
                     designation: i.to_string(),
                 })
                 .collect(),
-            form: sparksmith_core::library::samples::Preset::Soic8.form(),
+            leads: (0..8)
+                .map(|k| PackageLead {
+                    terminal: PackageTerminalId(k + 1),
+                    contact: PointNm::from_mm_f64_rounded(soic_contact(k)).unwrap_or_default(),
+                })
+                .collect(),
             envelope_nm: [nm(4.9), nm(6.0), nm(1.6)],
             ..PackageDefinition::default()
         }
@@ -450,7 +469,8 @@ mod tests {
         let pad = board_points(&fp)[1];
         let moved = point_to_point(&placement, lead, pad);
         let t = moved.map(|p| p.transform());
-        let landed = t.map(|t| t.apply(package.form.lead_points()[7]));
+        let [x, y] = soic_contact(7);
+        let landed = t.map(|t| t.apply([x, y, 0.0]));
         assert!(landed.is_some_and(|q| q.iter().zip(pad).all(|(a, b)| (a - b).abs() < 1e-9)));
         // The datum origin is the first board point; 26 model points.
         assert_eq!(board_points(&fp)[0], [0.0; 3]);

@@ -8,6 +8,6 @@
     "net_disagreements",
     "refused_import_tracks"
   ],
-  "schema_sha256": "d0f63465dc51d928076559f62e5236941cdd0c03ccb9351f28b1817b0a78946b",
-  "version": 4
+  "schema_sha256": "c426cd9faba92682d2a179d2c2311adcff6a431c33541c2fe6d65e708900ef6b",
+  "version": 5
 }

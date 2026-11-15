@@ -699,13 +699,10 @@ impl PartEditor {
             "From generator",
         )
         .enabled(has_draft)
-        .selected(
-            self.template_picker.is_open()
-                || matches!(
-                    self.gallery.scope(),
-                    Some(crate::generator_gallery::Scope::Package { .. })
-                ),
-        )
+        .selected(matches!(
+            self.gallery.scope(),
+            Some(crate::generator_gallery::Scope::Package { .. })
+        ))
         .tip("Take the package, footprint and model from a generator")
     }
 
@@ -1285,7 +1282,7 @@ impl PartEditor {
             .map(|n| n.to_string())
             .find(|n| !taken(n))
             .unwrap_or_else(|| physical.to_string());
-        let chip = set.package.chip_kind().is_some() && set.package.terminals.len() >= 2;
+        let chip = set.package.chip().is_some() && set.package.terminals.len() >= 2;
         let land = Pad::smd_rect_mm(
             PadId(pad),
             physical,
@@ -1533,11 +1530,7 @@ impl PartEditor {
         match (self.subject_kind(), self.view) {
             (Subject::Dialog, _) => {
                 self.post_footprint_refusals(ui.ctx());
-                Some(if self.template_picker.is_open() {
-                    self.template_dialog(ui)
-                } else {
-                    self.assign_dialog(ui)
-                })
+                Some(self.assign_dialog(ui))
             }
             (Subject::Tool, View::Footprint) => {
                 self.post_footprint_refusals(ui.ctx());

@@ -13,9 +13,8 @@
 //!
 //! The allowlist holds the program's own assets (fonts, shaders, icons) and
 //! the MCP skill prompt, which belong to the program rather than to the
-//! library, and the sites that are still being moved to `library/`. An
-//! entry that no longer matches a site fails, so it is removed with the
-//! data it allowed.
+//! library. An entry that no longer matches a site fails, so it is removed
+//! with the data it allowed.
 use crate::{Result, root};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -28,8 +27,6 @@ enum Reason {
     UiAsset,
     /// The MCP prompt served from a skill.
     SkillPrompt,
-    /// In-code templates the generator modules replace in slice GP5.
-    UntilGp5,
 }
 
 /// `(source file, included path suffix, reason)`.
@@ -55,47 +52,6 @@ const ALLOWED: &[(&str, &str, Reason)] = &[
         "crates/automation/src/mcp/prompts.rs",
         "skills/sparksmith-datasheet-part/SKILL.md",
         Reason::SkillPrompt,
-    ),
-    // Until GP5: the starter package rows, which generator modules replace.
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/chip.json",
-        Reason::UntilGp5,
-    ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/gull_wing.json",
-        Reason::UntilGp5,
-    ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/no_lead.json",
-        Reason::UntilGp5,
-    ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/header.json",
-        Reason::UntilGp5,
-    ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/tabbed.json",
-        Reason::UntilGp5,
-    ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/molded.json",
-        Reason::UntilGp5,
-    ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/grid.json",
-        Reason::UntilGp5,
-    ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/tht.json",
-        Reason::UntilGp5,
     ),
 ];
 
@@ -560,7 +516,7 @@ mod tests {
         )])?;
         let allowed = [
             ("crates/ui/src/fonts.rs", "fonts/Plex.ttf", Reason::UiAsset),
-            ("crates/ui/src/gone.rs", "old.json", Reason::UntilGp5),
+            ("crates/ui/src/gone.rs", "old.json", Reason::SkillPrompt),
         ];
         let report = review(&sites, &allowed);
         assert_eq!(report.allowed.len(), 1);

@@ -16,8 +16,6 @@ use crate::library::package_fit::{self, FitRotation, LeadPair};
 use crate::library::package_model::PackageEdit;
 use crate::library::pad_table::{self, FootprintFromPads};
 use crate::library::pinout::PinoutApply;
-use crate::library::templates::catalog::{NewFromTemplate, PackageFromTemplate, SavePackageRow};
-use crate::library::templates::footprint_family::{self, FootprintTemplate};
 use crate::library::{self, Definition, DefinitionMeta, DraftEdit, Grid, drafts, standard_fields};
 use crate::model::Document;
 use crate::model::PhysicalChoice;
@@ -132,25 +130,6 @@ pub enum LibraryCommand {
         draft: DefinitionId,
         edits: Vec<FootprintEdit>,
     },
-    /// Build a family template (chip, gull-wing, QFN/DFN, pin header) into an
-    /// empty footprint draft, as one undo step. The template's edits (named
-    /// parameters, template pads, arrays, the pin-1 polarity and explicit
-    /// derived courtyard and assembly roles) go through the same path as
-    /// `library.edit_footprint`, evaluated once; any failure leaves the draft
-    /// unchanged. Terminals stay unassigned. A draft that already has pads or
-    /// parametric content is refused (`footprint.template_not_empty`) unless
-    /// `replace` is true: then its source, pads, polarity and role-solved
-    /// graphics are dropped and the template built in their place, still one
-    /// atomic undo step (authored graphics and mask/paste defaults stay). Needs
-    /// the host's footprint evaluator.
-    #[serde(rename = "library.footprint_from_template")]
-    FootprintFromTemplate {
-        draft: DefinitionId,
-        template: Box<FootprintTemplate>,
-        /// Replace the draft's current content instead of refusing it.
-        #[serde(default)]
-        replace: bool,
-    },
     /// Build a footprint draft from a datasheet's pad table, as one undo step.
     /// Pad rows, plated or unplated slots and holes become an explicit
     /// footprint, with the assembly outline, silkscreen broken around the pads,
@@ -238,39 +217,6 @@ pub enum LibraryCommand {
         rotation: FitRotation,
         confirm: bool,
     },
-    /// Create component, symbol, package, footprint and binding drafts from a
-    /// template row and a skeleton, as one undo step. A custom family's values
-    /// can stand in for the row (B1). Needs the host's footprint evaluator.
-    #[serde(rename = "library.new_from_template")]
-    NewFromTemplate(Box<NewFromTemplate>),
-    /// `library.new_from_template`, then `library.publish` of its five
-    /// drafts (closing them), as one undo step: a component ready to place.
-    /// Any refusal changes nothing. Needs the host's footprint evaluator.
-    #[serde(rename = "library.publish_from_template")]
-    PublishFromTemplate(Box<NewFromTemplate>),
-    /// Find the part a text reads as (`library.generic_parts`), or build and
-    /// publish it, as one undo step. The identical part the project holds is
-    /// returned and nothing changes; otherwise it is built and published as
-    /// `library.publish_from_template` does. A text that reads as several parts
-    /// is refused until `candidate` picks one by its index in that report. The
-    /// outcome's `properties` are the text's values for `component.place`.
-    /// Needs the host's footprint evaluator.
-    #[serde(rename = "library.find_or_create")]
-    FindOrCreate {
-        query: String,
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        candidate: Option<usize>,
-    },
-    /// Replace a working set's package, footprint and generated model from a
-    /// template row, as one undo step. A non-empty footprint is refused unless
-    /// `replace` (B1). Terminal mappings change only through
-    /// `library.assign_terminals`. Needs the host's footprint evaluator.
-    #[serde(rename = "library.package_from_template")]
-    PackageFromTemplate(Box<PackageFromTemplate>),
-    /// B1: save a package's form (or explicit values) as a new package-row
-    /// draft.
-    #[serde(rename = "library.save_package_row")]
-    SavePackageRow(Box<SavePackageRow>),
     /// Apply a pinout document as `library.pinout_preview` previewed it,
     /// atomically, as one undo step. Refused when the target changed since
     /// `base` (C3). Imported rows stay unreviewed.
@@ -327,7 +273,6 @@ declare_entries!(LibraryCommand in library {
     RestyleSymbol "library.restyle_symbol" Edit "Restyle a symbol",
     EditGraphics "library.edit_graphics" Edit "Edit symbol graphics",
     EditFootprint "library.edit_footprint" Edit "Edit a footprint",
-    FootprintFromTemplate "library.footprint_from_template" Edit "Footprint from a template",
     FootprintFromPads "library.footprint_from_pads" Edit "Footprint from pads",
     AssignTerminals "library.assign_terminals" Edit "Assign pads to terminals",
     Import "library.import" Edit "Import a bundle",
@@ -337,11 +282,6 @@ declare_entries!(LibraryCommand in library {
     Duplicate "library.duplicate" Edit "Duplicate a definition",
     EditPackage "library.edit_package" Edit "Edit a package",
     FitLeads "library.fit_leads" Edit "Fit leads to pads",
-    NewFromTemplate "library.new_from_template" Edit "New part from a template",
-    PublishFromTemplate "library.publish_from_template" Ask "Publish a part from a template",
-    FindOrCreate "library.find_or_create" Ask "Find or create a generic part",
-    PackageFromTemplate "library.package_from_template" Edit "Package from a row",
-    SavePackageRow "library.save_package_row" Edit "Save a package row",
     PinoutApply "library.pinout_apply" Edit "Apply a pinout import" [review],
     ImportModel "library.import_model" Edit "Import a 3D model",
     PackArtwork "library.pack_artwork" Edit "Pack marking artwork",
@@ -486,7 +426,7 @@ fn restyle_symbol(
     let mut definition = library::symbol_style::restyle(symbol, kind, conventions, &order)?;
     if kind == library::symbol_style::SymbolKind::IcBox {
         // The box is as wide as its pin names need.
-        library::samples::fit_pin_names(&mut definition, |terminal| {
+        library::symbol_blocks::fit_pin_names(&mut definition, |terminal| {
             named
                 .iter()
                 .find(|(id, _)| *id == terminal)
@@ -1060,28 +1000,6 @@ pub(crate) fn apply_library(
             drafts::edit(Arc::make_mut(&mut document.drafts), vec![edit])?;
             Ok(Outcome::GraphicsEdited { added })
         }
-        LibraryCommand::FootprintFromTemplate {
-            draft,
-            template,
-            replace,
-        } => {
-            let (current, footprint) = footprint_draft(document, draft)?;
-            let package = package_of(document, footprint)?;
-            let build = if replace {
-                footprint_family::rebuild
-            } else {
-                footprint_family::build
-            };
-            let (definition, report) = build(footprint, package, &template, need(evaluator)?)?;
-            let edit = DraftEdit {
-                id: draft,
-                meta: current.meta.clone(),
-                definition: Definition::Footprint(definition),
-            };
-            drafts::edit(Arc::make_mut(&mut document.drafts), vec![edit])?;
-            follow_envelope(document, draft)?;
-            Ok(Outcome::FootprintEdited { report })
-        }
         LibraryCommand::FootprintFromPads(request) => {
             let draft = request.draft;
             let (current, footprint) = footprint_draft(document, draft)?;
@@ -1261,36 +1179,6 @@ pub(crate) fn apply_library(
                 fit,
                 applied: confirm,
             })
-        }
-        LibraryCommand::NewFromTemplate(request) => {
-            super::templates::new_from_template(document, *request, evaluator)
-        }
-        LibraryCommand::PublishFromTemplate(request) => {
-            let drafts = match super::templates::new_from_template(document, *request, evaluator)? {
-                Outcome::DraftsCreated { ids } => ids,
-                _ => {
-                    return Err(Error::Invalid(
-                        "library.new_from_template returned an unexpected outcome".into(),
-                    ));
-                }
-            };
-            apply_library(
-                document,
-                LibraryCommand::Publish {
-                    drafts,
-                    close: true,
-                },
-                evaluator,
-            )
-        }
-        LibraryCommand::FindOrCreate { query, candidate } => {
-            super::templates::find_or_create(document, &query, candidate, evaluator)
-        }
-        LibraryCommand::PackageFromTemplate(request) => {
-            super::templates::package_from_template(document, *request, evaluator)
-        }
-        LibraryCommand::SavePackageRow(request) => {
-            super::templates::save_package_row(document, *request)
         }
         LibraryCommand::PinoutApply(request) => super::pinout::apply(document, *request),
         LibraryCommand::ImportModel(request) => {
