@@ -52,6 +52,8 @@ pub(crate) struct Ax {
     nodes: Vec<Node>,
     /// The texts the last frame painted, whole (a cut text's full text).
     pub texts: Vec<String>,
+    /// Every text a frame handed to the platform's clipboard, oldest first.
+    pub copied: Vec<String>,
 }
 
 impl Ax {
@@ -117,6 +119,7 @@ impl Ax {
             window: WINDOW,
             nodes: Vec::new(),
             texts: Vec::new(),
+            copied: Vec::new(),
         };
         ax.settle();
         Ok(ax)
@@ -147,6 +150,11 @@ impl Ax {
             .into_iter()
             .map(|(text, ..)| text)
             .collect();
+        self.copied
+            .extend(out.platform_output.commands.iter().filter_map(|c| match c {
+                egui::OutputCommand::CopyText(text) => Some(text.clone()),
+                _ => None,
+            }));
         if let Some(update) = out.platform_output.accesskit_update.take() {
             self.nodes = nodes(&update);
         }

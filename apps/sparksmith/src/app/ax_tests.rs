@@ -32,6 +32,36 @@ fn wire_middle(ax: &Ax) -> Fallible<(sparksmith_core::Id, egui::Pos2)> {
 /// R1's body on the demo sheet, 12 mm left of the origin.
 const R1_BODY: Point = [-12.0, 0.0];
 
+/// Run 8, finding 4: Copy report in Issues hands the whole report to the
+/// platform's clipboard. eframe delivers it only when built with its
+/// `clipboard` feature; that the macOS pasteboard receives it needs a run
+/// in the VM.
+#[test]
+fn copy_report_hands_the_whole_report_to_the_clipboard() -> Fallible {
+    let mut ax = Ax::new(Workspace::Schematic)?;
+    ax.app.issues.open();
+    ax.settle();
+    ax.button("Copy report")?;
+    let scope = sparksmith_core::issues::IssueScope::Area {
+        area: crate::issues::area(Workspace::Schematic),
+    };
+    let sparksmith_core::QueryResult::Issues(report) = ax
+        .app
+        .engine
+        .query(sparksmith_core::Query::Issues { scope })?
+    else {
+        return Err("not an issues report".into());
+    };
+    assert!(!report.rows.is_empty(), "the demo has findings");
+    assert_eq!(
+        ax.copied.last(),
+        Some(&crate::issues::report_text(&report)),
+        "copied {:?}",
+        ax.copied
+    );
+    Ok(())
+}
+
 /// The in-window File menu opens from its button, lists its rows as
 /// buttons, closes on Esc without running anything, and its Save row
 /// saves.
