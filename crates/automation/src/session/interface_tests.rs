@@ -122,7 +122,7 @@ fn the_interface_slots_survive_undo_redo_save_and_reopen() -> TestResult {
             "h2",
             "h3",
             "h4",
-            "i80.opening",
+            "i85.opening",
             "side.bottom",
             "side.top",
         ]

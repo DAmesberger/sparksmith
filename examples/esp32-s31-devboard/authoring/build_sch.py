@@ -24,7 +24,9 @@ class Lib:
         return by_num, by_name
 
     def pins(self, symbol):
-        return {p["terminal"]: p for p in self.by[("symbols", symbol)]["definition"]["units"][0]["pins"]}
+        pins = self.by[("symbols", symbol)]["definition"]["units"][0]["pins"]
+        # Stored in nanometres; the requests take millimetres.
+        return {p["terminal"]: dict(p, position=[p["position"]["x_nm"] / 1e6, p["position"]["y_nm"] / 1e6]) for p in pins}
 
 
 def build(s, L):
@@ -41,7 +43,7 @@ def build(s, L):
     def place(key, des, at, sheet, values=()):
         part = L[key]
         props = [{"field": F[f], "input": {"input": "text", "value": v}} for f, v in values]
-        p = {"component": {"id": part["component"], "revision": 1}, "designator": des, "properties": props,
+        p = {"component": {"id": part["component"], "revision": part.get("revision", 1)}, "designator": des, "properties": props,
              "representation": part["symbol"], "unit": 1, "position": at,
              "physical": {"binding": part["binding"], "footprint": part["footprint"]}, "sheet": sheet}
         r = s.op("component.place", p, f"place {des}")
