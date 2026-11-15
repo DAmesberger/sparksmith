@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tabbed-flange",
+  "title": "DPAK and D2PAK package",
+  "summary": "Power package with a flange: an epoxy body, a row of bent tin gull-wing leads on −y (a pattern with its own count and grid step) and a flat tin flange on the seating plane under the body, reaching past its +y edge (pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length, row_s_leads, row_s_step, tab_width, tab_length, flange_protrusion, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the DPAK starter values (estimated from JEDEC TO-252); the tabbed generator gives every input its value. Estimated rounds, lead bends and flange; no vendor drawing or EDA/CAD library data copied."
+}

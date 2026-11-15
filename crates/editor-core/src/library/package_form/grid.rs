@@ -1,8 +1,8 @@
 //! Slice B2c: the grid array package family: BGA, LGA and WLCSP, with the
 //! depopulation mask and the row-letter alphabet (A1 numbering) as data.
 //! The form, its range rules and lead order live here; the footprint
-//! template is `templates/footprint_family/grid.rs` and the model builder
-//! `sparksmith-solidcraft` `models/grid.rs`.
+//! template is `templates/footprint_family/grid.rs`; the 3D model comes
+//! from the shipped `grid` generator (`generators/grid`).
 //!
 //! Frame: x along the body length (columns, numbered 1, 2, … from −x), y
 //! along the body width (rows, lettered from +y), seen from above. Ball A1

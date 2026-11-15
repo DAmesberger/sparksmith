@@ -540,6 +540,26 @@ pub mod fixture {
                 parts: vec![part(bytes!("header/parts/pin-header.solidcraft"))],
             },
             ShippedGenerator {
+                name: "gull-wing".into(),
+                module: Arc::from(&bytes!("gull-wing/gull-wing.wasm")[..]),
+                parts: vec![
+                    part(bytes!("gull-wing/parts/gull-wing-four-sided.solidcraft")),
+                    part(bytes!("gull-wing/parts/gull-wing-two-sided.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
+                name: "tht".into(),
+                module: Arc::from(&bytes!("tht/tht.wasm")[..]),
+                parts: vec![
+                    part(bytes!("tht/parts/tht-axial.solidcraft")),
+                    part(bytes!("tht/parts/tht-radial.solidcraft")),
+                    part(bytes!("tht/parts/tht-radial-formed.solidcraft")),
+                    part(bytes!("tht/parts/tht-dip.solidcraft")),
+                    part(bytes!("tht/parts/tht-to.solidcraft")),
+                    part(bytes!("tht/parts/tht-to-formed.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
                 name: "no-lead".into(),
                 module: Arc::from(&bytes!("no-lead/no-lead.wasm")[..]),
                 parts: vec![
@@ -561,6 +581,25 @@ pub mod fixture {
                     part(bytes!("molded/parts/molded-j-lead-band.solidcraft")),
                     part(bytes!("molded/parts/melf.solidcraft")),
                     part(bytes!("molded/parts/melf-band.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
+                name: "grid".into(),
+                module: Arc::from(&bytes!("grid/grid.wasm")[..]),
+                parts: vec![
+                    part(bytes!("grid/parts/grid-ball.solidcraft")),
+                    part(bytes!("grid/parts/grid-ball-voids.solidcraft")),
+                    part(bytes!("grid/parts/grid-land.solidcraft")),
+                    part(bytes!("grid/parts/grid-land-voids.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
+                name: "tabbed".into(),
+                module: Arc::from(&bytes!("tabbed/tabbed.wasm")[..]),
+                parts: vec![
+                    part(bytes!("tabbed/parts/tabbed-rows.solidcraft")),
+                    part(bytes!("tabbed/parts/tabbed-tab-lead.solidcraft")),
+                    part(bytes!("tabbed/parts/tabbed-flange.solidcraft")),
                 ],
             },
         ]

@@ -45,6 +45,9 @@ fn pt(p: [f64; 2]) -> sparksmith_core::units::PointNm {
     sparksmith_core::units::PointNm::from_mm_f64_rounded(p).unwrap_or_default()
 }
 
+#[path = "author_parts/tht.rs"]
+mod tht;
+
 const STEM: &str = "pkgT";
 
 fn wroom3() -> PackageDefinition {
@@ -1571,6 +1574,1315 @@ fn author_qfn_ep() -> Vec<u8> {
     author_no_lead(true, true)
 }
 
+/// Rectangular cut-outs of a depopulated grid's part file (the grid
+/// generator's `MAX_VOIDS`).
+const GRID_VOIDS: usize = 16;
+
+/// A part file of the `grid` generator's bundle: a grid array on solder
+/// balls (`balls`, BGA and WLCSP) or on lands (LGA), full or with
+/// rectangular cut-outs (`voids`), the in-code grid builder's construction
+/// made parametric in its counts. The contacts are one seed at A1 (−x, +y)
+/// of `contact_diameter` and `contact_height` (a land's thickness) and a
+/// body pattern of `columns` along +x at `pitch` and `rows` along −y at
+/// `row_pitch`, so the copies are `contact 1 (2)`, `(3)`, … at any count.
+/// Each cut-out `void_<k>` (`_x`, `_y` its −x, −y corner, `_length`,
+/// `_width`) removes the contacts inside it whole, before the body exists;
+/// cut-outs a grid does not need repeat the first. The body (substrate and
+/// moulding as one block) of `body_length` × `body_width` × `body_height`
+/// stands on the balls, or on the seating plane over the lands, cut round
+/// each land by a pattern of one cut with the contacts' counts (nothing
+/// names the pattern's bodies) and filled again over every cut-out. Its
+/// top edges are rounded by `edge_round`, and a dimple of `mark_radius`,
+/// `mark_depth` deep, two radii in from the −x, +y corner marks A1. Saved
+/// at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body (with cut-outs: rows B–C,
+/// columns 2–4 empty); the generator gives every value.
+pub fn author_grid(balls: bool, voids: bool) -> Vec<u8> {
+    let mut s = Session::default();
+    let title = match (balls, voids) {
+        (true, false) => "Ball grid array",
+        (true, true) => "Ball grid array with empty positions",
+        (false, false) => "Land grid array",
+        (false, true) => "Land grid array with empty positions",
+    };
+    run(&mut s, "file.new", json!({"name": title}));
+    let height = if balls { "0.3 mm" } else { "0.03 mm" };
+    let mut rows = vec![
+        param("rows", "4", "", "rows of contacts (y), A from +y"),
+        param("columns", "5", "", "columns of contacts (x), 1 from −x"),
+        param("pitch", "0.8 mm", "mm", "pitch along a row (x)"),
+        param("row_pitch", "0.8 mm", "mm", "pitch between rows (y)"),
+        param("body_length", "5 mm", "mm", "body length (x)"),
+        param("body_width", "4 mm", "mm", "body width (y)"),
+        param(
+            "body_height",
+            "0.8 mm",
+            "mm",
+            "body height above the contacts",
+        ),
+        param("contact_diameter", "0.4 mm", "mm", "ball or land diameter"),
+        param(
+            "contact_height",
+            height,
+            "mm",
+            if balls {
+                "ball height (standoff)"
+            } else {
+                "land thickness, set into the body"
+            },
+        ),
+        param(
+            "edge_round",
+            "0.05 mm",
+            "mm",
+            "round of the body's top edges",
+        ),
+        param("mark_radius", "0.24 mm", "mm", "A1 dimple radius"),
+        param("mark_depth", "0.03 mm", "mm", "A1 dimple depth"),
+    ];
+    // The saved cut-out: rows B–C, columns 2–4 (half a pitch outside the
+    // contacts there).
+    let saved_void = ["-1.2 mm", "-0.8 mm", "2.4 mm", "1.6 mm"];
+    if voids {
+        for k in 1..=GRID_VOIDS {
+            for (axis, value, what) in [
+                ("x", saved_void[0], "−x edge"),
+                ("y", saved_void[1], "−y edge"),
+                ("length", saved_void[2], "length (x)"),
+                ("width", saved_void[3], "width (y)"),
+            ] {
+                rows.push(param(
+                    &format!("void_{k}_{axis}"),
+                    value,
+                    "mm",
+                    &format!("cut-out {k}: {what}"),
+                ));
+            }
+        }
+    }
+    import(&mut s, &rows);
+    let seed = json!([
+        "- (columns - 1) / 2 * pitch",
+        "(rows - 1) / 2 * row_pitch",
+        "0 mm"
+    ]);
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"base": seed, "diameter": "contact_diameter", "height": "contact_height",
+            "axis": "Z", "name": "contact 1", "body_name": "contact 1"}),
+    );
+    let pattern = |what: serde_json::Value, name: &str| {
+        let mut p = json!({"dir1": [1, 0, 0], "count1": "columns", "spacing1": "pitch",
+            "dir2": [0, -1, 0], "count2": "rows", "spacing2": "row_pitch", "name": name});
+        if let (Some(map), Some(extra)) = (p.as_object_mut(), what.as_object()) {
+            map.extend(extra.clone());
+        }
+        p
+    };
+    run(
+        &mut s,
+        "solid.pattern.rectangular",
+        pattern(json!({"bodies": ["contact 1"]}), "contact 1 pattern"),
+    );
+    let void = |k: usize, axis: &str| format!("void_{k}_{axis}");
+    if voids {
+        // Only contacts exist yet, so each cut-out (no targets) removes
+        // the contacts inside it and nothing else.
+        for k in 1..=GRID_VOIDS {
+            run(
+                &mut s,
+                "solid.box",
+                json!({"corner": [void(k, "x"), void(k, "y"), "- contact_height"],
+                    "length": void(k, "length"), "width": void(k, "width"),
+                    "height": "3 * contact_height", "operation": "cut",
+                    "name": format!("void {k}")}),
+            );
+        }
+    }
+    let base = if balls { "contact_height" } else { "0 mm" };
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", base],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    if !balls {
+        run(
+            &mut s,
+            "solid.cylinder",
+            json!({"base": seed, "diameter": "contact_diameter", "height": "contact_height",
+                "axis": "Z", "operation": "cut", "targets": ["body"],
+                "name": "contact 1 pocket"}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            pattern(json!({"features": ["contact 1 pocket"]}), "pockets"),
+        );
+        if voids {
+            for k in 1..=GRID_VOIDS {
+                run(
+                    &mut s,
+                    "solid.box",
+                    json!({"corner": [void(k, "x"), void(k, "y"), "0 mm"],
+                        "length": void(k, "length"), "width": void(k, "width"),
+                        "height": "contact_height", "operation": "join", "targets": ["body"],
+                        "name": format!("void {k} fill")}),
+                );
+            }
+        }
+    }
+    // The top edges, picked at the saved size: 5 × 4 mm, its top at
+    // 1.1 mm on balls, 0.8 mm over lands.
+    let (x, y, z) = (2.5, 2.0, if balls { 1.1 } else { 0.8 });
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, z], [x, 0.0, z], [0.0, y, z], [-x, 0.0, z]]}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 mark",
+            "base": ["- body_length / 2 + 2 * mark_radius", "body_width / 2 - 2 * mark_radius",
+                format!("{base} + body_height - mark_depth")],
+            "radius": "mark_radius", "height": "2 * mark_depth", "axis": "Z",
+            "operation": "cut", "targets": ["body"]}),
+    );
+    // Looks are kept by body name, and the pattern names its copies
+    // `contact 1 (2)`, `(3)`, …: every contact the generator can ask for
+    // (512 positions full, 1000 with cut-outs) gets its look at that
+    // count, on a body large enough and with the cut-outs moved off the
+    // grid, then the file goes back to its saved values.
+    let (most_rows, most_columns, most) = if voids { (20, 50, 1000) } else { (8, 64, 512) };
+    let mut changes = serde_json::Map::new();
+    changes.insert("rows".into(), json!(most_rows.to_string()));
+    changes.insert("columns".into(), json!(most_columns.to_string()));
+    changes.insert("body_length".into(), json!("60 mm"));
+    changes.insert("body_width".into(), json!("20 mm"));
+    if voids {
+        for k in 1..=GRID_VOIDS {
+            changes.insert(void(k, "x"), json!("100 mm"));
+            changes.insert(void(k, "y"), json!("100 mm"));
+        }
+    }
+    run(&mut s, "parameters.change", json!({ "changes": changes }));
+    s.refresh();
+    let contacts: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    assert_eq!(contacts.len(), most, "{contacts:?}");
+    let contacts: Vec<&str> = contacts.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
+    assign_look(
+        &mut s,
+        &contacts,
+        if balls {
+            MaterialId::SolderSac
+        } else {
+            MaterialId::Gold
+        },
+    );
+    let mut changes = serde_json::Map::new();
+    changes.insert("rows".into(), json!("4"));
+    changes.insert("columns".into(), json!("5"));
+    changes.insert("body_length".into(), json!("5 mm"));
+    changes.insert("body_width".into(), json!("4 mm"));
+    if voids {
+        for k in 1..=GRID_VOIDS {
+            changes.insert(void(k, "x"), json!(saved_void[0]));
+            changes.insert(void(k, "y"), json!(saved_void[1]));
+        }
+    }
+    run(&mut s, "parameters.change", json!({ "changes": changes }));
+    s.refresh();
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    let left = s.model.state().bodies.len();
+    assert_eq!(
+        left,
+        if voids { 1 + 20 - 6 } else { 1 + 20 },
+        "bodies saved"
+    );
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_grid_ball() -> Vec<u8> {
+    author_grid(true, false)
+}
+
+fn author_grid_ball_voids() -> Vec<u8> {
+    author_grid(true, true)
+}
+
+fn author_grid_land() -> Vec<u8> {
+    author_grid(false, false)
+}
+
+fn author_grid_land_voids() -> Vec<u8> {
+    author_grid(false, true)
+}
+
+/// The +y side of a `tabbed` generator part file.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TabbedSide {
+    /// A second row of leads (SOT-23, SC-70).
+    Rows,
+    /// A wide gull-wing tab lead (SOT-223, SOT-89).
+    TabLead,
+    /// A flat flange on the seating plane under the body (DPAK, D²PAK).
+    Flange,
+}
+
+/// The parameters of a bent gull-wing lead profile whose foot is `foot`
+/// long, prefixed `p`: where the foot starts (`p_foot_in`), the shoulder,
+/// the slope's run and length, tan of half the bend angle (`p_k`), the two
+/// bends' centreline radii (`p_r1` at the shoulder, `p_r2` at the foot:
+/// the lead thickness, less where 45 % of a segment cannot hold it, never
+/// below half the thickness) and the miter of the sharp outline's corners.
+fn lead_profile_params(p: &str, foot: &str) -> Vec<(String, String, &'static str, String)> {
+    let at_least = "lead_thickness / 2 * 1.0001";
+    vec![
+        (
+            format!("{p}_foot_in"),
+            format!("span / 2 - {foot}"),
+            "mm",
+            "where the foot starts, across y".into(),
+        ),
+        (
+            format!("{p}_shoulder"),
+            format!("half_body + 0.3 * ({p}_foot_in - half_body)"),
+            "mm",
+            "where the lead bends down, across y".into(),
+        ),
+        (
+            format!("{p}_dx"),
+            format!("{p}_foot_in - {p}_shoulder"),
+            "mm",
+            "the slope's run across y".into(),
+        ),
+        (
+            format!("{p}_slope"),
+            format!("hypot({p}_dx, lead_drop)"),
+            "mm",
+            "the slope's length".into(),
+        ),
+        (
+            format!("{p}_k"),
+            format!("lead_drop / ({p}_slope + {p}_dx)"),
+            "",
+            "tan of half the bend angle".into(),
+        ),
+        (
+            format!("{p}_r1"),
+            format!(
+                "max(min(lead_thickness, 0.45 * min({p}_shoulder - (half_body - lead_root), {p}_slope) / {p}_k), {at_least})"
+            ),
+            "mm",
+            "the shoulder bend's centreline radius".into(),
+        ),
+        (
+            format!("{p}_r2"),
+            format!("max(min(lead_thickness, 0.45 * min({p}_slope, {foot}) / {p}_k), {at_least})"),
+            "mm",
+            "the foot bend's centreline radius".into(),
+        ),
+        (
+            format!("{p}_miter"),
+            format!("lead_thickness / 2 * {p}_k"),
+            "mm",
+            "how far the outline's sharp corners lie past the centreline's".into(),
+        ),
+    ]
+}
+
+/// A bent lead `name` in the YZ plane at x = `offset`, `width` wide along
+/// +x, on the +y side (`plus`) or mirrored onto −y, from the profile
+/// parameters `p`: the outline of the centreline (root inside the body at
+/// the exit height, out to the shoulder, down to the foot at half the
+/// thickness, out to the tip at half the span) thickened to the lead
+/// thickness, its four corners rounded concentric with the bends. The
+/// lead's root is cut out of the body by the same profile (`<cut>`), so
+/// lead and moulding stay disjoint.
+fn bent_lead(
+    s: &mut Session,
+    name: &str,
+    cut: &str,
+    p: &str,
+    plus: bool,
+    offset: &str,
+    width: &str,
+) {
+    let sketch = format!("{name} sketch");
+    run(
+        s,
+        "sketch.create",
+        json!({"plane": "YZ", "offset": offset, "name": sketch}),
+    );
+    let u = |e: String| {
+        if plus { e } else { format!("-({e})") }
+    };
+    let top = "lead_exit + lead_thickness / 2";
+    let bottom = "lead_exit - lead_thickness / 2";
+    let points = vec![
+        [u("half_body - lead_root".into()), top.into()],
+        [u(format!("{p}_shoulder + {p}_miter")), top.into()],
+        [
+            u(format!("{p}_foot_in + {p}_miter")),
+            "lead_thickness".into(),
+        ],
+        [u("span / 2".into()), "lead_thickness".into()],
+        [u("span / 2".into()), "0 mm".into()],
+        [u(format!("{p}_foot_in - {p}_miter")), "0 mm".into()],
+        [u(format!("{p}_shoulder - {p}_miter")), bottom.into()],
+        [u("half_body - lead_root".into()), bottom.into()],
+    ];
+    let reply = run(s, "sketch.line", json!({"points": points, "closed": true}));
+    let lines: Vec<String> = reply["curves"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| c.as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(lines.len(), 8, "{reply}");
+    // The shoulder bend: outer on the top face, inner below; the foot bend
+    // the other way round.
+    let h = "lead_thickness / 2";
+    for (a, b, radius) in [
+        (0, 1, format!("{p}_r1 + {h}")),
+        (1, 2, format!("{p}_r2 - {h}")),
+        (4, 5, format!("{p}_r2 + {h}")),
+        (5, 6, format!("{p}_r1 - {h}")),
+    ] {
+        run(
+            s,
+            "sketch.fillet",
+            json!({"a": lines[a], "b": lines[b], "radius": radius}),
+        );
+    }
+    run(s, "sketch.finish", json!({}));
+    run(
+        s,
+        "solid.extrude",
+        json!({"sketch": sketch, "distance": width, "operation": "new",
+            "name": name, "body_name": name}),
+    );
+    run(
+        s,
+        "solid.extrude",
+        json!({"sketch": sketch, "distance": width, "operation": "cut",
+            "targets": ["body"], "name": cut}),
+    );
+}
+
+/// A part file of the `tabbed` generator's bundle: a moulded body on its
+/// standoff with gull-wing leads on −y (`row_s`) and, by `side`, a second
+/// row on +y (`row_n`), a gull-wing tab lead or a flat flange under the
+/// body (`tab`), as the in-code tabbed builder made them. Each row is one
+/// bent lead at the row's −x end and a body pattern of `row_<s|n>_leads`
+/// at `row_<s|n>_step` × `pitch`; the body is cut round each lead by a cut
+/// of the lead's own profile, patterned the same way, so leads and
+/// moulding stay disjoint at any count and nothing names the pattern's
+/// bodies. Rounds on the moulding's upright corners (above the leads) and
+/// top edges. The lead profile follows its parameters through the derived
+/// parameters of `lead_profile_params`. Saved at the SOT-23-5, SOT-223 and
+/// DPAK starter values; the generator gives every input value.
+fn author_tabbed(side: TabbedSide) -> Vec<u8> {
+    let (title, values): (&str, [&str; 9]) = match side {
+        // pitch, length, width, height, standoff, span, lead width,
+        // thickness, foot.
+        TabbedSide::Rows => (
+            "SOT-23 and SC-70 package",
+            [
+                "0.95 mm", "2.9 mm", "1.6 mm", "1.1 mm", "0.075 mm", "2.8 mm", "0.4 mm", "0.15 mm",
+                "0.4 mm",
+            ],
+        ),
+        TabbedSide::TabLead => (
+            "SOT-223 and SOT-89 package",
+            [
+                "2.3 mm", "6.5 mm", "3.5 mm", "1.6 mm", "0.06 mm", "7 mm", "0.7 mm", "0.3 mm",
+                "0.9 mm",
+            ],
+        ),
+        TabbedSide::Flange => (
+            "DPAK and D2PAK package",
+            [
+                "2.285 mm", "6.6 mm", "6.1 mm", "2.3 mm", "0 mm", "11.7 mm", "0.76 mm", "0.5 mm",
+                "1.5 mm",
+            ],
+        ),
+    };
+    let [pitch, bl, bw, bh, standoff, span, lw, lt, foot] = values;
+    let mut params: Vec<(String, String, &'static str, String)> = [
+        ("pitch", pitch, "mm", "the lead grid's pitch along x"),
+        ("body_length", bl, "mm", "moulded body length (x)"),
+        ("body_width", bw, "mm", "moulded body width (y)"),
+        (
+            "body_height",
+            bh,
+            "mm",
+            "moulded body height above the standoff",
+        ),
+        (
+            "standoff",
+            standoff,
+            "mm",
+            "body bottom above the seating plane",
+        ),
+        ("span", span, "mm", "lead tip to lead tip across y"),
+        ("lead_width", lw, "mm", "lead width along x"),
+        ("lead_thickness", lt, "mm", "lead thickness"),
+        (
+            "foot_length",
+            foot,
+            "mm",
+            "a lead's foot on the seating plane",
+        ),
+    ]
+    .into_iter()
+    .map(|(n, e, u, c)| (n.into(), e.into(), u, c.into()))
+    .collect();
+    let mut count = |name: &str, v: &str, comment: &str| {
+        params.push((name.into(), v.into(), "", comment.into()));
+    };
+    let (s_leads, s_step) = match side {
+        TabbedSide::Rows => ("3", "1"),
+        TabbedSide::TabLead => ("3", "1"),
+        TabbedSide::Flange => ("2", "2"),
+    };
+    count("row_s_leads", s_leads, "leads on the −y side");
+    count("row_s_step", s_step, "grid positions between −y leads");
+    if side == TabbedSide::Rows {
+        count("row_n_leads", "2", "leads on the +y side");
+        count("row_n_step", "2", "grid positions between +y leads");
+    }
+    let mut length = |name: &str, v: &str, comment: &str| {
+        params.push((name.into(), v.into(), "mm", comment.into()));
+    };
+    match side {
+        TabbedSide::Rows => {}
+        TabbedSide::TabLead => {
+            length("tab_width", "3 mm", "tab lead width along x");
+            length("tab_length", "0.9 mm", "tab lead foot on the seating plane");
+        }
+        TabbedSide::Flange => {
+            length("tab_width", "5.3 mm", "flange width along x");
+            length("tab_length", "5.3 mm", "flange solderable length along y");
+            length(
+                "flange_protrusion",
+                "1 mm",
+                "flange outer edge beyond the body's +y edge",
+            );
+        }
+    }
+    length(
+        "corner_round",
+        "0.2 mm",
+        "round of the body's upright corners",
+    );
+    length("edge_round", "0.12 mm", "round of the body's top edges");
+    // Derived: the lead's exit and profile.
+    length(
+        "lead_exit",
+        "standoff + body_height / 2",
+        "height of the lead centreline where it leaves the body",
+    );
+    length("half_body", "body_width / 2", "half the body width");
+    length(
+        "lead_root",
+        "min(0.25 mm, half_body / 3)",
+        "how far a lead reaches into the body",
+    );
+    length(
+        "lead_drop",
+        "lead_exit - lead_thickness / 2",
+        "the slope's drop from the exit to the foot",
+    );
+    // The marking area: 80 % of the top face each way, clear of its
+    // rounded edges (the tabbed form's marking area).
+    length(
+        "marking_top_u",
+        "0.8 * body_length",
+        "marking-top size along its u axis",
+    );
+    length(
+        "marking_top_v",
+        "0.8 * body_width",
+        "marking-top size across it",
+    );
+    params.extend(lead_profile_params("lead", "foot_length"));
+    if side == TabbedSide::TabLead {
+        params.extend(lead_profile_params("tab_lead", "tab_length"));
+    }
+    let mut s = Session::default();
+    run(&mut s, "file.new", json!({"name": title}));
+    let rows: Vec<serde_json::Value> = params
+        .iter()
+        .map(|(name, expression, unit, comment)| {
+            json!({"name": name, "expression": expression, "unit": unit, "comment": comment})
+        })
+        .collect();
+    run(
+        &mut s,
+        "parameters.import",
+        json!({"text": serde_json::to_string(&rows).unwrap()}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", "standoff"],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    let rows: &[(&str, bool)] = match side {
+        TabbedSide::Rows => &[("row_s", false), ("row_n", true)],
+        _ => &[("row_s", false)],
+    };
+    for (row, plus) in rows {
+        bent_lead(
+            &mut s,
+            &format!("{row} lead"),
+            &format!("{row} root"),
+            "lead",
+            *plus,
+            &format!("- ({row}_leads - 1) / 2 * {row}_step * pitch - lead_width / 2"),
+            "lead_width",
+        );
+    }
+    match side {
+        TabbedSide::Rows => {}
+        TabbedSide::TabLead => bent_lead(
+            &mut s,
+            "tab",
+            "tab root",
+            "tab_lead",
+            true,
+            "- tab_width / 2",
+            "tab_width",
+        ),
+        TabbedSide::Flange => {
+            let corner = json!([
+                "- tab_width / 2",
+                "body_width / 2 + flange_protrusion - tab_length",
+                "0 mm"
+            ]);
+            run(
+                &mut s,
+                "solid.box",
+                json!({"corner": corner, "length": "tab_width", "width": "tab_length",
+                    "height": "lead_thickness", "name": "tab", "body_name": "tab"}),
+            );
+            run(
+                &mut s,
+                "solid.box",
+                json!({"corner": corner, "length": "tab_width", "width": "tab_length",
+                    "height": "lead_thickness", "operation": "cut", "targets": ["body"],
+                    "name": "tab root"}),
+            );
+        }
+    }
+    for (row, _) in rows {
+        let pattern = |what: serde_json::Value, name: String| {
+            let mut p = json!({"dir1": [1, 0, 0], "count1": format!("{row}_leads"),
+                "spacing1": format!("{row}_step * pitch"), "name": name});
+            if let (Some(map), Some(extra)) = (p.as_object_mut(), what.as_object()) {
+                map.extend(extra.clone());
+            }
+            p
+        };
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            pattern(
+                json!({"features": [format!("{row} root")]}),
+                format!("{row} roots"),
+            ),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            pattern(
+                json!({"bodies": [format!("{row} lead")]}),
+                format!("{row} pattern"),
+            ),
+        );
+    }
+    // The rounds, picked at the saved size: the upright edges above the
+    // lead roots, the top edges at their middles.
+    let mm = |e: &str| -> f64 { e.trim_end_matches(" mm").parse().unwrap() };
+    let (x, y) = (mm(bl) / 2.0, mm(bw) / 2.0);
+    let (z0, top) = (mm(standoff), mm(standoff) + mm(bh));
+    let above = (z0 + mm(bh) / 2.0 + mm(lt) / 2.0 + top) / 2.0;
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "corner round", "body": "body", "radius": "corner_round",
+            "edges": [[-x, -y, above], [x, -y, above], [x, y, above], [-x, y, above]]}),
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, top], [x, 0.0, top], [0.0, y, top], [-x, 0.0, top]]}),
+    );
+    // Looks are kept by body name, and a pattern names its copies
+    // `row_s lead (2)`, …: every lead the generator can ask for (16 a side)
+    // gets the tin look at that count, then the file goes back to its own.
+    // The body is made long enough for 16 leads at one grid step.
+    let mut changes = serde_json::Map::new();
+    for (row, _) in rows {
+        changes.insert(format!("{row}_leads"), json!("16"));
+        changes.insert(format!("{row}_step"), json!("1"));
+    }
+    changes.insert("body_length".into(), json!("60 mm"));
+    run(&mut s, "parameters.change", json!({"changes": changes}));
+    s.refresh();
+    let leads: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    assert_eq!(
+        leads.len(),
+        16 * rows.len() + usize::from(side != TabbedSide::Rows)
+    );
+    let leads: Vec<&str> = leads.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
+    assign_look(&mut s, &leads, MaterialId::TinMatte);
+    // Back to the saved counts and steps.
+    let mut changes = serde_json::Map::new();
+    changes.insert("row_s_leads".into(), json!(s_leads));
+    changes.insert("row_s_step".into(), json!(s_step));
+    if side == TabbedSide::Rows {
+        changes.insert("row_n_leads".into(), json!("2"));
+        changes.insert("row_n_step".into(), json!("2"));
+    }
+    changes.insert("body_length".into(), json!(bl));
+    run(&mut s, "parameters.change", json!({"changes": changes}));
+    s.refresh();
+    finish_part(s, "standoff + body_height")
+}
+
+fn author_tabbed_rows() -> Vec<u8> {
+    author_tabbed(TabbedSide::Rows)
+}
+
+fn author_tabbed_tab_lead() -> Vec<u8> {
+    author_tabbed(TabbedSide::TabLead)
+}
+
+fn author_tabbed_flange() -> Vec<u8> {
+    author_tabbed(TabbedSide::Flange)
+}
+
+/// One row of gull-wing leads in a part file: its body name stem, the
+/// origin plane its side profile is drawn on, how profile (s, z) maps to
+/// sketch (u, v) (signs; a mirroring map turns arcs round), the axis it
+/// runs along and its count, and the derived-parameter prefix of its
+/// rows' profile (`y` across the long sides, `x` across the short).
+struct WingRow {
+    part: &'static str,
+    plane: &'static str,
+    signs: [i8; 2],
+    axis: [i8; 3],
+    count: &'static str,
+    across: &'static str,
+}
+
+/// The derived parameters of one gull-wing profile class `a` (`y`: rows
+/// on the ±y sides, half body `half_body`, span `span`): the bent lead's
+/// side profile as the in-code gull-wing builder drew it (a strip of the
+/// lead's thickness along a centreline from 0.25 mm (at most a third of
+/// the half body) inside the body at the lead exit, out 30 % of the room
+/// to the foot, down to the foot's centreline and out to the tip, each
+/// corner bent at a centreline radius of the thickness, reduced so a bend
+/// takes at most 45 % of a segment). `half` is tan(θ / 2) of the sloped
+/// segment, `ux`, `uz` its direction.
+fn wing_profile_params(
+    a: &str,
+    half_body: &str,
+    span: &str,
+) -> Vec<(String, String, &'static str, String)> {
+    let p = |name: &str| format!("{a}_{name}");
+    let row = |name: &str, expr: String, unit: &'static str, comment: &str| {
+        (p(name), expr, unit, format!("{comment} ({a} rows)"))
+    };
+    vec![
+        row(
+            "root",
+            format!("min(0.25 mm, {half_body} / 3)"),
+            "mm",
+            "how far a lead root reaches into the body",
+        ),
+        row(
+            "foot",
+            format!("{span} / 2 - foot_length"),
+            "mm",
+            "where the foot begins",
+        ),
+        row(
+            "shoulder",
+            format!("{half_body} + 0.3 * ({} - {half_body})", p("foot")),
+            "mm",
+            "where the lead turns down",
+        ),
+        row(
+            "dx",
+            format!("{} - {}", p("foot"), p("shoulder")),
+            "mm",
+            "the sloped segment's run",
+        ),
+        row(
+            "dz",
+            "lead_exit - lead_thickness / 2".into(),
+            "mm",
+            "the sloped segment's drop",
+        ),
+        row(
+            "len",
+            format!("hypot({}, {})", p("dx"), p("dz")),
+            "mm",
+            "the sloped segment's length",
+        ),
+        row(
+            "half",
+            format!("{} / ({} + {})", p("dz"), p("len"), p("dx")),
+            "",
+            "tan of half the bend angle",
+        ),
+        row(
+            "ux",
+            format!("{} / {}", p("dx"), p("len")),
+            "",
+            "the sloped segment's direction along s",
+        ),
+        row(
+            "uz",
+            format!("{} / {}", p("dz"), p("len")),
+            "",
+            "the sloped segment's drop per length",
+        ),
+        row(
+            "bend_b",
+            format!(
+                "max(min(lead_thickness, 0.45 * min({} + 0.3 * ({} - {half_body}), {}) / {}), lead_thickness / 2 * 1.0001)",
+                p("root"),
+                p("foot"),
+                p("len"),
+                p("half")
+            ),
+            "mm",
+            "centreline radius of the upper bend",
+        ),
+        row(
+            "bend_c",
+            format!(
+                "max(min(lead_thickness, 0.45 * min({}, foot_length) / {}), lead_thickness / 2 * 1.0001)",
+                p("len"),
+                p("half")
+            ),
+            "mm",
+            "centreline radius of the lower bend",
+        ),
+        row(
+            "tb",
+            format!("{} * {}", p("bend_b"), p("half")),
+            "mm",
+            "the upper bend's tangent length",
+        ),
+        row(
+            "tc",
+            format!("{} * {}", p("bend_c"), p("half")),
+            "mm",
+            "the lower bend's tangent length",
+        ),
+    ]
+}
+
+/// Draw one gull-wing lead's side profile (the closed outline of the bent
+/// strip: lines and four bend arcs) in a new sketch on `row.plane`,
+/// offset to the row's first lead, every point an expression over the
+/// part's parameters; returns the sketch's name.
+fn wing_sketch(s: &mut Session, row: &WingRow, half_body: &str, span: &str) -> String {
+    let a = row.across;
+    let p = |name: &str| format!("{a}_{name}");
+    let h = "lead_thickness / 2";
+    let (hb, root, foot, shoulder) = (half_body, p("root"), p("foot"), p("shoulder"));
+    let (ux, uz, tb, tc) = (p("ux"), p("uz"), p("tb"), p("tc"));
+    let hs = format!("{span} / 2");
+    // (s, z) of each point.
+    let points: Vec<(&str, String, String)> = vec![
+        ("1", format!("{hb} - {root}"), format!("lead_exit + {h}")),
+        (
+            "2",
+            format!("{shoulder} - {tb}"),
+            format!("lead_exit + {h}"),
+        ),
+        (
+            "3",
+            format!("{shoulder} + {tb} * {ux} + {h} * {uz}"),
+            format!("lead_exit - {tb} * {uz} + {h} * {ux}"),
+        ),
+        (
+            "4",
+            format!("{foot} - {tc} * {ux} + {h} * {uz}"),
+            format!("{h} + {tc} * {uz} + {h} * {ux}"),
+        ),
+        ("5", format!("{foot} + {tc}"), "lead_thickness".into()),
+        ("6", hs.clone(), "lead_thickness".into()),
+        ("7", hs, "0 mm".into()),
+        ("8", format!("{foot} + {tc}"), "0 mm".into()),
+        (
+            "9",
+            format!("{foot} - {tc} * {ux} - {h} * {uz}"),
+            format!("{h} + {tc} * {uz} - {h} * {ux}"),
+        ),
+        (
+            "10",
+            format!("{shoulder} + {tb} * {ux} - {h} * {uz}"),
+            format!("lead_exit - {tb} * {uz} - {h} * {ux}"),
+        ),
+        (
+            "11",
+            format!("{shoulder} - {tb}"),
+            format!("lead_exit - {h}"),
+        ),
+        ("12", format!("{hb} - {root}"), format!("lead_exit - {h}")),
+        (
+            "cb",
+            format!("{shoulder} - {tb}"),
+            format!("lead_exit - {}", p("bend_b")),
+        ),
+        (
+            "cc",
+            format!("{foot} + {tc}"),
+            format!("{h} + {}", p("bend_c")),
+        ),
+    ];
+    let sign = |k: i8, e: &str| {
+        if k < 0 {
+            format!("-({e})")
+        } else {
+            format!("({e})")
+        }
+    };
+    let sketch = format!("{} profile", row.part);
+    run(
+        s,
+        "sketch.create",
+        json!({"plane": row.plane, "offset": format!("-({} - 1) / 2 * pitch - lead_width / 2", row.count),
+            "name": sketch}),
+    );
+    for (id, ps, pz) in &points {
+        run(
+            s,
+            "sketch.point",
+            json!({"point": [sign(row.signs[0], ps), sign(row.signs[1], pz)], "id": format!("w{id}")}),
+        );
+    }
+    let w = |id: &str| format!("w{id}");
+    let line = |s: &mut Session, a: &str, b: &str| {
+        run(
+            s,
+            "sketch.line",
+            json!({"points": [w(a), w(b)], "infer": false}),
+        );
+    };
+    // Arcs run counter-clockwise from start to end in the profile's own
+    // (s, z) frame; a mirroring map turns them round.
+    let mirrored = row.signs[0] * row.signs[1] < 0;
+    let arc = |s: &mut Session, centre: &str, start: &str, end: &str| {
+        let (start, end) = if mirrored { (end, start) } else { (start, end) };
+        run(
+            s,
+            "sketch.arc.center_point",
+            json!({"center": w(centre), "start": w(start), "end": w(end)}),
+        );
+    };
+    line(s, "1", "2");
+    arc(s, "cb", "3", "2");
+    line(s, "3", "4");
+    arc(s, "cc", "4", "5");
+    line(s, "5", "6");
+    line(s, "6", "7");
+    line(s, "7", "8");
+    arc(s, "cc", "9", "8");
+    line(s, "9", "10");
+    arc(s, "cb", "10", "11");
+    line(s, "11", "12");
+    line(s, "12", "1");
+    run(s, "sketch.finish", json!({}));
+    sketch
+}
+
+/// A gull-wing part file of the `gull-wing` generator's bundle: the
+/// in-code gull-wing builder's construction made parametric in its counts.
+/// A moulded `body` on its standoff; per row of leads (`row_s`, `row_n`,
+/// and on four sides `row_e`, `row_w`, in the builder's order) one formed
+/// lead extruded `lead_width` from its side profile and a body pattern of
+/// `leads` (`leads_short`) at `pitch` replaying it, and the same profile
+/// cut out of the body as the lead's root, patterned the same way, so the
+/// leads and the moulding stay disjoint at any count and nothing names
+/// the pattern's bodies. Then the body's rounded upright corners (clear of
+/// the end leads) and top edges (clear of the lead exit) and the pin-1
+/// dimple, each derived from the dimensions as the builder derived them.
+/// Saved at SOIC-8 (two sides) or LQFP-48 7 × 7 mm (four); the generator
+/// gives every dimension.
+fn author_gull_wing(four: bool) -> Vec<u8> {
+    use sparksmith_core::library::{BodyRole, GullWingForm, LeadSides};
+    let mut s = Session::default();
+    let title = if four {
+        "Gull-wing package, four sides (QFP)"
+    } else {
+        "Gull-wing package, two sides (SOIC, SSOP, TSSOP)"
+    };
+    run(&mut s, "file.new", json!({"name": title}));
+    // The saved size: SOIC-8 3.9 mm or LQFP-48 7 × 7 mm 0.5 mm.
+    let (n, m, pitch, bl, bw, bh, standoff, span, span_x, lw, t, foot) = if four {
+        (12, 12, 0.5, 7.0, 7.0, 1.4, 0.1, 9.0, 9.0, 0.22, 0.145, 0.6)
+    } else {
+        (
+            4, 0, 1.27, 4.9, 3.9, 1.45, 0.175, 6.0, 0.0, 0.41, 0.2, 0.835,
+        )
+    };
+    let mm = |v: f64| format!("{v} mm");
+    let mut params: Vec<(String, String, &'static str, String)> = vec![
+        (
+            "leads".into(),
+            n.to_string(),
+            "",
+            "leads on each long side (±y)".into(),
+        ),
+        ("pitch".into(), mm(pitch), "mm", "lead pitch".into()),
+        (
+            "body_length".into(),
+            mm(bl),
+            "mm",
+            "moulded body length (x)".into(),
+        ),
+        (
+            "body_width".into(),
+            mm(bw),
+            "mm",
+            "moulded body width (y)".into(),
+        ),
+        (
+            "body_height".into(),
+            mm(bh),
+            "mm",
+            "moulded body height above its underside".into(),
+        ),
+        (
+            "standoff".into(),
+            mm(standoff),
+            "mm",
+            "seating plane to the body's underside".into(),
+        ),
+        (
+            "span".into(),
+            mm(span),
+            "mm",
+            "lead tip to tip across y".into(),
+        ),
+        ("lead_width".into(), mm(lw), "mm", "lead width".into()),
+        (
+            "lead_thickness".into(),
+            mm(t),
+            "mm",
+            "lead thickness".into(),
+        ),
+        (
+            "foot_length".into(),
+            mm(foot),
+            "mm",
+            "flat foot length on the seating plane".into(),
+        ),
+    ];
+    if four {
+        params.insert(
+            1,
+            (
+                "leads_short".into(),
+                m.to_string(),
+                "",
+                "leads on each short side (±x)".into(),
+            ),
+        );
+        params.insert(
+            8,
+            (
+                "span_x".into(),
+                mm(span_x),
+                "mm",
+                "lead tip to tip across x".into(),
+            ),
+        );
+    }
+    params.push((
+        "lead_exit".into(),
+        "standoff + body_height / 2".into(),
+        "mm",
+        "where the leads leave the body: mid-height".into(),
+    ));
+    params.extend(wing_profile_params("y", "body_width / 2", "span"));
+    if four {
+        params.extend(wing_profile_params("x", "body_length / 2", "span_x"));
+    }
+    let row_room =
+        |count: &str, edge: &str| format!("({edge} - (({count} - 1) * pitch + lead_width)) / 4");
+    let corner = if four {
+        format!(
+            "min(0.2 mm, 0.06 * min(body_length, body_width), {}, {})",
+            row_room("leads", "body_length"),
+            row_room("leads_short", "body_width")
+        )
+    } else {
+        format!(
+            "min(0.2 mm, 0.06 * min(body_length, body_width), {})",
+            row_room("leads", "body_length")
+        )
+    };
+    params.push((
+        "corner_round".into(),
+        corner,
+        "mm",
+        "round of the body's upright corners, clear of the end leads".into(),
+    ));
+    params.push((
+        "edge_round".into(),
+        "min(0.12 mm, 0.1 * body_height, (standoff + body_height - lead_exit - lead_thickness / 2) / 2, corner_round)".into(),
+        "mm",
+        "round of the body's top edges, clear of the lead exit".into(),
+    ));
+    params.push((
+        "dimple_radius".into(),
+        "min(max(0.12 * min(body_length, body_width), 0.15 mm), 0.5 mm)".into(),
+        "mm",
+        "pin-1 dimple radius".into(),
+    ));
+    params.push((
+        "dimple_depth".into(),
+        "0.05 mm".into(),
+        "mm",
+        "pin-1 dimple depth".into(),
+    ));
+    let rows: Vec<serde_json::Value> = params
+        .iter()
+        .map(|(name, expression, unit, comment)| {
+            json!({"name": name, "expression": expression, "unit": unit, "comment": comment})
+        })
+        .collect();
+    run(
+        &mut s,
+        "parameters.import",
+        json!({"text": serde_json::to_string(&rows).unwrap()}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", "standoff"],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    // The builder's rows: −y, (+x), +y, (−x). YZ maps sketch (u, v) to
+    // (offset, u, v), XZ to (u, offset, −v).
+    let y_row = |part: &'static str, plus: bool| WingRow {
+        part,
+        plane: "YZ",
+        signs: [if plus { 1 } else { -1 }, 1],
+        axis: [1, 0, 0],
+        count: "leads",
+        across: "y",
+    };
+    let x_row = |part: &'static str, plus: bool| WingRow {
+        part,
+        plane: "XZ",
+        signs: [if plus { 1 } else { -1 }, -1],
+        axis: [0, 1, 0],
+        count: "leads_short",
+        across: "x",
+    };
+    let mut wing_rows = vec![y_row("row_s", false)];
+    if four {
+        wing_rows.push(x_row("row_e", true));
+        wing_rows.push(y_row("row_n", true));
+        wing_rows.push(x_row("row_w", false));
+    } else {
+        wing_rows.push(y_row("row_n", true));
+    }
+    for row in &wing_rows {
+        let (half_body, span) = if row.across == "y" {
+            ("body_width / 2", "span")
+        } else {
+            ("body_length / 2", "span_x")
+        };
+        let sketch = wing_sketch(&mut s, row, half_body, span);
+        let lead = format!("{} lead", row.part);
+        run(
+            &mut s,
+            "solid.extrude",
+            json!({"sketch": sketch, "distance": "lead_width", "operation": "new",
+                "name": lead, "body_name": lead}),
+        );
+        let root = format!("{} root", row.part);
+        run(
+            &mut s,
+            "solid.extrude",
+            json!({"sketch": sketch, "distance": "lead_width", "operation": "cut",
+                "targets": ["body"], "name": root}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"bodies": [lead], "dir1": row.axis, "count1": row.count, "spacing1": "pitch",
+                "name": format!("{} pattern", row.part)}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"features": [root], "dir1": row.axis, "count1": row.count, "spacing1": "pitch",
+                "name": format!("{} roots", row.part)}),
+        );
+    }
+    // The rounds, picked at the saved size.
+    let (x, y, top) = (bl / 2.0, bw / 2.0, standoff + bh);
+    let mid = (standoff + top) / 2.0;
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "corner round", "body": "body", "radius": "corner_round",
+            "edges": [[-x, -y, mid], [x, -y, mid], [x, y, mid], [-x, y, mid]]}),
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, top], [x, 0.0, top], [0.0, y, top], [-x, 0.0, top]]}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 mark", "radius": "dimple_radius", "height": "2 * dimple_depth",
+            "base": ["- body_length / 2 + 2 * dimple_radius", "- body_width / 2 + 2 * dimple_radius",
+                "standoff + body_height - dimple_depth"],
+            "axis": "Z", "operation": "cut", "targets": ["body"]}),
+    );
+    // Looks are kept by body name, and a pattern names its copies
+    // `row_s lead (2)`, …: every lead the generator can ask for (128 a
+    // side) gets the lead look at that count, then the file goes back to
+    // its saved counts.
+    let form = PackageForm::GullWing(Box::new(GullWingForm {
+        sides: if four {
+            LeadSides::Four
+        } else {
+            LeadSides::Two
+        },
+        leads_per_side: [n, m],
+        pitch_nm: nm(pitch),
+        body_length_nm: nm(bl),
+        body_width_nm: nm(bw),
+        body_height_nm: nm(bh),
+        standoff_nm: nm(standoff),
+        span_nm: [nm(span), nm(span_x)],
+        lead_width_nm: nm(lw),
+        lead_thickness_nm: nm(t),
+        foot_length_nm: nm(foot),
+    }));
+    let materials = GeneratedMaterials::default();
+    let counts = |s: &mut Session, leads: u32, short: u32, pitch: &str| {
+        let mut changes = serde_json::Map::new();
+        changes.insert("leads".into(), json!(leads.to_string()));
+        changes.insert("pitch".into(), json!(pitch));
+        // Room for the most leads at the smallest pitch.
+        changes.insert(
+            "body_length".into(),
+            json!(if leads > n {
+                "70 mm".to_owned()
+            } else {
+                mm(bl)
+            }),
+        );
+        if four {
+            changes.insert("leads_short".into(), json!(short.to_string()));
+            changes.insert(
+                "body_width".into(),
+                json!(if short > m {
+                    "70 mm".to_owned()
+                } else {
+                    mm(bw)
+                }),
+            );
+            changes.insert(
+                "span_x".into(),
+                json!(if leads > n {
+                    "72 mm".to_owned()
+                } else {
+                    mm(span_x)
+                }),
+            );
+            changes.insert(
+                "span".into(),
+                json!(if short > m {
+                    "72 mm".to_owned()
+                } else {
+                    mm(span)
+                }),
+            );
+        }
+        run(s, "parameters.change", json!({"changes": changes}));
+        s.refresh();
+    };
+    let most = 128;
+    counts(&mut s, most, if four { most } else { 0 }, "0.5 mm");
+    let leads: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n != "body")
+        .collect();
+    assert_eq!(leads.len(), if four { 4 * 128 } else { 2 * 128 });
+    let leads: Vec<&str> = leads.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], materials.material(&form, BodyRole::Body));
+    for chunk in leads.chunks(200) {
+        assign_look(&mut s, chunk, materials.material(&form, BodyRole::Lead));
+    }
+    counts(&mut s, n, m, &mm(pitch));
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_gull_wing_two_sided() -> Vec<u8> {
+    author_gull_wing(false)
+}
+
+fn author_gull_wing_four_sided() -> Vec<u8> {
+    author_gull_wing(true)
+}
+
 /// Give `bodies` the Solidcraft appearance named after `material`, with
 /// Sparksmith's opaque PBR projection of its look.
 fn assign_look(s: &mut Session, bodies: &[&str], material: MaterialId) {
@@ -2144,7 +3456,7 @@ pub fn author_usb4105() -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "writes library/parts/*.solidcraft, the chip, header, no-lead and molded generators' part files and the examples' part files"]
+#[ignore = "writes library/parts/*.solidcraft, the chip, header, gull-wing, no-lead, molded and tabbed generators' part files and the examples' part files"]
 fn author_parts() {
     // The repository's shipped material library (the program loads it
     // through sparksmith-io at start-up).
@@ -2163,7 +3475,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 23] = [
+    let parts: [(&str, &str, Author); 38] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -2179,6 +3491,17 @@ fn author_parts() {
         ("generators/chip/parts", "chip-led", author_chip_led),
         // The header generator's bundle (`generators/header/parts/`).
         ("generators/header/parts", "pin-header", author_pin_header),
+        // The gull-wing generator's bundle (`generators/gull-wing/parts/`).
+        (
+            "generators/gull-wing/parts",
+            "gull-wing-two-sided",
+            author_gull_wing_two_sided,
+        ),
+        (
+            "generators/gull-wing/parts",
+            "gull-wing-four-sided",
+            author_gull_wing_four_sided,
+        ),
         // The no-lead generator's bundle (`generators/no-lead/parts/`).
         ("generators/no-lead/parts", "dfn", author_dfn),
         ("generators/no-lead/parts", "dfn-ep", author_dfn_ep),
@@ -2210,6 +3533,47 @@ fn author_parts() {
         ),
         ("generators/molded/parts", "melf", author_melf_plain),
         ("generators/molded/parts", "melf-band", author_melf_band),
+        // The through-hole generator's bundle (`generators/tht/parts/`).
+        ("generators/tht/parts", "tht-axial", tht::author_tht_axial),
+        ("generators/tht/parts", "tht-radial", tht::author_tht_radial),
+        (
+            "generators/tht/parts",
+            "tht-radial-formed",
+            tht::author_tht_radial_formed,
+        ),
+        ("generators/tht/parts", "tht-dip", tht::author_tht_dip),
+        ("generators/tht/parts", "tht-to", tht::author_tht_to),
+        (
+            "generators/tht/parts",
+            "tht-to-formed",
+            tht::author_tht_to_formed,
+        ),
+        // The grid generator's bundle (`generators/grid/parts/`): balls or
+        // lands, each full or with cut-outs.
+        ("generators/grid/parts", "grid-ball", author_grid_ball),
+        (
+            "generators/grid/parts",
+            "grid-ball-voids",
+            author_grid_ball_voids,
+        ),
+        ("generators/grid/parts", "grid-land", author_grid_land),
+        (
+            "generators/grid/parts",
+            "grid-land-voids",
+            author_grid_land_voids,
+        ),
+        // The tabbed generator's bundle (`generators/tabbed/parts/`).
+        ("generators/tabbed/parts", "tabbed-rows", author_tabbed_rows),
+        (
+            "generators/tabbed/parts",
+            "tabbed-tab-lead",
+            author_tabbed_tab_lead,
+        ),
+        (
+            "generators/tabbed/parts",
+            "tabbed-flange",
+            author_tabbed_flange,
+        ),
         ("library/parts", "esp32-s31-wroom-3", author_wroom3),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),

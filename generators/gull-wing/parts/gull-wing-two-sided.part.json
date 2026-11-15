@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "gull-wing-two-sided",
+  "title": "Gull-wing package, two sides",
+  "summary": "Gull-wing package with leads on two sides (SOIC, SOP, SSOP, TSSOP, MSOP, QSOP): a moulded body on its standoff and formed leads on the ±y sides that leave it at mid-height, bend down and end in a flat foot on the seating plane; the body cut round the lead roots, rounded corners and top edges and a pin-1 dimple (leads, pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length; the bends, rounds and dimple derived from them).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code gull-wing builder's construction (crates/solidcraft-integration/src/models/gull_wing.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a SOIC-8 of 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. Estimated bends, rounds and dimple; no vendor drawing or EDA/CAD library data copied."
+}

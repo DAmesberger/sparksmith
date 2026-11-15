@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "module": {
+    "file": "tabbed.wasm",
+    "sha256": "9d8c7ac8d5e457eca31bec42731223faada9462ed6faf5195eff4be91f0e4a1b"
+  },
+  "name": "tabbed",
+  "parts": [
+    {
+      "file": "parts/tabbed-flange.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the DPAK starter values (estimated from JEDEC TO-252); the tabbed generator gives every input its value. Estimated rounds, lead bends and flange; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "55aad256e17140a13dec6195bb34b1e2d24bab57d47652027877bde5647f63d0",
+      "title": "DPAK and D2PAK package"
+    },
+    {
+      "file": "parts/tabbed-rows.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the SOT-23-5 starter values (JEDEC MO-178); the tabbed generator gives every input its value. Estimated rounds and lead bends; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "487454d72a000ff12c902b9928409e48a911b30026790b8c191e21cf703763c9",
+      "title": "SOT-23 and SC-70 package"
+    },
+    {
+      "file": "parts/tabbed-tab-lead.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the SOT-223 starter values (JEDEC TO-261); the tabbed generator gives every input its value. Estimated rounds and lead bends; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "85926574a8fcdb6e2f8d7ed50554879e2772c6a4d97331990634cea62cec8a8e",
+      "title": "SOT-223 and SOT-89 package"
+    }
+  ]
+}

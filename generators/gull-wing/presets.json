@@ -1,0 +1,1355 @@
+[
+ {
+  "key": "gull-wing-soic-8-3.9",
+  "name": "SOIC-8 3.9 mm",
+  "aliases": [
+   "SOIC-8",
+   "SO-8",
+   "8-SOIC"
+  ],
+  "description": "Small outline, 8 gull-wing leads at 1.27 mm, body 4.90 × 3.90 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 4,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 4900000,
+   "body_width": 3900000,
+   "body_height": 1450000,
+   "standoff": 175000,
+   "span": 6000000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 200000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-soic-14-3.9",
+  "name": "SOIC-14 3.9 mm",
+  "aliases": [
+   "SOIC-14",
+   "SO-14",
+   "14-SOIC"
+  ],
+  "description": "Small outline, 14 gull-wing leads at 1.27 mm, body 8.65 × 3.90 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 7,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 8650000,
+   "body_width": 3900000,
+   "body_height": 1450000,
+   "standoff": 175000,
+   "span": 6000000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 200000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-soic-16-3.9",
+  "name": "SOIC-16 3.9 mm",
+  "aliases": [
+   "SOIC-16",
+   "SO-16",
+   "16-SOIC"
+  ],
+  "description": "Small outline, 16 gull-wing leads at 1.27 mm, body 9.90 × 3.90 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 8,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 9900000,
+   "body_width": 3900000,
+   "body_height": 1450000,
+   "standoff": 175000,
+   "span": 6000000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 200000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-soic-16-7.5-wide",
+  "name": "SOIC-16 7.5 mm wide",
+  "aliases": [
+   "SOIC-16W",
+   "SO-16W",
+   "16-SOIC wide"
+  ],
+  "description": "Wide small outline, 16 gull-wing leads at 1.27 mm, body 10.30 × 7.50 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 8,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 10300000,
+   "body_width": 7500000,
+   "body_height": 2250000,
+   "standoff": 200000,
+   "span": 10300000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 270000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-soic-18-7.5-wide",
+  "name": "SOIC-18 7.5 mm wide",
+  "aliases": [
+   "SOIC-18W",
+   "SO-18W",
+   "18-SOIC wide"
+  ],
+  "description": "Wide small outline, 18 gull-wing leads at 1.27 mm, body 11.55 × 7.50 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 9,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 11550000,
+   "body_width": 7500000,
+   "body_height": 2250000,
+   "standoff": 200000,
+   "span": 10300000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 270000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-soic-20-7.5-wide",
+  "name": "SOIC-20 7.5 mm wide",
+  "aliases": [
+   "SOIC-20W",
+   "SO-20W",
+   "20-SOIC wide"
+  ],
+  "description": "Wide small outline, 20 gull-wing leads at 1.27 mm, body 12.80 × 7.50 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 10,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 12800000,
+   "body_width": 7500000,
+   "body_height": 2250000,
+   "standoff": 200000,
+   "span": 10300000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 270000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-soic-24-7.5-wide",
+  "name": "SOIC-24 7.5 mm wide",
+  "aliases": [
+   "SOIC-24W",
+   "SO-24W",
+   "24-SOIC wide"
+  ],
+  "description": "Wide small outline, 24 gull-wing leads at 1.27 mm, body 15.40 × 7.50 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 12,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 15400000,
+   "body_width": 7500000,
+   "body_height": 2250000,
+   "standoff": 200000,
+   "span": 10300000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 270000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-soic-28-7.5-wide",
+  "name": "SOIC-28 7.5 mm wide",
+  "aliases": [
+   "SOIC-28W",
+   "SO-28W",
+   "28-SOIC wide"
+  ],
+  "description": "Wide small outline, 28 gull-wing leads at 1.27 mm, body 17.90 × 7.50 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 14,
+   "leads_short": 0,
+   "pitch": 1270000,
+   "body_length": 17900000,
+   "body_width": 7500000,
+   "body_height": 2250000,
+   "standoff": 200000,
+   "span": 10300000,
+   "span_x": 0,
+   "lead_width": 410000,
+   "lead_thickness": 270000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-ssop-14-5.3",
+  "name": "SSOP-14 5.3 mm",
+  "aliases": [
+   "SSOP-14",
+   "14-SSOP"
+  ],
+  "description": "Shrink small outline, 14 leads at 0.65 mm, body 6.20 × 5.30 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 7,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 6200000,
+   "body_width": 5300000,
+   "body_height": 1750000,
+   "standoff": 100000,
+   "span": 7800000,
+   "span_x": 0,
+   "lead_width": 300000,
+   "lead_thickness": 170000,
+   "foot_length": 750000
+  },
+  "citation": {
+   "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-ssop-16-5.3",
+  "name": "SSOP-16 5.3 mm",
+  "aliases": [
+   "SSOP-16",
+   "16-SSOP"
+  ],
+  "description": "Shrink small outline, 16 leads at 0.65 mm, body 6.20 × 5.30 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 8,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 6200000,
+   "body_width": 5300000,
+   "body_height": 1750000,
+   "standoff": 100000,
+   "span": 7800000,
+   "span_x": 0,
+   "lead_width": 300000,
+   "lead_thickness": 170000,
+   "foot_length": 750000
+  },
+  "citation": {
+   "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-ssop-20-5.3",
+  "name": "SSOP-20 5.3 mm",
+  "aliases": [
+   "SSOP-20",
+   "20-SSOP"
+  ],
+  "description": "Shrink small outline, 20 leads at 0.65 mm, body 7.20 × 5.30 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 10,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 7200000,
+   "body_width": 5300000,
+   "body_height": 1750000,
+   "standoff": 100000,
+   "span": 7800000,
+   "span_x": 0,
+   "lead_width": 300000,
+   "lead_thickness": 170000,
+   "foot_length": 750000
+  },
+  "citation": {
+   "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-ssop-24-5.3",
+  "name": "SSOP-24 5.3 mm",
+  "aliases": [
+   "SSOP-24",
+   "24-SSOP"
+  ],
+  "description": "Shrink small outline, 24 leads at 0.65 mm, body 8.20 × 5.30 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 12,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 8200000,
+   "body_width": 5300000,
+   "body_height": 1750000,
+   "standoff": 100000,
+   "span": 7800000,
+   "span_x": 0,
+   "lead_width": 300000,
+   "lead_thickness": 170000,
+   "foot_length": 750000
+  },
+  "citation": {
+   "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-ssop-28-5.3",
+  "name": "SSOP-28 5.3 mm",
+  "aliases": [
+   "SSOP-28",
+   "28-SSOP"
+  ],
+  "description": "Shrink small outline, 28 leads at 0.65 mm, body 10.20 × 5.30 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 14,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 10200000,
+   "body_width": 5300000,
+   "body_height": 1750000,
+   "standoff": 100000,
+   "span": 7800000,
+   "span_x": 0,
+   "lead_width": 300000,
+   "lead_thickness": 170000,
+   "foot_length": 750000
+  },
+  "citation": {
+   "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-qsop-16",
+  "name": "QSOP-16",
+  "aliases": [
+   "QSOP-16",
+   "SSOP-16 0.635"
+  ],
+  "description": "Quarter-size outline, 16 leads at 0.635 mm, body 4.90 × 3.90 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 8,
+   "leads_short": 0,
+   "pitch": 635000,
+   "body_length": 4900000,
+   "body_width": 3900000,
+   "body_height": 1450000,
+   "standoff": 175000,
+   "span": 6000000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 200000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-qsop-20",
+  "name": "QSOP-20",
+  "aliases": [
+   "QSOP-20",
+   "SSOP-20 0.635"
+  ],
+  "description": "Quarter-size outline, 20 leads at 0.635 mm, body 8.65 × 3.90 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 10,
+   "leads_short": 0,
+   "pitch": 635000,
+   "body_length": 8650000,
+   "body_width": 3900000,
+   "body_height": 1450000,
+   "standoff": 175000,
+   "span": 6000000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 200000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-qsop-24",
+  "name": "QSOP-24",
+  "aliases": [
+   "QSOP-24",
+   "SSOP-24 0.635"
+  ],
+  "description": "Quarter-size outline, 24 leads at 0.635 mm, body 8.65 × 3.90 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 12,
+   "leads_short": 0,
+   "pitch": 635000,
+   "body_length": 8650000,
+   "body_width": 3900000,
+   "body_height": 1450000,
+   "standoff": 175000,
+   "span": 6000000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 200000,
+   "foot_length": 835000
+  },
+  "citation": {
+   "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-8-4.4",
+  "name": "TSSOP-8 4.4 mm",
+  "aliases": [
+   "TSSOP-8",
+   "8-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 8 leads at 0.65 mm, body 3.00 × 4.40 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 4,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 3000000,
+   "body_width": 4400000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 6400000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-14-4.4",
+  "name": "TSSOP-14 4.4 mm",
+  "aliases": [
+   "TSSOP-14",
+   "14-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 14 leads at 0.65 mm, body 5.00 × 4.40 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 7,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 5000000,
+   "body_width": 4400000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 6400000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-16-4.4",
+  "name": "TSSOP-16 4.4 mm",
+  "aliases": [
+   "TSSOP-16",
+   "16-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 16 leads at 0.65 mm, body 5.00 × 4.40 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 8,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 5000000,
+   "body_width": 4400000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 6400000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-20-4.4",
+  "name": "TSSOP-20 4.4 mm",
+  "aliases": [
+   "TSSOP-20",
+   "20-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 20 leads at 0.65 mm, body 6.50 × 4.40 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 10,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 6500000,
+   "body_width": 4400000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 6400000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-24-4.4",
+  "name": "TSSOP-24 4.4 mm",
+  "aliases": [
+   "TSSOP-24",
+   "24-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 24 leads at 0.65 mm, body 7.80 × 4.40 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 12,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 7800000,
+   "body_width": 4400000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 6400000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-28-4.4",
+  "name": "TSSOP-28 4.4 mm",
+  "aliases": [
+   "TSSOP-28",
+   "28-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 28 leads at 0.65 mm, body 9.70 × 4.40 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 14,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 9700000,
+   "body_width": 4400000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 6400000,
+   "span_x": 0,
+   "lead_width": 250000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-38-4.4",
+  "name": "TSSOP-38 4.4 mm",
+  "aliases": [
+   "TSSOP-38",
+   "38-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 38 leads at 0.5 mm, body 9.70 × 4.40 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 19,
+   "leads_short": 0,
+   "pitch": 500000,
+   "body_length": 9700000,
+   "body_width": 4400000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 6400000,
+   "span_x": 0,
+   "lead_width": 220000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-48-6.1",
+  "name": "TSSOP-48 6.1 mm",
+  "aliases": [
+   "TSSOP-48",
+   "48-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 48 leads at 0.5 mm, body 12.50 × 6.10 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 24,
+   "leads_short": 0,
+   "pitch": 500000,
+   "body_length": 12500000,
+   "body_width": 6100000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 8100000,
+   "span_x": 0,
+   "lead_width": 220000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tssop-56-6.1",
+  "name": "TSSOP-56 6.1 mm",
+  "aliases": [
+   "TSSOP-56",
+   "56-TSSOP"
+  ],
+  "description": "Thin shrink small outline, 56 leads at 0.5 mm, body 14.00 × 6.10 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 28,
+   "leads_short": 0,
+   "pitch": 500000,
+   "body_length": 14000000,
+   "body_width": 6100000,
+   "body_height": 900000,
+   "standoff": 100000,
+   "span": 8100000,
+   "span_x": 0,
+   "lead_width": 220000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-msop-8",
+  "name": "MSOP-8",
+  "aliases": [
+   "MSOP-8",
+   "VSSOP-8",
+   "µMAX-8"
+  ],
+  "description": "Micro small outline, 8 leads at 0.65 mm, body 3.00 × 3.00 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 4,
+   "leads_short": 0,
+   "pitch": 650000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 850000,
+   "standoff": 100000,
+   "span": 4900000,
+   "span_x": 0,
+   "lead_width": 300000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-187, plastic micro small outline, 3.00 mm body (MSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-msop-10",
+  "name": "MSOP-10",
+  "aliases": [
+   "MSOP-10",
+   "VSSOP-10"
+  ],
+  "description": "Micro small outline, 10 leads at 0.5 mm, body 3.00 × 3.00 mm.",
+  "params": {
+   "sides": "two",
+   "leads": 5,
+   "leads_short": 0,
+   "pitch": 500000,
+   "body_length": 3000000,
+   "body_width": 3000000,
+   "body_height": 850000,
+   "standoff": 100000,
+   "span": 4900000,
+   "span_x": 0,
+   "lead_width": 220000,
+   "lead_thickness": 150000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MO-187, plastic micro small outline, 3.00 mm body (MSOP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-32-7x7-0.8",
+  "name": "LQFP-32 7×7 0.8",
+  "aliases": [
+   "LQFP-32",
+   "QFP-32"
+  ],
+  "description": "Low-profile quad flat package, 32 leads at 0.8 mm, body 7 × 7 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 8,
+   "leads_short": 8,
+   "pitch": 800000,
+   "body_length": 7000000,
+   "body_width": 7000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 9000000,
+   "span_x": 9000000,
+   "lead_width": 370000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-44-10x10-0.8",
+  "name": "LQFP-44 10×10 0.8",
+  "aliases": [
+   "LQFP-44",
+   "QFP-44"
+  ],
+  "description": "Low-profile quad flat package, 44 leads at 0.8 mm, body 10 × 10 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 11,
+   "leads_short": 11,
+   "pitch": 800000,
+   "body_length": 10000000,
+   "body_width": 10000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 12000000,
+   "span_x": 12000000,
+   "lead_width": 370000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-48-7x7-0.5",
+  "name": "LQFP-48 7×7 0.5",
+  "aliases": [
+   "LQFP-48",
+   "QFP-48"
+  ],
+  "description": "Low-profile quad flat package, 48 leads at 0.5 mm, body 7 × 7 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 12,
+   "leads_short": 12,
+   "pitch": 500000,
+   "body_length": 7000000,
+   "body_width": 7000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 9000000,
+   "span_x": 9000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-52-10x10-0.65",
+  "name": "LQFP-52 10×10 0.65",
+  "aliases": [
+   "LQFP-52",
+   "QFP-52"
+  ],
+  "description": "Low-profile quad flat package, 52 leads at 0.65 mm, body 10 × 10 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 13,
+   "leads_short": 13,
+   "pitch": 650000,
+   "body_length": 10000000,
+   "body_width": 10000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 12000000,
+   "span_x": 12000000,
+   "lead_width": 300000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-64-7x7-0.4",
+  "name": "LQFP-64 7×7 0.4",
+  "aliases": [
+   "LQFP-64",
+   "QFP-64"
+  ],
+  "description": "Low-profile quad flat package, 64 leads at 0.4 mm, body 7 × 7 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 16,
+   "leads_short": 16,
+   "pitch": 400000,
+   "body_length": 7000000,
+   "body_width": 7000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 9000000,
+   "span_x": 9000000,
+   "lead_width": 180000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-64-10x10-0.5",
+  "name": "LQFP-64 10×10 0.5",
+  "aliases": [
+   "LQFP-64",
+   "QFP-64"
+  ],
+  "description": "Low-profile quad flat package, 64 leads at 0.5 mm, body 10 × 10 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 16,
+   "leads_short": 16,
+   "pitch": 500000,
+   "body_length": 10000000,
+   "body_width": 10000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 12000000,
+   "span_x": 12000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-64-14x14-0.8",
+  "name": "LQFP-64 14×14 0.8",
+  "aliases": [
+   "LQFP-64",
+   "QFP-64"
+  ],
+  "description": "Low-profile quad flat package, 64 leads at 0.8 mm, body 14 × 14 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 16,
+   "leads_short": 16,
+   "pitch": 800000,
+   "body_length": 14000000,
+   "body_width": 14000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 16000000,
+   "span_x": 16000000,
+   "lead_width": 370000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-80-12x12-0.5",
+  "name": "LQFP-80 12×12 0.5",
+  "aliases": [
+   "LQFP-80",
+   "QFP-80"
+  ],
+  "description": "Low-profile quad flat package, 80 leads at 0.5 mm, body 12 × 12 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 20,
+   "leads_short": 20,
+   "pitch": 500000,
+   "body_length": 12000000,
+   "body_width": 12000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 14000000,
+   "span_x": 14000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-80-14x14-0.65",
+  "name": "LQFP-80 14×14 0.65",
+  "aliases": [
+   "LQFP-80",
+   "QFP-80"
+  ],
+  "description": "Low-profile quad flat package, 80 leads at 0.65 mm, body 14 × 14 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 20,
+   "leads_short": 20,
+   "pitch": 650000,
+   "body_length": 14000000,
+   "body_width": 14000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 16000000,
+   "span_x": 16000000,
+   "lead_width": 300000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-100-14x14-0.5",
+  "name": "LQFP-100 14×14 0.5",
+  "aliases": [
+   "LQFP-100",
+   "QFP-100"
+  ],
+  "description": "Low-profile quad flat package, 100 leads at 0.5 mm, body 14 × 14 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 25,
+   "leads_short": 25,
+   "pitch": 500000,
+   "body_length": 14000000,
+   "body_width": 14000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 16000000,
+   "span_x": 16000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-120-14x14-0.4",
+  "name": "LQFP-120 14×14 0.4",
+  "aliases": [
+   "LQFP-120",
+   "QFP-120"
+  ],
+  "description": "Low-profile quad flat package, 120 leads at 0.4 mm, body 14 × 14 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 30,
+   "leads_short": 30,
+   "pitch": 400000,
+   "body_length": 14000000,
+   "body_width": 14000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 16000000,
+   "span_x": 16000000,
+   "lead_width": 180000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-144-20x20-0.5",
+  "name": "LQFP-144 20×20 0.5",
+  "aliases": [
+   "LQFP-144",
+   "QFP-144"
+  ],
+  "description": "Low-profile quad flat package, 144 leads at 0.5 mm, body 20 × 20 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 36,
+   "leads_short": 36,
+   "pitch": 500000,
+   "body_length": 20000000,
+   "body_width": 20000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 22000000,
+   "span_x": 22000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-176-24x24-0.5",
+  "name": "LQFP-176 24×24 0.5",
+  "aliases": [
+   "LQFP-176",
+   "QFP-176"
+  ],
+  "description": "Low-profile quad flat package, 176 leads at 0.5 mm, body 24 × 24 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 44,
+   "leads_short": 44,
+   "pitch": 500000,
+   "body_length": 24000000,
+   "body_width": 24000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 26000000,
+   "span_x": 26000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-208-28x28-0.5",
+  "name": "LQFP-208 28×28 0.5",
+  "aliases": [
+   "LQFP-208",
+   "QFP-208"
+  ],
+  "description": "Low-profile quad flat package, 208 leads at 0.5 mm, body 28 × 28 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 52,
+   "leads_short": 52,
+   "pitch": 500000,
+   "body_length": 28000000,
+   "body_width": 28000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 30000000,
+   "span_x": 30000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-lqfp-128-14x20-0.5",
+  "name": "LQFP-128 14×20 0.5",
+  "aliases": [
+   "LQFP-128",
+   "QFP-128"
+  ],
+  "description": "Low-profile quad flat package, 128 leads at 0.5 mm (38 on each long side, 26 on each short side), body 20 × 14 × 1.40 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 38,
+   "leads_short": 26,
+   "pitch": 500000,
+   "body_length": 20000000,
+   "body_width": 14000000,
+   "body_height": 1400000,
+   "standoff": 100000,
+   "span": 16000000,
+   "span_x": 22000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tqfp-32-7x7-0.8",
+  "name": "TQFP-32 7×7 0.8",
+  "aliases": [
+   "TQFP-32",
+   "QFP-32"
+  ],
+  "description": "Thin quad flat package, 32 leads at 0.8 mm, body 7 × 7 × 1.00 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 8,
+   "leads_short": 8,
+   "pitch": 800000,
+   "body_length": 7000000,
+   "body_width": 7000000,
+   "body_height": 1000000,
+   "standoff": 100000,
+   "span": 9000000,
+   "span_x": 9000000,
+   "lead_width": 370000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tqfp-44-10x10-0.8",
+  "name": "TQFP-44 10×10 0.8",
+  "aliases": [
+   "TQFP-44",
+   "QFP-44"
+  ],
+  "description": "Thin quad flat package, 44 leads at 0.8 mm, body 10 × 10 × 1.00 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 11,
+   "leads_short": 11,
+   "pitch": 800000,
+   "body_length": 10000000,
+   "body_width": 10000000,
+   "body_height": 1000000,
+   "standoff": 100000,
+   "span": 12000000,
+   "span_x": 12000000,
+   "lead_width": 370000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tqfp-48-7x7-0.5",
+  "name": "TQFP-48 7×7 0.5",
+  "aliases": [
+   "TQFP-48",
+   "QFP-48"
+  ],
+  "description": "Thin quad flat package, 48 leads at 0.5 mm, body 7 × 7 × 1.00 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 12,
+   "leads_short": 12,
+   "pitch": 500000,
+   "body_length": 7000000,
+   "body_width": 7000000,
+   "body_height": 1000000,
+   "standoff": 100000,
+   "span": 9000000,
+   "span_x": 9000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tqfp-64-10x10-0.5",
+  "name": "TQFP-64 10×10 0.5",
+  "aliases": [
+   "TQFP-64",
+   "QFP-64"
+  ],
+  "description": "Thin quad flat package, 64 leads at 0.5 mm, body 10 × 10 × 1.00 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 16,
+   "leads_short": 16,
+   "pitch": 500000,
+   "body_length": 10000000,
+   "body_width": 10000000,
+   "body_height": 1000000,
+   "standoff": 100000,
+   "span": 12000000,
+   "span_x": 12000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tqfp-100-14x14-0.5",
+  "name": "TQFP-100 14×14 0.5",
+  "aliases": [
+   "TQFP-100",
+   "QFP-100"
+  ],
+  "description": "Thin quad flat package, 100 leads at 0.5 mm, body 14 × 14 × 1.00 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 25,
+   "leads_short": 25,
+   "pitch": 500000,
+   "body_length": 14000000,
+   "body_width": 14000000,
+   "body_height": 1000000,
+   "standoff": 100000,
+   "span": 16000000,
+   "span_x": 16000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ },
+ {
+  "key": "gull-wing-tqfp-144-20x20-0.5",
+  "name": "TQFP-144 20×20 0.5",
+  "aliases": [
+   "TQFP-144",
+   "QFP-144"
+  ],
+  "description": "Thin quad flat package, 144 leads at 0.5 mm, body 20 × 20 × 1.00 mm.",
+  "params": {
+   "sides": "four",
+   "leads": 36,
+   "leads_short": 36,
+   "pitch": 500000,
+   "body_length": 20000000,
+   "body_width": 20000000,
+   "body_height": 1000000,
+   "standoff": 100000,
+   "span": 22000000,
+   "span_x": 22000000,
+   "lead_width": 220000,
+   "lead_thickness": 145000,
+   "foot_length": 600000
+  },
+  "citation": {
+   "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
+  },
+  "basis": "cited_unverified"
+ }
+]
