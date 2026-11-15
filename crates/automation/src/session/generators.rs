@@ -147,6 +147,49 @@ impl Session {
     /// applies, and what a host that applies commands on its own engine (the
     /// desktop, off its UI thread) sends.
     pub fn generate_request(&self, params: GeneratePartParams) -> Result<Generate> {
+        let (mut generate, bundle, made) = self.run_request(params)?;
+        let made = made.map_err(|f| crate::Error::Document(generated::failure(&f)))?;
+        generate.model = Some(super::generated_models::generated_model(
+            &self.engine,
+            &made.generation,
+            bundle.as_ref(),
+        )?);
+        Ok(generate)
+    }
+
+    /// The module's own refusal of `params`, each problem with the field
+    /// it names (empty when the module makes the part): what a form marks
+    /// on its fields while the values are edited. Runs the module but not
+    /// its part file; call it off a UI thread.
+    pub fn refusals(&self, params: GeneratePartParams) -> Result<Vec<generated::ParamProblem>> {
+        let (_, _, made) = self.run_request(params)?;
+        Ok(match made {
+            Ok(_) => Vec::new(),
+            Err(failure) => failure
+                .problems
+                .into_iter()
+                .map(|p| generated::ParamProblem {
+                    field: p.field,
+                    message: p.message,
+                })
+                .collect(),
+        })
+    }
+
+    /// `params` as a `library.generate` without its model, the shipped
+    /// bundle its module came from, and the module's answer to it.
+    #[allow(clippy::type_complexity)]
+    fn run_request(
+        &self,
+        params: GeneratePartParams,
+    ) -> Result<(
+        Generate,
+        Option<GeneratorBundle>,
+        std::result::Result<
+            sparksmith_generators::abi::Generated,
+            sparksmith_generators::abi::Failure,
+        >,
+    )> {
         let module = self.module_bytes(params.generator.as_deref(), params.module)?;
         let mut values = GeneratorParams::new();
         if let Some(preset) = &params.preset {
@@ -176,7 +219,7 @@ impl Session {
         }
         values.extend(params.params);
         let embedded = generated::module(&self.engine.project().library, module.hash).is_some();
-        let mut generate = Generate {
+        let generate = Generate {
             module: ModuleSource {
                 hash: module.hash,
                 data: (!embedded).then(|| AssetBytes::new(module.bytes)),
@@ -188,23 +231,16 @@ impl Session {
             model: None,
             bundle: module.bundle.as_ref().map(|b| b.hash),
         };
-        // The model first (GP2): the module's part file, evaluated here at
-        // the values of the request the engine will run.
+        // The model comes first (GP2): the module's part file, evaluated
+        // at the values of the request the engine will run.
         let runtime = self.runtime();
         let (bytes, wire) = sparksmith_core::commands::generator_request(
             self.engine.document(),
             &generate,
             &runtime,
         )?;
-        let made = runtime
-            .generate(&bytes, &wire)
-            .map_err(|f| crate::Error::Document(generated::failure(&f)))?;
-        generate.model = Some(super::generated_models::generated_model(
-            &self.engine,
-            &made.generation,
-            module.bundle.as_ref(),
-        )?);
-        Ok(generate)
+        let made = runtime.generate(&bytes, &wire);
+        Ok((generate, module.bundle, made))
     }
 
     pub(super) fn generate_part(&mut self, params: GeneratePartParams) -> Result<Value> {
