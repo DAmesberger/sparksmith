@@ -23,15 +23,32 @@ use std::path::Path;
 pub mod v1;
 pub mod v2;
 pub mod v3;
+pub mod v4;
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// Choices a step may need from the person converting.
+/// Choices a step may need from the person converting, and what it needs
+/// from the host.
 #[derive(Clone, Debug, Default)]
 pub struct Options {
     /// The current fab profile (`--profile FILE.json`) that an old
     /// project's rule snapshot becomes (step 1 to 2).
     pub profile: Option<Value>,
+    /// The shipped generators and Solidcraft, for typed package forms
+    /// (step 4 to 5); `sparksmith convert` gives one.
+    pub host: Option<HostRef>,
+    /// Where a step writes what it says beyond counts, one line each.
+    pub notes: Option<std::sync::Arc<std::sync::Mutex<Vec<String>>>>,
+}
+
+/// A [`v4::Host`] in [`Options`].
+#[derive(Clone)]
+pub struct HostRef(pub std::sync::Arc<dyn v4::Host>);
+
+impl std::fmt::Debug for HostRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("HostRef")
+    }
 }
 
 /// One step of the chain: a document of version `from` to `from + 1`.
@@ -61,6 +78,11 @@ pub const STEPS: &[Step] = &[
         from: 3,
         summary: "computed fill copper out of the file (refilled after opening); sketches and waiver keys as JSON, not strings",
         apply: v3::step,
+    },
+    Step {
+        from: 4,
+        summary: "typed package forms out: lead contacts as data, generated models as their generators' part files, package rows as generator values",
+        apply: v4::step,
     },
 ];
 

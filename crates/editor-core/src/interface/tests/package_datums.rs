@@ -10,9 +10,7 @@ use crate::library::datum::{
     DatumFrame, DatumName, DatumProfile, PackageDatum, PackageDatumGeometry, PackageDatumOrigin,
 };
 use crate::library::package_model::{PackageEdit, PartDerived, PartFileModel, edit_package};
-use crate::library::{
-    Datum, ModelPlacement, PackageDefinition, PackageForm, PackageModel, UsbCForm, model_frame,
-};
+use crate::library::{Datum, ModelPlacement, PackageDefinition, PackageModel, model_frame};
 use crate::model::{Layer, Project};
 use crate::units::Nm;
 
@@ -25,7 +23,7 @@ fn nm(mm: f64) -> Nm {
 /// The opening the USB4105 part file declares (its `opening` plane at the
 /// shell's mating face, 8.34 × 2.56 mm with round ends, 1.85 mm deep), as
 /// the host's part-file reader stores it in the package's derived data.
-pub(super) fn usb4105_opening() -> PackageDatum {
+pub(crate) fn usb4105_opening() -> PackageDatum {
     PackageDatum {
         name: DatumName("opening".into()),
         geometry: PackageDatumGeometry::Volume {
@@ -272,7 +270,7 @@ pub(super) fn no_opening_is_inferred_from_a_name() -> Fallible {
     let instance = project.placements.first().ok_or("placement")?.instance;
     assert_eq!(instance_datums(&project, instance)?, vec![]);
     assert_eq!(external_datums(&project), vec![]);
-    // Declared by the typed USB-C form (its drawing's values), it is there.
+    // Declared by the package (as a part file declares it), it is there.
     let entry = project
         .library
         .packages
@@ -280,9 +278,10 @@ pub(super) fn no_opening_is_inferred_from_a_name() -> Fallible {
         .ok_or("the demo package")?;
     entry.definition = edit_package(
         &entry.definition,
-        &[PackageEdit::SetForm(PackageForm::UsbC(Box::new(
-            UsbCForm::typical(),
-        )))],
+        &[PackageEdit::AddDatum(PackageDatum {
+            origin: PackageDatumOrigin::Authored,
+            ..usb4105_opening()
+        })],
     )?;
     let opening = instance_datums(&project, instance)?;
     assert_eq!(

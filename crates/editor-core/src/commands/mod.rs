@@ -8,7 +8,7 @@ mod library;
 pub(crate) mod marking;
 pub(crate) mod model3d;
 pub(crate) mod pinout;
-pub(crate) mod templates;
+pub mod working_package;
 
 pub use generated::{
     Generate, GenerateReport, GeneratedModel, ModuleSource, PackageFromGenerator, generator_request,
@@ -136,16 +136,9 @@ pub enum Outcome {
         import: crate::library::import::ImportReport,
         drafted: Vec<DefinitionId>,
     },
-    /// `library.find_or_create`: the part, whether this command made it, and
-    /// the text's values for `component.place`.
-    GenericPart {
-        component: ComponentRef,
-        created: bool,
-        properties: Vec<crate::fields::PropertyEdit>,
-    },
-    /// B1 `library.package_from_template`: what changed.
+    /// D1 `library.package_from_generator`: what changed.
     PackageReplaced {
-        plan: crate::library::templates::catalog::PackagePlan,
+        plan: crate::commands::working_package::PackagePlan,
     },
     /// C3 `library.pinout_apply`.
     PinoutApplied {

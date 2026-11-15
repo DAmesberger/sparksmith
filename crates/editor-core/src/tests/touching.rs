@@ -489,7 +489,7 @@ fn the_showcase_keeps_its_netlist_and_no_wire_runs_over_a_pin() -> Result<()> {
     let engine = Engine::showcase()?;
     let project = engine.project();
     assert_eq!(project.nets.len(), 24);
-    for (name, terminals) in crate::library::samples::SHOWCASE_NETS {
+    for (name, terminals) in crate::layout::showcase::NETS {
         let mut want: Vec<crate::Endpoint> = terminals
             .iter()
             .map(|(d, t)| crate::layout::showcase::endpoint(project, d, *t))

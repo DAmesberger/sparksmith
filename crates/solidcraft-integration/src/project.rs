@@ -306,29 +306,6 @@ impl Builder {
         }
     }
 
-    /// Build the generated definition `stem` of `package` unless it is
-    /// built.
-    fn define(&mut self, stem: &str, package: &PackageDefinition) -> Result<()> {
-        if self.models.iter().any(|d| d.component == stem) {
-            return Ok(());
-        }
-        // The model's own design, built once per process and inserted
-        // like a part file: its face names are the design's, and
-        // dimension references are traced on the same build.
-        let design = models::named::generated(package)?;
-        let definition = models::part_file::insert_design(
-            &mut self.native,
-            stem,
-            design.source(),
-            &design.generated,
-        )?;
-        for body in &definition.bodies {
-            self.record(&body.name, body.kind())?;
-        }
-        self.models.push(definition);
-        Ok(())
-    }
-
     /// Build the library-model definition `stem` (`model` with its asset
     /// `bytes`, used as `use_`) unless it is built; bounds and lead contacts
     /// are rechecked when built.
@@ -427,16 +404,8 @@ impl Builder {
         Ok(stem)
     }
 
-    /// An occurrence of the generated definition `stem` of `package`,
-    /// unmoved: the definition is built on first use (its first occurrence
-    /// returned), then every further call places it once more.
-    fn model(&mut self, stem: &str, package: &PackageDefinition) -> Result<Created> {
-        self.define(stem, package)?;
-        self.model_occurrence(stem)
-    }
-
-    /// [`Self::model`] for the library-model definition `stem`
-    /// ([`Self::define_library`]).
+    /// An occurrence of the library-model definition `stem`
+    /// ([`Self::define_library`]), unmoved.
     fn library_model(
         &mut self,
         stem: &str,
@@ -1067,8 +1036,6 @@ enum PartModel<'a> {
         &'a sparksmith_core::library::package_model::PartFileModel,
         &'a [u8],
     ),
-    /// The package's generated model.
-    Generated,
     /// The package envelope, a box.
     Envelope,
 }
@@ -1113,26 +1080,19 @@ impl<'a> PlacedPart<'a> {
 
     /// The display-only layers drawn for the part (terminations, overcoat
     /// and solder fillets), picked as `pick`: drawn in the package frame,
-    /// so only while the model frame is that frame; of a generated model
-    /// only the solder joints of a chip, gull-wing feet or header pins.
+    /// so only while the model frame is that frame; of a part-file model
+    /// only the solder joints its package declares (a chip's, gull-wing
+    /// feet, header pins: [`sparksmith_core::library::PackageJoints`]).
     fn display(&self, pick: u64) -> Option<Part<'a>> {
-        use sparksmith_core::library::PackageForm;
         if !package_frame(&datum_frame(self.package)) {
             return None;
         }
         let generated = match self.model {
-            PartModel::Generated => true,
+            PartModel::PartFile(..) => true,
             PartModel::Envelope => false,
-            PartModel::Library(_) | PartModel::PartFile(..) => return None,
+            PartModel::Library(_) => return None,
         };
-        let joints = matches!(
-            self.package.form,
-            PackageForm::Chip(_)
-                | PackageForm::GullWing(_)
-                | PackageForm::Tabbed(_)
-                | PackageForm::Header(_)
-        );
-        if generated && !joints {
+        if generated && self.package.joints.is_none() {
             return None;
         }
         Some(Part {
@@ -1169,7 +1129,6 @@ fn placed_parts(project: &Project) -> Result<Vec<PlacedPart<'_>>> {
                 PackageModel::PartFile(use_) => {
                     PartModel::PartFile(use_, part_bytes(project, use_)?)
                 }
-                _ if models::is_generated(package) => PartModel::Generated,
                 _ => PartModel::Envelope,
             };
             Ok(PlacedPart {
@@ -1763,7 +1722,6 @@ fn build_on(mut b: Builder, project: &Project) -> Result<NativeModel> {
             PackageModel::PartFile(use_) => {
                 b.define_part(&stem, use_, part_bytes(project, use_)?, Some(package))?;
             }
-            _ if models::is_generated(package) => b.define(&stem, package)?,
             _ => {}
         }
     }
@@ -1801,10 +1759,6 @@ fn build_on(mut b: Builder, project: &Project) -> Result<NativeModel> {
             PartModel::PartFile(use_, bytes) => {
                 let stem = b.define_part(&part.stem, use_, bytes, Some(part.package))?;
                 let created = b.model_occurrence(&stem)?;
-                (created, Some(created.occurrence))
-            }
-            PartModel::Generated => {
-                let created = b.model(&part.stem, part.package)?;
                 (created, Some(created.occurrence))
             }
             PartModel::Envelope => {
@@ -2500,13 +2454,11 @@ fn object_params(
         out.push((format!("{prefix}_y"), placement.position[1], "mm"));
         out.push((format!("{prefix}_angle"), placement.rotation_deg, "deg"));
         let package = &physical.package.definition;
-        if !models::is_generated(package) {
-            for (axis, value) in ["length", "width", "height"]
-                .into_iter()
-                .zip(package.envelope())
-            {
-                out.push((format!("{prefix}_{axis}"), value, "mm"));
-            }
+        for (axis, value) in ["length", "width", "height"]
+            .into_iter()
+            .zip(package.envelope())
+        {
+            out.push((format!("{prefix}_{axis}"), value, "mm"));
         }
     }
     for pad in pads {
@@ -2644,9 +2596,6 @@ fn digest(value: &impl std::fmt::Debug) -> u64 {
 /// The native envelope of one package definition, draft or published, with
 /// the same terminations and overcoat a placed chip part shows.
 pub fn preview(package: &PackageDefinition) -> Result<NativeModel> {
-    if models::is_generated(package) {
-        return preview_model(package);
-    }
     if !package.envelope_valid() {
         return Err(Error::Invalid(
             "package envelope dimensions must be finite and positive".into(),
@@ -2729,15 +2678,6 @@ pub fn preview_part(package: &PackageDefinition, bytes: &[u8]) -> Result<NativeM
 
 /// The definition name of an unpublished (draft) package's model.
 pub const DRAFT_MODEL: &str = "pkgdraft";
-
-/// The generated model of one package, draft or published, at its
-/// placement in the datum frame (z = 0 the seating plane).
-fn preview_model(package: &PackageDefinition) -> Result<NativeModel> {
-    let mut b = Builder::new("Package model", &SourceCache::default())?;
-    let created = b.model(DRAFT_MODEL, package)?;
-    move_by(&mut b.native, created.occurrence, &package.placement)?;
-    b.finish(vec![])
-}
 
 pub mod designs;
 mod fill;

@@ -126,8 +126,22 @@ pub fn context(shipped: &ShippedLibrary) -> Result<Arc<Context>> {
         Context::new(load(shipped)?)
             .with_materials(materials)
             .with_generators(generators(shipped).map_err(|e| e.to_string()))
-            .with_parts(parts(shipped).map_err(|e| e.to_string())),
+            .with_parts(parts(shipped).map_err(|e| e.to_string()))
+            .with_showcase(showcase(shipped).map_err(|e| e.to_string())),
     ))
+}
+
+/// Largest showcase parts file read, bytes.
+const MAX_SHOWCASE_BYTES: u64 = 16 * 1024 * 1024;
+
+/// The showcase's parts (`showcase/parts.json`).
+fn showcase(
+    shipped: &ShippedLibrary,
+) -> Result<sparksmith_core::library::showcase_parts::ShowcaseParts> {
+    let bytes = shipped.read(Shelf::Showcase, "parts.json", MAX_SHOWCASE_BYTES)?;
+    let text = String::from_utf8(bytes)
+        .map_err(|_| Error::Invalid("showcase/parts.json is not UTF-8".into()))?;
+    Ok(sparksmith_core::library::showcase_parts::ShowcaseParts::parse(&text)?)
 }
 
 /// Largest shipped part file read, bytes.

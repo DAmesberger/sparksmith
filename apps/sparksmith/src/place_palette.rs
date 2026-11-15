@@ -47,7 +47,7 @@ use sparksmith_core::ids::{LibraryId, SourceLineageId};
 use sparksmith_core::issues::MAX_TITLE;
 use sparksmith_core::library::generated::Standing;
 use sparksmith_core::library::import::OtherRevision;
-use sparksmith_core::library::templates::catalog::readable_provenance;
+use sparksmith_core::library::names::readable_provenance;
 use sparksmith_core::{
     ComponentRef, DefinitionId, DefinitionKind, Engine, Id, PartRef, Query, QueryResult, Revision,
 };

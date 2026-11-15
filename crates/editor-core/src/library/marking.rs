@@ -17,8 +17,16 @@ mod template;
 #[cfg(test)]
 mod tests;
 
-use super::package_form::const_nm;
 use crate::diagnostics::{Finding, ObjectRef, Result, Stage};
+
+/// `nm` as a constant (within bounds by construction; else 0).
+const fn const_nm(nm: i64) -> Nm {
+    match Nm::try_new(nm) {
+        Some(v) => v,
+        None => Nm::ZERO,
+    }
+}
+
 use crate::ids::{ContentHash, DefinitionId, FieldRef, MAX_LABEL};
 use crate::materials::MaterialId;
 use crate::units::{Nm, PointNm};
@@ -634,7 +642,7 @@ pub fn surface_region(
         },
         SurfaceRef::Face { face } => {
             let package = package?;
-            let envelope = package.form.envelope().unwrap_or(package.envelope());
+            let envelope = package.envelope();
             let size = face.of_box_size(envelope);
             size.iter()
                 .all(|s| positive(*s))
@@ -776,27 +784,21 @@ fn one_spec_problems(spec: &MarkingSpec) -> Vec<String> {
 }
 
 /// The marking area size a package's model offers, mm: a library model's
-/// `marking_area`, else the top of the typed body (a chip between its
-/// terminations, a leaded or no-lead body's moulding, otherwise the
-/// envelope's length and width). `None` when there is none.
+/// `marking_area`, a part file's first marking surface, otherwise the
+/// envelope's length and width. `None` when there is none.
 pub fn package_area(
     library: &super::Library,
     package: &super::PackageDefinition,
 ) -> Option<[f64; 2]> {
-    use super::package_form::PackageForm;
     use super::package_model::PackageModel;
-    let size = match (&package.model, &package.form) {
-        (PackageModel::Library(model), _) => library
+    let size = match &package.model {
+        PackageModel::Library(model) => library
             .model(model.model)
             .and_then(|m| m.definition.marking_area)
             .map(|area| area.size())?,
-        (PackageModel::PartFile(part), _) => part.default_area()?,
-        (_, PackageForm::Chip(c)) => [c.length() - 2.0 * c.termination(), c.width()],
-        (_, PackageForm::GullWing(g)) => [g.body_length(), g.body_width()],
-        (_, PackageForm::NoLead(n)) => [n.body_length(), n.body_width()],
-        (_, PackageForm::Module(m)) => m.can_size(),
-        (_, form) => {
-            let [l, w, _] = form.envelope().unwrap_or(package.envelope());
+        PackageModel::PartFile(part) => part.default_area()?,
+        PackageModel::Envelope { .. } => {
+            let [l, w, _] = package.envelope();
             [l, w]
         }
     };

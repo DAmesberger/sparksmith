@@ -5,6 +5,39 @@
 use super::Library;
 use crate::ids::{DefinitionId, DefinitionKind, DefinitionRef};
 
+/// Provenance text as a person reads it. Drafts the retired templates built
+/// recorded the row's exact identity ("[built-in starter table usb_c.json
+/// format 1]"); that text is stored and hashed, so it
+/// stays, and displays name the row by its kind instead: "From the
+/// built-in template ‘USB-C …’; values from …; lands from the cited
+/// drawing; verify against the selected component datasheet." Any other
+/// text is returned unchanged.
+pub fn readable_provenance(text: &str) -> String {
+    const ROW: &str = " package template row ‘";
+    let readable = || {
+        let (lead, rest) = text.split_once(ROW)?;
+        if !matches!(lead, "From" | "Custom values edited from") {
+            return None;
+        }
+        let (name, rest) = rest.split_once("’ [")?;
+        let (identity, rest) = rest.split_once("] (")?;
+        let (basis, tail) = rest.split_once("); ")?;
+        let kind = if identity.starts_with("built-in starter table ") {
+            "the built-in template"
+        } else if identity.starts_with("project row ") {
+            "the project's template"
+        } else if identity.starts_with("library ") {
+            "a library template"
+        } else if identity == "custom entry" {
+            "the custom template"
+        } else {
+            return None;
+        };
+        Some(format!("{lead} {kind} ‘{name}’; {basis}; {tail}"))
+    };
+    readable().unwrap_or_else(|| text.to_owned())
+}
+
 /// The lower-case noun of a definition kind, as messages use it.
 pub fn noun(kind: DefinitionKind) -> &'static str {
     match kind {

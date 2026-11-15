@@ -33,8 +33,8 @@ use crate::library::package_model::PartValue;
 use crate::library::{
     BindingDefinition, ComponentDefinition, CornerMask, Definition, DrawingLayer,
     FootprintDefinition, FootprintKeepout, Hole, HoleShape, KeepoutScope, MaskRule, ModelPlacement,
-    Outline, PackageDefinition, PackageForm, PackageModel, PackageTerminal, Pad, PadKind, PadShape,
-    PadSide, PasteRule, Segment, SymbolDefinition, Terminal, TerminalClass, TerminalMap, Unit,
+    Outline, PackageDefinition, PackageModel, PackageTerminal, Pad, PadKind, PadShape, PadSide,
+    PasteRule, Segment, SymbolDefinition, Terminal, TerminalClass, TerminalMap, Unit,
 };
 use crate::units::{Angle, ArcDirection, MILLIDEGREES_PER_TURN, Nm, PointNm};
 use schemars::JsonSchema;
@@ -52,7 +52,7 @@ pub struct Refs {
 }
 
 /// The courtyard outline's stroke, 0.05 mm, as the footprint templates
-/// draw it (`templates::footprint::COURTYARD_STROKE_MM`).
+/// draw it (`footprint_drawings::COURTYARD_STROKE_MM`).
 const COURTYARD_STROKE: Nm = match Nm::try_new(50_000) {
     Some(nm) => nm,
     None => Nm::ZERO,
@@ -554,7 +554,6 @@ fn package(
         // The envelope is the generation's; the model is the part file
         // the generator names, at its values (slice GP2), resolved to a
         // Model revision of this project by the caller.
-        form: PackageForm::Generic,
         envelope_nm: [nm(length)?, nm(width)?, nm(height)?],
         model,
         placement: ModelPlacement {
@@ -563,6 +562,8 @@ fn package(
         },
         mechanical: None,
         datums: Vec::new(),
+        leads: Vec::new(),
+        joints: None,
     };
     Ok(package)
 }

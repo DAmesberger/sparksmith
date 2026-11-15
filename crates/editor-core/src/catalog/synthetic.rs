@@ -13,7 +13,7 @@ use crate::ids::{
     BindingRef, ComponentRef, DefinitionId, FieldRef, FootprintRef, PackageRef, QuantityKindRef,
     Revision, SymbolRef,
 };
-use crate::library::samples::{self, Kind, SampleRefs};
+use crate::library::sample_parts::{self as samples, Kind, SampleRefs};
 use crate::library::{
     Definition, DefinitionMeta, DistributorOffer, DraftEdit, Library, PartDefinition, Provenance,
     Published, Reference, ReferenceKind,
@@ -254,8 +254,6 @@ fn shared_package(
         match &mut edit.definition {
             Definition::Package(package) => {
                 if small {
-                    // A typed form other than a chip derives its envelope;
-                    // setting it by hand would publish a stale one.
                     package.resize_envelope(SMALL.0)?;
                 }
                 body = Some(package.clone());

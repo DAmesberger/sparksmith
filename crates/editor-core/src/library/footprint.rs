@@ -23,7 +23,10 @@ pub use geometry::{CHECK_CHORD_MM, PAD_ARC_TOLERANCE_MM, TerminalRule, bulge_arc
 
 /// Default solder-mask expansion around a pad, 0.05 mm (an estimated
 /// prototype default, not a manufacturer qualification).
-pub const MASK_EXPANSION_NM: Nm = super::package_form::const_nm(50_000);
+pub const MASK_EXPANSION_NM: Nm = match Nm::try_new(50_000) {
+    Some(v) => v,
+    None => Nm::ZERO,
+};
 /// Segments in one custom pad [`Outline`].
 pub const MAX_OUTLINE_SEGMENTS: usize = 512;
 /// Paste windows on one pad.

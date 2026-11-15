@@ -34,37 +34,52 @@ def pin(row, num, name, direction, variant, signal="power", cls="electrical", pa
     return r
 
 
-def pinout(s, name, ds, variant, count, pins):
+def pinout(s, name, ds, variant, count, pins, onto=None):
     title, rev, url = DS[ds]
     doc = {"format": 1, "device": {"name": name, "reference": {"title": title, "document_revision": rev, "url": url}},
            "variants": [{"name": variant, "terminal_count": count}], "peripherals": [], "pins": pins, "rules": []}
-    target = {"target": "new", "name": name}
+    target = {"target": "draft", "id": onto} if onto else {"target": "new", "name": name}
     base = s.query("library.pinout_preview", {"target": target, "document": doc})["result"]["base"]
     r = s.op("library.pinout_apply", {"target": target, "document": doc, "base": base}, f"pinout {name}")
     return r["result"]["outcome"]["report"]["drafts"]  # component, symbol, package, binding
 
 
-def from_template(s, row, name, skeleton, symbol=None, prefix=None):
-    # This board types its own fields, so a chip row brings none of the standard ones.
-    p = {"without_fields": True} if row.startswith("Chip ") else {}
-    p |= {"row": {"source": "starter", "name": row}, "skeleton": skeleton, "name": name}
-    if symbol:
-        p["symbol"] = symbol
-    if prefix:
-        p["designator_prefix"] = prefix
-    r = s.op("library.new_from_template", p, f"template {name}")
-    return r["result"]["outcome"]["ids"]  # component, symbol, package, footprint, binding
+KINDS = ["component", "symbol", "package", "footprint", "binding"]
 
 
-def package_from(s, package, row, values=None):
-    """`row` is a starter row's name, or a typed form's family with `values`."""
-    if values is None:
-        req = {"draft": package, "row": {"source": "starter", "name": row}}
-    else:
-        req = {"draft": package, "row": {"source": "custom", "family": row}, "values": values}
-    s.query("library.package_plan", {"request": req})
-    r = s.op("library.package_from_template", req, f"package {row}")
-    return r["result"]["outcome"]["plan"]["footprint"]
+def generate(s, generator, preset, name, params=None, scope="component"):
+    """A part made by a shipped generator (`library.generate_part`): its root
+    revision and each lineage of the part by kind."""
+    if s.rev is None:
+        s.rev = s.revision()
+    p = {"expected_revision": s.rev, "generator": generator, "scope": scope, "name": name,
+         "params": params or {}}
+    if preset:
+        p["preset"] = preset
+    r = s.raw("library.generate_part", p, f"generate {name}")
+    s.rev = r["result"].get("revision", s.rev)
+    report = r["result"]["outcome"]["report"]
+    return report["root"], {x["kind"]: x["id"] for x in report["revisions"]}
+
+
+def draft_closure(s, root):
+    """Draft a generated component's working set to make it this board's own."""
+    s.op("library.draft_closure", {"component": {"id": root["id"], "revision": root["revision"]}},
+         f"draft {root['id']}")
+
+
+def footprint_from_pads(s, package, pads, slots=(), holes=()):
+    """A new footprint draft landing `package`'s draft, built from a pad table."""
+    body = {"package": {"id": package, "revision": 1}, "next_local": 1, "source": None, "pads": [], "graphics": [],
+            "polarity": None, "datum": {"offset": {"x_nm": 0, "y_nm": 0}, "rotation_mdeg": 0},
+            "defaults": {"mask_expansion_nm": 50000, "paste_reduction_nm": 0}}
+    r = s.op("library.new_draft", {"meta": meta(drafts(s)[package]["meta"]["name"] + " footprint",
+                                               drafts(s)[package]["meta"]["provenance"]),
+                                   "definition": {"kind": "footprint", "body": body}}, "footprint draft")
+    fp = r["result"]["outcome"]["id"]
+    s.op("library.footprint_from_pads", {"draft": fp, "pads": list(pads), "slots": list(slots),
+                                         "holes": list(holes), "assign_by_number": True}, "pad table")
+    return fp
 
 
 def check(s, ids=None):
@@ -81,8 +96,18 @@ def check(s, ids=None):
 
 
 
+def nm(mm):
+    """A length in millimetres as integer nanometres."""
+    return int(round(mm * 1_000_000))
+
+
+def pt(xy):
+    """An `[x, y]` point in millimetres as a stored point."""
+    return {"x_nm": nm(xy[0]), "y_nm": nm(xy[1])}
+
+
 def rect(a, b, width, layer):
-    return {"item": {"shape": {"fill": "none", "shape": {"rect": {"a": a, "b": b}}, "width": width}},
+    return {"item": {"shape": {"fill": "none", "shape": {"rect": {"a": pt(a), "b": pt(b)}}, "width_nm": nm(width)}},
             "layer": layer, "side": "component"}
 
 
@@ -93,8 +118,11 @@ def rect(a, b, width, layer):
 def generic_package(s, pkg_id, envelope, prov, material="epoxy_mould"):
     d = drafts(s)[pkg_id]
     body = d["definition"]["body"]
-    body["envelope"] = envelope
-    body["form"] = {"family": "generic"}
+    body["envelope_nm"] = [nm(v) for v in envelope]
+    # The switch is no chip: no chip solder joints, and its leads are the
+    # part file's.
+    body["leads"] = []
+    body["joints"] = None
     body["model"] = {"source": "envelope", "material": material}
     edit(s, [{"id": pkg_id, "meta": d["meta"] | {"provenance": prov}, "definition": d["definition"]}], f"generic package {pkg_id}")
 

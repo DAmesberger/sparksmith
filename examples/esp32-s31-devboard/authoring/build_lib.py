@@ -32,9 +32,9 @@ def set_fields(s, comp, fields, name=None, prov=None):
     edit(s, [{"id": comp, "meta": m, "definition": d["definition"]}], f"fields of {comp}")
 
 
-def part(s, mpn, manufacturer, comp, binding, specs, ds_title, ds_url, ds_rev=None, desc=""):
+def part(s, mpn, manufacturer, comp, binding, specs, ds_title, ds_url, ds_rev=None, desc="", rev=1):
     body = {"next_local": 2, "manufacturer": manufacturer, "mpn": mpn,
-            "component": {"id": comp, "revision": 1}, "binding": {"id": binding, "revision": 1},
+            "component": {"id": comp, "revision": rev}, "binding": {"id": binding, "revision": rev},
             "specs": [{"field": {"id": f, "revision": 1}, "value": {"type": "quantity", "value": {"si": format(Decimal(str(v)).normalize(), "f"), "display_unit": None}},
                        "meaning": m} for f, v, m in specs],
             "references": [{"id": 1, "kind": "datasheet", "title": ds_title, "url": ds_url, "document_revision": ds_rev,
@@ -48,12 +48,12 @@ def part(s, mpn, manufacturer, comp, binding, specs, ds_title, ds_url, ds_rev=No
 
 
 def replace_pads(s, fp, pads, prov=None):
-    """Replace a template footprint's pads (keeping ids and terminals in order)."""
+    """Replace a generated footprint's pads (keeping ids and terminals in order)."""
     d = drafts(s)[fp]
     body = d["definition"]["body"]
     for p, (at, size) in zip(body["pads"], pads):
-        p["position"] = at
-        p["shape"] = {"rect": {"size": size}}
+        p["position"] = pt(at)
+        p["shape"] = {"rect": {"size": pt(size)}}
     if prov:
         d["meta"]["provenance"] = prov
     edit(s, [{"id": fp, "meta": d["meta"], "definition": d["definition"]}], f"pads of {fp}")
@@ -67,7 +67,7 @@ def set_graphics(s, fp, keep_text=True, extra=(), silk_text_at=None):
     if silk_text_at is not None:
         for g in gfx:
             if g["layer"] == "silkscreen":
-                g["item"]["text"]["at"] = silk_text_at
+                g["item"]["text"]["at"] = pt(silk_text_at)
     for g in extra:
         gfx.append(dict(g, id=n)); n += 1
     body["graphics"] = gfx
@@ -109,18 +109,6 @@ def publish_and_close(s, ids, note):
     s.op("library.publish", {"drafts": ids}, note)
 
 
-# The GCT USB4105 drawing's values (rev B4 sheet 1) as the typed USB-C
-# form takes them: the receptacle's lands come from the form. (Sparksmith
-# now ships this receptacle as a whole component, library/parts/gct-usb4105;
-# this board keeps its own pinout component and package.)
-USB_C_VALUES = {"family": "usb_c", "width": 8.94, "depth": 7.35, "height": 3.31, "opening": [8.34, 2.56],
-                "opening_z": 1.73, "shell_thickness": 0.3, "pitch": 0.5, "land_y": 3.68, "land_length": 1.15,
-                "signal_land_width": 0.3, "power_land_width": 0.6, "vbus_x": 2.4, "gnd_x": 3.2, "tab_x": 4.32,
-                "tabs": [{"y": -1.075, "slot": [0.6, 1.4], "land": [1.0, 1.8]},
-                         {"y": 3.105, "slot": [0.6, 1.7], "land": [1.0, 2.1]}],
-                "stake_length": 0.95, "peg_x": 2.89, "peg_y": 2.605, "peg_diameter": 0.5, "peg_hole": 0.65}
-
-
 def drafts_name(s, i):
     return drafts(s)[i]["meta"]["name"]
 
@@ -142,31 +130,48 @@ def build(s):
 
     publish = []
 
-    # Generic 0603 resistor, generic 0603 and 0805 MLCCs.
-    for key, row, name, flds in (("r0603", "Chip resistor 0603 (1608 metric)", "Resistor 0603", [(F["res"], True)]),
-                                 ("c0603", "Chip capacitor 0603 (1608 metric)", "Capacitor 0603", [(F["cap"], True), (F["volt"], False)]),
-                                 ("c0805", "Chip capacitor 0805 (2012 metric)", "Capacitor 0805", [(F["cap"], True), (F["volt"], False)])):
-        ids = from_template(s, row, name, {"skeleton": "two_terminal", "polarised": False})
-        set_fields(s, ids[0], flds)
-        L[key] = dict(zip(["component", "symbol", "package", "footprint", "binding"], ids))
+    def own(generator, preset, name, params=None, package=None):
+        """Generate a part with a shipped generator and draft its working set
+        to make it this board's own (`library.draft_closure`): each lineage's
+        next revision is the board's. `package` names the package (the
+        purchasing files print it)."""
+        root, ids = generate(s, generator, preset, name, params)
+        draft_closure(s, root)
+        if package:
+            d = drafts(s)[ids["package"]]
+            d["meta"]["name"] = package
+            edit(s, [{"id": ids["package"], "meta": d["meta"], "definition": d["definition"]}], f"name {package}")
+        entry = {k: ids[k] for k in KINDS} | {"revision": root["revision"] + 1}
+        return entry, [ids[k] for k in KINDS]
+
+    # Generic 0603 resistor, generic 0603 and 0805 MLCCs: the chip
+    # generator's parts (with their 3D part files), typed with this board's
+    # fields.
+    for key, preset, name, flds in (("r0603", "resistor-0603", "Resistor 0603", [(F["res"], True)]),
+                                    ("c0603", "capacitor-0603", "Capacitor 0603", [(F["cap"], True), (F["volt"], False)]),
+                                    ("c0805", "capacitor-0805", "Capacitor 0805", [(F["cap"], True), (F["volt"], False)])):
+        L[key], ids = own("chip", preset, name)
+        set_fields(s, L[key]["component"], flds)
         publish.append(ids)
 
-    # Green 0603 LED: Kingbright APT1608SGC. The chip LED row is this
-    # datasheet's: 1.6 x 0.8 x 0.75 body, 0.8 x 0.8 lands 0.85 apart, pad 1
-    # the cathode (K), with the generated chip-LED model.
-    ids = from_template(s, "Chip LED 0603 (1608 metric)", "APT1608SGC", {"skeleton": "two_terminal", "polarised": True},
-                        symbol="led", prefix="D")
-    L["led"] = dict(zip(["component", "symbol", "package", "footprint", "binding"], ids))
-    publish.append(ids)
+    # Green 0603 LED: Kingbright APT1608SGC. The chip generator's 0603 LED
+    # is this datasheet's: 1.6 x 0.8 x 0.75 body, 0.8 x 0.8 lands 0.85
+    # apart, pad 1 the cathode (K). Used as generated.
+    root, ids = generate(s, "chip", "led-0603", "APT1608SGC")
+    L["led"] = {k: ids[k] for k in KINDS} | {"revision": root["revision"]}
 
-    # Omron B3U-1000P tactile switch (BOOT, RESET).
-    ids = from_template(s, "Chip resistor 1206 (3216 metric)", "B3U-1000P", {"skeleton": "two_terminal", "polarised": False},
-                        symbol="pushbutton", prefix="SW")
+    # Omron B3U-1000P tactile switch (BOOT, RESET): a two-terminal chip
+    # part redrawn as a push button, with the datasheet's lands and the
+    # example's part file.
+    L["sw"], ids = own("chip", "resistor-1206", "B3U-1000P")
     comp, sym, pkg, fp, bind = ids
+    d = drafts(s)[comp]
+    d["definition"]["body"]["designator_prefix"] = "SW"
+    edit(s, [{"id": comp, "meta": d["meta"], "definition": d["definition"]}], "B3U-1000P prefix")
+    s.op("library.restyle_symbol", {"draft": sym, "kind": "pushbutton"}, "B3U-1000P push button")
     replace_pads(s, fp, [([-1.7, 0.0], [0.8, 1.7]), ([1.7, 0.0], [0.8, 1.7])],
                  "Omron B3U datasheet p.2, PCB Pad (Top View), B3U-1000P: two 0.8 x 1.7 pads, 2.6 between, 4.2 overall")
-    # The designator sits outside the body outline, on the -y side: the
-    # resistor row's spot (+1.8) printed it across the outline's +y line.
+    # The designator sits outside the body outline, on the -y side.
     silk_half, silk_w, text_h, text_gap = 1.4, 0.12, 1.0, 0.15
     set_graphics(s, fp, extra=[rect([-1.5, -1.25], [1.5, 1.25], 0.1, "assembly"),
                                rect([-2.35, -1.5], [2.35, 1.5], 0.05, "courtyard"),
@@ -181,43 +186,42 @@ def build(s):
                                         "name": "B3U-1000P", "licence": "MIT OR Apache-2.0",
                                         "redistribution": "permitted"}, "B3U-1000P part file")
     s.rev = r["result"].get("revision", s.rev)
-    L["sw"] = dict(zip(["component", "symbol", "package", "footprint", "binding"], ids), model=r["result"]["outcome"]["id"])
+    L["sw"]["model"] = r["result"]["outcome"]["id"]
     publish.append(ids + [L["sw"]["model"]])
 
-    # Pin headers.
-    for key, row, name in (("h12", "Pin header 1×12 2.54 mm", "Pin header 1x12 2.54 mm"),
-                           ("h4", "Pin header 1×4 2.54 mm", "Pin header 1x4 2.54 mm")):
-        ids = from_template(s, row, name, {"skeleton": "connector"}, prefix="J")
-        L[key] = dict(zip(["component", "symbol", "package", "footprint", "binding"], ids))
-        publish.append(ids)
+    # Pin headers: the header generator's, used as generated.
+    for key, preset, name in (("h12", "header-1x12-2.54", "Pin header 1x12 2.54 mm"),
+                              ("h4", "header-1x4-2.54", "Pin header 1x4 2.54 mm")):
+        root, ids = generate(s, "header", preset, name)
+        L[key] = {k: ids[k] for k in KINDS} | {"revision": root["revision"]}
 
-    # TLV75733PDBVR 3.3 V 1 A LDO (module needs >= 0.6 A, datasheet Table 6-2).
+    # TLV75733PDBVR 3.3 V 1 A LDO (module needs >= 0.6 A, datasheet Table 6-2):
+    # the tabbed generator's SOT-23-5 with TI's DBV0005A example board
+    # layout lands (p.35: 0.6 x 1.1 pads, 2.6 between row centres), then the
+    # datasheet pinout onto its drafts.
+    L["ldo"], ids = own("tabbed", "tabbed-sot-23-5", "TLV75733PDBVR",
+                        {"lands": "explicit", "land_width": 600000, "land_length": 1100000, "land_span": 2600000},
+                        "TLV75733PDBVR SOT-23-5")
     V = "SOT-23-5"
-    ids = pinout(s, "TLV75733PDBVR", "tlv757p", V, 5, [
+    pinout(s, "TLV75733PDBVR", "tlv757p", V, 5, [
         pin("in", "1", "IN", "power_input", V, page=3, table="Table 4-1"),
         pin("gnd", "2", "GND", "power_input", V, page=3, table="Table 4-1"),
         pin("en", "3", "EN", "input", V, "digital", page=3, table="Table 4-1"),
         pin("nc", "4", "NC", None, V, cls="device_nc", page=3, table="Table 4-1"),
-        pin("out", "5", "OUT", "power_output", V, page=3, table="Table 4-1")])
-    fp = package_from(s, ids[2], "SOT-23-5")
-    # The starter row's lands are estimates; use TI's DBV0005A example board layout.
-    replace_pads(s, fp, [([-0.95, -1.3], [0.6, 1.1]), ([0.0, -1.3], [0.6, 1.1]), ([0.95, -1.3], [0.6, 1.1]),
-                         ([0.95, 1.3], [0.6, 1.1]), ([-0.95, 1.3], [0.6, 1.1])],
-                 "TI SBVS320 DBV0005A example board layout (p.35): 5x 0.6 x 1.1 pads, 0.95 pitch, 2.6 between row centres")
-    L["ldo"] = dict(zip(["component", "symbol", "package", "binding"], ids), footprint=fp)
-    publish.append(ids + [fp])
+        pin("out", "5", "OUT", "power_output", V, page=3, table="Table 4-1")], onto=L["ldo"]["component"])
+    publish.append(ids)
 
-    # TPD2E009DBZR USB ESD (SOT-23-3).
+    # TPD2E009DBZR USB ESD (SOT-23-3): TI's DBZ0003A example board layout
+    # (0.6 x 1.3 pads, 2.1 between row centres).
+    L["esd"], ids = own("tabbed", "tabbed-sot-23-3", "TPD2E009DBZR",
+                        {"lands": "explicit", "land_width": 600000, "land_length": 1300000, "land_span": 2100000},
+                        "TPD2E009DBZR SOT-23-3")
     V = "SOT-23-3"
-    ids = pinout(s, "TPD2E009DBZR", "tpd2e009", V, 3, [
+    pinout(s, "TPD2E009DBZR", "tpd2e009", V, 3, [
         pin("dp", "1", "D+", "passive", V, "unspecified", page=3, table="Pin Functions"),
         pin("dn", "2", "D-", "passive", V, "unspecified", page=3, table="Pin Functions"),
-        pin("gnd", "3", "GND", "power_input", V, "power", page=3, table="Pin Functions")])
-    fp = package_from(s, ids[2], "SOT-23-3")
-    replace_pads(s, fp, [([-0.95, -1.05], [0.6, 1.3]), ([0.95, -1.05], [0.6, 1.3]), ([0.0, 1.05], [0.6, 1.3])],
-                 "TI TPD2E009 DBZ0003A example board layout: 3x 0.6 x 1.3 pads, 1.9 between pins 1 and 2, 2.1 between row centres")
-    L["esd"] = dict(zip(["component", "symbol", "package", "binding"], ids), footprint=fp)
-    publish.append(ids + [fp])
+        pin("gnd", "3", "GND", "power_input", V, "power", page=3, table="Pin Functions")], onto=L["esd"]["component"])
+    publish.append(ids)
 
     # GCT USB4105-GF-A USB-C receptacle (USB 2.0, 16 contacts on 12 pads, shell).
     V = "USB4105"
@@ -231,12 +235,52 @@ def build(s):
     # The stacked numbers ("A1B12", "B4A9") need 7.5 mm stubs at full
     # height; the pinout's 2.5 mm stubs shrank them to less than half of it.
     fit_pin_numbers(s, comp, sym, [n for _, n, _ in rows])
-    # The USB-C form with this drawing's values (GCT USB4105 rev B4 sheet 1):
-    # it gives the package the generated receptacle model, and its
-    # lands the footprint (12 SMD lands, four plated shell slots, two NPTH
-    # pegs), landing the pinout's terminals by number. Footprint origin: the
+    # The receptacle's envelope and lands from the drawing (GCT USB4105
+    # rev B4 sheet 1): 12 SMD lands, four plated shell slots and two NPTH
+    # pegs, landing the pinout's terminals by number. Footprint origin: the
     # outline centre, mating face toward -y.
-    fid = package_from(s, pkg, "usb_c", USB_C_VALUES)
+    d = drafts(s)[pkg]
+    d["definition"]["body"]["envelope_nm"] = [nm(v) for v in (8.94, 7.35, 3.31)]
+    edit(s, [{"id": pkg, "meta": d["meta"], "definition": d["definition"]}], "USB4105 envelope")
+    lands = [("A1B12", -3.2, 0.6), ("A4B9", -2.4, 0.6), ("B8", -1.75, 0.3), ("A5", -1.25, 0.3), ("B7", -0.75, 0.3),
+             ("A6", -0.25, 0.3), ("A7", 0.25, 0.3), ("B6", 0.75, 0.3), ("A8", 1.25, 0.3), ("B5", 1.75, 0.3),
+             ("B4A9", 2.4, 0.6), ("B1A12", 3.2, 0.6)]
+    slots = [{"number": "S", "at": [x, y], "slot": [0.6, length], "land": [1.0, land], "terminal": "S"}
+             for y, length, land in ((-1.075, 1.4, 1.8), (3.105, 1.7, 2.1)) for x in (-4.32, 4.32)]
+    fid = footprint_from_pads(s, pkg, [{"number": n, "at": [x, 3.68], "size": [w, 1.15]} for n, x, w in lands],
+                              slots, [{"at": [x, 2.605], "diameter": 0.65} for x in (-2.89, 2.89)])
+    # The pad table centres the envelope over the pads and outlines it
+    # there; the drawing's origin is the outline centre, so the envelope
+    # stays put and the outline is the drawing's: the 8.94 x 7.35 body on
+    # assembly, silkscreen clear of the shell slots and open over the
+    # lands, the courtyard and pin A1B12's dot.
+    d = drafts(s)[pkg]
+    d["definition"]["body"]["placement"] = {"translation_nm": [0, 0, 0], "rotation_mdeg": [0, 0, 0]}
+    edit(s, [{"id": pkg, "meta": d["meta"], "definition": d["definition"]}], "USB4105 envelope at the outline centre")
+    d = drafts(s)[fid]
+    body = d["definition"]["body"]
+    line = lambda a, b: {"shape": {"shape": {"line": {"a": pt(a), "b": pt(b)}}, "width_nm": 150000, "fill": "none"}}
+    text = lambda at, layer: {"item": {"text": {"content": "designator", "at": pt(at), "height_nm": 1000000, "rotation": "r0",
+                                                 "justify": {"h": "center", "v": "middle"}, "visible": True, "line_spacing": 1.6}},
+                              "layer": layer, "side": "component"}
+    silk = [line([-4.62, -3.825], [4.62, -3.825]), line([4.62, -3.825], [4.62, -2.2]), line([4.62, 0.05], [4.62, 1.83]),
+            line([-4.62, -3.825], [-4.62, -2.2]), line([-4.62, 0.05], [-4.62, 1.83])]
+    gfx = ([rect([-4.47, -3.675], [4.47, 3.675], 0.1, "assembly")]
+           + [{"item": g, "layer": "silkscreen", "side": "component"} for g in silk]
+           + [rect([-5.1, -3.95], [5.1, 4.55], 0.05, "courtyard"), text([0.0, 5.2], "silkscreen"), text([0.0, 0.0], "assembly"),
+              {"item": {"shape": {"shape": {"circle": {"center": pt([-4.05, 3.68]), "radius_nm": 200000}}, "width_nm": 0,
+                                  "fill": "solid"}}, "layer": "silkscreen", "side": "component"}])
+    n = max(p["id"] for p in body["pads"]) + 1
+    body["graphics"] = [dict(g, id=n + k) for k, g in enumerate(gfx)]
+    body["next_local"] = n + len(gfx)
+    # The locating pegs' holes open the mask to the hole itself.
+    for p in body["pads"]:
+        if p["kind"] == "non_plated_hole":
+            p["mask"] = {"expansion_nm": 0}
+    edit(s, [{"id": fid, "meta": d["meta"], "definition": d["definition"]}], "USB4105 outline")
+    b = drafts(s)[bind]
+    b["definition"]["body"]["footprints"] = [{"id": fid, "revision": 1}]
+    edit(s, [{"id": bind, "meta": b["meta"], "definition": b["definition"]}], "USB4105 binding footprint")
     # The 3D model: the example's USB4105 part file (original work from the
     # same drawing; see README, Sources), whose shell front face the board
     # holds flush to its edge.
@@ -261,7 +305,7 @@ def build(s):
     R, C3, C8 = L["r0603"], L["c0603"], L["c0805"]
     yag = ("Yageo RC_L series thick-film chip resistors datasheet", "https://www.yageo.com/upload/media/product/productsearch/datasheet/rchip/PYu-RC_Group_51_RoHS_L_12.pdf")
     for mpn, ohm in (("RC0603FR-075K1L", 5.1e3), ("RC0603FR-0710KL", 10e3), ("RC0603FR-07470RL", 470.0)):
-        P.append(part(s, mpn, "Yageo", R["component"], R["binding"], [(F["res"], ohm, "exact_nominal")], *yag, desc="0603 1 % 0.1 W"))
+        P.append(part(s, mpn, "Yageo", R["component"], R["binding"], [(F["res"], ohm, "exact_nominal")], *yag, desc="0603 1 % 0.1 W", rev=R.get("revision", 1)))
     mur = "Murata GRM series chip monolithic ceramic capacitors, product page datasheet"
     for mpn, farad, volt, c, url in (
             ("GRM188R71C104KA01D", 100e-9, 16.0, C3, "https://www.murata.com/en-us/products/productdetail?partno=GRM188R71C104KA01%23"),
@@ -269,16 +313,19 @@ def build(s):
             ("GRM21BR61C106KE15L", 10e-6, 16.0, C8, "https://www.murata.com/en-us/products/productdetail?partno=GRM21BR61C106KE15%23"),
             ("GRM21BR61A226ME51L", 22e-6, 10.0, C8, "https://www.murata.com/en-us/products/productdetail?partno=GRM21BR61A226ME51%23")):
         P.append(part(s, mpn, "Murata", c["component"], c["binding"],
-                      [(F["cap"], farad, "exact_nominal"), (F["volt"], volt, "minimum_rating")], mur, url))
+                      [(F["cap"], farad, "exact_nominal"), (F["volt"], volt, "minimum_rating")], mur, url,
+                      rev=c.get("revision", 1)))
     for key, mpn, man, ds in (("led", "APT1608SGC", "Kingbright", "apt1608"), ("sw", "B3U-1000P", "Omron", "b3u"),
                               ("ldo", "TLV75733PDBVR", "Texas Instruments", "tlv757p"),
                               ("esd", "TPD2E009DBZR", "Texas Instruments", "tpd2e009"),
                               ("usbc", "USB4105-GF-A", "GCT", "usb4105")):
         t, rev, url = DS[ds]
-        P.append(part(s, mpn, man, L[key]["component"], L[key]["binding"], [], t, url, rev))
+        P.append(part(s, mpn, man, L[key]["component"], L[key]["binding"], [], t, url, rev,
+                      rev=L[key].get("revision", 1)))
     for key, mpn in (("h12", "TSW-112-07-G-S"), ("h4", "TSW-104-07-G-S")):
         P.append(part(s, mpn, "Samtec", L[key]["component"], L[key]["binding"], [],
-                      "Samtec TSW through-hole 2.54 mm terminal strip", "https://www.samtec.com/products/tsw"))
+                      "Samtec TSW through-hole 2.54 mm terminal strip", "https://www.samtec.com/products/tsw",
+                      rev=L[key].get("revision", 1)))
     P.append(part(s, "ESP32-S31-WROOM-3", "Espressif", 1, 4, [],
                   "ESP32-S31-WROOM-3 & WROOM-3U Datasheet", "https://documentation.espressif.com/esp32-s31-wroom-3_wroom-3u_datasheet_en.pdf", "v0.7"))
     publish_and_close(s, P, "publish Parts")

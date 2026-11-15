@@ -521,13 +521,13 @@ fn an_unmapped_pad_gets_a_visible_pin_added_by_import() -> Fallible<()> {
 /// (a pin on a wire joins it), so it is refused, naming the net and pin.
 #[test]
 fn a_new_qfn_places_on_a_routed_imported_sheet() -> Fallible<()> {
-    use sparksmith_core::library::PackageForm;
-    use sparksmith_core::library::package_form::{LeadSides, NoLeadForm};
-    use sparksmith_core::library::templates::catalog::{
-        FamilyKind, NewFromTemplate, RowSource, SkeletonHint,
+    use sparksmith_core::library::fixtures::{self, SampleRefs};
+    use sparksmith_core::library::{Definition, DefinitionMeta};
+    use sparksmith_core::units::PointNm;
+    use sparksmith_core::{
+        BindingRef, DefinitionKind, FootprintRef, InstanceCommand, LibraryCommand, Operation,
+        Outcome, PackageRef, Revision, SymbolRef,
     };
-    use sparksmith_core::units::{Nm, PointNm};
-    use sparksmith_core::{InstanceCommand, Operation};
     let mut b = board();
     b.items
         .push_str("  (segment (start 11 10) (end 19 10) (width 0.25) (layer \"F.Cu\") (net 2))\n");
@@ -540,40 +540,56 @@ fn a_new_qfn_places_on_a_routed_imported_sheet() -> Fallible<()> {
     )?;
     let mut engine = imported.engine;
     assert_eq!(engine.project().tracks.len(), 1, "SIG is routed");
-    let mm = Nm::from_mm_f64_rounded;
-    let form = PackageForm::NoLead(Box::new(NoLeadForm {
-        sides: LeadSides::Four,
-        terminals_per_side: [3, 3],
-        pitch_nm: mm(0.5)?,
-        body_length_nm: mm(3.0)?,
-        body_width_nm: mm(3.0)?,
-        body_height_nm: mm(0.9)?,
-        terminal_length_nm: mm(0.4)?,
-        terminal_width_nm: mm(0.25)?,
-        exposed_pad: Some(PointNm::from_mm_f64_rounded([1.65, 1.65])?),
-    }));
+    // The QFN-16 preset part (exposed pad), drafted and published.
+    let mut ids = Vec::new();
+    for kind in [
+        DefinitionKind::Component,
+        DefinitionKind::Symbol,
+        DefinitionKind::Package,
+        DefinitionKind::Footprint,
+        DefinitionKind::Binding,
+    ] {
+        if let Outcome::DraftCreated { id } = engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::NewDraft {
+                meta: DefinitionMeta::default(),
+                definition: Definition::empty(kind),
+            }),
+        )? {
+            ids.push(id);
+        }
+    }
+    let [component, symbol, package, footprint, binding] = ids[..] else {
+        return Err("draft reservation failed".into());
+    };
+    let first = Revision::FIRST;
+    let edits = fixtures::preset(
+        "QFN-16",
+        SampleRefs {
+            component,
+            symbol: SymbolRef::new(symbol, first),
+            package: PackageRef::new(package, first),
+            footprint: FootprintRef::new(footprint, first),
+            binding: BindingRef::new(binding, first),
+        },
+    )?;
     engine.apply(
         engine.revision(),
-        Operation::Library(sparksmith_core::LibraryCommand::PublishFromTemplate(
-            Box::new(NewFromTemplate {
-                row: RowSource::Custom {
-                    family: FamilyKind::NoLead,
-                },
-                values: Some(form),
-                skeleton: SkeletonHint::IcBox,
-                name: "QFN-12 3x3 0.5 EP 1.65".into(),
-                designator_prefix: None,
-                symbol: None,
-                without_fields: false,
-            }),
-        )),
+        Operation::Library(LibraryCommand::Edit { edits }),
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::Publish {
+            drafts: ids.clone(),
+            close: true,
+        }),
     )?;
     let component = engine
         .project()
         .library
         .components
         .iter()
-        .find(|c| c.meta.name.starts_with("QFN-12"))
+        .find(|c| c.id == component)
         .ok_or("the QFN component")?;
     let id = component.id;
     let definition = component.definition.clone();
@@ -604,11 +620,20 @@ fn a_new_qfn_places_on_a_routed_imported_sheet() -> Fallible<()> {
     };
     // A pin on the SIG wire, which runs from R1 pin 2 at (20, −23.81)
     // to (25, −23.81) on our sheet: refused, naming its net and the pin.
+    let pin = engine
+        .project()
+        .library
+        .symbol(symbol)
+        .and_then(|s| s.definition.units.first())
+        .and_then(|u| u.pins.first())
+        .ok_or("a pin")?
+        .position
+        .to_mm_f64();
     let sig = net_of(engine.project(), "R1", "2").ok_or("SIG")?;
     let sig = engine.project().net_name(sig).to_owned();
     let revision = engine.revision();
     let refused = engine
-        .apply(revision, place([13.65, -23.81])?)
+        .apply(revision, place([22.0 - pin[0], -23.81 - pin[1]])?)
         .err()
         .ok_or("a pin on the routed wire joins SIG")?
         .to_string();

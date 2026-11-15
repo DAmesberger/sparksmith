@@ -1,8 +1,6 @@
 mod brand_crates;
 mod clean_room;
 mod connectivity;
-#[cfg(test)]
-mod convert_footprints;
 mod core_modules;
 mod f64_lengths;
 mod format_lock;

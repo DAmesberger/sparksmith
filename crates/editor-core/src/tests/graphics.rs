@@ -4,10 +4,10 @@
 use super::support::*;
 use crate::completeness::CheckTarget;
 use crate::geometry::{Bounds, Shape};
+use crate::library::fixtures::{self as samples, SampleRefs};
 use crate::library::graphics::{
     self, MAX_GRAPHICS_PER_UNIT, MAX_SHAPE_POINTS, MAX_TEXT_LINES, MAX_VERTICES,
 };
-use crate::library::samples::{self, SampleRefs};
 use crate::library::{
     Decorations, Fill, Graphic, Grid, HAlign, Item, Justify, Pin, PinDirection, Rotation,
     SymbolDefinition, SymbolHit, Text, TextContent, TextMetric, TextSize, Unit, VAlign,
@@ -1396,7 +1396,7 @@ fn a_generated_ic_box_is_as_wide_as_its_pin_names() -> Result<()> {
         .enumerate()
         .map(|(k, name)| (TerminalId(k as u32 + 1), *name))
         .collect();
-    let symbol = samples::named_block_symbol(DefinitionId(7), &terminals)?;
+    let symbol = crate::library::symbol_blocks::named_block_symbol(DefinitionId(7), &terminals)?;
     assert_names_fit(&symbol, &MCU_PINS)
 }
 
@@ -1405,10 +1405,13 @@ fn an_existing_narrow_box_widens_when_its_pins_are_renamed() -> Result<()> {
     // Drawn while the pins were named by number, as a package template
     // draws it, then renamed by a pin table.
     let ids: Vec<TerminalId> = (1..=14).map(TerminalId).collect();
-    let mut symbol = samples::block_symbol(DefinitionId(7), &ids)?;
+    let mut symbol = crate::library::symbol_blocks::block_symbol(DefinitionId(7), &ids)?;
     let before = symbol.clone();
     let name = |t: TerminalId| MCU_PINS.get(t.0 as usize - 1).map(|n| (*n).to_owned());
-    assert!(samples::fit_pin_names(&mut symbol, name));
+    assert!(crate::library::symbol_blocks::fit_pin_names(
+        &mut symbol,
+        name
+    ));
     assert_names_fit(&symbol, &MCU_PINS)?;
     // Rows, pin lengths and graphics IDs are kept: only the width changed.
     for (a, b) in symbol.units[0].pins.iter().zip(&before.units[0].pins) {
@@ -1418,7 +1421,10 @@ fn an_existing_narrow_box_widens_when_its_pins_are_renamed() -> Result<()> {
         );
     }
     // Fitting again changes nothing.
-    assert!(!samples::fit_pin_names(&mut symbol, name));
+    assert!(!crate::library::symbol_blocks::fit_pin_names(
+        &mut symbol,
+        name
+    ));
     Ok(())
 }
 

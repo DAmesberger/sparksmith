@@ -122,25 +122,25 @@ pub fn definitions() -> Vec<ToolSpec> {
         ),
         tool(
             "library_package_schema",
-            "The JSON schema of the module package form (values of library_package_plan / library_package_from_template with row {\"source\": \"custom\", \"family\": \"module\"}), with the frame conventions. Call it before writing the values.",
+            "The fields of the module package values (values of library_package_plan / library_package_from_template with row {\"source\": \"custom\", \"family\": \"module\"}), with the frame conventions. Call it before writing the values.",
             json!({}),
             &[],
         ),
         tool(
             "library_templates",
-            "MCP project_query library.templates: search built-in package rows (e.g. \"qfn pins:48 pitch:0.5\"). Modules have no rows; use the module family's custom entry.",
+            "MCP project_query library.generators: the shipped package generators and their presets (each a cited package row). Modules use the module family's custom entry.",
             json!({"query": {"type": "string"}, "limit": {"type": "integer"}}),
             &["query"],
         ),
         tool(
             "library_package_plan",
-            "MCP project_query library.package_plan: preview building the package draft's form, footprint draft (lands, courtyard, silkscreen, pin-1 mark, antenna keep-out) and generated 3D model from request {draft: the package draft id, row: {source: custom, family: module}, values: {family: module, ...}}. Changes nothing.",
+            "Preview making the package draft's package, footprint draft (lands, courtyard, silkscreen, pin-1 mark, antenna keep-out) and 3D model with the family's generator (library.package_from_generator) from request {draft: the package draft id, row: {source: custom, family: module}, values: {family: module, ...}} (families module and tabbed). Changes nothing.",
             json!({"request": object}),
             &["request"],
         ),
         tool(
             "library_package_from_template",
-            "MCP project_apply library.package_from_template: apply the previewed request as one undo step (add \"replace\": true to rebuild a footprint that already has pads). The package's terminals, and so the binding's mappings, carry over by number: a terminal keeps its identity when the new form gives its number; the plan's terminals.summary says what was kept, and package.terminals_unmatched names any number left unmatched. When the datasheet gives a pad another number than the form (an exposed pad numbered 95 where a form says EP), add \"renumber\": [{\"from\": \"95\", \"to\": \"EP\"}]; otherwise map those explicitly.",
+            "MCP project_apply library.package_from_generator: apply the previewed request as one undo step (add \"replace\": true to rebuild a footprint that already has pads). The package's terminals, and so the binding's mappings, carry over by number: a terminal keeps its identity when the new form gives its number; the plan's terminals.summary says what was kept, and package.terminals_unmatched names any number left unmatched. When the datasheet gives a pad another number than the form (an exposed pad numbered 95 where a form says EP), add \"renumber\": [{\"from\": \"95\", \"to\": \"EP\"}]; otherwise map those explicitly.",
             json!({"request": object}),
             &["request"],
         ),
@@ -215,7 +215,6 @@ pub fn execute(
             "operation": {"editor": "Library", "operation": {"command": command, "params": params}},
         }})
     };
-    let query = |name: &str, params: Value| json!({"command": "project.query", "params": {"query": name, "params": params}});
     let request = match name {
         "library_pinout_schema" => json!({"command": "library.pinout_schema", "params": {}}),
         "library_pinout_edit" => return edit(workspace, input),
@@ -237,18 +236,24 @@ pub fn execute(
             )
         }
         "library_package_schema" => return reply(package_schema(), false, None),
-        "library_templates" => {
-            let mut p = json!({"query": input["query"]});
-            if input["limit"].is_u64() {
-                p["limit"] = input["limit"].clone();
+        "library_templates" => json!({"command": "library.generators", "params": {}}),
+        "library_package_plan" | "library_package_from_template" => {
+            let request = match package_request(session, revision, &input["request"]) {
+                Ok(params) => library("library.package_from_generator", params),
+                Err(why) => return reply(json!({"refused": why}), true, None),
+            };
+            session.ensure_generators();
+            if name == "library_package_plan" {
+                let mut request = request;
+                request["verbose"] = json!(true);
+                let response = session.rehearse(Caller::Model(policy), request);
+                return if response["ok"] == true {
+                    reply(response["result"].clone(), false, None)
+                } else {
+                    reply(response["error"].clone(), true, None)
+                };
             }
-            query("library.templates", p)
-        }
-        "library_package_plan" => {
-            query("library.package_plan", json!({"request": input["request"]}))
-        }
-        "library_package_from_template" => {
-            library("library.package_from_template", input["request"].clone())
+            request
         }
         "library_set_marking" => json!({"command": "library.set_marking", "params": {
             "expected_revision": revision, "draft": input["draft"], "marking": input["marking"],
@@ -881,8 +886,157 @@ fn package_schema() -> Value {
     json!({
         "frame": "Seen from above; x across the module (width), y along it (length); the antenna end is +y; the origin is the outline centre; millimetres. Rows number counter-clockwise: left rows downwards (-y), bottom rows towards +x, right rows upwards, top rows towards -x; pads number from 1 through the rows in the order listed, then the ground array (one terminal), then each single pad.",
         "request": {"draft": "the package draft id", "row": {"source": "custom", "family": "module"}, "values": {"family": "module", "...": "the fields below"}},
-        "schema": schemars::schema_for!(sparksmith_core::library::package_form::ModuleForm),
+        "fields": {
+            "width": "mm, across the module", "length": "mm, along it", "height": "mm, seated",
+            "pcb_thickness": "mm", "antenna_length": "mm, the antenna end's depth",
+            "can_size": "[x, y] mm", "can_centre": "[x, y] mm",
+            "pitch": "mm, of the edge pads", "pad_size": "[across, along the edge] mm",
+            "castellation": "mm, 0 for LGA pads", "land_width": "mm",
+            "land_extend": "[outward, inward] mm",
+            "rows": "[{side: left|bottom|right|top, count, first: [x, y] mm}]",
+            "ground": "{rows, cols, pitch: [x, y], size: [x, y], centre: [x, y] mm, rotation_deg, number} or null",
+            "singles": "[{number, centre: [x, y], size: [x, y] mm}]",
+            "keepout": "{beyond: [left, right, top] mm} or null",
+        },
     })
+}
+
+/// Millimetres from a value as integer nanometres.
+fn nm(v: &Value) -> i64 {
+    (v.as_f64().unwrap_or(f64::NAN) * 1e6).round() as i64
+}
+
+fn nm_pair(v: &Value) -> [i64; 2] {
+    [nm(&v[0]), nm(&v[1])]
+}
+
+/// The module values (the custom module entry the tools have always
+/// taken) as the module generator's parameters.
+fn module_params(v: &Value) -> Value {
+    let rows = v["rows"].as_array().cloned().unwrap_or_default();
+    let singles = v["singles"].as_array().cloned().unwrap_or_default();
+    let list = |items: &[Value], f: &dyn Fn(&Value) -> Value| -> Value {
+        Value::Array(items.iter().map(f).collect())
+    };
+    let [can_width, can_length] = nm_pair(&v["can_size"]);
+    let [can_x, can_y] = nm_pair(&v["can_centre"]);
+    let [pad_length, pad_width] = nm_pair(&v["pad_size"]);
+    let [land_outer, land_inner] = nm_pair(&v["land_extend"]);
+    let mut p = json!({
+        "width": nm(&v["width"]), "length": nm(&v["length"]), "height": nm(&v["height"]),
+        "board_thickness": nm(&v["pcb_thickness"]), "antenna_length": nm(&v["antenna_length"]),
+        "can_width": can_width, "can_length": can_length, "can_x": can_x, "can_y": can_y,
+        "pitch": nm(&v["pitch"]), "pad_length": pad_length, "pad_width": pad_width,
+        "castellation": nm(&v["castellation"]), "land_width": nm(&v["land_width"]),
+        "land_outer": land_outer, "land_inner": land_inner,
+        "row_sides": list(&rows, &|r| r["side"].clone()),
+        "row_counts": list(&rows, &|r| r["count"].clone()),
+        "row_x": list(&rows, &|r| json!(nm(&r["first"][0]))),
+        "row_y": list(&rows, &|r| json!(nm(&r["first"][1]))),
+        "ground": v["ground"].is_object(),
+        "single_numbers": list(&singles, &|s| s["number"].clone()),
+        "single_x": list(&singles, &|s| json!(nm(&s["centre"][0]))),
+        "single_y": list(&singles, &|s| json!(nm(&s["centre"][1]))),
+        "single_length": list(&singles, &|s| json!(nm(&s["size"][0]))),
+        "single_width": list(&singles, &|s| json!(nm(&s["size"][1]))),
+        "keepout": v["keepout"].is_object(),
+    });
+    let ground = &v["ground"];
+    if ground.is_object() {
+        let [pitch_x, pitch_y] = nm_pair(&ground["pitch"]);
+        let [size_x, size_y] = nm_pair(&ground["size"]);
+        let [x, y] = nm_pair(&ground["centre"]);
+        let turn = (ground["rotation_deg"].as_f64().unwrap_or(0.0) * 1000.0).round() as i64;
+        for (key, value) in [
+            ("ground_rows", ground["rows"].clone()),
+            ("ground_columns", ground["cols"].clone()),
+            ("ground_pitch_x", json!(pitch_x)),
+            ("ground_pitch_y", json!(pitch_y)),
+            ("ground_size_x", json!(size_x)),
+            ("ground_size_y", json!(size_y)),
+            ("ground_x", json!(x)),
+            ("ground_y", json!(y)),
+            ("ground_rotation", json!(turn)),
+            ("ground_number", ground["number"].clone()),
+        ] {
+            p[key] = value;
+        }
+    }
+    if v["keepout"].is_object() {
+        let beyond = &v["keepout"]["beyond"];
+        p["keepout_left"] = json!(nm(&beyond[0]));
+        p["keepout_right"] = json!(nm(&beyond[1]));
+        p["keepout_top"] = json!(nm(&beyond[2]));
+    }
+    p
+}
+
+/// The tabbed values as the tabbed generator's parameters; a datasheet's
+/// land pattern as `lands: explicit`.
+fn tabbed_params(v: &Value) -> Value {
+    let (leads, step) = (&v["leads_per_side"], &v["lead_step"]);
+    let mut p = json!({
+        "leads_s": leads[0], "leads_n": leads[1],
+        "step_s": step[0].as_u64().unwrap_or(1), "step_n": step[1].as_u64().unwrap_or(1),
+        "pitch": nm(&v["pitch"]), "body_length": nm(&v["body_length"]),
+        "body_width": nm(&v["body_width"]), "body_height": nm(&v["body_height"]),
+        "standoff": nm(&v["standoff"]), "span": nm(&v["span"]),
+        "lead_width": nm(&v["lead_width"]), "lead_thickness": nm(&v["lead_thickness"]),
+        "foot_length": nm(&v["foot_length"]), "tab": "none",
+    });
+    if let Some(lands) = v.get("lands").filter(|l| l.is_object()) {
+        let [width, length] = nm_pair(&lands["size"]);
+        p["lands"] = json!("explicit");
+        p["land_width"] = json!(width);
+        p["land_length"] = json!(length);
+        p["land_span"] = json!(nm(&lands["span"]));
+    }
+    p
+}
+
+/// A package request of the tools (the template request shape the
+/// recorded runs send: draft, row, values in millimetres) as
+/// `library.package_from_generator`'s parameters, the package made by the
+/// family's shipped generator with its model evaluated. Until the
+/// built-in assistant's tools are replaced (S6), only the module and the
+/// tabbed families are taken.
+fn package_request(session: &Session, revision: u64, request: &Value) -> Result<Value, String> {
+    use sparksmith_automation::session::generators::GeneratePartParams;
+    let values = &request["values"];
+    let (generator, params) = match values["family"].as_str() {
+        Some("module") => ("module", module_params(values)),
+        Some("tabbed") => ("tabbed", tabbed_params(values)),
+        other => {
+            return Err(format!(
+                "no generator takes {} values here; the module and tabbed families are made by their generators",
+                other.unwrap_or("these")
+            ));
+        }
+    };
+    let params = serde_json::from_value(params).map_err(|e| e.to_string())?;
+    let generate = session
+        .generate_request(GeneratePartParams {
+            generator: Some(generator.into()),
+            module: None,
+            scope: sparksmith_core::library::generated::GeneratorScope::Package,
+            preset: None,
+            params,
+            name: None,
+            replaces: None,
+            expected_revision: revision,
+        })
+        .map_err(|e| e.to_string())?;
+    let mut out = json!({"draft": request["draft"], "generate": generate});
+    if request["replace"] == true {
+        out["replace"] = json!(true);
+    }
+    if request["renumber"].is_array() {
+        out["renumber"] = request["renumber"].clone();
+    }
+    if !request["terminals"].is_null() {
+        out["terminals"] = request["terminals"].clone();
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

@@ -619,7 +619,8 @@ fn parametric_footprint_through_json_is_atomic_and_undoable() -> TestResult {
                 designation: n.to_string(),
             })
             .collect(),
-        envelope_nm: [2.0, 1.2, 0.5].map(sparksmith_core::library::package_form::typical_nm),
+        envelope_nm: [2.0, 1.2, 0.5]
+            .map(|mm| sparksmith_core::units::Nm::from_mm_f64_rounded(mm).unwrap_or_default()),
         ..PackageDefinition::default()
     });
     let created = |reply: &Value| -> std::result::Result<u64, Box<dyn std::error::Error>> {
@@ -735,84 +736,11 @@ fn parametric_footprint_through_json_is_atomic_and_undoable() -> TestResult {
     Ok(())
 }
 
-/// `library.footprint_from_template` with `replace` and `layout.track_set`
-/// reach the core through JSON: `replace` defaults to false (a used draft
-/// is refused), `replace: true` rebuilds in one undo step, and a track's
-/// width changes by ID in one undo step.
+/// `layout.track_set` reaches the core through JSON: a track's width
+/// changes by ID in one undo step.
 #[test]
-fn template_replace_and_track_set_through_json_are_one_undo_step() -> TestResult {
+fn track_set_through_json_is_one_undo_step() -> TestResult {
     use sparksmith_core::layout::{LayoutCommand, RouteRequest};
-    use sparksmith_core::library::templates::footprint_family::{FootprintTemplate, TemplateKind};
-    use sparksmith_core::library::{
-        Definition, DefinitionMeta, FootprintDefinition, PackageDefinition, PackageTerminal,
-    };
-    use sparksmith_core::{LibraryCommand, PackageRef, PackageTerminalId, Revision};
-    let mut session = Session::default();
-    let meta = |name: &str| DefinitionMeta {
-        name: name.into(),
-        description: String::new(),
-        provenance: "original test fixture".into(),
-    };
-    let package = PackageDefinition {
-        next_local: 3,
-        terminals: (1..=2)
-            .map(|n| PackageTerminal {
-                id: PackageTerminalId(n),
-                designation: n.to_string(),
-            })
-            .collect(),
-        envelope_nm: [2.0, 1.2, 0.5].map(sparksmith_core::library::package_form::typical_nm),
-        ..PackageDefinition::default()
-    };
-    let mut created = |definition, name: &str| -> std::result::Result<u64, String> {
-        let reply = session.dispatch(apply(
-            &Operation::Library(LibraryCommand::NewDraft {
-                meta: meta(name),
-                definition,
-            }),
-            session.engine().revision(),
-        ));
-        reply["result"]["outcome"]["id"]
-            .as_u64()
-            .ok_or_else(|| format!("no draft id in {reply}"))
-    };
-    let package_id = created(Definition::Package(package.clone()), "chip")?;
-    let draft = created(
-        Definition::Footprint(FootprintDefinition {
-            package: PackageRef::new(sparksmith_core::DefinitionId(package_id), Revision::FIRST),
-            next_local: 1,
-            ..FootprintDefinition::default()
-        }),
-        "chip-fp",
-    )?;
-    let template = serde_json::to_value(FootprintTemplate::defaults(TemplateKind::Chip, &package))?;
-    let build = |replace: Option<bool>, revision: u64| {
-        let mut params = json!({"draft": draft, "template": template});
-        if let Some(replace) = replace {
-            params["replace"] = json!(replace);
-        }
-        json!({"command": "project.apply", "params": {"expected_revision": revision,
-            "operation": {"editor": "Library", "operation": {
-                "command": "library.footprint_from_template", "params": params}}}})
-    };
-    let reply = session.dispatch(build(None, session.engine().revision()));
-    assert_eq!(reply["ok"], true, "{reply}");
-    let built = session.engine().drafts().clone();
-    let revision = session.engine().revision();
-    let refused = session.dispatch(build(Some(false), revision));
-    assert_eq!(refused["ok"], false, "{refused}");
-    assert_eq!(session.engine().revision(), revision);
-    let replaced = session.dispatch(build(Some(true), revision));
-    assert_eq!(replaced["ok"], true, "{replaced}");
-    assert_eq!(session.engine().revision(), revision + 1);
-    session.dispatch(json!({"command": "project.undo", "params": {"expected_revision": session.engine().revision()}}));
-    assert_eq!(
-        session.engine().drafts(),
-        &built,
-        "replace is one undo step"
-    );
-    assert!(schemas().to_string().contains("replace"));
-
     // A routed track on the demo board, then its width by ID.
     let mut session = Session::new(Engine::demo()?);
     let r2 = session
@@ -977,13 +905,7 @@ fn every_document_changing_request_requires_an_expected_revision() {
 /// context refuses rather than borrowing another's.
 #[test]
 fn sessions_answer_with_their_own_context() -> TestResult {
-    use sparksmith_core::library::standards::{Context, GenericFamily};
-    let shipped = Context::fixture()?;
-    let mut fewer = (**shipped.standards()).clone();
-    fewer
-        .generic
-        .families
-        .retain(|family| family.family != GenericFamily::Resistor);
+    use sparksmith_core::library::standards::Context;
     let session = |context: Option<std::sync::Arc<Context>>| {
         let mut engine = Engine::default();
         match context {
@@ -992,26 +914,15 @@ fn sessions_answer_with_their_own_context() -> TestResult {
         }
         Ok::<_, Box<dyn std::error::Error>>(Session::new(engine))
     };
-    let example = shipped
-        .standards()
-        .generic
-        .families
-        .iter()
-        .find(|family| family.family == GenericFamily::Resistor)
-        .and_then(|family| family.examples.first().cloned())
-        .ok_or("a resistor example")?;
     let ask = |session: &mut Session| {
         session.execute(serde_json::from_value(json!({
             "command": "project.query",
-            "params": {"query": "library.generic_parts", "params": {"query": example}},
+            "params": {"query": "library.standard_fields", "params": {}},
         }))?)
     };
-    let mut a = session(Some(shipped))?;
-    let mut b = session(Some(std::sync::Arc::new(Context::new(fewer))))?;
+    let mut shipped = session(Some(Context::fixture()?))?;
     let mut none = session(None)?;
-    let found = |reply: &Value| reply["result"]["candidates"].as_array().map_or(0, Vec::len);
-    assert!(found(&ask(&mut a)?) > 0);
-    assert_eq!(found(&ask(&mut b)?), 0);
-    assert!(ask(&mut none).is_err());
+    assert!(ask(&mut shipped).is_ok());
+    assert!(ask(&mut none).is_err(), "no context, no standards");
     Ok(())
 }

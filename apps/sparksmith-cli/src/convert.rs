@@ -16,7 +16,11 @@ pub const USAGE: &str =
                                    project's rule snapshot becomes";
 
 pub fn run(args: &[String]) -> Result<()> {
-    let mut options = sparksmith_io::convert::Options::default();
+    // The shipped generators and Solidcraft, for typed package forms
+    // (format 4 to 5).
+    let mut options = sparksmith_automation::convert_host::ShippedHost::shipped()
+        .map_err(|e| e.to_string())?
+        .options();
     let paths = match args {
         [flag, profile, rest @ ..] if flag == "--profile" => {
             options.profile = Some(

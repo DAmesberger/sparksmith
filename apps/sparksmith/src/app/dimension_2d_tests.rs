@@ -215,7 +215,11 @@ impl Harness {
 fn esp32() -> Fallible<Engine> {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    Ok(Engine::from_file(sparksmith_io::read_project(&path)?)?)
+    let mut engine = Engine::from_file(sparksmith_io::read_project(&path)?)?;
+    // The fill copper now, as the app's fill worker would store it later:
+    // a test that reads the revision never races that store.
+    engine.refill_stale()?;
+    Ok(engine)
 }
 
 fn part(project: &Project, designator: &str) -> Fallible<Id> {

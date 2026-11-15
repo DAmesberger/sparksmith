@@ -607,7 +607,9 @@ fn a_feature_on_a_repeated_package_names_its_own_part() -> TestResult {
         .find_map(|p| {
             let (source, _) = p.body.split_once(" (")?;
             let first = sidecar.part_of(source)?;
-            Some((p.clone(), first.clone()))
+            // A part file may name its own bodies with parentheses; the
+            // repeated package's body is another part's.
+            (first.instance != p.instance).then(|| (p.clone(), first.clone()))
         })
         .ok_or("a package placed twice")?;
     assert_ne!(second.instance, first.instance);

@@ -1,257 +1,95 @@
-//! Slice B1: handlers of `library.new_from_template`,
-//! `library.package_from_template` and `library.save_package_row`, and the
-//! `library.package_plan` preview. The dispatch arms in `library.rs` and
-//! the crate root call these. Each command is one engine operation, so it
-//! is one undo step, and it works on the engine's candidate document, so a
-//! refusal leaves the document unchanged.
+//! A working set's package and footprint drafts taking a generated
+//! package (`library.package_from_generator`, slice D1): which current
+//! terminals carry over, the footprint rebuilt from the generated one, and
+//! the findings the change gives the binding drafts.
 use super::Outcome;
-use crate::catalog::generic as catalog_generic;
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
-use crate::ids::{
-    BindingRef, DefinitionId, FootprintRef, PackageRef, PackageTerminalId, PadId, Revision,
-    SymbolRef,
-};
+use crate::ids::{DefinitionId, FootprintRef, PackageRef, PackageTerminalId, PadId, Revision};
 use crate::library::package_fit;
-use crate::library::samples::{self, SampleRefs};
-use crate::library::templates::catalog::{
-    self, FamilyKind, NewFromTemplate, PackageFromTemplate, PackagePlan, Renumber, RowFrom,
-    SavePackageRow, TerminalMatch, TerminalMatchReport,
-};
-use crate::library::templates::footprint;
-use crate::library::templates::footprint_family;
-use crate::library::templates::generic::{self, GenericState};
 use crate::library::{
-    Definition, DraftEdit, FootprintDefinition, FootprintEvaluator, GeneratedMaterials,
-    ModelPlacement, PackageDefinition, PackageForm, PackageModel, PackageTerminal, drafts,
-    standard_fields,
+    Definition, DraftEdit, FootprintDefinition, PackageDefinition, PackageTerminal, drafts,
 };
 use crate::model::Document;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// `library.new_from_template`: five drafts in one undo step
-/// (`Outcome::DraftsCreated`, component first). The drafts are new
-/// lineages and nothing is published. A chip component selects its standard
-/// fields (a passive's value, rating and tolerance; an LED's `Colour` and
-/// `Forward voltage`), importing the standard fields in the same step when
-/// the project lacks them, unless the request says `without_fields`;
-/// nothing else is imported.
-pub(crate) fn new_from_template(
-    document: &mut Document,
-    request: NewFromTemplate,
-    _evaluator: Option<&dyn FootprintEvaluator>,
-) -> Result<Outcome> {
-    let mut ids = [DefinitionId(0); catalog::NEW_FROM_TEMPLATE_DRAFTS];
-    let project = Arc::make_mut(&mut document.project);
-    for id in &mut ids {
-        *id = DefinitionId(project.allocate()?);
-    }
-    let [component, symbol, package, footprint, binding] = ids;
-    let refs = SampleRefs {
-        component,
-        symbol: SymbolRef::new(symbol, Revision::FIRST),
-        package: PackageRef::new(package, Revision::FIRST),
-        footprint: FootprintRef::new(footprint, Revision::FIRST),
-        binding: BindingRef::new(binding, Revision::FIRST),
-    };
-    let rules = project.rules.land_estimators()?;
-    let mut edits = catalog::new_from_template_with(
-        &project.library,
-        &request,
-        refs,
-        &rules,
-        document.drafts.symbols,
-    )?;
-    let chip = edits.iter().find_map(|edit| match &edit.definition {
-        Definition::Package(PackageDefinition {
-            form: PackageForm::Chip(c),
-            ..
-        }) => Some(c.kind),
-        _ => None,
-    });
-    if let Some(kind) = chip.filter(|_| !request.without_fields) {
-        super::library::import_bundle(document, &standard_fields::bundle()?)?;
-        let selections = standard_fields::chip_fields(&document.project.library, kind)?;
-        for edit in &mut edits {
-            if let Definition::Component(body) = &mut edit.definition {
-                body.fields.clone_from(&selections);
-            }
-        }
-    }
-    // A request that amounts to a generic part records it, once: a second
-    // one asked for by hand stays an ordinary component.
-    let spec = edits.iter().find_map(|edit| match &edit.definition {
-        Definition::Package(p) => generic::recognise(&request, &p.form).filter(|spec| {
-            generic::existing(&document.project.library, &document.drafts, spec, &p.form).is_none()
-        }),
-        _ => None,
-    });
-    for edit in &mut edits {
-        if let Definition::Component(body) = &mut edit.definition {
-            body.generic = spec.clone().map(Box::new);
-        }
-    }
-    let project = &document.project;
-    let drafts = Arc::make_mut(&mut document.drafts);
-    for edit in edits {
-        drafts::create(
-            drafts,
-            &project.library,
-            edit.id,
-            None,
-            edit.meta,
-            edit.definition,
-        )?;
-    }
-    Ok(Outcome::DraftsCreated { ids: ids.to_vec() })
+/// One explicit renumbering of `library.package_from_generator`.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Renumber {
+    /// The current terminal's number.
+    pub from: String,
+    /// The new form's number it becomes.
+    pub to: String,
 }
 
-/// `library.find_or_create` (`Outcome::GenericPart`): the part `query`
-/// reads as, built and published when the project lacks it.
-pub(crate) fn find_or_create(
-    document: &mut Document,
-    query: &str,
-    index: Option<usize>,
-    evaluator: Option<&dyn FootprintEvaluator>,
-) -> Result<Outcome> {
-    let mut found = catalog_generic::search(&document.project, &document.drafts, query)?.candidates;
-    let chosen = match (index, found.len()) {
-        (_, 0) => {
-            return Err(Error::NotFound(format!(
-                "generic.no_match: ‘{query}’ reads as no generic part; library.generic_parts takes the same text"
-            )));
+/// How `library.package_from_generator` matches the package's current
+/// terminals to the terminals of the new form.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TerminalMatch {
+    /// A current terminal is kept (identity, and so its mappings) when the
+    /// new form gives a terminal its number (designation); every other
+    /// new terminal is fresh and unmapped, every other current terminal is
+    /// removed, and both are reported. Nothing is matched by list order.
+    #[default]
+    ByNumber,
+    /// The explicit choice to reuse the current terminals in list order
+    /// whatever their numbers, renumbered from the new form; reported as
+    /// `binding.mapping_retained` for review.
+    ByPosition,
+}
+
+impl TerminalMatch {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::ByNumber => "by number",
+            Self::ByPosition => "by position",
         }
-        (None, 1) => found.remove(0),
-        (None, _) => {
-            let names: Vec<String> = found
-                .iter()
-                .enumerate()
-                .map(|(i, c)| format!("{i}: {}", c.name))
-                .collect();
-            return Err(Error::Invalid(format!(
-                "generic.ambiguous: ‘{query}’ reads as several parts; name a candidate ({})",
-                names.join(", ")
-            )));
-        }
-        (Some(i), n) if i >= n => {
-            return Err(Error::Invalid(format!(
-                "generic.ambiguous: candidate {i} is not one of the {n} this text reads as"
-            )));
-        }
-        (Some(i), _) => found.swap_remove(i),
-    };
-    let created = match &chosen.state {
-        GenericState::Existing { .. } => false,
-        GenericState::NotCreated => true,
-        GenericState::Draft { id } => {
-            return Err(Error::Invalid(format!(
-                "generic.draft: this part is draft {id}; publish that draft instead"
-            )));
-        }
-        GenericState::Refused { reason } => {
-            return Err(Error::Invalid(format!("generic.refused: {reason}")));
-        }
-    };
-    if let Some(request) = chosen.would_create {
-        super::library::apply_library(
-            document,
-            super::library::LibraryCommand::PublishFromTemplate(Box::new(request)),
-            evaluator,
-        )?;
     }
-    let plan = chosen.spec.plan().map_err(Error::Invalid)?;
-    let Some(GenericState::Existing { component }) = generic::existing(
-        &document.project.library,
-        &document.drafts,
-        &chosen.spec,
-        &plan.form,
-    ) else {
-        return Err(Error::NotFound(
-            "generic.missing: the part was not found after it was built".into(),
-        ));
-    };
-    Ok(Outcome::GenericPart {
-        component,
-        created,
-        properties: generic::properties(&document.project.library, component, &chosen.values),
-    })
 }
 
-/// `library.package_from_template` (`Outcome::PackageReplaced`): the
-/// package draft's form, terminals, envelope and generated model, and its
-/// one landing footprint draft's pads and drawings, as one step. When no
-/// footprint draft lands the package, the step also creates one and lists
-/// it in the package's binding draft when exactly one binding draft
-/// implements the package (else `binding.footprint_unbound` says which to
-/// edit).
-pub(crate) fn package_from_template(
-    document: &mut Document,
-    request: PackageFromTemplate,
-    _evaluator: Option<&dyn FootprintEvaluator>,
-) -> Result<Outcome> {
-    let fresh = DefinitionId(document.project.next_id);
-    let Candidate {
-        edits,
-        created,
-        plan,
-    } = candidate(document, &request, fresh)?;
-    if let Some(created) = created {
-        let project = Arc::make_mut(&mut document.project);
-        let id = DefinitionId(project.allocate()?);
-        if id != created.id {
-            return Err(Error::Conflict(
-                "template.footprint: the footprint identity changed while it was planned".into(),
-            ));
-        }
-        drafts::create(
-            Arc::make_mut(&mut document.drafts),
-            &project.library,
-            created.id,
-            None,
-            created.meta,
-            created.definition,
-        )?;
-    }
-    drafts::edit(Arc::make_mut(&mut document.drafts), edits)?;
-    Ok(Outcome::PackageReplaced { plan })
+/// How the package's terminals were matched (`PackagePlan::terminals`).
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct TerminalMatchReport {
+    pub strategy: TerminalMatch,
+    /// Current terminals kept with their identity.
+    pub kept: u32,
+    /// New terminals with fresh identities (unmapped).
+    pub added: u32,
+    /// Current terminals the new package removes.
+    pub removed: u32,
+    /// Kept terminals whose number changes (only by position).
+    pub renumbered: u32,
+    /// One line saying the strategy and the counts.
+    pub summary: String,
 }
 
-/// `library.save_package_row` (`Outcome::DraftCreated`): a new package-row
-/// draft from a package draft's form or from explicit values.
-pub(crate) fn save_package_row(
-    document: &mut Document,
-    request: SavePackageRow,
-) -> Result<Outcome> {
-    let values = match &request.from {
-        RowFrom::Values { values } => values.clone(),
-        RowFrom::Package { draft } => {
-            let current = document
-                .drafts
-                .get(*draft)
-                .ok_or_else(|| Error::NotFound("That draft no longer exists".into()))?;
-            let Definition::Package(package) = &current.definition else {
-                return Err(Error::Invalid(format!(
-                    "The draft ‘{}’ is not a package",
-                    current.meta.name
-                )));
-            };
-            package.form.clone()
-        }
-    };
-    let (meta, definition) = catalog::row_draft(&request, values)?;
-    let project = Arc::make_mut(&mut document.project);
-    let id = DefinitionId(project.allocate()?);
-    let drafts = Arc::make_mut(&mut document.drafts);
-    drafts::create(drafts, &project.library, id, None, meta, definition)?;
-    Ok(Outcome::DraftCreated { id })
-}
-
-/// `library.package_plan`: what `package_from_template` would change.
-pub(crate) fn package_plan(
-    document: &Document,
-    request: &PackageFromTemplate,
-    _evaluator: Option<&dyn FootprintEvaluator>,
-) -> Result<PackagePlan> {
-    candidate(document, request, DefinitionId(document.project.next_id)).map(|c| c.plan)
+/// What `library.package_from_generator` changed.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PackagePlan {
+    pub terminals_before: u32,
+    pub terminals_after: u32,
+    pub pads_after: u32,
+    /// The footprint draft that lands the package: the one already in the
+    /// working set, or the one the command creates.
+    #[serde(default)]
+    pub footprint: Option<DefinitionId>,
+    /// No footprint draft landed the package, so the command creates one.
+    #[serde(default)]
+    pub footprint_created: bool,
+    /// The binding draft a created footprint is listed in: the one binding
+    /// draft of the package. `None` with `binding.footprint_unbound` when
+    /// there are none or several to choose from.
+    #[serde(default)]
+    pub footprint_bound: Option<DefinitionId>,
+    /// How the current terminals carried over to the new form.
+    #[serde(default)]
+    pub terminals: TerminalMatchReport,
+    pub findings: Vec<Finding>,
 }
 
 /// What `package_from_template` would change: the edits of existing
@@ -261,232 +99,6 @@ struct Candidate {
     edits: Vec<DraftEdit>,
     created: Option<DraftEdit>,
     plan: PackagePlan,
-}
-
-/// The draft edits of `request` and their plan, without changing anything.
-/// `fresh` is the identity a created footprint draft would take.
-fn candidate(
-    document: &Document,
-    request: &PackageFromTemplate,
-    fresh: DefinitionId,
-) -> Result<Candidate> {
-    let current = document
-        .drafts
-        .get(request.draft)
-        .ok_or_else(|| Error::NotFound("That draft no longer exists".into()))?;
-    let Definition::Package(package) = &current.definition else {
-        return Err(Error::Invalid(format!(
-            "The draft ‘{}’ is not a package",
-            current.meta.name
-        )));
-    };
-    let resolved = catalog::resolve_row(&document.project.library, &request.row)?;
-    let (form, as_row) = catalog::checked_values(&resolved.row, request.values.as_ref())?;
-    let family_rev = FamilyKind::of(&form).map(FamilyKind::family_rev);
-    let mut landing = document
-        .drafts
-        .items
-        .iter()
-        .filter_map(|d| match &d.definition {
-            Definition::Footprint(f) if f.package.id == request.draft => Some((d, f)),
-            _ => None,
-        });
-    let landing = match (landing.next(), landing.next()) {
-        (None, _) => None,
-        (Some(one), None) => Some(one),
-        (Some(_), Some(_)) => {
-            return Err(Error::Invalid(format!(
-                "package.footprint_ambiguous: several footprint drafts land the package ‘{}’; open one working set",
-                current.meta.name
-            )));
-        }
-    };
-    if let Some((draft, footprint)) = landing
-        && !request.replace
-        && (!footprint.pads.is_empty() || footprint.source.is_some())
-    {
-        return Err(Error::Conflict(format!(
-            "footprint.template_not_empty: the footprint ‘{}’ already has pads; pass replace to rebuild it from the template",
-            draft.meta.name
-        )));
-    }
-    let floor = package_floor(document, current, package);
-    let replaced = replaced_package(package, form, floor, request.terminals, &request.renumber)?;
-    // A package without terminals has nothing to match.
-    let unmatched = if package.terminals.is_empty() {
-        None
-    } else {
-        unmatched_finding(request.draft, &replaced)
-    };
-    let terminals = replaced.report;
-    let mut next = replaced.package;
-    if let Some(rev) = family_rev {
-        // The generated model of the new family; a family without a
-        // builder keeps its model.
-        let materials = match &package.model {
-            PackageModel::Generated { materials, .. } => materials.clone(),
-            _ => GeneratedMaterials::default(),
-        };
-        next.model = PackageModel::Generated {
-            family_rev: rev,
-            materials,
-        };
-        next.placement = ModelPlacement::default();
-    }
-    finish(
-        document,
-        request,
-        Replacement {
-            current,
-            before: package,
-            next,
-            landing,
-            as_row,
-            resolved: &resolved,
-            family_rev,
-            fresh,
-            terminals,
-            unmatched,
-        },
-    )
-}
-
-struct Replacement<'a> {
-    current: &'a crate::library::Draft,
-    before: &'a PackageDefinition,
-    next: PackageDefinition,
-    landing: Option<(&'a crate::library::Draft, &'a FootprintDefinition)>,
-    as_row: bool,
-    resolved: &'a catalog::ResolvedRow,
-    family_rev: Option<u16>,
-    fresh: DefinitionId,
-    terminals: TerminalMatchReport,
-    unmatched: Option<Finding>,
-}
-
-fn finish(
-    document: &Document,
-    request: &PackageFromTemplate,
-    replacement: Replacement<'_>,
-) -> Result<Candidate> {
-    let Replacement {
-        current,
-        before,
-        next,
-        landing,
-        as_row,
-        resolved,
-        family_rev,
-        fresh,
-        terminals,
-        unmatched,
-    } = replacement;
-    let mut findings = Vec::new();
-    let mut edits = Vec::new();
-    let mut meta = current.meta.clone();
-    meta.provenance = catalog::provenance(resolved, as_row);
-    let lands = resolved.row.lands.as_ref().filter(|_| as_row);
-    let (footprint_id, footprint_meta, footprint, floor, create) = match landing {
-        Some((draft, footprint)) => (
-            draft.id,
-            draft.meta.clone(),
-            footprint.clone(),
-            footprint_floor(document, draft, footprint),
-            false,
-        ),
-        None => {
-            let revision = current.pending().ok_or_else(|| {
-                Error::Limit(format!(
-                    "the package ‘{}’ has no next revision",
-                    current.meta.name
-                ))
-            })?;
-            let footprint = FootprintDefinition {
-                package: PackageRef::new(request.draft, revision),
-                next_local: 1,
-                ..FootprintDefinition::default()
-            };
-            let mut footprint_meta = meta.clone();
-            footprint_meta.name = footprint_name(&current.meta.name);
-            (fresh, footprint_meta, footprint, 1, true)
-        }
-    };
-    let rules = document.project.rules.land_estimators()?;
-    let mut rebuilt = rebuilt_footprint(&footprint, &next, lands, floor, &rules)?;
-    let pads_after = u32::try_from(rebuilt.pads.len()).unwrap_or(u32::MAX);
-    findings.extend(package_fit::placement_findings(
-        &next,
-        &rebuilt,
-        footprint_id,
-    ));
-    if next.terminals.len() > 2 {
-        // The pin-1 pad lands the first terminal in lead order (pad
-        // identities start at the footprint's floor, not at 1).
-        let first = next.terminals.first().map(|t| t.id);
-        if let Some(pad) = rebuilt
-            .pads
-            .iter()
-            .find(|p| p.terminal == first)
-            .map(|p| p.id)
-        {
-            samples::mark_polarity(&mut rebuilt, pad);
-        }
-    }
-    let footprint_edit = DraftEdit {
-        id: footprint_id,
-        meta: footprint_meta,
-        definition: Definition::Footprint(rebuilt),
-    };
-    let mut bound = None;
-    let created = if create {
-        let reference = FootprintRef::new(footprint_id, Revision::FIRST);
-        match bind_created(document, request.draft, reference) {
-            Ok(edit) => {
-                bound = Some(edit.id);
-                edits.push(edit);
-            }
-            Err(finding) => findings.push(finding),
-        }
-        Some(footprint_edit)
-    } else {
-        edits.push(footprint_edit);
-        None
-    };
-    findings.extend(unmatched);
-    findings.extend(mapping_findings(document, request.draft, &next));
-    if terminals.strategy == TerminalMatch::ByPosition {
-        findings.extend(retained_findings(
-            document,
-            request.draft,
-            before,
-            &next,
-            terminals.renumbered,
-        ));
-    }
-    let plan = PackagePlan {
-        terminals_before: u32::try_from(before.terminals.len()).unwrap_or(u32::MAX),
-        terminals_after: u32::try_from(next.terminals.len()).unwrap_or(u32::MAX),
-        pads_after,
-        model_family_rev: family_rev,
-        footprint: Some(footprint_id),
-        footprint_created: created.is_some(),
-        footprint_bound: bound,
-        terminals,
-        findings,
-    };
-    edits.insert(
-        0,
-        DraftEdit {
-            id: request.draft,
-            meta,
-            definition: Definition::Package(next),
-        },
-    );
-    Ok(Candidate {
-        edits,
-        created,
-        plan,
-    })
 }
 
 /// The name of a footprint draft created for the package `name`, within
@@ -617,32 +229,6 @@ struct Replaced {
     added: Vec<String>,
     /// Numbers of current terminals the new package removes.
     removed: Vec<String>,
-}
-
-/// `package` with `form`: its envelope, and its terminals for the form's
-/// count, each designated from the new form
-/// ([`samples::form_designations`]: lead numbers then `EP`, or a grid's
-/// ball names) and listed in lead order. `strategy` says which current
-/// terminals carry over (their identities, and so the binding mappings
-/// that name them): [`TerminalMatch::ByNumber`] keeps a terminal whose
-/// designation the new form gives and nothing else;
-/// [`TerminalMatch::ByPosition`] (only when asked) keeps the first
-/// terminals in list order and renumbers them. Other new terminals get
-/// fresh identities. Mappings change only through
-/// `library.assign_terminals` and binding edits.
-fn replaced_package(
-    package: &PackageDefinition,
-    form: crate::library::PackageForm,
-    floor: u32,
-    strategy: TerminalMatch,
-    renumber: &[Renumber],
-) -> Result<Replaced> {
-    let count = usize::try_from(samples::form_terminal_count(&form)).unwrap_or(0);
-    let designations = samples::form_designations(&form, count);
-    let mut replaced = matched_terminals(package, &designations, floor, strategy, renumber)?;
-    replaced.package.envelope_nm = form.envelope_nm()?.unwrap_or(replaced.package.envelope_nm);
-    replaced.package.form = form;
-    Ok(replaced)
 }
 
 /// `package` with terminals designated `designations`, in that order:
@@ -868,46 +454,6 @@ fn unmatched_finding(package: DefinitionId, replaced: &Replaced) -> Option<Findi
     ))
 }
 
-/// `footprint` with its template content replaced: form-derived lands for
-/// `package`'s terminals in lead order (estimated under `rules`, the
-/// project's effective design rules, or with cited land overrides), new
-/// pad identities from `floor` (see [`footprint_floor`]), and the
-/// standard drawings. Authored
-/// mask and paste defaults and the datum stay; identities never repeat.
-fn rebuilt_footprint(
-    footprint: &FootprintDefinition,
-    package: &PackageDefinition,
-    lands: Option<&catalog::LandValues>,
-    floor: u32,
-    rules: &crate::rules::DesignRules,
-) -> Result<FootprintDefinition> {
-    let mut next = footprint_family::cleared(footprint);
-    next.graphics.clear();
-    next.next_local = floor;
-    let terminals: Vec<PackageTerminalId> = package.terminals.iter().map(|t| t.id).collect();
-    let mut pads = samples::template_lands_with(&package.form, &terminals, lands, rules)
-        .ok_or_else(|| {
-            Error::Invalid(format!(
-                "template.values: the {} values give no lands for {} terminals",
-                package.form.label(),
-                terminals.len()
-            ))
-        })?;
-    for pad in &mut pads {
-        pad.id = PadId(next.next_local);
-        next.next_local = next
-            .next_local
-            .checked_add(1)
-            .ok_or_else(|| Error::Limit("footprint local identities exhausted".into()))?;
-    }
-    next.pads = pads;
-    let before = next.clone();
-    if footprint::add_standard_graphics(&mut next, package).is_err() {
-        next = before;
-    }
-    Ok(next)
-}
-
 /// Advice when the request chose [`TerminalMatch::ByPosition`] and the
 /// package renumbers a kept terminal or changes family or lead count
 /// while a binding draft maps kept terminals: those terminals are reused
@@ -920,11 +466,7 @@ fn retained_findings(
     next: &PackageDefinition,
     renumbered: u32,
 ) -> Vec<Finding> {
-    let family = |p: &PackageDefinition| catalog::FamilyKind::of(&p.form);
-    if renumbered == 0
-        && family(before) == family(next)
-        && before.terminals.len() == next.terminals.len()
-    {
+    if renumbered == 0 && before.terminals.len() == next.terminals.len() {
         return Vec::new();
     }
     let mut out = Vec::new();
@@ -944,12 +486,10 @@ fn retained_findings(
             out.push(Finding::new(
                 "binding.mapping_retained",
                 format!(
-                    "{kept} mapping(s) of ‘{}’ keep package terminals by position, as requested, while the package changes from {} terminal(s) ({}) to {} ({}); check each against the new pinout.",
+                    "{kept} mapping(s) of ‘{}’ keep package terminals by position, as requested, while the package changes from {} terminal(s) to {}; check each against the new pinout.",
                     draft.meta.name,
                     before.terminals.len(),
-                    before.form.label(),
                     next.terminals.len(),
-                    next.form.label(),
                 ),
                 vec![ObjectRef::Definition { id: draft.id }],
             ));
@@ -1161,7 +701,6 @@ fn adopted(
         .map(|(g, n)| (g.id, n.id))
         .collect();
     let mut next = replaced.package;
-    next.form = generated.form.clone();
     next.envelope_nm = generated.envelope_nm;
     next.model = generated.model.clone();
     next.placement = generated.placement;
@@ -1231,7 +770,6 @@ fn adopted(
         terminals_before: u32::try_from(package.terminals.len()).unwrap_or(u32::MAX),
         terminals_after: u32::try_from(next.terminals.len()).unwrap_or(u32::MAX),
         pads_after,
-        model_family_rev: None,
         footprint: Some(footprint_id),
         footprint_created: created.is_some(),
         footprint_bound: bound,

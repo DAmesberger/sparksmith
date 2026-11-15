@@ -258,14 +258,14 @@ pub struct PackageValue {
 
 /// The typed `pkg_*` values a package offers footprints: today the body
 /// envelope as `pkg_L`, `pkg_W`, `pkg_H` (lengths) and the terminal count
-/// as `pkg_n`. Package parameters extend this list.
+/// as `pkg_n`.
 pub fn package_values(package: &PackageDefinition) -> Vec<PackageValue> {
     let [l, w, h] = package.envelope();
     let length = |name: &str, v: f64| PackageValue {
         name: ParamName(format!("{PACKAGE_PREFIX}{name}")),
         value: ParamValue::Length(v),
     };
-    let mut values = vec![
+    let values = vec![
         length("L", l),
         length("W", w),
         length("H", h),
@@ -274,7 +274,6 @@ pub fn package_values(package: &PackageDefinition) -> Vec<PackageValue> {
             value: ParamValue::Count(u32::try_from(package.terminals.len()).unwrap_or(u32::MAX)),
         },
     ];
-    values.extend(package.form.values());
     values
 }
 

@@ -243,8 +243,8 @@ pub fn restyle(
         )));
     };
     let mut drawn = match kind {
-        SymbolKind::IcBox => super::samples::block_symbol(symbol.component, terminals)?,
-        SymbolKind::Connector => super::samples::column_symbol(symbol.component, terminals)?,
+        SymbolKind::IcBox => super::symbol_blocks::block_symbol(symbol.component, terminals)?,
+        SymbolKind::Connector => super::symbol_blocks::column_symbol(symbol.component, terminals)?,
         _ => generate(kind, conventions, symbol.component, terminals)?,
     };
     let exhausted = || Error::Limit("the symbol's local identities are exhausted".into());

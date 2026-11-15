@@ -1688,8 +1688,6 @@ mod reply_tests;
 #[cfg(test)]
 mod svg_tests;
 #[cfg(test)]
-mod templates_tests;
-#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod two_way_tests;

@@ -14,13 +14,13 @@
 use sparksmith_automation::Session;
 use sparksmith_automation::session::generators::v1;
 use sparksmith_automation::session::generators::{GeneratePartParams, GeneratorSummary};
+use sparksmith_core::catalog::generic::GenericValue;
 use sparksmith_core::catalog::generic::generators::{self as catalog, GeneratorCandidate};
 use sparksmith_core::commands::PackageFromGenerator;
+use sparksmith_core::commands::working_package::TerminalMatch;
 use sparksmith_core::library::generated::{
     GeneratorParams, GeneratorScope, ParamProblem, Standing,
 };
-use sparksmith_core::library::templates::catalog::TerminalMatch;
-use sparksmith_core::library::templates::generic::GenericValue;
 use sparksmith_core::{ComponentRef, DefinitionId, Engine, LibraryCommand, Operation};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};

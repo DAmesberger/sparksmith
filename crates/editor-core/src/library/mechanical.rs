@@ -14,9 +14,9 @@ use super::model3d::{ModelDefinition, ModelFormat};
 use super::package_model::{PartDerived, PartFileModel, PartValue, part_parameter_name_ok};
 use super::{
     BindingDefinition, ComponentDefinition, Definition, DefinitionMeta, FootprintDefinition, Hole,
-    HoleShape, Library, PackageDefinition, PackageForm, PackageModel, PackageTerminal, PackedAsset,
-    Pad, PadKind, PadShape, PadSide, PasteRule, PasteWindow, SymbolDefinition, Terminal,
-    TerminalClass, TerminalMap, Unit, designator_prefix_valid, latest_of,
+    HoleShape, Library, PackageDefinition, PackageModel, PackageTerminal, PackedAsset, Pad,
+    PadKind, PadShape, PadSide, PasteRule, PasteWindow, SymbolDefinition, Terminal, TerminalClass,
+    TerminalMap, Unit, designator_prefix_valid, latest_of,
 };
 use crate::diagnostics::{Error, Result};
 use crate::functions::{Direction, TerminalFunctions};
@@ -38,8 +38,14 @@ pub const MAX_LANDS: usize = 64;
 pub const MAX_LAND_NAME: usize = 16;
 /// Smallest and largest land or hole size (0.05 and 100 mm); a land lies
 /// within ±`LAND_MAX_NM` of the origin.
-pub const LAND_MIN_NM: Nm = super::package_form::const_nm(50_000);
-pub const LAND_MAX_NM: Nm = super::package_form::const_nm(100_000_000);
+pub const LAND_MIN_NM: Nm = match Nm::try_new(50_000) {
+    Some(v) => v,
+    None => Nm::ZERO,
+};
+pub const LAND_MAX_NM: Nm = match Nm::try_new(100_000_000) {
+    Some(v) => v,
+    None => Nm::ZERO,
+};
 /// Longest part name and source text, bytes.
 pub const MAX_PART_NAME: usize = 128;
 /// Paste windows of an annular land: this many ring segments of this sweep.
@@ -628,7 +634,6 @@ fn package_definition(
                 designation: n.to_string(),
             })
             .collect(),
-        form: PackageForm::Generic,
         envelope_nm,
         model: PackageModel::PartFile(Box::new(PartFileModel {
             model,
@@ -769,7 +774,7 @@ fn footprint_definition(
         min: [lo[0], lo[1]],
         max: [hi[0], hi[1]],
     };
-    super::templates::footprint::add_standard_graphics_over(&mut footprint, package, body)?;
+    super::footprint_drawings::add_standard_graphics_over(&mut footprint, package, body)?;
     Ok(footprint)
 }
 

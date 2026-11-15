@@ -46,8 +46,8 @@ pub struct SourceInfo {
     /// Catalog entries (component and Part lineages at their latest revision).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entries: Option<usize>,
-    /// Package template rows (latest revisions), which `library.templates`
-    /// searches; a folder of rows alone has no entries.
+    /// Package rows (latest revisions), each a generator and its
+    /// parameters; a folder of rows alone has no entries.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_rows: Option<usize>,
     /// Revision records the folder holds.
@@ -383,7 +383,6 @@ impl Sources {
             favourites: self.settings.favourites.iter().copied().collect(),
             recent: self.settings.recent.clone(),
             sources: self.ready().map(|(_, catalog)| catalog.clone()).collect(),
-            without_starter_rows: false,
         }
     }
 
@@ -483,7 +482,15 @@ fn describe(loaded: &Loaded) -> SourceInfo {
             info.library = Some(folder.manifest.library);
             info.name = Some(folder.manifest.name.clone());
             info.entries = Some(catalog.entries.len());
-            info.package_rows = Some(catalog.rows.len());
+            info.package_rows = Some(
+                catalog
+                    .revisions
+                    .iter()
+                    .filter(|r| r.kind == sparksmith_core::DefinitionKind::PackageRow)
+                    .map(|r| r.lineage)
+                    .collect::<std::collections::BTreeSet<_>>()
+                    .len(),
+            );
             info.revisions = Some(catalog.revisions.len());
             info.index = Some(*index);
         }

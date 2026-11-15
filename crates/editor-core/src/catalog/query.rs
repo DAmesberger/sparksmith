@@ -619,11 +619,11 @@ fn predicate(
             let count = value
                 .parse::<u32>()
                 .ok()
-                .filter(|n| *n <= crate::library::package_form::MAX_FORM_LEADS)
+                .filter(|n| *n <= MAX_PINS_TERM)
                 .ok_or_else(|| {
                     format!(
                         "pins: takes a whole lead count up to {} (is ‘{value}’)",
-                        crate::library::package_form::MAX_FORM_LEADS
+                        MAX_PINS_TERM
                     )
                 })?;
             return Ok(Term::Pins { op, count });
@@ -936,11 +936,16 @@ fn implements_term(value: &str) -> Option<Term> {
     })
 }
 
+/// The largest lead count `pins:` takes.
+const MAX_PINS_TERM: u32 = 512;
+/// The largest length `pitch:` and `body:` take, mm.
+const MAX_LENGTH_TERM_MM: f64 = 1000.0;
+
 /// A positive length in mm from `0.5`, `0.5mm`, `50mil`, `0.05in` or
 /// `500um`; `None` otherwise.
 fn length_mm(text: &str) -> Option<f64> {
     let mm = parse_length(text, LengthUnit::Mm).ok()?.to_mm_f64();
-    (mm > 0.0 && mm <= crate::library::package_form::FORM_LENGTH_LIMIT_NM.to_mm_f64()).then_some(mm)
+    (mm > 0.0 && mm <= MAX_LENGTH_TERM_MM).then_some(mm)
 }
 
 /// `LxW` or `LxWxH` in mm (`x`, `X`, `×` or `*` between, an optional
@@ -959,10 +964,7 @@ fn body_mm(text: &str) -> Option<Vec<f64>> {
         .into_iter()
         .map(|p| {
             let v = p.trim().parse::<f64>().ok()?;
-            (v.is_finite()
-                && v > 0.0
-                && v <= crate::library::package_form::FORM_LENGTH_LIMIT_NM.to_mm_f64())
-            .then_some(v)
+            (v.is_finite() && v > 0.0 && v <= MAX_LENGTH_TERM_MM).then_some(v)
         })
         .collect()
 }

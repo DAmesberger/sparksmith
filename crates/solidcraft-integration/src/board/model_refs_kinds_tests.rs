@@ -1,10 +1,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-//! Slice S4 through the engine: faces of a generated model and of a STEP
+//! Slice S4 through the engine: faces of an envelope model and of a STEP
 //! model as dimension references, and the glTF refusal.
 //!
-//! - The demo's R1 chip resistor (a generated model) is held flush to the
-//!   board's right edge by the end face of its second termination, and
-//!   follows the edge when the board grows.
+//! - The demo's R1 resistor (an envelope model) is held flush to the
+//!   board's right edge by its envelope's end face, and follows the edge
+//!   when the board grows.
 //! - A STEP model's face survives a library revision that keeps its file
 //!   as `Resolved`; a revision with another file re-finds the face by its
 //!   name and makes it `Inexact` until it is picked again.
@@ -125,9 +125,12 @@ fn a_generated_models_end_face_holds_the_part_to_the_edge() -> Fallible<()> {
         "the test reads x in the part frame"
     );
     let package = package_of(engine.project(), part)?;
-    assert!(crate::models::is_generated(&package), "R1 is generated");
-    let design = named::generated(&package)?;
-    let face = plus_x_face(design.state(), "termination 2", part)?;
+    assert!(
+        matches!(package.model, PackageModel::Envelope { .. }),
+        "R1 is an envelope"
+    );
+    let design = named::package(&package)?;
+    let face = plus_x_face(design.state(), named::ENVELOPE_BODY, part)?;
     let width = engine.project().board_size[0];
     let edge = right(&engine)?;
     apply(
@@ -492,8 +495,9 @@ fn a_3d_pick_on_a_generated_end_face_holds_r1_to_the_edge() -> Fallible<()> {
     let mut engine = sketched()?;
     let part = r1(&engine)?;
     let package = package_of(engine.project(), part)?;
-    let design = named::generated(&package)?;
-    let FeatureRef::Face { face, .. } = plus_x_face(design.state(), "termination 2", part)? else {
+    let design = named::package(&package)?;
+    let FeatureRef::Face { face, .. } = plus_x_face(design.state(), named::ENVELOPE_BODY, part)?
+    else {
         return Err("face".into());
     };
     let at = board_point(&engine, part, &package, face.pick)?;

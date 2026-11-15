@@ -76,7 +76,17 @@ pub fn convert(path: &Path, options: &Options) -> Result<Converted> {
     {
         notes.extend(crate::convert::v3::notes(&file));
     }
+    let collected = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let options = &Options {
+        notes: Some(std::sync::Arc::clone(&collected)),
+        ..options.clone()
+    };
     let Upgraded { from, values } = upgrade(&mut file, options)?;
+    if let Ok(said) = collected.lock() {
+        notes.extend(said.iter().cloned());
+    }
+    // Assets a step packed inline (a generator's part file) become entries.
+    let added = take_inline_assets(&mut file)?;
     if from == FILE_VERSION {
         return Ok(Converted {
             from,
@@ -103,6 +113,13 @@ pub fn convert(path: &Path, options: &Options) -> Result<Converted> {
             out.raw_copy_file(entry)?;
         }
     }
+    for (hash, bytes) in &added {
+        let name = format!("{}{hash}", sparksmith_core::format::CONTAINER_ASSET_PREFIX);
+        if archive.by_name(&name).is_err() {
+            out.start_file(name, zip_options)?;
+            out.write_all(bytes)?;
+        }
+    }
     fs::write(&staged, out.finish()?.into_inner())?;
     let read = crate::read_project(&staged);
     fs::remove_file(&staged)?;
@@ -120,6 +137,35 @@ pub fn convert(path: &Path, options: &Options) -> Result<Converted> {
         notes,
         backup: Some(backup),
     })
+}
+
+/// The library assets `file` carries inline (non-empty `data`), as hash
+/// and bytes, their `data` emptied as a container's document holds it.
+fn take_inline_assets(file: &mut Value) -> Result<Vec<(String, Vec<u8>)>> {
+    let mut out = Vec::new();
+    let Some(assets) = file
+        .pointer_mut("/project/library/assets")
+        .and_then(Value::as_array_mut)
+    else {
+        return Ok(out);
+    };
+    for asset in assets.iter_mut() {
+        let Some(data) = asset
+            .get("data")
+            .filter(|d| d.as_str().is_some_and(|t| !t.is_empty()))
+        else {
+            continue;
+        };
+        let bytes: sparksmith_core::library::bundle::AssetBytes =
+            serde_json::from_value(data.clone())?;
+        let hash = asset["hash"]
+            .as_str()
+            .ok_or("an asset names no hash")?
+            .to_owned();
+        out.push((hash, bytes.as_slice().to_vec()));
+        asset["data"] = Value::String(String::new());
+    }
+    Ok(out)
 }
 
 /// `path` with `suffix` appended to its file name.

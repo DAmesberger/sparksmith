@@ -484,38 +484,20 @@ fn a_side_that_is_not_printed_has_no_legend_finding() -> Fallible {
     Ok(())
 }
 
-/// The footprint and package drafts a starter row builds.
+/// The footprint and package of a fixture preset part.
 fn starter(
     name: &str,
 ) -> Fallible<(
     crate::library::FootprintDefinition,
     crate::library::PackageDefinition,
 )> {
-    use crate::library::templates::catalog::{NewFromTemplate, RowSource};
-    let mut engine = Engine::profiled()?;
-    let row = crate::library::templates::starter::row(name)?;
-    let crate::Outcome::DraftsCreated { ids } = engine.apply(
-        engine.revision(),
-        Operation::Library(crate::LibraryCommand::NewFromTemplate(Box::new(
-            NewFromTemplate {
-                row: RowSource::Starter { name: name.into() },
-                values: None,
-                skeleton: row.definition.skeleton,
-                name: name.into(),
-                designator_prefix: None,
-                symbol: None,
-                without_fields: false,
-            },
-        ))),
-    )?
-    else {
-        return Err("no drafts".into());
-    };
+    let edits =
+        crate::library::fixtures::preset(name, crate::library::showcase_parts::PLACEHOLDERS)?;
     let (mut footprint, mut package) = (None, None);
-    for id in ids {
-        match engine.drafts().get(id).map(|d| &d.definition) {
-            Some(crate::library::Definition::Footprint(f)) => footprint = Some(f.clone()),
-            Some(crate::library::Definition::Package(p)) => package = Some(p.clone()),
+    for edit in edits {
+        match edit.definition {
+            crate::library::Definition::Footprint(f) => footprint = Some(f),
+            crate::library::Definition::Package(p) => package = Some(p),
             _ => {}
         }
     }
@@ -529,7 +511,7 @@ fn starter(
 fn a_default_designator_stays_clear_of_the_body() -> Fallible {
     use crate::geometry::Bounds;
     use crate::library::graphics::TextMetric;
-    for name in ["Chip resistor 0603 (1608 metric)", "SOT-23-3"] {
+    for name in ["0603 chip", "SOIC-8"] {
         let (footprint, package) = starter(name)?;
         let envelope = footprint.envelope_outline(&package);
         let mut engine = Engine::showcase()?;

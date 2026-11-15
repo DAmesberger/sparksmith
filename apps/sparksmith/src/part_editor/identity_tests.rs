@@ -786,12 +786,7 @@ fn change_package_on_a_drafted_part_keeps_package_footprint_and_mapping_agreeing
         .find(|d| matches!(d.definition, Definition::Package(_)))
         .map(|d| d.id)
         .ok_or("a package draft")?;
-    let agree = |engine: &Engine,
-                 terminals: usize,
-                 unmapped: bool,
-                 removed: bool,
-                 replaced: bool|
-     -> TestResult {
+    let agree = |engine: &Engine, terminals: usize, unmapped: bool, removed: bool| -> TestResult {
         let drafts = engine.drafts();
         let mut package = None;
         let mut footprint = None;
@@ -833,13 +828,9 @@ fn change_package_on_a_drafted_part_keeps_package_footprint_and_mapping_agreeing
             removed,
             "{codes:?}"
         );
-        // Freshly drafted, the drafts pin the stored revisions they came
-        // from; once the package draft changed they name its revision.
-        let pinned = if replaced {
-            draft.pending()
-        } else {
-            draft.base
-        };
+        // The drafts name the package draft's pending revision, freshly
+        // drafted (`library.draft_closure` pins them) and after each change.
+        let pinned = draft.pending();
         assert_eq!(
             Some(footprint.package.revision),
             pinned,
@@ -856,7 +847,7 @@ fn change_package_on_a_drafted_part_keeps_package_footprint_and_mapping_agreeing
         }
         Ok(())
     };
-    agree(&engine, 17, false, false, false)?;
+    agree(&engine, 17, false, false)?;
     for (preset, terminals, unmapped, removed) in [
         ("no-lead-qfn-20-3x3-0.4", 21, true, false),
         ("no-lead-qfn-20-3x3-0.4", 21, true, false),
@@ -875,7 +866,7 @@ fn change_package_on_a_drafted_part_keeps_package_footprint_and_mapping_agreeing
             operation,
             sparksmith_core::Evaluators::default(),
         )?;
-        agree(&engine, terminals, unmapped, removed, true)?;
+        agree(&engine, terminals, unmapped, removed)?;
     }
     Ok(())
 }

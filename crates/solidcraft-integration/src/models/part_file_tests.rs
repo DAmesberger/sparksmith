@@ -1,16 +1,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-//! Lean parts (docs/part-templates.md §11): the conventions, the cache,
-//! refusals, and parity of the built-in ESP32-S31-WROOM-3 part file with
-//! the stored module package it replaces, now built by the `module`
-//! generator.
+//! Lean parts (docs/part-templates.md §11): the conventions, the cache
+//! and refusals.
 use super::*;
-use crate::models;
 use serde_json::json;
-use sparksmith_core::ids::PackageTerminalId;
-use sparksmith_core::library::marking::surface;
-use sparksmith_core::library::{
-    GeneratedMaterials, PackageDefinition, PackageForm, PackageModel, PackageTerminal,
-};
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -32,30 +24,6 @@ fn builtin(name: &str) -> Option<&'static [u8]> {
     let bytes: &'static [u8] = Box::leak(std::fs::read(path).ok()?.into_boxed_slice());
     read.insert(name.to_owned(), bytes);
     Some(bytes)
-}
-
-fn wroom3_package() -> PackageDefinition {
-    // The fixture is the module datasheet's millimetres: the wire form.
-    let form: PackageForm = serde_json::from_str::<
-        sparksmith_core::library::package_form::PackageFormParams,
-    >(include_str!("../../tests/template_spike_wroom3.json"))
-    .unwrap()
-    .into();
-    PackageDefinition {
-        next_local: 100,
-        terminals: (1..=99)
-            .map(|i| PackageTerminal {
-                id: PackageTerminalId(i),
-                designation: i.to_string(),
-            })
-            .collect(),
-        model: PackageModel::Generated {
-            family_rev: 1,
-            materials: GeneratedMaterials::default(),
-        },
-        form,
-        ..PackageDefinition::default()
-    }
 }
 
 fn bytes() -> &'static [u8] {
@@ -148,135 +116,6 @@ fn the_built_in_wroom3_part_passes_its_check() -> Fallible {
 }
 
 /// The part file's marking surfaces are the module form's anchors.
-#[test]
-fn the_wroom3_marking_planes_are_the_module_anchors() -> Fallible {
-    let package = wroom3_package();
-    let part = evaluate(bytes(), &PartValues::new())?;
-    let anchors = surface::anchors(&package.form);
-    assert!(!anchors.is_empty());
-    for a in &anchors {
-        let found = part
-            .surfaces
-            .iter()
-            .find(|s| s.name == a.name)
-            .unwrap_or_else(|| panic!("no surface {}", a.name));
-        let (SurfaceGeometry::Plane(x), SurfaceGeometry::Plane(y)) = (a.geometry, found.geometry)
-        else {
-            panic!("{} is a plane", a.name);
-        };
-        let close = |p: &[f64], q: &[f64]| p.iter().zip(q).all(|(u, v)| (u - v).abs() < 1e-9);
-        assert!(
-            close(&x.origin(), &y.origin())
-                && close(&x.normal, &y.normal)
-                && close(&x.u_axis, &y.u_axis)
-                && close(&x.size(), &y.size()),
-            "{}: form {x:?}, part {y:?}",
-            a.name
-        );
-    }
-    // The default area is the whole can top, as `package_area` of a module.
-    let PackageForm::Module(m) = &package.form else {
-        panic!("a module");
-    };
-    let derived = derived(&part)?;
-    let file = sparksmith_core::library::package_model::PartFileModel {
-        derived,
-        ..Default::default()
-    };
-    assert_eq!(file.default_area(), Some(m.can_size()));
-    Ok(())
-}
-
-/// Per body: bounding box within 1 µm and volume within 1e-9 relative;
-/// the same body count; equal union bounds; equal materials. The module
-/// generator's file names a corner pad `single pad k` where the built-in
-/// file (saved from the retired module builder) says `pad <number>`.
-#[test]
-fn the_wroom3_part_builds_what_the_stored_module_package_builds() -> Fallible {
-    let _context = crate::looks::test_context().map(|c| c.enter());
-    let package = wroom3_package();
-    let mut generated = Native::new("generated")?;
-    let def = models::build_definition(&mut generated, "pkgT", &package)?;
-    let part = evaluate(bytes(), &PartValues::new())?;
-    let mut board = Native::new("board")?;
-    let stem = part.stem();
-    let inserted = insert(&mut board, &stem, &part, &Default::default())?;
-    assert!(board.evaluation_error().is_none());
-    assert_eq!(def.bodies.len(), inserted.bodies.len());
-    let (ga, gb) = (
-        generated.session().world_state()?,
-        board.session().world_state()?,
-    );
-    let (mut worst_box, mut worst_volume) = (0.0f64, 0.0f64);
-    let (mut volume_a, mut volume_b) = (0.0, 0.0);
-    let PackageForm::Module(form) = &package.form else {
-        panic!("a module");
-    };
-    let drawn = |plain: &str| -> String {
-        plain
-            .strip_prefix("single pad ")
-            .and_then(|k| k.parse::<usize>().ok())
-            .and_then(|k| form.singles.get(k - 1))
-            .map_or_else(|| plain.to_owned(), |p| format!("pad {}", p.number))
-    };
-    for body in &def.bodies {
-        let plain = drawn(body.name.strip_prefix("pkgT ").unwrap());
-        let x = ga.bodies.iter().find(|b| b.name == body.name).unwrap();
-        let y = gb
-            .bodies
-            .iter()
-            .find(|b| b.name == format!("{stem} {plain}"))
-            .unwrap_or_else(|| panic!("no {plain} in the part"));
-        let (mx, my) = (x.measure()?, y.measure()?);
-        for (p, q) in [(mx.bbox.min, my.bbox.min), (mx.bbox.max, my.bbox.max)] {
-            worst_box = worst_box
-                .max((p.x - q.x).abs())
-                .max((p.y - q.y).abs())
-                .max((p.z - q.z).abs());
-        }
-        worst_volume = worst_volume.max((mx.volume - my.volume).abs() / mx.volume.abs());
-        volume_a += mx.volume;
-        volume_b += my.volume;
-        let made = inserted
-            .bodies
-            .iter()
-            .find(|b| b.name == format!("{stem} {plain}"))
-            .unwrap();
-        assert_eq!(made.material, body.material, "{plain}");
-        assert_eq!(
-            made.kind(),
-            body.kind(),
-            "{plain} is drawn as the builder draws it"
-        );
-    }
-    let union_a = models::imported::bounds_of(
-        &generated,
-        &def.bodies
-            .iter()
-            .map(|b| b.name.clone())
-            .collect::<Vec<_>>(),
-    )?;
-    eprintln!(
-        "WROOM-3 parity: {} bodies each, worst bbox Δ {worst_box:.2e} mm, worst volume Δ \
-         {worst_volume:.2e} (relative), volume {volume_a:.4} vs {volume_b:.4} mm³, \
-         bounds {union_a:?} vs {:?}",
-        def.bodies.len(),
-        part.bounds_mm
-    );
-    assert!(worst_box < 1e-6, "{worst_box}");
-    assert!(worst_volume < 1e-9, "{worst_volume}");
-    for (a, b) in union_a
-        .iter()
-        .flatten()
-        .zip(part.bounds_mm.iter().flatten())
-    {
-        assert!((a - b).abs() < 1e-6, "{union_a:?} vs {:?}", part.bounds_mm);
-    }
-    Ok(())
-}
-
-/// The part stays parametric: a value changes the geometry; the inserted
-/// definition keeps live, prefixed parameters.
 #[test]
 fn values_drive_the_part_and_stay_live_in_the_board() -> Fallible {
     let _context = crate::looks::test_context().map(|c| c.enter());

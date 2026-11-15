@@ -3,9 +3,7 @@
 //! from the pad and envelope extents, and designator placeholders. The
 //! values are conservative, estimated prototype defaults (not copied
 //! tables or a standard compliance claim); every result is ordinary
-//! graphic data the author then edits. The parametric family templates of
-//! the footprint design (F5) emit `FootprintEdit`s and arrive with the
-//! evaluator.
+//! graphic data the author then edits.
 use crate::diagnostics::{Error, Result};
 use crate::geometry::{Bounds, Point, Shape};
 use crate::ids::GraphicId;
@@ -147,30 +145,12 @@ fn shape(layer: DrawingLayer, shape: Shape, width: f64) -> Result<(DrawingLayer,
     ))
 }
 
-/// The copper keep-outs a typed form asks of the host board: a module's
-/// antenna region ([`ModuleForm::antenna_keepout`]) on every copper layer.
-///
-/// [`ModuleForm::antenna_keepout`]: crate::library::package_form::ModuleForm::antenna_keepout
-pub fn form_keepouts(
-    form: &crate::library::package_form::PackageForm,
-) -> Vec<crate::library::FootprintKeepout> {
-    match form {
-        crate::library::package_form::PackageForm::Module(m) => m
-            .antenna_keepout()
-            .map(|[min, max]| crate::library::FootprintKeepout::rect("antenna", min, max))
-            .into_iter()
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
 /// Append the standard drawings to `footprint`, allocating graphic IDs from
 /// its `next_local`: the assembly outline and designator, the silkscreen
 /// outline and designator, and the courtyard, all on the component side.
-/// Polarity is never added (it needs explicit data). The package form's
-/// copper keep-outs (a module's antenna clearance) replace the footprint's
-/// keep-outs: they are form-derived like the lands. Returns the new IDs in
-/// order; on error the footprint is unchanged.
+/// Polarity is never added (it needs explicit data); the footprint's
+/// keep-outs stay as they are. Returns the new IDs in order; on error the
+/// footprint is unchanged.
 pub fn add_standard_graphics(
     footprint: &mut FootprintDefinition,
     package: &PackageDefinition,
@@ -183,7 +163,7 @@ pub fn add_standard_graphics(
 /// frame (a mechanical part's bounds, which need not be centred).
 pub fn add_standard_graphics_over(
     footprint: &mut FootprintDefinition,
-    package: &PackageDefinition,
+    _package: &PackageDefinition,
     envelope: Bounds,
 ) -> Result<Vec<GraphicId>> {
     let mut items = vec![shape(
@@ -211,7 +191,6 @@ pub fn add_standard_graphics_over(
         )?);
     }
     let mut next = footprint.clone();
-    next.keepouts = form_keepouts(&package.form);
     let mut added = Vec::with_capacity(items.len() + 2);
     let mut allocate = |next: &mut FootprintDefinition| -> Result<GraphicId> {
         let id = GraphicId(next.next_local);
@@ -256,6 +235,25 @@ pub fn add_standard_graphics_over(
     next.graphics.push(assembly);
     *footprint = next;
     Ok(added)
+}
+
+/// `footprint` with its built content dropped: the parametric source,
+/// every pad, the pin-1 polarity and the graphics the source's roles
+/// solved. Authored graphics (silkscreen, courtyard, assembly drawings
+/// without a role), the mask and paste defaults and `next_local` stay, so
+/// identities are never reused. Pure.
+pub fn cleared(footprint: &FootprintDefinition) -> FootprintDefinition {
+    let mut next = footprint.clone();
+    let roles: Vec<_> = next
+        .source
+        .as_deref()
+        .map(|s| s.graphics.iter().map(|g| g.id).collect())
+        .unwrap_or_default();
+    next.graphics.retain(|g| !roles.contains(&g.id));
+    next.source = None;
+    next.pads.clear();
+    next.polarity = None;
+    next
 }
 
 #[cfg(test)]

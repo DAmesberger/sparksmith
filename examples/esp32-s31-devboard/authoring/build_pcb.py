@@ -82,8 +82,8 @@ def build(s, L, S):
     # The USB-C footprint's origin is the receptacle's outline centre with
     # the mating face toward -y, so half its depth puts the face on y = 0.
     lib = s.raw("project.inspect")["result"]["project"]["library"]
-    usbc = next(k["definition"]["form"] for k in lib["packages"] if k["id"] == L["usbc"]["package"])
-    place = dict(PLACE, J1=(PLACE["J1"][0], usbc["depth"] / 2, PLACE["J1"][2]))
+    usbc = [k["definition"] for k in lib["packages"] if k["id"] == L["usbc"]["package"]][-1]
+    place = dict(PLACE, J1=(PLACE["J1"][0], usbc["envelope_nm"][1] / 2e6, PLACE["J1"][2]))
     for des, (x, y, r) in place.items():
         inst = S["instances"][des]["id"]
         s.op("layout.move", {"instance": inst, "position": [x, y], "rotation_deg": float(r), "layer": "Top"}, f"place {des}")

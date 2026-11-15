@@ -200,16 +200,6 @@ impl EvaluatedPart {
         &self.state
     }
 
-    /// The source design with the values applied, evaluated.
-    pub(crate) fn source(&self) -> &Arc<Document> {
-        &self.source
-    }
-
-    /// The evaluated bodies, shared.
-    pub(crate) fn shared_state(&self) -> &Arc<ModelState> {
-        &self.state
-    }
-
     /// The first blocking finding as a refusal.
     pub fn refusal(&self) -> Option<Error> {
         self.findings

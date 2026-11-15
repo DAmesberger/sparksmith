@@ -149,7 +149,6 @@ mod tests {
     use super::*;
     use serde_json::json;
     use sparksmith_core::library::FootprintDefinition;
-    use sparksmith_core::library::templates::catalog::LandValues;
     use sparksmith_core::library::{HoleShape, MaskRule, PadShape, PasteRule};
     use sparksmith_core::units::{Angle, Nm, PointNm};
 
@@ -288,11 +287,13 @@ mod tests {
         assert_eq!(definition("package_row", o)?, 4);
         assert_eq!(definition("package_row", o)?, 0);
         let lands = body.get("lands").cloned().ok_or("lands")?;
-        let lands: LandValues = serde_json::from_value(lands)?;
-        assert_eq!(lands.pad_length_nm, Some(Nm::new(800_000)?));
-        assert_eq!(lands.pad_width_nm, None);
-        assert_eq!(lands.gap_nm, Some(Nm::new(1_650_000)?));
-        assert_eq!(lands.exposed_pad, Some(p(5_300_000, 5_300_000)?));
+        assert_eq!(lands["pad_length_nm"], 800_000);
+        assert!(lands["pad_width_nm"].is_null());
+        assert_eq!(lands["gap_nm"], 1_650_000);
+        assert_eq!(
+            lands["exposed_pad"],
+            json!({"x_nm": 5_300_000, "y_nm": 5_300_000})
+        );
         Ok(())
     }
 }

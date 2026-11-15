@@ -1,8 +1,8 @@
 //! The board of the PCB realism showcase (`Engine::showcase`): a 4-layer
 //! 44 × 28 mm board with its placements, routing and vias as layout
 //! commands, so the showcase is built through the same engine as any
-//! design. Original layout; nets and parts come from
-//! `library::samples::SHOWCASE_NETS` and `SHOWCASE_INSTANCES`.
+//! design. Original layout; the instances and nets are [`INSTANCES`] and
+//! [`NETS`], the parts shipped data (`library::showcase_parts`).
 //!
 //! The routing is on top and bottom with through vias, tented and open; a
 //! layer change is routed with `layout.route_layer_change`. Ground runs as
@@ -31,6 +31,59 @@ use crate::model::dimension::{BoardRef, FeatureRef, PartDimensionSpec, PartRelat
 use crate::model::fill::{FillSettings, FillSpec, PadConnections};
 use crate::model::{CopperLayer, Layer, Project, StackupPresets};
 use crate::rules::{NetClassSpec, PadConnection};
+
+/// The showcase instances: (designator, index into the showcase parts,
+/// `library/showcase/parts.json`).
+pub const INSTANCES: &[(&str, usize)] = &[
+    ("J1", 2),
+    ("U1", 0),
+    ("U2", 1),
+    ("C1", 4),
+    ("C2", 4),
+    ("C3", 5),
+    ("R1", 3),
+    ("R2", 3),
+    ("R3", 3),
+];
+
+/// The showcase netlist: (net name, terminals as (designator, terminal)).
+/// Terminal numbers are the pad numbers; the QFN's exposed pad is 17 and
+/// the tantalum's pad 1 is its positive terminal.
+pub const NETS: &[(&str, &[(&str, u32)])] = &[
+    (
+        "VCC",
+        &[
+            ("J1", 1),
+            ("C3", 1),
+            ("U1", 8),
+            ("C1", 2),
+            ("U2", 13),
+            ("C2", 2),
+            ("R1", 2),
+            ("R2", 2),
+        ],
+    ),
+    (
+        "GND",
+        &[
+            ("J1", 2),
+            ("J1", 10),
+            ("C3", 2),
+            ("U1", 4),
+            ("C1", 1),
+            ("C2", 1),
+            ("U2", 17),
+        ],
+    ),
+    ("SDA", &[("J1", 7), ("U1", 5), ("R1", 1)]),
+    ("SCL", &[("J1", 5), ("U1", 6), ("R2", 1)]),
+    ("EN", &[("J1", 3), ("U1", 7)]),
+    ("D0", &[("U1", 1), ("U2", 16)]),
+    ("D1", &[("U1", 2), ("U2", 15)]),
+    ("D2", &[("U1", 3), ("U2", 14)]),
+    ("INT", &[("U2", 6), ("R3", 2)]),
+    ("OUT", &[("R3", 1), ("J1", 9)]),
+];
 
 /// The showcase board outline, in mm.
 pub const BOARD_MM: Point = [44.0, 28.0];

@@ -764,12 +764,11 @@ fn publish_library_again(author: &mut Session, library: &Value) -> Fallible<usiz
     Ok(written)
 }
 
-/// Reserve a component's five drafts and fill them from `preset`'s
-/// generated-model sample, as the Component workspace's templates do.
-fn packaged_engine(
-    preset: sparksmith_core::library::samples::Preset,
-) -> Fallible<(Engine, [DefinitionId; 5])> {
-    use sparksmith_core::library::samples::{self, SampleRefs};
+/// Reserve a component's five drafts and fill them from the preset part
+/// labelled `preset` (a fixture: its lead contacts, solder joints and an
+/// envelope model).
+fn packaged_engine(preset: &str) -> Fallible<(Engine, [DefinitionId; 5])> {
+    use sparksmith_core::library::fixtures::{self, SampleRefs};
     use sparksmith_core::library::{Definition, DefinitionMeta};
     use sparksmith_core::{
         BindingRef, DefinitionKind, FootprintRef, Outcome, PackageRef, SymbolRef,
@@ -797,8 +796,7 @@ fn packaged_engine(
         return Err("draft reservation failed".into());
     };
     let first = Revision::FIRST;
-    let edits = samples::packaged(
-        preset.label(),
+    let edits = fixtures::preset(
         preset,
         SampleRefs {
             component,
@@ -807,7 +805,6 @@ fn packaged_engine(
             footprint: FootprintRef::new(footprint, first),
             binding: BindingRef::new(binding, first),
         },
-        &sparksmith_core::rules::DesignRules::default(),
     )?;
     engine.apply(
         engine.revision(),
@@ -816,47 +813,30 @@ fn packaged_engine(
     Ok((engine, [component, symbol, package, footprint, binding]))
 }
 
-/// M1–M3 × S3: a package whose generated model has a body-role material
-/// override and an authored placement is promoted to a folder through io,
-/// then imported into another project from the folder's files. The copy's
-/// form, envelope, model (builder revision and materials) and placement
-/// equal the author's, and its origin is recorded.
+/// M1–M3 × S3: a package with lead contacts, solder joints, an envelope
+/// model of a chosen material and an authored placement is promoted to a
+/// folder through io, then imported into another project from the
+/// folder's files. The copy's lead contacts, joints, envelope, model and
+/// placement equal the author's, and its origin is recorded.
 #[test]
-fn a_generated_package_model_round_trips_through_a_folder() -> TestResult {
+fn a_package_model_round_trips_through_a_folder() -> TestResult {
     use sparksmith_core::PackageRef;
-    use sparksmith_core::library::samples::Preset;
-    use sparksmith_core::library::{
-        BodyRole, Definition, GeneratedMaterials, ModelPlacement, PackageEdit, PackageModel,
-        RoleMaterial,
-    };
+    use sparksmith_core::library::{ModelPlacement, PackageEdit, PackageModel};
     use sparksmith_core::materials::MaterialId;
     let temp = tempfile::tempdir()?;
     let folder = temp.path().join("models");
     let folder_text = folder.display().to_string();
 
-    let (mut engine, drafts) = packaged_engine(Preset::Soic8)?;
+    let (mut engine, drafts) = packaged_engine("SOIC-8")?;
     let [component, _, package, _, _] = drafts;
-    let family_rev = match engine.drafts().get(package).map(|d| &d.definition) {
-        Some(Definition::Package(p)) => match &p.model {
-            PackageModel::Generated { family_rev, .. } => *family_rev,
-            other => return Err(format!("not generated: {other:?}").into()),
-        },
-        _ => return Err("no package draft".into()),
-    };
     let placement = ModelPlacement::from_mm([0.02, -0.01, 0.0], [0.0, 0.0, 0.0])?;
     engine.apply(
         engine.revision(),
         Operation::Library(LibraryCommand::EditPackage {
             draft: package,
             edits: vec![
-                PackageEdit::SetModel(PackageModel::Generated {
-                    family_rev,
-                    materials: GeneratedMaterials {
-                        roles: vec![RoleMaterial {
-                            role: BodyRole::Lead,
-                            material: MaterialId::Gold,
-                        }],
-                    },
+                PackageEdit::SetModel(PackageModel::Envelope {
+                    material: MaterialId::Gold,
                 }),
                 PackageEdit::SetPlacement(placement),
             ],
@@ -877,6 +857,8 @@ fn a_generated_package_model_round_trips_through_a_folder() -> TestResult {
         .definition
         .clone();
     assert_eq!(authored.placement, placement);
+    assert_eq!(authored.leads.len(), 8);
+    assert!(authored.joints.is_some());
 
     let mut author = Session::new(engine);
     let sample = publish_library(&mut author, &folder_text, "Models")?;
@@ -893,12 +875,12 @@ fn a_generated_package_model_round_trips_through_a_folder() -> TestResult {
     };
     let package_origin = origin(&author, package).ok_or("package not promoted")?;
     let component_origin = origin(&author, component).ok_or("component not promoted")?;
-    // The record on disk carries the generated model and its override.
+    // The record on disk carries the model and its material.
     let record = std::fs::read_to_string(
         folder.join(format!("lineages/{}/r0001.json", package_origin.lineage)),
     )?;
     assert!(
-        record.contains("\"generated\"") && record.contains("gold"),
+        record.contains("\"envelope\"") && record.contains("gold"),
         "{record}"
     );
 
@@ -937,8 +919,9 @@ fn a_generated_package_model_round_trips_through_a_folder() -> TestResult {
     assert_eq!(copied, authored);
     assert!(matches!(
         &copied.model,
-        PackageModel::Generated { materials, .. }
-            if materials.roles == [RoleMaterial { role: BodyRole::Lead, material: MaterialId::Gold }]
+        PackageModel::Envelope {
+            material: MaterialId::Gold
+        }
     ));
     Ok(())
 }

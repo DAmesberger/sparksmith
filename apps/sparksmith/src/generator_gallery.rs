@@ -283,10 +283,6 @@ impl GeneratorGallery {
         self.open = Some(open);
     }
 
-    pub fn close(&mut self) {
-        self.open = None;
-    }
-
     #[cfg(test)]
     pub fn is_open(&self) -> bool {
         self.open.is_some()

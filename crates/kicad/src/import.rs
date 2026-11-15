@@ -17,12 +17,11 @@ use sparksmith_core::layout::LayoutCommand;
 use sparksmith_core::layout::fill::FillCommand;
 use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
 use sparksmith_core::library::footprint_source::{SketchEdit, SketchRef};
-use sparksmith_core::library::samples::named_block_symbol;
+use sparksmith_core::library::symbol_blocks::named_block_symbol;
 use sparksmith_core::library::{
     BindingDefinition, ComponentDefinition, Definition, DefinitionMeta, DraftEdit,
-    FootprintDefinition, ModelPlacement, PackageDefinition, PackageForm, PackageModel,
-    PackageTerminal, Pad, PadDefaults, PadKind, Terminal, TerminalClass, TerminalMap,
-    designator_prefix_valid,
+    FootprintDefinition, ModelPlacement, PackageDefinition, PackageModel, PackageTerminal, Pad,
+    PadDefaults, PadKind, Terminal, TerminalClass, TerminalMap, designator_prefix_valid,
 };
 use sparksmith_core::materials::MaterialId;
 use sparksmith_core::model::board::BoardShape;
@@ -1193,7 +1192,6 @@ fn drafts(
                         designation: designation.clone(),
                     })
                     .collect(),
-                form: PackageForm::Generic,
                 envelope_nm: envelope,
                 model: PackageModel::Envelope {
                     material: MaterialId::EpoxyMould,
@@ -1201,6 +1199,8 @@ fn drafts(
                 placement: ModelPlacement::default(),
                 mechanical: None,
                 datums: Vec::new(),
+                leads: Vec::new(),
+                joints: None,
             }),
         },
         DraftEdit {

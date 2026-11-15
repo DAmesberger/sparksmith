@@ -24,13 +24,8 @@
 
 use serde_json::json;
 use solidcraft_engine::Session;
-use sparksmith_core::ids::PackageTerminalId;
-use sparksmith_core::library::{
-    GeneratedMaterials, PackageDefinition, PackageForm, PackageModel, PackageTerminal,
-};
 use sparksmith_core::materials::MaterialId;
-use sparksmith_solidcraft::models::{self, look, part_file};
-use sparksmith_solidcraft::native::Native;
+use sparksmith_solidcraft::models::{look, part_file};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -69,81 +64,6 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
         a[2] * b[0] - a[0] * b[2],
         a[0] * b[1] - a[1] * b[0],
     ]
-}
-
-/// A chip part file of the `chip` generator's bundle: the in-code chip
-/// builder's construction of a 0603 chip of `kind` (its parameters and
-/// body names are already plain in a standalone build), with each body's
-/// appearance named after its Sparksmith material. The generator gives
-/// every parameter a value, so the 0603 numbers are only the file's
-/// defaults.
-pub fn author_chip(kind: sparksmith_core::library::ChipKind, title: &str) -> Vec<u8> {
-    use sparksmith_core::library::ChipForm;
-    let form = PackageForm::Chip(Box::new(ChipForm {
-        kind,
-        length_nm: nm(1.6),
-        width_nm: nm(0.8),
-        height_nm: nm(if kind == sparksmith_core::library::ChipKind::Led {
-            0.75
-        } else {
-            0.45
-        }),
-        termination_nm: nm(0.3),
-    }));
-    let package = PackageDefinition {
-        next_local: 3,
-        terminals: (1..=2)
-            .map(|i| PackageTerminal {
-                id: PackageTerminalId(i),
-                designation: i.to_string(),
-            })
-            .collect(),
-        model: PackageModel::Generated {
-            family_rev: models::family_rev(&form).unwrap(),
-            materials: GeneratedMaterials::default(),
-        },
-        form,
-        ..PackageDefinition::default()
-    };
-    let mut native = Native::new(title).unwrap();
-    let bodies = models::build_standalone(&mut native, &package).unwrap();
-    let mut s = Session::default();
-    *s.doc_mut() = (*native.session().doc).clone();
-    s.refresh();
-    let mut by_material: BTreeMap<MaterialId, Vec<&str>> = BTreeMap::new();
-    for b in &bodies {
-        by_material.entry(b.material).or_default().push(&b.name);
-    }
-    for (material, names) in by_material {
-        assign_look(&mut s, &names, material);
-    }
-    s.refresh();
-    solidcraft_engine::io::write_design(&s.doc)
-}
-
-fn author_chip_resistor() -> Vec<u8> {
-    author_chip(
-        sparksmith_core::library::ChipKind::Resistor,
-        "Chip resistor",
-    )
-}
-
-fn author_chip_capacitor() -> Vec<u8> {
-    author_chip(
-        sparksmith_core::library::ChipKind::Capacitor,
-        "Chip capacitor",
-    )
-}
-
-fn author_chip_ferrite() -> Vec<u8> {
-    author_chip(
-        sparksmith_core::library::ChipKind::Inductor,
-        "Chip inductor or ferrite bead",
-    )
-}
-
-fn author_chip_led() -> Vec<u8> {
-    author_chip(sparksmith_core::library::ChipKind::Led, "Chip LED")
 }
 
 /// The `header` generator's part file: a straight pin header of `rows` ×
@@ -2264,7 +2184,6 @@ fn wing_sketch(s: &mut Session, row: &WingRow, half_body: &str, span: &str) -> S
 /// Saved at SOIC-8 (two sides) or LQFP-48 7 × 7 mm (four); the generator
 /// gives every dimension.
 fn author_gull_wing(four: bool) -> Vec<u8> {
-    use sparksmith_core::library::{BodyRole, GullWingForm, LeadSides};
     let mut s = Session::default();
     let title = if four {
         "Gull-wing package, four sides (QFP)"
@@ -2506,24 +2425,6 @@ fn author_gull_wing(four: bool) -> Vec<u8> {
     // `row_s lead (2)`, …: every lead the generator can ask for (128 a
     // side) gets the lead look at that count, then the file goes back to
     // its saved counts.
-    let form = PackageForm::GullWing(Box::new(GullWingForm {
-        sides: if four {
-            LeadSides::Four
-        } else {
-            LeadSides::Two
-        },
-        leads_per_side: [n, m],
-        pitch_nm: nm(pitch),
-        body_length_nm: nm(bl),
-        body_width_nm: nm(bw),
-        body_height_nm: nm(bh),
-        standoff_nm: nm(standoff),
-        span_nm: [nm(span), nm(span_x)],
-        lead_width_nm: nm(lw),
-        lead_thickness_nm: nm(t),
-        foot_length_nm: nm(foot),
-    }));
-    let materials = GeneratedMaterials::default();
     let counts = |s: &mut Session, leads: u32, short: u32, pitch: &str| {
         let mut changes = serde_json::Map::new();
         changes.insert("leads".into(), json!(leads.to_string()));
@@ -2579,9 +2480,11 @@ fn author_gull_wing(four: bool) -> Vec<u8> {
         .collect();
     assert_eq!(leads.len(), if four { 4 * 128 } else { 2 * 128 });
     let leads: Vec<&str> = leads.iter().map(String::as_str).collect();
-    assign_look(&mut s, &["body"], materials.material(&form, BodyRole::Body));
+    // The gull-wing family's materials: a moulded epoxy body, satin
+    // bright tin leads.
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
     for chunk in leads.chunks(200) {
-        assign_look(&mut s, chunk, materials.material(&form, BodyRole::Lead));
+        assign_look(&mut s, chunk, MaterialId::TinBright);
     }
     counts(&mut s, n, m, &mm(pitch));
     let errors: Vec<String> = s
@@ -4491,20 +4394,11 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 42] = [
-        // The chip generator's bundle (`generators/chip/parts/`).
-        (
-            "generators/chip/parts",
-            "chip-resistor",
-            author_chip_resistor,
-        ),
-        (
-            "generators/chip/parts",
-            "chip-capacitor",
-            author_chip_capacitor,
-        ),
-        ("generators/chip/parts", "chip-ferrite", author_chip_ferrite),
-        ("generators/chip/parts", "chip-led", author_chip_led),
+    let parts: [(&str, &str, Author); 38] = [
+        // The chip generator's bundle (`generators/chip/parts/`) was saved
+        // from the in-code chip builder, deleted in part-generation D2;
+        // its four files are kept as shipped (the builder is in history:
+        // `git show 292f2e40:crates/solidcraft-integration/src/models/chip.rs`).
         // The header generator's bundle (`generators/header/parts/`).
         ("generators/header/parts", "pin-header", author_pin_header),
         // The gull-wing generator's bundle (`generators/gull-wing/parts/`).

@@ -207,7 +207,8 @@ fn the_live_model_places_one_design_per_package_revision_and_no_board() -> Resul
         .collect();
     assert_eq!(revisions.len(), 1, "the demo's resistors share a package");
     assert_eq!(live.part_designs(), revisions.len());
-    assert_eq!(live.models.len(), 1, "one definition per package revision");
+    // The demo's resistors are envelopes: a box, no definition.
+    assert!(live.models.is_empty(), "an envelope is no definition");
     let (r1, r2) = instances(&project)?;
     let (a, b) = (part_bodies(&live, r1), part_bodies(&live, r2));
     assert!(!a.is_empty() && a.len() == b.len());

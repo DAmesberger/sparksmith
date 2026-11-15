@@ -52,13 +52,14 @@ fn replay(reference: &Reference) -> Fallible {
     assert_eq!(pins, reference.pins);
 
     let drafts = &session.engine().drafts().items;
-    let family = drafts.iter().find_map(|d| match &d.definition {
+    // The tabbed generator made the package: its part file is the model.
+    let model = drafts.iter().find_map(|d| match &d.definition {
         sparksmith_core::library::Definition::Package(p) => serde_json::to_value(p)
             .ok()
-            .map(|v| v["form"]["family"].clone()),
+            .map(|v| v["model"]["source"].clone()),
         _ => None,
     });
-    assert_eq!(family, Some(json!("tabbed")));
+    assert_eq!(model, Some(json!("part_file")));
     let footprint = drafts
         .iter()
         .find_map(|d| match &d.definition {

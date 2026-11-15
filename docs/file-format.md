@@ -9,6 +9,7 @@ This page is the normative contract for Sparksmith's project and library files. 
 | Versions, features, converter chain, `format-lock` gate | Built (F0). See [file versions](development.md#file-versions). |
 | This contract, both layouts, the tree in memory (`FileSet`), declared field order and sort keys, the table reply type | Built (F1), in `sparksmith_core::format::{files, layout, records, table}`. **Nothing saves through it yet.** |
 | Fills out of the document, collections sorted by key, order audit ([4.1](#41-order-audit)), sketch and waiver keys as real JSON | Built (F2), version 4. Applies to today's `project.json` too. |
+| Packages store lead contacts and solder joints; typed forms and generated models gone | Built (part generation D2), version 5. |
 | Encoding and decoding the whole document as a tree; a ZIP of the tree replaces today's single `project.json` | F3 |
 | The folder store: journaled saves, changed files only, lock, external-change detection | F4 |
 | Library folders in this layout, canonical revision hashes | F7 |

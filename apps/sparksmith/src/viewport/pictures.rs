@@ -12,7 +12,6 @@ use super::*;
 use crate::layer_view::ViewLayer;
 use egui_wgpu::wgpu;
 use solidcraft_viewport_gpu::view::StudioPreset;
-use sparksmith_core::library::package_form::{typical_nm as nm, typical_point as pt};
 use sparksmith_core::{Fabrication, Layer, MaskColour, PadFinish, Project};
 use sparksmith_solidcraft::material::BodyKind;
 
@@ -372,31 +371,13 @@ fn write_pictures() -> Result<(), Box<dyn std::error::Error>> {
         };
     let only = std::env::var("SPARKSMITH_PICTURES_ONLY").unwrap_or_default();
     if only.is_empty() || only.contains("generated") {
-        // The demo board's generated chips up close, and each package
-        // preset's generated model as the Component 3D tab shows it.
+        // The demo board's chips up close.
         let mut v = viewport(&project(Fabrication::default())?)?;
         if let Some(chip) = centre(&v, BodyKind::ModelBody) {
             aim(&mut v, chip, 7.0, 30.0, 35.0);
             save(&mut v, "generated-chip-closeup")?;
             aim(&mut v, chip, 5.0, 120.0, 20.0);
             save(&mut v, "generated-chip-side")?;
-        }
-        for preset in sparksmith_core::library::samples::Preset::ALL {
-            let mut package = sparksmith_core::library::PackageDefinition {
-                form: preset.form(),
-                model: sparksmith_core::library::PackageModel::Generated {
-                    family_rev: 1,
-                    materials: Default::default(),
-                },
-                ..Default::default()
-            };
-            package.envelope_nm = (package.form.envelope().unwrap_or([1.0; 3])).map(nm);
-            let model = sparksmith_solidcraft::project::preview(&package)?;
-            let mut v = Viewport::detached();
-            v.set_model(crate::model_scene::build(model.geometry, &model.stack)?);
-            v.fit_to(4.0 / 3.0);
-            let name = preset.label().to_lowercase().replace([' ', '×'], "-");
-            save(&mut v, &format!("generated-{name}"))?;
         }
     }
     let colours = [
@@ -491,199 +472,18 @@ fn write_pictures() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// One generated package model of each family, as the Component 3D tab
-/// shows it (`project::preview`).
-fn generated_packages() -> Vec<(&'static str, sparksmith_core::library::PackageDefinition)> {
-    use sparksmith_core::library::{
-        ChipForm, ChipKind, GeneratedMaterials, GullWingForm, HeaderForm, LeadSides, NoLeadForm,
-        PackageDefinition, PackageForm, PackageModel, PackageTerminal,
-    };
-    let package = |form: PackageForm, terminals: u32| PackageDefinition {
-        next_local: terminals + 1,
-        terminals: (1..=terminals)
-            .map(|i| PackageTerminal {
-                id: sparksmith_core::PackageTerminalId(i),
-                designation: i.to_string(),
-            })
-            .collect(),
-        model: PackageModel::Generated {
-            family_rev: 1,
-            materials: GeneratedMaterials::default(),
-        },
-        form,
-        ..PackageDefinition::default()
-    };
-    let chip = |kind| ChipForm {
-        kind,
-        length_nm: nm(1.6),
-        width_nm: nm(0.8),
-        height_nm: nm(0.45),
-        termination_nm: nm(0.3),
-    };
-    vec![
-        (
-            "chip-resistor-0603",
-            package(PackageForm::from(chip(ChipKind::Resistor)), 2),
-        ),
-        (
-            "chip-capacitor-0603",
-            package(
-                PackageForm::from(ChipForm {
-                    height_nm: nm(0.8),
-                    ..chip(ChipKind::Capacitor)
-                }),
-                2,
-            ),
-        ),
-        (
-            "soic-8",
-            package(
-                PackageForm::from(GullWingForm {
-                    sides: LeadSides::Two,
-                    leads_per_side: [4, 0],
-                    pitch_nm: nm(1.27),
-                    body_length_nm: nm(4.9),
-                    body_width_nm: nm(3.9),
-                    body_height_nm: nm(1.45),
-                    standoff_nm: nm(0.1),
-                    span_nm: [nm(6.0), nm(0.0)],
-                    lead_width_nm: nm(0.41),
-                    lead_thickness_nm: nm(0.2),
-                    foot_length_nm: nm(0.6),
-                }),
-                8,
-            ),
-        ),
-        (
-            "tqfp-32",
-            package(
-                PackageForm::from(GullWingForm {
-                    sides: LeadSides::Four,
-                    leads_per_side: [8, 8],
-                    pitch_nm: nm(0.8),
-                    body_length_nm: nm(7.0),
-                    body_width_nm: nm(7.0),
-                    body_height_nm: nm(1.0),
-                    standoff_nm: nm(0.1),
-                    span_nm: [nm(9.0), nm(9.0)],
-                    lead_width_nm: nm(0.37),
-                    lead_thickness_nm: nm(0.15),
-                    foot_length_nm: nm(0.6),
-                }),
-                32,
-            ),
-        ),
-        (
-            "qfn-16",
-            package(
-                PackageForm::from(NoLeadForm {
-                    sides: LeadSides::Four,
-                    terminals_per_side: [4, 4],
-                    pitch_nm: nm(0.5),
-                    body_length_nm: nm(3.0),
-                    body_width_nm: nm(3.0),
-                    body_height_nm: nm(0.85),
-                    terminal_length_nm: nm(0.4),
-                    terminal_width_nm: nm(0.25),
-                    exposed_pad: Some(pt([1.7, 1.7])),
-                }),
-                17,
-            ),
-        ),
-        (
-            "header-2x5",
-            package(
-                PackageForm::from(HeaderForm {
-                    rows: 2,
-                    pins_per_row: 5,
-                    pitch_nm: nm(2.54),
-                    row_pitch_nm: nm(2.54),
-                    body_height_nm: nm(2.5),
-                    pin_side_nm: nm(0.64),
-                    pin_above_nm: nm(6.0),
-                    pin_below_nm: nm(3.0),
-                }),
-                10,
-            ),
-        ),
-    ]
-}
-
-/// Close-ups of each generated family in the product look, from above and
-/// from below, and the demo board with generated chip resistors.
-#[test]
-#[ignore = "writes model pictures"]
-fn write_model_pictures() -> Result<(), Box<dyn std::error::Error>> {
-    // Retired families build from the shipped generators the context holds.
-    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
-    let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
-        return Err("set SPARKSMITH_PICTURES".into());
-    };
-    let dir = std::path::PathBuf::from(dir);
-    std::fs::create_dir_all(&dir)?;
-    let Some(mut gpu) = Gpu::new() else {
-        return Err("no GPU adapter".into());
-    };
-    let mut save =
-        |viewport: &mut Viewport, name: &str| -> Result<(), Box<dyn std::error::Error>> {
-            let (w, h) = (1024, 768);
-            let rgba = gpu.draw(viewport, w, h, 2.0).ok_or("no picture")?;
-            let png = sparksmith_solidcraft::viewport::png(w as usize, h as usize, rgba)
-                .ok_or("png encoding failed")?;
-            std::fs::write(dir.join(format!("{name}.png")), png)?;
-            Ok(())
-        };
-    for (name, package) in generated_packages() {
-        let model = sparksmith_solidcraft::project::preview(&package)?;
-        let mut v = Viewport::detached();
-        v.set_model(crate::model_scene::build(model.geometry, &model.stack)?);
-        v.fit_to(4.0 / 3.0);
-        let b = v.bounds;
-        aim(&mut v, b.center(), 1.7 * b.diagonal(), 35.0, 32.0);
-        save(&mut v, &format!("model-{name}"))?;
-        aim(&mut v, b.center(), 1.7 * b.diagonal(), 215.0, -30.0);
-        save(&mut v, &format!("model-{name}-below"))?;
-    }
-    let mut project = project(Fabrication::default())?;
-    let package = &mut project.library.packages[0].definition;
-    package.form =
-        sparksmith_core::library::PackageForm::from(sparksmith_core::library::ChipForm {
-            kind: sparksmith_core::library::ChipKind::Resistor,
-            length_nm: nm(2.0),
-            width_nm: nm(1.2),
-            height_nm: nm(0.6),
-            termination_nm: nm(0.4),
-        });
-    package.model = sparksmith_core::library::PackageModel::Generated {
-        family_rev: 1,
-        materials: Default::default(),
-    };
-    let mut v = viewport(&project)?;
-    if let Some(chip) = centre(&v, BodyKind::ModelBody) {
-        aim(&mut v, chip, 9.0, 30.0, 35.0);
-        save(&mut v, "model-board-chip-closeup")?;
-    }
-    Ok(())
-}
-
 /// The showcase board, [`sparksmith_core::Engine::showcase`]: a 4-layer
 /// board of the sample packages routed on top and bottom through vias.
 fn showcase_project() -> Result<Project, Box<dyn std::error::Error>> {
     Ok(sparksmith_core::Engine::showcase()?.project().clone())
 }
 
-/// Where on the board the first part matching `wanted` stands (its
-/// placement and side), by its package form.
-fn part_at(
-    project: &Project,
-    wanted: impl Fn(&sparksmith_core::library::PackageForm) -> bool,
-) -> Option<(Vec3, Layer)> {
+/// Where on the board the part `designator` stands (its placement and
+/// side).
+fn part_at(project: &Project, designator: &str) -> Option<(Vec3, Layer)> {
     project.placements.iter().find_map(|p| {
         let instance = project.instance(p.instance)?;
-        let physical = sparksmith_core::instances::resolve(&project.library, instance)
-            .ok()?
-            .physical?;
-        wanted(&physical.package.definition.form)
+        (instance.designator == designator)
             .then(|| (Vec3::new(p.position[0], p.position[1], 0.0), p.layer))
     })
 }
@@ -695,7 +495,6 @@ fn part_at(
 #[test]
 #[ignore = "writes showcase pictures"]
 fn write_showcase_pictures() -> Result<(), Box<dyn std::error::Error>> {
-    use sparksmith_core::library::PackageForm;
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };
@@ -765,38 +564,14 @@ fn write_showcase_pictures() -> Result<(), Box<dyn std::error::Error>> {
         );
         Some(())
     };
-    type Wanted = Box<dyn Fn(&PackageForm) -> bool>;
-    let shots: [(&str, Wanted, f64, f64); 5] = [
-        (
-            "03-soic",
-            Box::new(|f| f.label() == "Gull-wing" && f.lead_count() <= 16),
-            14.0,
-            30.0,
-        ),
-        (
-            "04-qfn",
-            Box::new(|f| f.label() == "No-lead" && f.lead_count() > 8),
-            9.0,
-            35.0,
-        ),
-        (
-            "05-header",
-            Box::new(|f| f.label() == "Pin header"),
-            34.0,
-            30.0,
-        ),
-        (
-            "06-passive-0603",
-            Box::new(|f| f.label() == "Chip" && f.envelope().is_some_and(|e| e[0] < 1.8)),
-            6.0,
-            30.0,
-        ),
-        (
-            "07-passive-0805",
-            Box::new(|f| f.label() == "Chip" && f.envelope().is_some_and(|e| e[0] >= 1.8)),
-            7.0,
-            210.0,
-        ),
+    // The showcase's SOIC (U1), QFN (U2), header (J1), an 0603 resistor
+    // (R1) and an 0805 capacitor (C1).
+    let shots: [(&str, &str, f64, f64); 5] = [
+        ("03-soic", "U1", 14.0, 30.0),
+        ("04-qfn", "U2", 9.0, 35.0),
+        ("05-header", "J1", 34.0, 30.0),
+        ("06-passive-0603", "R1", 6.0, 30.0),
+        ("07-passive-0805", "C1", 7.0, 210.0),
     ];
     for (name, wanted, distance, yaw) in shots {
         if close(&mut v, part_at(&project, wanted), distance, yaw).is_some() {
@@ -1016,31 +791,6 @@ fn opening_3d_timings() -> Result<(), Box<dyn std::error::Error>> {
 /// Vias drawn instanced: the look, uploads and timings.
 mod instanced;
 
-/// A generated package with `terminals` numbered terminals, for pictures.
-fn picture_package(
-    form: sparksmith_core::library::PackageForm,
-    terminals: u32,
-) -> sparksmith_core::library::PackageDefinition {
-    use sparksmith_core::library::{
-        GeneratedMaterials, PackageDefinition, PackageModel, PackageTerminal,
-    };
-    PackageDefinition {
-        next_local: terminals + 1,
-        terminals: (1..=terminals)
-            .map(|i| PackageTerminal {
-                id: sparksmith_core::PackageTerminalId(i),
-                designation: i.to_string(),
-            })
-            .collect(),
-        model: PackageModel::Generated {
-            family_rev: 1,
-            materials: GeneratedMaterials::default(),
-        },
-        form,
-        ..PackageDefinition::default()
-    }
-}
-
 /// A package preview with `spec` laid out for `inputs` and drawn as its
 /// decals, in a detached viewport.
 fn marked_preview(
@@ -1078,23 +828,16 @@ fn marked_preview(
     Ok(v)
 }
 
-/// D7 evidence: the ESP32-S31-WROOM-3 example's can and board markings,
-/// an aluminium electrolytic's wrapped sleeve with its stripe and vent
-/// score, and an axial part's wrapped colour bands, in the product look.
+/// D7 evidence: the ESP32-S31-WROOM-3 example's can and board markings in
+/// the product look.
 /// `SPARKSMITH_PICTURES=dir cargo test -p sparksmith write_marking_pictures
 /// -- --ignored`.
 #[test]
 #[ignore = "writes marking pictures"]
 fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
-    use sparksmith_core::FieldRef;
-    use sparksmith_core::ids::{DefinitionId, Revision};
     use sparksmith_core::library::Definition;
-    use sparksmith_core::library::marking::{
-        Finish, MarkingInputs, MarkingItem, MarkingSpec, Placement, SurfaceRef, Wrap,
-    };
-    use sparksmith_core::library::package_form::PackageForm;
-    use sparksmith_core::library::package_form::tht::{ThtForm, ThtKind};
+    use sparksmith_core::library::marking::MarkingInputs;
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };
@@ -1160,116 +903,6 @@ fn write_marking_pictures() -> Result<(), Box<dyn std::error::Error>> {
         v.set_overlay(None);
     }
 
-    // An aluminium electrolytic: µF/V and stripe wrapped on its sleeve,
-    // a vent cross engraved in its can top.
-    let (cap, volt) = (DefinitionId(1), DefinitionId(2));
-    let field = |id| FieldRef::new(id, Revision::FIRST);
-    let radial = picture_package(
-        PackageForm::from(ThtForm::new(
-            ThtKind::Radial {
-                body_diameter_nm: nm(6.3),
-                body_height_nm: nm(11.0),
-            },
-            nm(2.5),
-            nm(0.5),
-            nm(3.0),
-        )),
-        2,
-    );
-    let on = |name: &str| Placement {
-        on: SurfaceRef::Anchor { name: name.into() },
-        ..Placement::default()
-    };
-    let vent_svg = "<svg xmlns='http://www.w3.org/2000/svg' width='10mm' height='10mm' viewBox='0 0 10 10'><path d='M1 1 L9 9 M9 1 L1 9' stroke='black' stroke-width='0.7' fill='none'/></svg>";
-    let mut library = file.project.library.clone();
-    let vent = sparksmith_core::library::bundle::AssetBytes::new(vent_svg.as_bytes().to_vec());
-    let vent_hash = vent.hash();
-    library.assets.push(sparksmith_core::library::PackedAsset {
-        hash: vent_hash,
-        media_type: sparksmith_core::library::marking::ARTWORK_MEDIA_TYPE.into(),
-        data: vent,
-    });
-    let electrolytic = MarkingSpec {
-        items: vec![
-            MarkingItem::Electrolytic {
-                capacitance: field(cap),
-                voltage: Some(field(volt)),
-                stripe: true,
-            },
-            MarkingItem::Text {
-                template: sparksmith_core::library::marking::Template("LOW ESR".into()),
-                height_nm: sparksmith_core::units::Nm::from_mm_f64_rounded(0.9).ok(),
-                align: Default::default(),
-            },
-        ],
-        finish: Finish::Ink {
-            colour: [228, 230, 232],
-        },
-        placement: on("sleeve"),
-        decals: vec![MarkingSpec {
-            items: vec![MarkingItem::Artwork {
-                svg: vent_hash,
-                size_nm: [sparksmith_core::units::Nm::from_mm_f64_rounded(2.6).unwrap_or_default();
-                    2],
-                anchor: Default::default(),
-                licence: Some("CC0-1.0".into()),
-            }],
-            finish: Finish::Engraved,
-            placement: on("top"),
-            ..MarkingSpec::default()
-        }],
-        ..MarkingSpec::default()
-    };
-    let mut inputs = MarkingInputs {
-        designator: "C1".into(),
-        ..Default::default()
-    };
-    inputs.fields.insert(cap, ("220u".into(), Some(220e-6)));
-    inputs.fields.insert(volt, ("25".into(), Some(25.0)));
-    let mut v = marked_preview(&radial, &library, &electrolytic, &inputs)?;
-    let b = v.bounds;
-    aim(&mut v, b.center(), 2.4 * b.diagonal(), 90.0, 20.0);
-    save(&mut v, "marking-electrolytic-text-side")?;
-    aim(&mut v, b.center(), 2.4 * b.diagonal(), 270.0, 20.0);
-    save(&mut v, "marking-electrolytic-stripe-side")?;
-    aim(&mut v, b.center(), 2.2 * b.diagonal(), 300.0, 60.0);
-    save(&mut v, "marking-electrolytic-top")?;
-
-    // An axial part: its value's colour bands wrapped round the body.
-    let axial = picture_package(
-        PackageForm::from(ThtForm::new(
-            ThtKind::Axial {
-                body_diameter_nm: nm(2.5),
-                body_length_nm: nm(6.5),
-            },
-            nm(10.16),
-            nm(0.6),
-            nm(3.0),
-        )),
-        2,
-    );
-    let value = DefinitionId(3);
-    let bands = MarkingSpec {
-        items: vec![MarkingItem::Bands {
-            value: field(value),
-            tolerance: None,
-        }],
-        finish: Finish::LaserEtch,
-        placement: Placement {
-            wrap: Some(Wrap::default()),
-            ..on("body")
-        },
-        ..MarkingSpec::default()
-    };
-    let mut inputs = MarkingInputs {
-        designator: "R1".into(),
-        ..Default::default()
-    };
-    inputs.fields.insert(value, ("4k7".into(), Some(4700.0)));
-    let mut v = marked_preview(&axial, &library, &bands, &inputs)?;
-    let b = v.bounds;
-    aim(&mut v, b.center(), 1.8 * b.diagonal(), 25.0, 30.0);
-    save(&mut v, "marking-axial-bands")?;
     Ok(())
 }
 
@@ -1457,7 +1090,6 @@ fn generated_capacitor_board() -> Result<Project, Box<dyn std::error::Error>> {
     if target.terminals.len() != 2 {
         return Err("the demo part is not two-terminal".into());
     }
-    target.form = generated.form.clone();
     target.envelope_nm = generated.envelope_nm;
     target.model = generated.model.clone();
     Ok(project)

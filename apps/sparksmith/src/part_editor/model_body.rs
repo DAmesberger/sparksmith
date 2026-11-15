@@ -1,31 +1,20 @@
 //! The Component 3D tab's Body and Model sections: the package's envelope
-//! (authored, or from the values a generator or a stored form gave it) and
-//! Change package… (the generator gallery in package scope, slice D1), and
+//! (authored) and Change package… (the generator gallery in package scope, slice D1), and
 //! the model card (the current source with its outline thumbnail, name,
 //! revision, format and licence) with Choose model… (the 3D library sheet,
 //! `crate::model_library`) and Import model file… (`model_import.rs`). A
 //! model change is one `library.edit_package`; an authored envelope is a
 //! working-set edit, sent with `library.edit`.
 use super::PartEditor;
-use super::model_place;
 use crate::kit;
 use egui::Ui;
-use sparksmith_core::library::{GeneratedMaterials, PackageDefinition, PackageEdit, PackageModel};
-use sparksmith_core::materials::MaterialId;
+use sparksmith_core::library::{PackageDefinition, PackageModel};
 use sparksmith_core::units::Nm;
 use sparksmith_core::{Engine, Operation};
 use sparksmith_ui::ui_kit::{self, Button};
 use std::ops::RangeInclusive;
 
 const LENGTH: RangeInclusive<f64> = 0.01..=1000.0;
-const FAMILY_REV: u16 = crate::model_library::GENERATED_FAMILY_REV;
-
-fn generated() -> PackageModel {
-    PackageModel::Generated {
-        family_rev: FAMILY_REV,
-        materials: GeneratedMaterials::default(),
-    }
-}
 
 fn length(ui: &mut Ui, label: &str, value: &mut Nm) -> bool {
     super::footprint_props::nm_row(ui, label, value, LENGTH)
@@ -37,10 +26,6 @@ fn model_hint(model: &PackageModel) -> (&'static str, &'static str) {
         PackageModel::Envelope { .. } => (
             "Approximate envelope only",
             "An approximate parametric envelope, not a verified supplier model",
-        ),
-        PackageModel::Generated { .. } => (
-            "Generated; check the datasheet",
-            "Generated from the typed outline values with physical materials; verify it against the datasheet",
         ),
         PackageModel::Library(_) => (
             "Library model; check it against the datasheet",
@@ -61,31 +46,9 @@ impl PartEditor {
         let package = &mut set.package;
         let mut change = false;
         kit::section(ui, "model-body", "Body", true, None, |ui| {
-            if package.form.envelope().is_none() {
-                // An authored envelope: a working-set edit.
-                for (index, label) in ["Length", "Width", "Height"].into_iter().enumerate() {
-                    length(ui, label, &mut package.envelope_nm[index]);
-                }
-            } else {
-                let [l, w, h] = package.envelope();
-                kit::value_row(
-                    ui,
-                    "Envelope",
-                    &format!(
-                        "{} × {} × {} mm",
-                        kit::number_text(l),
-                        kit::number_text(w),
-                        kit::number_text(h)
-                    ),
-                );
-                kit::hint(
-                    ui,
-                    &format!(
-                        "{} values; change them with Change package…",
-                        package.form.label()
-                    ),
-                    "Typed package values are no longer edited here: a generator makes the package",
-                );
+            // The envelope: a working-set edit.
+            for (index, label) in ["Length", "Width", "Height"].into_iter().enumerate() {
+                length(ui, label, &mut package.envelope_nm[index]);
             }
             kit::actions(ui, |ui| {
                 change = ui_kit::button(ui, "Change package…", Button::Small)
@@ -101,10 +64,8 @@ impl PartEditor {
         source
     }
 
-    /// The Model section: the model card and its actions, and for a typed
-    /// form the choice between the generated model and the envelope. A
-    /// package using a part file also shows the file and its parameters
-    /// (`model_part.rs`).
+    /// The Model section: the model card and its actions. A package using
+    /// a part file also shows the file and its parameters (`model_part.rs`).
     fn model_source(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
         let set = self.draft.as_ref()?;
         let draft = set.ids.package;
@@ -119,31 +80,6 @@ impl PartEditor {
             model_card_rows(ui, &card);
             if let PackageModel::PartFile(part) = &package.model {
                 operation = self.part_file_rows(ui, engine, draft, part);
-            }
-            if package.form.envelope().is_some() {
-                let mut source = Source::of(&package.model);
-                let mut options = vec![
-                    (Source::Generated, "Generated parametric model".to_owned()),
-                    (Source::Envelope, "Envelope box".to_owned()),
-                ];
-                match source {
-                    Source::Library => options.push((Source::Library, "Library model".to_owned())),
-                    Source::PartFile => options.push((Source::PartFile, "Part file".to_owned())),
-                    _ => {}
-                }
-                if kit::choice_row(ui, "Source", &mut source, &options) {
-                    let model = match source {
-                        Source::Generated => Some(generated()),
-                        Source::Envelope => Some(PackageModel::Envelope {
-                            material: MaterialId::EpoxyMould,
-                        }),
-                        Source::Library | Source::PartFile => None,
-                    };
-                    if let Some(model) = model {
-                        operation =
-                            Some(model_place::edit(draft, vec![PackageEdit::SetModel(model)]));
-                    }
-                }
             }
             let (shown, tip) = model_hint(&package.model);
             kit::hint(ui, shown, tip);
@@ -168,18 +104,14 @@ impl PartEditor {
                         "Use a parametric SolidCraft part file: built-in, from this project or from disk",
                     )
                     .clicked();
-                if matches!(package.model, PackageModel::PartFile(_)) {
-                    let generic = package.form.envelope().is_none();
-                    if ui_kit::button(ui, "Use generated model", Button::Small)
-                        .on_hover_text(if generic {
-                            "Stop using the part file: the package shows its envelope box"
-                        } else {
-                            "Stop using the part file: the package shows its generated model"
-                        })
+                if matches!(package.model, PackageModel::PartFile(_))
+                    && ui_kit::button(ui, "Use envelope box", Button::Small)
+                        .on_hover_text(
+                            "Stop using the part file: the package shows its envelope box",
+                        )
                         .clicked()
-                    {
-                        operation = Some(super::model_part::use_own_model(draft, &package));
-                    }
+                {
+                    operation = Some(super::model_part::use_own_model(draft, &package));
                 }
             });
         });
@@ -193,26 +125,6 @@ impl PartEditor {
             self.open_part_chooser();
         }
         operation
-    }
-}
-
-/// Which kind of source the Source row shows.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Source {
-    Generated,
-    Envelope,
-    Library,
-    PartFile,
-}
-
-impl Source {
-    fn of(model: &PackageModel) -> Self {
-        match model {
-            PackageModel::Generated { .. } => Self::Generated,
-            PackageModel::Envelope { .. } => Self::Envelope,
-            PackageModel::Library(_) => Self::Library,
-            PackageModel::PartFile(_) => Self::PartFile,
-        }
     }
 }
 
@@ -243,19 +155,6 @@ impl ModelCard {
                 leads: None,
                 body_mm: package.envelope(),
                 pins: None,
-            },
-            PackageModel::Generated { .. } => Self {
-                name: "Generated parametric model".into(),
-                revision: None,
-                detail: sparksmith_core::library::templates::catalog::FamilyKind::of(&package.form)
-                    .map_or_else(
-                        || "Generated".to_owned(),
-                        |f| format!("Generated · {}", crate::model_library::family_label(f)),
-                    ),
-                licence: None,
-                leads: None,
-                body_mm: package.envelope(),
-                pins,
             },
             PackageModel::Library(model) => {
                 let published = engine.project().library.model(model.model).is_some();
