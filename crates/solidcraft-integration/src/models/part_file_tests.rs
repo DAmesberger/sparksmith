@@ -1,7 +1,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 //! Lean parts (docs/part-templates.md §11): the conventions, the cache,
 //! refusals, and parity of the built-in ESP32-S31-WROOM-3 part file with
-//! the module builder it replaces.
+//! the stored module package it replaces, now built by the `module`
+//! generator.
 use super::*;
 use crate::models;
 use serde_json::json;
@@ -187,9 +188,11 @@ fn the_wroom3_marking_planes_are_the_module_anchors() -> Fallible {
 }
 
 /// Per body: bounding box within 1 µm and volume within 1e-9 relative;
-/// the same body count; equal union bounds; equal materials.
+/// the same body count; equal union bounds; equal materials. The module
+/// generator's file names a corner pad `single pad k` where the built-in
+/// file (saved from the retired module builder) says `pad <number>`.
 #[test]
-fn the_wroom3_part_builds_what_the_module_builder_builds() -> Fallible {
+fn the_wroom3_part_builds_what_the_stored_module_package_builds() -> Fallible {
     let _context = crate::looks::test_context().map(|c| c.enter());
     let package = wroom3_package();
     let mut generated = Native::new("generated")?;
@@ -206,8 +209,18 @@ fn the_wroom3_part_builds_what_the_module_builder_builds() -> Fallible {
     );
     let (mut worst_box, mut worst_volume) = (0.0f64, 0.0f64);
     let (mut volume_a, mut volume_b) = (0.0, 0.0);
+    let PackageForm::Module(form) = &package.form else {
+        panic!("a module");
+    };
+    let drawn = |plain: &str| -> String {
+        plain
+            .strip_prefix("single pad ")
+            .and_then(|k| k.parse::<usize>().ok())
+            .and_then(|k| form.singles.get(k - 1))
+            .map_or_else(|| plain.to_owned(), |p| format!("pad {}", p.number))
+    };
     for body in &def.bodies {
-        let plain = body.name.strip_prefix("pkgT ").unwrap();
+        let plain = drawn(body.name.strip_prefix("pkgT ").unwrap());
         let x = ga.bodies.iter().find(|b| b.name == body.name).unwrap();
         let y = gb
             .bodies

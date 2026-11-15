@@ -1,6 +1,8 @@
 //! Lean parts (docs/part-templates.md §11): cold and cached cost of the
-//! built-in ESP32-S31-WROOM-3 part file against the module builder it
-//! replaces. Measured in a release build:
+//! built-in ESP32-S31-WROOM-3 part file against the stored module
+//! package's generated model (since phase C the `module` generator's part
+//! file, which replaced the in-code module builder). Measured in a release
+//! build:
 //!
 //! `cargo test --release -p sparksmith-solidcraft --test part_timings -- --ignored --nocapture`
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -66,7 +68,7 @@ fn part_file_timings() {
     ))
     .unwrap();
     for round in 1..=3 {
-        // Today's path: the module builder.
+        // The stored package's path: the module generator's part file.
         let t = Instant::now();
         let mut native = Native::new("generated").unwrap();
         models::build_definition(&mut native, "pkgT", &wroom3()).unwrap();
@@ -93,7 +95,7 @@ fn part_file_timings() {
         let insert = t.elapsed();
         assert!(board.evaluation_error().is_none());
         eprintln!(
-            "round {round}: module builder {:.1} ms | part file cold (read + apply values + evaluate + inspect) {:.1} ms \
+            "round {round}: module generator {:.1} ms | part file cold (read + apply values + evaluate + inspect) {:.1} ms \
              (Solidcraft evaluation {:.1} ms) | cached {:.3} ms | insert into a board {:.1} ms | {} bodies",
             ms(generated),
             ms(cold),

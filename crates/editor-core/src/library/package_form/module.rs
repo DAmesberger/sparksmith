@@ -4,9 +4,9 @@
 //! single pads (corner ground pads) and an optional on-board antenna at
 //! one end (Wi-Fi/BLE modules and similar). The form, its range rules,
 //! lead order and the host keep-out over the antenna live here; the lands
-//! are `samples::form_lands_with`, the footprint keep-out
-//! [`ModuleForm::antenna_keepout`] and the model builder
-//! `sparksmith-solidcraft` `models/module.rs`.
+//! are `samples::form_lands_with` and the footprint keep-out
+//! [`ModuleForm::antenna_keepout`]; the 3D model comes from the shipped
+//! `module` generator (`generators/module`).
 //!
 //! Frame: seen from above, x across the module (`width`), y along it
 //! (`length`), the antenna end at +y, the origin at the outline centre.
