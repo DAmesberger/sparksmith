@@ -35,6 +35,7 @@ fn preview(
     match engine.query(Query::PinoutPreview {
         target: target.clone(),
         document: Box::new(document.clone()),
+        detail: true,
     })? {
         QueryResult::PinoutPlan(plan) => Ok(*plan),
         other => Err(Error::Invalid(format!("unexpected result {other:?}"))),

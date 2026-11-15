@@ -436,7 +436,7 @@ pub enum Request {
     PartFiles(NoParams),
     /// GP1: shipped and embedded generator modules and generated parts.
     #[serde(rename = "library.generators")]
-    Generators(NoParams),
+    Generators(generators::GeneratorsParams),
     /// GP1: make a part with a generator module (`library.generate`).
     #[serde(rename = "library.generate_part")]
     GeneratePart(generators::GeneratePartParams),
@@ -827,10 +827,10 @@ impl Request {
                 "List the SolidCraft part files this project can place or use.",
                 "List the SolidCraft part files this project can place or use (docs/mechanical-parts.md): the built-ins (name, title, summary, designator prefix, kind pads, mechanical or package, parameters with units and defaults, licence) and the project's Models of format solidcraft (model, name, file, licence). Not a document change.",
             ),
-            info::<NoParams>(
+            info::<generators::GeneratorsParams>(
                 "library.generators",
-                "List generator modules (shipped and embedded) and the project's generated parts.",
-                "List the generator modules that ship with the program (name, module SHA-256, parameters with types, defaults and the project setting that fills them, presets, scopes), the modules this project embeds, and its generated parts, each with its part key (module and parameters hashes), result hash, generator version and state: current (the shipped module of its generator is this one or the same version), update_available (a newer version ships: library.generate_part with the same parameters makes the next revision of the part), shipped_older (the shipped version is older; the part is never downgraded), superseded (a newer version already made the next revision of this part) or not_shipped (the embedded copy is the only one). Not a document change.",
+                "List generator modules (shipped and embedded) and the project's generated parts; generator: <name> for one in full.",
+                "List the generator modules that ship with the program, filtered by generator (a name), family or text: by default each by name, title, families, scopes, version and preset keys and names; with generator or detail: true in full (module SHA-256, parameters with types, defaults and the project setting that fills them, rules, presets with their values), the modules this project embeds, and its generated parts, each with its part key (module and parameters hashes), result hash, generator version and state: current (the shipped module of its generator is this one or the same version), update_available (a newer version ships: library.generate_part with the same parameters makes the next revision of the part), shipped_older (the shipped version is older; the part is never downgraded), superseded (a newer version already made the next revision of this part) or not_shipped (the embedded copy is the only one). Not a document change.",
             ),
             info::<generators::GeneratePartParams>(
                 "library.generate_part",
@@ -1315,7 +1315,7 @@ impl Session {
             Request::UsePartFile(params) => return self.use_part_file(params),
             Request::SetPartValues(params) => return self.set_part_values(params),
             Request::PartFiles(_) => return self.part_files(),
-            Request::Generators(_) => return self.generators(),
+            Request::Generators(params) => return self.generators(&params),
             Request::GeneratePart(params) => return self.generate_part(params),
             Request::PlacePartFile(params) => return self.place_part_file(*params),
             Request::SetPartFileValues(params) => return self.set_part_file_values(params),

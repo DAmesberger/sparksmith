@@ -690,6 +690,7 @@ impl PartEditor {
                         let query = Query::PinoutPreview {
                             target,
                             document: Box::new(document.clone()),
+                            detail: true,
                         };
                         match engine.query(query) {
                             Ok(QueryResult::PinoutPlan(plan)) => {

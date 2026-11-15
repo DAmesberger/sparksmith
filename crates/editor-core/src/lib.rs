@@ -309,6 +309,11 @@ pub enum Query {
     PinoutPreview {
         target: library::pinout::PinoutTarget,
         document: Box<library::pinout::PinoutDocument>,
+        /// List every change and each finding's objects; by default the
+        /// plan gives change counts, findings, review items and rule
+        /// checks.
+        #[serde(default)]
+        detail: bool,
     },
     /// C2: ranked complete assignments that enable peripherals on one
     /// instance, or the rules that block them. Never applies anything.
@@ -2209,8 +2214,12 @@ impl Engine {
                         .min(catalog::models::MAX_MODEL_HITS),
                 )?))
             }
-            Query::PinoutPreview { target, document } => Ok(QueryResult::PinoutPlan(Box::new(
-                commands::pinout::preview(&self.document, &target, &document)?,
+            Query::PinoutPreview {
+                target,
+                document,
+                detail,
+            } => Ok(QueryResult::PinoutPlan(Box::new(
+                commands::pinout::preview(&self.document, &target, &document, detail)?,
             ))),
             Query::SuggestPins { instance, request } => Ok(QueryResult::SuggestPins(
                 pins::suggest(&self.document.project, instance, &request)?,

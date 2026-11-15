@@ -213,19 +213,22 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
     assert_eq!(schema["format"], 1, "{schema}");
 
     // Step 3: the generator whose families cover a QFN, and its preset
-    // for the drawing's package.
-    let generators = ok("generators", tools.query("library.generators", json!({})))?;
+    // for the drawing's package, from the compact listing.
+    let generators = ok(
+        "generators",
+        tools.query("library.generators", json!({"family": "no_lead"})),
+    )?;
     let no_lead = generators["shipped"]
         .as_array()
         .into_iter()
         .flatten()
         .find(|g| {
-            g["description"]["families"]
+            g["families"]
                 .as_array()
                 .is_some_and(|f| f.iter().any(|f| f == "no_lead"))
         })
         .ok_or_else(|| format!("a no-lead generator: {generators}"))?;
-    let preset = no_lead["description"]["presets"]
+    let preset = no_lead["presets"]
         .as_array()
         .into_iter()
         .flatten()
@@ -312,13 +315,26 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
         "library.pinout_preview",
         json!({"target": target, "document": document}),
     )?;
-    // Every row kept a generated terminal by number.
-    for change in plan["changes"].as_array().into_iter().flatten() {
-        assert!(
-            change["object"] != "terminal" || change["kind"] == "changed",
-            "{change}"
-        );
-    }
+    // Every row kept a generated terminal by number: the compact plan's
+    // counts say so, and it lists no change one by one.
+    let counts = plan["change_counts"].as_object().ok_or("change counts")?;
+    assert!(
+        counts
+            .keys()
+            .all(|k| !k.starts_with("terminal ") || k == "terminal changed"),
+        "{plan}"
+    );
+    assert!(plan.get("changes").is_none(), "{plan}");
+    // The review items by reason, with every row: the uncertain one.
+    let uncertain = plan["review_groups"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|g| g["reason"] == "uncertain")
+        .ok_or_else(|| format!("the uncertain row: {plan}"))?;
+    assert_eq!(uncertain["rows"], json!(["r20"]), "{plan}");
+    // The base is text, which a client that reads numbers as doubles keeps.
+    assert!(plan["base"].is_string(), "{plan}");
     import(&tools, "import", target.clone(), &document)?;
 
     // An early review check: no open question for the uncertain row, and

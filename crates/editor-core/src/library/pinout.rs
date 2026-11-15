@@ -229,6 +229,16 @@ pub enum ChangeKind {
     Removed,
 }
 
+impl ChangeKind {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Changed => "changed",
+            Self::Removed => "removed",
+        }
+    }
+}
+
 /// One planned change, by document row.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -271,15 +281,113 @@ pub struct PinoutPlan {
     /// The draft revision token the plan was made against; `pinout_apply`
     /// refuses when it no longer matches.
     pub base: PlanBase,
+    /// How many changes of each object and kind (`terminal changed`).
+    #[serde(default)]
+    pub change_counts: BTreeMap<String, usize>,
+    /// Each change; listed only with `detail: true`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changes: Vec<PinoutChange>,
-    /// Every publish finding the result would have.
+    /// Every publish finding the result would have; listed one by one
+    /// only with `detail: true`, else grouped in `finding_groups`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub findings: Vec<Finding>,
+    /// Each row a person must look at; listed one by one only with
+    /// `detail: true`, else grouped in `review_groups`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub review: Vec<ReviewItem>,
+    /// Without `detail`: the findings by code, with their count and the
+    /// first messages.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finding_groups: Vec<FindingGroup>,
+    /// Without `detail`: the review items by reason, with every row and
+    /// the first messages.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub review_groups: Vec<ReviewGroup>,
     /// Each pin rule evaluated without selections and over the samples it
     /// names ([`crate::functions::rules::check_samples`]): what it says
     /// and where it fails. Failures are also blocking findings.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub rules: Vec<crate::functions::rules::RuleCheck>,
+    /// Whether changes, findings and review items are listed one by one.
+    #[serde(default)]
+    pub detail: bool,
+}
+
+/// The messages a compact plan quotes per group.
+pub const PLAN_EXAMPLES: usize = 3;
+
+/// Findings of one code in a compact plan.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct FindingGroup {
+    pub code: String,
+    #[serde(default)]
+    pub blocks: Option<Stage>,
+    pub count: usize,
+    /// The first [`PLAN_EXAMPLES`] messages.
+    pub examples: Vec<String>,
+}
+
+/// Review items of one reason in a compact plan.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewGroup {
+    pub reason: ReviewReason,
+    /// Every row with this reason.
+    pub rows: Vec<String>,
+    /// The first [`PLAN_EXAMPLES`] messages.
+    pub examples: Vec<String>,
+}
+
+impl PinoutPlan {
+    /// The plan without what only `detail` lists one by one: the changes
+    /// (their counts stay), the findings (grouped by code and blocking
+    /// stage, counted, the first messages quoted) and the review items
+    /// (grouped by reason with every row). The rule checks stay whole.
+    #[must_use]
+    pub fn compact(mut self) -> Self {
+        self.changes.clear();
+        let mut groups: Vec<FindingGroup> = Vec::new();
+        for finding in std::mem::take(&mut self.findings) {
+            match groups
+                .iter_mut()
+                .find(|g| g.code == finding.code && g.blocks == finding.blocks)
+            {
+                Some(group) => {
+                    group.count = group.count.saturating_add(1);
+                    if group.examples.len() < PLAN_EXAMPLES {
+                        group.examples.push(finding.message);
+                    }
+                }
+                None => groups.push(FindingGroup {
+                    code: finding.code,
+                    blocks: finding.blocks,
+                    count: 1,
+                    examples: vec![finding.message],
+                }),
+            }
+        }
+        self.finding_groups = groups;
+        let mut review: Vec<ReviewGroup> = Vec::new();
+        for item in std::mem::take(&mut self.review) {
+            match review.iter_mut().find(|g| g.reason == item.reason) {
+                Some(group) => {
+                    group.rows.push(item.row);
+                    if group.examples.len() < PLAN_EXAMPLES {
+                        group.examples.push(item.message);
+                    }
+                }
+                None => review.push(ReviewGroup {
+                    reason: item.reason,
+                    rows: vec![item.row],
+                    examples: vec![item.message],
+                }),
+            }
+        }
+        self.review_groups = review;
+        self.detail = false;
+        self
+    }
 }
 
 /// Which rows `pinout_apply` takes. `Except` lists pin row keys and

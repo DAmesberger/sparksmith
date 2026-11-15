@@ -236,7 +236,9 @@ pub fn execute(
             )
         }
         "library_package_schema" => return reply(package_schema(), false, None),
-        "library_templates" => json!({"command": "library.generators", "params": {}}),
+        "library_templates" => {
+            json!({"command": "library.generators", "params": {"detail": true}})
+        }
         "library_package_plan" | "library_package_from_template" => {
             let request = match package_request(session, revision, &input["request"]) {
                 Ok(params) => library("library.package_from_generator", params),
@@ -683,7 +685,7 @@ fn preview(
         policy,
         json!({"command": "project.query", "params": {
             "query": "library.pinout_preview",
-            "params": {"target": input["target"], "document": document},
+            "params": {"target": input["target"], "document": document, "detail": true},
         }}),
     );
     if response["ok"] != true {
