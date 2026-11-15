@@ -254,7 +254,7 @@ enum Event {
     Imported(
         Ticket,
         PathBuf,
-        Outcome<(EditorFile, sparksmith_automation::kicad_import::Report)>,
+        Outcome<Box<(EditorFile, sparksmith_automation::kicad_import::Report)>>,
     ),
     Written(Ticket, PathBuf, Outcome<()>),
     PdfExported(Ticket, PathBuf, Outcome<usize>),
@@ -299,7 +299,7 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                     // The CLI's import, off the UI thread; the window
                     // shows that it runs (`FileUi::importing`).
                     let value = sparksmith_automation::kicad_import::import(&path, None)
-                        .map(|imported| (imported.engine.to_file(), imported.report));
+                        .map(|imported| Box::new((imported.engine.to_file(), imported.report)));
                     Event::Imported(ticket, path, value)
                 }
                 Job::Write(ticket, path, document) => {
@@ -1018,7 +1018,7 @@ impl FileUi {
                     ));
                     return;
                 }
-                match result {
+                match result.map(|imported| *imported) {
                     Ok((document, report)) => self.effects.push(Effect::Imported {
                         document: Box::new(document),
                         source: path,

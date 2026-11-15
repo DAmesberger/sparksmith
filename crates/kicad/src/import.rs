@@ -8,6 +8,9 @@
 use crate::board::{self, Board, Footprint};
 use crate::report::{Case, Report};
 use crate::translate::{self, DefPad, Mapped};
+use sparksmith_core::fields::{
+    FieldDefinition, FieldSelection, FieldValue, PropertyEdit, PropertyInput, ValueType,
+};
 use sparksmith_core::functions::{Direction, TerminalFunctions};
 use sparksmith_core::geometry::Bounds;
 use sparksmith_core::layout::LayoutCommand;
@@ -29,7 +32,7 @@ use sparksmith_core::rules::{
 };
 use sparksmith_core::units::{Nm, PointNm};
 use sparksmith_core::{
-    BindingRef, ComponentRef, DefinitionId, DefinitionKind, FootprintRef, FunctionId, Id,
+    BindingRef, ComponentRef, DefinitionId, DefinitionKind, FieldRef, FootprintRef, FunctionId, Id,
     InstanceCommand, LibraryCommand, Operation, Outcome, PackageRef, PackageTerminalId, PadId,
     PhysicalChoice, Revision, StackupPresets, SymbolRef, TerminalId, UnitId,
 };
@@ -179,8 +182,32 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         .as_ref()
         .map(crate::sheets::symbols_by_reference)
         .unwrap_or_default();
+    // Each part's KiCad value (the schematic's, else the footprint's),
+    // carried in a project field "Value" every imported component selects.
+    let schematic_values = schematic
+        .as_ref()
+        .map(crate::sheets::values_by_reference)
+        .unwrap_or_default();
+    let values: Vec<Option<String>> = board
+        .footprints
+        .iter()
+        .map(|fp| {
+            let value = schematic_values
+                .get(&fp.reference.to_ascii_uppercase())
+                .unwrap_or(&fp.value);
+            value_text(value)
+        })
+        .collect();
+    let value_field = if values.iter().any(Option::is_some) {
+        Some(session.value_field()?)
+    } else {
+        None
+    };
     // Each footprint's pads in its own definition frame, with its KiCad
-    // symbol; equal definitions are shared.
+    // symbol; copies of one KiCad footprint (by its `library:name`) with
+    // equal pads and symbol share a definition. Distinct KiCad footprints
+    // never do, however alike their pads: identity is never inferred from
+    // geometry.
     let mut definitions: Vec<(Vec<Pad>, Option<crate::schematic::LibSymbol>)> = Vec::new();
     let mut by_key: BTreeMap<String, usize> = BTreeMap::new();
     let mut uses: Vec<usize> = Vec::with_capacity(board.footprints.len());
@@ -207,10 +234,13 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         let symbol = by_reference
             .get(&fp.reference.to_ascii_uppercase())
             .cloned();
-        let mut key = serde_json::to_string(&pads).map_err(|e| ImportError::Refused {
-            step: "footprint key",
-            reason: e.to_string(),
-        })?;
+        let mut key = format!("{:?}\u{0}", fp.lib_id);
+        key.push_str(
+            &serde_json::to_string(&pads).map_err(|e| ImportError::Refused {
+                step: "footprint key",
+                reason: e.to_string(),
+            })?,
+        );
         if let Some(symbol) = &symbol {
             key.push_str(&format!("{symbol:?}"));
         }
@@ -255,7 +285,14 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
             k,
             &mut names_taken,
         );
-        sets.push(session.component_set(&name, pads, &prefix, symbol.as_ref(), &mut report)?);
+        sets.push(session.component_set(
+            &name,
+            pads,
+            &prefix,
+            symbol.as_ref(),
+            value_field,
+            &mut report,
+        )?);
     }
     // The schematic's sheets, and where each reference's unit goes.
     let plan = match schematic {
@@ -399,6 +436,23 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         }));
     }
     session.batches("layout.place", layout)?;
+    if let Some(field) = value_field {
+        // Every footprint is placed, in board order.
+        let edits = values
+            .into_iter()
+            .zip(&instances)
+            .filter_map(|(value, instance)| {
+                Some(Operation::Instance(InstanceCommand::SetProperties {
+                    instance: *instance,
+                    edits: vec![PropertyEdit {
+                        field: field.id,
+                        input: PropertyInput::Value(FieldValue::Text(value?)),
+                    }],
+                }))
+            })
+            .collect();
+        session.batches("instance.set_properties", edits)?;
+    }
     // Zone connection overrides: the footprint's for the part, each pad's
     // own over it.
     let mut overrides = Vec::new();
@@ -556,6 +610,24 @@ fn footprint_pads(
     pads
 }
 
+/// Bytes of a KiCad value a part keeps (the field's text limit).
+const MAX_VALUE_BYTES: usize = sparksmith_core::fields::MAX_TEXT_BYTES as usize;
+
+/// A KiCad value as a part's value text: without control characters,
+/// trimmed and cut to [`MAX_VALUE_BYTES`] on a character boundary; `None`
+/// when empty or KiCad's "~" (no value).
+fn value_text(value: &str) -> Option<String> {
+    let mut out = String::new();
+    for c in value.trim().chars().filter(|c| !c.is_control()) {
+        if out.len() + c.len_utf8() > MAX_VALUE_BYTES {
+            break;
+        }
+        out.push(c);
+    }
+    let out = out.trim().to_owned();
+    (!out.is_empty() && out != "~").then_some(out)
+}
+
 /// The drafts of one imported footprint, published.
 struct Set {
     component: DefinitionId,
@@ -674,22 +746,32 @@ impl Session<'_> {
             }
         }
         // Patterns that name an imported class and are plain wildcards
-        // (`*`, `?`); the default class's need none.
+        // (`*`, `?`, every other character itself, `+` of power nets
+        // such as `+5*` included); the default class's need none. Each
+        // refused pattern is named with its reason.
         let default = rules.default.as_ref().map(|c| c.name.as_str());
         let mut patterns = Vec::new();
         for (pattern, class) in &rules.patterns {
             if Some(class.as_str()) == default {
                 continue;
             }
-            let plain = !pattern.trim().is_empty()
-                && pattern.len() <= sparksmith_core::rules::MAX_PROFILE_TEXT
-                && !pattern.contains(['[', ']', '(', ')', '{', '}', '^', '$', '|', '\\', '+']);
-            match classes.get(class) {
-                Some(id) if plain => patterns.push(NetClassPattern {
+            let why = if pattern.trim().is_empty()
+                || pattern.len() > sparksmith_core::rules::MAX_PROFILE_TEXT
+                || pattern.chars().any(char::is_control)
+            {
+                Some("empty, too long or with control characters")
+            } else if pattern.contains(['[', ']', '(', ')', '{', '}', '^', '$', '|', '\\']) {
+                Some("a regular expression; only * and ? wildcards are read")
+            } else {
+                None
+            };
+            match (why, classes.get(class)) {
+                (None, Some(id)) => patterns.push(NetClassPattern {
                     pattern: pattern.clone(),
                     class: *id,
                 }),
-                _ => report.add(Case::NetClassPatternRefused),
+                (Some(why), _) => report.refused_pattern(pattern, why),
+                (None, None) => report.refused_pattern(pattern, "its class was not imported"),
             }
         }
         // KiCad's class of each net (explicit, then the first matching
@@ -841,6 +923,41 @@ impl Session<'_> {
         Ok(())
     }
 
+    /// The project field "Value" (text) that carries each imported part's
+    /// KiCad value, published.
+    fn value_field(&mut self) -> Result<FieldRef, ImportError> {
+        let Outcome::DraftCreated { id } = self.apply(
+            "library.new_draft",
+            Operation::Library(LibraryCommand::NewDraft {
+                meta: DefinitionMeta {
+                    name: "Value".into(),
+                    description: "A part's value as its KiCad project gives it.".into(),
+                    provenance: "Imported from a KiCad project.".into(),
+                },
+                definition: Definition::Field(FieldDefinition {
+                    value_type: ValueType::Text {
+                        max_bytes: sparksmith_core::fields::MAX_TEXT_BYTES,
+                    },
+                    ..FieldDefinition::default()
+                }),
+            }),
+        )?
+        else {
+            return Err(ImportError::Refused {
+                step: "library.new_draft",
+                reason: "no draft created".into(),
+            });
+        };
+        self.apply(
+            "library.publish",
+            Operation::Library(LibraryCommand::Publish {
+                drafts: vec![id],
+                close: true,
+            }),
+        )?;
+        Ok(FieldRef::new(id, Revision::FIRST))
+    }
+
     /// Apply `ops` in batches of at most [`sparksmith_core::MAX_BATCH`].
     pub(crate) fn batches(
         &mut self,
@@ -869,6 +986,7 @@ impl Session<'_> {
         pads: Vec<Pad>,
         prefix: &str,
         kicad_symbol: Option<&crate::schematic::LibSymbol>,
+        value_field: Option<FieldRef>,
         report: &mut Report,
     ) -> Result<Set, ImportError> {
         let kinds = [
@@ -911,6 +1029,7 @@ impl Session<'_> {
             pads,
             prefix,
             kicad_symbol,
+            value_field,
             &mut unpinned,
             [component, symbol, package, footprint, binding],
         )
@@ -972,6 +1091,7 @@ fn drafts(
     pads: Vec<Pad>,
     prefix: &str,
     kicad_symbol: Option<&crate::schematic::LibSymbol>,
+    value_field: Option<FieldRef>,
     unpinned: &mut usize,
     [component, symbol, package, footprint, binding]: [DefinitionId; 5],
 ) -> sparksmith_core::Result<Vec<DraftEdit>> {
@@ -1046,7 +1166,14 @@ fn drafts(
                 constraints: vec![],
                 representations: vec![SymbolRef::new(symbol, Revision::FIRST)],
                 implementations: vec![BindingRef::new(binding, Revision::FIRST)],
-                fields: vec![],
+                fields: value_field
+                    .map(|field| FieldSelection {
+                        field,
+                        default: None,
+                        show_on_symbol: true,
+                    })
+                    .into_iter()
+                    .collect(),
             }),
         },
         DraftEdit {

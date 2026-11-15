@@ -246,3 +246,68 @@ fn the_project_files_rules_become_the_projects_own_rule_set() -> Fallible<()> {
     );
     Ok(())
 }
+
+/// Run 7, finding 3: a class pattern with a power net's `+` (`+5*`) is
+/// taken as a wildcard; a regular expression is refused and named with
+/// its reason; KiCad's board `min_clearance`, looser than the profile,
+/// is counted and named among the rules not taken.
+#[test]
+fn power_net_patterns_are_taken_and_refused_ones_named() -> Fallible<()> {
+    let pad = |number: &'static str, x: f64, net: (u32, &str)| {
+        Pad::smd(number, "rect", [x, 0.0, 0.0], [0.8, 0.6])
+            .with(&format!("(net {} \"{}\")", net.0, net.1))
+    };
+    let board = Board {
+        copper: 2,
+        origin: None,
+        setup: "(pad_to_mask_clearance 0)".into(),
+        footprints: vec![Footprint::new(
+            "R1",
+            [10.0, 10.0, 0.0],
+            false,
+            vec![pad("1", -1.0, (1, "+5V")), pad("2", 1.0, (2, "GND"))],
+        )],
+        items: "  (net 1 \"+5V\") (net 2 \"GND\")
+  (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (layer \"Edge.Cuts\"))\n"
+            .into(),
+    };
+    let project_file = br#"{"board":{"design_settings":{"rules":{"min_clearance":0.01}}},
+        "net_settings":{"classes":[
+          {"name":"Default","clearance":0.2,"track_width":0.25},
+          {"name":"Power","clearance":0.25,"track_width":0.4}],
+        "netclass_patterns":[{"netclass":"Power","pattern":"+5*"},
+          {"netclass":"Power","pattern":"^GND$"}]}}"#;
+    let imported = support::import_with_project(board.text().as_bytes(), Some(project_file))?;
+    let project = imported.engine.project();
+    let report = &imported.report;
+    let rules = &project.rules;
+    let power = rules.net_classes.first().ok_or("Power")?;
+    assert_eq!(
+        rules
+            .patterns
+            .iter()
+            .map(|p| p.pattern.as_str())
+            .collect::<Vec<_>>(),
+        ["+5*"]
+    );
+    let net = project.nets.iter().find(|n| n.name == "+5V").ok_or("+5V")?;
+    assert_eq!(rules.class_of(net.id, &net.name), Some(power.id));
+    assert_eq!(report.count(Case::NetClassAssigned), 0, "by its pattern");
+    assert_eq!(report.count(Case::NetClassPatternRefused), 1);
+    let refused = report.refused_patterns();
+    assert_eq!(
+        refused.iter().map(|p| p.line()).collect::<Vec<_>>(),
+        ["^GND$: a regular expression; only * and ? wildcards are read"]
+    );
+    assert!(report.summary_named().contains(&refused[0].line()));
+    // The board's least clearance, looser than the profile's: each copper
+    // pair named.
+    let looser: Vec<_> = report
+        .looser_rules()
+        .iter()
+        .filter(|r| r.kicad_setting == "min_clearance")
+        .collect();
+    assert_eq!(looser.len(), 10, "{looser:?}");
+    assert!(report.summary_named().contains("KiCad 0.01 mm"));
+    Ok(())
+}

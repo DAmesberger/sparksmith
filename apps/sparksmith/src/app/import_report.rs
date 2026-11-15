@@ -182,6 +182,12 @@ fn body(ui: &mut egui::Ui, shown: &Shown, copy: &mut bool) {
             |ui| {
                 for row in group {
                     kit::value_row(ui, &row.count.to_string(), row.title);
+                    if row.case == sparksmith_automation::kicad_import::Case::NetClassPatternRefused
+                    {
+                        for pattern in report.refused_patterns() {
+                            kit::value_row(ui, &pattern.pattern, pattern.reason);
+                        }
+                    }
                 }
             },
         );

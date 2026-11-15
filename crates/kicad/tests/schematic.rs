@@ -382,6 +382,73 @@ fn board_and_schematic_disagreements_are_findings() -> Fallible<()> {
     Ok(())
 }
 
+/// Run 7, finding 2: where the schematic and the board both give a value,
+/// the part takes the schematic's.
+#[test]
+fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
+    let mut board = row_board(&[("R1", &[("1", Some((1, "A"))), ("2", Some((2, "B")))])]);
+    for fp in &mut board.footprints {
+        fp.value = Some("2k".into());
+    }
+    let imported = import_sheet(&board, sheet(&[("R1", "50 50 0")], ""))?;
+    let project = imported.engine.project();
+    let r1 = project.instance_by_designator("R1").ok_or("R1")?;
+    assert_eq!(
+        sparksmith_core::instances::value_text(&project.library, r1)?.as_deref(),
+        Some("1k")
+    );
+    Ok(())
+}
+
+/// Run 7, finding 4: a SIG track the board runs from R1 pin 2 to R2 pin 1,
+/// where the schematic leaves the two apart. The piece onto the pad the
+/// schematic keeps off the track's net is refused (by the clearance check,
+/// as stored), and the stub it leaves says why, not "clearance".
+#[test]
+fn a_track_refused_for_the_schematics_net_says_so() -> Fallible<()> {
+    let sig = Some((2, "SIG"));
+    let mut board = row_board(&[
+        ("R1", &[("1", Some((1, "GND"))), ("2", sig)]),
+        ("R2", &[("1", sig), ("2", Some((3, "OUT")))]),
+    ]);
+    // R1 pin 2 at (11, 10), R2 pin 1 at (17, 10), in two pieces.
+    board.items.push_str(
+        "  (segment (start 11 10) (end 14 10) (width 0.25) (layer \"F.Cu\") (net 2))
+  (segment (start 14 10) (end 17 10) (width 0.25) (layer \"F.Cu\") (net 2))\n",
+    );
+    let schematic = sheet(
+        &[("R1", "50 50 0"), ("R2", "60 50 0")],
+        "(wire (pts (xy 50 46.19) (xy 55 46.19) (xy 55 53.81) (xy 60 53.81)))",
+    );
+    let imported = import_sheet(&board, schematic)?;
+    let project = imported.engine.project();
+    let refused = &project.refused_import_tracks;
+    assert_eq!(refused.len(), 1, "{refused:?}");
+    assert_eq!(
+        refused[0].reason,
+        sparksmith_core::model::import_review::TrackRefusal::Clearance
+    );
+    let report = sparksmith_core::issues::report(
+        project,
+        &sparksmith_core::library::Drafts::default(),
+        &sparksmith_core::issues::IssueScope::All,
+        &Default::default(),
+    )?;
+    let stub = report
+        .rows
+        .iter()
+        .find(|r| r.finding.code == "board.track_dangling")
+        .ok_or("no finding for the stub")?;
+    assert!(
+        stub.finding
+            .message
+            .ends_with("import refused the rest (schematic keeps a pad off the net)"),
+        "{}",
+        stub.finding.message
+    );
+    Ok(())
+}
+
 /// A pad whose number matches no pin of its KiCad symbol gets a visible
 /// pin outside the body, marked added by import, and an unmapped-pad
 /// finding.
@@ -445,5 +512,118 @@ fn an_unmapped_pad_gets_a_visible_pin_added_by_import() -> Fallible<()> {
                 && title == "R1 pin 3: pin added by import"),
         "{rows:?}"
     );
+    Ok(())
+}
+
+/// Run 7, finding 5: a new QFN with an exposed pad placed on an imported,
+/// routed sheet. Clear of the wires it places and the routed nets keep
+/// their terminals; with a pin on the routed SIG wire it would join SIG
+/// (a pin on a wire joins it), so it is refused, naming the net and pin.
+#[test]
+fn a_new_qfn_places_on_a_routed_imported_sheet() -> Fallible<()> {
+    use sparksmith_core::library::PackageForm;
+    use sparksmith_core::library::package_form::{LeadSides, NoLeadForm};
+    use sparksmith_core::library::templates::catalog::{
+        FamilyKind, NewFromTemplate, RowSource, SkeletonHint,
+    };
+    use sparksmith_core::units::{Nm, PointNm};
+    use sparksmith_core::{InstanceCommand, Operation};
+    let mut b = board();
+    b.items
+        .push_str("  (segment (start 11 10) (end 19 10) (width 0.25) (layer \"F.Cu\") (net 2))\n");
+    let mut files = BTreeMap::new();
+    files.insert("synthetic.kicad_sch".to_owned(), schematic().into_bytes());
+    let imported = support::import_with_schematic(
+        b.text().as_bytes(),
+        None,
+        Some(("synthetic.kicad_sch", &files)),
+    )?;
+    let mut engine = imported.engine;
+    assert_eq!(engine.project().tracks.len(), 1, "SIG is routed");
+    let mm = Nm::from_mm_f64_rounded;
+    let form = PackageForm::NoLead(Box::new(NoLeadForm {
+        sides: LeadSides::Four,
+        terminals_per_side: [3, 3],
+        pitch_nm: mm(0.5)?,
+        body_length_nm: mm(3.0)?,
+        body_width_nm: mm(3.0)?,
+        body_height_nm: mm(0.9)?,
+        terminal_length_nm: mm(0.4)?,
+        terminal_width_nm: mm(0.25)?,
+        exposed_pad: Some(PointNm::from_mm_f64_rounded([1.65, 1.65])?),
+    }));
+    engine.apply(
+        engine.revision(),
+        Operation::Library(sparksmith_core::LibraryCommand::PublishFromTemplate(
+            Box::new(NewFromTemplate {
+                row: RowSource::Custom {
+                    family: FamilyKind::NoLead,
+                },
+                values: Some(form),
+                skeleton: SkeletonHint::IcBox,
+                name: "QFN-12 3x3 0.5 EP 1.65".into(),
+                designator_prefix: None,
+                symbol: None,
+                without_fields: false,
+            }),
+        )),
+    )?;
+    let component = engine
+        .project()
+        .library
+        .components
+        .iter()
+        .find(|c| c.meta.name.starts_with("QFN-12"))
+        .ok_or("the QFN component")?;
+    let id = component.id;
+    let definition = component.definition.clone();
+    let binding = *definition.implementations.first().ok_or("binding")?;
+    let footprint = engine
+        .project()
+        .library
+        .binding(binding)
+        .and_then(|b| b.definition.footprints.first().copied())
+        .ok_or("footprint")?;
+    let symbol = *definition.representations.first().ok_or("symbol")?;
+    let place = |at: [f64; 2]| -> Fallible<Operation> {
+        Ok(Operation::Instance(InstanceCommand::Place(
+            sparksmith_core::instances::NewInstance {
+                sheet: None,
+                component: sparksmith_core::ComponentRef::new(id, sparksmith_core::Revision::FIRST),
+                designator: None,
+                properties: vec![],
+                representation: symbol.id,
+                unit: sparksmith_core::UnitId(1),
+                position: PointNm::from_mm_f64_rounded(at)?,
+                physical: Some(sparksmith_core::PhysicalChoice {
+                    binding: binding.id,
+                    footprint: footprint.id,
+                }),
+            },
+        )))
+    };
+    // A pin on the SIG wire, which runs from R1 pin 2 at (20, −23.81)
+    // to (25, −23.81) on our sheet: refused, naming its net and the pin.
+    let sig = net_of(engine.project(), "R1", "2").ok_or("SIG")?;
+    let sig = engine.project().net_name(sig).to_owned();
+    let revision = engine.revision();
+    let refused = engine
+        .apply(revision, place([13.65, -23.81])?)
+        .err()
+        .ok_or("a pin on the routed wire joins SIG")?
+        .to_string();
+    assert!(
+        refused.contains(&format!("routed copper on {sig} (U1 pin "))
+            && refused.contains(&format!(" joins {sig})")),
+        "{refused}"
+    );
+    assert_eq!(engine.revision(), revision);
+    // Clear of the wires it places; no routed net changes.
+    let before = engine.project().nets.clone();
+    engine.apply(engine.revision(), place([100.0, -100.0])?)?;
+    for net in &before {
+        let after = engine.project().net(net.id).ok_or("a net went")?;
+        assert_eq!(after.terminals, net.terminals, "{}", net.name);
+    }
     Ok(())
 }

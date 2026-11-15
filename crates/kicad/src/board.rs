@@ -145,6 +145,8 @@ pub struct Footprint {
     pub at: PointNm,
     pub angle: f64,
     pub reference: String,
+    /// Its Value property ("330", "1u"), as written.
+    pub value: String,
     pub margins: Margins,
     pub pads: Vec<KPad>,
     pub net_tie: bool,
@@ -495,6 +497,13 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
             }
             "fp_text" if item.arg(0) == Some("reference") => {
                 fp.reference = item.arg(1).unwrap_or_default().to_owned();
+                fp.drawings += 1;
+            }
+            "property" if item.arg(0) == Some("Value") => {
+                fp.value = item.arg(1).unwrap_or_default().to_owned();
+            }
+            "fp_text" if item.arg(0) == Some("value") => {
+                fp.value = item.arg(1).unwrap_or_default().to_owned();
                 fp.drawings += 1;
             }
             "fp_line" | "fp_rect" | "fp_circle" | "fp_arc" | "fp_poly" | "fp_curve" => {

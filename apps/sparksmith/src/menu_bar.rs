@@ -41,7 +41,8 @@ pub enum System {
 /// One menu entry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Entry {
-    /// A registry command under its menu label.
+    /// A registry command under its menu label; an empty label is the
+    /// registry's own title, so both menus and the palette read the same.
     Command(&'static str, &'static str),
     /// Delete: the key of the active context's delete command, handed to
     /// the canvas that owns it.
@@ -82,7 +83,7 @@ pub const FILE: &[Entry] = &[
     C("file.new", "New Project"),
     C("file.open", "Open…"),
     Entry::Recent,
-    C("file.import-kicad", "Import KiCad Project…"),
+    C("file.import-kicad", ""),
     Sep,
     C("file.save", "Save"),
     C("file.save-as", "Save As…"),
@@ -161,7 +162,7 @@ pub const IN_WINDOW_FILE: &[Entry] = &[
     C("file.new", "New project"),
     C("file.open", "Open…"),
     Entry::Recent,
-    C("file.import-kicad", "Import KiCad project…"),
+    C("file.import-kicad", ""),
     Sep,
     C("file.save", "Save"),
     C("file.save-as", "Save as…"),
@@ -302,7 +303,7 @@ fn delete_target<'r>(now: &Now<'r>) -> Option<(&'r Command, Chord)> {
 }
 
 /// The label of `id`'s item: the Browser and Issues toggles say what they
-/// do now.
+/// do now, and an empty label is the registry command's title.
 fn label(now: &Now, id: &str, label: &str) -> String {
     let toggle = |shown: bool, what: &str| {
         if shown {
@@ -314,6 +315,10 @@ fn label(now: &Now, id: &str, label: &str) -> String {
     match id {
         BROWSER => toggle(now.browser_shown, "Browser"),
         ISSUES => toggle(now.issues_shown, "Issues"),
+        _ if label.is_empty() => now
+            .registry
+            .get(id)
+            .map_or_else(String::new, |c| c.title.clone()),
         _ => label.to_owned(),
     }
 }
