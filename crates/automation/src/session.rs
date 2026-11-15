@@ -85,8 +85,17 @@ pub struct OpenParams {
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct InspectParams {
-    /// A JSON pointer into the snapshot, such as `/project/vias` or
-    /// `/project/nets`: just what it names is returned.
+    /// A JSON pointer (RFC 6901) into the snapshot that `verbose: true`
+    /// returns; just what it names is returned. Its top-level keys are
+    /// `revision`, `project`, `drafts`, `can_undo`, `can_redo`, `erc` and
+    /// `board_checks`. A list is indexed by position from 0, not by id:
+    /// `/drafts` lists each draft as `{draft, check}` in order, so
+    /// `/drafts/0/draft` is the first draft (its `id` is the draft id),
+    /// `/drafts/0/draft/definition/body/pads/0` a footprint draft's first
+    /// pad and `/drafts/0/check` its publish findings. Others:
+    /// `/project/vias`, `/project/nets`, `/project/library`. A pointer
+    /// that names nothing is refused with the keys or indices valid where
+    /// it stopped matching.
     #[serde(default)]
     pub at: Option<String>,
 }
@@ -641,7 +650,7 @@ impl Request {
             info::<InspectParams>(
                 "project.inspect",
                 "Read the revision, object counts, drafts and open findings; at reads one part of the document.",
-                "Return the revision, object counts, each draft's state and open findings by code. verbose: true returns the whole snapshot (project, drafts with their publish findings, ERC and board-check findings; about 0.5 MB on a small board); at: a JSON pointer into it (/project/vias, /project/nets) returns just what it names.",
+                "Return the revision, object counts, each draft's state and open findings by code. verbose: true returns the whole snapshot (project, drafts with their publish findings, ERC and board-check findings; about 0.5 MB on a small board); at: a JSON pointer into it returns just what it names, with lists indexed by position: /project/vias, /project/nets, /drafts (each {draft, check}), /drafts/0/draft/definition/body/pads/0. A pointer that names nothing is refused with the valid keys or indices where it stopped.",
             ),
             info::<SchemaParams>(
                 "project.schema",

@@ -257,6 +257,34 @@ fn inspect_summarizes_and_reads_one_part() -> TestResult {
         json!({"command": "project.inspect", "params": {"at": "/project/nothing"}}),
     );
     assert_eq!(missing["error"]["code"], "not_found");
+    // The refusal names what is valid where the pointer stopped matching:
+    // the keys of an object, the positions of a list, and the pointer form.
+    fn message(session: &mut Session, at: &str) -> String {
+        session.respond(
+            Caller::Operator,
+            json!({"command": "project.inspect", "params": {"at": at}}),
+        )["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+    }
+    let text = message(&mut session, "/project/nothing");
+    assert!(
+        text.contains("nothing is not in /project") && text.contains("nets"),
+        "{text}"
+    );
+    let drafts = session.engine().drafts().items.len();
+    assert!(drafts > 0, "the demo has drafts");
+    let text = message(&mut session, &format!("/drafts/{drafts}/draft"));
+    assert!(
+        text.contains(&format!("from 0 to {} (not an id)", drafts - 1)),
+        "{text}"
+    );
+    let text = message(&mut session, "drafts");
+    assert!(
+        text.contains("not a JSON pointer") && text.contains("drafts, "),
+        "{text}"
+    );
     Ok(())
 }
 
