@@ -323,13 +323,6 @@ impl Build<'_> {
         Ok(p)
     }
 
-    /// Add a count (unitless) parameter; returns its name.
-    fn count(&mut self, name: &str, value: u32) -> Result<String> {
-        let p = self.p(name);
-        self.native.count_parameter(&p, value)?;
-        Ok(p)
-    }
-
     /// The body name `<stem> <part>` (`<part>` standalone).
     fn name(&self, part: &str) -> String {
         if self.stem.is_empty() {
@@ -481,29 +474,6 @@ fn top_edges(lo: [f64; 3], hi: [f64; 3]) -> [[f64; 3]; 4] {
         [mid[0], hi[1], hi[2]],
         [lo[0], mid[1], hi[2]],
     ]
-}
-
-/// A point on each of the four upright edges of the box `lo`..`hi`.
-fn upright_edges(lo: [f64; 3], hi: [f64; 3]) -> [[f64; 3]; 4] {
-    let z = (lo[2] + hi[2]) / 2.0;
-    [
-        [lo[0], lo[1], z],
-        [hi[0], lo[1], z],
-        [hi[0], hi[1], z],
-        [lo[0], hi[1], z],
-    ]
-}
-
-/// Bounds of a lead count.
-fn check_count(what: &str, n: u32) -> Result<()> {
-    if (1..=sparksmith_core::library::package_form::MAX_FORM_LEADS).contains(&n) {
-        Ok(())
-    } else {
-        Err(Error::Invalid(format!(
-            "model.form: {what} must be 1–{}",
-            sparksmith_core::library::package_form::MAX_FORM_LEADS
-        )))
-    }
 }
 
 /// Every value positive and finite.
