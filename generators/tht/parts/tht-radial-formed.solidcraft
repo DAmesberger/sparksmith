@@ -1,0 +1,1063 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "Radial through-hole part, formed leads",
+  "units": "mm",
+  "params": [
+    {
+      "name": "lead_pitch",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "lead pitch on the board",
+      "model": false
+    },
+    {
+      "name": "lead_diameter",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "lead diameter (a strip's width, a square lead's side)",
+      "model": false
+    },
+    {
+      "name": "lead_below",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "lead length below the seating plane",
+      "model": false
+    },
+    {
+      "name": "standoff",
+      "expr": "1.5 mm",
+      "unit": "mm",
+      "comment": "body underside above the seating plane",
+      "model": false
+    },
+    {
+      "name": "root",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "how far each lead reaches into the body",
+      "model": false
+    },
+    {
+      "name": "body_pitch",
+      "expr": "2 mm",
+      "unit": "mm",
+      "comment": "lead pitch where the leads leave the body",
+      "model": false
+    },
+    {
+      "name": "bend_radius",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "centreline radius of the lead bends",
+      "model": false
+    },
+    {
+      "name": "body_diameter",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "body diameter",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "11 mm",
+      "unit": "mm",
+      "comment": "body height above its standoff",
+      "model": false
+    },
+    {
+      "name": "top_round",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edge",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.8 * (body_diameter - 2 * top_round)",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.6 * (body_diameter - 2 * top_round)",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    },
+    {
+      "name": "d2",
+      "expr": "body_diameter / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "lead1_r1",
+      "expr": "max(min(bend_radius, 0.45 * min(abs(((0.75 * standoff) - (standoff + root))), hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) / (abs(((0 * 0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (-(((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))) / (1 + ((0 * 0 * (((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))), (lead_diameter / 2) * 1.0001)",
+      "unit": "mm",
+      "comment": "lead1 bend 1: centreline radius",
+      "model": false
+    },
+    {
+      "name": "lead1_t1",
+      "expr": "lead1_r1 * (abs(((0 * 0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (-(((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))) / (1 + ((0 * 0 * (((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))",
+      "unit": "mm",
+      "comment": "lead1 bend 1: tangent length",
+      "model": false
+    },
+    {
+      "name": "lead1_r2",
+      "expr": "max(min(bend_radius, 0.45 * min(hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))), abs(((- lead_below) - (0.25 * standoff)))) / (abs(((-(((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0))) / (1 + ((0 * (((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))), (lead_diameter / 2) * 1.0001)",
+      "unit": "mm",
+      "comment": "lead1 bend 2: centreline radius",
+      "model": false
+    },
+    {
+      "name": "lead1_t2",
+      "expr": "lead1_r2 * (abs(((-(((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0))) / (1 + ((0 * (((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))",
+      "unit": "mm",
+      "comment": "lead1 bend 2: tangent length",
+      "model": false
+    },
+    {
+      "name": "lead2_r1",
+      "expr": "max(min(bend_radius, 0.45 * min(abs(((0.75 * standoff) - (standoff + root))), hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) / (abs(((0 * 0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (-(((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))) / (1 + ((0 * 0 * (((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))), (lead_diameter / 2) * 1.0001)",
+      "unit": "mm",
+      "comment": "lead2 bend 1: centreline radius",
+      "model": false
+    },
+    {
+      "name": "lead2_t1",
+      "expr": "lead2_r1 * (abs(((0 * 0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (-(((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))) / (1 + ((0 * 0 * (((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))",
+      "unit": "mm",
+      "comment": "lead2 bend 1: tangent length",
+      "model": false
+    },
+    {
+      "name": "lead2_r2",
+      "expr": "max(min(bend_radius, 0.45 * min(hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))), abs(((- lead_below) - (0.25 * standoff)))) / (abs(((-(((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0))) / (1 + ((0 * (((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))), (lead_diameter / 2) * 1.0001)",
+      "unit": "mm",
+      "comment": "lead2 bend 2: centreline radius",
+      "model": false
+    },
+    {
+      "name": "lead2_t2",
+      "expr": "lead2_r2 * (abs(((-(((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) - (0 * (((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0))) / (1 + ((0 * (((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * 0) + (-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))))))",
+      "unit": "mm",
+      "comment": "lead2 bend 2: tangent length",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body profile",
+      "suppressed": false,
+      "param_names": [
+        "d1"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "standoff"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.5,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "radius",
+            "c": 0,
+            "value": 2.5,
+            "param": "d2"
+          },
+          {
+            "id": "k2",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d3"
+      ],
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "body_height",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "lead1 profile",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XZ"
+        },
+        "distance": "- lead_diameter / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p0",
+            "pos": [
+              -0.75,
+              -2.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((-0.5 * body_pitch) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-((standoff + root) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -0.75,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * body_pitch) - (0 * 0 * lead1_t1)) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-(((0.75 * standoff) - (-lead1_t1)) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p2",
+            "pos": [
+              -1.1645898033750315,
+              -0.7631966011250105
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * body_pitch) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t1)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (lead_diameter / 2)))",
+              "y": "(-(((0.75 * standoff) + ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t1)) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p3",
+            "pos": [
+              -2.1118033988749896,
+              -0.2895898033750316
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * lead_pitch) - ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (lead_diameter / 2)))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              -2.25,
+              -0.06598300562505255
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * lead_pitch) + (0 * 0 * lead1_t2)) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-(((0.25 * standoff) + (-lead1_t2)) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              -2.25,
+              3.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((-0.5 * lead_pitch) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-((- lead_below) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p6",
+            "pos": [
+              -2.75,
+              3.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((-0.5 * lead_pitch) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-((- lead_below) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p7",
+            "pos": [
+              -2.75,
+              -0.06598300562505255
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * lead_pitch) + (0 * 0 * lead1_t2)) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.25 * standoff) + (-lead1_t2)) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p8",
+            "pos": [
+              -2.3354101966249687,
+              -0.7368033988749895
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * lead_pitch) - ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -1.3881966011250106,
+              -1.2104101966249685
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * body_pitch) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t1)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.75 * standoff) + ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t1)) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -1.25,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * body_pitch) - (0 * 0 * lead1_t1)) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.75 * standoff) - (-lead1_t1)) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -1.25,
+              -2.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((-0.5 * body_pitch) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-((standoff + root) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "c1",
+            "pos": [
+              -1.5,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * body_pitch) - (0 * 0 * lead1_t1)) + ((--1) * (-lead1_r1)))",
+              "y": "(-(((0.75 * standoff) - (-lead1_t1)) + (0 * 0 * (-lead1_r1))))"
+            }
+          },
+          {
+            "id": "c3",
+            "pos": [
+              -2.0,
+              -0.0659830056250526
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * lead_pitch) - ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * lead1_r2))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_r2)))"
+            }
+          },
+          {
+            "id": "c7",
+            "pos": [
+              -2.0,
+              -0.0659830056250526
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * lead_pitch) - ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * lead1_r2))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_t2)) + ((((-0.5 * lead_pitch) - (-0.5 * body_pitch)) / hypot(((-0.5 * lead_pitch) - (-0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead1_r2)))"
+            }
+          },
+          {
+            "id": "c9",
+            "pos": [
+              -1.5,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((-0.5 * body_pitch) - (0 * 0 * lead1_t1)) + ((--1) * (-lead1_r1)))",
+              "y": "(-(((0.75 * standoff) - (-lead1_t1)) + (0 * 0 * (-lead1_r1))))"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 13,
+            "a": 2,
+            "b": 3,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 5,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 6,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 7,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 15,
+            "a": 8,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 16,
+            "a": 11,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 12,
+            "b": 1,
+            "construction": false
+          }
+        ],
+        "constraints": [],
+        "counters": {
+          "a": 4,
+          "l": 8
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "lead 1",
+      "suppressed": false,
+      "body_names": [
+        "lead 1"
+      ],
+      "param_names": [
+        "d5"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_diameter",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "lead2 profile",
+      "suppressed": false,
+      "param_names": [
+        "d6"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XZ"
+        },
+        "distance": "- lead_diameter / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p0",
+            "pos": [
+              1.25,
+              -2.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((0.5 * body_pitch) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-((standoff + root) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p1",
+            "pos": [
+              1.25,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * body_pitch) - (0 * 0 * lead2_t1)) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-(((0.75 * standoff) - (-lead2_t1)) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p2",
+            "pos": [
+              1.3881966011250106,
+              -1.2104101966249685
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * body_pitch) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t1)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (lead_diameter / 2)))",
+              "y": "(-(((0.75 * standoff) + ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t1)) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p3",
+            "pos": [
+              2.3354101966249687,
+              -0.7368033988749895
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * lead_pitch) - ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (lead_diameter / 2)))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              2.75,
+              -0.06598300562505255
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * lead_pitch) + (0 * 0 * lead2_t2)) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-(((0.25 * standoff) + (-lead2_t2)) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              2.75,
+              3.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((0.5 * lead_pitch) + ((--1) * (lead_diameter / 2)))",
+              "y": "(-((- lead_below) + (0 * 0 * (lead_diameter / 2))))"
+            }
+          },
+          {
+            "id": "p6",
+            "pos": [
+              2.25,
+              3.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((0.5 * lead_pitch) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-((- lead_below) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p7",
+            "pos": [
+              2.25,
+              -0.06598300562505255
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * lead_pitch) + (0 * 0 * lead2_t2)) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.25 * standoff) + (-lead2_t2)) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p8",
+            "pos": [
+              2.1118033988749896,
+              -0.2895898033750316
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * lead_pitch) - ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p9",
+            "pos": [
+              1.1645898033750315,
+              -0.7631966011250105
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * body_pitch) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t1)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.75 * standoff) + ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t1)) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p10",
+            "pos": [
+              0.75,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * body_pitch) - (0 * 0 * lead2_t1)) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-(((0.75 * standoff) - (-lead2_t1)) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "p11",
+            "pos": [
+              0.75,
+              -2.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "((0.5 * body_pitch) + ((--1) * (-(lead_diameter / 2))))",
+              "y": "(-((standoff + root) + (0 * 0 * (-(lead_diameter / 2)))))"
+            }
+          },
+          {
+            "id": "c1",
+            "pos": [
+              1.5,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * body_pitch) - (0 * 0 * lead2_t1)) + ((--1) * lead2_r1))",
+              "y": "(-(((0.75 * standoff) - (-lead2_t1)) + (0 * 0 * lead2_r1)))"
+            }
+          },
+          {
+            "id": "c3",
+            "pos": [
+              2.0,
+              -0.0659830056250526
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * lead_pitch) - ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (-lead2_r2)))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (-lead2_r2))))"
+            }
+          },
+          {
+            "id": "c7",
+            "pos": [
+              2.0,
+              -0.0659830056250526
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * lead_pitch) - ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((-(((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff))))) * (-lead2_r2)))",
+              "y": "(-(((0.25 * standoff) - ((((0.25 * standoff) - (0.75 * standoff)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * lead2_t2)) + ((((0.5 * lead_pitch) - (0.5 * body_pitch)) / hypot(((0.5 * lead_pitch) - (0.5 * body_pitch)), ((0.25 * standoff) - (0.75 * standoff)))) * (-lead2_r2))))"
+            }
+          },
+          {
+            "id": "c9",
+            "pos": [
+              1.5,
+              -1.4340169943749475
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(((0.5 * body_pitch) - (0 * 0 * lead2_t1)) + ((--1) * lead2_r1))",
+              "y": "(-(((0.75 * standoff) - (-lead2_t1)) + (0 * 0 * lead2_r1)))"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 13,
+            "a": 3,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 6,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 7,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 15,
+            "a": 9,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 16,
+            "a": 10,
+            "b": 11,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 12,
+            "b": 1,
+            "construction": false
+          }
+        ],
+        "constraints": [],
+        "counters": {
+          "a": 4,
+          "l": 8
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "lead 2",
+      "suppressed": false,
+      "body_names": [
+        "lead 2"
+      ],
+      "param_names": [
+        "d7"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_diameter",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "lead roots",
+      "suppressed": false,
+      "type": "combine",
+      "target": "body",
+      "tools": [
+        "lead 1",
+        "lead 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 8,
+      "name": "top round",
+      "suppressed": false,
+      "param_names": [
+        "d8"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.5,
+            -2.5,
+            1.4999999999999998
+          ],
+          "max": [
+            2.5,
+            2.5,
+            12.500000000000002
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:side:c1|F2:top"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          2.5,
+          0.0,
+          12.5
+        ]
+      ],
+      "radius": "top_round",
+      "body": "body"
+    },
+    {
+      "id": 9,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d9"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "standoff + body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 10,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "lead 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "lead 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

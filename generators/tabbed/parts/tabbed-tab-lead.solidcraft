@@ -1,0 +1,1895 @@
+{
+  "format": "solidcraft/52",
+  "format_pending": [
+    "3d-wire-point-nodes",
+    "frame-end-caps",
+    "joint-origin-inside",
+    "nested-face-name",
+    "opus-quality",
+    "render-indirect-clamp",
+    "render-quality-controls",
+    "revolve-axis-sketch",
+    "sheet-flange-segments",
+    "sketch-link-construction-point",
+    "two-sided-cut-cap-names"
+  ],
+  "name": "SOT-223 and SOT-89 package",
+  "units": "mm",
+  "params": [
+    {
+      "name": "pitch",
+      "expr": "2.3 mm",
+      "unit": "mm",
+      "comment": "the lead grid's pitch along x",
+      "model": false
+    },
+    {
+      "name": "body_length",
+      "expr": "6.5 mm",
+      "unit": "mm",
+      "comment": "moulded body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "3.5 mm",
+      "unit": "mm",
+      "comment": "moulded body width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "1.6 mm",
+      "unit": "mm",
+      "comment": "moulded body height above the standoff",
+      "model": false
+    },
+    {
+      "name": "standoff",
+      "expr": "0.06 mm",
+      "unit": "mm",
+      "comment": "body bottom above the seating plane",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "7 mm",
+      "unit": "mm",
+      "comment": "lead tip to lead tip across y",
+      "model": false
+    },
+    {
+      "name": "lead_width",
+      "expr": "0.7 mm",
+      "unit": "mm",
+      "comment": "lead width along x",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "lead thickness",
+      "model": false
+    },
+    {
+      "name": "foot_length",
+      "expr": "0.9 mm",
+      "unit": "mm",
+      "comment": "a lead's foot on the seating plane",
+      "model": false
+    },
+    {
+      "name": "row_s_leads",
+      "expr": "3",
+      "unit": "",
+      "comment": "leads on the −y side",
+      "model": false
+    },
+    {
+      "name": "row_s_step",
+      "expr": "1",
+      "unit": "",
+      "comment": "grid positions between −y leads",
+      "model": false
+    },
+    {
+      "name": "tab_width",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "tab lead width along x",
+      "model": false
+    },
+    {
+      "name": "tab_length",
+      "expr": "0.9 mm",
+      "unit": "mm",
+      "comment": "tab lead foot on the seating plane",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "round of the body's upright corners",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.12 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edges",
+      "model": false
+    },
+    {
+      "name": "lead_exit",
+      "expr": "standoff + body_height / 2",
+      "unit": "mm",
+      "comment": "height of the lead centreline where it leaves the body",
+      "model": false
+    },
+    {
+      "name": "half_body",
+      "expr": "body_width / 2",
+      "unit": "mm",
+      "comment": "half the body width",
+      "model": false
+    },
+    {
+      "name": "lead_root",
+      "expr": "min(0.25 mm, half_body / 3)",
+      "unit": "mm",
+      "comment": "how far a lead reaches into the body",
+      "model": false
+    },
+    {
+      "name": "lead_drop",
+      "expr": "lead_exit - lead_thickness / 2",
+      "unit": "mm",
+      "comment": "the slope's drop from the exit to the foot",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.8 * body_length",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.8 * body_width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    },
+    {
+      "name": "lead_foot_in",
+      "expr": "span / 2 - foot_length",
+      "unit": "mm",
+      "comment": "where the foot starts, across y",
+      "model": false
+    },
+    {
+      "name": "lead_shoulder",
+      "expr": "half_body + 0.3 * (lead_foot_in - half_body)",
+      "unit": "mm",
+      "comment": "where the lead bends down, across y",
+      "model": false
+    },
+    {
+      "name": "lead_dx",
+      "expr": "lead_foot_in - lead_shoulder",
+      "unit": "mm",
+      "comment": "the slope's run across y",
+      "model": false
+    },
+    {
+      "name": "lead_slope",
+      "expr": "hypot(lead_dx, lead_drop)",
+      "unit": "mm",
+      "comment": "the slope's length",
+      "model": false
+    },
+    {
+      "name": "lead_k",
+      "expr": "lead_drop / (lead_slope + lead_dx)",
+      "unit": "",
+      "comment": "tan of half the bend angle",
+      "model": false
+    },
+    {
+      "name": "lead_r1",
+      "expr": "max(min(lead_thickness, 0.45 * min(lead_shoulder - (half_body - lead_root), lead_slope) / lead_k), lead_thickness / 2 * 1.0001)",
+      "unit": "mm",
+      "comment": "the shoulder bend's centreline radius",
+      "model": false
+    },
+    {
+      "name": "lead_r2",
+      "expr": "max(min(lead_thickness, 0.45 * min(lead_slope, foot_length) / lead_k), lead_thickness / 2 * 1.0001)",
+      "unit": "mm",
+      "comment": "the foot bend's centreline radius",
+      "model": false
+    },
+    {
+      "name": "lead_miter",
+      "expr": "lead_thickness / 2 * lead_k",
+      "unit": "mm",
+      "comment": "how far the outline's sharp corners lie past the centreline's",
+      "model": false
+    },
+    {
+      "name": "tab_lead_foot_in",
+      "expr": "span / 2 - tab_length",
+      "unit": "mm",
+      "comment": "where the foot starts, across y",
+      "model": false
+    },
+    {
+      "name": "tab_lead_shoulder",
+      "expr": "half_body + 0.3 * (tab_lead_foot_in - half_body)",
+      "unit": "mm",
+      "comment": "where the lead bends down, across y",
+      "model": false
+    },
+    {
+      "name": "tab_lead_dx",
+      "expr": "tab_lead_foot_in - tab_lead_shoulder",
+      "unit": "mm",
+      "comment": "the slope's run across y",
+      "model": false
+    },
+    {
+      "name": "tab_lead_slope",
+      "expr": "hypot(tab_lead_dx, lead_drop)",
+      "unit": "mm",
+      "comment": "the slope's length",
+      "model": false
+    },
+    {
+      "name": "tab_lead_k",
+      "expr": "lead_drop / (tab_lead_slope + tab_lead_dx)",
+      "unit": "",
+      "comment": "tan of half the bend angle",
+      "model": false
+    },
+    {
+      "name": "tab_lead_r1",
+      "expr": "max(min(lead_thickness, 0.45 * min(tab_lead_shoulder - (half_body - lead_root), tab_lead_slope) / tab_lead_k), lead_thickness / 2 * 1.0001)",
+      "unit": "mm",
+      "comment": "the shoulder bend's centreline radius",
+      "model": false
+    },
+    {
+      "name": "tab_lead_r2",
+      "expr": "max(min(lead_thickness, 0.45 * min(tab_lead_slope, tab_length) / tab_lead_k), lead_thickness / 2 * 1.0001)",
+      "unit": "mm",
+      "comment": "the foot bend's centreline radius",
+      "model": false
+    },
+    {
+      "name": "tab_lead_miter",
+      "expr": "lead_thickness / 2 * tab_lead_k",
+      "unit": "mm",
+      "comment": "how far the outline's sharp corners lie past the centreline's",
+      "model": false
+    },
+    {
+      "name": "d5",
+      "expr": "lead_r1 + lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d6",
+      "expr": "lead_r2 - lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d7",
+      "expr": "lead_r2 + lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d8",
+      "expr": "lead_r1 - lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d12",
+      "expr": "tab_lead_r1 + lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d13",
+      "expr": "tab_lead_r2 - lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d14",
+      "expr": "tab_lead_r2 + lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d15",
+      "expr": "tab_lead_r1 - lead_thickness / 2",
+      "unit": "mm",
+      "model": true
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "standoff"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "row_s lead sketch",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- (row_s_leads - 1) / 2 * row_s_step * pitch - lead_width / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -1.5,
+              1.01
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(half_body - lead_root)",
+              "y": "lead_exit + lead_thickness / 2"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              -2.0750035983836153,
+              1.01
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(lead_shoulder + lead_miter)",
+              "y": "lead_exit + lead_thickness / 2"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              -2.6700035983836155,
+              0.3
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(lead_foot_in + lead_miter)",
+              "y": "lead_thickness"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              -3.5,
+              0.3
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(span / 2)",
+              "y": "lead_thickness"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              -3.5,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(span / 2)"
+            }
+          },
+          {
+            "id": "corner3",
+            "pos": [
+              -2.5299964016163847,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(lead_foot_in - lead_miter)"
+            }
+          },
+          {
+            "id": "corner4",
+            "pos": [
+              -1.9349964016163848,
+              0.7100000000000001
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(lead_shoulder - lead_miter)",
+              "y": "lead_exit - lead_thickness / 2"
+            }
+          },
+          {
+            "id": "p8",
+            "pos": [
+              -1.5,
+              0.7100000000000001
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(half_body - lead_root)",
+              "y": "lead_exit - lead_thickness / 2"
+            }
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -1.8649928032327696,
+              1.01
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -2.2098947019486226,
+              0.8490375066703275
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              -1.8649928032327698,
+              0.56
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -2.6250398971952795,
+              0.3536541644432242
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              -2.740007196767231,
+              0.3
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              -2.740007196767231,
+              0.44999999999999996
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              -2.7400071967672304,
+              0.0
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p14",
+            "pos": [
+              -2.3951052980513774,
+              0.16096249332967263
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              -2.7400071967672304,
+              0.44999999999999996
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p15",
+            "pos": [
+              -1.9799601028047205,
+              0.6563458355567758
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p16",
+            "pos": [
+              -1.8649928032327696,
+              0.7100000000000001
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              -1.8649928032327696,
+              0.56
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 10,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 13,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 5,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 16,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 19,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 8,
+            "b": 1,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 11,
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 13,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 17,
+            "a": 15,
+            "b": 16,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 20,
+            "a": 19,
+            "b": 18,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 8
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 8
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 8,
+            "value": 0.44999999999999996,
+            "param": "d5"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 1
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 2
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 1,
+            "b": 9
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 2,
+            "b": 9
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 9,
+            "value": 0.15,
+            "param": "d6"
+          },
+          {
+            "id": "k11",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 4
+          },
+          {
+            "id": "k12",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 5
+          },
+          {
+            "id": "k13",
+            "type": "tangent",
+            "a": 4,
+            "b": 10
+          },
+          {
+            "id": "k14",
+            "type": "tangent",
+            "a": 5,
+            "b": 10
+          },
+          {
+            "id": "k15",
+            "type": "radius",
+            "c": 10,
+            "value": 0.44999999999999996,
+            "param": "d7"
+          },
+          {
+            "id": "k16",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 5
+          },
+          {
+            "id": "k17",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 6
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 5,
+            "b": 11
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 6,
+            "b": 11
+          },
+          {
+            "id": "k20",
+            "type": "radius",
+            "c": 11,
+            "value": 0.15,
+            "param": "d8"
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 4,
+          "k": 20,
+          "l": 8,
+          "p": 16
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "row_s lead",
+      "suppressed": false,
+      "body_names": [
+        "row_s lead"
+      ],
+      "param_names": [
+        "d9"
+      ],
+      "type": "extrude",
+      "sketch": 2,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 4,
+      "name": "row_s root",
+      "suppressed": false,
+      "param_names": [
+        "d10"
+      ],
+      "type": "extrude",
+      "sketch": 2,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "body"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "tab sketch",
+      "suppressed": false,
+      "param_names": [
+        "d11"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- tab_width / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              1.5,
+              1.01
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "half_body - lead_root",
+              "y": "lead_exit + lead_thickness / 2"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              2.0750035983836153,
+              1.01
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tab_lead_shoulder + tab_lead_miter",
+              "y": "lead_exit + lead_thickness / 2"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              2.6700035983836155,
+              0.3
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tab_lead_foot_in + tab_lead_miter",
+              "y": "lead_thickness"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              3.5,
+              0.3
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "span / 2",
+              "y": "lead_thickness"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              3.5,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "span / 2"
+            }
+          },
+          {
+            "id": "corner3",
+            "pos": [
+              2.5299964016163847,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tab_lead_foot_in - tab_lead_miter"
+            }
+          },
+          {
+            "id": "corner4",
+            "pos": [
+              1.9349964016163848,
+              0.7100000000000001
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tab_lead_shoulder - tab_lead_miter",
+              "y": "lead_exit - lead_thickness / 2"
+            }
+          },
+          {
+            "id": "p8",
+            "pos": [
+              1.5,
+              0.7100000000000001
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "half_body - lead_root",
+              "y": "lead_exit - lead_thickness / 2"
+            }
+          },
+          {
+            "id": "p9",
+            "pos": [
+              1.8649928032327696,
+              1.01
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              2.2098947019486226,
+              0.8490375066703275
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              1.8649928032327698,
+              0.56
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              2.6250398971952795,
+              0.3536541644432242
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              2.740007196767231,
+              0.3
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              2.740007196767231,
+              0.44999999999999996
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              2.7400071967672304,
+              0.0
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p14",
+            "pos": [
+              2.3951052980513774,
+              0.16096249332967263
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              2.7400071967672304,
+              0.44999999999999996
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p15",
+            "pos": [
+              1.9799601028047205,
+              0.6563458355567758
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p16",
+            "pos": [
+              1.8649928032327696,
+              0.7100000000000001
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              1.8649928032327696,
+              0.56
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 10,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 13,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 5,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 16,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 19,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 8,
+            "b": 1,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 11,
+            "a": 10,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 12,
+            "b": 13,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 17,
+            "a": 16,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 20,
+            "a": 18,
+            "b": 19,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 8
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 8
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 8,
+            "value": 0.44999999999999996,
+            "param": "d12"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 1
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 2
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 1,
+            "b": 9
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 2,
+            "b": 9
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 9,
+            "value": 0.15,
+            "param": "d13"
+          },
+          {
+            "id": "k11",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 4
+          },
+          {
+            "id": "k12",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 5
+          },
+          {
+            "id": "k13",
+            "type": "tangent",
+            "a": 4,
+            "b": 10
+          },
+          {
+            "id": "k14",
+            "type": "tangent",
+            "a": 5,
+            "b": 10
+          },
+          {
+            "id": "k15",
+            "type": "radius",
+            "c": 10,
+            "value": 0.44999999999999996,
+            "param": "d14"
+          },
+          {
+            "id": "k16",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 5
+          },
+          {
+            "id": "k17",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 6
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 5,
+            "b": 11
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 6,
+            "b": 11
+          },
+          {
+            "id": "k20",
+            "type": "radius",
+            "c": 11,
+            "value": 0.15,
+            "param": "d15"
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 4,
+          "k": 20,
+          "l": 8,
+          "p": 16
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "tab",
+      "suppressed": false,
+      "body_names": [
+        "tab"
+      ],
+      "param_names": [
+        "d16"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "tab_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "tab root",
+      "suppressed": false,
+      "param_names": [
+        "d17"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "tab_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "body"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "row_s roots",
+      "suppressed": false,
+      "param_names": [
+        "d18",
+        "d19"
+      ],
+      "type": "pattern",
+      "features": [
+        4
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "row_s_leads",
+        "spacing1": "row_s_step * pitch"
+      }
+    },
+    {
+      "id": 9,
+      "name": "row_s pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_s lead (2)",
+        "row_s lead (3)",
+        "row_s lead (4)",
+        "row_s lead (5)",
+        "row_s lead (6)",
+        "row_s lead (7)",
+        "row_s lead (8)",
+        "row_s lead (9)",
+        "row_s lead (10)",
+        "row_s lead (11)",
+        "row_s lead (12)",
+        "row_s lead (13)",
+        "row_s lead (14)",
+        "row_s lead (15)",
+        "row_s lead (16)"
+      ],
+      "param_names": [
+        "d20",
+        "d21"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "row_s_leads",
+        "spacing1": "row_s_step * pitch"
+      },
+      "bodies": [
+        "row_s lead"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d22"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000001
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000001
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000001
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000001
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -3.25,
+          -1.75,
+          1.335
+        ],
+        [
+          3.25,
+          -1.75,
+          1.335
+        ],
+        [
+          3.25,
+          1.75,
+          1.335
+        ],
+        [
+          -3.25,
+          1.75,
+          1.335
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "body"
+    },
+    {
+      "id": 11,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d23"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000006
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000006
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000006
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -3.25,
+            -1.75,
+            0.06
+          ],
+          "max": [
+            3.25,
+            1.75,
+            1.6600000000000006
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y",
+        "F1:+x|F1:+z",
+        "F1:+y|F1:+z",
+        "F1:+z|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -1.75,
+          1.6600000000000001
+        ],
+        [
+          3.25,
+          0.0,
+          1.6600000000000001
+        ],
+        [
+          0.0,
+          1.75,
+          1.6600000000000001
+        ],
+        [
+          -3.25,
+          0.0,
+          1.6600000000000001
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body"
+    },
+    {
+      "id": 12,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d24"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "standoff + body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 13,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "row_s lead": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (9)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tab": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "module": {
+    "file": "tht.wasm",
+    "sha256": "45275378c5b4cd3a4cd770ad6e763f9d3b8de18065776e15848790ee26a537ff"
+  },
+  "name": "tht",
+  "parts": [
+    {
+      "file": "parts/tht-axial.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 0.25 W resistor, Ø2.5 × 6.5 mm, leads 0.6 mm at 10.16 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "b2a0256d8e411effd5bb2e16e036034358bc30ef97f258f1f82a0b4c6a4608e8",
+      "title": "Axial through-hole part"
+    },
+    {
+      "file": "parts/tht-dip.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a DIP-8 of 300 mil, 9.27 × 6.35 × 3.3 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "352e805c3ef124de722fcbd82e782dc145106c0e6163ad920792b29b264674c0",
+      "title": "Dual in-line package"
+    },
+    {
+      "file": "parts/tht-radial.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at Ø5 × 11 mm, leads 0.5 mm at 2 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "a03762d2339e97814a7dd9c6898cf43e18b3dd02b3c6237496761fa6f0d7c4dc",
+      "title": "Radial through-hole part"
+    },
+    {
+      "file": "parts/tht-radial-formed.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at Ø5 × 11 mm, leads 0.5 mm from 2 mm at the body to 5 mm, 1.5 mm standoff); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "8c4f93d28e1b18004ba67ed50464ae2149dafa9d2de0ad756c430f3e0da4606e",
+      "title": "Radial through-hole part, formed leads"
+    },
+    {
+      "file": "parts/tht-to.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a TO-220-3, 10 × 4.5 × 15.5 mm, 0.8 mm leads at 2.54 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "bd3317d8666524f1473ecf78a9895171e07b4b71c1dc3b5d07269fe2647bdf19",
+      "title": "TO package, straight leads"
+    },
+    {
+      "file": "parts/tht-to-formed.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a formed TO-92, 4.8 × 3.8 × 4.8 mm, 0.45 mm leads from 1.27 mm at the body to 2.54 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
+      "sha256": "9b4acbe3a2ee46ed39c7fc15c60fa3e02ceebfbe0c7702377561f0ad4af3110e",
+      "title": "TO package, formed leads"
+    }
+  ]
+}

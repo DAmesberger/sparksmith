@@ -1,8 +1,9 @@
 //! Slice B2d: the through-hole package family: axial (resistors, diodes),
 //! radial (capacitors), DIP and TO (TO-92, TO-220 style single rows). The
 //! form, its range rules and lead order live here; the footprint template
-//! (plated drills) is `templates/footprint_family/tht.rs` and the model
-//! builder (bent and formed leads) `sparksmith-solidcraft` `models/tht.rs`.
+//! (plated drills) is `templates/footprint_family/tht.rs`; the 3D model of
+//! a stored package is the `tht` generator's part file
+//! (`sparksmith-solidcraft` `models::family`).
 //!
 //! The seating plane z = 0 is the board's top face; leads reach
 //! `lead_below` under it into the drills. Lead order: an axial or radial
