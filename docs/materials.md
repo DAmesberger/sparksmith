@@ -261,7 +261,7 @@ Reading the table:
 
 **Mask materials (for track PL; not unified here).**
 - The board's mask is a diffuse pigmented body under a clear coat. The body is `mask_body(green, FR-4, 20 µm)` with roughness 1 and IOR 1. The coat has weight 1, roughness 0.06 and IOR 1.52. The mask carries the orange-peel detail.
-- The ESP32 module's board (`models/module.rs`) uses editor-core `MaterialId::SolderMaskGreen`: a dielectric (0.0118, 0.116, 0.032) with roughness 0.20, IOR 1.52, no coat and no peel. Its antenna uses `SolderMaskOverCopper`, (0.064, 0.237, 0.069), with the same 0.20 and no coat.
+- The ESP32 module's board (the `module` generator's part files; before 15 November 2026 `models/module.rs`) uses editor-core `MaterialId::SolderMaskGreen`: a dielectric (0.0118, 0.116, 0.032) with roughness 0.20, IOR 1.52, no coat and no peel. Its antenna uses `SolderMaskOverCopper`, (0.064, 0.237, 0.069), with the same 0.20 and no coat.
 - At grazing angles, the board's 0.06 coat mirrors the cyclorama, while the module's 0.20 uncoated surface stays green.
 - The module's pads use `MaterialId::Gold` (1.000, 0.782, 0.344; roughness 0.30). The board's ENIG is (1.0, 0.73, 0.30; 0.28).
 
