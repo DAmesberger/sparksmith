@@ -47,7 +47,8 @@ pub struct IssueGroupView {
 pub struct IssueRowView<'a> {
     pub level: Level,
     /// At most 80 characters (core's `MAX_TITLE`); cut to the row with the
-    /// full text on hover.
+    /// full text on hover: the title, or the cause when core clipped the
+    /// title with "…".
     pub title: &'a str,
     /// Findings merged into the row; above one it shows after the glyph.
     pub count: usize,
@@ -495,11 +496,19 @@ pub fn issues_list(
                     actions.push(Action::text("Waive\u{2026}", &waive));
                     kinds.push(RowAction::Waive);
                 }
+                // A title core clipped shows its cause, the unclipped
+                // line, on hover.
+                let full = view
+                    .title
+                    .ends_with(super::text::ELLIPSIS)
+                    .then_some(view.detail.cause.as_deref())
+                    .flatten();
                 let row = Row {
                     depth: 1,
                     fold_slot: true,
                     fold: line.fold,
                     name: &name,
+                    full,
                     trailing: Some((view.level, view.count)),
                     actions: &actions,
                     selected: cx.selected,
