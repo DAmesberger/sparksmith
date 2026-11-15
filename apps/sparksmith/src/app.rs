@@ -1335,6 +1335,14 @@ impl App {
             self.canvas_menu_requests(&ctx);
             return;
         };
+        if self.workspace == Workspace::Part {
+            // The generator gallery over the 3D view (Change package…):
+            // the canvas that draws it in the other tabs is not drawn here
+            // (E2E run 9: the click opened it unseen).
+            let ctx = ui.ctx().clone();
+            let sheet = self.part.template_sheet(&ctx, &self.engine);
+            self.apply(&ctx, Origin::Canvas, sheet);
+        }
         let display = self.scene.display(&key);
         if self.workspace == Workspace::Pcb {
             self.open_timing.drew(display);

@@ -52,6 +52,8 @@ pub(crate) struct Ax {
     nodes: Vec<Node>,
     /// The texts the last frame painted, whole (a cut text's full text).
     pub texts: Vec<String>,
+    /// Each painted text with the part of it its clip leaves visible.
+    pub seen: Vec<(String, egui::Rect)>,
     /// Every text a frame handed to the platform's clipboard, oldest first.
     pub copied: Vec<String>,
 }
@@ -119,6 +121,7 @@ impl Ax {
             window: WINDOW,
             nodes: Vec::new(),
             texts: Vec::new(),
+            seen: Vec::new(),
             copied: Vec::new(),
         };
         ax.settle();
@@ -146,10 +149,13 @@ impl Ax {
         } = self;
         let mut out = ctx.run_ui(input, |ui| eframe::App::ui(app, ui, frame));
         out.textures_delta.clear();
-        self.texts = crate::kit::text::tests::painted(&out)
-            .into_iter()
-            .map(|(text, ..)| text)
+        let painted = crate::kit::text::tests::painted(&out);
+        self.seen = painted
+            .iter()
+            .map(|(text, rect, _, clip)| (text.clone(), rect.intersect(*clip)))
+            .filter(|(_, rect)| rect.is_positive())
             .collect();
+        self.texts = painted.into_iter().map(|(text, ..)| text).collect();
         self.copied
             .extend(out.platform_output.commands.iter().filter_map(|c| match c {
                 egui::OutputCommand::CopyText(text) => Some(text.clone()),

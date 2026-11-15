@@ -77,7 +77,7 @@ These are rules for every slice. [sparksmith-ui](../skills/sparksmith-ui/SKILL.m
 ```
 
 - `app/chrome.rs` `workspace_area` owns the column. The subject slot holds exactly one of: Properties card, tool card, dialog panel or review panel.
-- Collapsed, Issues is a 28 pt bar. Expanded, Issues takes only the height its content uses (bar, toolbar, list, footer) and the subject the rest; the subject keeps its header and 10 rows (after upstream `stack_first_bounds`), or its whole content when that is shorter, so a short board card gives Issues the room. A docked dialog or review keeps its whole height (its body up to `body_rows`), so a form it opens shows without scrolling; Issues takes the rest. All heights are measured on the previous frame.
+- Collapsed, Issues is a 28 pt bar. Expanded, Issues takes only the height its content uses (bar, toolbar, list, footer) and the subject the rest; the subject keeps its header and 10 rows (after upstream `stack_first_bounds`), or its whole content when that is shorter, so a short board card gives Issues the room; in a short column it gives way first, down to a third of the column, so the Issues list keeps its bar, toolbar, three rows and footer (1024 × 560). A docked dialog or review keeps its whole height (its body up to `body_rows`), so a form it opens shows without scrolling; Issues takes the rest. All heights are measured on the previous frame.
 - The column is a fixed layout, not a docking framework, as [the product plan](sparksmith-plan.md) asks ("Initial panel layouts should be fixed and coherent").
 - Toasts sit bottom-centre of the canvas, clear of the bottom-left hint line. The canvas count badge sits top-right.
 

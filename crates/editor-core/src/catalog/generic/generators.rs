@@ -525,6 +525,24 @@ pub fn find_presets(
     if query.len() > MAX_QUERY || words.is_empty() || words.len() > MAX_WORDS {
         return (Vec::new(), 0);
     }
+    // A bare size code reads as imperial (the grammar's rule): it does not
+    // match a preset's metric alias ("0603 metric", the 0201) unless the
+    // text says metric itself.
+    let lowered = query.to_lowercase();
+    let metric: Vec<(usize, String)> = standards::get()
+        .map(|s| s.generic.metric_alias.to_lowercase())
+        .map(|pattern| {
+            words
+                .iter()
+                .enumerate()
+                .filter(|(_, w)| {
+                    (3..=5).contains(&w.len()) && w.bytes().all(|b| b.is_ascii_digit())
+                })
+                .map(|(k, w)| (k, pattern.replace("{code}", w)))
+                .filter(|(_, alias)| !lowered.contains(alias.as_str()))
+                .collect()
+        })
+        .unwrap_or_default();
     let mut found: Vec<(bool, &v1::Description, &v1::Preset)> = Vec::new();
     for description in descriptions {
         let families = description
@@ -542,7 +560,11 @@ pub fn find_presets(
             )
             .to_lowercase()
             .replace('×', "x");
-            if words.iter().all(|w| text.contains(w.as_str())) {
+            let names = |k: usize, w: &str| match metric.iter().find(|(m, _)| *m == k) {
+                Some((_, alias)) => text.replace(alias.as_str(), "").contains(w),
+                None => text.contains(w),
+            };
+            if words.iter().enumerate().all(|(k, w)| names(k, w)) {
                 let exact = preset
                     .aliases
                     .iter()

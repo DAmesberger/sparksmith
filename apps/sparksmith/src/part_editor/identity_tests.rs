@@ -740,3 +740,142 @@ fn change_package_takes_a_generators_package_in_one_step() -> TestResult {
     assert_eq!(*engine.project(), before);
     Ok(())
 }
+
+/// E2E run 9 finding 1: Change package… on a drafted generated part (its
+/// drafts pin the stored revisions they were drafted from). After each
+/// replacement, also twice in a row and to a package with fewer
+/// terminals, the package's terminals, the footprint's pads and the
+/// binding agree: every pad lands a terminal of the package draft, every
+/// terminal has a pad, and new terminals are reported unmapped, never
+/// filled.
+#[test]
+fn change_package_on_a_drafted_part_keeps_package_footprint_and_mapping_agreeing() -> TestResult {
+    use crate::generators::{self, Into, MakeRequest};
+    use sparksmith_core::library::Definition;
+    let mut engine = Engine::profiled()?;
+    engine.set_generators(sparksmith_automation::session::generators::runtime());
+    let request = |preset: &str| MakeRequest {
+        generator: "no-lead".into(),
+        preset: Some(preset.into()),
+        params: Default::default(),
+        name: None,
+        values: Vec::new(),
+    };
+    let make = generators::command(
+        &engine,
+        &request("no-lead-qfn-16-3x3-0.5"),
+        Into::Part(sparksmith_core::library::generated::GeneratorScope::Component),
+    )?;
+    let sparksmith_core::Outcome::Generated { report } = engine.apply_hosted(
+        engine.revision(),
+        make,
+        sparksmith_core::Evaluators::default(),
+    )?
+    else {
+        return Err("a generated part".into());
+    };
+    let component = ComponentRef::new(report.root.id, report.root.revision);
+    engine.apply(
+        engine.revision(),
+        Operation::Library(sparksmith_core::LibraryCommand::DraftClosure { component }),
+    )?;
+    let package_draft = engine
+        .drafts()
+        .items
+        .iter()
+        .find(|d| matches!(d.definition, Definition::Package(_)))
+        .map(|d| d.id)
+        .ok_or("a package draft")?;
+    let agree = |engine: &Engine,
+                 terminals: usize,
+                 unmapped: bool,
+                 removed: bool,
+                 replaced: bool|
+     -> TestResult {
+        let drafts = engine.drafts();
+        let mut package = None;
+        let mut footprint = None;
+        let mut binding = None;
+        for d in &drafts.items {
+            match &d.definition {
+                Definition::Package(p) => package = Some((d, p)),
+                Definition::Footprint(f) => footprint = Some(f),
+                Definition::Binding(b) => binding = Some(b),
+                _ => {}
+            }
+        }
+        let (Some((draft, package)), Some(footprint), Some(binding)) =
+            (package, footprint, binding)
+        else {
+            return Err("the working set's drafts".into());
+        };
+        assert_eq!(package.terminals.len(), terminals);
+        let reports = sparksmith_core::completeness::drafts(engine.project(), drafts)?;
+        let codes: Vec<&str> = reports
+            .iter()
+            .flat_map(|r| r.findings.iter().map(|f| f.code.as_str()))
+            .collect();
+        for wrong in [
+            "footprint.pad_terminal_unknown",
+            "footprint.terminal_without_pad",
+        ] {
+            assert!(!codes.contains(&wrong), "{wrong}: {codes:?}");
+        }
+        // New terminals are to-dos to map; mappings of removed terminals
+        // are flagged, never dropped or moved by name.
+        assert_eq!(
+            codes.contains(&"binding.mapping_missing"),
+            unmapped,
+            "{codes:?}"
+        );
+        assert_eq!(
+            codes.contains(&"binding.mapping_unknown"),
+            removed,
+            "{codes:?}"
+        );
+        // Freshly drafted, the drafts pin the stored revisions they came
+        // from; once the package draft changed they name its revision.
+        let pinned = if replaced {
+            draft.pending()
+        } else {
+            draft.base
+        };
+        assert_eq!(
+            Some(footprint.package.revision),
+            pinned,
+            "footprint lands the package"
+        );
+        assert_eq!(
+            Some(binding.package.revision),
+            pinned,
+            "binding names the package"
+        );
+        for pad in &footprint.pads {
+            let terminal = pad.terminal.ok_or("a pad without a terminal")?;
+            assert!(package.terminal(terminal).is_some(), "{pad:?}");
+        }
+        Ok(())
+    };
+    agree(&engine, 17, false, false, false)?;
+    for (preset, terminals, unmapped, removed) in [
+        ("no-lead-qfn-20-3x3-0.4", 21, true, false),
+        ("no-lead-qfn-20-3x3-0.4", 21, true, false),
+        ("no-lead-qfn-12-3x3-0.5", 13, false, true),
+    ] {
+        let operation = generators::command(
+            &engine,
+            &request(preset),
+            Into::WorkingPackage {
+                draft: package_draft,
+                replace: true,
+            },
+        )?;
+        engine.apply_hosted(
+            engine.revision(),
+            operation,
+            sparksmith_core::Evaluators::default(),
+        )?;
+        agree(&engine, terminals, unmapped, removed, true)?;
+    }
+    Ok(())
+}
