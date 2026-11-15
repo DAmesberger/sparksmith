@@ -1,8 +1,8 @@
 use super::{OffGridPin, Outcome};
 use crate::diagnostics::{Error, Result};
 use crate::ids::{
-    ComponentRef, DefinitionId, DefinitionKind, DefinitionRef, LibraryId, PartRef, SourceLineageId,
-    TerminalId,
+    BindingRef, ComponentRef, DefinitionId, DefinitionKind, DefinitionRef, FootprintRef, LibraryId,
+    PackageRef, PartRef, Revision, SourceLineageId, SymbolRef, TerminalId,
 };
 use crate::instances::{self, NewInstance};
 use crate::library::Bundle;
@@ -810,7 +810,7 @@ fn draft_closure(document: &mut Document, component: ComponentRef) -> Result<Vec
         }
     }
     let mut drafted = Vec::new();
-    for revision in wanted {
+    for revision in wanted.iter().copied() {
         if document.drafts.get(revision.id).is_some() {
             continue;
         }
@@ -829,7 +829,63 @@ fn draft_closure(document: &mut Document, component: ComponentRef) -> Result<Vec
         )?;
         drafted.push(revision.id);
     }
+    pin_pending(document, &wanted);
     Ok(drafted)
+}
+
+/// The working set's drafts naming each other's pending revisions: a
+/// reference from one draft of `set` to the stored revision another was
+/// drafted from now names that draft's pending revision, as the part
+/// editor's own edits pin them. Without it a published closure would name
+/// the revisions it was drafted from, not what it publishes together.
+fn pin_pending(document: &mut Document, set: &[DefinitionRef]) {
+    let pending: Vec<(DefinitionId, Revision, Revision)> = set
+        .iter()
+        .filter_map(|r| {
+            let draft = document.drafts.get(r.id)?;
+            Some((r.id, draft.base?, draft.pending()?))
+        })
+        .collect();
+    let next = |id: DefinitionId, revision: Revision| {
+        pending
+            .iter()
+            .find(|(i, base, _)| *i == id && *base == revision)
+            .map(|(_, _, p)| *p)
+    };
+    let ids: Vec<DefinitionId> = set.iter().map(|r| r.id).collect();
+    let drafts = Arc::make_mut(&mut document.drafts);
+    for draft in drafts.items.iter_mut().filter(|d| ids.contains(&d.id)) {
+        match &mut draft.definition {
+            Definition::Component(c) => {
+                for r in &mut c.representations {
+                    if let Some(p) = next(r.id, r.revision) {
+                        *r = SymbolRef::new(r.id, p);
+                    }
+                }
+                for r in &mut c.implementations {
+                    if let Some(p) = next(r.id, r.revision) {
+                        *r = BindingRef::new(r.id, p);
+                    }
+                }
+            }
+            Definition::Binding(b) => {
+                if let Some(p) = next(b.package.id, b.package.revision) {
+                    b.package = PackageRef::new(b.package.id, p);
+                }
+                for r in &mut b.footprints {
+                    if let Some(p) = next(r.id, r.revision) {
+                        *r = FootprintRef::new(r.id, p);
+                    }
+                }
+            }
+            Definition::Footprint(f) => {
+                if let Some(p) = next(f.package.id, f.package.revision) {
+                    f.package = PackageRef::new(f.package.id, p);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// `evaluator` is the host's footprint evaluator (`Engine::apply_with`);

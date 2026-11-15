@@ -155,7 +155,7 @@ pub(crate) fn package_from_generator(
             .map_or(0, |g| g.from.version),
         report.root.id
     );
-    super::working_package::adopt_generated_package(
+    let outcome = super::working_package::adopt_generated_package(
         document,
         request.draft,
         request.replace,
@@ -163,7 +163,66 @@ pub(crate) fn package_from_generator(
         &request.renumber,
         (&package, &footprint),
         provenance,
-    )
+    )?;
+    retarget_working_set(document, request.draft);
+    Ok(outcome)
+}
+
+/// The working set's sibling drafts pinning each other's pending revisions
+/// (as the part editor's own edits pin them): the footprint drafts and
+/// bindings of the package draft `package` name its pending revision, a
+/// binding names its footprint drafts' pending revisions and a component
+/// its binding drafts'. A drafted stored part pins the stored revisions it
+/// was drafted from, so without this the footprint and binding would still
+/// be checked against the package the generator replaced (E2E run 9).
+fn retarget_working_set(document: &mut Document, package: DefinitionId) {
+    use crate::library::Definition;
+    let pending = |id: DefinitionId| document.drafts.get(id).and_then(|d| d.pending());
+    let Some(package_revision) = pending(package) else {
+        return;
+    };
+    let footprints: Vec<(DefinitionId, Revision)> = document
+        .drafts
+        .items
+        .iter()
+        .filter_map(|d| match &d.definition {
+            Definition::Footprint(f) if f.package.id == package => Some((d.id, d.pending()?)),
+            _ => None,
+        })
+        .collect();
+    let bindings: Vec<(DefinitionId, Revision)> = document
+        .drafts
+        .items
+        .iter()
+        .filter_map(|d| match &d.definition {
+            Definition::Binding(b) if b.package.id == package => Some((d.id, d.pending()?)),
+            _ => None,
+        })
+        .collect();
+    let drafts = Arc::make_mut(&mut document.drafts);
+    for draft in &mut drafts.items {
+        match &mut draft.definition {
+            Definition::Footprint(f) if f.package.id == package => {
+                f.package = PackageRef::new(package, package_revision);
+            }
+            Definition::Binding(b) if b.package.id == package => {
+                b.package = PackageRef::new(package, package_revision);
+                for r in &mut b.footprints {
+                    if let Some((id, revision)) = footprints.iter().find(|(id, _)| *id == r.id) {
+                        *r = FootprintRef::new(*id, *revision);
+                    }
+                }
+            }
+            Definition::Component(c) => {
+                for r in &mut c.implementations {
+                    if let Some((id, revision)) = bindings.iter().find(|(id, _)| *id == r.id) {
+                        *r = BindingRef::new(*id, *revision);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// A module by hash, with its bytes when they are not embedded yet.

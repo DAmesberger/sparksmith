@@ -18,7 +18,9 @@ use sparksmith_core::catalog::generic::GenericValue;
 use sparksmith_core::catalog::generic::generators::{self as catalog, GeneratorCandidate};
 use sparksmith_core::commands::PackageFromGenerator;
 use sparksmith_core::commands::working_package::TerminalMatch;
-use sparksmith_core::library::generated::{GeneratorParams, GeneratorScope, Standing};
+use sparksmith_core::library::generated::{
+    GeneratorParams, GeneratorScope, ParamProblem, Standing,
+};
 use sparksmith_core::{ComponentRef, DefinitionId, Engine, LibraryCommand, Operation};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
@@ -340,6 +342,79 @@ pub fn make(
         }))
         .ok()?;
     Some(Making { receiver })
+}
+
+/// The module's refusal of `request`'s values, by field (empty when the
+/// module makes the part): `request`'s parameters run through the module
+/// on a session over a fork of `engine`, without its part file.
+pub fn refusals(
+    engine: &Engine,
+    request: &MakeRequest,
+    scope: GeneratorScope,
+) -> Result<Vec<ParamProblem>, String> {
+    let mut fork = engine.fork();
+    let params = GeneratePartParams {
+        generator: Some(request.generator.clone()),
+        module: None,
+        scope,
+        preset: request.preset.clone(),
+        params: request.params.clone(),
+        name: None,
+        replaces: None,
+        expected_revision: engine.revision(),
+    };
+    let mut session = Session::lending();
+    session
+        .lend(&mut fork, None, |s| s.refusals(params))
+        .map_err(|e| crate::refusal::automation_error(&e))
+}
+
+/// A check of a request's values by its module, off the UI thread (D1:
+/// a value the module refuses is marked on its field as it is edited).
+pub struct Checking {
+    /// The request being checked.
+    pub request: MakeRequest,
+    receiver: Receiver<Vec<ParamProblem>>,
+}
+
+impl std::fmt::Debug for Checking {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Checking")
+    }
+}
+
+impl Checking {
+    /// The module's problems once the check is done. A check that could
+    /// not run reports nothing: the make itself still refuses.
+    pub fn poll(&mut self) -> Option<Vec<ParamProblem>> {
+        match self.receiver.try_recv() {
+            Ok(problems) => Some(problems),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => Some(Vec::new()),
+        }
+    }
+}
+
+/// Check `request` with its module off the UI thread; `None` when no
+/// thread could start.
+pub fn check(
+    ctx: &egui::Context,
+    engine: &Engine,
+    request: MakeRequest,
+    scope: GeneratorScope,
+) -> Option<Checking> {
+    let fork = engine.fork();
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let repaint = ctx.clone();
+    let checked = request.clone();
+    std::thread::Builder::new()
+        .name("sparksmith-check-part".into())
+        .spawn(sparksmith_core::library::standards::carried(move || {
+            let _ = sender.send(refusals(&fork, &checked, scope).unwrap_or_default());
+            repaint.request_repaint();
+        }))
+        .ok()?;
+    Some(Checking { request, receiver })
 }
 
 /// The component lineages the project has published.

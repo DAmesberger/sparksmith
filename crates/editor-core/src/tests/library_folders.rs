@@ -1862,11 +1862,40 @@ fn draft_closure_drafts_the_working_set_in_one_step() -> Result<()> {
     assert_eq!(ids.first(), Some(&component.id));
     assert!(ids.len() >= 4, "{ids:?}");
     assert_eq!(engine.revision(), revision + 1);
+    // The drafts name each other's pending revisions, so the set publishes
+    // as one: the component its binding draft's, the binding its package's.
+    let pending = |id| engine.drafts().get(id).and_then(|d| d.pending());
+    let Some(crate::library::Definition::Component(drafted)) =
+        engine.drafts().get(component.id).map(|d| &d.definition)
+    else {
+        return Err(Error::Invalid("the component draft".into()));
+    };
+    let binding = *drafted
+        .implementations
+        .first()
+        .ok_or(Error::Invalid("binding".into()))?;
+    assert_eq!(Some(binding.revision), pending(binding.id));
+    let Some(crate::library::Definition::Binding(b)) =
+        engine.drafts().get(binding.id).map(|d| &d.definition)
+    else {
+        return Err(Error::Invalid("the binding draft".into()));
+    };
+    assert_eq!(Some(b.package.revision), pending(b.package.id));
+    let published = engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::Publish {
+            drafts: ids.clone(),
+            close: false,
+        }),
+    );
+    assert!(published.is_ok(), "{published:?}");
+    engine.undo()?;
+    let drafted_at = engine.revision();
     let Outcome::DraftsCreated { ids: none } = close(&mut engine)? else {
         return Err(Error::Invalid("drafts".into()));
     };
     assert!(none.is_empty());
-    assert_eq!(engine.revision(), revision + 1, "nothing left to draft");
+    assert_eq!(engine.revision(), drafted_at, "nothing left to draft");
     engine.undo()?;
     assert_eq!(engine.to_file(), before);
     Ok(())

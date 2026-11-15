@@ -23,7 +23,7 @@
 //! made is refused. Each submit waits for the engine's answer: a refusal
 //! comes back to the sheet's refusal line, success closes the sheet.
 use crate::generator_form::{self, Values};
-use crate::generators::{self, Into, MakeRequest, Making, Offer, Shelf};
+use crate::generators::{self, Checking, Into, MakeRequest, Making, Offer, Shelf};
 use crate::kit::severity::Level;
 use crate::kit::toast::{ToastAction, post};
 use crate::kit::{self, Tone};
@@ -32,7 +32,7 @@ use egui::{Align, Layout, Ui, pos2, vec2};
 use sparksmith_core::catalog::MAX_QUERY;
 use sparksmith_core::catalog::generic::generators::{GeneratorCandidate, PresetHit};
 use sparksmith_core::library::MAX_LABEL;
-use sparksmith_core::library::generated::{GeneratorScope, Standing};
+use sparksmith_core::library::generated::{GeneratorScope, ParamProblem, Standing};
 use sparksmith_core::{ComponentRef, DefinitionId, Engine, Operation};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button};
@@ -178,6 +178,10 @@ struct Open {
     making: Option<(Making, Sent, MakeRequest, bool)>,
     submitted: Option<Submitted>,
     refusal: Option<String>,
+    /// The module checking the values being edited, off the UI thread.
+    checking: Option<Checking>,
+    /// The last values the module checked and its problems with them.
+    checked: Option<(MakeRequest, Vec<ParamProblem>)>,
 }
 
 impl Open {
@@ -199,6 +203,8 @@ impl Open {
             making: None,
             submitted: None,
             refusal: None,
+            checking: None,
+            checked: None,
         }
     }
 
@@ -413,6 +419,7 @@ impl GeneratorGallery {
         }
         let offers = self.shelf.offers().unwrap_or_default();
         self.refresh(&offers);
+        self.check(ctx, engine);
         let query_id = egui::Id::unique(GALLERY).with("query");
         // The rows own ↑↓⏎ while the search field (or nothing) has focus; a
         // value being typed keeps its keys.
@@ -459,13 +466,55 @@ impl GeneratorGallery {
         None
     }
 
+    /// Have the module check the values being edited (D1: its refusal is
+    /// marked on the field as the value is edited, not only on Create):
+    /// one check at a time, off the UI thread, again whenever the values
+    /// moved on.
+    fn check(&mut self, ctx: &egui::Context, engine: &Engine) {
+        let Some(open) = self.open.as_mut() else {
+            return;
+        };
+        if let Some(checking) = &mut open.checking
+            && let Some(problems) = checking.poll()
+        {
+            open.checked = Some((checking.request.clone(), problems));
+            open.checking = None;
+        }
+        let Some(request) = open.values.as_ref().map(|v| v.request(None)) else {
+            return;
+        };
+        let current = open.checked.as_ref().is_some_and(|(r, _)| *r == request);
+        if open.checking.is_none() && !current {
+            let scope = open.scope.generator_scope();
+            open.checking = generators::check(ctx, engine, request, scope);
+        }
+    }
+
+    /// The module's problems with the values being edited, once it has
+    /// checked exactly these.
+    fn refused(&self) -> Option<Vec<ParamProblem>> {
+        let open = self.open.as_ref()?;
+        let request = open.values.as_ref()?.request(None);
+        open.checked
+            .as_ref()
+            .filter(|(r, problems)| *r == request && !problems.is_empty())
+            .map(|(_, problems)| problems.clone())
+    }
+
     /// Where the form's part stands, and why the primary cannot act, if it
-    /// cannot.
+    /// cannot. Values the module refused when it checked them stand as
+    /// invalid, in its words.
     fn standing(&self, engine: &Engine) -> Option<(Standing, Option<String>)> {
         let open = self.open.as_ref()?;
         let request = self.request()?;
         let offer = self.shelf.offer(&request.generator)?;
-        let standing = generators::standing(engine, &offer, open.scope.generator_scope(), &request);
+        let mut standing =
+            generators::standing(engine, &offer, open.scope.generator_scope(), &request);
+        if matches!(standing, Standing::New | Standing::Update { .. })
+            && let Some(problems) = self.refused()
+        {
+            standing = Standing::Invalid { problems };
+        }
         let blocked = if open.making.is_some() {
             Some("Making the part…".to_owned())
         } else if open.submitted.is_some() {

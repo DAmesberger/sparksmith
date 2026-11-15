@@ -298,7 +298,6 @@ def build(s):
     if bad:
         raise SystemExit(f"blocking findings: {bad}")
     for group in publish:
-        repoint(s, group)
         publish_and_close(s, group, "publish part " + drafts_name(s, group[0]))
 
     # Manufacturer Parts.

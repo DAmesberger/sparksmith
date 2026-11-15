@@ -131,6 +131,26 @@ fn the_text_is_read_as_before_and_a_size_without_a_preset_is_refused() -> TestRe
     // Presets are found by their names and aliases.
     let (qfn, _) = find_presets(document, "qfn-16", &descriptions, 10);
     assert!(qfn.iter().all(|h| h.generator == "no-lead") && !qfn.is_empty());
+    // E2E run 9: a bare size code reads as imperial; the metric 0603 (the
+    // imperial 0201) is found only when the text says metric.
+    let keys = |text: &str| -> Vec<String> {
+        find_presets(document, text, &descriptions, 50)
+            .0
+            .into_iter()
+            .map(|h| h.preset)
+            .collect()
+    };
+    let imperial = keys("resistor 0603");
+    assert!(
+        imperial.iter().any(|k| k == "resistor-0603"),
+        "{imperial:?}"
+    );
+    assert!(
+        !imperial.iter().any(|k| k == "resistor-0201"),
+        "{imperial:?}"
+    );
+    let metric = keys("resistor 0603 metric");
+    assert!(metric.iter().any(|k| k == "resistor-0201"), "{metric:?}");
     // VM run 8: every generator's presets are offered, the module's WROOM-3
     // among them, by its name and by the generator's words.
     for text in ["wroom", "module", "esp32"] {

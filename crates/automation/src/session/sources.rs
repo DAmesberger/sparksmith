@@ -46,8 +46,8 @@ pub struct SourceInfo {
     /// Catalog entries (component and Part lineages at their latest revision).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entries: Option<usize>,
-    /// Package template rows (latest revisions), which `library.templates`
-    /// searches; a folder of rows alone has no entries.
+    /// Package rows (latest revisions), each a generator and its
+    /// parameters; a folder of rows alone has no entries.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub package_rows: Option<usize>,
     /// Revision records the folder holds.

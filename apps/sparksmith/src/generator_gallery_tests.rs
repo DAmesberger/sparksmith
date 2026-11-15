@@ -302,3 +302,46 @@ fn create_makes_the_part_and_hands_it_over() -> TestResult {
     assert!(!gallery.is_open());
     Ok(())
 }
+
+/// E2E run 9, finding 2: a value the module refuses (the ground array
+/// turned 30°) is marked in the module's words while the form is open,
+/// before Create, and Create makes nothing while it stands.
+#[test]
+fn a_value_the_module_refuses_is_marked_before_create() -> TestResult {
+    let ctx = context();
+    let engine = engine();
+    let mut gallery = GeneratorGallery::default();
+    gallery.set_shelf(&test_shelf());
+    let mut params = sparksmith_core::library::generated::GeneratorParams::new();
+    params.insert(
+        "ground_rotation".into(),
+        sparksmith_core::library::generated::ParamValue::Int(30_000),
+    );
+    let request = MakeRequest {
+        generator: "module".into(),
+        preset: Some("module-esp32-s31-wroom-3".into()),
+        params,
+        name: None,
+        values: Vec::new(),
+    };
+    gallery.open_on(&request, String::new(), false);
+    let message =
+        "The ground array is turned 30°; the module's part files turn it by a multiple of 45°.";
+    let mut marked = false;
+    for _ in 0..600 {
+        let (texts, _) = frame(&ctx, &mut gallery, &engine, vec![]);
+        if texts.iter().any(|t| t == message) {
+            marked = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(marked, "the module's refusal is marked before Create");
+    frame(&ctx, &mut gallery, &engine, vec![enter()]);
+    for _ in 0..5 {
+        let (_, sent) = frame(&ctx, &mut gallery, &engine, vec![]);
+        assert!(sent.is_none(), "Create made nothing");
+    }
+    assert!(gallery.open.as_ref().is_some_and(|o| o.making.is_none()));
+    Ok(())
+}

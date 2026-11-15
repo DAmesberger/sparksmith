@@ -781,12 +781,27 @@ impl Surface {
                     if copy.clicked() {
                         ui.ctx().copy_text(report_text(report));
                     }
-                    let note = ui
-                        .with_layout(Layout::left_to_right(Align::Center), |ui| {
-                            kit::hint(ui, &report.coverage, "What these checks cover")
-                        })
-                        .inner;
-                    copy.rect.height().max(note.rect.height()) + 2.0 * t.space_4
+                    // One line beside Copy report, its full text on hover,
+                    // so a narrow column keeps its room for the list (E2E
+                    // run 9 at 1024 × 560).
+                    let room = ui.available_rect_before_wrap();
+                    let note = Rect::from_min_max(
+                        pos2(room.left(), copy.rect.top()),
+                        pos2(
+                            (room.right() - t.space_8).max(room.left()),
+                            copy.rect.bottom(),
+                        ),
+                    );
+                    kit::text::line(
+                        ui,
+                        ui.scope_id().with("coverage"),
+                        note,
+                        &report.coverage,
+                        "What these checks cover",
+                        egui::FontId::proportional(t.font_small),
+                        t.form_dim,
+                    );
+                    copy.rect.height() + 2.0 * t.space_4
                 },
             )
             .inner;

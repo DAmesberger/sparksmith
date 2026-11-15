@@ -311,3 +311,54 @@ fn power_net_patterns_are_taken_and_refused_ones_named() -> Fallible<()> {
     assert!(report.summary_named().contains("KiCad 0.01 mm"));
     Ok(())
 }
+
+/// E2E run 9, finding 6: a class whose only membership is a regular
+/// expression (`V[A-Z]+|GND`) still has that pattern refused and named.
+/// The same pattern on the Default class is not a refusal: a net no
+/// class takes is the default class's already, so it is skipped as every
+/// default-class pattern is (run 9's project had it on Default).
+#[test]
+fn a_regex_only_class_pattern_is_named_and_a_default_class_pattern_skipped() -> Fallible<()> {
+    let board = Board {
+        copper: 2,
+        origin: None,
+        setup: "(pad_to_mask_clearance 0)".into(),
+        footprints: vec![Footprint::new(
+            "R1",
+            [10.0, 10.0, 0.0],
+            false,
+            vec![
+                Pad::smd("1", "rect", [-1.0, 0.0, 0.0], [0.8, 0.6]).with("(net 1 \"VIN\")"),
+                Pad::smd("2", "rect", [1.0, 0.0, 0.0], [0.8, 0.6]).with("(net 2 \"GND\")"),
+            ],
+        )],
+        items: "  (net 1 \"VIN\") (net 2 \"GND\")
+  (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (layer \"Edge.Cuts\"))\n"
+            .into(),
+    };
+    let project = |class: &str| {
+        let classes = r#"{"name":"Default","clearance":0.2,"track_width":0.25},
+              {"name":"Power","clearance":0.25,"track_width":0.4}"#;
+        let pattern = format!(r#"{{"netclass":"{class}","pattern":"V[A-Z]+|GND"}}"#);
+        format!(r#"{{"net_settings":{{"classes":[{classes}],"netclass_patterns":[{pattern}]}}}}"#)
+    };
+    let power =
+        support::import_with_project(board.text().as_bytes(), Some(project("Power").as_bytes()))?;
+    let lines: Vec<String> = power
+        .report
+        .refused_patterns()
+        .iter()
+        .map(|p| p.line())
+        .collect();
+    assert_eq!(
+        lines,
+        ["V[A-Z]+|GND: a regular expression; only * and ? wildcards are read"]
+    );
+    assert!(power.report.summary_named().contains(&lines[0]));
+    assert!(power.engine.project().rules.patterns.is_empty());
+    let default =
+        support::import_with_project(board.text().as_bytes(), Some(project("Default").as_bytes()))?;
+    assert!(default.report.refused_patterns().is_empty());
+    assert!(default.engine.project().rules.patterns.is_empty());
+    Ok(())
+}

@@ -68,38 +68,6 @@ def draft_closure(s, root):
          f"draft {root['id']}")
 
 
-def repoint(s, ids):
-    """Point the drafts `ids` at each other's pending revisions: a drafted
-    working set still names the revisions it was drafted from, and a
-    published set must name what it publishes together."""
-    lib = s.raw("project.inspect")["result"]["project"]["library"]
-    latest = {}
-    for kind in lib.values():
-        if isinstance(kind, list):
-            for d in kind:
-                if isinstance(d, dict) and "revision" in d:
-                    latest[d["id"]] = max(latest.get(d["id"], 0), d["revision"])
-    pending = {i: latest.get(i, 0) + 1 for i in ids}
-    all_drafts = drafts(s)
-
-    def walk(v):
-        if isinstance(v, dict):
-            if set(v) == {"id", "revision"} and v["id"] in pending:
-                return dict(v, revision=pending[v["id"]]) if v["revision"] != pending[v["id"]] else v
-            return {k: walk(x) for k, x in v.items()}
-        if isinstance(v, list):
-            return [walk(x) for x in v]
-        return v
-    edits = []
-    for i in ids:
-        d = all_drafts[i]
-        new = walk(d["definition"])
-        if new != d["definition"]:
-            edits.append({"id": i, "meta": d["meta"], "definition": new})
-    if edits:
-        edit(s, edits, "name the revisions published together")
-
-
 def footprint_from_pads(s, package, pads, slots=(), holes=()):
     """A new footprint draft landing `package`'s draft, built from a pad table."""
     body = {"package": {"id": package, "revision": 1}, "next_local": 1, "source": None, "pads": [], "graphics": [],
