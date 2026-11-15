@@ -41,12 +41,12 @@ fn the_tables_parse_into_rows_over_every_family() -> Fallible<()> {
     }
     // A module has no generic outline: each one is its own datasheet, so
     // the starter tables carry no module rows (its custom entry remains).
-    // A USB-C receptacle's land pattern is one manufacturer's drawing, so
-    // its table holds the receptacles typed from one, not a size series.
-    assert_eq!(per_family.get(&Some(FamilyKind::UsbC)).copied(), Some(1));
+    // A USB-C receptacle is one manufacturer's part, not a size series: it
+    // ships as an authored library part (`library/parts/gct-usb4105`).
+    assert_eq!(per_family.get(&Some(FamilyKind::UsbC)), None);
     for family in FamilyKind::ALL
         .into_iter()
-        .filter(|f| !matches!(f, FamilyKind::Module | FamilyKind::UsbC))
+        .filter(|f| !matches!(f, FamilyKind::Module))
     {
         assert!(
             per_family.get(&Some(family)).copied().unwrap_or(0) >= 5,
@@ -112,8 +112,6 @@ fn names_agree_with_lead_counts() -> Fallible<()> {
         );
         if let Some((_, count)) = named.iter().find(|(n, _)| n == name) {
             assert_eq!(leads, *count, "{name}");
-        } else if family == Some(FamilyKind::UsbC) {
-            assert_eq!(leads, 13, "{name}: 12 contact lands and the shell");
         } else if name.starts_with("Chip") || family == Some(FamilyKind::Molded) || two_lead {
             assert_eq!(leads, 2, "{name}");
         } else if let Some(rest) = name

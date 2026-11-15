@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "gct-usb4105",
+  "title": "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105)",
+  "summary": "USB Type-C receptacle connector for USB 2.0 (GCT USB4105-GF-A): 16 contacts on 12 SMD lands (VBUS and GND shared by the A and B rows), the shell on four plated slots, two locating pegs; 8.94 × 7.35 × 3.31 mm, mating face at the board edge. A whole component: symbol, footprint, binding and 3D body (nickel shell, LCP insulator and tongue, gold tails).",
+  "use": "component",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Dimensions and land pattern from GCT's public USB4105 drawing, revision B4 (2023-12-18), sheet 1: outline and Recommended PCB Layout (https://gct.co/files/drawings/usb4105.pdf), read 2026-11-13; the tongue, insulator, the tails' thickness and run under the shell and the stakes' clearance in their slots are estimates. The part file is original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the symbol, footprint and binding are original, drawn from the drawing's values. No CAD or EDA library data was copied."
+}

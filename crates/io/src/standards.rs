@@ -12,7 +12,7 @@ use sparksmith_core::library::marking::codes::{
     ColourCode, Eia96Code, MarkingCodes, PreferredSeries, VoltageLetterTables,
 };
 use sparksmith_core::library::standard_fields::StandardFields;
-use sparksmith_core::library::standards::{Context, ShippedGenerator, Standards};
+use sparksmith_core::library::standards::{Context, ShippedGenerator, ShippedPart, Standards};
 use sparksmith_core::library::symbol_style::{
     KindDrawing, SymbolDrawings, SymbolKind, SymbolStyle,
 };
@@ -125,8 +125,36 @@ pub fn context(shipped: &ShippedLibrary) -> Result<Arc<Context>> {
     Ok(Arc::new(
         Context::new(load(shipped)?)
             .with_materials(materials)
-            .with_generators(generators(shipped).map_err(|e| e.to_string())),
+            .with_generators(generators(shipped).map_err(|e| e.to_string()))
+            .with_parts(parts(shipped).map_err(|e| e.to_string())),
     ))
+}
+
+/// Largest shipped part file read, bytes.
+const MAX_PART_BYTES: u64 = 64 * 1024 * 1024;
+/// Most shipped part files read.
+const MAX_PARTS: usize = 1024;
+
+/// Every shipped part file (`parts/<name>.solidcraft`), by its stem.
+fn parts(shipped: &ShippedLibrary) -> Result<Vec<ShippedPart>> {
+    const SUFFIX: &str = ".solidcraft";
+    let files = shipped.list(Shelf::Parts, SUFFIX)?;
+    if files.len() > MAX_PARTS {
+        return Err(Error::Invalid(format!(
+            "{}: more than {MAX_PARTS} part files",
+            shipped.shelf(Shelf::Parts).display()
+        )));
+    }
+    files
+        .into_iter()
+        .map(|file| {
+            let bytes = shipped.read(Shelf::Parts, &file, MAX_PART_BYTES)?;
+            Ok(ShippedPart {
+                name: file.trim_end_matches(SUFFIX).to_owned(),
+                bytes: Arc::from(bytes),
+            })
+        })
+        .collect()
 }
 
 /// Every shipped generator bundle, each file checked against its manifest.

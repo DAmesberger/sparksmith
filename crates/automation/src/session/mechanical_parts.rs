@@ -606,19 +606,30 @@ impl Session {
             let report = part_file::evaluate(&b.bytes, &PartValues::new())
                 .ok()
                 .map(|p| p.report());
-            builtin.push(json!({
+            let mut entry = json!({
                 "name": b.name,
                 "title": b.title,
                 "summary": b.summary,
                 "prefix": b.prefix,
                 "kind": match b {
+                    b if b.component.is_some() => "component",
                     b if b.mechanical && !b.lands.is_empty() => "pads",
                     b if b.mechanical => "mechanical",
                     _ => "package",
                 },
                 "parameters": report.as_ref().map(|r| r.parameters.clone()).unwrap_or_default(),
                 "licence": b.licence,
-            }));
+            });
+            // A shipped component is placed by `library.place_from_folder`
+            // with these.
+            if let (Some(bundle), Some(map)) = (&b.component, entry.as_object_mut()) {
+                map.insert(
+                    "place".into(),
+                    json!({"library": bundle.library, "lineage": bundle.root.lineage,
+                        "revision": bundle.root.revision}),
+                );
+            }
+            builtin.push(entry);
         }
         let project: Vec<Value> = self
             .engine

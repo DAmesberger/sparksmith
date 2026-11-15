@@ -97,11 +97,6 @@ const ALLOWED: &[(&str, &str, Reason)] = &[
         "starter/tht.json",
         Reason::UntilGp5,
     ),
-    (
-        "crates/editor-core/src/library/templates/starter.rs",
-        "starter/usb_c.json",
-        Reason::UntilGp5,
-    ),
 ];
 
 /// The folders scanned: the program. Generator crates (`generators/`) are

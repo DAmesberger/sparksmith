@@ -412,6 +412,18 @@ impl Sources {
         lineage: SourceLineageId,
         revision: Option<Revision>,
     ) -> Result<Bundle> {
+        // A shipped component (`library.part_files` kind `component`) is
+        // read with the shipped library, not from a folder.
+        if let Ok(parts) = super::shipped_parts::builtin_parts()
+            && let Some(shipped) = parts.all().iter().find_map(|p| {
+                p.component
+                    .as_ref()
+                    .filter(|b| b.library == library && b.root.lineage == lineage)
+            })
+            && revision.is_none_or(|r| r == shipped.root.revision)
+        {
+            return Ok(Bundle::clone(shipped));
+        }
         let revision = match revision {
             Some(revision) => revision,
             None => self.latest(library, lineage)?,

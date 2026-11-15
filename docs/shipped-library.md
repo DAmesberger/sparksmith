@@ -25,7 +25,7 @@ If none is found, the message lists every folder searched and names the variable
 | Standard fields | `standard-fields/` | Standard quantity fields, as a bundle `library.import` takes, and what each is for |
 | Catalog | `catalog/` | The part catalog's search vocabulary: the generic-part families, their patterns and defaults |
 | Assist | `assist/` | Assistant run profiles and prompts |
-| Parts | `parts/` | Part files (`.solidcraft`), each with a sidecar |
+| Parts | `parts/` | Part files (`.solidcraft`), each with a sidecar; a shipped component (the USB-C receptacle) also with its revision records, `NAME.component.json` ([built-in part files](../library/parts/README.md)) |
 | Templates | `templates/` | Package templates and starter rows |
 | Generators | `generators/` | Generator bundles, `<name>/`: `generator.json`, the built module `<name>.wasm` and the part files it names, `parts/*.solidcraft` ([generator plugins](generator-plugins.md)) |
 | Defaults | `defaults/` | What a new project starts with: its fab profile, stackup and board size (`new-project.json`); the values Settings start with until the user sets their own, such as the impedance tolerance (`settings.json`) |

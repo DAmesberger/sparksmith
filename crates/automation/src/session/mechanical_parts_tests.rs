@@ -50,6 +50,7 @@ fn part_files_lists_the_builtins_with_their_parameters() -> TestResult {
         [
             (BODY, "package"),
             ("finned-heatsink", "mechanical"),
+            ("gct-usb4105", "component"),
             ("round-spacer", "pads"),
             ("smd-nut", "pads"),
         ]

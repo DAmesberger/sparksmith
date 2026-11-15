@@ -96,6 +96,28 @@ pub struct Context {
     /// a generator runs that generator and evaluates its part file
     /// (docs/design/part-generation-plan.md, phase C).
     generators: std::result::Result<Arc<Vec<ShippedGenerator>>, String>,
+    /// The shipped part files (`library/parts/<name>.solidcraft`) by name,
+    /// or why reading them failed: the 3D build of a package that stored a
+    /// retired builder's model whose shape now ships as a library part (the
+    /// USB-C receptacle) evaluates that part file.
+    parts: std::result::Result<Arc<Vec<ShippedPart>>, String>,
+}
+
+/// A shipped part file as the host read it: its name (the file's stem)
+/// and bytes. Bytes only: the core never evaluates a part file.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ShippedPart {
+    pub name: String,
+    pub bytes: Arc<[u8]>,
+}
+
+impl std::fmt::Debug for ShippedPart {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShippedPart")
+            .field("name", &self.name)
+            .field("bytes", &self.bytes.len())
+            .finish()
+    }
 }
 
 /// A shipped generator bundle as the host read and checked it: the module
@@ -160,7 +182,32 @@ impl Context {
                 "the shipped generators were not loaded: the program reads the shipped library's generators/ folder before it builds a 3D model"
                     .into(),
             ),
+            parts: Err(
+                "the shipped part files were not loaded: the program reads the shipped library's parts/ folder before it builds a 3D model"
+                    .into(),
+            ),
         }
+    }
+
+    /// This context with the shipped part files, or why reading them
+    /// failed.
+    #[must_use]
+    pub fn with_parts(mut self, parts: std::result::Result<Vec<ShippedPart>, String>) -> Self {
+        self.parts = parts.map(Arc::new);
+        self
+    }
+
+    /// The shipped part file `name`, or why it is not there.
+    pub fn part(&self, name: &str) -> Result<&ShippedPart> {
+        let shipped = self
+            .parts
+            .as_ref()
+            .map_err(|why| Error::Invalid(why.clone()))?;
+        shipped.iter().find(|p| p.name == name).ok_or_else(|| {
+            Error::NotFound(format!(
+                "no part file {name} is shipped in the library's parts/ folder"
+            ))
+        })
     }
 
     /// This context with the shipped generator bundles, or why reading
@@ -252,7 +299,8 @@ impl Context {
                         Arc::new(
                             Context::new(standards)
                                 .with_materials(materials)
-                                .with_generators(Ok(fixture::generators())),
+                                .with_generators(Ok(fixture::generators()))
+                                .with_parts(Ok(fixture::parts())),
                         )
                     })
                     .map_err(|e| e.to_string())
@@ -521,6 +569,17 @@ pub mod fixture {
                 "library/materials/{other} is not a fixture file"
             ))),
         })
+    }
+
+    /// The repository's shipped part files a 3D build evaluates for a
+    /// package that stored a retired builder's model, as committed.
+    pub fn parts() -> Vec<ShippedPart> {
+        vec![ShippedPart {
+            name: "gct-usb4105".into(),
+            bytes: Arc::from(
+                &include_bytes!("../../../../library/parts/gct-usb4105.solidcraft")[..],
+            ),
+        }]
     }
 
     /// The repository's shipped generator bundles a 3D build runs for a

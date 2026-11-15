@@ -159,7 +159,7 @@ pub fn generated(package: &PackageDefinition) -> Result<Arc<NamedDesign>> {
         "terminals": terminals,
     });
     cached(&what, || {
-        if super::family::generator(&package.form).is_some() {
+        if super::family::retired(&package.form) {
             // A family whose builder gave way to its generator: the
             // generator's part file at the form's values.
             let (part, generated) = super::family::evaluate(package)?;

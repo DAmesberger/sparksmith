@@ -109,7 +109,16 @@ def publish_and_close(s, ids, note):
     s.op("library.publish", {"drafts": ids}, note)
 
 
-USB_C_ROW = "USB-C receptacle, USB 2.0, 16 contacts, top mount (GCT USB4105)"
+# The GCT USB4105 drawing's values (rev B4 sheet 1) as the typed USB-C
+# form takes them: the receptacle's lands come from the form. (Sparksmith
+# now ships this receptacle as a whole component, library/parts/gct-usb4105;
+# this board keeps its own pinout component and package.)
+USB_C_VALUES = {"family": "usb_c", "width": 8.94, "depth": 7.35, "height": 3.31, "opening": [8.34, 2.56],
+                "opening_z": 1.73, "shell_thickness": 0.3, "pitch": 0.5, "land_y": 3.68, "land_length": 1.15,
+                "signal_land_width": 0.3, "power_land_width": 0.6, "vbus_x": 2.4, "gnd_x": 3.2, "tab_x": 4.32,
+                "tabs": [{"y": -1.075, "slot": [0.6, 1.4], "land": [1.0, 1.8]},
+                         {"y": 3.105, "slot": [0.6, 1.7], "land": [1.0, 2.1]}],
+                "stake_length": 0.95, "peg_x": 2.89, "peg_y": 2.605, "peg_diameter": 0.5, "peg_hole": 0.65}
 
 
 def drafts_name(s, i):
@@ -222,12 +231,12 @@ def build(s):
     # The stacked numbers ("A1B12", "B4A9") need 7.5 mm stubs at full
     # height; the pinout's 2.5 mm stubs shrank them to less than half of it.
     fit_pin_numbers(s, comp, sym, [n for _, n, _ in rows])
-    # The USB-C receptacle row is this drawing's (GCT USB4105 rev B4 sheet 1):
-    # its form gives the package the generated receptacle model, and its
+    # The USB-C form with this drawing's values (GCT USB4105 rev B4 sheet 1):
+    # it gives the package the generated receptacle model, and its
     # lands the footprint (12 SMD lands, four plated shell slots, two NPTH
     # pegs), landing the pinout's terminals by number. Footprint origin: the
     # outline centre, mating face toward -y.
-    fid = package_from(s, pkg, USB_C_ROW)
+    fid = package_from(s, pkg, "usb_c", USB_C_VALUES)
     # The 3D model: the example's USB4105 part file (original work from the
     # same drawing; see README, Sources), whose shell front face the board
     # holds flush to its edge.

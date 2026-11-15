@@ -24,7 +24,9 @@
 //! header, gull-wing, tabbed, no-lead, molded two-terminal, grid,
 //! through-hole and module families, phase C of
 //! docs/design/part-generation-plan.md) builds from the generator's part
-//! file instead ([`family`]), behind the same functions.
+//! file instead ([`family`]), behind the same functions; the USB-C
+//! receptacle, one shipped part rather than a family, from the shipped
+//! library part file `library/parts/gct-usb4105.solidcraft`.
 //!
 //! As built: `docs/component-model.md` (M1–M3).
 mod chip;
@@ -35,7 +37,6 @@ pub mod inspect;
 pub mod look;
 pub mod named;
 pub mod part_file;
-mod usb_c;
 
 use crate::material::BodyKind;
 use crate::native::{BoxBody, Expr, Native};
@@ -78,7 +79,7 @@ pub fn family_rev(form: &PackageForm) -> Option<u16> {
         | PackageForm::Grid(_)
         | PackageForm::Module(_) => Some(family::FAMILY_REV),
         PackageForm::Tht(_) => Some(family::FAMILY_REV),
-        PackageForm::UsbC(_) => usb_c::FAMILY_REV,
+        PackageForm::UsbC(_) => Some(family::FAMILY_REV),
     }
 }
 
@@ -149,7 +150,7 @@ pub fn build_definition(
             "model.name: the design already has a definition named {component}"
         )));
     }
-    if family::generator(&package.form).is_some() {
+    if family::retired(&package.form) {
         // The generator's part file, inserted as the board inserts it.
         let design = named::generated(package)?;
         return part_file::insert_design(native, component, design.source(), &design.generated);
@@ -232,7 +233,8 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
         | PackageForm::Grid(_)
         | PackageForm::Module(_) => Ok(()),
         PackageForm::Tht(_) => Ok(()),
-        PackageForm::UsbC(f) => usb_c::check(f),
+        // Built from the shipped library part file (`family`).
+        PackageForm::UsbC(_) => Ok(()),
         PackageForm::Generic => Ok(()),
     }
 }
@@ -271,7 +273,12 @@ fn build_bodies(
                 package.form.label()
             )));
         }
-        PackageForm::UsbC(f) => usb_c::build(&mut b, f)?,
+        PackageForm::UsbC(_) => {
+            return Err(Error::Invalid(
+                "model.part_file: USB-C receptacle models are built from the shipped library part file"
+                    .into(),
+            ));
+        }
         PackageForm::Generic => {
             return Err(Error::Invalid(
                 "model.unsupported: a generic package has no generated model".into(),
