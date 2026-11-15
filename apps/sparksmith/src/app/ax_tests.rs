@@ -746,6 +746,63 @@ fn a_restored_session_is_not_asked_for_the_launch_profile() -> Fallible {
 /// The VM run's smallest window.
 const SMALL: egui::Vec2 = egui::vec2(1024.0, 560.0);
 
+/// E2E run 9, finding 7: in the PCB workspace at 1024 × 560, with the
+/// Board card as the subject and a long list, the expanded Issues card
+/// leaves its list room for at least three rows between the toolbar and
+/// the footer, and its first group shows on screen.
+#[test]
+fn issues_rows_show_in_the_pcb_workspace_at_a_small_window() -> Fallible {
+    // R1 and R2 on top of each other at the board's corner: edge,
+    // clearance and courtyard findings, a list longer than the column.
+    let mut engine = Engine::demo()?;
+    for (designator, x) in [("R1", 0.5), ("R2", 1.0)] {
+        let instance = engine
+            .project()
+            .instance_by_designator(designator)
+            .ok_or(designator)?
+            .id;
+        engine.apply(
+            engine.revision(),
+            Operation::Layout(sparksmith_core::layout::LayoutCommand::Move {
+                instance,
+                position: [x, 0.5],
+                rotation_deg: 0.0,
+                layer: sparksmith_core::Layer::Top,
+            }),
+        )?;
+    }
+    let mut ax = Ax::with_engine(engine, Workspace::Pcb)?;
+    ax.window = SMALL;
+    ax.app.issues.open();
+    ax.settle();
+    let scope = sparksmith_core::issues::IssueScope::Area {
+        area: crate::issues::area(Workspace::Pcb),
+    };
+    let sparksmith_core::QueryResult::Issues(report) = ax
+        .app
+        .engine
+        .query(sparksmith_core::Query::Issues { scope })?
+    else {
+        return Err("not an issues report".into());
+    };
+    let seen = |text: &str| {
+        ax.seen
+            .iter()
+            .find(|(t, _)| t == text)
+            .map(|(_, r)| *r)
+            .ok_or_else(|| format!("{text:?} not on screen: {:?}", ax.seen))
+    };
+    let toolbar = seen("Every kind")?;
+    let footer = seen("Copy report")?;
+    let row = sparksmith_ui::theme::Tokens::get().control_height;
+    let room = footer.top() - toolbar.bottom();
+    assert!(room >= 3.0 * row, "the list has {room} pt: {:?}", ax.seen);
+    let first = report.rows.first().ok_or("the demo board has an issue")?;
+    let header = seen(&first.group.title.to_uppercase())?;
+    assert!(header.bottom() <= footer.top(), "{header:?} {footer:?}");
+    Ok(())
+}
+
 /// E2E run 9, finding 3: a pointer click on Change package… in the 3D
 /// tab's Body section shows the generator gallery at 1024 × 560 (the 3D
 /// view did not draw the sheet, so it opened unseen).

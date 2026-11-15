@@ -21,6 +21,10 @@ pub const FOOTER_HEIGHT: f32 = 48.0;
 /// `stack_first_bounds`: header plus ten rows).
 pub const SUBJECT_ROWS: f32 = 10.0;
 
+/// List rows the expanded Issues card keeps in a short column, below its
+/// bar and toolbar and above its footer.
+pub const ISSUES_ROWS: f32 = 3.0;
+
 /// What the subject slot holds. Exactly one at a time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Subject {
@@ -125,11 +129,22 @@ pub fn subject_rows_height() -> f32 {
     t.form_header_height + SUBJECT_ROWS * t.control_height + 2.0 * t.space_8
 }
 
+/// The expanded Issues card's least height in a short column: its bar,
+/// its toolbar, [`ISSUES_ROWS`] list rows and its footer.
+pub fn issues_least_height() -> f32 {
+    let t = Tokens::get();
+    let band = t.control_height + 2.0 * t.space_4;
+    ISSUES_BAR_HEIGHT + 2.0 * band + ISSUES_ROWS * t.control_height
+}
+
 /// Split the column: collapsed, Issues is a [`ISSUES_BAR_HEIGHT`] bar at the
 /// bottom and the subject has the rest. Expanded, Issues takes only the
 /// height its content uses and the subject the rest, but the subject
 /// keeps its header and [`SUBJECT_ROWS`] rows (or its whole content, when
-/// that is shorter), so a short card gives Issues the room. A docked dialog
+/// that is shorter), so a short card gives Issues the room. In a short
+/// column the subject gives way first to [`issues_least_height`] (down to
+/// a third of the column), so the Issues list still shows rows beside a
+/// tall card (E2E run 9, 1024 × 560). A docked dialog
 /// keeps the height it asks for, so its form shows without scrolling;
 /// Issues gets the rest. The Issues bar
 /// always keeps its full height, however short the column; the subject
@@ -146,7 +161,8 @@ pub fn column(rect: Rect, issues_expanded: bool, wants: Wants) -> Column {
             Some(dialog) => dialog,
             None => usable(wants.subject)
                 .unwrap_or(f32::INFINITY)
-                .min(subject_rows_height()),
+                .min(subject_rows_height())
+                .min((room - issues_least_height()).max(room / 3.0)),
         }
         .min(room);
         (height - gap() - issues).clamp(keep, room)
@@ -318,10 +334,17 @@ mod tests {
         let tall = column(column_rect(1081.0), true, Wants::default());
         assert!((tall.subject.height() - rows).abs() < 1e-3);
         assert!(tall.issues.height() > 500.0);
-        // A short column: the subject keeps its header and ten rows.
-        let short = column(column_rect(rows + 200.0), true, Wants::default());
+        // A column with room for both: the subject keeps its header and
+        // ten rows.
+        let short = column(column_rect(2.0 * rows + 100.0), true, Wants::default());
         assert!((short.subject.height() - rows).abs() < 1e-3);
         assert!(short.issues.height() >= ISSUES_BAR_HEIGHT);
+        // A short column (the PCB workspace at 1024 × 560, run 9): the
+        // subject gives way, so the Issues list keeps its rows.
+        let height = 364.0;
+        let small = column(column_rect(height), true, Wants::default());
+        assert!(small.subject.height() < rows, "{small:?}");
+        assert!(small.issues.height() >= issues_least_height(), "{small:?}");
     }
 
     /// Issues gets only the height its list uses and the subject the rest;
