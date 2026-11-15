@@ -999,6 +999,8 @@ impl Viewport {
             },
             pv_hide: self.pv_key == 0,
             view_proj,
+            // Taken from `view_proj`, as before Solidcraft could be handed it.
+            turned_depth: None,
             back: self.camera.back().to_f32(),
             size_px,
             clip: [0.0; 4],

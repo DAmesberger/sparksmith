@@ -1117,7 +1117,7 @@ pub fn insert_design(
         }
         for f in &src.features {
             let mut g = f.clone();
-            g.remap_clone(&ids, &names, &renamed, &parameters)
+            g.remap_clone(&ids, &names, &renamed, &parameters, &BTreeMap::new(), doc)
                 .map_err(|e| engine(format!("{}: {e}", f.name)))?;
             g.id = ids.get(&f.id).copied().unwrap_or_default();
             g.name = names.get(&f.name).cloned().unwrap_or_default();
