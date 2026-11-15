@@ -178,8 +178,9 @@ pub struct IssueReport {
     /// Areas outside the scope that hold issues.
     #[serde(default)]
     pub elsewhere: Vec<AreaCount>,
-    /// What the checks cover, for the footer ("Connectivity, outline,
-    /// 0.2 mm").
+    /// What the checks cover, for the footer, with the clearance in force
+    /// and where it comes from ("… (track to track 0.127 mm, JLCPCB
+    /// 2-layer)"), or that none is checked without a fab profile.
     #[serde(default)]
     pub coverage: String,
 }
@@ -292,7 +293,7 @@ fn report_in(
         counts: counts(rows.iter()),
         rows,
         elsewhere,
-        coverage: coverage(scope).into(),
+        coverage: coverage(scope, project),
     })
 }
 
@@ -308,22 +309,49 @@ pub fn object_names(project: &Project, drafts: &Drafts, objects: &[ObjectRef]) -
         .collect()
 }
 
-/// What the checks of a scope cover, for the footer.
-fn coverage(scope: &IssueScope) -> &'static str {
+/// What the checks of a scope cover, for the footer. The board's
+/// clearance is the project's effective rule with its source; without a
+/// fab profile no clearance is checked (every limit is unset), and the
+/// footer says so instead of naming a number.
+fn coverage(scope: &IssueScope, project: &Project) -> String {
     match scope {
         IssueScope::Area {
             area: IssueArea::Component,
-        } => "Publish checks and drawing lint of every draft",
+        } => "Publish checks and drawing lint of every draft".into(),
         IssueScope::Area {
             area: IssueArea::Schematic,
-        } => "Completeness, purchasing and electrical rules",
+        } => "Completeness, purchasing and electrical rules".into(),
         IssueScope::Area {
             area: IssueArea::Board,
-        } => "Connectivity, outline, 0.2 mm clearance and courtyards",
+        } => board_coverage(project),
         IssueScope::All | IssueScope::Selection { .. } => {
-            "Publish checks, completeness, electrical rules and board checks"
+            "Publish checks, completeness, electrical rules and board checks".into()
         }
     }
+}
+
+/// The board checks and the clearance rule they apply.
+fn board_coverage(project: &Project) -> String {
+    use crate::rules::{CopperObject, RuleKey};
+    let rules = &project.rules;
+    if rules.profile.is_none() {
+        return "Connectivity, outline and courtyards; no fab profile, so no clearance is checked"
+            .into();
+    }
+    let key = RuleKey::Clearance {
+        a: CopperObject::Track,
+        b: CopperObject::Track,
+    };
+    let track = rules
+        .effective()
+        .copper
+        .clearance
+        .get(CopperObject::Track, CopperObject::Track);
+    format!(
+        "Connectivity, outline, courtyards and clearances (track to track {} mm, {})",
+        layout::limits::mm(track),
+        rules.source_of(key).describe()
+    )
 }
 
 fn counts<'a>(rows: impl Iterator<Item = &'a IssueRow>) -> IssueCounts {

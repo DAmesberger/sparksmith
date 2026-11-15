@@ -720,3 +720,36 @@ fn sources() -> Fallible<Vec<(String, String)>> {
     }
     Ok(out)
 }
+
+/// E2E run 9: the board footer names the clearance in force and its
+/// source, and without a fab profile says no clearance is checked
+/// (every limit is unset then), never a built-in number.
+#[test]
+fn the_board_footer_states_the_clearance_in_force() -> Fallible<()> {
+    let board = IssueScope::Area {
+        area: IssueArea::Board,
+    };
+    let unprofiled = issues(&Engine::default(), board.clone())?;
+    assert_eq!(
+        unprofiled.coverage,
+        "Connectivity, outline and courtyards; no fab profile, so no clearance is checked"
+    );
+    let engine = Engine::profiled()?;
+    let rules = &engine.project().rules;
+    let profile = rules.profile.as_ref().ok_or("a profile")?;
+    let track = profile.rules().copper.clearance.get(
+        crate::rules::CopperObject::Track,
+        crate::rules::CopperObject::Track,
+    );
+    assert!(track > 0.0);
+    let profiled = issues(&engine, board)?;
+    assert_eq!(
+        profiled.coverage,
+        format!(
+            "Connectivity, outline, courtyards and clearances (track to track {} mm, {})",
+            crate::layout::limits::mm(track),
+            profile.name
+        )
+    );
+    Ok(())
+}
