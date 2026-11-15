@@ -1119,6 +1119,20 @@ pub fn insert_design(
             let mut g = f.clone();
             g.remap_clone(&ids, &names, &renamed, &parameters, &BTreeMap::new(), doc)
                 .map_err(|e| engine(format!("{}: {e}", f.name)))?;
+            // The clone leaves a sketch pattern's inputs (count, spacing,
+            // angle, Quantity) naming the source's parameters; rename them
+            // with the rest.
+            if let FeatureKind::Sketch { sketch, .. } = &mut g.kind {
+                for pattern in &mut sketch.patterns {
+                    for e in pattern
+                        .expressions
+                        .values_mut()
+                        .chain(pattern.count_expression.as_mut())
+                    {
+                        *e = clone_expression(e, &parameters);
+                    }
+                }
+            }
             g.id = ids.get(&f.id).copied().unwrap_or_default();
             g.name = names.get(&f.name).cloned().unwrap_or_default();
             g.component = created.component;
