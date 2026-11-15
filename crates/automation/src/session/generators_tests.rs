@@ -154,6 +154,17 @@ fn the_same_part_twice_is_found_not_made_again() -> TestResult {
     let listed = call(&mut session, "library.generators", json!({}));
     assert_eq!(listed["result"]["parts"][0]["state"], "current", "{listed}");
     assert_eq!(listed["result"]["shipped"][0]["name"], "chip", "{listed}");
+    // The host knows where its library is; the reply, which reaches a
+    // model and its transcript, never names the host's path.
+    let located = session.generators_report()?.shipped_library;
+    let text = listed.to_string();
+    assert!(!text.contains("shipped_library"), "{text}");
+    for folder in [
+        located.ok_or("the host's library")?,
+        root.display().to_string(),
+    ] {
+        assert!(!text.contains(&folder), "{folder} in {text}");
+    }
     Ok(())
 }
 

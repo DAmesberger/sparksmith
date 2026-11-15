@@ -509,7 +509,10 @@ pub fn runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
 pub struct GeneratorsReport {
     /// The modules the program ships (`library/generators/`).
     pub shipped: Vec<ShippedGenerator>,
-    /// Where the shipped library is.
+    /// Where the shipped library is, for the host. Never on the wire: a
+    /// reply reaches models and their transcripts, and the host's paths
+    /// are private.
+    #[serde(skip)]
     pub shipped_library: Option<String>,
     /// The modules this project embeds.
     pub embedded: Vec<EmbeddedGenerator>,
