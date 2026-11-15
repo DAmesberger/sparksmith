@@ -64,7 +64,7 @@
      "keepout_top": 0
     }
    },
-   "result": "b5b87aae435ccb0dd8de4e95955b1a72e5505f581fd3f13df2779fc916df762a"
+   "result": "008b0cf2a7bc4fc74325d181484745d1aba0a56b866d52b2694716e4217c06cb"
   },
   {
    "name": "Module 18×25 castellated, 38 pads, package",
@@ -130,7 +130,7 @@
      "keepout_top": 0
     }
    },
-   "result": "b76d5d626dbab4875ab79cfd2e519c503d364abff288f5003c79ad284d4b1c7a"
+   "result": "fa27404772a81feedfe1fef326bc26a20b42bd72cfe1c4583aa912738ec8f9ab"
   },
   {
    "name": "ESP32-S31-WROOM-3, component",
@@ -386,7 +386,7 @@
      "keepout_top": 0
     }
    },
-   "result": "1c509b12392698a8cdc672ac2caacaf80387f66565de840c2693cf9494c5b6ad"
+   "result": "3e6c011e2944f92415397d35812ba3611d24f5d17818151ab8e8213df1e15a98"
   },
   {
    "name": "ESP32-S31-WROOM-3 with castellations and the ground array turned 135°, package",

@@ -2602,20 +2602,23 @@ fn sketch_outline(s: &mut Session, tag: &str, start: [&str; 2], steps: &[Step<'_
 /// the origin at the outline centre.
 ///
 /// - **Board**: a box of `width` × `length` × `board_thickness` standing on
-///   the pads (`pad_thickness`).
+///   the pads (`pad_thickness`); in the `castellated` files the outline
+///   with its notches drawn in (see below), extruded once.
 /// - **Rows**: eight slots, two on each side (left, bottom, right, top,
 ///   then each side's second). Slot `i` is a seed pad `row i pad` at its
 ///   first pad's centre (`row_i_x`, `row_i_y`) and a body pattern of
 ///   `row_i_count` at `pitch` along the side (counter-clockwise), so the
 ///   copies are `row i pad (2)`, `(3)`, … as the builder named them. Each
 ///   pad is `pad_length` across its edge and `pad_width` along it.
-/// - **Castellations** (`castellated` files only: a cut of the board per
-///   notch costs about 30 ms, so LGA modules use files without them): per
-///   slot, a half ring of plating `row i castellation` (from
-///   `notch_radius − plating` to `notch_radius` about `notch_i_x`,
+/// - **Castellations** (`castellated` files only; LGA modules use files
+///   without them): per slot, a half ring of plating `row i castellation`
+///   (from `notch_radius − plating` to `notch_radius` about `notch_i_x`,
 ///   `notch_i_y` on the edge, through the board) and a body pattern of
-///   `notch_i_count`; the board is cut round each by a cylinder and a
-///   pattern of that one cut with the same count.
+///   `notch_i_count`. The notches are circles of `notch_radius` in the
+///   board's sketch, each slot's a sketch pattern of `notch_i_count` at
+///   `pitch`, and the board is the profile round the outline's centre: no
+///   boolean, where a cut of the board per notch (or per slot's pattern of
+///   cuts) cost about 1 s a module.
 /// - **Ground array**: a seed `ground pad` of `ground_size_x` ×
 ///   `ground_size_y` at (`ground_x`, `ground_y`) and a two-way body
 ///   pattern of `ground_columns` × `ground_rows` at `ground_pitch_x`,
@@ -2959,16 +2962,79 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
         ));
     }
     import(&mut s, &rows);
-    // The board on its pads.
-    run(
-        &mut s,
-        "solid.box",
-        json!({"corner": ["- width / 2", "- length / 2", "pad_thickness"],
-            "length": "width", "width": "length", "height": "board_thickness",
-            "name": "board", "body_name": "board"}),
-    );
-    // Rows: seed pad and pattern; castellation notch (a cut of the board
-    // and its pattern) and plating (a half ring and its pattern).
+    // The board on its pads: a box, or (castellated) the outline with
+    // every notch drawn in, extruded once, as the builder drew it.
+    if castellated {
+        run(
+            &mut s,
+            "sketch.create",
+            json!({"plane": "XY", "offset": "pad_thickness", "name": "board sketch"}),
+        );
+        let (l, r, b, t) = ("- width / 2", "width / 2", "- length / 2", "length / 2");
+        sketch_outline(
+            &mut s,
+            "b",
+            [l, b],
+            &[
+                Step::Line([r, b]),
+                Step::Line([r, t]),
+                Step::Line([l, t]),
+                Step::Line([l, b]),
+            ],
+        );
+        for (i, side) in MODULE_SIDES.iter().enumerate() {
+            let k = i + 1;
+            let (step, _) = module_side(side);
+            let id = format!("notch {k}");
+            run(
+                &mut s,
+                "sketch.circle.center",
+                json!({"center": [format!("notch_{k}_x"), format!("notch_{k}_y")],
+                    "radius": "notch_radius", "id": id}),
+            );
+            run(
+                &mut s,
+                "sketch.pattern.rectangular",
+                json!({"entities": [id], "dir": [step[0], step[1]],
+                    "count": format!("notch_{k}_count"), "spacing": "pitch"}),
+            );
+        }
+        run(&mut s, "sketch.finish", json!({}));
+        run(
+            &mut s,
+            "solid.extrude",
+            json!({"sketch": "board sketch", "profiles": [{"point": [0.0, 0.0]}],
+                "distance": "board_thickness", "operation": "new",
+                "name": "board", "body_name": "board"}),
+        );
+        // The board is the profile round the outline's centre, which no
+        // notch reaches. The command keeps a picked point as the curves
+        // round it, which name every notch copy and so fail at another
+        // count; the stored point pick is found again at every count.
+        let points: solidcraft_engine::doc::ProfileSel =
+            serde_json::from_value(json!({"type": "points", "points": [[0.0, 0.0]]})).unwrap();
+        let board = s
+            .doc_mut()
+            .features
+            .iter_mut()
+            .find(|f| f.name == "board")
+            .unwrap();
+        match &mut board.kind {
+            solidcraft_engine::doc::FeatureKind::Extrude { profiles, .. } => *profiles = points,
+            other => panic!("board: {other:?}"),
+        }
+        s.refresh();
+    } else {
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": ["- width / 2", "- length / 2", "pad_thickness"],
+                "length": "width", "width": "length", "height": "board_thickness",
+                "name": "board", "body_name": "board"}),
+        );
+    }
+    // Rows: seed pad and pattern; castellation plating (a half ring and
+    // its pattern).
     for (i, side) in MODULE_SIDES.iter().enumerate() {
         let k = i + 1;
         let (step, inward) = module_side(side);
@@ -2995,20 +3061,6 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
         if !castellated {
             continue;
         }
-        let notch = format!("row {k} notch");
-        run(
-            &mut s,
-            "solid.cylinder",
-            json!({"base": [format!("notch_{k}_x"), format!("notch_{k}_y"), "0 mm"],
-                "radius": "notch_radius", "height": "pad_thickness + board_thickness + 0.1 mm",
-                "axis": "Z", "operation": "cut", "targets": ["board"], "name": notch}),
-        );
-        run(
-            &mut s,
-            "solid.pattern.rectangular",
-            json!({"features": [notch], "dir1": step, "count1": format!("notch_{k}_count"),
-                "spacing1": "pitch", "name": format!("row {k} notch pattern")}),
-        );
         // The half ring inward of the edge point: counter-clockwise from
         // −t to +t, t the inward normal turned a quarter left.
         let t = [-inward[1], inward[0]];
