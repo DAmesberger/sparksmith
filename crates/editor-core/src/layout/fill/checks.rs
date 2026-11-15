@@ -132,6 +132,8 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         }
         if stale {
             clearance(&mut ctx, fill, &label, &mut out);
+        } else {
+            spokes_removed(&ctx, fill, copper, &label, &mut out);
         }
     }
     keepouts(&ctx, &mut out);
@@ -225,6 +227,54 @@ fn clearance(ctx: &mut Ctx<'_>, fill: &Fill, label: &str, out: &mut Vec<Finding>
                 vec![me, object],
             ));
         }
+    }
+}
+
+/// One information finding per pad or via whose thermal spokes the fresh
+/// fill removed because they would end without reaching its net's copper.
+fn spokes_removed(
+    ctx: &Ctx<'_>,
+    fill: &Fill,
+    copper: &FilledCopper,
+    label: &str,
+    out: &mut Vec<Finding>,
+) {
+    let project = ctx.project;
+    let net = fill.net.map_or("its net", |n| project.net_name(n));
+    for removed in &copper.removed_spokes {
+        let what = match removed.object {
+            ObjectRef::Pad { instance, pad } => {
+                let designator = project
+                    .instance(instance)
+                    .map_or("a part", |i| i.designator.as_str());
+                match ctx
+                    .pads
+                    .iter()
+                    .find(|p| p.instance == instance && p.pad.id == pad)
+                {
+                    Some(p) if !p.pad.number.is_empty() => {
+                        format!("{designator} pad {}", p.pad.number)
+                    }
+                    _ => format!("a pad of {designator}"),
+                }
+            }
+            ObjectRef::Via { .. } => "a via".to_owned(),
+            _ => continue,
+        };
+        let spokes = if removed.spokes == 1 {
+            "1 thermal spoke".to_owned()
+        } else {
+            format!("{} thermal spokes", removed.spokes)
+        };
+        let they = if removed.spokes == 1 { "it" } else { "they" };
+        out.push(Finding::new(
+            "fill.spokes_removed",
+            format!(
+                "{}: {spokes} of {what} removed; {they} would end without reaching {net} copper",
+                crate::library::names::capitalised(label)
+            ),
+            vec![removed.object, ObjectRef::Fill { id: fill.id }],
+        ));
     }
 }
 

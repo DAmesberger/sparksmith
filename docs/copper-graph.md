@@ -446,9 +446,11 @@ Under the old probes, a spoke piece joined only if copper lay both mid-gap and b
 
 In `fab/`, only the two outer copper Gerbers change: `copper-l1-top.gbr` gains 509 lines (20 regions) and `copper-l4-bottom.gbr` gains 22 (1 region). Every other fab file is byte-identical. In the `.sparksmith`, the only changes are the removed `joins` lists (33, 5, 33 and 120 entries), the added regions and the two `removed_islands` counts; every key and every other entry is unchanged. The committed schematic PDF was left as it was.
 
-### Open fill-policy question (not built)
+### Fill-policy question Q9 (decided)
 
 - **Q9: Redundant fragments.** Should a fill drop islands that add no connection: copper joined only to things already connected without it, such as the ESP32's spoke pieces? A minimum island area would do much the same. Either belongs as a fill setting (like `IslandRemoval::BelowArea`), not as a connectivity rule. The graph keeps deciding what joins.
+
+  **Decided** (founder, 15 November 2026): approved as the spoke rule of the KiCad copper-parity work ([board rules and shape](board-rules-and-shape.md), fill step 3): a thermal spoke is kept only if it reaches the net's copper across its relief gap; otherwise the fill removes it, so cut-off spoke pieces are not poured. The condition: the person is told. The fill records the removed spokes per pad or via with its computed copper (`FilledCopper::removed_spokes`, derived with the refill and not saved), and Issues lists one information row per pad or via (`fill.spokes_removed`: "GND fill on Top: 2 thermal spokes of U1 pad 5 removed; they would end without reaching GND copper"), locatable, counted and waivable like any other finding (`removed_spokes_are_reported_as_information`). The graph still decides what the remaining copper joins.
 
 ### Measured
 

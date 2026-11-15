@@ -21,6 +21,7 @@ fn copper(regions: Vec<FilledRegion>) -> FilledCopper {
         key: "test".into(),
         regions,
         removed_islands: 0,
+        removed_spokes: Vec::new(),
     }
 }
 

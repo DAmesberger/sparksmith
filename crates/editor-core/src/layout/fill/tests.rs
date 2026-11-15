@@ -1585,6 +1585,184 @@ fn a_spoke_that_reaches_no_copper_is_removed() -> Fallible<()> {
         );
     }
     assert!(via_joined(p, id, f.beside));
+    // The fill records the two removed spokes with the via, and Issues
+    // says so once, as information naming the via and the fill.
+    let beside = ObjectRef::Via { id: f.beside };
+    let removed = &fl.computed.as_ref().ok_or("not filled")?.removed_spokes;
+    assert_eq!(
+        removed
+            .iter()
+            .find(|r| r.object == beside)
+            .map(|r| r.spokes),
+        Some(2),
+        "{removed:?}"
+    );
+    let me = ObjectRef::Fill { id };
+    let told: Vec<_> = super::findings(p)
+        .into_iter()
+        .filter(|f| f.code == "fill.spokes_removed" && f.objects.contains(&beside))
+        .collect();
+    assert_eq!(told.len(), 1, "{told:?}");
+    assert_eq!(told[0].objects, vec![beside, me]);
+    assert_eq!(
+        told[0].message,
+        "GND fill on Top: 2 thermal spokes of a via removed; they would end without \
+         reaching GND copper"
+    );
+    Ok(())
+}
+
+/// The founder's condition on the spoke rule (15 November 2026): when a
+/// fill removes a pad's thermal spokes because they would reach no copper
+/// of its net, the person is told. The fill's edge runs just past the
+/// GND pad's relief on its left and right; Issues lists one information
+/// row naming the pad and the fill, counted with the others and waivable.
+/// A fill that removes no spoke records none and says nothing.
+#[test]
+fn removed_spokes_are_reported_as_information() -> Fallible<()> {
+    use crate::issues::{IssueScope, Severity};
+    let mut f = pad_strip()?;
+    let pad = placed_pads(f.engine.project())
+        .into_iter()
+        .find(|p| {
+            p.net == Some(f.gnd)
+                && p.pad.kind == crate::library::PadKind::Smd
+                && CopperLayer::from(p.layer) == CopperLayer::Top
+        })
+        .ok_or("no GND surface pad")?;
+    let ring = pad.outline().flatten(FILL_CHORD_MM);
+    let (mut x0, mut x1) = (f64::INFINITY, f64::NEG_INFINITY);
+    let (mut y0, mut y1) = (f64::INFINITY, f64::NEG_INFINITY);
+    for q in &ring {
+        (x0, x1) = (x0.min(q[0]), x1.max(q[0]));
+        (y0, y1) = (y0.min(q[1]), y1.max(q[1]));
+    }
+    let center = pad.pad_transform().apply([0.0, 0.0]);
+    let y = center[1];
+    let edge = STRIP_RELIEF.gap + 0.05;
+    let mut s = spec(
+        Some(f.gnd),
+        CopperLayer::Top,
+        rect(x0 - edge, y - 3.0, x1 + edge, y + 3.0),
+    );
+    s.name = "Pour".into();
+    s.settings.connections = PadConnections {
+        smd: Some(PadConnection::Thermal),
+        through_hole: None,
+        via: Some(PadConnection::Solid),
+    };
+    s.settings.thermal = Some(STRIP_RELIEF);
+    s.settings.width_min = Some(0.25);
+    let id = add(&mut f.engine, s)?;
+    refill(&mut f.engine)?;
+    let me = ObjectRef::Pad {
+        instance: pad.instance,
+        pad: pad.pad.id,
+    };
+    let p = f.engine.project();
+    // The spokes run along the board axes (the pad turns by quarter
+    // turns); one is kept where copper lies halfway across its gap.
+    let half = [(x1 - x0) / 2.0, (y1 - y0) / 2.0];
+    let fl = fill(p, id)?;
+    let kept = [0.0, 90.0, 180.0, 270.0]
+        .into_iter()
+        .zip([half[0], half[1], half[0], half[1]])
+        .filter(|(deg, h)| copper_towards(fl, center, h + STRIP_RELIEF.gap / 2.0, *deg))
+        .count();
+    // The left and right ones end at the fill's edge.
+    assert!(!copper_towards(
+        fl,
+        center,
+        half[0] + STRIP_RELIEF.gap / 2.0,
+        0.0
+    ));
+    assert!(!copper_towards(
+        fl,
+        center,
+        half[0] + STRIP_RELIEF.gap / 2.0,
+        180.0
+    ));
+    let lost = 4 - u32::try_from(kept)?;
+    let removed = &fl.computed.as_ref().ok_or("not filled")?.removed_spokes;
+    assert_eq!(
+        removed.iter().find(|r| r.object == me).map(|r| r.spokes),
+        Some(lost),
+        "{removed:?}"
+    );
+
+    let issues = |engine: &Engine| -> Fallible<crate::issues::IssueReport> {
+        match engine.query(Query::Issues {
+            scope: IssueScope::All,
+        })? {
+            QueryResult::Issues(report) => Ok(report),
+            other => Err(format!("{other:?}").into()),
+        }
+    };
+    let report = issues(&f.engine)?;
+    let rows: Vec<_> = report
+        .rows
+        .iter()
+        .filter(|r| r.finding.code == "fill.spokes_removed" && r.finding.objects.contains(&me))
+        .collect();
+    assert_eq!(rows.len(), 1);
+    let row = rows[0];
+    let designator = &p.instance(pad.instance).ok_or("instance")?.designator;
+    let number = &pad.pad.number;
+    assert_eq!(row.severity, Severity::Info);
+    assert_eq!(row.group.title, "Thermal spokes removed");
+    assert_eq!(
+        row.title,
+        format!("Fill Pour: {lost} thermal spokes of {designator} pad {number} removed")
+    );
+    assert_eq!(
+        row.finding.message,
+        format!(
+            "Fill Pour: {lost} thermal spokes of {designator} pad {number} removed; they would end \
+             without reaching GND copper"
+        )
+    );
+    assert_eq!(row.finding.objects, vec![me, ObjectRef::Fill { id }]);
+    assert!(report.counts.info >= 1);
+    // Information never holds back fabrication output.
+    assert!(row.blocks().is_none());
+
+    // Waived like any other finding: the row leaves Issues.
+    let key = crate::model::production::waiver_key(&row.finding.code, &row.finding.objects);
+    let info = report.counts.info;
+    f.engine.apply(
+        f.engine.revision(),
+        Operation::Fabrication(crate::fabrication::preflight::FabricationCommand::Waive {
+            keys: vec![key],
+            reason: "checked".into(),
+        }),
+    )?;
+    let after = issues(&f.engine)?;
+    assert!(
+        !after
+            .rows
+            .iter()
+            .any(|r| r.finding.code == "fill.spokes_removed" && r.finding.objects.contains(&me))
+    );
+    assert_eq!(after.counts.info, info - 1);
+
+    // Solid pads lose no spokes: nothing recorded, nothing said.
+    let mut solid = fill(f.engine.project(), id)?.clone();
+    solid.settings.connections.smd = Some(PadConnection::Solid);
+    edit(&mut f.engine, solid)?;
+    let p = f.engine.project();
+    assert!(
+        fill(p, id)?
+            .computed
+            .as_ref()
+            .ok_or("not filled")?
+            .removed_spokes
+            .is_empty()
+    );
+    assert!(
+        !super::findings(p)
+            .iter()
+            .any(|f| f.code == "fill.spokes_removed")
+    );
     Ok(())
 }
 
