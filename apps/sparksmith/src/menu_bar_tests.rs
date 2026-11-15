@@ -284,6 +284,30 @@ fn keys_follow_the_keymap_and_the_context() -> TestResult {
     Ok(())
 }
 
+/// The KiCad import reads the same in the macOS menu, the in-window File
+/// menu and the palette: the registry command's title (run 7, finding 7).
+#[test]
+fn the_kicad_import_item_takes_the_registry_title() -> TestResult {
+    let registry = Registry::standard();
+    let active = active_contexts(Context::PcbLayout);
+    let shown = now(&registry, &active, false, &all);
+    let title = registry
+        .get("file.import-kicad")
+        .ok_or("no file.import-kicad")?
+        .title
+        .clone();
+    assert_eq!(title, "Import KiCad project…");
+    for entries in [FILE, IN_WINDOW_FILE] {
+        let entry = entries
+            .iter()
+            .copied()
+            .find(|e| matches!(e, Entry::Command("file.import-kicad", _)))
+            .ok_or("no import item")?;
+        assert_eq!(state(&shown, entry).ok_or("no state")?.label, title);
+    }
+    Ok(())
+}
+
 /// Choosing an item: a command runs through the registry; over a field
 /// Undo, Redo and the clipboard items give the field its own input;
 /// Delete gives the canvas its key; a disabled item does nothing.
