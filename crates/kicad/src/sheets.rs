@@ -83,6 +83,25 @@ pub(crate) fn symbols_by_reference(schematic: &Schematic) -> BTreeMap<String, Li
     out
 }
 
+/// Each part's Value property in the schematic, by upper-case reference
+/// (power symbols left out), the first unit's where units differ.
+pub(crate) fn values_by_reference(schematic: &Schematic) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for sheet in &schematic.sheets {
+        let Some(file) = schematic.files.get(&sheet.file) else {
+            continue;
+        };
+        for symbol in &file.symbols {
+            let (reference, _) = schematic.reference(sheet, symbol);
+            if !reference.starts_with('#') {
+                out.entry(reference.to_ascii_uppercase())
+                    .or_insert_with(|| symbol.value.clone());
+            }
+        }
+    }
+    out
+}
+
 fn mm(p: PointNm) -> [f64; 2] {
     [p[0] as f64 / 1e6, p[1] as f64 / 1e6]
 }

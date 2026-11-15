@@ -460,3 +460,69 @@ fn distinct_footprints_with_equal_pads_stay_distinct() -> Fallible<()> {
     assert_eq!(lines, [vec!["C1"], vec!["D1"], vec!["R1", "R2"]]);
     Ok(())
 }
+
+/// Run 7, finding 2: each footprint's KiCad Value becomes its part's
+/// value, which the BOM's Value column and the parts' groups read; two
+/// copies of one footprint keep their own values, and "~" is no value.
+#[test]
+fn kicad_values_become_the_parts_values() -> Fallible<()> {
+    let part = |reference: &str, x: f64, value: &str| {
+        let mut fp = Footprint::new(
+            reference,
+            [x, 10.0, 0.0],
+            false,
+            vec![
+                Pad::smd("1", "rect", [-0.95, 0.0, 0.0], [0.9, 1.3]),
+                Pad::smd("2", "rect", [0.95, 0.0, 0.0], [0.9, 1.3]),
+            ],
+        );
+        fp.name = "Lib:R_0805".to_owned();
+        fp.value = Some(value.to_owned());
+        fp
+    };
+    let board = Board {
+        copper: 2,
+        origin: None,
+        setup: String::new(),
+        footprints: vec![
+            part("R1", 10.0, "330"),
+            part("R2", 15.0, "10k"),
+            part("R3", 20.0, "~"),
+        ],
+        items: String::new(),
+    };
+    let imported = import(board.text().as_bytes())?;
+    let project = imported.engine.project();
+    let value = |designator: &str| -> Fallible<Option<String>> {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or(designator.to_owned())?;
+        Ok(sparksmith_core::instances::value_text(
+            &project.library,
+            instance,
+        )?)
+    };
+    assert_eq!(value("R1")?.as_deref(), Some("330"));
+    assert_eq!(value("R2")?.as_deref(), Some("10k"));
+    assert_eq!(value("R3")?, None);
+    let bom = sparksmith_core::completeness::bom(project)?;
+    let lines: Vec<(Vec<&str>, Vec<&str>)> = bom
+        .lines
+        .iter()
+        .map(|l| {
+            (
+                l.designators.iter().map(String::as_str).collect(),
+                l.values.iter().map(|v| v.text.as_str()).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            (vec!["R1"], vec!["330"]),
+            (vec!["R2"], vec!["10k"]),
+            (vec!["R3"], vec![])
+        ]
+    );
+    Ok(())
+}

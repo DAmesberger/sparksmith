@@ -382,6 +382,24 @@ fn board_and_schematic_disagreements_are_findings() -> Fallible<()> {
     Ok(())
 }
 
+/// Run 7, finding 2: where the schematic and the board both give a value,
+/// the part takes the schematic's.
+#[test]
+fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
+    let mut board = row_board(&[("R1", &[("1", Some((1, "A"))), ("2", Some((2, "B")))])]);
+    for fp in &mut board.footprints {
+        fp.value = Some("2k".into());
+    }
+    let imported = import_sheet(&board, sheet(&[("R1", "50 50 0")], ""))?;
+    let project = imported.engine.project();
+    let r1 = project.instance_by_designator("R1").ok_or("R1")?;
+    assert_eq!(
+        sparksmith_core::instances::value_text(&project.library, r1)?.as_deref(),
+        Some("1k")
+    );
+    Ok(())
+}
+
 /// A pad whose number matches no pin of its KiCad symbol gets a visible
 /// pin outside the body, marked added by import, and an unmapped-pad
 /// finding.
