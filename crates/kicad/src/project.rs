@@ -32,6 +32,8 @@ pub struct KClass {
 /// The board-wide minimums of `board.design_settings.rules`, mm.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BoardMinimums {
+    /// The least copper-to-copper clearance (`min_clearance`).
+    pub clearance: Option<f64>,
     pub edge_clearance: Option<f64>,
     pub hole_clearance: Option<f64>,
     pub hole_to_hole: Option<f64>,
@@ -129,6 +131,7 @@ pub fn read(bytes: &[u8]) -> Option<ProjectRules> {
         patterns,
         assignments,
         board: BoardMinimums {
+            clearance: mm(&rules["min_clearance"]),
             edge_clearance: mm(&rules["min_copper_edge_clearance"]),
             hole_clearance: mm(&rules["min_hole_clearance"]),
             hole_to_hole: mm(&rules["min_hole_to_hole"]),
@@ -178,6 +181,7 @@ pub fn overrides(
     };
     for (i, a) in copper.iter().enumerate() {
         for c in &copper[i..] {
+            pair(*a, *c, b.clearance, "min_clearance");
             pair(*a, *c, default.clearance, CLASS_CLEARANCE);
         }
         pair(*a, BoardEdge, b.edge_clearance, "min_copper_edge_clearance");
@@ -225,7 +229,12 @@ pub fn overrides(
             });
             continue;
         }
-        out.push((key, RuleValue::Length(v)));
+        // The board's least clearance and the default class's both set a
+        // copper pair: the larger governs.
+        match out.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, RuleValue::Length(taken))) => *taken = taken.max(v),
+            _ => out.push((key, RuleValue::Length(v))),
+        }
     }
     out
 }
@@ -299,5 +308,56 @@ mod tests {
         // Ten copper pairs, four edge, twelve hole and six hole-hole pairs,
         // three defaults.
         assert_eq!(overrides.len(), 10 + 4 + 12 + 6 + 3);
+    }
+
+    /// Run 7, finding 3: KiCad's board `min_clearance` is read and taken
+    /// like the other board minimums: below the fab profile's clearance it
+    /// is not taken, and each copper pair is counted and named; above it,
+    /// it sets every copper pair, the default class's larger clearance
+    /// winning where both are set.
+    #[test]
+    fn the_board_min_clearance_is_a_board_minimum() -> Result<(), String> {
+        let track = RuleKey::Clearance {
+            a: CopperObject::Track,
+            b: CopperObject::Track,
+        };
+        let profile = DesignRules::default();
+        let RuleValue::Length(fab) = track.get(&profile) else {
+            return Err("a clearance is a length".into());
+        };
+        let file = |min: f64, class: Option<f64>| {
+            let class = class.map_or(String::new(), |c| {
+                format!(r#","net_settings":{{"classes":[{{"name":"Default","clearance":{c}}}]}}"#)
+            });
+            format!(
+                r#"{{"board":{{"design_settings":{{"rules":{{"min_clearance":{min}}}}}}}{class}}}"#
+            )
+        };
+        // Looser than the profile: not taken, ten pairs named.
+        let rules = read(file(fab / 2.0, None).as_bytes()).unwrap_or_default();
+        assert_eq!(rules.board.clearance, Some(fab / 2.0));
+        let mut report = Report::default();
+        let taken = overrides(&rules, &profile, &mut report);
+        assert!(taken.is_empty(), "{taken:?}");
+        assert_eq!(report.count(Case::RuleLooserThanFab), 10);
+        assert!(
+            report
+                .looser_rules()
+                .iter()
+                .all(|r| r.kicad_setting == "min_clearance"),
+            "{:?}",
+            report.looser_rules()
+        );
+        // Tighter: every copper pair; the class's larger value governs.
+        let rules = read(file(fab + 0.05, Some(fab + 0.1)).as_bytes()).unwrap_or_default();
+        let mut report = Report::default();
+        let taken = overrides(&rules, &profile, &mut report);
+        assert_eq!(report.count(Case::RuleLooserThanFab), 0);
+        assert_eq!(taken.len(), 10);
+        assert!(taken.contains(&(track, RuleValue::Length(fab + 0.1))));
+        let rules = read(file(fab + 0.1, Some(fab + 0.05)).as_bytes()).unwrap_or_default();
+        let taken = overrides(&rules, &profile, &mut Report::default());
+        assert!(taken.contains(&(track, RuleValue::Length(fab + 0.1))));
+        Ok(())
     }
 }

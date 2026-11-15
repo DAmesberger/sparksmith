@@ -746,22 +746,32 @@ impl Session<'_> {
             }
         }
         // Patterns that name an imported class and are plain wildcards
-        // (`*`, `?`); the default class's need none.
+        // (`*`, `?`, every other character itself, `+` of power nets
+        // such as `+5*` included); the default class's need none. Each
+        // refused pattern is named with its reason.
         let default = rules.default.as_ref().map(|c| c.name.as_str());
         let mut patterns = Vec::new();
         for (pattern, class) in &rules.patterns {
             if Some(class.as_str()) == default {
                 continue;
             }
-            let plain = !pattern.trim().is_empty()
-                && pattern.len() <= sparksmith_core::rules::MAX_PROFILE_TEXT
-                && !pattern.contains(['[', ']', '(', ')', '{', '}', '^', '$', '|', '\\', '+']);
-            match classes.get(class) {
-                Some(id) if plain => patterns.push(NetClassPattern {
+            let why = if pattern.trim().is_empty()
+                || pattern.len() > sparksmith_core::rules::MAX_PROFILE_TEXT
+                || pattern.chars().any(char::is_control)
+            {
+                Some("empty, too long or with control characters")
+            } else if pattern.contains(['[', ']', '(', ')', '{', '}', '^', '$', '|', '\\']) {
+                Some("a regular expression; only * and ? wildcards are read")
+            } else {
+                None
+            };
+            match (why, classes.get(class)) {
+                (None, Some(id)) => patterns.push(NetClassPattern {
                     pattern: pattern.clone(),
                     class: *id,
                 }),
-                _ => report.add(Case::NetClassPatternRefused),
+                (Some(why), _) => report.refused_pattern(pattern, why),
+                (None, None) => report.refused_pattern(pattern, "its class was not imported"),
             }
         }
         // KiCad's class of each net (explicit, then the first matching

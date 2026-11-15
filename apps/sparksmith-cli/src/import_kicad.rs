@@ -41,6 +41,7 @@ pub fn run(args: &[String]) -> Result<()> {
         "saved": saved,
         "summary": report.summary_named(),
         "looser_rules": report.looser_rules(),
+        "refused_patterns": report.refused_patterns(),
         "counts": report.counts,
         "rows": report.rows(),
         "detail": detail,
