@@ -602,6 +602,18 @@ pub mod fixture {
                     part(bytes!("tabbed/parts/tabbed-flange.solidcraft")),
                 ],
             },
+            ShippedGenerator {
+                name: "module".into(),
+                module: Arc::from(&bytes!("module/module.wasm")[..]),
+                parts: vec![
+                    part(bytes!("module/parts/module.solidcraft")),
+                    part(bytes!("module/parts/module-castellated.solidcraft")),
+                    part(bytes!(
+                        "module/parts/module-castellated-diagonal.solidcraft"
+                    )),
+                    part(bytes!("module/parts/module-diagonal.solidcraft")),
+                ],
+            },
         ]
     }
 

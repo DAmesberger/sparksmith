@@ -91,6 +91,7 @@ fn generation() -> Generation {
                 hole: None,
                 mask: Opening::Default,
                 paste: Opening::Default,
+                number: None,
             }],
             courtyard: vec![
                 [-750_000, -750_000],
@@ -99,6 +100,7 @@ fn generation() -> Generation {
             ],
             silk: Vec::new(),
             assembly: Vec::new(),
+            keepouts: Vec::new(),
         },
         binding: Vec::new(),
         model: Some(model()),

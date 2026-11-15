@@ -2,14 +2,16 @@
 //! through Solidcraft's own commands and public API, and writes them under
 //! `library/parts/`. Original work (MIT OR Apache-2.0).
 //!
-//! The ESP32-S31-WROOM-3 module body starts from the module builder's
-//! construction of the example project's form (so its geometry is the
-//! generated model's, measured equal by `part_file` parity tests), moved
-//! into the root component of a new design with plain parameter names
-//! (`can_height`, `pcb_thickness`, …) and plain body names. Appearances are
-//! named after Sparksmith materials; the marking surfaces are construction
-//! planes `marking-<name>` placed by expressions over those parameters,
-//! sized by `marking_<name>_u` / `_v`; `pin1` is a construction point.
+//! The ESP32-S31-WROOM-3 module body (`library/parts/esp32-s31-wroom-3`)
+//! is no longer written here: it was saved from the retired in-code module
+//! builder's construction of the example project's form (commit
+//! 95f065dd and before), and stays as it was, library data the example
+//! projects pack byte for byte. The `module` generator's part files below
+//! build the same bodies at its values (`part_file` parity test).
+//! Appearances are named after Sparksmith materials; the marking surfaces
+//! are construction planes `marking-<name>` placed by expressions over a
+//! part's parameters, sized by `marking_<name>_u` / `_v`; `pin1` is a
+//! construction point.
 //!
 //! The mechanical starter set (docs/mechanical-parts.md §M7: SMD nut,
 //! round spacer, finned heatsink) is drawn directly from primitives and a
@@ -22,7 +24,6 @@
 
 use serde_json::json;
 use solidcraft_engine::Session;
-use solidcraft_engine::doc::clone_expression;
 use sparksmith_core::ids::PackageTerminalId;
 use sparksmith_core::library::{
     GeneratedMaterials, PackageDefinition, PackageForm, PackageModel, PackageTerminal,
@@ -48,32 +49,6 @@ fn pt(p: [f64; 2]) -> sparksmith_core::units::PointNm {
 #[path = "author_parts/tht.rs"]
 mod tht;
 
-const STEM: &str = "pkgT";
-
-fn wroom3() -> PackageDefinition {
-    // The fixture is the module datasheet's millimetres: the wire form.
-    let form: PackageForm = serde_json::from_str::<
-        sparksmith_core::library::package_form::PackageFormParams,
-    >(include_str!("template_spike_wroom3.json"))
-    .unwrap()
-    .into();
-    PackageDefinition {
-        next_local: 100,
-        terminals: (1..=99)
-            .map(|i| PackageTerminal {
-                id: PackageTerminalId(i),
-                designation: i.to_string(),
-            })
-            .collect(),
-        model: PackageModel::Generated {
-            family_rev: 1,
-            materials: GeneratedMaterials::default(),
-        },
-        form,
-        ..PackageDefinition::default()
-    }
-}
-
 fn run(s: &mut Session, command: &str, params: serde_json::Value) -> serde_json::Value {
     s.execute(command, &params)
         .unwrap_or_else(|e| panic!("{command} {params}: {e}"))
@@ -94,262 +69,6 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
         a[2] * b[0] - a[0] * b[2],
         a[0] * b[1] - a[1] * b[0],
     ]
-}
-
-/// The WROOM-3 module body as a part file's bytes.
-pub fn author_wroom3() -> Vec<u8> {
-    let package = wroom3();
-    let PackageForm::Module(form) = &package.form else {
-        panic!("a module form");
-    };
-    // 1. The module builder's construction in a scratch design.
-    let mut native = Native::new("scratch").unwrap();
-    let def = models::build_definition(&mut native, STEM, &package).unwrap();
-    let src = native.session();
-    let from = src
-        .doc
-        .components
-        .iter()
-        .find(|c| c.name == STEM)
-        .map(|c| c.id)
-        .unwrap();
-    let plain = |n: &str| n.strip_prefix(&format!("{STEM} ")).unwrap_or(n).to_owned();
-    let parameters: BTreeMap<String, String> = src
-        .doc
-        .param_defs()
-        .into_iter()
-        .map(|d| {
-            let p = d
-                .name
-                .strip_prefix(&format!("{STEM}_"))
-                .unwrap_or(&d.name)
-                .to_owned();
-            (d.name, p)
-        })
-        .collect();
-    let mut bodies: BTreeMap<String, String> = src
-        .world_state()
-        .unwrap()
-        .bodies
-        .iter()
-        .map(|b| (b.name.clone(), plain(&b.name)))
-        .collect();
-    let features: Vec<_> = src
-        .doc
-        .features
-        .iter()
-        .filter(|f| f.component == from)
-        .cloned()
-        .collect();
-    for f in &features {
-        for n in f.body_names.iter().chain(&f.participants) {
-            bodies.entry(n.clone()).or_insert_with(|| plain(n));
-        }
-    }
-    // 2. A new design: the parameters by their plain names, the features
-    // in its root component.
-    let mut part = Session::default();
-    run(
-        &mut part,
-        "file.new",
-        json!({"name": "ESP32-S31-WROOM-3 module"}),
-    );
-    let rows: Vec<serde_json::Value> = src
-        .doc
-        .params
-        .iter()
-        .filter(|p| !p.model && p.name.starts_with(&format!("{STEM}_")))
-        .map(|p| {
-            json!({"name": parameters[&p.name], "expression": clone_expression(&p.expr, &parameters),
-                "unit": p.unit, "comment": p.comment})
-        })
-        .collect();
-    run(
-        &mut part,
-        "parameters.import",
-        json!({"text": serde_json::to_string(&rows).unwrap()}),
-    );
-    {
-        let doc = part.doc_mut();
-        let mut next = doc.next_id.max(1);
-        let mut ids = BTreeMap::new();
-        let mut names = BTreeMap::new();
-        for f in &features {
-            ids.insert(f.id, next);
-            next += 1;
-            names.insert(f.name.clone(), plain(&f.name));
-        }
-        doc.next_id = next;
-        // Feature inputs and dimensions the builder named (not user
-        // parameters) travel with their features.
-        for p in src.doc.params.iter().filter(|p| p.model) {
-            let mut q = p.clone();
-            q.name = parameters[&p.name].clone();
-            q.expr = clone_expression(&p.expr, &parameters);
-            doc.params.push(q);
-        }
-        for f in &features {
-            let mut g = f.clone();
-            g.remap_clone(&ids, &names, &bodies, &parameters).unwrap();
-            g.id = ids[&f.id];
-            g.name = names[&f.name].clone();
-            g.component = 0;
-            doc.features.push(g);
-        }
-    }
-    part.refresh();
-    let errors: Vec<String> = part
-        .model
-        .results
-        .iter()
-        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
-        .collect();
-    assert!(errors.is_empty(), "{errors:?}");
-    // 3. Appearances named after Sparksmith materials.
-    let mut by_material: BTreeMap<_, Vec<String>> = BTreeMap::new();
-    for b in &def.bodies {
-        by_material
-            .entry(b.material)
-            .or_default()
-            .push(plain(&b.name));
-    }
-    for (material, names) in by_material {
-        let d = look::definition(material).unwrap();
-        let l = look::saved(&d);
-        let [r, g, b] = l.srgb8;
-        for chunk in names.chunks(200) {
-            run(
-                &mut part,
-                "appearance.assign",
-                json!({"bodies": chunk, "name": part_file::appearance_name(material),
-                    "color": format!("#{r:02x}{g:02x}{b:02x}"), "opacity": 1.0,
-                    "pbr": {"metallic": l.metallic, "roughness": l.roughness, "dielectric_ior": l.ior}}),
-            );
-        }
-    }
-    // 4. Marking planes over the part's own parameters, matching the
-    // module form's anchors (`surface::anchors`) in place and size. The
-    // builder draws the can's centre and the antenna from numbers, so those
-    // stay numbers here too.
-    use sparksmith_core::library::marking::surface::{BoxFace, MODULE_TRACE_MM};
-    let mm = |v: f64| format!("({v} mm)");
-    let [cx, cy] = form.can_centre();
-    let board_top = "(pad_thickness + board_thickness)".to_owned();
-    let top = format!("({board_top} + can_height)");
-    let side_z = format!("({board_top} + {top}) / 2");
-    let can_end = format!("({} + can_length / 2)", mm(cy));
-    let silk = format!("{board_top} + {}", mm(MODULE_TRACE_MM));
-    let side = |name: &'static str, face: BoxFace, origin: [String; 2], along: &str| {
-        let (normal, u) = face.frame();
-        Mark {
-            name,
-            origin: [origin[0].clone(), origin[1].clone(), side_z.clone()],
-            u,
-            normal,
-            size: [along.into(), "can_height".into()],
-        }
-    };
-    let (up, x) = BoxFace::Top.frame();
-    let antenna_from = form.length() / 2.0 - form.antenna_length().min(form.length());
-    let marks = vec![
-        Mark {
-            name: "top",
-            origin: [mm(cx), mm(cy), top.clone()],
-            u: x,
-            normal: up,
-            size: ["can_width".into(), "can_length".into()],
-        },
-        Mark {
-            name: "can-top",
-            origin: [mm(cx), mm(cy), top.clone()],
-            u: x,
-            normal: up,
-            size: [
-                "can_width - 2 * can_round".into(),
-                "can_length - 2 * can_round".into(),
-            ],
-        },
-        side(
-            "can-pos-x",
-            BoxFace::PosX,
-            [format!("{} + can_width / 2", mm(cx)), mm(cy)],
-            "can_length",
-        ),
-        side(
-            "can-neg-x",
-            BoxFace::NegX,
-            [format!("{} - can_width / 2", mm(cx)), mm(cy)],
-            "can_length",
-        ),
-        side(
-            "can-pos-y",
-            BoxFace::PosY,
-            [mm(cx), format!("{} + can_length / 2", mm(cy))],
-            "can_width",
-        ),
-        side(
-            "can-neg-y",
-            BoxFace::NegY,
-            [mm(cx), format!("{} - can_length / 2", mm(cy))],
-            "can_width",
-        ),
-        Mark {
-            name: "pcb-top",
-            origin: [
-                "0 mm".into(),
-                format!("({can_end} + length / 2) / 2"),
-                silk.clone(),
-            ],
-            u: x,
-            normal: up,
-            size: ["width".into(), format!("length / 2 - {can_end}")],
-        },
-        Mark {
-            name: "antenna-area",
-            origin: [
-                "0 mm".into(),
-                format!("({} + length / 2) / 2", mm(antenna_from)),
-                silk.clone(),
-            ],
-            u: x,
-            normal: up,
-            size: ["width".into(), format!("length / 2 - {}", mm(antenna_from))],
-        },
-    ];
-    let mut extra = Vec::new();
-    for m in &marks {
-        let stem = m.name.replace('-', "_");
-        extra.push(
-            json!({"name": format!("marking_{stem}_u"), "expression": m.size[0], "unit": "mm",
-            "comment": format!("marking-{} size along its u axis", m.name)}),
-        );
-        extra.push(
-            json!({"name": format!("marking_{stem}_v"), "expression": m.size[1], "unit": "mm",
-            "comment": format!("marking-{} size across it", m.name)}),
-        );
-    }
-    run(
-        &mut part,
-        "parameters.import",
-        json!({"text": serde_json::to_string(&extra).unwrap()}),
-    );
-    for m in &marks {
-        let y = cross(m.normal, m.u);
-        run(
-            &mut part,
-            "construct.plane.offset",
-            json!({"base": {"origin": m.origin, "x_dir": m.u, "y_dir": y}, "offset": "0 mm",
-                "name": format!("marking-{}", m.name)}),
-        );
-    }
-    // 5. Pin 1: the first lead point, on the seating plane.
-    let first = package.form.lead_points().first().copied().unwrap();
-    run(
-        &mut part,
-        "construct.point.vertex",
-        json!({"point": {"point": [first[0], first[1], 0.0]}, "name": "pin1"}),
-    );
-    solidcraft_engine::io::write_design(&part.doc)
 }
 
 /// A chip part file of the `chip` generator's bundle: the in-code chip
@@ -2883,6 +2602,1034 @@ fn author_gull_wing_four_sided() -> Vec<u8> {
     author_gull_wing(true)
 }
 
+/// Pad-row slots of a module part file: two rows on each side, in the
+/// order left, bottom, right, top, then the second row of each side (the
+/// `module` generator's `ROW_SLOTS`).
+const MODULE_SIDES: [&str; 8] = [
+    "left", "bottom", "right", "top", "left", "bottom", "right", "top",
+];
+/// Single-pad slots (the generator's `SINGLE_SLOTS`).
+const MODULE_SINGLES: usize = 16;
+/// Most pads of one row and most ground pads along one grid direction,
+/// whose looks the file carries (the generator's `MAX_ROW_PADS`,
+/// `MAX_GROUND_SIDE`).
+const MODULE_MOST_ROW: usize = 64;
+const MODULE_MOST_GROUND: usize = 16;
+/// √½, the turn of a diagonal ground array, as `f64` writes cos 45°.
+const HALF_SQRT2: f64 = std::f64::consts::FRAC_1_SQRT_2;
+
+/// The step from one pad of a row on `side` to the next (counter-clockwise
+/// round the module, seen from above), and the inward normal of the side.
+fn module_side(side: &str) -> ([f64; 3], [f64; 2]) {
+    match side {
+        "left" => ([0.0, -1.0, 0.0], [1.0, 0.0]),
+        "bottom" => ([1.0, 0.0, 0.0], [0.0, 1.0]),
+        "right" => ([0.0, 1.0, 0.0], [-1.0, 0.0]),
+        _ => ([-1.0, 0.0, 0.0], [0.0, -1.0]),
+    }
+}
+
+/// One step of a closed sketch outline: a line to a point, or a clockwise
+/// arc about a centre to a point (expressions in mm).
+enum Step<'a> {
+    Line([&'a str; 2]),
+    ClockwiseArc {
+        centre: [&'a str; 2],
+        to: [&'a str; 2],
+    },
+}
+
+/// A closed outline in the open sketch from `start`, its points tagged
+/// `tag`: sketch points fixed by expressions, lines and centre-point arcs
+/// (a clockwise arc from p to q is drawn counter-clockwise from q to p).
+fn sketch_outline(s: &mut Session, tag: &str, start: [&str; 2], steps: &[Step<'_>]) {
+    let mut n = 0usize;
+    let mut point = |s: &mut Session, at: [&str; 2]| -> String {
+        n += 1;
+        let id = format!("{tag}{n}");
+        run(
+            s,
+            "sketch.point",
+            json!({"point": [at[0], at[1]], "id": id}),
+        );
+        id
+    };
+    let first = point(s, start);
+    let mut last = first.clone();
+    for (k, step) in steps.iter().enumerate() {
+        let closing = k + 1 == steps.len();
+        match step {
+            Step::Line(to) => {
+                let next = if closing {
+                    first.clone()
+                } else {
+                    point(s, *to)
+                };
+                run(
+                    s,
+                    "sketch.line",
+                    json!({"points": [last, next], "infer": false}),
+                );
+                last = next;
+            }
+            Step::ClockwiseArc { centre, to } => {
+                let c = point(s, *centre);
+                let next = if closing {
+                    first.clone()
+                } else {
+                    point(s, *to)
+                };
+                run(
+                    s,
+                    "sketch.arc.center_point",
+                    json!({"center": c, "start": next, "end": last}),
+                );
+                last = next;
+            }
+        }
+    }
+}
+
+/// A part file of the `module` generator's bundle: a radio or processor
+/// module (a soldermasked board on its gold pads, a nickel-silver shield
+/// can, a printed antenna meander at the +y end), the retired in-code
+/// module builder's construction made parametric in its rows, ground
+/// array, single pads, castellations and antenna. Frame as the module
+/// form's: x across (`width`), y along (`length`), the antenna end at +y,
+/// the origin at the outline centre.
+///
+/// - **Board**: a box of `width` × `length` × `board_thickness` standing on
+///   the pads (`pad_thickness`).
+/// - **Rows**: eight slots, two on each side (left, bottom, right, top,
+///   then each side's second). Slot `i` is a seed pad `row i pad` at its
+///   first pad's centre (`row_i_x`, `row_i_y`) and a body pattern of
+///   `row_i_count` at `pitch` along the side (counter-clockwise), so the
+///   copies are `row i pad (2)`, `(3)`, … as the builder named them. Each
+///   pad is `pad_length` across its edge and `pad_width` along it.
+/// - **Castellations** (`castellated` files only: a cut of the board per
+///   notch costs about 30 ms, so LGA modules use files without them): per
+///   slot, a half ring of plating `row i castellation` (from
+///   `notch_radius − plating` to `notch_radius` about `notch_i_x`,
+///   `notch_i_y` on the edge, through the board) and a body pattern of
+///   `notch_i_count`; the board is cut round each by a cylinder and a
+///   pattern of that one cut with the same count.
+/// - **Ground array**: a seed `ground pad` of `ground_size_x` ×
+///   `ground_size_y` at (`ground_x`, `ground_y`) and a two-way body
+///   pattern of `ground_columns` × `ground_rows` at `ground_pitch_x`,
+///   `ground_pitch_y`: along +x and −y in this file, or turned 45°
+///   (`diagonal`, the seed a turned square).
+/// - **Single pads** `single pad 1` … `16` of `single_k_length` ×
+///   `single_k_width` at `single_k_x`, `single_k_y`.
+/// - **Shield can** `can_width` × `can_length` at (`can_x`, `can_y`) on the
+///   board up to `height`, its top edges rounded by `can_round`.
+/// - **Antenna**: the builder's meander (`antenna_turns` up-and-down turns
+///   of `antenna_step` across the antenna region inset by `antenna_margin`,
+///   a feed leg down to the region's lower edge, `antenna_trace` wide,
+///   bent with the builder's centreline radius of 1.0001 half widths) as a
+///   head, `antenna_units` joined copies of one turn and a tail.
+/// - **Parking**: what a module does not have (a slot without a row, a
+///   row without castellations, no ground array, unused single pads, no
+///   antenna, the turn copies of a one-turn meander) is placed at
+///   `park_x`, beyond the −x edge, and one cut removes everything there;
+///   so one file serves every module, and the bodies left are exactly the
+///   builder's.
+///
+/// Looks are kept by body name: every name the patterns can give (64 pads
+/// a row, 16 × 16 ground pads) carries its look. Marking planes as the
+/// WROOM-3 part file's (`surface::anchors` of the module form); `pin1` at
+/// (`pin1_x`, `pin1_y`). Saved at the module form's typical values (an
+/// original synthetic 18 × 25 mm castellated module: 14 + 10 + 14 pads at
+/// 1.27 mm, a 3 × 3 ground array, turned 45° in the diagonal file, a 6 mm
+/// antenna end); the generator gives every value.
+pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
+    let mut s = Session::default();
+    let title = match (castellated, diagonal) {
+        (false, false) => "Radio module",
+        (false, true) => "Radio module, ground array turned 45°",
+        (true, false) => "Castellated radio module",
+        (true, true) => "Castellated radio module, ground array turned 45°",
+    };
+    run(&mut s, "file.new", json!({"name": title}));
+    let mm = |v: f64| format!("{v} mm");
+    // The typical module: rows left (14), bottom (10), right (14).
+    let (hw, hl) = (9.0, 12.5);
+    let saved_rows: [(usize, [f64; 2], Option<[f64; 2]>); 3] = [
+        (14, [-hw + 0.6, hl - 7.0], Some([-hw, hl - 7.0])),
+        (10, [-5.715, -hl + 0.6], Some([-5.715, -hl])),
+        (
+            14,
+            [hw - 0.6, hl - 7.0 - 13.0 * 1.27],
+            Some([hw, hl - 7.0 - 13.0 * 1.27]),
+        ),
+    ];
+    let park = -hw - 100.0;
+    let mut rows = vec![
+        param("width", "18 mm", "mm", "module outline across (x)"),
+        param(
+            "length",
+            "25 mm",
+            "mm",
+            "module outline along (y); the antenna end is +y",
+        ),
+        param(
+            "height",
+            "3.2 mm",
+            "mm",
+            "seated height: pads, board and can",
+        ),
+        param("board_thickness", "0.8 mm", "mm", "module board thickness"),
+        param(
+            "pad_thickness",
+            "0.035 mm",
+            "mm",
+            "pad thickness under the board (est.: ENIG over 35 µm copper)",
+        ),
+        param("can_width", "16.6 mm", "mm", "shield can across (x)"),
+        param("can_length", "17.4 mm", "mm", "shield can along (y)"),
+        param("can_x", "0 mm", "mm", "shield can centre x"),
+        param("can_y", "-2.5 mm", "mm", "shield can centre y"),
+        param(
+            "can_height",
+            "height - board_thickness - pad_thickness",
+            "mm",
+            "shield can height above the board",
+        ),
+        param("can_round", "0.3 mm", "mm", "round of the can's top edges"),
+        param("pitch", "1.27 mm", "mm", "pad pitch within every row"),
+        param("pad_length", "1.2 mm", "mm", "row pad across its edge"),
+        param("pad_width", "0.9 mm", "mm", "row pad along its edge"),
+        param(
+            "park_x",
+            &mm(park),
+            "mm",
+            "x where what the module does not have is placed and cut away",
+        ),
+        param(
+            "antenna_length",
+            "6 mm",
+            "mm",
+            "antenna region depth from the +y edge",
+        ),
+        param(
+            "antenna_margin",
+            "0.8 mm",
+            "mm",
+            "meander inset in the antenna region (est.)",
+        ),
+        param(
+            "antenna_trace",
+            "0.45 mm",
+            "mm",
+            "antenna trace width (est.)",
+        ),
+        param(
+            "antenna_thickness",
+            "0.035 mm",
+            "mm",
+            "antenna trace thickness (est.: 35 µm copper)",
+        ),
+        param("antenna_turns", "6", "", "meander turns"),
+        param(
+            "antenna_units",
+            "5",
+            "",
+            "copies of one turn between the head and the tail (turns − 1, at least 1)",
+        ),
+        param(
+            "antenna_step",
+            &mm(16.4 / 12.0),
+            "mm",
+            "meander step along x",
+        ),
+        param(
+            "antenna_shift",
+            "0 mm",
+            "mm",
+            "antenna x shift (to park_x when there is none)",
+        ),
+        param(
+            "antenna_unit_shift",
+            "0 mm",
+            "mm",
+            "x shift of the turn copies (to park_x for a one-turn meander)",
+        ),
+        param("ant_s", "antenna_step", "mm", "meander step along x"),
+        param("ant_h", "antenna_trace / 2", "mm", "half the trace width"),
+        param(
+            "ant_r",
+            "ant_h * 1.0001",
+            "mm",
+            "bend radius of the trace's centreline",
+        ),
+        param("ant_ro", "ant_r + ant_h", "mm", "outer bend radius"),
+        param(
+            "ant_x0",
+            "- width / 2 + antenna_margin + antenna_shift",
+            "mm",
+            "meander start x",
+        ),
+        param(
+            "antenna_depth",
+            "6 mm",
+            "mm",
+            "depth of the region the meander is drawn in: the antenna region's, or room for a parked one",
+        ),
+        param(
+            "ant_y0",
+            "length / 2 - antenna_depth + antenna_margin",
+            "mm",
+            "feed leg foot y",
+        ),
+        param(
+            "ant_y1",
+            "length / 2 - antenna_margin",
+            "mm",
+            "meander top y",
+        ),
+        param(
+            "ant_yl",
+            "ant_y0 + 0.4 * (ant_y1 - ant_y0)",
+            "mm",
+            "meander bottom y",
+        ),
+        param(
+            "ant_ux",
+            "ant_x0 + antenna_unit_shift",
+            "mm",
+            "first turn copy x",
+        ),
+        param(
+            "ant_tx",
+            "ant_x0 + 2 * (antenna_turns - 1) * antenna_step",
+            "mm",
+            "tail x",
+        ),
+        param("ground_rows", "3", "", "ground array rows"),
+        param("ground_columns", "3", "", "ground array columns"),
+        param(
+            "ground_pitch_x",
+            "1.6 mm",
+            "mm",
+            "ground pitch along the array's x",
+        ),
+        param(
+            "ground_pitch_y",
+            "1.6 mm",
+            "mm",
+            "ground pitch along the array's y",
+        ),
+        param(
+            "ground_size_x",
+            "1.1 mm",
+            "mm",
+            "ground pad size along the array's x",
+        ),
+        param(
+            "ground_size_y",
+            "1.1 mm",
+            "mm",
+            "ground pad size along the array's y",
+        ),
+        param(
+            "mark_pcb_depth",
+            "6.3 mm",
+            "mm",
+            "board beyond the can's +y end (the pcb-top marking plane; 1 µm where the can reaches the edge)",
+        ),
+        param(
+            "mark_antenna_depth",
+            "6 mm",
+            "mm",
+            "the antenna-area marking plane's depth (1 µm without an antenna)",
+        ),
+        param("pin1_x", &mm(saved_rows[0].1[0]), "mm", "pin 1 x"),
+        param("pin1_y", &mm(saved_rows[0].1[1]), "mm", "pin 1 y"),
+    ];
+    // The seed ground pad: row 0, column 0 of the array about (0, −2).
+    let seed = if diagonal {
+        [-2.0 * 1.6 * HALF_SQRT2, -2.0]
+    } else {
+        [-1.6, -2.0 + 1.6]
+    };
+    rows.push(param(
+        "ground_x",
+        &mm(seed[0]),
+        "mm",
+        "seed ground pad centre x",
+    ));
+    rows.push(param(
+        "ground_y",
+        &mm(seed[1]),
+        "mm",
+        "seed ground pad centre y",
+    ));
+    for (i, side) in MODULE_SIDES.iter().enumerate() {
+        let k = i + 1;
+        let (count, first, notch) = saved_rows
+            .get(i)
+            .map_or((1, [park, 0.0], [park, 0.0]), |(n, f, c)| {
+                (*n, *f, c.unwrap_or([park, 0.0]))
+            });
+        rows.push(param(
+            &format!("row_{k}_count"),
+            &count.to_string(),
+            "",
+            &format!("pads of slot {k} ({side} side)"),
+        ));
+        rows.push(param(
+            &format!("row_{k}_x"),
+            &mm(first[0]),
+            "mm",
+            &format!("slot {k}: first pad centre x"),
+        ));
+        rows.push(param(
+            &format!("row_{k}_y"),
+            &mm(first[1]),
+            "mm",
+            &format!("slot {k}: first pad centre y"),
+        ));
+        let notches = if saved_rows.get(i).is_some() {
+            count
+        } else {
+            1
+        };
+        if !castellated {
+            continue;
+        }
+        rows.push(param(
+            &format!("notch_{k}_count"),
+            &notches.to_string(),
+            "",
+            &format!("castellations of slot {k}"),
+        ));
+        rows.push(param(
+            &format!("notch_{k}_x"),
+            &mm(notch[0]),
+            "mm",
+            &format!("slot {k}: first castellation centre x (on the edge)"),
+        ));
+        rows.push(param(
+            &format!("notch_{k}_y"),
+            &mm(notch[1]),
+            "mm",
+            &format!("slot {k}: first castellation centre y"),
+        ));
+    }
+    if castellated {
+        rows.push(param(
+            "notch_radius",
+            "0.3 mm",
+            "mm",
+            "castellation half-hole radius",
+        ));
+        rows.push(param(
+            "plating",
+            "0.03 mm",
+            "mm",
+            "castellation plating thickness in the notch (est.)",
+        ));
+    }
+    for k in 1..=MODULE_SINGLES {
+        rows.push(param(
+            &format!("single_{k}_x"),
+            &mm(park),
+            "mm",
+            &format!("single pad {k} centre x"),
+        ));
+        rows.push(param(
+            &format!("single_{k}_y"),
+            "0 mm",
+            "mm",
+            &format!("single pad {k} centre y"),
+        ));
+        rows.push(param(
+            &format!("single_{k}_length"),
+            "0.8 mm",
+            "mm",
+            &format!("single pad {k} size x"),
+        ));
+        rows.push(param(
+            &format!("single_{k}_width"),
+            "0.8 mm",
+            "mm",
+            &format!("single pad {k} size y"),
+        ));
+    }
+    import(&mut s, &rows);
+    // The board on its pads.
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- width / 2", "- length / 2", "pad_thickness"],
+            "length": "width", "width": "length", "height": "board_thickness",
+            "name": "board", "body_name": "board"}),
+    );
+    // Rows: seed pad and pattern; castellation notch (a cut of the board
+    // and its pattern) and plating (a half ring and its pattern).
+    for (i, side) in MODULE_SIDES.iter().enumerate() {
+        let k = i + 1;
+        let (step, inward) = module_side(side);
+        let across_x = matches!(*side, "left" | "right");
+        let (sx, sy) = if across_x {
+            ("pad_length", "pad_width")
+        } else {
+            ("pad_width", "pad_length")
+        };
+        let pad = format!("row {k} pad");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [format!("row_{k}_x - {sx} / 2"), format!("row_{k}_y - {sy} / 2"), "0 mm"],
+                "length": sx, "width": sy, "height": "pad_thickness",
+                "name": pad, "body_name": pad}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"bodies": [pad], "dir1": step, "count1": format!("row_{k}_count"),
+                "spacing1": "pitch", "name": format!("row {k} pattern")}),
+        );
+        if !castellated {
+            continue;
+        }
+        let notch = format!("row {k} notch");
+        run(
+            &mut s,
+            "solid.cylinder",
+            json!({"base": [format!("notch_{k}_x"), format!("notch_{k}_y"), "0 mm"],
+                "radius": "notch_radius", "height": "pad_thickness + board_thickness + 0.1 mm",
+                "axis": "Z", "operation": "cut", "targets": ["board"], "name": notch}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"features": [notch], "dir1": step, "count1": format!("notch_{k}_count"),
+                "spacing1": "pitch", "name": format!("row {k} notch pattern")}),
+        );
+        // The half ring inward of the edge point: counter-clockwise from
+        // −t to +t, t the inward normal turned a quarter left.
+        let t = [-inward[1], inward[0]];
+        let along = |sign: f64, radius: &str| -> [String; 2] {
+            let term = |c: f64| {
+                if c * sign > 0.0 {
+                    format!(" + {radius}")
+                } else if c * sign < 0.0 {
+                    format!(" - {radius}")
+                } else {
+                    String::new()
+                }
+            };
+            [
+                format!("notch_{k}_x{}", term(t[0])),
+                format!("notch_{k}_y{}", term(t[1])),
+            ]
+        };
+        let sketch = format!("row {k} castellation sketch");
+        run(
+            &mut s,
+            "sketch.create",
+            json!({"plane": "XY", "offset": "pad_thickness", "name": sketch}),
+        );
+        let [o1, o2, i2, i1] = [
+            along(-1.0, "notch_radius"),
+            along(1.0, "notch_radius"),
+            along(1.0, "(notch_radius - plating)"),
+            along(-1.0, "(notch_radius - plating)"),
+        ];
+        let c = [format!("notch_{k}_x"), format!("notch_{k}_y")];
+        let tag = format!("c{k}_");
+        let id = |n: &str| format!("{tag}{n}");
+        for (n, p) in [
+            ("c", &c),
+            ("o1", &o1),
+            ("o2", &o2),
+            ("i1", &i1),
+            ("i2", &i2),
+        ] {
+            run(
+                &mut s,
+                "sketch.point",
+                json!({"point": [p[0], p[1]], "id": id(n)}),
+            );
+        }
+        run(
+            &mut s,
+            "sketch.arc.center_point",
+            json!({"center": id("c"), "start": id("o1"), "end": id("o2")}),
+        );
+        run(
+            &mut s,
+            "sketch.line",
+            json!({"points": [id("o2"), id("i2")], "infer": false}),
+        );
+        run(
+            &mut s,
+            "sketch.arc.center_point",
+            json!({"center": id("c"), "start": id("i1"), "end": id("i2")}),
+        );
+        run(
+            &mut s,
+            "sketch.line",
+            json!({"points": [id("i1"), id("o1")], "infer": false}),
+        );
+        run(&mut s, "sketch.finish", json!({}));
+        let plate = format!("row {k} castellation");
+        run(
+            &mut s,
+            "solid.extrude",
+            json!({"sketch": sketch, "distance": "board_thickness", "operation": "new",
+                "name": plate, "body_name": plate}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"bodies": [plate], "dir1": step, "count1": format!("notch_{k}_count"),
+                "spacing1": "pitch", "name": format!("row {k} castellation pattern")}),
+        );
+    }
+    // The ground array.
+    let ground = "ground pad";
+    let (dir1, dir2) = if diagonal {
+        run(
+            &mut s,
+            "sketch.create",
+            json!({"plane": "XY", "offset": "0 mm", "name": "ground pad sketch"}),
+        );
+        let k = HALF_SQRT2;
+        let corner = |u: &str, v: &str| -> [String; 2] {
+            [
+                format!("ground_x + {k} * (({u}) - ({v}))"),
+                format!("ground_y + {k} * (({u}) + ({v}))"),
+            ]
+        };
+        let (hx, hy) = ("ground_size_x / 2", "ground_size_y / 2");
+        let (mx, my) = ("- ground_size_x / 2", "- ground_size_y / 2");
+        let p = [
+            corner(mx, my),
+            corner(hx, my),
+            corner(hx, hy),
+            corner(mx, hy),
+        ];
+        let at = |q: &[String; 2]| [q[0].clone(), q[1].clone()];
+        let [a, b, c, d] = [at(&p[0]), at(&p[1]), at(&p[2]), at(&p[3])];
+        sketch_outline(
+            &mut s,
+            "g",
+            [&a[0], &a[1]],
+            &[
+                Step::Line([&b[0], &b[1]]),
+                Step::Line([&c[0], &c[1]]),
+                Step::Line([&d[0], &d[1]]),
+                Step::Line([&a[0], &a[1]]),
+            ],
+        );
+        run(&mut s, "sketch.finish", json!({}));
+        run(
+            &mut s,
+            "solid.extrude",
+            json!({"sketch": "ground pad sketch", "distance": "pad_thickness", "operation": "new",
+                "name": ground, "body_name": ground}),
+        );
+        ([k, k, 0.0], [k, -k, 0.0])
+    } else {
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": ["ground_x - ground_size_x / 2", "ground_y - ground_size_y / 2", "0 mm"],
+                "length": "ground_size_x", "width": "ground_size_y", "height": "pad_thickness",
+                "name": ground, "body_name": ground}),
+        );
+        ([1.0, 0.0, 0.0], [0.0, -1.0, 0.0])
+    };
+    run(
+        &mut s,
+        "solid.pattern.rectangular",
+        json!({"bodies": [ground], "dir1": dir1, "count1": "ground_columns", "spacing1": "ground_pitch_x",
+            "dir2": dir2, "count2": "ground_rows", "spacing2": "ground_pitch_y", "name": "ground pattern"}),
+    );
+    // Single pads.
+    for k in 1..=MODULE_SINGLES {
+        let name = format!("single pad {k}");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [format!("single_{k}_x - single_{k}_length / 2"),
+                    format!("single_{k}_y - single_{k}_width / 2"), "0 mm"],
+                "length": format!("single_{k}_length"), "width": format!("single_{k}_width"),
+                "height": "pad_thickness", "name": name, "body_name": name}),
+        );
+    }
+    // The shield can, its top edges rounded (picked at the saved size:
+    // x ±8.3, y −11.2 … 6.2, top at 3.2 mm).
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["can_x - can_width / 2", "can_y - can_length / 2", "pad_thickness + board_thickness"],
+            "length": "can_width", "width": "can_length", "height": "can_height",
+            "name": "shield can", "body_name": "shield can"}),
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "can round", "body": "shield can", "radius": "can_round",
+            "edges": [[0.0, -11.2, 3.2], [8.3, -2.5, 3.2], [0.0, 6.2, 3.2], [-8.3, -2.5, 3.2]]}),
+    );
+    // The antenna meander: head, turn copies, tail, joined.
+    let antenna_sketch = |s: &mut Session, name: &str| {
+        run(
+            s,
+            "sketch.create",
+            json!({"plane": "XY", "offset": "pad_thickness + board_thickness", "name": name}),
+        );
+    };
+    antenna_sketch(&mut s, "antenna head sketch");
+    {
+        let x = |e: &str| format!("ant_x0 {e}");
+        let (x_mh, x_ph, x_r, x_hs) =
+            (x("- ant_h"), x("+ ant_h"), x("+ ant_r"), x("+ 0.5 * ant_s"));
+        let (y1r, y1ph, y1mh) = ("ant_y1 - ant_r", "ant_y1 + ant_h", "ant_y1 - ant_h");
+        sketch_outline(
+            &mut s,
+            "h",
+            [&x_mh, "ant_y0"],
+            &[
+                Step::Line([&x_mh, y1r]),
+                Step::ClockwiseArc {
+                    centre: [&x_r, y1r],
+                    to: [&x_r, y1ph],
+                },
+                Step::Line([&x_hs, y1ph]),
+                Step::Line([&x_hs, y1mh]),
+                Step::Line([&x_ph, y1mh]),
+                Step::Line([&x_ph, "ant_y0"]),
+                Step::Line([&x_mh, "ant_y0"]),
+            ],
+        );
+    }
+    run(&mut s, "sketch.finish", json!({}));
+    run(
+        &mut s,
+        "solid.extrude",
+        json!({"sketch": "antenna head sketch", "distance": "antenna_thickness", "operation": "new",
+            "name": "antenna head", "body_name": "antenna"}),
+    );
+    // One turn from the middle of a top run to the middle of the next
+    // (`unit`), or from the middle of the last top run to the end of the
+    // last up leg (tail).
+    let turn = |s: &mut Session, tag: &str, base: &str, tail: bool| {
+        let x = |e: &str| format!("{base} {e}");
+        let xs = |a: &str| x(a);
+        let p = [
+            xs("+ 0.5 * ant_s"),       // 0
+            xs("+ ant_s - ant_r"),     // 1
+            xs("+ ant_s + ant_h"),     // 2
+            xs("+ 2 * ant_s - ant_h"), // 3
+            xs("+ 2 * ant_s + ant_r"), // 4
+            xs("+ 2.5 * ant_s"),       // 5
+            xs("+ 2 * ant_s + ant_h"), // 6
+            xs("+ 2 * ant_s - ant_r"), // 7
+            xs("+ ant_s + ant_r"),     // 8
+            xs("+ ant_s - ant_h"),     // 9
+        ];
+        let (y1ph, y1mh, y1r) = ("ant_y1 + ant_h", "ant_y1 - ant_h", "ant_y1 - ant_r");
+        let (ylph, ylmh, ylr) = ("ant_yl + ant_h", "ant_yl - ant_h", "ant_yl + ant_r");
+        let mut steps = vec![
+            Step::Line([&p[1], y1ph]),
+            Step::ClockwiseArc {
+                centre: [&p[1], y1r],
+                to: [&p[2], y1r],
+            },
+            Step::Line([&p[2], ylph]),
+            Step::Line([&p[3], ylph]),
+        ];
+        if tail {
+            steps.push(Step::Line([&p[3], "ant_y1"]));
+            steps.push(Step::Line([&p[6], "ant_y1"]));
+        } else {
+            steps.push(Step::Line([&p[3], y1r]));
+            steps.push(Step::ClockwiseArc {
+                centre: [&p[4], y1r],
+                to: [&p[4], y1ph],
+            });
+            steps.push(Step::Line([&p[5], y1ph]));
+            steps.push(Step::Line([&p[5], y1mh]));
+            steps.push(Step::Line([&p[6], y1mh]));
+        }
+        steps.push(Step::Line([&p[6], ylr]));
+        steps.push(Step::ClockwiseArc {
+            centre: [&p[7], ylr],
+            to: [&p[7], ylmh],
+        });
+        steps.push(Step::Line([&p[8], ylmh]));
+        steps.push(Step::ClockwiseArc {
+            centre: [&p[8], ylr],
+            to: [&p[9], ylr],
+        });
+        steps.push(Step::Line([&p[9], y1mh]));
+        steps.push(Step::Line([&p[0], y1mh]));
+        steps.push(Step::Line([&p[0], y1ph]));
+        sketch_outline(s, tag, [&p[0], y1ph], &steps);
+    };
+    antenna_sketch(&mut s, "antenna turn sketch");
+    turn(&mut s, "u", "ant_ux", false);
+    run(&mut s, "sketch.finish", json!({}));
+    run(
+        &mut s,
+        "solid.extrude",
+        json!({"sketch": "antenna turn sketch", "distance": "antenna_thickness", "operation": "join",
+            "targets": ["antenna"], "name": "antenna turn"}),
+    );
+    run(
+        &mut s,
+        "solid.pattern.rectangular",
+        json!({"features": ["antenna turn"], "dir1": [1, 0, 0], "count1": "antenna_units",
+            "spacing1": "2 * antenna_step", "name": "antenna turns"}),
+    );
+    antenna_sketch(&mut s, "antenna tail sketch");
+    turn(&mut s, "t", "ant_tx", true);
+    run(&mut s, "sketch.finish", json!({}));
+    run(
+        &mut s,
+        "solid.extrude",
+        json!({"sketch": "antenna tail sketch", "distance": "antenna_thickness", "operation": "join",
+            "targets": ["antenna"], "name": "antenna tail"}),
+    );
+    // Everything parked beyond the −x edge goes.
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["park_x - 60 mm", "- length / 2 - 10 mm", "-1 mm"],
+            "length": "120 mm", "width": "length + 20 mm", "height": "height + 2 mm",
+            "operation": "cut", "name": "parked"}),
+    );
+    // Marking planes: the module form's anchors.
+    use sparksmith_core::library::marking::surface::BoxFace;
+    let board_top = "(pad_thickness + board_thickness)".to_owned();
+    let top = format!("({board_top} + can_height)");
+    let side_z = format!("({board_top} + {top}) / 2");
+    let silk = format!("{board_top} + antenna_thickness");
+    let side = |name: &'static str, face: BoxFace, origin: [String; 2], along: &str| {
+        let (normal, u) = face.frame();
+        Mark {
+            name,
+            origin: [origin[0].clone(), origin[1].clone(), side_z.clone()],
+            u,
+            normal,
+            size: [along.into(), "can_height".into()],
+        }
+    };
+    let (up, x) = BoxFace::Top.frame();
+    let marks = vec![
+        Mark {
+            name: "top",
+            origin: ["can_x".into(), "can_y".into(), top.clone()],
+            u: x,
+            normal: up,
+            size: ["can_width".into(), "can_length".into()],
+        },
+        Mark {
+            name: "can-top",
+            origin: ["can_x".into(), "can_y".into(), top.clone()],
+            u: x,
+            normal: up,
+            size: [
+                "can_width - 2 * can_round".into(),
+                "can_length - 2 * can_round".into(),
+            ],
+        },
+        side(
+            "can-pos-x",
+            BoxFace::PosX,
+            ["can_x + can_width / 2".into(), "can_y".into()],
+            "can_length",
+        ),
+        side(
+            "can-neg-x",
+            BoxFace::NegX,
+            ["can_x - can_width / 2".into(), "can_y".into()],
+            "can_length",
+        ),
+        side(
+            "can-pos-y",
+            BoxFace::PosY,
+            ["can_x".into(), "can_y + can_length / 2".into()],
+            "can_width",
+        ),
+        side(
+            "can-neg-y",
+            BoxFace::NegY,
+            ["can_x".into(), "can_y - can_length / 2".into()],
+            "can_width",
+        ),
+        Mark {
+            name: "pcb-top",
+            origin: [
+                "0 mm".into(),
+                "length / 2 - mark_pcb_depth / 2".into(),
+                silk.clone(),
+            ],
+            u: x,
+            normal: up,
+            size: ["width".into(), "mark_pcb_depth".into()],
+        },
+        Mark {
+            name: "antenna-area",
+            origin: [
+                "0 mm".into(),
+                "length / 2 - mark_antenna_depth / 2".into(),
+                silk.clone(),
+            ],
+            u: x,
+            normal: up,
+            size: ["width".into(), "mark_antenna_depth".into()],
+        },
+    ];
+    let mut extra = Vec::new();
+    for m in &marks {
+        let stem = m.name.replace('-', "_");
+        extra.push(param(
+            &format!("marking_{stem}_u"),
+            &m.size[0],
+            "mm",
+            &format!("marking-{} size along its u axis", m.name),
+        ));
+        extra.push(param(
+            &format!("marking_{stem}_v"),
+            &m.size[1],
+            "mm",
+            &format!("marking-{} size across it", m.name),
+        ));
+    }
+    import(&mut s, &extra);
+    for m in &marks {
+        let y = cross(m.normal, m.u);
+        run(
+            &mut s,
+            "construct.plane.offset",
+            json!({"base": {"origin": m.origin, "x_dir": m.u, "y_dir": y}, "offset": "0 mm",
+                "name": format!("marking-{}", m.name)}),
+        );
+    }
+    // Pin 1 follows its parameters through a sketch point on the seating
+    // plane.
+    run(
+        &mut s,
+        "sketch.create",
+        json!({"plane": "XY", "offset": "0 mm", "name": "pin 1 sketch"}),
+    );
+    run(
+        &mut s,
+        "sketch.point",
+        json!({"point": ["pin1_x", "pin1_y"], "id": "p1"}),
+    );
+    run(&mut s, "sketch.finish", json!({}));
+    run(
+        &mut s,
+        "construct.point.vertex",
+        json!({"point": {"sketch": "pin 1 sketch", "point": "p1"}, "name": "pin1"}),
+    );
+    // Looks, kept by body name: every name the patterns can give, at the
+    // largest counts with nothing parked (the park moved off), then the
+    // saved values again.
+    let mut most = serde_json::Map::new();
+    most.insert("park_x".into(), json!("1000 mm"));
+    for k in 1..=MODULE_SIDES.len() {
+        most.insert(format!("row_{k}_count"), json!(MODULE_MOST_ROW.to_string()));
+        if castellated {
+            most.insert(
+                format!("notch_{k}_count"),
+                json!(MODULE_MOST_ROW.to_string()),
+            );
+        }
+    }
+    most.insert("ground_rows".into(), json!(MODULE_MOST_GROUND.to_string()));
+    most.insert(
+        "ground_columns".into(),
+        json!(MODULE_MOST_GROUND.to_string()),
+    );
+    run(&mut s, "parameters.change", json!({ "changes": most }));
+    s.refresh();
+    let names: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .collect();
+    let mut gold: Vec<&str> = Vec::new();
+    for n in &names {
+        match n.as_str() {
+            "board" | "shield can" | "antenna" => {}
+            other => gold.push(other),
+        }
+    }
+    assert_eq!(
+        gold.len(),
+        (1 + usize::from(castellated)) * MODULE_SIDES.len() * MODULE_MOST_ROW
+            + MODULE_MOST_GROUND * MODULE_MOST_GROUND
+            + MODULE_SINGLES,
+        "{names:?}"
+    );
+    assign_look(&mut s, &["board"], MaterialId::SolderMaskGreen);
+    assign_look(&mut s, &["shield can"], MaterialId::NickelSilver);
+    assign_look(&mut s, &["antenna"], MaterialId::SolderMaskOverCopper);
+    for chunk in gold.chunks(200) {
+        assign_look(&mut s, chunk, MaterialId::Gold);
+    }
+    let mut saved = serde_json::Map::new();
+    saved.insert("park_x".into(), json!(mm(park)));
+    for (i, _) in MODULE_SIDES.iter().enumerate() {
+        let k = i + 1;
+        let n = saved_rows.get(i).map_or(1, |r| r.0);
+        saved.insert(format!("row_{k}_count"), json!(n.to_string()));
+        if castellated {
+            saved.insert(format!("notch_{k}_count"), json!(n.to_string()));
+        }
+    }
+    saved.insert("ground_rows".into(), json!("3"));
+    saved.insert("ground_columns".into(), json!("3"));
+    run(&mut s, "parameters.change", json!({ "changes": saved }));
+    s.refresh();
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    let left: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .collect();
+    // Board, 38 pads (and their plating), 9 ground pads, can, antenna.
+    let plated = if castellated { 38 } else { 0 };
+    assert_eq!(
+        left.len(),
+        1 + 38 + plated + 9 + 2,
+        "bodies saved: {left:?}"
+    );
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
+fn author_module_straight() -> Vec<u8> {
+    author_module(false, false)
+}
+
+fn author_module_diagonal() -> Vec<u8> {
+    author_module(true, false)
+}
+
+fn author_module_castellated() -> Vec<u8> {
+    author_module(false, true)
+}
+
+fn author_module_castellated_diagonal() -> Vec<u8> {
+    author_module(true, true)
+}
+
 /// Give `bodies` the Solidcraft appearance named after `material`, with
 /// Sparksmith's opaque PBR projection of its look.
 fn assign_look(s: &mut Session, bodies: &[&str], material: MaterialId) {
@@ -3475,7 +4222,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 38] = [
+    let parts: [(&str, &str, Author); 41] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -3574,7 +4321,25 @@ fn author_parts() {
             "tabbed-flange",
             author_tabbed_flange,
         ),
-        ("library/parts", "esp32-s31-wroom-3", author_wroom3),
+        // The module generator's bundle (`generators/module/parts/`): LGA
+        // pads or castellated, the ground array along the axes or turned
+        // 45°.
+        ("generators/module/parts", "module", author_module_straight),
+        (
+            "generators/module/parts",
+            "module-diagonal",
+            author_module_diagonal,
+        ),
+        (
+            "generators/module/parts",
+            "module-castellated",
+            author_module_castellated,
+        ),
+        (
+            "generators/module/parts",
+            "module-castellated-diagonal",
+            author_module_castellated_diagonal,
+        ),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),
         ("library/parts", "finned-heatsink", author_finned_heatsink),

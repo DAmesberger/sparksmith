@@ -150,7 +150,21 @@ pub(super) fn generated_model(
         .iter()
         .map(|lead| (lead.key.clone(), [mm(lead.contact[0]), mm(lead.contact[1])]))
         .collect();
-    let leads = part_file::lead_bodies(&part, &contacts, true).map_err(refused)?;
+    let mut leads = part_file::lead_bodies(&part, &contacts, true).map_err(refused)?;
+    // Lead bodies under no lead contact take the terminal of the land they
+    // stand on (a module's ground array: one contact, every pad bound).
+    let lands: Vec<(String, [f64; 2])> = generation
+        .footprint
+        .pads
+        .iter()
+        .map(|p| (p.terminal.clone(), [mm(p.at[0]), mm(p.at[1])]))
+        .collect();
+    for lead in part_file::lead_bodies(&part, &lands, false).map_err(refused)? {
+        if !leads.iter().any(|l| l.body == lead.body) {
+            leads.push(lead);
+        }
+    }
+    leads.sort_by(|a, b| a.body.cmp(&b.body));
     let mut definition = definition;
     if definition.bounds_nm == ModelDefinition::default().bounds_nm {
         definition.bounds_nm = sparksmith_core::library::model3d::bounds_nm(as_is.bounds_mm)?;

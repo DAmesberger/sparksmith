@@ -19,6 +19,7 @@ members = [
     "generators/grid",
     "generators/gull-wing",
     "generators/header",
+    "generators/module",
     "generators/molded",
     "generators/no-lead",
     "generators/tabbed",

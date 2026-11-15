@@ -269,6 +269,7 @@ mod tests {
             hole: None,
             mask: Opening::Default,
             paste: Opening::Default,
+            number: None,
         }
     }
 

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "module": {
+    "file": "module.wasm",
+    "sha256": "22a4b281f0527a5746dd97a043810e097eca5907e5b0fd92c84dddb16ff65ba6"
+  },
+  "name": "module",
+  "parts": [
+    {
+      "file": "parts/module.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code module builder's construction (crates/solidcraft-integration/src/models/module.rs, retired with these files) made parametric in its rows, ground array, single pads and antenna meander, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the module form's typical values (an original synthetic 18 × 25 mm castellated module), LGA pads; the module generator gives every parameter its value. Outline, pad rows, pitch, can and ground array are the generator's (a module datasheet's mechanical drawing and land pattern, e.g. Espressif's public ESP32-S31-WROOM-3 datasheet v0.7 for its preset); pad thickness, can edge round and the antenna meander are estimated. No vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "248d2cb23431d28ad84ebfb9cef551e6b29d08cc8e0920e2955adf9958d02f20",
+      "title": "Radio module"
+    },
+    {
+      "file": "parts/module-castellated.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code module builder's construction (crates/solidcraft-integration/src/models/module.rs, retired with these files) made parametric in its rows, castellations, ground array, single pads and antenna meander, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the module form's typical values (an original synthetic 18 × 25 mm castellated module); the module generator gives every parameter its value. Outline, pad rows, pitch, can and ground array are the generator's (a module datasheet's mechanical drawing and land pattern, e.g. Espressif's public ESP32-S31-WROOM-3 datasheet v0.7 for its preset); pad and plating thickness, can edge round and the antenna meander are estimated. No vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "59c630bbecdd758c20aa56da0ded8785d8cc64c0794914900fa5ec791d7729e0",
+      "title": "Castellated radio module"
+    },
+    {
+      "file": "parts/module-castellated-diagonal.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code module builder's construction (crates/solidcraft-integration/src/models/module.rs, retired with these files) made parametric in its rows, castellations, ground array, single pads and antenna meander, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the module form's typical values (an original synthetic 18 × 25 mm castellated module) with its ground array turned 45°; the module generator gives every parameter its value. Outline, pad rows, pitch, can and ground array are the generator's (a module datasheet's mechanical drawing and land pattern, e.g. Espressif's public ESP32-S31-WROOM-3 datasheet v0.7 for its preset); pad and plating thickness, can edge round and the antenna meander are estimated. No vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "a6ca7b05eae85e3e7b63d82fe59b4f22c37d241855caee7b7f7eb8c706e6b8e6",
+      "title": "Castellated radio module, ground array turned 45°"
+    },
+    {
+      "file": "parts/module-diagonal.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work: the in-code module builder's construction (crates/solidcraft-integration/src/models/module.rs, retired with these files) made parametric in its rows, ground array, single pads and antenna meander, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the module form's typical values (an original synthetic 18 × 25 mm castellated module), LGA pads with its ground array turned 45°; the module generator gives every parameter its value. Outline, pad rows, pitch, can and ground array are the generator's (a module datasheet's mechanical drawing and land pattern, e.g. Espressif's public ESP32-S31-WROOM-3 datasheet v0.7 for its preset); pad thickness, can edge round and the antenna meander are estimated. No vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "092f2fe8012065dfe35031291b7945df1bbedd9eec86998bdc39ba958fb105c2",
+      "title": "Radio module, ground array turned 45°"
+    }
+  ]
+}

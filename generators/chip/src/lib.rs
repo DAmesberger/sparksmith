@@ -372,6 +372,7 @@ fn pad(key: &str, at: [i64; 2], size: [i64; 2]) -> Pad {
         hole: None,
         mask: Opening::Default,
         paste: Opening::Default,
+        number: None,
     }
 }
 
@@ -610,6 +611,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         courtyard,
         silk,
         assembly: land::assembly(body),
+        keepouts: Vec::new(),
     };
     let mut notes: Vec<String> = Vec::new();
     if estimated {

@@ -440,6 +440,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 hole: None,
                 mask: Opening::Default,
                 paste: Opening::Default,
+                number: None,
             }
         })
         .collect()
@@ -595,6 +596,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         courtyard,
         silk,
         assembly: land::assembly(outline),
+        keepouts: Vec::new(),
     };
     let component_part = request.scope == Scope::Component;
     Ok(Generation {

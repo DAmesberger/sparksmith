@@ -7,5 +7,5 @@
   "prefix": "U",
   "lands": [],
   "licence": "MIT OR Apache-2.0",
-  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`. Dimensions from Espressif's public ESP32-S31-WROOM-3 datasheet v0.7 (see examples/esp32-s31-wroom-3/); no CAD or EDA library data was copied."
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (to commit 95f065dd, from the retired module builder's construction; kept as authored since, and built equal by the module generator at its ESP32-S31-WROOM-3 preset). Dimensions from Espressif's public ESP32-S31-WROOM-3 datasheet v0.7 (see examples/esp32-s31-wroom-3/); no CAD or EDA library data was copied."
 }
