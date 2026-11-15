@@ -28,3 +28,4 @@ keyring = { version = "3.6", default-features = false, features = ["apple-native
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
 sparksmith-automation = { workspace = true, features = ["test-fixtures"] }
 tempfile.workspace = true
+sparksmith-solidcraft.workspace = true

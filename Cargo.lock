@@ -5054,6 +5054,7 @@ dependencies = [
  "sparksmith-automation",
  "sparksmith-core",
  "sparksmith-io",
+ "sparksmith-solidcraft",
  "tempfile",
  "thiserror 2.0.21",
  "ureq",
