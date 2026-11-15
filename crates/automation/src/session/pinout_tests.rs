@@ -327,7 +327,8 @@ pub(super) fn import_reviewed(s: &mut Scenario) -> Fallible<Imported> {
     // 3. A plan whose base no longer matches is refused as a conflict that
     // names the stale-plan rule (the base is a content token, not the
     // document revision); nothing changes.
-    let stale = json!(plan["base"].as_u64().ok_or("base")? + 1);
+    let base: u64 = plan["base"].as_str().ok_or("base")?.parse()?;
+    let stale = json!(base.wrapping_add(1).to_string());
     let refusal = s.refuse_apply(
         "pinout_apply stale",
         apply_op(target.clone(), &document, &stale, json!({"accept": "all"})),

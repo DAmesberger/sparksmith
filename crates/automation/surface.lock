@@ -1,7 +1,7 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "4.0", "digest": "sha256:d515483136abf80ec2f31494518a39099854ac146b5d739a0dfa6885fd29ccd6", "entries": [
-  {"name":"project.apply","class":"edit","schema":"4cc6d172ff3f46c1","fields":[["expected_revision","9295ea67127970c6"],["operation","e071423a3e1ebb00"]],"required":["expected_revision","operation"]},
-  {"name":"project.apply_all","class":"edit","schema":"43b315b47b0c96ce","fields":[["expected_revision","9295ea67127970c6"],["operations","c4504a50ccc01c30"]],"required":["expected_revision","operations"]},
+ {"id": "project", "version": "5.0", "digest": "sha256:5effcc7a779e1f758955f4eb4078e73e091638b931f7027bad339c540f8edf92", "entries": [
+  {"name":"project.apply","class":"edit","schema":"6d69efc51b2af743","fields":[["expected_revision","9295ea67127970c6"],["operation","955ad952f33b773b"]],"required":["expected_revision","operation"]},
+  {"name":"project.apply_all","class":"edit","schema":"08d865b9d9a8be31","fields":[["expected_revision","9295ea67127970c6"],["operations","2b663c0b03611ee7"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"project.inspect","class":"read","schema":"249aa00f4b2dbec1","fields":[["at","40bd5b57f4261fe2"]],"required":[]},
   {"name":"project.query","class":"read","schema":"ee86c3ed6b7c61d5","fields":[],"required":[]},
@@ -171,7 +171,7 @@
   {"name":"rules.set_override","class":"edit","schema":"03823caa692b4d6e","fields":[["key","40c023080ac733e7"],["value","6c59be4a009ace34"]],"required":["key","value"]},
   {"name":"rules.set_project_source","class":"edit","schema":"b89c3f26a45bbcd2","fields":[["source","40bd5b57f4261fe2"]],"required":[]}
  ]},
- {"id": "library", "version": "2.0", "digest": "sha256:06c3d10499b31e539de90a72f63bc4d257b12f2402cb75a3a6b1b855763dae16", "entries": [
+ {"id": "library", "version": "3.0", "digest": "sha256:9e3df1e55acfd9f935700a7209c33bf73a06a57433c6debe5ad6f92158ca1b81", "entries": [
   {"name":"component.check","class":"read","schema":"97f39db6c630611f","fields":[["target","36100673e29fba06"]],"required":["target"]},
   {"name":"component.check_drafts","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"library.assign_terminals","class":"edit","schema":"5c64246ba0ee3906","fields":[["confirm","90c3f0cfcf6ff8f0"],["draft","dd016f7f1c3e2ab4"],["rule","cc56861c80edd496"]],"required":["confirm","draft","rule"]},
@@ -203,7 +203,7 @@
   {"name":"library.new_draft","class":"edit","schema":"f8dc9720a3c28b41","fields":[["definition","f159d610fd8b8801"],["meta","6a4def25acf40011"]],"required":["definition","meta"]},
   {"name":"library.open_preview","class":"read","schema":"8cb5d213832bdf52","fields":[["library","661ab81fdf807860"],["lineage","661ab81fdf807860"],["revision","96dd95ed3f628ed2"]],"required":["library","lineage"]},
   {"name":"library.pack_artwork","class":"edit","schema":"741a9b89c1e60ca9","fields":[["artwork","1ea61a1e11b76dfe"],["edits","a1e000127863ea51"]],"required":["artwork","edits"]},
-  {"name":"library.pinout_apply","class":"edit","schema":"3e365e3276017f41","fields":[["accept","3bb6abf5844d4405"],["base","9295ea67127970c6"],["document","26988acd286c82f6"],["target","d40a6de66404f735"]],"required":["base","document","target"]},
+  {"name":"library.pinout_apply","class":"edit","schema":"2fa5a67585757d1d","fields":[["accept","3bb6abf5844d4405"],["base","661ab81fdf807860"],["document","26988acd286c82f6"],["target","d40a6de66404f735"]],"required":["base","document","target"]},
   {"name":"library.pinout_preview","class":"read","schema":"dbd53404c321c4b3","fields":[["document","26988acd286c82f6"],["target","d40a6de66404f735"]],"required":["document","target"]},
   {"name":"library.pinout_schema","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"library.place_from","class":"edit","schema":"82200f1cc4214c73","fields":[["designator","40bd5b57f4261fe2"],["other_revision","54752aac47faa24e"],["position","3a24a71d71b5fbb1"],["source","b05ef9853ddf1fc2"]],"required":["position","source"]},

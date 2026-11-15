@@ -713,11 +713,13 @@ fn apply_inputs(workspace: &Workspace, input: &Value) -> Result<(Value, Value, V
         return Err("the working document changed since the last preview; preview it again".into());
     }
     let given = &input["base"];
-    let same = match given {
-        Value::Null => true,
-        Value::String(text) => text.trim().parse::<u64>().ok() == base.as_u64(),
-        other => other == base,
+    // The plan writes its base as a decimal string; a model may copy it
+    // as text or as an exact integer.
+    let token = |value: &Value| match value {
+        Value::String(text) => text.trim().parse::<u64>().ok(),
+        other => other.as_u64(),
     };
+    let same = given.is_null() || (token(given).is_some() && token(given) == token(base));
     if !same {
         let float = if given.is_f64() {
             " (it arrived as a rounded number: an integer this long loses digits as a float)"

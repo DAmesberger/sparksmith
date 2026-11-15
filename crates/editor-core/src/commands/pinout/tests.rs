@@ -8,7 +8,7 @@ use crate::functions::MuxCode;
 use crate::ids::{DefinitionId, TerminalId};
 use crate::library::pinout::{
     ChangeKind, EXL48, ImportReview, PinoutAccept, PinoutApplied, PinoutApply, PinoutDocument,
-    PinoutPlan, PinoutTarget, ReviewReason,
+    PinoutPlan, PinoutTarget, PlanBase, ReviewReason,
 };
 use crate::library::{ComponentDefinition, Definition, DraftEdit, TerminalClass};
 use crate::tests::support::{Snapshot, check};
@@ -45,7 +45,7 @@ fn apply(
     engine: &mut Engine,
     target: &PinoutTarget,
     document: &PinoutDocument,
-    base: u64,
+    base: PlanBase,
     accept: PinoutAccept,
 ) -> crate::Result<PinoutApplied> {
     let operation = Operation::Library(LibraryCommand::PinoutApply(Box::new(PinoutApply {
@@ -498,6 +498,66 @@ fn a_reimport_without_a_binding_flags_every_name_match() -> Fallible<()> {
         .filter(|r| r.reason == ReviewReason::MatchedByName)
         .count();
     assert_eq!(by_name, document.pins.len(), "{:?}", plan.review);
+    Ok(())
+}
+
+/// A JSON client that reads every number as a double (as JavaScript
+/// does) keeps the base, which is a string, and its apply goes through;
+/// an integer base is read too, and a string that is no base is refused.
+#[test]
+fn the_base_survives_a_client_that_reads_numbers_as_doubles() -> Fallible<()> {
+    let mut engine = Engine::default();
+    let document = exl48()?;
+    let plan = preview(&engine, &new_target(), &document)?;
+    let wire = serde_json::to_value(&plan)?;
+    assert_eq!(wire["base"], serde_json::json!(plan.base.0.to_string()));
+    // Every integer through f64, as such a client sends it back: one
+    // above 2^53 loses its last digits.
+    fn doubles(value: &mut serde_json::Value) {
+        match value {
+            serde_json::Value::Number(n) => {
+                if let Some(u) = n.as_u64() {
+                    #[allow(
+                        clippy::cast_precision_loss,
+                        clippy::cast_possible_truncation,
+                        clippy::cast_sign_loss
+                    )]
+                    let rounded = u as f64 as u64;
+                    *n = rounded.into();
+                }
+            }
+            serde_json::Value::Array(items) => items.iter_mut().for_each(doubles),
+            serde_json::Value::Object(map) => map.values_mut().for_each(doubles),
+            _ => {}
+        }
+    }
+    let mut sent = serde_json::json!({"target": {"target": "new", "name": "EXL-48"},
+        "document": serde_json::to_value(&document)?, "base": wire["base"],
+        "accept": {"accept": "all"}});
+    doubles(&mut sent);
+    let request: PinoutApply = serde_json::from_value(sent)?;
+    assert_eq!(request.base, plan.base);
+    let applied = apply(
+        &mut engine,
+        &new_target(),
+        &document,
+        request.base,
+        PinoutAccept::All,
+    )?;
+    assert!(!applied.drafts.is_empty());
+
+    let integer: PlanBase = serde_json::from_value(serde_json::json!(plan.base.0))?;
+    assert_eq!(integer, plan.base);
+    for bad in [
+        serde_json::json!("0x12"),
+        serde_json::json!(-1),
+        serde_json::json!(1.5),
+    ] {
+        assert!(
+            serde_json::from_value::<PlanBase>(bad.clone()).is_err(),
+            "{bad}"
+        );
+    }
     Ok(())
 }
 

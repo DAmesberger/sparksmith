@@ -270,7 +270,7 @@ pub struct ReviewItem {
 pub struct PinoutPlan {
     /// The draft revision token the plan was made against; `pinout_apply`
     /// refuses when it no longer matches.
-    pub base: u64,
+    pub base: PlanBase,
     pub changes: Vec<PinoutChange>,
     /// Every publish finding the result would have.
     pub findings: Vec<Finding>,
@@ -328,9 +328,71 @@ impl ImportReview {
 pub struct PinoutApply {
     pub target: PinoutTarget,
     pub document: PinoutDocument,
-    pub base: u64,
+    /// The plan's `base`, as the preview wrote it.
+    pub base: PlanBase,
     #[serde(default)]
     pub accept: PinoutAccept,
+}
+
+/// A plan's base token (`PinoutPlan::base`): a digest, so usually above
+/// 2^53. It is written as a decimal string, which a JSON client that reads
+/// numbers as doubles keeps exactly; an integer is read too.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, JsonSchema)]
+#[schemars(with = "String")]
+pub struct PlanBase(pub u64);
+
+impl std::fmt::Display for PlanBase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl Serialize for PlanBase {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        serializer: S,
+    ) -> std::result::Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for PlanBase {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> std::result::Result<Self, D::Error> {
+        struct Token;
+        impl serde::de::Visitor<'_> for Token {
+            type Value = PlanBase;
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("the plan's base as a decimal string, as the preview wrote it")
+            }
+            fn visit_str<E: serde::de::Error>(
+                self,
+                text: &str,
+            ) -> std::result::Result<PlanBase, E> {
+                text.parse().map(PlanBase).map_err(|_| {
+                    E::custom(format!(
+                        "base ‘{text}’ is not a plan base: copy the preview's base string exactly"
+                    ))
+                })
+            }
+            fn visit_u64<E: serde::de::Error>(
+                self,
+                value: u64,
+            ) -> std::result::Result<PlanBase, E> {
+                Ok(PlanBase(value))
+            }
+            fn visit_i64<E: serde::de::Error>(
+                self,
+                value: i64,
+            ) -> std::result::Result<PlanBase, E> {
+                u64::try_from(value)
+                    .map(PlanBase)
+                    .map_err(|_| E::custom("a plan base is never negative"))
+            }
+        }
+        deserializer.deserialize_any(Token)
+    }
 }
 
 /// The planned drafts of an import.
@@ -390,7 +452,7 @@ pub fn review_findings(component: DefinitionId, review: &ImportReview) -> Vec<Fi
 /// target draft and every binding draft of it (they decide how rows match
 /// terminals by number), or, for a new component, of the package rows it
 /// names. `pinout_apply` refuses when the token changed.
-pub fn base_token(library: &Library, drafts: &Drafts, target: &PinoutTarget) -> Result<u64> {
+pub fn base_token(library: &Library, drafts: &Drafts, target: &PinoutTarget) -> Result<PlanBase> {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     match target {
@@ -419,7 +481,7 @@ pub fn base_token(library: &Library, drafts: &Drafts, target: &PinoutTarget) -> 
     for (b, d) in bytes.iter_mut().zip(digest.iter()) {
         *b = *d;
     }
-    Ok(u64::from_le_bytes(bytes))
+    Ok(PlanBase(u64::from_le_bytes(bytes)))
 }
 
 /// JSON schema of [`PinoutDocument`] (`pinout.schema`).

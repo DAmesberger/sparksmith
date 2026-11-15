@@ -29,7 +29,28 @@ fn apply(tools: &Tools, step: &str, op: &str, params: Value) -> Fallible<Value> 
     Ok(reply["outcomes"][0].clone())
 }
 
-/// Preview `document` onto `target` and apply exactly that plan.
+/// What a JSON client that reads numbers as doubles (JavaScript, Claude
+/// Code's transport) sends back of `value`: every integer above 2^53
+/// loses its last digits.
+fn as_doubles(value: &Value) -> Value {
+    match value {
+        Value::Number(n) => match n.as_u64() {
+            #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+            Some(u) => json!(u as f64 as u64),
+            None => value.clone(),
+        },
+        Value::Array(items) => Value::Array(items.iter().map(as_doubles).collect()),
+        Value::Object(map) => Value::Object(
+            map.iter()
+                .map(|(k, v)| (k.clone(), as_doubles(v)))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// Preview `document` onto `target` and apply exactly that plan, its base
+/// copied as such a client copies it.
 fn import(tools: &Tools, step: &str, target: Value, document: &Value) -> Fallible<Value> {
     let plan = query(
         tools,
@@ -41,8 +62,10 @@ fn import(tools: &Tools, step: &str, target: Value, document: &Value) -> Fallibl
         tools,
         step,
         "library.pinout_apply",
-        json!({"target": target, "document": document, "base": plan["base"],
+        as_doubles(
+            &json!({"target": target, "document": document, "base": plan["base"],
             "accept": {"accept": "all"}}),
+        ),
     )
 }
 
