@@ -614,6 +614,8 @@ fn generated_packages() -> Vec<(&'static str, sparksmith_core::library::PackageD
 #[test]
 #[ignore = "writes model pictures"]
 fn write_model_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    // Retired families build from the shipped generators the context holds.
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };
