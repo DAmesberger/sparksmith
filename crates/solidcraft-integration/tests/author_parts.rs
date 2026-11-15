@@ -45,6 +45,9 @@ fn pt(p: [f64; 2]) -> sparksmith_core::units::PointNm {
     sparksmith_core::units::PointNm::from_mm_f64_rounded(p).unwrap_or_default()
 }
 
+#[path = "author_parts/tht.rs"]
+mod tht;
+
 const STEM: &str = "pkgT";
 
 fn wroom3() -> PackageDefinition {
@@ -2880,7 +2883,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 30] = [
+    let parts: [(&str, &str, Author); 36] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -2927,6 +2930,21 @@ fn author_parts() {
         ),
         ("generators/molded/parts", "melf", author_melf_plain),
         ("generators/molded/parts", "melf-band", author_melf_band),
+        // The through-hole generator's bundle (`generators/tht/parts/`).
+        ("generators/tht/parts", "tht-axial", tht::author_tht_axial),
+        ("generators/tht/parts", "tht-radial", tht::author_tht_radial),
+        (
+            "generators/tht/parts",
+            "tht-radial-formed",
+            tht::author_tht_radial_formed,
+        ),
+        ("generators/tht/parts", "tht-dip", tht::author_tht_dip),
+        ("generators/tht/parts", "tht-to", tht::author_tht_to),
+        (
+            "generators/tht/parts",
+            "tht-to-formed",
+            tht::author_tht_to_formed,
+        ),
         // The grid generator's bundle (`generators/grid/parts/`): balls or
         // lands, each full or with cut-outs.
         ("generators/grid/parts", "grid-ball", author_grid_ball),

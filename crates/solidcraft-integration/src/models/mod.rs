@@ -37,7 +37,6 @@ mod module;
 pub mod named;
 pub mod part_file;
 mod profile;
-mod tht;
 mod usb_c;
 
 use crate::material::BodyKind;
@@ -78,7 +77,7 @@ pub fn family_rev(form: &PackageForm) -> Option<u16> {
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
         | PackageForm::Grid(_) => Some(family::FAMILY_REV),
-        PackageForm::Tht(_) => tht::FAMILY_REV,
+        PackageForm::Tht(_) => Some(family::FAMILY_REV),
         PackageForm::Module(_) => module::FAMILY_REV,
         PackageForm::UsbC(_) => usb_c::FAMILY_REV,
     }
@@ -232,7 +231,7 @@ fn check_generated(package: &PackageDefinition) -> Result<()> {
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
         | PackageForm::Grid(_) => Ok(()),
-        PackageForm::Tht(f) => tht::check(f),
+        PackageForm::Tht(_) => Ok(()),
         PackageForm::Module(f) => module::check(f),
         PackageForm::UsbC(f) => usb_c::check(f),
         PackageForm::Generic => Ok(()),
@@ -265,13 +264,13 @@ fn build_bodies(
         | PackageForm::NoLead(_)
         | PackageForm::Molded(_)
         | PackageForm::Tabbed(_)
-        | PackageForm::Grid(_) => {
+        | PackageForm::Grid(_)
+        | PackageForm::Tht(_) => {
             return Err(Error::Invalid(format!(
                 "model.generator: {} models are built from their shipped generator",
                 package.form.label()
             )));
         }
-        PackageForm::Tht(f) => tht::build(&mut b, f)?,
         PackageForm::Module(f) => module::build(&mut b, f)?,
         PackageForm::UsbC(f) => usb_c::build(&mut b, f)?,
         PackageForm::Generic => {

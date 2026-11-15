@@ -540,6 +540,18 @@ pub mod fixture {
                 parts: vec![part(bytes!("header/parts/pin-header.solidcraft"))],
             },
             ShippedGenerator {
+                name: "tht".into(),
+                module: Arc::from(&bytes!("tht/tht.wasm")[..]),
+                parts: vec![
+                    part(bytes!("tht/parts/tht-axial.solidcraft")),
+                    part(bytes!("tht/parts/tht-radial.solidcraft")),
+                    part(bytes!("tht/parts/tht-radial-formed.solidcraft")),
+                    part(bytes!("tht/parts/tht-dip.solidcraft")),
+                    part(bytes!("tht/parts/tht-to.solidcraft")),
+                    part(bytes!("tht/parts/tht-to-formed.solidcraft")),
+                ],
+            },
+            ShippedGenerator {
                 name: "no-lead".into(),
                 module: Arc::from(&bytes!("no-lead/no-lead.wasm")[..]),
                 parts: vec![

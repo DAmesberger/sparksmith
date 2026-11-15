@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tht-to-formed",
+  "title": "TO package, formed leads",
+  "summary": "Three-lead TO package (TO-92): a moulded block on its standoff, the outer square leads formed out from the pitch at the body to the lead pitch, the middle one straight (lead_pitch, body_pitch, lead_diameter, lead_below, standoff, root, bend_radius, body_length, body_width, body_height, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a formed TO-92, 4.8 × 3.8 × 4.8 mm, 0.45 mm leads from 1.27 mm at the body to 2.54 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied."
+}
