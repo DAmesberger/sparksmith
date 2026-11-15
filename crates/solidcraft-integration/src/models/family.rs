@@ -127,12 +127,115 @@ pub fn generator(form: &PackageForm) -> Option<(&'static str, v1::Params)> {
             );
             Some(("grid", params))
         }
+        PackageForm::Module(m) => {
+            use sparksmith_core::library::package_form::module::ModuleSide;
+            let mut int = |key: &str, v: i64| {
+                params.insert(key.into(), ParamValue::Int(v));
+            };
+            int("width", m.width_nm.get());
+            int("length", m.length_nm.get());
+            int("height", m.height_nm.get());
+            int("board_thickness", m.pcb_thickness_nm.get());
+            int("antenna_length", m.antenna_length_nm.get());
+            int("can_width", m.can_size.x_nm.get());
+            int("can_length", m.can_size.y_nm.get());
+            int("can_x", m.can_centre.x_nm.get());
+            int("can_y", m.can_centre.y_nm.get());
+            int("pitch", m.pitch_nm.get());
+            int("pad_length", m.pad_size_nm[0].get());
+            int("pad_width", m.pad_size_nm[1].get());
+            int("castellation", m.castellation_nm.get());
+            int("land_width", m.land_width_nm.get());
+            int("land_outer", m.land_extend_nm[0].get());
+            int("land_inner", m.land_extend_nm[1].get());
+            let ints = |v: Vec<i64>| ParamValue::List(v.into_iter().map(ParamValue::Int).collect());
+            let texts =
+                |v: Vec<String>| ParamValue::List(v.into_iter().map(ParamValue::Text).collect());
+            let side = |s: ModuleSide| match s {
+                ModuleSide::Left => "left",
+                ModuleSide::Bottom => "bottom",
+                ModuleSide::Right => "right",
+                ModuleSide::Top => "top",
+            };
+            params.insert(
+                "row_sides".into(),
+                texts(m.rows.iter().map(|r| side(r.side).into()).collect()),
+            );
+            params.insert(
+                "row_counts".into(),
+                ints(m.rows.iter().map(|r| i64::from(r.count)).collect()),
+            );
+            params.insert(
+                "row_x".into(),
+                ints(m.rows.iter().map(|r| r.first.x_nm.get()).collect()),
+            );
+            params.insert(
+                "row_y".into(),
+                ints(m.rows.iter().map(|r| r.first.y_nm.get()).collect()),
+            );
+            params.insert("ground".into(), ParamValue::Bool(m.ground.is_some()));
+            if let Some(g) = &m.ground {
+                let mut int = |key: &str, v: i64| {
+                    params.insert(key.into(), ParamValue::Int(v));
+                };
+                int("ground_rows", i64::from(g.rows));
+                int("ground_columns", i64::from(g.cols));
+                int("ground_pitch_x", g.pitch.x_nm.get());
+                int("ground_pitch_y", g.pitch.y_nm.get());
+                int("ground_size_x", g.size.x_nm.get());
+                int("ground_size_y", g.size.y_nm.get());
+                int("ground_x", g.centre.x_nm.get());
+                int("ground_y", g.centre.y_nm.get());
+                int("ground_rotation", i64::from(g.rotation_mdeg.millidegrees()));
+                params.insert(
+                    "ground_number".into(),
+                    ParamValue::Text(g.number.trim().into()),
+                );
+            }
+            let singles = &m.singles;
+            params.insert(
+                "single_numbers".into(),
+                texts(singles.iter().map(|p| p.number.trim().into()).collect()),
+            );
+            for (key, of) in [
+                ("single_x", 0usize),
+                ("single_y", 1),
+                ("single_length", 2),
+                ("single_width", 3),
+            ] {
+                let values = singles
+                    .iter()
+                    .map(|p| match of {
+                        0 => p.centre.x_nm.get(),
+                        1 => p.centre.y_nm.get(),
+                        2 => p.size.x_nm.get(),
+                        _ => p.size.y_nm.get(),
+                    })
+                    .collect();
+                params.insert(key.into(), ints(values));
+            }
+            params.insert("keepout".into(), ParamValue::Bool(m.keepout.is_some()));
+            if let Some(k) = &m.keepout {
+                let mut int = |key: &str, v: i64| {
+                    params.insert(key.into(), ParamValue::Int(v));
+                };
+                int("keepout_left", k.beyond_nm[0].get());
+                int("keepout_right", k.beyond_nm[1].get());
+                int("keepout_top", k.beyond_nm[2].get());
+            }
+            Some(("module", params))
+        }
         _ => None,
     }
 }
 
 /// The body of a no-lead part file that is the exposed pad.
 const EXPOSED_PAD: &str = "exposed pad";
+/// The bodies of a module part file that are its ground array (the seed
+/// and its pattern's copies), its can and its antenna trace.
+const GROUND_PAD: &str = "ground pad";
+const SHIELD_CAN: &str = "shield can";
+const ANTENNA: &str = "antenna";
 
 /// The role the retired builder gave a part file's body of `role` (by its
 /// material) and `name`: the package's materials are chosen by it. A
@@ -154,6 +257,12 @@ fn builder_role(form: &PackageForm, name: &str, role: BodyRole) -> BodyRole {
         (PackageForm::NoLead(_), BodyRole::Termination) if name == EXPOSED_PAD => {
             BodyRole::ExposedPad
         }
+        // A module's ground array is its exposed pad; the can and the
+        // antenna trace were the builder's `other` bodies.
+        (PackageForm::Module(_), BodyRole::Termination) if name.starts_with(GROUND_PAD) => {
+            BodyRole::ExposedPad
+        }
+        (PackageForm::Module(_), _) if name == SHIELD_CAN || name == ANTENNA => BodyRole::Other,
         _ => role,
     }
 }
@@ -220,7 +329,31 @@ pub fn evaluate(
             )
         })
         .collect();
-    let bound = part_file::lead_bodies(&part, &contacts, true).map_err(|e| refused(name, e))?;
+    let mut bound = part_file::lead_bodies(&part, &contacts, true).map_err(|e| refused(name, e))?;
+    // Lead bodies under no lead contact take the terminal of the land they
+    // stand on (a module's ground array: one contact, every pad bound).
+    let terminal_of = |key: &str| {
+        generation
+            .package
+            .terminals
+            .iter()
+            .position(|k| k == key)
+            .and_then(|i| package.terminals.get(i))
+            .filter(|_| exact)
+            .map(|t| t.id.0.to_string())
+    };
+    let lands: Vec<(String, [f64; 2])> = generation
+        .footprint
+        .pads
+        .iter()
+        .filter_map(|p| Some((terminal_of(&p.terminal)?, [mm(p.at[0]), mm(p.at[1])])))
+        .collect();
+    let on_lands = part_file::lead_bodies(&part, &lands, false).map_err(|e| refused(name, e))?;
+    for lead in on_lands {
+        if !bound.iter().any(|l| l.body == lead.body) {
+            bound.push(lead);
+        }
+    }
     let bodies = part
         .bodies
         .iter()
@@ -230,18 +363,25 @@ pub fn evaluate(
             // else the part file's own (a MELF's glass, a band's ink), else
             // the family's.
             let builder_role = builder_role(&package.form, &b.name, role);
+            let module = matches!(package.form, PackageForm::Module(_));
+            // A module's antenna is copper under the mask whatever the
+            // package's `other` material (the can's) is, as the builder
+            // drew it.
+            let own = module && b.name == ANTENNA;
             let material = materials
                 .roles
                 .iter()
+                .filter(|_| !own)
                 .find(|c| c.role == builder_role)
                 .map(|c| c.material)
                 .or(b.material)
                 .unwrap_or_else(|| materials.material(&package.form, builder_role));
             GeneratedBody {
                 name: b.name.clone(),
-                // An exposed pad keeps its own role; a post or lead is the
-                // part file's termination where the builders said lead.
-                role: if builder_role == BodyRole::ExposedPad {
+                // An exposed pad keeps its own role, and a module's bodies
+                // the builder's; a post or lead is the part file's
+                // termination where the builders said lead.
+                role: if builder_role == BodyRole::ExposedPad || module {
                     builder_role
                 } else {
                     role

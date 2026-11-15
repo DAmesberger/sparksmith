@@ -1,0 +1,487 @@
+{
+ "cases": [
+  {
+   "name": "Module 18×25 castellated, 38 pads, component",
+   "request": {
+    "abi": 1,
+    "scope": "component",
+    "params": {
+     "width": 18000000,
+     "length": 25000000,
+     "height": 3200000,
+     "board_thickness": 800000,
+     "antenna_length": 6000000,
+     "can_width": 16600000,
+     "can_length": 17400000,
+     "can_x": 0,
+     "can_y": -2500000,
+     "pitch": 1270000,
+     "pad_length": 1200000,
+     "pad_width": 900000,
+     "castellation": 600000,
+     "land_width": 900000,
+     "land_outer": 300000,
+     "land_inner": 0,
+     "row_sides": [
+      "left",
+      "bottom",
+      "right"
+     ],
+     "row_counts": [
+      14,
+      10,
+      14
+     ],
+     "row_x": [
+      -8400000,
+      -5715000,
+      8400000
+     ],
+     "row_y": [
+      5500000,
+      -11900000,
+      -11010000
+     ],
+     "ground": true,
+     "ground_rows": 3,
+     "ground_columns": 3,
+     "ground_pitch_x": 1600000,
+     "ground_pitch_y": 1600000,
+     "ground_size_x": 1100000,
+     "ground_size_y": 1100000,
+     "ground_x": 0,
+     "ground_y": -2000000,
+     "ground_rotation": 0,
+     "ground_number": "39",
+     "single_numbers": [],
+     "single_x": [],
+     "single_y": [],
+     "single_length": [],
+     "single_width": [],
+     "keepout": true,
+     "keepout_left": 0,
+     "keepout_right": 0,
+     "keepout_top": 0
+    }
+   },
+   "result": "b5b87aae435ccb0dd8de4e95955b1a72e5505f581fd3f13df2779fc916df762a"
+  },
+  {
+   "name": "Module 18×25 castellated, 38 pads, package",
+   "request": {
+    "abi": 1,
+    "scope": "package",
+    "params": {
+     "width": 18000000,
+     "length": 25000000,
+     "height": 3200000,
+     "board_thickness": 800000,
+     "antenna_length": 6000000,
+     "can_width": 16600000,
+     "can_length": 17400000,
+     "can_x": 0,
+     "can_y": -2500000,
+     "pitch": 1270000,
+     "pad_length": 1200000,
+     "pad_width": 900000,
+     "castellation": 600000,
+     "land_width": 900000,
+     "land_outer": 300000,
+     "land_inner": 0,
+     "row_sides": [
+      "left",
+      "bottom",
+      "right"
+     ],
+     "row_counts": [
+      14,
+      10,
+      14
+     ],
+     "row_x": [
+      -8400000,
+      -5715000,
+      8400000
+     ],
+     "row_y": [
+      5500000,
+      -11900000,
+      -11010000
+     ],
+     "ground": true,
+     "ground_rows": 3,
+     "ground_columns": 3,
+     "ground_pitch_x": 1600000,
+     "ground_pitch_y": 1600000,
+     "ground_size_x": 1100000,
+     "ground_size_y": 1100000,
+     "ground_x": 0,
+     "ground_y": -2000000,
+     "ground_rotation": 0,
+     "ground_number": "39",
+     "single_numbers": [],
+     "single_x": [],
+     "single_y": [],
+     "single_length": [],
+     "single_width": [],
+     "keepout": true,
+     "keepout_left": 0,
+     "keepout_right": 0,
+     "keepout_top": 0
+    }
+   },
+   "result": "b76d5d626dbab4875ab79cfd2e519c503d364abff288f5003c79ad284d4b1c7a"
+  },
+  {
+   "name": "ESP32-S31-WROOM-3, component",
+   "request": {
+    "abi": 1,
+    "scope": "component",
+    "params": {
+     "width": 22000000,
+     "length": 30000000,
+     "height": 3500000,
+     "board_thickness": 1000000,
+     "antenna_length": 6000000,
+     "can_width": 21000000,
+     "can_length": 23000000,
+     "can_x": 0,
+     "can_y": -3000000,
+     "pitch": 850000,
+     "pad_length": 800000,
+     "pad_width": 400000,
+     "castellation": 0,
+     "land_width": 400000,
+     "land_outer": 0,
+     "land_inner": 0,
+     "row_sides": [
+      "left",
+      "bottom",
+      "right",
+      "top"
+     ],
+     "row_counts": [
+      25,
+      22,
+      25,
+      22
+     ],
+     "row_x": [
+      -10300000,
+      -8925000,
+      10300000,
+      8925000
+     ],
+     "row_y": [
+      7200000,
+      -14300000,
+      -13200000,
+      8300000
+     ],
+     "ground": true,
+     "ground_rows": 3,
+     "ground_columns": 3,
+     "ground_pitch_x": 2350000,
+     "ground_pitch_y": 2350000,
+     "ground_size_x": 1800000,
+     "ground_size_y": 1800000,
+     "ground_x": 0,
+     "ground_y": -3000000,
+     "ground_rotation": 45000,
+     "ground_number": "95",
+     "single_numbers": [
+      "96",
+      "97",
+      "98",
+      "99"
+     ],
+     "single_x": [
+      -10300000,
+      10300000,
+      10300000,
+      -10300000
+     ],
+     "single_y": [
+      -14300000,
+      -14300000,
+      8300000,
+      8300000
+     ],
+     "single_length": [
+      800000,
+      800000,
+      800000,
+      800000
+     ],
+     "single_width": [
+      800000,
+      800000,
+      800000,
+      800000
+     ],
+     "keepout": true,
+     "keepout_left": 0,
+     "keepout_right": 0,
+     "keepout_top": 0
+    }
+   },
+   "result": "f30b4226faa348c88c75eaa4d1ed4548e125636d0db66c1d35262496d1586a78"
+  },
+  {
+   "name": "ESP32-S31-WROOM-3, package",
+   "request": {
+    "abi": 1,
+    "scope": "package",
+    "params": {
+     "width": 22000000,
+     "length": 30000000,
+     "height": 3500000,
+     "board_thickness": 1000000,
+     "antenna_length": 6000000,
+     "can_width": 21000000,
+     "can_length": 23000000,
+     "can_x": 0,
+     "can_y": -3000000,
+     "pitch": 850000,
+     "pad_length": 800000,
+     "pad_width": 400000,
+     "castellation": 0,
+     "land_width": 400000,
+     "land_outer": 0,
+     "land_inner": 0,
+     "row_sides": [
+      "left",
+      "bottom",
+      "right",
+      "top"
+     ],
+     "row_counts": [
+      25,
+      22,
+      25,
+      22
+     ],
+     "row_x": [
+      -10300000,
+      -8925000,
+      10300000,
+      8925000
+     ],
+     "row_y": [
+      7200000,
+      -14300000,
+      -13200000,
+      8300000
+     ],
+     "ground": true,
+     "ground_rows": 3,
+     "ground_columns": 3,
+     "ground_pitch_x": 2350000,
+     "ground_pitch_y": 2350000,
+     "ground_size_x": 1800000,
+     "ground_size_y": 1800000,
+     "ground_x": 0,
+     "ground_y": -3000000,
+     "ground_rotation": 45000,
+     "ground_number": "95",
+     "single_numbers": [
+      "96",
+      "97",
+      "98",
+      "99"
+     ],
+     "single_x": [
+      -10300000,
+      10300000,
+      10300000,
+      -10300000
+     ],
+     "single_y": [
+      -14300000,
+      -14300000,
+      8300000,
+      8300000
+     ],
+     "single_length": [
+      800000,
+      800000,
+      800000,
+      800000
+     ],
+     "single_width": [
+      800000,
+      800000,
+      800000,
+      800000
+     ],
+     "keepout": true,
+     "keepout_left": 0,
+     "keepout_right": 0,
+     "keepout_top": 0
+    }
+   },
+   "result": "54faa9541df7e3956c59e9607af89f074c1da3e1bcdb68c55b2a11da87cc6d3c"
+  },
+  {
+   "name": "Module 18x25 without antenna or ground array, package",
+   "request": {
+    "abi": 1,
+    "scope": "package",
+    "params": {
+     "width": 18000000,
+     "length": 25000000,
+     "height": 3200000,
+     "board_thickness": 800000,
+     "antenna_length": 0,
+     "can_width": 16600000,
+     "can_length": 17400000,
+     "can_x": 0,
+     "can_y": 0,
+     "pitch": 1270000,
+     "pad_length": 1200000,
+     "pad_width": 900000,
+     "castellation": 600000,
+     "land_width": 900000,
+     "land_outer": 300000,
+     "land_inner": 0,
+     "row_sides": [
+      "left",
+      "bottom",
+      "right"
+     ],
+     "row_counts": [
+      14,
+      10,
+      14
+     ],
+     "row_x": [
+      -8400000,
+      -5715000,
+      8400000
+     ],
+     "row_y": [
+      5500000,
+      -11900000,
+      -11010000
+     ],
+     "ground": false,
+     "ground_rows": 3,
+     "ground_columns": 3,
+     "ground_pitch_x": 1600000,
+     "ground_pitch_y": 1600000,
+     "ground_size_x": 1100000,
+     "ground_size_y": 1100000,
+     "ground_x": 0,
+     "ground_y": -2000000,
+     "ground_rotation": 0,
+     "ground_number": "39",
+     "single_numbers": [],
+     "single_x": [],
+     "single_y": [],
+     "single_length": [],
+     "single_width": [],
+     "keepout": false,
+     "keepout_left": 0,
+     "keepout_right": 0,
+     "keepout_top": 0
+    }
+   },
+   "result": "1c509b12392698a8cdc672ac2caacaf80387f66565de840c2693cf9494c5b6ad"
+  },
+  {
+   "name": "ESP32-S31-WROOM-3 with castellations and the ground array turned 135°, package",
+   "request": {
+    "abi": 1,
+    "scope": "package",
+    "params": {
+     "width": 22000000,
+     "length": 30000000,
+     "height": 3500000,
+     "board_thickness": 1000000,
+     "antenna_length": 6000000,
+     "can_width": 21000000,
+     "can_length": 23000000,
+     "can_x": 0,
+     "can_y": -3000000,
+     "pitch": 850000,
+     "pad_length": 800000,
+     "pad_width": 400000,
+     "castellation": 300000,
+     "land_width": 400000,
+     "land_outer": 0,
+     "land_inner": 0,
+     "row_sides": [
+      "left",
+      "bottom",
+      "right",
+      "top"
+     ],
+     "row_counts": [
+      25,
+      22,
+      25,
+      22
+     ],
+     "row_x": [
+      -10300000,
+      -8925000,
+      10300000,
+      8925000
+     ],
+     "row_y": [
+      7200000,
+      -14300000,
+      -13200000,
+      8300000
+     ],
+     "ground": true,
+     "ground_rows": 3,
+     "ground_columns": 3,
+     "ground_pitch_x": 2350000,
+     "ground_pitch_y": 2350000,
+     "ground_size_x": 1800000,
+     "ground_size_y": 1800000,
+     "ground_x": 0,
+     "ground_y": -3000000,
+     "ground_rotation": 135000,
+     "ground_number": "95",
+     "single_numbers": [
+      "96",
+      "97",
+      "98",
+      "99"
+     ],
+     "single_x": [
+      -10300000,
+      10300000,
+      10300000,
+      -10300000
+     ],
+     "single_y": [
+      -14300000,
+      -14300000,
+      8300000,
+      8300000
+     ],
+     "single_length": [
+      800000,
+      800000,
+      800000,
+      800000
+     ],
+     "single_width": [
+      800000,
+      800000,
+      800000,
+      800000
+     ],
+     "keepout": true,
+     "keepout_left": 0,
+     "keepout_right": 0,
+     "keepout_top": 0
+    }
+   },
+   "result": "daea0da41a270d15328a5e45042f40dc6d65b9d67c44f6a4526606f3812c01a1"
+  }
+ ]
+}

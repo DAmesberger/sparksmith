@@ -18,6 +18,7 @@ members = [
     "generators/chip",
     "generators/grid",
     "generators/header",
+    "generators/module",
     "generators/molded",
     "generators/no-lead",
     "apps/sparksmith-cli",

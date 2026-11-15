@@ -131,6 +131,7 @@ fn generation_with(
         hole: None,
         mask: Opening::Default,
         paste: Opening::Default,
+        number: None,
     };
     let edge = x + 700_000;
     let component = scope == Scope::Component;
@@ -235,6 +236,7 @@ fn generation_with(
                     max: [length / 2, 400_000],
                 },
             )],
+            keepouts: Vec::new(),
         },
         binding: if component {
             ["1", "2"]

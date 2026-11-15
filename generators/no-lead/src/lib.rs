@@ -572,6 +572,7 @@ fn land(key: &str, at: Point2, size: Point2) -> Pad {
         hole: None,
         mask: Opening::Default,
         paste: Opening::Default,
+        number: None,
     }
 }
 
@@ -830,6 +831,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         courtyard,
         silk,
         assembly: land::assembly(body),
+        keepouts: Vec::new(),
     };
     let component_part = request.scope == Scope::Component;
     let family = if d.four { "QFN" } else { "DFN" };

@@ -206,6 +206,9 @@ fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Resul
             )));
         }
         point(&pad.at)?;
+        if let Some(number) = &pad.number {
+            key("pad number", number)?;
+        }
         match &pad.shape {
             PadShape::Rect { size } | PadShape::Oval { size } => {
                 positive("pad size", size[0])?;
@@ -264,6 +267,18 @@ fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Resul
         limits::POINTS,
     )?;
     footprint.courtyard.iter().try_for_each(point)?;
+    count("keep-outs", footprint.keepouts.len(), limits::GRAPHICS)?;
+    for keepout in &footprint.keepouts {
+        text("keep-out name", &keepout.name)?;
+        if keepout.outline.len() < 3 {
+            return Err(invalid(format!(
+                "The generator's keep-out \"{}\" is an outline of fewer than three points.",
+                keepout.name
+            )));
+        }
+        count("keep-out points", keepout.outline.len(), limits::POINTS)?;
+        keepout.outline.iter().try_for_each(point)?;
+    }
     graphics("silkscreen graphics", &footprint.silk)?;
     graphics("assembly graphics", &footprint.assembly)?;
     unique(
