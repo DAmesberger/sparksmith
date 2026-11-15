@@ -400,6 +400,55 @@ fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
     Ok(())
 }
 
+/// Run 7, finding 4: a SIG track the board runs from R1 pin 2 to R2 pin 1,
+/// where the schematic leaves the two apart. The piece onto the pad the
+/// schematic keeps off the track's net is refused (by the clearance check,
+/// as stored), and the stub it leaves says why, not "clearance".
+#[test]
+fn a_track_refused_for_the_schematics_net_says_so() -> Fallible<()> {
+    let sig = Some((2, "SIG"));
+    let mut board = row_board(&[
+        ("R1", &[("1", Some((1, "GND"))), ("2", sig)]),
+        ("R2", &[("1", sig), ("2", Some((3, "OUT")))]),
+    ]);
+    // R1 pin 2 at (11, 10), R2 pin 1 at (17, 10), in two pieces.
+    board.items.push_str(
+        "  (segment (start 11 10) (end 14 10) (width 0.25) (layer \"F.Cu\") (net 2))
+  (segment (start 14 10) (end 17 10) (width 0.25) (layer \"F.Cu\") (net 2))\n",
+    );
+    let schematic = sheet(
+        &[("R1", "50 50 0"), ("R2", "60 50 0")],
+        "(wire (pts (xy 50 46.19) (xy 55 46.19) (xy 55 53.81) (xy 60 53.81)))",
+    );
+    let imported = import_sheet(&board, schematic)?;
+    let project = imported.engine.project();
+    let refused = &project.refused_import_tracks;
+    assert_eq!(refused.len(), 1, "{refused:?}");
+    assert_eq!(
+        refused[0].reason,
+        sparksmith_core::model::import_review::TrackRefusal::Clearance
+    );
+    let report = sparksmith_core::issues::report(
+        project,
+        &sparksmith_core::library::Drafts::default(),
+        &sparksmith_core::issues::IssueScope::All,
+        &Default::default(),
+    )?;
+    let stub = report
+        .rows
+        .iter()
+        .find(|r| r.finding.code == "board.track_dangling")
+        .ok_or("no finding for the stub")?;
+    assert!(
+        stub.finding
+            .message
+            .ends_with("import refused the rest (schematic keeps a pad off the net)"),
+        "{}",
+        stub.finding.message
+    );
+    Ok(())
+}
+
 /// A pad whose number matches no pin of its KiCad symbol gets a visible
 /// pin outside the body, marked added by import, and an unmapped-pad
 /// finding.

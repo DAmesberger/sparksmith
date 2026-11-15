@@ -6,6 +6,7 @@ use crate::geometry::Point;
 use crate::ids::Id;
 use crate::layout::limits::mm;
 use crate::layout::{WorldPad, pad_labels};
+use crate::model::import_review::{DisagreementKind, RefusedTrack, TrackRefusal};
 use crate::model::{CopperLayer, Project};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -36,6 +37,32 @@ struct Peeled {
 }
 
 impl CopperGraph {
+    /// Why an import refused a track piece, in the user's words. A
+    /// clearance refusal of a piece that runs onto a pad the imported board
+    /// joined to its net and the schematic keeps off it (a "joined on the
+    /// imported board" disagreement) was refused for the schematic's net.
+    fn refusal_words(&self, project: &Project, refused: &RefusedTrack) -> &'static str {
+        let kept_off = |pad: &WorldPad| {
+            project.net_disagreements.iter().any(|d| {
+                d.kind == DisagreementKind::BoardJoins
+                    && d.groups.iter().flatten().any(|t| *t == pad.terminal)
+            })
+        };
+        let onto_kept_off_pad = self.pads.iter().any(|pad| {
+            pad.net != refused.net
+                && pad.on(refused.layer)
+                && [refused.start, refused.end]
+                    .iter()
+                    .any(|q| pad.outline().distance(q.to_mm_f64(), true) <= JOIN_TOLERANCE_MM)
+                && kept_off(pad)
+        });
+        if refused.reason == TrackRefusal::Clearance && onto_kept_off_pad {
+            "schematic keeps a pad off the net"
+        } else {
+            refused.reason.words()
+        }
+    }
+
     fn is_pad(&self, vertex: usize) -> bool {
         self.element_of(vertex)
             .is_some_and(|k| matches!(k, ElementKind::Pad { .. }))
@@ -375,7 +402,7 @@ impl CopperGraph {
                             (x - p[0]).hypot(y - p[1]) <= JOIN_TOLERANCE_MM
                         })
                     })
-                    .map(|r| (*p, r.reason))
+                    .map(|r| (*p, self.refusal_words(project, r)))
             });
             let layers = self
                 .layers
@@ -399,7 +426,7 @@ impl CopperGraph {
                 format!(
                     "Track on {net} ({layers}) stops at {}: import refused the rest ({})",
                     point(&end),
-                    reason.words()
+                    reason
                 )
             } else if ends.is_empty() {
                 format!("Track on {net} ({layers}) reaches no pad")
