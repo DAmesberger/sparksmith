@@ -67,6 +67,7 @@ pub(super) fn settled(v: &mut Viewport) {
 #[test]
 #[ignore = "writes tuning pictures"]
 fn write_esp32_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };
@@ -167,6 +168,7 @@ fn write_esp32_pictures() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 #[ignore = "writes tuning pictures"]
 fn write_esp32_joint_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };

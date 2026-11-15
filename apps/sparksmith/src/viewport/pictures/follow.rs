@@ -144,6 +144,7 @@ fn the_faded_board_is_as_legible_in_the_realistic_look() -> Result<(), Box<dyn s
 #[test]
 #[ignore = "writes follow-net pictures"]
 fn write_follow_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
     let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
         return Err("set SPARKSMITH_PICTURES".into());
     };
