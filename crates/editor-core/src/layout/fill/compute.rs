@@ -20,7 +20,8 @@
 //!    beyond its end or beside it (along at least half its width), or
 //!    another joined pad. A spoke that meets none (its gap opens onto a
 //!    clearance, the fill's edge or copper too narrow to keep) joins
-//!    nothing and is removed.
+//!    nothing and is removed; the fill records how many each pad or via
+//!    lost, which Issues reports as information (`fill.spokes_removed`).
 //! 4. Hatched fills keep a border and a grid of lines.
 //! 5. Islands that no copper of the fill's net touches (by the copper
 //!    graph's one joining rule) are removed, and by setting small ones.
@@ -36,13 +37,13 @@
 //! rank order; fresh stored copper is reused.
 use super::FILL_CHORD_MM;
 use super::geom::{self, Region, RegionIndex, Ring};
-use crate::diagnostics::{Error, Result};
+use crate::diagnostics::{Error, ObjectRef, Result};
 use crate::geometry::Point;
 use crate::ids::Id;
 use crate::layout::connectivity::{islands_joined, track_copper, via_copper};
 use crate::layout::copper::CopperRing;
 use crate::library::{PadKind, Segment};
-use crate::model::fill::{FilledCopper, FilledRegion, Hatch, IslandRemoval};
+use crate::model::fill::{FilledCopper, FilledRegion, Hatch, IslandRemoval, RemovedSpokes};
 use crate::model::{CopperLayer, Fill, Project};
 use crate::rules::{
     ClearanceSide, CopperObject, DesignRules, NetClassId, PadConnection, ThermalRelief,
@@ -495,6 +496,10 @@ impl<'a> Ctx<'a> {
                             );
                             regions.extend(relief(&ring, &spokes));
                             reliefs.push(Relief {
+                                object: ObjectRef::Pad {
+                                    instance: pad.instance,
+                                    pad: pad.pad.id,
+                                },
                                 pad: own,
                                 ring,
                                 spokes,
@@ -535,6 +540,7 @@ impl<'a> Ctx<'a> {
                     let spokes = spokes(v.position, 0.0, false, length, &thermal);
                     regions.extend(relief(&ring, &spokes));
                     reliefs.push(Relief {
+                        object: ObjectRef::Via { id: v.id },
                         pad: Some(geom::circle(v.position, v.diameter / 2.0, tol)),
                         ring,
                         spokes,
@@ -578,8 +584,9 @@ impl<'a> Ctx<'a> {
         } else {
             raw
         };
-        // Spokes that cross their gap to no copper of the net are removed.
-        let loose = loose_spokes(&copper, &reliefs);
+        // Spokes that cross their gap to no copper of the net are removed,
+        // and recorded per pad or via for Issues.
+        let (loose, removed_spokes) = loose_spokes(&copper, &reliefs);
         if !loose.is_empty() {
             copper = geom::difference(&copper, &loose);
         }
@@ -657,6 +664,7 @@ impl<'a> Ctx<'a> {
             key,
             regions,
             removed_islands: removed,
+            removed_spokes,
         })
     }
 }
@@ -666,6 +674,7 @@ fn empty(key: String) -> FilledCopper {
         key,
         regions: Vec::new(),
         removed_islands: 0,
+        removed_spokes: Vec::new(),
     }
 }
 
@@ -705,9 +714,10 @@ struct Spoke {
     bar: Ring,
 }
 
-/// A thermal relief: the joined pad's (or via's) copper outline, the
+/// A thermal relief: the joined pad or via, its copper outline, the
 /// ring it clears (the pad grown by the relief gap) and its spokes.
 struct Relief {
+    object: ObjectRef,
     pad: Option<Ring>,
     ring: Ring,
     spokes: Vec<Spoke>,
@@ -770,10 +780,12 @@ const SPOKE_CONTACT_SAMPLES: usize = 2;
 /// copper beyond its end or beside it (along at least half its width), or
 /// another joined pad, before anything cuts it. A spoke whose gap opens
 /// onto a clearance, the fill's edge or copper removed as too narrow joins
-/// nothing and is dropped.
-fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> Vec<Region> {
+/// nothing and is dropped. Also returns how many spokes each pad or via
+/// lost.
+fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> (Vec<Region>, Vec<RemovedSpokes>) {
+    let mut removed = Vec::new();
     if reliefs.is_empty() || copper.is_empty() {
-        return Vec::new();
+        return (Vec::new(), removed);
     }
     let index = RegionIndex::new(copper);
     let rings: Vec<Option<[Point; 2]>> = reliefs
@@ -782,6 +794,7 @@ fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> Vec<Region> {
         .collect();
     let mut loose = Vec::new();
     for (k, relief) in reliefs.iter().enumerate() {
+        let mut lost = 0u32;
         for spoke in &relief.spokes {
             let Some(b) = geom::bounds(std::iter::once(&spoke.bar)) else {
                 continue;
@@ -869,9 +882,16 @@ fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> Vec<Region> {
                 Some(pad) => loose.extend(geom::difference(&bar, &[vec![pad.clone()]])),
                 None => loose.extend(bar),
             }
+            lost = lost.saturating_add(1);
+        }
+        if lost > 0 {
+            removed.push(RemovedSpokes {
+                object: relief.object,
+                spokes: lost,
+            });
         }
     }
-    loose
+    (loose, removed)
 }
 
 /// A hatched fill: a border of the hatch width and a grid of lines.

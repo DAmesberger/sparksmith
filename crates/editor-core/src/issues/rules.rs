@@ -54,6 +54,9 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         "board.unrouted" | "board.unplaced" | NO_PART => Severity::ToDo,
         "erc.unchecked_terminal"
         | "fill.stale"
+        // The fill removed spokes that would join nothing; the person is
+        // told, nothing needs doing.
+        | "fill.spokes_removed"
         | "library.update_available"
         | "marking.unrepresentable"
         | "marking.does_not_fit" => Severity::Info,
@@ -91,6 +94,7 @@ pub fn group_title(code: &str) -> String {
         "fill.island_unconnected" => "Unconnected fill islands",
         "fill.net_missing" => "Fills on missing nets",
         "fill.stale" => "Fills to refill",
+        "fill.spokes_removed" => "Thermal spokes removed",
         "keepout.track" => "Tracks in keepouts",
         "keepout.via" => "Vias in keepouts",
         "keepout.pad" => "Pads in keepouts",
@@ -584,6 +588,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "fill.empty",
     "fill.island_unconnected",
     "fill.net_missing",
+    "fill.spokes_removed",
     "fill.stale",
     "field.choice_label",
     "field.default_invalid",

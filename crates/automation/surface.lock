@@ -1,7 +1,7 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "3.0", "digest": "sha256:2e6c753244e8d6588c4686e175a5279be9ee416d383a8486ac711d5e0ec9c5f3", "entries": [
-  {"name":"project.apply","class":"edit","schema":"7f17809d42f908c8","fields":[["expected_revision","9295ea67127970c6"],["operation","63d8c195f9ffebf9"]],"required":["expected_revision","operation"]},
-  {"name":"project.apply_all","class":"edit","schema":"e25a52441dbd23eb","fields":[["expected_revision","9295ea67127970c6"],["operations","b23728d5acec9eed"]],"required":["expected_revision","operations"]},
+ {"id": "project", "version": "4.0", "digest": "sha256:d515483136abf80ec2f31494518a39099854ac146b5d739a0dfa6885fd29ccd6", "entries": [
+  {"name":"project.apply","class":"edit","schema":"4cc6d172ff3f46c1","fields":[["expected_revision","9295ea67127970c6"],["operation","e071423a3e1ebb00"]],"required":["expected_revision","operation"]},
+  {"name":"project.apply_all","class":"edit","schema":"43b315b47b0c96ce","fields":[["expected_revision","9295ea67127970c6"],["operations","c4504a50ccc01c30"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"project.inspect","class":"read","schema":"249aa00f4b2dbec1","fields":[["at","40bd5b57f4261fe2"]],"required":[]},
   {"name":"project.query","class":"read","schema":"ee86c3ed6b7c61d5","fields":[],"required":[]},
@@ -83,7 +83,7 @@
   {"name":"wire.set_path","class":"edit","schema":"705ecb1ce27bb5a3","fields":[["corners","73d1f761686fc06c"],["from","846e8bebc4584c84"],["to","846e8bebc4584c84"],["wire","9295ea67127970c6"]],"required":["wire"]},
   {"name":"wire.set_radius","class":"edit","schema":"e42e553e7eecee31","fields":[["index","2edcfeee1addbd20"],["radius","9bb62b1d9da95c32"],["wire","9295ea67127970c6"]],"required":["index","radius","wire"]}
  ]},
- {"id": "layout", "version": "1.0", "digest": "sha256:636689cd53e4f6c8ea55f470566685bdb9ad349f36d3c63df6a2f4bd21efce6d", "entries": [
+ {"id": "layout", "version": "2.0", "digest": "sha256:d975aed9c36a60f97629ca94738a2e934cf4402370837e1fc2a067080ca2b344", "entries": [
   {"name":"board.edit","class":"edit","schema":"61a6f30290e0b1f2","fields":[["edits","162f1d8bbf2ef47c"]],"required":["edits"]},
   {"name":"board.set_rectangle","class":"edit","schema":"a40811035afccce6","fields":[["size","6a3d87a414a20bc3"]],"required":["size"]},
   {"name":"board.shape","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
@@ -99,8 +99,8 @@
   {"name":"fill.refill","class":"edit","schema":"3995183b00d92f49","fields":[["target","054c1d772730f4fa"]],"required":["target"]},
   {"name":"fill.set_pad_override","class":"edit","schema":"9932c63ca1b5c5a0","fields":[["instance","9295ea67127970c6"],["pad","3b67158582ea34e4"],["settings","9ea9d1f466963fcd"]],"required":["instance","settings"]},
   {"name":"fill.status","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
-  {"name":"fill.store","class":"edit","schema":"6b2d6fd05c722cab","fields":[["copper","5f2ffbfdc1a87836"],["fill","9295ea67127970c6"]],"required":["copper","fill"]},
-  {"name":"fill.store_all","class":"edit","schema":"d46f5dc0529d3e1f","fields":[["fills","265a6440a160454a"]],"required":["fills"]},
+  {"name":"fill.store","class":"edit","schema":"4d588a2168420ac3","fields":[["copper","5a1128ac9be3ac8d"],["fill","9295ea67127970c6"]],"required":["copper","fill"]},
+  {"name":"fill.store_all","class":"edit","schema":"90dd29fed558ff02","fields":[["fills","55ba43482951fe5a"]],"required":["fills"]},
   {"name":"keepout.add","class":"edit","schema":"ecdadc61edde2063","fields":[["keepout","c2ba2a61ce6ac36e"]],"required":["keepout"]},
   {"name":"keepout.delete","class":"edit","schema":"244adef7c3868093","fields":[["id","9295ea67127970c6"]],"required":["id"]},
   {"name":"keepout.edit","class":"edit","schema":"c8578dc526a9cb49","fields":[["keepout","4485955f4a4b7e17"]],"required":["keepout"]},

@@ -377,6 +377,7 @@ fn a_designator_over_a_pour_stands_on_its_mask() -> Result<()> {
             holes: Vec::new(),
         }],
         removed_islands: 0,
+        removed_spokes: Vec::new(),
     });
     let (instance, centre) = sparksmith_core::layout::placed_graphics(&project)
         .into_iter()

@@ -2,6 +2,7 @@
 //! live in `layout::fill`; this is the saved definition and the saved
 //! (derivable) computed copper.
 use super::CopperLayer;
+use crate::diagnostics::ObjectRef;
 use crate::geometry::Point;
 use crate::ids::Id;
 use crate::library::Outline;
@@ -277,6 +278,23 @@ pub struct FilledCopper {
     /// Islands removed by the island rule.
     #[serde(default)]
     pub removed_islands: u32,
+    /// Thermal spokes removed because they would end without reaching
+    /// copper of the fill's net, per joined pad or via. Derived with the
+    /// copper; Issues reports each as a `fill.spokes_removed` finding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub removed_spokes: Vec<RemovedSpokes>,
+}
+
+/// Thermal spokes a fill removed at one pad or via
+/// ([`FilledCopper::removed_spokes`]).
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RemovedSpokes {
+    /// The pad (`ObjectRef::Pad`) or via (`ObjectRef::Via`) the spokes
+    /// belonged to.
+    pub object: ObjectRef,
+    /// How many of its spokes were removed (at least 1).
+    pub spokes: u32,
 }
 
 /// Which copper layers a keepout applies to.
