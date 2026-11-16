@@ -31,6 +31,7 @@ pub mod report;
 mod run;
 pub mod tools;
 pub mod usage;
+pub mod workflow;
 
 use report::{ReviewReport, RunFacts};
 use serde_json::json;
