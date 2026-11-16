@@ -20,15 +20,27 @@ fn the_lock_holds() -> Fallible {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(error.into()),
     };
+    let schemas_path = lock_path().with_file_name(SCHEMAS_FILE);
+    let recorded: Option<Schemas> = match std::fs::read_to_string(&schemas_path) {
+        Ok(text) => Some(read_schemas(&text)?),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
+    let now = schemas();
+    let compared = Compared {
+        old: recorded.as_ref(),
+        new: Some(&now),
+    };
     let problems = locked
         .as_ref()
-        .map(|locked| ratchet(locked, &current, MODULES))
+        .map(|locked| ratchet(locked, &current, MODULES, compared))
         .unwrap_or_default();
     if std::env::var_os("SPARKSMITH_SURFACE_UPDATE").is_some() {
         if !problems.is_empty() {
             return Err(format!("surface.lock not updated:\n{}", problems.join("\n")).into());
         }
         std::fs::write(&path, text(&current)?)?;
+        std::fs::write(&schemas_path, schemas_text(&now)?)?;
         return Ok(());
     }
     let Some(locked) = locked else {
@@ -41,9 +53,9 @@ fn the_lock_holds() -> Fallible {
         )
         .into());
     }
-    if locked != current {
+    if locked != current || recorded.as_ref() != Some(&now) {
         return Err(
-            "surface.lock is out of date: the versions are right, so run cargo xtask surface --update"
+            "surface.lock or surface.schemas is out of date: the versions are right, so run cargo xtask surface --update"
                 .into(),
         );
     }
@@ -187,17 +199,17 @@ fn a_breaking_change_needs_a_major_version() {
     for (what, entries) in planted {
         let unchanged = module("1.2", "sha256:b", entries.clone());
         assert!(
-            !ratchet(&base("1.2"), &unchanged, &[]).is_empty(),
+            !ratchet(&base("1.2"), &unchanged, &[], Compared::default()).is_empty(),
             "{what} passed without a version change"
         );
         let minor = module("1.3", "sha256:b", entries.clone());
         assert!(
-            !ratchet(&base("1.2"), &minor, &[]).is_empty(),
+            !ratchet(&base("1.2"), &minor, &[], Compared::default()).is_empty(),
             "{what} passed with a minor bump"
         );
         let major = module("2.0", "sha256:b", entries);
         assert_eq!(
-            ratchet(&base("1.2"), &major, &[]),
+            ratchet(&base("1.2"), &major, &[], Compared::default()),
             Vec::<String>::new(),
             "{what}"
         );
@@ -216,11 +228,14 @@ fn a_compatible_change_needs_a_minor_version() {
         entry("layout.b", Class::Read, &[], &[]),
     ];
     let unchanged = module("1.2", "sha256:b", added.clone());
-    assert!(!ratchet(&base("1.2"), &unchanged, &[]).is_empty());
+    assert!(!ratchet(&base("1.2"), &unchanged, &[], Compared::default()).is_empty());
     let minor = module("1.3", "sha256:b", added);
-    assert_eq!(ratchet(&base("1.2"), &minor, &[]), Vec::<String>::new());
+    assert_eq!(
+        ratchet(&base("1.2"), &minor, &[], Compared::default()),
+        Vec::<String>::new()
+    );
     let back = module("1.1", "sha256:a", base("1.2").modules[0].entries.clone());
-    assert!(!ratchet(&base("1.2"), &back, &[]).is_empty());
+    assert!(!ratchet(&base("1.2"), &back, &[], Compared::default()).is_empty());
 }
 
 /// Before 1.0 the minor numbers every break, as in semver.
@@ -233,9 +248,12 @@ fn before_one_a_break_raises_the_minor() {
         &["at"],
     )];
     let unchanged = module("0.1", "sha256:b", removed.clone());
-    assert!(!ratchet(&base("0.1"), &unchanged, &[]).is_empty());
+    assert!(!ratchet(&base("0.1"), &unchanged, &[], Compared::default()).is_empty());
     let minor = module("0.2", "sha256:b", removed);
-    assert_eq!(ratchet(&base("0.1"), &minor, &[]), Vec::<String>::new());
+    assert_eq!(
+        ratchet(&base("0.1"), &minor, &[], Compared::default()),
+        Vec::<String>::new()
+    );
 }
 
 #[test]
@@ -244,5 +262,121 @@ fn a_removed_module_fails() {
         format: LOCK_FORMAT,
         modules: Vec::new(),
     };
-    assert!(!ratchet(&base("0.1"), &empty, &[]).is_empty());
+    assert!(!ratchet(&base("0.1"), &empty, &[], Compared::default()).is_empty());
+}
+
+fn schemas_of(zone: Value, required: Value) -> Schemas {
+    Schemas {
+        defs: BTreeMap::from([(
+            "Zone".to_owned(),
+            json!({"type": "object", "properties": zone, "required": required}),
+        )]),
+        entries: BTreeMap::from([(
+            "layout.a".to_owned(),
+            json!({"type": "object",
+                "properties": {"at": {"type": "integer"}, "zone": {"$ref": "#/$defs/Zone"}},
+                "required": ["at"]}),
+        )]),
+    }
+}
+
+fn zone_entries(zone_digest: &str) -> Vec<LockedEntry> {
+    vec![
+        entry(
+            "layout.a",
+            Class::Edit,
+            &[("at", "1"), ("zone", zone_digest)],
+            &["at"],
+        ),
+        entry("layout.b", Class::Read, &[], &[]),
+    ]
+}
+
+/// With the schemas recorded, a parameter whose digest changed is weighed
+/// by what changed inside it: a new optional nested field needs a minor
+/// version, a new required one a major. Without them, the digest decides.
+#[test]
+fn recorded_schemas_decide_a_changed_parameter() {
+    let old = schemas_of(json!({"p": {"type": "integer"}}), json!(["p"]));
+    let optional = schemas_of(
+        json!({"p": {"type": "integer"}, "q": {"type": "integer", "default": 0}}),
+        json!(["p"]),
+    );
+    let required = schemas_of(
+        json!({"p": {"type": "integer"}, "q": {"type": "integer"}}),
+        json!(["p", "q"]),
+    );
+    let old_lock = module("1.2", "sha256:a", zone_entries("3"));
+    fn both<'a>(old: &'a Schemas, new: &'a Schemas) -> Compared<'a> {
+        Compared {
+            old: Some(old),
+            new: Some(new),
+        }
+    }
+    let minor = module("1.3", "sha256:b", zone_entries("9"));
+    assert_eq!(
+        ratchet(&old_lock, &minor, &[], both(&old, &optional)),
+        Vec::<String>::new()
+    );
+    assert!(!ratchet(&old_lock, &minor, &[], Compared::default()).is_empty());
+    let problems = ratchet(&old_lock, &minor, &[], both(&old, &required));
+    assert!(
+        problems.iter().any(|p| p.contains("layout.a.zone.q")),
+        "{problems:?}"
+    );
+    let major = module("2.0", "sha256:b", zone_entries("9"));
+    assert_eq!(
+        ratchet(&old_lock, &major, &[], both(&old, &required)),
+        Vec::<String>::new()
+    );
+}
+
+/// Every reference in the recorded schemas names a recorded definition,
+/// every definition is reached, and the catalog compared with itself is
+/// unchanged.
+#[test]
+fn the_recorded_schemas_are_whole() {
+    let now = schemas();
+    let mut reached = BTreeSet::new();
+    let all = now.entries.values().chain(now.defs.values());
+    for schema in all {
+        let mut names = Vec::new();
+        named(schema, &mut names);
+        for name in names {
+            assert!(now.defs.contains_key(name), "{name} is not recorded");
+            reached.insert(name.to_owned());
+        }
+    }
+    let unreached: Vec<&String> = now.defs.keys().filter(|k| !reached.contains(*k)).collect();
+    assert!(unreached.is_empty(), "nothing names {unreached:?}");
+    let both = Compared {
+        old: Some(&now),
+        new: Some(&now),
+    };
+    for name in now.entries.keys() {
+        assert_eq!(
+            both.classify(name).map(|o| o.change),
+            Some(compat::Change::Same),
+            "{name}"
+        );
+    }
+}
+
+/// Two definitions of one name are recorded apart only when they differ.
+#[test]
+fn a_definition_is_shared_only_when_it_is_the_same() {
+    let a = json!({"$defs": {"P": {"type": "integer", "description": "one"}}});
+    let b = json!({"$defs": {"P": {"type": "integer"}}});
+    let c = json!({"$defs": {"P": {"type": "string"}}});
+    let p = json!({"$ref": "#/$defs/P"});
+    assert!(same(&p, &a, &p, &b, &mut BTreeSet::new()));
+    assert!(!same(&p, &a, &p, &c, &mut BTreeSet::new()));
+}
+
+#[test]
+fn the_schemas_text_reads_back() -> Fallible {
+    let now = schemas();
+    assert_eq!(read_schemas(&schemas_text(&now)?)?, now);
+    assert!(read_schemas("{\"format\": 99, \"entries\": {}}").is_err());
+    Ok(())
 }

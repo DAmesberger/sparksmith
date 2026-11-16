@@ -6,3 +6,6 @@
 # Hashed by their bytes (the generator bundles and their source part files).
 library/generators/** -text
 generators/*/parts/** -text
+
+# Written by cargo xtask surface --update (docs/extension-surface.md).
+crates/automation/surface.schemas linguist-generated
