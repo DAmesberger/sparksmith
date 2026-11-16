@@ -16,7 +16,7 @@ The AI scene ("Create from datasheet…") is deferred by the founder's decision:
 Both got Screen Recording and Accessibility grants in the guest's System Settings. The videos were cut from the frames on the host with ffmpeg (H.264, 1920 × 1080, 30 fps). Waits for the agent between actions were removed, failed or retried actions were dropped, and each kept action keeps its real speed. Every on-screen time in the clips is the app's real response time.
 
 **The board** (`usb-sense`):
-- J1, the built-in GCT USB4105 USB-C receptacle;
+- J1, the shipped library's GCT USB4105 USB-C receptacle;
 - U1 "TLV75733PDBVR", a 3.3 V LDO in SOT-23-5 with pins IN, GND, EN, NC, OUT;
 - U2 "LM75BD", a temperature sensor in SOIC-8 with pins SDA, SCL, OS, GND, A2, A1, A0, VCC;
 - C1 and C2 1 µF and C3 100 nF, in 0603;
@@ -42,7 +42,7 @@ The board is 30 × 20 mm with a B.Cu GND zone, F.Cu tracks, two GND vias and a s
 | Named parts | **Possible, but only through the Component workspace** (finding 1). U1 and U2 carry real part numbers and pin names in the schematic, the board and the BOM. |
 | Unrouted count after the GND pour | **Fixed.** After the Top GND fill, the status line read "0 airwires" and Issues listed no unrouted connection. The production check had no connectivity error. |
 | Router and USB-C holes | **Fixed as far as seen.** CC1, CC2 and VBUS were routed between and beside J1's holes in several takes, and no hole-clearance error appeared. |
-| Production check | **0 errors only by waiving J1's 6 built-in geometry errors** (finding 2). Everything else on the board was clean. |
+| Production check | **0 errors only by waiving J1's 6 footprint errors** (finding 2). Everything else on the board was clean. |
 | Fab export | "Wrote 17 production files", all named `usb-sense-*`. |
 | Save, quit, reopen | **Identical.** The Issues report copied before quitting and after reopening was byte for byte the same (1,526 bytes). The Recovery folder was empty after the quit. |
 | KiCad import | Report in under 2.5 s. Export named `beaconlet-*` before any save (**fixed**). 3 KiCad tracks were refused and GND stays unrouted (finding 4). |
@@ -85,7 +85,7 @@ The board is 30 × 20 mm with a B.Cu GND zone, F.Cu tracks, two GND vias and a s
 ## C. Production check and fab export (scene 4)
 
 1. **Check.** The Production panel read "6 errors · 12 warnings". Export was disabled, with the hover text "Fix or waive the 6 errors first".
-   - Errors (all J1, the built-in USB-C part):
+   - Errors (all J1, the shipped USB-C part):
      - "Pad holes too close to copper 2": "J1 pad 17: hole is 0.175 mm from J1 pad A1B12 on GND" and "J1 pad 18: hole is 0.175 mm from J1 pad B1A12 on GND";
      - "Thin plated-hole annular rings 4": 4 × "J1 pad S: annular ring 0.2 mm".
    - Warnings: "No pin-1 marking 2" and "No Part chosen 10".
@@ -156,7 +156,11 @@ Export before saving: the production check read "3 errors · 14 warnings" (Unrou
    - Passive values need the standard fields added to the component first ("Add standard fields" › Capacitance or Resistance, Update placed instances); the palette's "1u 0603" made a component named "Chip capacitor 0603" without a value.
 
    A designer would expect the palette to offer a name and value at the moment of placing, and the package column to keep the package.
-2. **The built-in USB-C part blocks a clean production check.** Without any routing near them, J1's own footprint gives 6 errors: "J1 pad 17: hole is 0.175 mm from J1 pad A1B12 on GND" (and pad 18), and 4 × "J1 pad S: annular ring 0.2 mm" under JLCPCB 2-layer. 0 errors needed waivers again, as in run 10. These are the library's GCT USB4105 data against the fab profile; whether the part's land pattern or the profile's rule should change is a library decision.
+2. **The shipped USB-C part blocks a clean production check.** Without any routing near them, J1's own footprint gives 6 errors: "J1 pad 17: hole is 0.175 mm from J1 pad A1B12 on GND" (and pad 18), and 4 × "J1 pad S: annular ring 0.2 mm" under JLCPCB 2-layer. 0 errors needed waivers again, as in run 10. These are the library's GCT USB4105 data against the fab profile; whether the part's land pattern or the profile's rule should change is a library decision.
+
+   **Follow-up (2026-11-16).** The part was re-checked against GCT's drawing USB4105 revision B4 (https://gct.co/files/drawings/usb4105.pdf, modified 2023-12-18), Recommended PCB Layout: every pad, slot, land and hole position in `library/parts/gct-usb4105.component.json` matches it. The 0.175 mm is the drawing's own: the Ø0.65 locating holes sit 3.68 mm behind the front shell slots and 5.78 mm apart, and the 0.60 × 1.15 mm GND lands (A1/B12, B1/A12) end 4.18 mm behind those slots, centred 6.40 mm apart. Against JLCPCB's capabilities page (https://jlcpcb.com/capabilities/pcb-capabilities, read 2026-11-16):
+   - **Shell slot rings (4 errors).** JLCPCB gives no plated-slot ring row; the "PTH annular ring" row (2-layer, 1 oz: "Recommended 0.25 mm or above; absolute minimum 0.18 mm"; multilayer, 1 oz: "Recommended 0.20 mm or above; absolute minimum 0.15 mm"; 2 oz: "0.254 mm or above") applies. The drawing's 0.2 mm ring is admitted by the profiles' existing *JLCPCB values: Absolute minimum* choice on 2 layers, and by the default (Recommended) on 4 layers. Under 2 oz copper it is not admitted on either. The 2-layer slot width ("Min. plated slots", "2-layer: 0.5mm") is met by the 0.60 mm slots.
+   - **Locating holes (2 errors).** "NPTH to Track" is "0.2mm" with no recommended/minimum split. The page has no NPTH-to-pad row and no option or special process that relaxes NPTH clearance; the "NPTH pad annular ring" note ("This is to allow a 0.2 mm ring of copper to be removed around the hole for the sealing film to attach") says the same 0.2 mm is cleared around non-plated holes. No published JLCPCB choice admits 0.175 mm, so these two stay errors. They are not relaxed in the profile, and the vendor footprint is not edited. Open for the founder: keep the waiver (its reason citing the GCT drawing; the fab then clears about 0.025 mm off the two GND land corners); ask JLCPCB (support or its DFM check) and record a written answer as a profile source; use a fab profile whose published capability admits it; or make a board-local footprint variant with those land corners cut back, kept apart from the vendor part.
 3. **The module generator form shows raw numbers in two rows.** In "Radio and processor modules (castellated or LGA)", the rows "First pad centre x of each row" and "First pad centre y of each row" read "-8400000, -5715000, 8400000" and "5500000, -11900000, -11010000": unitless integers, apparently nanometres, where every other field reads in mm. The section header above "Side of each pad row" reads only "SING".
 4. **The KiCad import refused 3 VIN tracks and left GND unrouted.** "NOT IMPORTED 3: tracks the engine's checks refused" and the two "Track on VIN (Top) stops at …: import refused the rest …" rows do not say which check refused them. "GND: 3 pads unrouted" remained although the B.Cu GND zone was "imported as fills, filled by our engine", and J1 pad 2, C1's via and Q1's via all lie inside it. The project file classes set Power (0.4 mm, clearance 0.25 mm) on VIN and GND; the cause was not investigated.
 5. **A new generated component's 3D tab looked empty until Fit view.** After Create component for QFN-16, the 3D tab showed only the triad and grid. The fit button drew the model.
