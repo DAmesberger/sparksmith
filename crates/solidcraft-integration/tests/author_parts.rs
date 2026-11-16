@@ -1,4 +1,4 @@
-//! Authors Sparksmith's built-in part files (docs/part-templates.md §11)
+//! Authors Sparksmith's shipped part files (docs/part-templates.md §11)
 //! through Solidcraft's own commands and public API, and writes them under
 //! `library/parts/`. Original work (MIT OR Apache-2.0).
 //!
@@ -4561,7 +4561,7 @@ fn author_parts() {
         // The shipped USB-C receptacle component's body.
         ("library/parts", "gct-usb4105", author_usb_c_receptacle),
         // The ESP32 dev board example's switches: the example's own part
-        // file, not a built-in.
+        // file, not a shipped one.
         (
             "examples/esp32-s31-devboard/parts",
             "b3u-1000p",

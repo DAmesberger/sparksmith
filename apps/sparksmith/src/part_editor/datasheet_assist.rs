@@ -236,7 +236,7 @@ impl DatasheetAssist {
         let endpoint = chosen.endpoint.endpoint().map_err(|e| e.to_string())?;
         let profile = chosen.endpoint.model_profile().map_err(|e| e.to_string())?;
         // The model selects its run profile: the user's file listing it,
-        // else a built-in one, else the default.
+        // else a shipped one, else the default.
         let folder = sparksmith_io::settings::UserDirs::from_env()
             .ok()
             .map(|dirs| run_profile::user_folder(&dirs.config));

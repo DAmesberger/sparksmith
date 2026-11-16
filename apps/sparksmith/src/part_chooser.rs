@@ -1,6 +1,6 @@
 //! The part-file chooser (docs/mechanical-parts.md M5): one Solidcraft-
 //! styled sheet for every place that picks a SolidCraft part file. The
-//! source list on the left offers the built-in part files
+//! source list on the left offers the shipped part files
 //! (the shipped library's, `part_files::builtin_parts`), the project's Models of format `solidcraft`, the
 //! recent files (at most eight, kept per user) and Open file… (the native
 //! picker). The detail pane on the right shows the check report of the
@@ -48,7 +48,7 @@ const COUNT_RANGE: std::ops::RangeInclusive<f64> = 0.0..=10000.0;
 pub enum PartSource {
     /// A `.solidcraft` file on disk.
     Path(PathBuf),
-    /// A built-in part file of the shipped library, by its file's stem.
+    /// A part file of the shipped library, by its file's stem.
     Builtin(String),
     /// A Model revision of format `solidcraft` the project holds.
     Model(ModelRef),
@@ -68,7 +68,7 @@ pub struct ChooserPick {
     pub file: Arc<PartFileBytes>,
     pub report: PartReport,
     /// The licence stated for a file the project does not hold yet; `None`
-    /// for built-ins and project models.
+    /// for shipped part files and project models.
     pub licence: Option<String>,
 }
 
@@ -118,7 +118,7 @@ pub struct Evaluation {
 }
 
 enum Input {
-    /// Read the source (a path or a built-in) on the worker.
+    /// Read the source (a path or a shipped part file) on the worker.
     Read,
     /// Bytes already in hand (a project model, or the last read).
     Bytes(Arc<PartFileBytes>),
@@ -227,7 +227,7 @@ impl Evaluator {
     }
 
     /// Ask for `source` at `values`, unless that is what was asked last.
-    /// A project model's bytes are taken from `engine`; a path or built-in
+    /// A project model's bytes are taken from `engine`; a path or shipped part file
     /// is read on the worker, once per source.
     pub fn request(
         &mut self,
@@ -531,7 +531,7 @@ pub struct SourceRow {
     pub detail: String,
 }
 
-/// The source list's groups in order: Built-in, This project, Recent files.
+/// The source list's groups in order: Shipped, This project, Recent files.
 pub fn source_rows(engine: &Engine, recent: &[PathBuf]) -> [(&'static str, Vec<SourceRow>); 3] {
     let mut project: Vec<SourceRow> = Vec::new();
     let library = &engine.project().library;
@@ -596,13 +596,13 @@ pub fn source_rows(engine: &Engine, recent: &[PathBuf]) -> [(&'static str, Vec<S
         })
         .collect();
     [
-        ("Built-in", builtin_rows()),
+        ("Shipped", builtin_rows()),
         ("This project", project),
         ("Recent files", recent),
     ]
 }
 
-/// The shipped built-in part files; none when the shipped library could not
+/// The shipped part files; none when the shipped library could not
 /// be read (opening the sheet says why).
 fn builtin_rows() -> Vec<SourceRow> {
     let Ok(parts) = part_files::builtin_parts() else {
@@ -615,7 +615,7 @@ fn builtin_rows() -> Vec<SourceRow> {
             source: PartSource::Builtin(part.name.clone()),
             label: part.name.clone(),
             detail: format!(
-                "Built-in · {} · {}",
+                "Shipped · {} · {}",
                 part.licence,
                 size_label(u64::try_from(part.bytes.len()).unwrap_or(u64::MAX))
             ),
@@ -642,7 +642,7 @@ pub struct PartChooser {
 
 impl PartChooser {
     /// Open the sheet for `mode`, starting at `source` when given (the
-    /// part file in use), else at the first built-in.
+    /// part file in use), else at the first shipped one.
     pub fn open(&mut self, mode: ChooserMode, source: Option<PartSource>, values: PartValues) {
         self.mode = Some(mode);
         self.refusal = None;

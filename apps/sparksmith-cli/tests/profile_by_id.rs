@@ -78,7 +78,7 @@ fn the_production_check_resolves_a_profile_id_through_the_library() -> Fallible 
             "jlcpcb-2-layer",
             "jlcpcb-4-layer"
         ],
-        "the user's profiles, then the built-ins"
+        "the user's profiles, then the shipped ones"
     );
 
     // The showcase on the library's prototype profile, by id.
@@ -124,7 +124,7 @@ fn the_production_check_resolves_a_profile_id_through_the_library() -> Fallible 
 
 /// `project.new` never asks: without `profile` it takes the user's default
 /// (Settings), else the shipped default (`library/defaults/new-project.json`); `profile` names any
-/// library or built-in id. `rules.fab_profiles` lists the built-ins.
+/// library or shipped id. `rules.fab_profiles` lists the shipped ones.
 #[test]
 fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Fallible {
     let dir = tempfile::tempdir()?;

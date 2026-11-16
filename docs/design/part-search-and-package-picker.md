@@ -50,7 +50,7 @@ The rule that follows: **a package with any electrical pad is never placed.** It
 
 | Today | Where | After this design |
 |---|---|---|
-| The Place palette lists project components, then "Generic parts" (on-demand generator parts), "From generator" presets of every generator, built-in parts and library-folder rows. Enter on a preset makes a component *named after the package* and arms placement | `apps/sparksmith/src/place_palette.rs` (3,109 lines), `catalog::generic::generators` | One ranked list of **parts only**. Package presets leave the palette. When nothing matches, the last rows offer **Make it…** |
+| The Place palette lists project components, then "Generic parts" (on-demand generator parts), "From generator" presets of every generator, shipped parts and library-folder rows. Enter on a preset makes a component *named after the package* and arms placement | `apps/sparksmith/src/place_palette.rs` (3,109 lines), `catalog::generic::generators` | One ranked list of **parts only**. Package presets leave the palette. When nothing matches, the last rows offer **Make it…** |
 | The generator gallery is a sheet: chips for the 9 generators, then presets, then the one form. It opens from New component, the start page, the palette, the Footprint tab's From generator and Change package… | `generator_gallery.rs` (964), `generator_form.rs` (462) | Replaced by the **package picker**: search, categories and filters, then the same `generator_form`. It is reached only from part-making entry points |
 | Component-scope generation of an IC package gives terminals "1…n" and names the component, package and footprint after the preset (or after the Name the person typed) | `generators/*/src/lib.rs` (`Component { name, terminals }`), `library::generated::expand` | Component scope is accepted **only for outputs the generator declares as parts** (§3.2). Any other package is made in package scope and becomes a part through **New part** (§2.3). The package half is always keyed and named as the package |
 | `PartOffer.instance_fields` declares `value` (chip) and `colour` (chip LED) or nothing at all, and GP1 selects no field definitions | `generator-plugins.md` "Limits of GP1" | A declared part output names its category and value field. The palette's parsed value goes onto the instance |
@@ -75,7 +75,7 @@ The sources, in **precedence order**:
 
 1. **Project.** Every placeable component lineage the project holds, including generic parts it has already made.
 2. **Library folders** (S3, as built): read-only or writable folders listed in the user's settings.
-3. **Shipped library.** `library/parts/` components such as the GCT USB4105 and the mechanical parts. Today these are the palette's "Built-in parts" group.
+3. **Shipped library.** `library/parts/` components such as the GCT USB4105 and the mechanical parts. Today these are the palette's "Shipped parts" group.
 4. **Generic parts on demand.** A text that the grammar (`generic-families.json`) or a declared part output reads as a whole part, such as "10k 0603", "led 0805 red" or "header 2x5 2mm". Such a part is made when chosen. Only outputs a generator declares as parts are listed (§3.2).
 5. **Online registry** (§6). It is ranked after every local source.
 
@@ -332,7 +332,7 @@ Founder Q6: nobody uses the software yet, so there is **no migration** for proje
 - **Examples are regenerated** with the new generators and `library.new_part` (`examples/esp32-s31-devboard`, `examples/tlv75733-*` and the parity records), and their golden files are blessed again.
 - **Removing the gallery and changing the palette:**
   - `generator_gallery.rs` is deleted. Its form host moves into `package_picker.rs`, and `generator_form.rs` is kept. The Footprint tab's `footprint_template_picker.rs` opens the picker.
-  - In the palette, the "From generator" group, `generator_gallery::preset_row` and `KEYS_TEMPLATE` are removed. "Generic parts" and "Built-in parts" become source chips. The make rows are added.
+  - In the palette, the "From generator" group, `generator_gallery::preset_row` and `KEYS_TEMPLATE` are removed. "Generic parts" and "Shipped parts" become source chips. The make rows are added.
   - On the start page, "New from a generator" becomes **New part…**, and the start page's preset rows are removed.
   - The tests that drive the gallery from the palette (`generator_tests.rs`, `placing_a_resistor_a_qfn_and_a_header`) change: the QFN is made through the New part dialog with a name and pins, then placed.
 - **MCP**: `library.generators`, `library.generate_part` and `library.package_from_generator` stay; `library.new_part`, `library.categories` and `library.category_define` are added. `cargo xtask surface` needs the library module's version raised.

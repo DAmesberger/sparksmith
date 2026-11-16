@@ -1,5 +1,5 @@
 //! Lean parts (docs/part-templates.md §11): cold and cached cost of the
-//! built-in ESP32-S31-WROOM-3 part file and of inserting it into a board.
+//! shipped ESP32-S31-WROOM-3 part file and of inserting it into a board.
 //! Measured in a release build:
 //!
 //! `cargo test --release -p sparksmith-solidcraft --test part_timings -- --ignored --nocapture`

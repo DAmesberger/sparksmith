@@ -158,7 +158,7 @@ fn srgb_to_linear(c: f64) -> f64 {
     }
 }
 
-/// The built-in material nearest a body's source colour (sRGB, as STEP and
+/// The shipped material nearest a body's source colour (sRGB, as STEP and
 /// display colours are): a suggestion only.
 pub fn nearest_builtin(
     colour: [f64; 4],

@@ -101,7 +101,7 @@ impl PartEditor {
             kit::actions(ui, |ui| {
                 open_part = ui_kit::button(ui, "Part file…", Button::Small)
                     .on_hover_text(
-                        "Use a parametric SolidCraft part file: built-in, from this project or from disk",
+                        "Use a parametric SolidCraft part file: shipped, from this project or from disk",
                     )
                     .clicked();
                 if matches!(package.model, PackageModel::PartFile(_))

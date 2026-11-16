@@ -15,7 +15,7 @@ fn apply(engine: &mut Engine, operation: Value) -> Fallible<Value> {
 /// The ESP32-S31-WROOM-3 example (`examples/esp32-s31-wroom-3`) opened as
 /// the app opens a file, its drafts published and U1 placed in the middle
 /// of the board, top side: a board whose only part is the module, its body
-/// the built-in part file (`library/parts/esp32-s31-wroom-3.solidcraft`),
+/// the shipped part file (`library/parts/esp32-s31-wroom-3.solidcraft`),
 /// with its marking.
 pub(crate) fn wroom_board() -> Fallible<Engine> {
     let file = sparksmith_io::read_project(std::path::Path::new(concat!(

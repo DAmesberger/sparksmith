@@ -723,7 +723,7 @@ mod tests {
                 builtins: library.builtins()?,
                 ..Listing::default()
             },
-            "missing folder: only the built-ins"
+            "missing folder: only the shipped profiles"
         );
         let fab = user("Example Fab 5 mil")?;
         let stored = library.save_as(&fab, "Example Fab 5 mil")?;
@@ -890,7 +890,7 @@ mod tests {
         let copy = library.save_as(&jlcpcb()?, "JLCPCB copy")?;
         assert_eq!(library.list()?.builtins.len(), 2);
         assert_eq!(library.list()?.profiles, vec![copy]);
-        // An import of the same file keeps its id and replaces the built-in.
+        // An import of the same file keeps its id and replaces the shipped one.
         let mut edited = jlcpcb()?;
         edited.name = "JLCPCB house rules".into();
         export(&edited, &dir.path().join("house.json"))?;
@@ -906,7 +906,7 @@ mod tests {
             ["jlcpcb-4-layer"]
         );
         assert_eq!(library.get(default)?.name, "JLCPCB house rules");
-        // Deleting the user's copy brings the built-in back.
+        // Deleting the user's copy brings the shipped one back.
         library.delete(default)?;
         assert_eq!(library.get(default)?, jlcpcb()?);
         Ok(())

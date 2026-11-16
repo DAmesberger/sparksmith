@@ -36,7 +36,7 @@ pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --nam
   llm-key set|delete|status --base-url URL
                                    keep a model API key (read from stdin) in the system keychain,
                                    for that endpoint only
-  llm-profile list | copy NAME     list run profiles, or copy a built-in one to the config folder to edit";
+  llm-profile list | copy NAME     list run profiles, or copy a shipped one to the config folder to edit";
 
 struct Args {
     datasheets: Vec<Datasheet>,
@@ -345,7 +345,7 @@ pub fn profile(args: &[String]) -> Result<()> {
         [action] if action == "list" => {
             for name in shipped.built_in_names() {
                 let p = shipped.built_in(name).ok_or("listed")?;
-                println!("{name} (built in) {}", p.models.join(", "));
+                println!("{name} (shipped) {}", p.models.join(", "));
             }
             if let Ok(entries) = std::fs::read_dir(&folder) {
                 for entry in entries.flatten() {
@@ -362,7 +362,7 @@ pub fn profile(args: &[String]) -> Result<()> {
         [action, name] if action == "copy" => {
             let path = shipped.copy_to_user(name, &folder)?;
             eprintln!(
-                "copied to {}; edit it, and it takes the built-in's place",
+                "copied to {}; edit it, and it takes the shipped one's place",
                 path.display()
             );
         }

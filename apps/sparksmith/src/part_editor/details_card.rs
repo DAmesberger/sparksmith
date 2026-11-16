@@ -129,7 +129,7 @@ impl PartEditor {
     }
 
     /// The component's selected fields with their component defaults.
-    /// Returns the import of the built-in fields when it is asked for.
+    /// Returns the import of the shipped standard fields when it is asked for.
     pub(super) fn fields_section(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
         let library = &engine.project().library;
         let set = self.draft.as_mut()?;
@@ -252,7 +252,7 @@ impl PartEditor {
     }
 }
 
-/// Whether the project holds the built-in fields already.
+/// Whether the project holds the shipped standard fields already.
 fn has_standard_fields(library: &Library) -> bool {
     let source = standard_fields::library_id();
     library

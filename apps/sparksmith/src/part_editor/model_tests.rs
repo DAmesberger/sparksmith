@@ -759,7 +759,7 @@ fn decals_landing_after_the_renderer_took_the_model_keep_the_model() -> TestResu
     Ok(())
 }
 
-/// The chip package of [`Harness`] using the built-in WROOM-3 part file
+/// The chip package of [`Harness`] using the shipped WROOM-3 part file
 /// through `library.use_part_file`'s operation.
 fn use_builtin(h: &mut Harness) -> TestResult {
     use sparksmith_automation::part_files::{self, UsePartFile};
