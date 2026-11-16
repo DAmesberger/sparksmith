@@ -76,7 +76,9 @@ fn the_production_check_resolves_a_profile_id_through_the_library() -> Fallible 
             "test-fine",
             "test-prototype",
             "jlcpcb-2-layer",
-            "jlcpcb-4-layer"
+            "jlcpcb-4-layer",
+            "pcbway-2-layer",
+            "pcbway-4-layer"
         ],
         "the user's profiles, then the shipped ones"
     );
@@ -153,7 +155,16 @@ fn a_new_project_takes_the_builtin_jlcpcb_profile_unless_one_is_named() -> Falli
         .iter()
         .filter_map(|p| p["id"].as_str())
         .collect();
-    assert_eq!(ids, ["jlcpcb-2-layer", "jlcpcb-4-layer"], "{listed}");
+    assert_eq!(
+        ids,
+        [
+            "jlcpcb-2-layer",
+            "jlcpcb-4-layer",
+            "pcbway-2-layer",
+            "pcbway-4-layer"
+        ],
+        "{listed}"
+    );
     assert_eq!(named["ok"], true, "{named}");
     assert_eq!(second["result"]["value"], "jlcpcb-4-layer", "{second}");
     Ok(())
