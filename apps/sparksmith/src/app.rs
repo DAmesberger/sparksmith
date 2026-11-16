@@ -17,6 +17,7 @@ mod open_timing;
 mod settings_window;
 mod shortcut_sheet;
 mod system_windows;
+pub(crate) mod window_state;
 
 use crate::file_ui::{self, Effect, FileUi};
 use crate::kit::messages::Messages;
@@ -114,6 +115,8 @@ pub struct App {
     now: f64,
     /// Time from opening the PCB 3D view to its first frame.
     open_timing: open_timing::OpenTiming,
+    /// The window's state as last seen, and since when (kept once settled).
+    window_seen: Option<(sparksmith_io::settings::WindowState, f64)>,
     /// Every command, its context and its key (`crate::commands`).
     /// Shared with every key reader through `crate::keys::publish`.
     registry: Arc<crate::commands::Registry>,
@@ -339,6 +342,7 @@ impl App {
             closing: false,
             now: 0.0,
             open_timing: open_timing::OpenTiming::default(),
+            window_seen: None,
             registry,
             keymap_problems,
             palette: Default::default(),
@@ -1632,6 +1636,7 @@ impl eframe::App for App {
         // tips, while shown, take the keys themselves.
         self.reveal_input(&ctx);
         self.list_prefs(&ctx);
+        self.window_state(&ctx);
         // A key being recorded in Settings reaches nothing else.
         self.record_key(&ctx);
         // The palette's keys come before any canvas sees them.
