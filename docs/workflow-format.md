@@ -1,6 +1,6 @@
 # Workflow format
 
-**Status:** contract (slice W0 of the [assistant panel](assistant-panel.md#8-slices)) and runner (W1), 16 November 2026. The types, the load check, the first instance with its method, the runner, the `assist.workflows` and `assist.step_result` entries and the MCP prompts are built; the chat (C1) and the controls' widgets (C2) are not. Code: the contract in `crates/automation/src/workflow/` (below the runner, since the catalog's entries and the MCP prompts are made from the same data; `sparksmith_assist::workflow` re-exports it), the runner in `crates/assist/src/workflow/runner.rs`.
+**Status:** contract (slice W0 of the [assistant panel](assistant-panel.md#8-slices)) and runner (W1), 16 November 2026. The types, the load check, the first instance with its method, the runner, the `assist.workflows`, `assist.step_result` and `assist.offer` entries, the MCP prompts and the controls' widgets (C2) are built; the chat (C1) is not. Code: the contract in `crates/automation/src/workflow/` (below the runner, since the catalog's entries and the MCP prompts are made from the same data; `sparksmith_assist::workflow` re-exports it), the runner in `crates/assist/src/workflow/runner.rs`.
 
 A workflow is a refined process the chat finds, offers and runs, with typed controls inside the conversation. It is data, never code: the app has one generic runner and one closed set of ten controls, and a workflow only chooses among them.
 
@@ -122,7 +122,7 @@ Markdown. Each model step reads one section, named by its heading's anchor (GitH
 
 ## The ten controls
 
-`workflow::Control`; the widgets are built in `crates/ui` (C2). `ControlCard` is the descriptor a card is drawn from and an MCP form is built from (M1); `ControlAnswer` is what the person sends back (inputs, Change, Apply with rows left out, Decline, Stop, Undo run).
+`workflow::Control`; the widgets are built once in `crates/ui` (`sparksmith_ui::chat_cards`, C2) and drawn from plain data; the desktop's adapter (`apps/sparksmith/src/workflow_cards.rs`) turns a `ControlCard` into a widget and the person's choice into a `ControlAnswer`, reading lengths as the command wire does (`0.25`, `0.25mm`, `10mil`). Enter accepts and Esc declines the card the run waits on; its first field takes the keyboard. `ControlCard` is the descriptor a card is drawn from and an MCP form is built from (M1); `ControlAnswer` is what the person sends back (inputs, Change, Apply with rows left out, Decline, Stop, Undo run).
 
 | Control | Shows | Takes input |
 |---|---|---|
@@ -139,13 +139,17 @@ Markdown. Each model step reads one section, named by its heading's anchor (GitH
 
 ## The `assist.*` entries
 
-Parameters and replies in `workflow::entries`. `assist.workflows` and `assist.step_result` are in the catalog since W1 (`assist` 1.1); `assist.offer` comes with the chat's cards (C2).
+Parameters and replies in `workflow::entries`. `assist.workflows` and `assist.step_result` are in the catalog since W1 (`assist` 1.1), `assist.offer` since C2 (`assist` 1.2): the front door checks it against the workflows lent to the session (`workflow::Offer`) and the window shows the card (`WindowHost::offer`); a window without a chat, and a host without a window, answer `host.unavailable`.
 
 | Entry | Kind, class | Parameters | Reply |
 |---|---|---|---|
 | `assist.workflows` | query, read | `{text?, limit?, unavailable?}` | `{workflows: [{id, version, title, summary, intents, source, inputs, why_not}]}`; the workflows the host lent the session (`Session::lend_workflows`), else `assist.no_workflows` |
 | `assist.offer` | show, show; headless `host.unavailable` | `{workflow, inputs?, why}` | `{card, missing}` |
 | `assist.step_result` | query, read; changes no document | `{step, result}` | `{accepted, problems: [{at, message}], example?}`; refused without an open step (`assist.no_step`) or for another step |
+
+## Signals
+
+`offer_when` is matched without a model (`workflow::offer`): `Workflow::offered_on` compares a signal with the workflow's (a media type without case), `offer::offered_on` lists the available workflows a signal offers, and `Workflow::input_for_attachment` names the `files` input a dropped file fills. A dropped file's type is read from its first bytes (`offer::media_type`; a name's extension is never trusted). Dropping a PDF on the window offers the datasheet workflow with the file as its datasheets; a waiting datasheet field takes dropped files itself.
 
 ## Events
 

@@ -164,7 +164,13 @@ impl Surface for Session {
                     "it changes only the window, so it has no dry run",
                 ));
             }
-            return crate::view::run(cx.window, self.engine(), &call.entry, view);
+            return crate::view::run(
+                cx.window,
+                self.engine(),
+                self.lent_workflows(),
+                &call.entry,
+                view,
+            );
         }
         // A turn's edits join its one undo step (a dry run keeps nothing).
         let grouped = match &turn {

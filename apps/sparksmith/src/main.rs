@@ -41,6 +41,7 @@ mod shell;
 mod symbol_view;
 mod update_preview;
 mod viewport;
+mod workflow_cards;
 
 /// Tests: the fixture context (the repository's standards and materials)
 /// made current on this test's thread for the rest of the test, as the

@@ -485,6 +485,8 @@ impl App {
         // Commands about a copper layer list only the board's own layers.
         let stack = self.engine.project().stackup.layers();
         let projects = self.recent_items();
+        // One entry per workflow, from its data (assistant §3.2).
+        let workflows = self.workflow_cards.listed().to_vec();
         let event = palette.show(ctx, |query| {
             let mut rows: Vec<PaletteRow> = self
                 .registry
@@ -507,6 +509,7 @@ impl App {
                     }
                 })
                 .collect();
+            rows.extend(super::workflow_host::workflow_rows(&workflows, query));
             rows.extend(recent_rows(&projects, query));
             rows
         });
@@ -522,6 +525,11 @@ impl App {
             if let Some(path) = path {
                 self.open_recent(path);
             }
+        } else if let Some(PaletteEvent::Run(id)) = &event
+            && id.starts_with(crate::workflow_cards::PALETTE_PREFIX)
+        {
+            self.palette = palette;
+            self.run_workflow_row(id);
         } else if let Some(PaletteEvent::Run(id)) = event {
             palette.used(&id);
             self.palette = palette;

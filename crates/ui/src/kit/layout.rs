@@ -6,7 +6,7 @@ use egui::{Response, RichText, Ui, vec2};
 
 pub(super) const FORM: &str = "sc_dense_form";
 
-pub(super) const LABEL: &str = "sc_form_label";
+pub(crate) const LABEL: &str = "sc_form_label";
 pub(super) const GROW_LABEL: &str = "sc_grow_label_column";
 
 /// Mark a form without global state: children inherit this tag through their UI stack.

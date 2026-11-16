@@ -215,6 +215,11 @@ impl Session {
         self.assist.workflows = workflows;
     }
 
+    /// The workflows lent to the session, for `assist.offer`.
+    pub(crate) fn lent_workflows(&self) -> Option<&[Listed]> {
+        self.assist.workflows.as_deref()
+    }
+
     /// Open a workflow run's model step for `assist.step_result`, answering
     /// with the step open before; `None` closes it.
     pub fn open_step(&mut self, step: Option<OpenStep>) -> Option<OpenStep> {

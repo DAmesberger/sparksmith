@@ -614,3 +614,51 @@ fn heading_anchors_follow_github() {
     let anchors: Vec<&str> = anchors.iter().map(String::as_str).collect();
     assert_eq!(anchors, ["find-a-generator-step-3", "the-review-report"]);
 }
+
+/// `offer_when` matches structured signals only: a dropped PDF offers the
+/// datasheet workflow and fills its files input; another type, a
+/// workspace it does not name, or an issue offers nothing.
+#[test]
+fn signals_offer_the_workflows_that_name_them() -> Fallible {
+    let listed = load::list(Some(&shipped_folder()), None, &HostCatalog);
+    let pdf = Signal::Attachment("application/pdf".into());
+    let offered = offer::offered_on(&listed, &pdf);
+    let ids: Vec<&str> = offered.iter().map(|l| l.workflow.id.as_str()).collect();
+    assert_eq!(ids, [DATASHEET]);
+    assert!(shipped()?.offered_on(&Signal::Attachment("Application/PDF".into())));
+    for other in [
+        Signal::Attachment("image/png".into()),
+        Signal::Workspace("pcb".into()),
+        Signal::Issue("pinout.unreviewed".into()),
+    ] {
+        assert!(offer::offered_on(&listed, &other).is_empty(), "{other:?}");
+    }
+    assert_eq!(
+        shipped()?.input_for_attachment("application/pdf"),
+        Some("datasheets")
+    );
+    assert_eq!(shipped()?.input_for_attachment("image/png"), None);
+    assert_eq!(offer::media_type(b"%PDF-1.7\n"), Some("application/pdf"));
+    assert_eq!(offer::media_type(b"<html>"), None);
+    Ok(())
+}
+
+/// An offer is checked like a run's inputs: the card names what the run
+/// will still ask for, in the order its input steps ask.
+#[test]
+fn an_offer_names_the_inputs_still_missing() -> Fallible {
+    let listed = load::list(Some(&shipped_folder()), None, &HostCatalog);
+    let none = Offer::check(&listed, DATASHEET, serde_json::Map::new(), "")?;
+    assert_eq!(none.missing, ["datasheets", "part"]);
+    let mut inputs = serde_json::Map::new();
+    inputs.insert("datasheets".into(), json!(["tlv757p.pdf"]));
+    let one = Offer::check(&listed, DATASHEET, inputs, "A PDF was dropped")?;
+    assert_eq!(one.missing, ["part"]);
+    assert_eq!(one.version, "1.0");
+    let long = "x".repeat(401);
+    let Err(why) = Offer::check(&listed, DATASHEET, serde_json::Map::new(), &long) else {
+        return Err("a long why was taken".into());
+    };
+    assert!(why.contains("why"), "{why}");
+    Ok(())
+}

@@ -876,6 +876,28 @@ impl FileUi {
         }));
         receiver
     }
+    /// Pick PDF documents for a workflow's datasheet field, with the same
+    /// parented native picker; the paths (none when cancelled) arrive on
+    /// the returned channel.
+    pub fn pick_pdfs(&self) -> Receiver<Vec<PathBuf>> {
+        let dialog = self
+            .picker
+            .clone()
+            .set_directory(&self.folder)
+            .set_title("Choose datasheets")
+            .add_filter("PDF document", &["pdf", "PDF"]);
+        let future = dialog.pick_files();
+        let (sender, receiver) = mpsc::channel();
+        std::thread::spawn(sparksmith_core::library::standards::carried(move || {
+            let picked = pollster::block_on(future)
+                .unwrap_or_default()
+                .iter()
+                .map(|handle| handle.path().to_path_buf())
+                .collect();
+            let _ = sender.send(picked);
+        }));
+        receiver
+    }
     fn clear_recovery(&mut self, close: bool) {
         let ticket = if close {
             self.begin(Kind::Close, None)

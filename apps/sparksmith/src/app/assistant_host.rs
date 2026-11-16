@@ -278,8 +278,11 @@ impl App {
                 .resizable(true)
                 .default_size(assistant::DEFAULT_WIDTH)
                 .size_range(assistant::MIN_WIDTH..=assistant::MAX_WIDTH);
-            host.show_edge(ui, panel, frame, |ui| self.assistant.column(ui, &now))
-                .inner
+            let cards = &mut self.workflow_cards;
+            host.show_edge(ui, panel, frame, |ui| {
+                self.assistant.column(ui, &now, cards)
+            })
+            .inner
         };
         for action in actions {
             self.assistant_action(&ctx, action);
@@ -314,6 +317,9 @@ impl App {
             Action::Fold(folded) => self.assistant.folded = folded,
             Action::Dock(dock) => self.assistant.dock = dock,
             Action::Close => self.assistant.open = false,
+            Action::Card(action) => self.workflow_card_action(action),
+            // The card is in the cards already; the next frame shows it.
+            Action::Offered(_) => {}
         }
     }
 
@@ -349,6 +355,9 @@ impl App {
                 return;
             }
         };
+        // The chat may offer a workflow (`assist.offer`) among these.
+        let workflows = self.workflow_cards.listed().to_vec();
+        self.assistant.session.lend_workflows(Some(workflows));
         let label = turn_label(&text);
         let path = self.files.path().map(std::path::Path::to_path_buf);
         let (mut window, engine, assistant) = self.window_for_assistant(None);

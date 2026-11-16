@@ -21,6 +21,7 @@ mod shortcut_sheet;
 mod system_windows;
 mod window_host;
 pub(crate) mod window_state;
+mod workflow_host;
 
 use crate::file_ui::{self, Effect, FileUi};
 use crate::kit::messages::Messages;
@@ -128,6 +129,11 @@ pub struct App {
     /// Saved key changes that could not be applied (kept in the settings).
     keymap_problems: Vec<crate::keymap::Unapplied>,
     palette: command_palette::CommandPalette,
+    /// The chat's workflow cards: offers from `assist.offer`, a dropped
+    /// PDF, the palette and the `/` menu, and a run's cards (C2).
+    workflow_cards: crate::workflow_cards::WorkflowCards,
+    /// A datasheet field's Choose…: its card and the picker's answer.
+    workflow_pick: Option<(String, std::sync::mpsc::Receiver<Vec<std::path::PathBuf>>)>,
     /// ⌘ commands pressed over a focused field, run once it committed.
     after_commit: command_dispatch::AfterCommit,
     shortcut_sheet: shortcut_sheet::ShortcutSheet,
@@ -353,6 +359,8 @@ impl App {
             registry,
             keymap_problems,
             palette: Default::default(),
+            workflow_cards: Default::default(),
+            workflow_pick: None,
             after_commit: Default::default(),
             shortcut_sheet: Default::default(),
             settings_window: Default::default(),
@@ -1640,6 +1648,9 @@ impl eframe::App for App {
         self.serve_live(&ctx);
         // The assistant chat's tool calls, likewise.
         self.serve_assistant(&ctx);
+        // A dropped PDF offers the datasheet workflow (`offer_when`); new
+        // workflow cards join the chat's transcript.
+        self.workflow_frame(&ctx);
         self.library_sources(&ctx);
         self.component_subject(&ctx);
         // A2: the Component workspace catalog's action and feed.

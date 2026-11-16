@@ -143,6 +143,9 @@ pub enum Item {
     Call(CallRow),
     Ask(AskCard),
     Summary(TurnSummary),
+    /// A workflow's card or a run's (C2), by its key in the window's
+    /// workflow cards (`crate::workflow_cards`).
+    Workflow(u64),
 }
 
 /// The transcript, its state and the use of the turn running.

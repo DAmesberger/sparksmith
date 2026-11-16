@@ -492,6 +492,9 @@ pub enum Request {
     /// A workflow model step's answer, checked against its output.
     #[serde(rename = "assist.step_result")]
     StepResult(crate::workflow::entries::StepResultParams),
+    /// Show a workflow's card in the chat, with the inputs already known.
+    #[serde(rename = "assist.offer")]
+    Offer(crate::workflow::entries::OfferParams),
     /// What the window shows: workspace, view, sheet and selection.
     #[serde(rename = "view.context")]
     ViewContext(crate::view::ContextParams),
@@ -569,6 +572,7 @@ sparksmith_core::declare_entries!(Request in project {
     WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2)],
     Workflows "assist.workflows" Read "List workflows" [in assist, effect(World), since(1, 1)],
     StepResult "assist.step_result" Read "Answer a workflow step" [in assist, effect(World), since(1, 1)],
+    Offer "assist.offer" Show "Offer a workflow in the chat" [in assist, reach(Window), needs(Window), since(1, 2)],
     ViewContext "view.context" Read "What the window shows" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewSelect "view.select" Show "Select in the window" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewOpen "view.open" Show "Open a workspace or view" [in view, reach(Window), needs(Window), since(1, 0)],
@@ -984,6 +988,11 @@ impl Request {
                 "assist.step_result",
                 "Answer the workflow step you are working on; the answer is checked against the step's output.",
                 "End the open model step of a workflow run with its answer, an object with the fields of the step's output. Answers accepted, or the problems by field (each a pointer into result) with an example; fix them and answer again. A session with no open step refuses it. Not a document change.",
+            ),
+            info::<crate::workflow::entries::OfferParams>(
+                "assist.offer",
+                "Offer a workflow in the chat as a card with the inputs you already have; the person chooses Use it or Just chat.",
+                "Show the workflow's card in the window's chat: its title and summary, why it fits (one sentence), the inputs given (each checked against the workflow's input) and those the run will still ask for. Answers the card's id and the missing inputs; the person's answer comes as their next message. Nothing starts until they choose Use it. Not a document change; a host without a window answers host.unavailable.",
             ),
             info::<turns::TurnBeginParams>(
                 "project.turn_begin",
@@ -1452,7 +1461,10 @@ impl Session {
             Request::Workflows(params) => return self.workflows(&params),
             Request::StepResult(params) => return self.step_result(params),
             // The front door runs these in the window; here is none.
-            request @ (Request::ViewContext(_) | Request::ViewSelect(_) | Request::ViewOpen(_)) => {
+            request @ (Request::ViewContext(_)
+            | Request::ViewSelect(_)
+            | Request::ViewOpen(_)
+            | Request::Offer(_)) => {
                 return Err(crate::Error::refused(crate::view::unavailable(
                     request.command(),
                 )));

@@ -10,7 +10,7 @@
 //! An external client has its own loop: it reads the method and calls the
 //! verbs itself, while the in-app runner drives the same workflow step by
 //! step. A test holds the order of the two the same.
-use crate::workflow::{InputType, Loaded, StepKind, Workflow};
+use crate::workflow::{InputType, Loaded, Workflow};
 use rmcp::model::{GetPromptResult, JsonObject, Prompt, PromptArgument, PromptMessage, Role};
 use serde_json::Value;
 
@@ -20,23 +20,6 @@ const MAX_ARGUMENT: usize = 16 * 1024;
 /// The prompt name of workflow `id`: its id with `_` for `-`.
 pub fn name_of(id: &str) -> String {
     id.replace('-', "_")
-}
-
-/// The inputs of `workflow` in the order its input steps ask for them, then
-/// any no step asks for.
-fn inputs_in_order(workflow: &Workflow) -> Vec<&str> {
-    let mut names: Vec<&str> = workflow
-        .steps
-        .iter()
-        .filter(|s| s.kind == StepKind::Input)
-        .flat_map(|s| s.inputs.iter().map(String::as_str))
-        .collect();
-    for name in workflow.inputs.keys() {
-        if !names.contains(&name.as_str()) {
-            names.push(name);
-        }
-    }
-    names
 }
 
 /// What a prompt argument says of input `name`: its title and help, and
@@ -86,7 +69,8 @@ pub fn list(workflows: &[Loaded]) -> Vec<Prompt> {
         .iter()
         .map(|loaded| {
             let workflow = &loaded.workflow;
-            let arguments = inputs_in_order(workflow)
+            let arguments = workflow
+                .inputs_in_order()
                 .into_iter()
                 .filter_map(|name| {
                     let input = workflow.input(name)?;
@@ -128,13 +112,13 @@ pub fn get(
         let shown: String = unknown.chars().take(64).collect();
         return Err(format!(
             "{name} has no argument {shown:?}; its arguments: {}",
-            inputs_in_order(workflow).join(", ")
+            workflow.inputs_in_order().join(", ")
         ));
     }
     let mut task = format!("## Task\n\n{}\n", workflow.summary);
     let mut missing = Vec::new();
     let mut first_text = None;
-    for key in inputs_in_order(workflow) {
+    for key in workflow.inputs_in_order() {
         let Some(input) = workflow.input(key) else {
             continue;
         };
