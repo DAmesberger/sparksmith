@@ -342,6 +342,12 @@ impl PartEditor {
                 ..set.package.clone()
             })
     }
+    /// The component whose working set the views show (their framing is
+    /// reset when it changes).
+    pub fn shown_component(&self) -> Option<DefinitionId> {
+        self.shown
+    }
+
     pub fn is_model_view(&self) -> bool {
         self.view == View::Model
     }
