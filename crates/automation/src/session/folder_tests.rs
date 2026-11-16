@@ -60,13 +60,12 @@ fn manifest(dir: &Path, text: &str) -> Fallible<()> {
     Ok(())
 }
 
-/// A manifest of this build's format with `features` required.
-fn manifest_json(format: u32, features: &[&str]) -> String {
+/// A manifest of format `format`.
+fn manifest_json(format: u32) -> String {
     json!({
         "format": format,
         "library": "000000000000000000000000000000aa",
         "name": "Refused",
-        "required_features": features,
     })
     .to_string()
 }
@@ -129,7 +128,7 @@ fn unreadable_settings_refuse_source_changes() -> TestResult {
         Sources::unavailable(error.diagnostic().message),
     );
     let folder = temp.path().join("team");
-    manifest(&folder, &manifest_json(FOLDER_FORMAT, &[]))?;
+    manifest(&folder, &manifest_json(FOLDER_FORMAT))?;
     let error = refused(
         &mut session,
         "library.source.add",
@@ -158,17 +157,12 @@ fn refused_manifests_are_listed_with_their_reason() -> TestResult {
     let temp = tempfile::tempdir()?;
     let dirs = dirs(temp.path());
     let future = temp.path().join("future");
-    let featured = temp.path().join("featured");
     let broken = temp.path().join("broken");
     let missing = temp.path().join("missing");
     // Settings refuse a repeated path, so "turned off" gets its own folder.
     let off = temp.path().join("off");
-    manifest(&future, &manifest_json(FOLDER_FORMAT + 1, &[]))?;
-    manifest(&off, &manifest_json(FOLDER_FORMAT + 1, &[]))?;
-    manifest(
-        &featured,
-        &manifest_json(FOLDER_FORMAT, &["future-feature"]),
-    )?;
+    manifest(&future, &manifest_json(FOLDER_FORMAT + 1))?;
+    manifest(&off, &manifest_json(FOLDER_FORMAT + 1))?;
     manifest(&broken, "{\"format\": 1, \"library\": ")?;
 
     let mut session = user_session(Engine::default(), &dirs)?;
@@ -189,18 +183,6 @@ fn refused_manifests_are_listed_with_their_reason() -> TestResult {
         error["message"]
             .as_str()
             .is_some_and(|m| m.contains("unsupported format v2")),
-        "{error}"
-    );
-    let error = refused(
-        &mut session,
-        "library.source.add",
-        add(&featured),
-        "unsupported",
-    );
-    assert!(
-        error["message"]
-            .as_str()
-            .is_some_and(|m| m.contains("future-feature")),
         "{error}"
     );
     refused(
@@ -231,7 +213,6 @@ fn refused_manifests_are_listed_with_their_reason() -> TestResult {
             sources: vec![
                 setting(&missing, true),
                 setting(&future, true),
-                setting(&featured, true),
                 setting(&broken, true),
                 setting(&off, false),
             ],
@@ -249,12 +230,11 @@ fn refused_manifests_are_listed_with_their_reason() -> TestResult {
             s["reason"].as_str().unwrap_or_default()
         })
         .collect();
-    assert_eq!(reasons.len(), 5, "{listed}");
+    assert_eq!(reasons.len(), 4, "{listed}");
     assert_eq!(reasons[0], "path missing");
     assert_eq!(reasons[1], "unsupported format v2");
-    assert_eq!(reasons[2], "requires unsupported features: future-feature");
-    assert!(reasons[3].starts_with("unreadable manifest: "), "{listed}");
-    assert_eq!(reasons[4], "turned off");
+    assert!(reasons[2].starts_with("unreadable manifest: "), "{listed}");
+    assert_eq!(reasons[3], "turned off");
     // Disabled sources add nothing to searches.
     let search = query(&mut session, "library.search", json!({"query": "EX-"}))?;
     assert_eq!(search["total"], 0);
@@ -269,8 +249,8 @@ fn a_second_folder_of_the_same_library_is_not_searched() -> TestResult {
     let dirs = dirs(root.path());
     let first = root.path().join("first");
     let copy = root.path().join("copy");
-    manifest(&first, &manifest_json(FOLDER_FORMAT, &[]))?;
-    manifest(&copy, &manifest_json(FOLDER_FORMAT, &[]))?;
+    manifest(&first, &manifest_json(FOLDER_FORMAT))?;
+    manifest(&copy, &manifest_json(FOLDER_FORMAT))?;
     let setting = |path: &Path| SourceSetting {
         path: path.to_path_buf(),
         enabled: true,

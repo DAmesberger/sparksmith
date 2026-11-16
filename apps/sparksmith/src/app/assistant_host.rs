@@ -21,8 +21,9 @@ use crate::assistant::{
 };
 use crate::kit::severity::Level;
 use serde_json::{Value, json};
-use sparksmith_assist::chat::{ChatConfig, End, Outcome, ReachProfile};
-use sparksmith_assist::model::{Message, Part};
+use sparksmith_assist::chat::{self, ChatConfig, End, Outcome, ReachProfile};
+use sparksmith_assist::model::{Budget, Connection, KeySource, Message, Part, Provider, keys};
+use sparksmith_assist::settings::{self as ai, AssistSettings, Permissions, Rule, Shipped};
 use sparksmith_assist::verbs::Agent;
 use sparksmith_automation::front::{self, Answer, Asker, Call, CallCx, NoOne, Surface};
 use sparksmith_automation::{Grant, Principal, Question, WindowHost};
@@ -40,13 +41,66 @@ const NAMED_OBJECTS: usize = 4;
 /// The longest undo label, in characters, before "…".
 const LABEL_CHARS: usize = 60;
 
-/// How the chat asks: a question the gate asks waits as an Ask card,
-/// unless the person already allowed this call, or every entry it names
-/// runs without asking (the reach profile's `unasked`, or the person's
-/// Allow for this session or always).
+/// The kind of action a question is about, as Settings › AI's permissions
+/// name it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Edits,
+    Files,
+    PublishLibrary,
+    View,
+}
+
+impl Kind {
+    /// The kind of the entries a question names: an edit, a library
+    /// action that asks (publishing to a library), or anything else that
+    /// undo cannot take back (files, fabrication output, the 3D model).
+    fn of(question: &Question) -> Self {
+        let entries = || {
+            question
+                .command
+                .split(", ")
+                .filter_map(sparksmith_automation::session::metadata::find)
+        };
+        if entries().all(|e| e.class == sparksmith_core::Class::Show) {
+            Self::View
+        } else if entries().all(|e| e.class == sparksmith_core::Class::Edit) {
+            Self::Edits
+        } else if entries().any(|e| e.module == "library") {
+            Self::PublishLibrary
+        } else {
+            Self::Files
+        }
+    }
+
+    fn rule(self, permissions: &Permissions) -> Rule {
+        match self {
+            Self::Edits => permissions.edits,
+            Self::Files => permissions.files,
+            Self::PublishLibrary => permissions.publish_library,
+            Self::View => permissions.view,
+        }
+    }
+
+    fn set(self, permissions: &mut Permissions, rule: Rule) {
+        match self {
+            Self::Edits => permissions.edits = rule,
+            Self::Files => permissions.files = rule,
+            Self::PublishLibrary => permissions.publish_library = rule,
+            Self::View => permissions.view = rule,
+        }
+    }
+}
+
+/// How the chat asks: a question the gate asks follows Settings › AI's
+/// rule for its kind (always allowed, denied, or a card); a card is not
+/// shown when the person already allowed this call, or every entry it
+/// names runs without asking (the reach profile's `unasked`, or the
+/// person's Allow for this session or always).
 struct ChatAsker {
     allowed: bool,
     unasked: Vec<String>,
+    permissions: Permissions,
     question: Option<Question>,
 }
 
@@ -57,12 +111,27 @@ impl Asker for ChatAsker {
             .split(", ")
             .all(|entry| self.unasked.iter().any(|u| u == entry));
         if self.allowed || unasked {
-            Answer::Allow
-        } else {
-            self.question = Some(question.clone());
-            Answer::Unavailable
+            return Answer::Allow;
+        }
+        match Kind::of(question).rule(&self.permissions) {
+            Rule::Always => Answer::Allow,
+            Rule::Deny => Answer::Deny,
+            Rule::Ask | Rule::Session => {
+                self.question = Some(question.clone());
+                Answer::Unavailable
+            }
         }
     }
+}
+
+/// Settings › AI as the person keeps it, the shipped starting values and
+/// its file.
+fn ai_settings() -> Result<(AssistSettings, Shipped, std::path::PathBuf), String> {
+    let dirs = sparksmith_io::settings::UserDirs::from_env().map_err(|e| e.to_string())?;
+    let path = ai::user_file(&dirs.config);
+    let settings = ai::read(&path).map_err(|e| e.to_string())?;
+    let shipped = Shipped::locate().map_err(|e| e.to_string())?;
+    Ok((settings, shipped, path))
 }
 
 /// A call of `entry` with `params`, outside any turn.
@@ -113,21 +182,69 @@ impl App {
         Ok((grant, reach))
     }
 
-    /// The model the chat uses. Until Settings › AI holds the endpoint
-    /// (slice C3) it is the one set in the Component start page's Create
-    /// from datasheet form.
-    fn chat_model(&mut self) -> Result<ChatModel, String> {
+    /// The model the chat uses, its budget and the person's permissions:
+    /// Settings › AI's endpoint for the assistant, its limits when the
+    /// person set any (none by default: no per-turn caps), and its rules
+    /// per kind of action. A key comes from the keychain for the endpoint,
+    /// else for Anthropic `ANTHROPIC_API_KEY`.
+    fn chat_model(&mut self) -> Result<(ChatModel, Budget, Permissions), String> {
         if let Some(model) = &self.assistant.model {
-            return Ok(model.clone());
+            let shipped = Shipped::locate().map_err(|e| e.to_string())?;
+            return Ok((model.clone(), chat::unbounded(), shipped.permissions));
         }
-        let (profile, connection) = self.part.datasheet_assist().chat_connection()?;
+        let (settings, shipped, _) = ai_settings()?;
+        let setting = settings
+            .run_endpoint()
+            .cloned()
+            .ok_or_else(|| "No model endpoint: add one in Settings › AI".to_owned())?;
+        let profile = setting.model_profile().map_err(|e| e.to_string())?;
+        let endpoint = setting.endpoint().map_err(|e| e.to_string())?;
+        let key = if endpoint.check_key_allowed().is_ok() && keys::keychain_has(&endpoint) {
+            KeySource::Keychain
+        } else {
+            match profile.provider {
+                Provider::Anthropic => KeySource::Env("ANTHROPIC_API_KEY".into()),
+                Provider::OpenAiCompatible => KeySource::None,
+            }
+        };
+        let connection = Connection { endpoint, key };
         let declared = profile.clone();
-        Ok(ChatModel {
-            profile,
-            connect: Arc::new(move || {
-                sparksmith_assist::model::connect(&declared, &connection).map_err(|e| e.to_string())
-            }),
-        })
+        let budget = ai::run_budget(settings.limits.as_ref(), None).unwrap_or_else(chat::unbounded);
+        Ok((
+            ChatModel {
+                profile,
+                connect: Arc::new(move || {
+                    sparksmith_assist::model::connect(&declared, &connection)
+                        .map_err(|e| e.to_string())
+                }),
+            },
+            budget,
+            settings.permissions_or(&shipped),
+        ))
+    }
+
+    /// Always allow on a card: Settings › AI's rule for the kind becomes
+    /// Always, kept in the person's settings file.
+    fn always_allow(&mut self, kind: Kind) {
+        if let Some(permissions) = self.assistant.permissions.as_mut() {
+            kind.set(permissions, Rule::Always);
+        }
+        if self.assistant.model.is_some() {
+            // A test's model: no settings file is touched.
+            return;
+        }
+        let kept = ai_settings().and_then(|(mut settings, shipped, path)| {
+            let mut permissions = settings.permissions_or(&shipped);
+            kind.set(&mut permissions, Rule::Always);
+            settings.permissions = Some(permissions);
+            ai::write(&path, &settings).map_err(|e| e.to_string())
+        });
+        if let Err(why) = kept {
+            self.say(
+                Level::Warning,
+                format!("Could not keep Always allow: {why}"),
+            );
+        }
     }
 
     /// The column, or its folded strip, at the window's edge: before the
@@ -216,13 +333,14 @@ impl App {
         if text.is_empty() {
             return;
         }
-        let model = match self.chat_model() {
-            Ok(model) => model,
+        let (model, budget, permissions) = match self.chat_model() {
+            Ok(chosen) => chosen,
             Err(why) => {
                 self.assistant.conversation.state = State::NotSetUp(why);
                 return;
             }
         };
+        self.assistant.permissions = Some(permissions);
         let (grant, _) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {
@@ -283,11 +401,7 @@ impl App {
         );
         self.assistant.composer.clear();
         let message = vec![Part::text(format!("The window shows: {context}\n\n{text}"))];
-        let config = ChatConfig::new(
-            &library,
-            model.profile.clone(),
-            sparksmith_assist::chat::unbounded(),
-        );
+        let config = ChatConfig::new(&library, model.profile.clone(), budget);
         let history = std::mem::take(&mut self.assistant.history);
         let wake = ctx.clone();
         match worker::start(
@@ -346,7 +460,7 @@ impl App {
         let Some(turn) = self.assistant.turn.as_ref().map(|t| t.id.clone()) else {
             return;
         };
-        let (grant, reach) = match self.chat_grant() {
+        let (mut grant, reach) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {
                 let _ = request.reply.send(
@@ -355,16 +469,56 @@ impl App {
                 return;
             }
         };
+        let permissions = self.assistant.permissions.unwrap_or(Permissions {
+            edits: Rule::Always,
+            files: Rule::Ask,
+            publish_library: Rule::Ask,
+            view: Rule::Ask,
+        });
+        // Moving the person's view follows its own rule: the gate never
+        // asks about it.
+        let shown = request.input["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        if request.verb == sparksmith_assist::verbs::SHOW
+            && !allowed
+            && !self.assistant.allowed_session.contains(&shown)
+        {
+            match permissions.view {
+                Rule::Always => {}
+                Rule::Deny => {
+                    let _ = request.reply.send(json!({"ok": false, "error": {
+                        "code": "gate.denied",
+                        "message": "The person does not let the assistant move their view (Settings › AI). Nothing was changed."}}));
+                    return;
+                }
+                Rule::Ask | Rule::Session => {
+                    let question = Question {
+                        command: shown,
+                        class: sparksmith_core::Class::Show,
+                        paths: Vec::new(),
+                        why: "It moves your view.".to_owned(),
+                    };
+                    self.hold(request, question);
+                    return;
+                }
+            }
+        }
         let busy = if allowed { None } else { self.live_busy(ctx) };
         let path = self.files.path().map(std::path::Path::to_path_buf);
         let mut unasked: Vec<String> = reach.unasked.clone();
         unasked.extend(self.assistant.allowed_session.iter().cloned());
-        unasked.extend(self.assistant.allowed_always.iter().cloned());
         let mut asker = ChatAsker {
             allowed,
             unasked,
+            permissions,
             question: None,
         };
+        if permissions.edits != Rule::Always {
+            // Edits follow the person's rule too: the gate asks about each.
+            grant.mode = sparksmith_automation::Mode::AskEveryTime;
+        }
         let (mut window, engine, assistant) = self.window_for_assistant(busy);
         let reply = assistant.session.lend(engine, path.as_deref(), |session| {
             Agent {
@@ -377,29 +531,32 @@ impl App {
             .verb(&request.verb, request.input.clone())
         });
         match asker.question {
-            Some(question) if !allowed => {
-                let conversation = &mut self.assistant.conversation;
-                let id = conversation.next_id();
-                let command = sparksmith_automation::session::metadata::find(&question.command)
-                    .map_or_else(|| question.command.clone(), |entry| entry.title.to_owned());
-                conversation.push(Item::Ask(AskCard {
-                    id,
-                    command,
-                    why: question.why.clone(),
-                    paths: question.paths.clone(),
-                    answer: None,
-                }));
-                conversation.state = State::Waiting;
-                self.assistant.held = Some(Held {
-                    request,
-                    ask: id,
-                    question,
-                });
-            }
+            Some(question) if !allowed => self.hold(request, question),
             _ => {
                 let _ = request.reply.send(reply);
             }
         }
+    }
+
+    /// Hold `request` as an Ask card about `question`.
+    fn hold(&mut self, request: ToolRequest, question: Question) {
+        let conversation = &mut self.assistant.conversation;
+        let id = conversation.next_id();
+        let command = sparksmith_automation::session::metadata::find(&question.command)
+            .map_or_else(|| question.command.clone(), |entry| entry.title.to_owned());
+        conversation.push(Item::Ask(AskCard {
+            id,
+            command,
+            why: question.why.clone(),
+            paths: question.paths.clone(),
+            answer: None,
+        }));
+        conversation.state = State::Waiting;
+        self.assistant.held = Some(Held {
+            request,
+            ask: id,
+            question,
+        });
     }
 
     /// The person's answer on Ask card `id`: Allow once, for this session
@@ -413,9 +570,16 @@ impl App {
         }
         self.assistant.conversation.state = State::Running;
         let entries = held.question.command.split(", ").map(str::to_owned);
+        let kind = Kind::of(&held.question);
+        // Settings › AI's "once a session": the first Allow covers the rest.
+        let session_rule = self
+            .assistant
+            .permissions
+            .is_some_and(|p| kind.rule(&p) == Rule::Session);
         match allow {
             Allow::Session => self.assistant.allowed_session.extend(entries),
-            Allow::Always => self.assistant.allowed_always.extend(entries),
+            Allow::Once if session_rule => self.assistant.allowed_session.extend(entries),
+            Allow::Always => self.always_allow(kind),
             Allow::Once | Allow::Deny => {}
         }
         if allow != Allow::Deny {

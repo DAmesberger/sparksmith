@@ -7,18 +7,14 @@
 //! The model frame has z = 0 on the seating plane and x along the package
 //! length.
 //!
-//! The in-code family builders and the typed package forms they read are
-//! gone (part-generation slice D2): standard packages are made by their
-//! shipped generators, whose part files these packages use ([`part_file`]).
-//! What the retired forms gave is read only by the format 5 converter
-//! ([`retired`]).
+//! Standard packages are made by their shipped generators, whose part
+//! files these packages use ([`part_file`]).
 pub mod gltf_ext;
 pub mod imported;
 pub mod inspect;
 pub mod look;
 pub mod named;
 pub mod part_file;
-pub mod retired;
 
 use crate::material::BodyKind;
 use crate::native::Native;

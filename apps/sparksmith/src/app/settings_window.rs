@@ -66,6 +66,8 @@ pub(crate) struct SettingsWindow {
     /// `impedance_changed`.
     pub impedance_tolerance: Result<f64, String>,
     pub impedance_changed: bool,
+    /// The AI section (Settings › AI), read when the window opens.
+    pub ai: super::settings_ai::AiPage,
 }
 
 impl Default for SettingsWindow {
@@ -82,6 +84,7 @@ impl Default for SettingsWindow {
             lists_changed: false,
             impedance_tolerance: Err(String::new()),
             impedance_changed: false,
+            ai: Default::default(),
         }
     }
 }
@@ -94,6 +97,7 @@ impl SettingsWindow {
     pub fn toggle(&mut self) {
         self.open = !self.open;
         self.profiles = None;
+        self.ai.reset();
         if !self.open {
             self.recording = None;
             self.pending = None;
@@ -277,6 +281,9 @@ impl SettingsWindow {
                         "Require a reason to waive errors",
                         require_waiver_reason,
                     );
+                });
+                kit::section(ui, "settings-ai", "AI", true, None, |ui| {
+                    self.ai.ui(ui);
                 });
                 kit::section(ui, "settings-lists", "Lists", true, None, |ui| {
                     self.lists_changed = lists_rows(ui, &mut self.lists);
@@ -732,7 +739,11 @@ mod tests {
         let ctx = egui::Context::default();
         sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
         let registry = Registry::standard();
-        let mut window = SettingsWindow::default();
+        let config = tempfile::tempdir().map_err(|e| e.to_string())?;
+        let mut window = SettingsWindow {
+            ai: super::super::settings_ai::AiPage::at(config.path().to_path_buf()),
+            ..SettingsWindow::default()
+        };
         window.open();
         let (mut reveal, mut reason) = (RevealSettings::default(), false);
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1380.0, 900.0));

@@ -364,3 +364,35 @@ fn the_chat_publishes_into_the_project_unasked_and_asks_to_publish_to_a_library(
     assert_eq!(sparksmith_assist::chat::unbounded().max_requests, u32::MAX);
     Ok(())
 }
+
+#[test]
+fn moving_the_view_follows_its_settings_rule_and_asks_by_default() -> Fallible {
+    let mut ax = chat(
+        SMALL,
+        vec![
+            tool(
+                "show",
+                json!({"name": "view.open", "params": {"workspace": "schematic"}}),
+            ),
+            text("Opened."),
+        ],
+    )?;
+    send(&mut ax, "Show me the schematic")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Allow once"))?;
+    assert!(
+        ax.texts
+            .iter()
+            .any(|t| t == "Allow: Open a workspace or view?"),
+        "{:?}",
+        ax.texts
+    );
+    assert_eq!(
+        ax.app.workspace,
+        Workspace::Pcb,
+        "nothing moved before Allow"
+    );
+    ax.button("Allow once")?;
+    ax.until("the turn's end", idle)?;
+    assert_eq!(ax.app.workspace, Workspace::Schematic);
+    Ok(())
+}

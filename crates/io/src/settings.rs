@@ -47,10 +47,6 @@ pub const RECOVERY_VAR: &str = "SPARKSMITH_RECOVERY_DIR";
 const APP_DIR: &str = sparksmith_core::product::SHORT_NAME;
 /// The recovery folder's parent on macOS and Windows: the product name.
 const APP_NAME: &str = sparksmith_core::product::NAME;
-/// The folder names before the rename (docs/rename-phase-b.md), read only by
-/// [`UserDirs::adopt_former`].
-const FORMER_APP_DIR: &str = "pcbcraft";
-const FORMER_APP_NAME: &str = "Pcbcraft";
 
 /// One configured library folder.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -118,12 +114,6 @@ pub struct UserSettings {
     /// The main window as last left; `None`: the default frame.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowState>,
-    /// The former "Mesh the board directly" setting. The direct mesh is
-    /// now the 3D view's only way to draw the board, so the setting means
-    /// nothing: a settings file that turned it on still reads, and the
-    /// next save leaves it out.
-    #[serde(default, rename = "mesh_board_directly", skip_serializing)]
-    pub former_mesh_board_directly: serde::de::IgnoredAny,
 }
 
 /// Saved list filters kept.
@@ -319,7 +309,6 @@ impl Default for UserSettings {
             selection_filter: SelectionFilter::default(),
             lists: ListSettings::default(),
             window: None,
-            former_mesh_board_directly: serde::de::IgnoredAny,
         }
     }
 }
@@ -550,75 +539,6 @@ impl UserDirs {
         }
         Ok(path)
     }
-
-    /// Once, on the first launch after the rename from Pcbcraft: copy the
-    /// config folder and the recovery folder kept under the former name to
-    /// the current ones ([`UserDirs::adopt_former_from_vars`] over the
-    /// process environment).
-    pub fn adopt_former() -> Vec<Result<Adopted>> {
-        Self::adopt_former_from_vars(|name| std::env::var_os(name))
-    }
-
-    /// [`UserDirs::adopt_former`] over any variable lookup (tests). A folder
-    /// is copied only when no override variable names it, the current
-    /// folder does not exist and the former one does; so it happens once,
-    /// and a fresh install or an already adopted folder is left alone. The
-    /// former folder is never changed or removed. The copy is made in a
-    /// temporary sibling and renamed into place, so an interrupted copy
-    /// leaves no partial folder and is tried again on the next launch. The
-    /// cache is not copied: it is rebuilt from the library folders.
-    pub fn adopt_former_from_vars(var: impl Fn(&str) -> Option<OsString>) -> Vec<Result<Adopted>> {
-        let set = |name: &str| var(name).filter(|v| !v.is_empty());
-        let mut pairs = Vec::new();
-        if set(CONFIG_VAR).is_none() {
-            pairs.push((
-                platform_dir(&var, "config", FORMER_APP_DIR),
-                platform_dir(&var, "config", APP_DIR),
-            ));
-        }
-        if set(RECOVERY_VAR).is_none() {
-            pairs.push((
-                recovery_dir(&var, FORMER_APP_NAME, FORMER_APP_DIR),
-                recovery_dir(&var, APP_NAME, APP_DIR),
-            ));
-        }
-        // In order: on a case-insensitive macOS volume the recovery folder
-        // sits inside the config folder, so copying the config folder first
-        // also brings the recovery folder, which is then left alone.
-        pairs
-            .into_iter()
-            .filter_map(|pair| match pair {
-                (Some(from), Some(to)) => crate::former_name::adopt(&from, &to).transpose(),
-                _ => None,
-            })
-            .collect()
-    }
-}
-
-/// [`UserDirs::adopt_former`] at the start of the app or the CLI, each
-/// outcome a line on stderr. A failed copy leaves the former folder as it
-/// is and is tried again on the next start.
-pub fn adopt_former_folders() {
-    let app = sparksmith_core::product::SHORT_NAME;
-    for adopted in UserDirs::adopt_former() {
-        match adopted {
-            Ok(Adopted { from, to }) => eprintln!(
-                "{app}: copied {} to {}; the former folder is kept",
-                from.display(),
-                to.display()
-            ),
-            Err(error) => {
-                eprintln!("{app}: settings from the former name were not copied: {error}")
-            }
-        }
-    }
-}
-
-/// A folder copied from its former name by [`UserDirs::adopt_former`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Adopted {
-    pub from: PathBuf,
-    pub to: PathBuf,
 }
 
 /// The platform's config or cache folder named `app_dir`; `None` without
@@ -1104,26 +1024,6 @@ mod tests {
             };
             assert!(bad.check().is_err(), "{position:?} {size:?}");
         }
-        Ok(())
-    }
-
-    /// A settings file written while "Mesh the board directly" was a
-    /// setting still reads (the setting is gone: the 3D view always meshes
-    /// the board), and is saved without it.
-    #[test]
-    fn the_former_direct_mesh_setting_reads_and_is_not_saved() -> Result<()> {
-        let dir = tempfile::tempdir()?;
-        let path = dir.path().join(SETTINGS_FILE);
-        let mut written = serde_json::to_value(UserSettings::default())?;
-        if let Some(map) = written.as_object_mut() {
-            map.insert("mesh_board_directly".into(), serde_json::json!(true));
-        }
-        std::fs::write(&path, serde_json::to_vec(&written)?)?;
-        let read = read_settings(&path)?;
-        assert_eq!(read, UserSettings::default());
-        write_settings(&path, &read)?;
-        let saved = std::fs::read_to_string(&path)?;
-        assert!(!saved.contains("mesh_board_directly"), "{saved}");
         Ok(())
     }
 

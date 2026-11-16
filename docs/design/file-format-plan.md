@@ -9,7 +9,7 @@ Status words used here: **measured** (I ran it on the repository today), **read*
 1. **A project is a tree of small text files.** On disk the tree is either a folder (the working form, for git) or a ZIP of exactly that tree (the sharing, recovery and browser form). One pure encoder in the core produces the tree; `sparksmith-io` puts it in a folder or a ZIP. The product plan already expected this ("a directory representation can support version control, with a packed form for sharing later", docs/sparksmith-plan.md).
 2. **Stay with JSON, in two fixed layouts.** Collections are JSON Lines: one object per line, sorted by id. Single documents are JSON with a fixed line layout. Both are written by the canonical codec the generator ABI already has (sorted keys, integers only, NFC). No floats in any file once the units migration finishes.
 3. **Derived data leaves the saved document.** Computed fill copper is 70 % of today's example file (measured). It moves to a cache keyed by its inputs.
-4. **Version every break from now on**, with a converter chain that runs outside the app until the first release and inside it afterwards, and a CI gate that fails when a stored type changes without a version change.
+4. **Version 1 until the first release, with no backward compatibility**; from the first release every break raises the version and adds a converter step.
 5. Roughly **75–110 agent hours** in eleven slices, most of them parallel after a contract slice. A semantic merge tool is a separate, later 12–18 hours.
 
 ## 1. What is there today
@@ -46,7 +46,7 @@ Founder requirements: all artefacts covered; designed properly now; git-diffable
 | R8 | Atomic saves and recovery | A crash at any point leaves the old or the new project, never a mix. Recovery keeps unsaved work and survives a format change. |
 | R9 | Scale | 10,000 vias, 50,000 tracks and libraries of 20,000 revisions without a whole-document size cap. Targets until measured. |
 | R10 | Core stays pure | The encoder and decoder are in the wasm-compatible core and never touch a file. |
-| R11 | Versioned | Every break changes a number. A refusal names the version and the converter. Unknown versions, features and entries are refused, never dropped. |
+| R11 | Versioned | A file names its version; a refusal names the file's version and the one the build reads. Unknown versions and entries are refused, never dropped. |
 | R12 | Integrity | Content-addressed assets, canonical revision hashes, and a tree digest for traceability. Signatures only where something is distributed. |
 | R13 | Readable and editable by tools | A person, a script or an LLM can read and change a file; every load validates fully and refuses with file and line. |
 
@@ -105,13 +105,13 @@ Library lineages in folders already use random 128-bit ids, which is right there
 6. **Numbers**: lengths are integer nanometres, angles integer millidegrees. Scalar keys carry the unit (`width_nm`, `rotation_mdeg`). Points are `[x, y]` integer pairs. Any other non-integer is a scaled integer with its scale in the key (`_ppm`) or an exact decimal string for a value a person typed (`"si": "5100"`, as today). Until U2 and U3 finish, allowlisted fields still write floats and the "integers only" check is off for their files; when the `f64-lengths` allowlist is empty the encoder refuses floats.
 7. **Defaults** are omitted, and a default is part of the format version: changing one is a version change.
 8. **Nothing nested as a string.** The board sketch and waiver keys become real JSON.
-9. **Refuse, never guess** stays: unknown fields, entries, versions and features refuse the file. In a folder a closed list is ignored and nothing else: `.git*`, `.DS_Store`, the save journal and the lock.
+9. **Refuse, never guess** stays: unknown fields, entries and versions refuse the file. In a folder a closed list is ignored and nothing else: `.git*`, `.DS_Store`, the save journal and the lock.
 
 ### 4.2 The project tree
 
 ```text
 esp32-s31-devboard.sparksmith/        a folder, or a ZIP holding exactly this tree
-  sparksmith-project.json             format, version, project id, name, features, id counters
+  sparksmith-project.json             format, version, project id, name, id counters
   properties.json                     title block
   circuit/
     instances.jsonl                   component instances (shared by schematic and board)
@@ -150,7 +150,6 @@ esp32-s31-devboard.sparksmith/        a folder, or a ZIP holding exactly this tr
 
 ```json
 {
-"features":[],
 "format":"sparksmith/project",
 "name":"ESP32-S31 dev board",
 "next":{"id":654,"net":175,"sheet":3},
@@ -203,7 +202,7 @@ One layout for a user or team library folder, the project snapshot and the shipp
 
 ```text
 <library>/
-  sparksmith-library.json             format, version, library id, name, features, default licence
+  sparksmith-library.json             format, version, library id, name, default licence
   components/<lineage>/r0001.json     one immutable file per revision, never rewritten
   symbols/<lineage>/r0001.json
   packages/ footprints/ bindings/ parts/ models/ fields/ quantity-kinds/ package-rows/
@@ -235,17 +234,11 @@ One layout for a user or team library folder, the project snapshot and the shipp
 - **ZIP store**: today's container code, holding the tree instead of one document. One atomic rename.
 - **Folder store, journaled**: write each changed file to a sibling temporary and sync it; write a journal naming every replacement and deletion with hashes, atomically (this is the commit point); rename the files into place; delete the journal. Opening a folder with a journal finishes the save first. Only changed files are written.
 - **External changes**: the store remembers each file's hash at load. If a file changed on disk since (a `git pull`, a hand edit), saving stops and offers reload or keep mine through a preview; nothing is overwritten silently. A lock file stops two sessions saving one folder.
-- **Recovery** stays a private single file per session: the ZIP form plus `recovery.json`. Asset bytes go once into a shared store in the recovery folder instead of into every snapshot. Recovery snapshots go through the converter chain like projects, so a format change never strands unsaved work.
+- **Recovery** stays a private single file per session: the ZIP form plus `recovery.json`. Asset bytes go once into a shared store in the recovery folder instead of into every snapshot.
 
-### 4.7 Versions and migrations
+### 4.7 Versions
 
-Proposed replacement for the "one version, no migrations" rule in AGENTS.md:
-
-1. **Every incompatible change raises `version`**, starting at 2 now (1 is ambiguous).
-2. **Optional capabilities are named features.** A file lists a feature only when it uses it; a build that does not know it refuses and names it. A design that does not use a new feature stays readable by older builds.
-3. **A converter chain** of pure steps `vN -> vN+1` over a `FileSet`. Before the first release it runs as `sparksmith convert` (the present `convert-v1` becomes step 1) and the app reads only the current version, naming the command when it refuses. From the first release the same chain runs in the app: the file opens converted, the conversion is announced, and nothing is written until the user saves; the original is kept beside it.
-4. **Golden trees per version** are kept in the repository forever. Each step is tested: old golden converts, opens, and re-saves byte for byte.
-5. **`cargo xtask format-lock`**: a committed fingerprint of every stored type's schema and layout tables. CI fails when the fingerprint changes without a version or feature change.
+Until the first release the file format is version 1 and Sparksmith keeps no backward compatibility: a stored-type change edits version 1 in place, older files are refused, and the examples are regenerated. From the first release on, every incompatible change raises `FILE_VERSION` and adds a converter step. A file of any other version is refused, naming its version and the one the build reads.
 
 ### 4.8 The other artefacts
 
@@ -260,7 +253,7 @@ Proposed replacement for the "one version, no migrations" rule in AGENTS.md:
 
 ### 4.9 Tools the format enables
 
-- `sparksmith fmt`, `check`, `pack`, `unpack`, `convert`, `hash`.
+- `sparksmith fmt`, `check`, `pack`, `unpack`, `hash`.
 - `sparksmith diff A B`: a semantic summary ("R3 moved 2.5 mm; 4 tracks added on GND; footprint 63 r1 to r2"), usable as a git diff driver. Text diffs of coordinates are exact but hard to read; this is what reviewers will use.
 - Later: `sparksmith merge` as a git merge driver, loading base, ours and theirs through the engine, renumbering one side's new ids and running validation.
 
@@ -270,7 +263,7 @@ Estimates are agent hours. F1 is the contract; F2 to F4 are serial in the core; 
 
 | # | Slice | Acceptance | Hours |
 |---|---|---|---|
-| F0 | Version discipline: version 2, refusals name the converter, `format-lock` gate, `convert` chain with `convert-v1` as step 1, AGENTS.md rule updated | A stored struct changed without a version change fails CI. A version 1 file is refused naming the command. Examples and fixtures converted. | 4–6 |
+| F0 | Version discipline: version 1, every other version refused, AGENTS.md rule | A file of another version is refused, naming both versions. Examples and the golden file regenerated. | 4–6 |
 | F1 | Contract: `docs/file-format.md`, layout A and B writers on the existing canonical codec, `FileSet` type, table annotations | Property tests: decode of encode is identity; the layout re-parses to the same value; same bytes on macOS and Linux; compiles for wasm. Generator module bytes unchanged. | 6–9 |
 | F2 | Derived data out and order: computed fills to a cache, collections sorted by id, order audit, sketch and waiver keys as real JSON | Open then save is byte-identical. A refill with unchanged inputs changes no byte. The ESP32 Gerbers are byte-identical before and after. The example document drops from 5.1 MB to under 1 MB. | 8–12 |
 | F3 | Tree encode and decode in the core, ZIP store on the tree, per-file bounds replace the 16 MiB cap | Round-trip property test. Unknown entry refused by name. Mixed-version tree refused with the merge explanation. Open and save measured on the example and on a synthetic 10,000-via, 50,000-track board. | 10–14 |
@@ -279,14 +272,14 @@ Estimates are agent hours. F1 is the contract; F2 to F4 are serial in the core; 
 | F6 | Recovery on the tree: shared asset store, folder projects, conversion of snapshots | Kill during editing restores the work for a folder and a ZIP project. A snapshot of the previous version restores. | 4–6 |
 | F7 | Library layout: kind folders, canonical content hash, project snapshot in the same layout, `library.prune` | Import and export round-trip. Hash independent of field order (test reorders a struct's fields). Two people adding parts merge without conflict. Needs U2 for the hash. | 8–12 |
 | F8 | Shipped data: integer units, stem equals id, format and schema gate, generator bundle folders | Every file under `library/` passes `fmt --check` and its schema. Coordinate with the data agents now working in `library/`. | 5–8 |
-| F9 | Settings split, sidecar in nanometres, fab manifest, tree digest | Old settings convert. `fab --check` passes on the example and fails after an edit. | 5–8 |
+| F9 | Settings split, sidecar in nanometres, fab manifest, tree digest | `fab --check` passes on the example and fails after an edit. | 5–8 |
 | F10 | `sparksmith diff` and the git diff driver | The summary of a known edit set on the example matches a golden text. | 8–12 |
 | F11 | Later: `sparksmith merge` driver | Two branches that each add parts and tracks merge to a board that validates; a real conflict is reported by object. | 12–18 |
-| F12 | At first release: the chain moves into the app | A previous-version project opens converted and saves only on request. | 4–6 |
+| F12 | At first release: the first converter step, in the app | A previous-version project opens converted and saves only on request. | 4–6 |
 
 ### Interaction with the units migration
 
-- F0 comes first. U2 and U3 then each raise the version and add a chain step, instead of extending an idempotent converter with no version.
+- F0 comes first. U2 and U3 then change version 1 in place and regenerate the examples.
 - F1 to F6 do not depend on units: files whose fields are still allowlisted write floats.
 - F7's canonical hash needs U2 (library geometry in integers).
 - U3 changes every board record. Do U3, arcs and the `path` form of a track in one version step, so board files change shape once.
@@ -313,7 +306,7 @@ Answered on 14 November; the answers, and what they change, are in section 8.
 | 1 | Which form a new project is saved in | Folder by default; "Share as single file" makes the ZIP. On macOS the folder can be registered as a package so it looks and opens like one document. |
 | 2 | One extension for both forms, or two | One: `.sparksmith` is a folder or a ZIP of that folder, told apart on open. |
 | 3 | Ids: small integers with a merge tool, or random ids that merge by themselves | Keep small integers. Diffing is the stated need; concurrent edits of one board are rare and need engine-level validation in any case. |
-| 4 | Replace "one version, no migrations" with 4.7 | Yes. It costs a few hours and makes every file and bug report identifiable. |
+| 4 | Versioning | 4.7. |
 | 5 | A generated part that fails its check: refuse the project, or open it marked unverified and block publishing and fabrication | Open it marked. The state is derived, not saved. (The review raised this; it is outside the file format but decides whether opening runs modules.) |
 | 6 | Binaries in git | Plain git by default, Git LFS opt-in by one line, generator modules stay committed. |
 | 7 | Caches inside a shared ZIP | No. Refill on open; revisit if a measured cold open is too slow. |

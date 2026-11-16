@@ -118,9 +118,9 @@ pub struct Assistant {
     /// Entries the person allowed for this session on an Ask card: they
     /// run without asking until the app quits, in any project.
     pub allowed_session: HashSet<String>,
-    /// Entries the person always allows. Kept for the app's run until
-    /// Settings › AI (slice C3) stores them in its permissions.
-    pub allowed_always: HashSet<String>,
+    /// Settings › AI's rules per kind of action, read when a message is
+    /// sent; Always allow on a card changes them there.
+    pub permissions: Option<sparksmith_assist::settings::Permissions>,
 }
 
 impl Default for Assistant {
@@ -140,7 +140,7 @@ impl Default for Assistant {
             library: None,
             expanded: HashSet::new(),
             allowed_session: HashSet::new(),
-            allowed_always: HashSet::new(),
+            permissions: None,
         }
     }
 }

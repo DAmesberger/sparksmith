@@ -15,6 +15,7 @@ mod key_reveal;
 mod list_prefs;
 mod live_mcp;
 mod open_timing;
+mod settings_ai;
 mod settings_window;
 mod shortcut_sheet;
 mod system_windows;

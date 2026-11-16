@@ -35,6 +35,7 @@ pub mod pins;
 pub mod profile;
 pub mod report;
 mod run;
+pub mod settings;
 pub mod usage;
 pub mod verbs;
 pub mod workflow;

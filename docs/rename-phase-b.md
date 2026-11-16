@@ -17,14 +17,7 @@ The founder's decisions of 12 November 2026 apply.
 - **Licence holder.** "Sparksmith contributors".
 - **Docs.** `docs/sparksmith-plan.md`.
 
-## What still reads the former name
-
-- **`.pcbcraft` files** hold the current format. They open through the same reader and version check, from the open dialog and from Finder. Save keeps the opened path. Save As and new projects write `.sparksmith`, and nothing renames a file silently. Drop `.pcbcraft` at the first release, unless released files exist by then.
-- **Recovery snapshots** named `*.pcbcraft-recovery` are still listed, restored and discarded. New ones are `*.sparksmith-recovery`.
-- **The keychain.** A key found only under the former service `pcbcraft-llm` is copied to `sparksmith-llm` when it is read. The former entry is kept until that connection's key is removed.
-- **The per-user folders** (`UserDirs::adopt_former`, `crates/io/src/former_name.rs`) are copied once from their former names. Remove this once every install has started under the new name. The repository cannot tell when that is, so the copy stays for now.
-
 ## Names that stay
 
-- **Historical records.** The dated run reports (`docs/e2e-*.md`, `docs/datasheet-assistant-run1.md`, the VM measurements in `docs/3d-speed-profile.md`) keep the names they ran under. So do the recorded model replies (`examples/**/*.recording.jsonl`) and the first assistant run's project (`examples/esp32-s31-wroom-3/run1/esp32-s31-wroom-3.pcbcraft`, also a test that `.pcbcraft` files open).
+- **Historical records.** The dated run reports (`docs/e2e-*.md`, `docs/datasheet-assistant-run1.md`, the VM measurements in `docs/3d-speed-profile.md`) keep the names they ran under. So do the recorded model replies (`examples/**/*.recording.jsonl`).
 - **Other projects' names.** These belong to their projects: tangency-labs' PCBCraft (`tangency-labs/pcbcraft`), and the Solidcraft fork's branch and tag names (`pcbcraft-smlib-open`, `pcbcraft-via2`, `pcbcraft-product-look`, `pcbcraft-pre-part-templates`).
