@@ -973,7 +973,7 @@ fn write_wroom_board_pictures() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-/// The showcase board with built-in mechanical parts placed directly
+/// The showcase board with shipped mechanical parts placed directly
 /// (docs/mechanical-parts.md): SMD nuts in two corners, a spacer and a
 /// finned heatsink over U2, each through the same `layout.place_part`
 /// the Place 3D part command applies.

@@ -116,7 +116,7 @@ impl Harness {
 
 const COMPONENT_SECTIONS: [&str; 5] = ["DEFINITION", "FIELDS", "PARTS", "LIBRARY", "PROVENANCE"];
 
-/// The Details card offers the built-in fields until the project has them;
+/// The Details card offers the shipped standard fields until the project has them;
 /// the click is one `library.import_standard_fields`.
 #[test]
 fn add_standard_fields_imports_them_once() -> TestResult {

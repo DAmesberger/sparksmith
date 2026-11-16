@@ -74,10 +74,10 @@ const KEYS_GENERIC_UPDATE: &str = "↑↓ move   Enter review making it again   
 const GENERIC_HEADING: &str = "Generic parts";
 /// The heading of the shipped library's parts the text names: components,
 /// package bodies and mechanical parts.
-const BUILTIN_HEADING: &str = "Built-in parts";
-/// The footer on a built-in mechanical part: it is placed on the board.
+const BUILTIN_HEADING: &str = "Shipped parts";
+/// The footer on a shipped mechanical part: it is placed on the board.
 const KEYS_BUILTIN: &str = "↑↓ move   Enter place on the board   click pick   Esc close";
-/// The footer on a built-in component: it is placed in the schematic.
+/// The footer on a shipped component: it is placed in the schematic.
 const KEYS_BUILTIN_COMPONENT: &str = "↑↓ move   Enter place   click pick   Esc close";
 /// The footer while the other-revision choice is open.
 const KEYS_CHOICE: &str = "Enter update project copy   Esc cancel";
@@ -153,7 +153,7 @@ pub enum PaletteEvent {
     UpdateProjectCopy(FolderPick),
     /// Open the Library sources card.
     ManageSources,
-    /// A built-in mechanical part file, by name: place it on the board
+    /// A shipped mechanical part file, by name: place it on the board
     /// (PCB Layout's Place 3D part… at that part).
     PlacePartFile(String),
 }
@@ -257,7 +257,7 @@ enum Slot {
     Hit(usize),
     Generic(usize),
     Template(usize),
-    /// A built-in part file (`Results::builtins`).
+    /// A shipped part file (`Results::builtins`).
     Builtin(usize),
 }
 
@@ -792,7 +792,7 @@ impl PlacePalette {
         }
     }
 
-    /// The highlighted built-in part file, if the highlight is on one.
+    /// The highlighted shipped part file, if the highlight is on one.
     fn highlighted_builtin(&self) -> Option<&'static BuiltinPart> {
         match self.slot()? {
             Slot::Builtin(i) => self.results.as_ref()?.builtins.get(i).copied(),
@@ -800,7 +800,7 @@ impl PlacePalette {
         }
     }
 
-    /// Choosing the highlighted built-in part file: a mechanical part asks
+    /// Choosing the highlighted shipped part file: a mechanical part asks
     /// the app to place it on the board (Place 3D part… at that part) and
     /// closes the sheet; a package body stays, saying where it is used.
     fn choose_builtin(&mut self) -> Option<PaletteAction> {
@@ -1996,7 +1996,7 @@ fn part_details(ui: &mut Ui, engine: &Engine, r: PartRef) {
     }
 }
 
-/// A built-in part file's row: its title, and what it is for.
+/// A shipped part file's row: its title, and what it is for.
 fn builtin_row(
     ui: &mut Ui,
     index: usize,
@@ -2005,11 +2005,11 @@ fn builtin_row(
     highlighted: bool,
 ) -> egui::Response {
     let detail = if part.component.is_some() {
-        "Built-in · component with symbol, footprint and 3D body"
+        "Shipped · component with symbol, footprint and 3D body"
     } else if part.mechanical {
-        "Built-in · placed on the board in PCB Layout"
+        "Shipped · placed on the board in PCB Layout"
     } else {
-        "Built-in · a package's 3D body"
+        "Shipped · a package's 3D body"
     };
     kit::search_row(
         ui,
@@ -3033,7 +3033,7 @@ mod tests {
         let (_, shown) = run(&mut palette, vec![]);
         assert!(shown.iter().any(|t| t == "Finned heatsink"), "{shown:?}");
         assert!(
-            shown.iter().any(|t| t.starts_with("BUILT-IN PARTS")),
+            shown.iter().any(|t| t.starts_with("SHIPPED PARTS")),
             "{shown:?}"
         );
         assert!(

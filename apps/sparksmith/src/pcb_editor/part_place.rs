@@ -62,7 +62,7 @@ impl PcbEditor {
             .open(ChooserMode::Place, None, PartValues::new());
     }
 
-    /// Place 3D part… at the built-in part file `name`, as the Schematic
+    /// Place 3D part… at the shipped part file `name`, as the Schematic
     /// part search hands one over.
     pub fn place_builtin_part(&mut self, name: String) {
         self.end_route();

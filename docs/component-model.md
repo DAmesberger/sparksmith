@@ -755,7 +755,7 @@ The "Component catalog, templates, pin functions and 3D library" design note of 
 | --- | --- | --- | --- |
 | Library command | `library.package_from_generator` | package, lands and part-file model of a working set from a generator, one step (the template commands before it went with [part generation D2](design/part-generation-plan.md#done-d2-the-in-code-templates-deleted-15-november-2026)) | [libui](#component-workspace-catalog-and-package-templates-libui-as-built) |
 | Library command | `library.edit_copy`, `library.draft_closure` | import and draft a folder item's working set; draft a published one, each one step | libui |
-| Library command | `library.footprint_from_pads`, `library.restyle_symbol`, `library.import_standard_fields` | a footprint from a pad table; a symbol redrawn as a kind; the built-in fields, one step each | [part authoring](#part-authoring-from-tables-and-datasheets) |
+| Library command | `library.footprint_from_pads`, `library.restyle_symbol`, `library.import_standard_fields` | a footprint from a pad table; a symbol redrawn as a kind; the shipped standard fields, one step each | [part authoring](#part-authoring-from-tables-and-datasheets) |
 | Library command | `library.pinout_apply` | a previewed pinout document, one step | [pins](#pin-functions-peripherals-rules-pinout-import-and-firmware-c1c7-as-built) |
 | Library command | `library.import_model`, `library.pack_artwork` | a Model draft; marking artwork | [models](#3d-model-library-project-container-and-markings-d0d6-as-built) |
 | Instance command | `instance.assign_peripheral`, `instance.set_pin_config`, `instance.set_marking`, `instance.set_text_placement` | one step each | pins, models |

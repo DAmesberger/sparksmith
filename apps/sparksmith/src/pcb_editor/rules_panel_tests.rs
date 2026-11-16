@@ -741,7 +741,7 @@ fn the_via_tools_start_tented_as_the_profile_says() -> TestResult {
 }
 
 /// Run 4, finding 1: a new project asks for its fab profile with the
-/// built-in JLCPCB 2-layer preselected (the 4-layer one beside it);
+/// shipped JLCPCB 2-layer preselected (the 4-layer one beside it);
 /// Use profile sets it as one undo step and closes the panel. Edit shape
 /// then starts, and the Route card shows the profile's via size without
 /// an error.
@@ -770,7 +770,7 @@ fn a_new_project_asks_for_a_profile_with_jlcpcb_preselected() -> TestResult {
     for text in ["Fab profile", "JLCPCB 2-layer", "Use profile"] {
         assert!(shown.iter().any(|t| t == text), "{text}: {shown:?}");
     }
-    // The picker lists both built-ins.
+    // The picker lists both shipped profiles.
     assert!(click(&mut editor, &engine, &ctx, "JLCPCB 2-layer")?.is_none());
     let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
     let shown = texts(&output);

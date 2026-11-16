@@ -2,8 +2,8 @@
 //! "Dialogs and reviews"; docs/board-rules-and-shape.md).
 //!
 //! The panel shows the project's profile snapshot with its source, a
-//! picker of the user's profiles and the built-in ones (read-only; a user
-//! profile with a built-in's id takes its place), and every rule grouped
+//! picker of the user's profiles and the shipped ones (read-only; a user
+//! profile with a shipped profile's id takes its place), and every rule grouped
 //! as the
 //! core groups them (Copper, Holes & vias, Mask, Silkscreen, Paste, Fills,
 //! Board edge, Placement, Lands) with the profile value beside the

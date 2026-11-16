@@ -2,7 +2,7 @@
 //! fabrication and writes the production set (docs/fabrication-output.md).
 //!
 //! The dialog picks the fabrication profile to check against (the board's
-//! own rules, a built-in profile or one of the user's), shows the
+//! own rules, a shipped profile or one of the user's), shows the
 //! pre-flight report (`fabrication.preflight`) grouped by kind, and writes
 //! Gerber, drill, job, assembly and drawing files as a folder or one ZIP
 //! through `sparksmith_io::fabrication::export`, the call the CLI and

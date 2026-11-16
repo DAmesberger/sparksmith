@@ -1,7 +1,7 @@
 //! `fab-profile list|import|export`: the user's fab profile
 //! library (`sparksmith_io::rule_profiles`, JSON files in
 //! `SPARKSMITH_CONFIG_DIR/fab-profiles/` or the platform config folder) and
-//! the read-only built-in profiles. Switching a project's profile is the typed `rules.set_fab_profile` request
+//! the read-only shipped profiles. Switching a project's profile is the typed `rules.set_fab_profile` request
 //! (`stdio`/`mcp`); this subcommand only moves profile files.
 use super::{Result, open, print};
 use serde_json::json;
@@ -71,7 +71,7 @@ fn reply(library: &ProfileLibrary, args: &[String]) -> Result<serde_json::Value>
                 .profiles
                 .iter()
                 .map(|p| summary(p, "user"))
-                .chain(listing.builtins.iter().map(|p| summary(p, "built-in")))
+                .chain(listing.builtins.iter().map(|p| summary(p, "shipped")))
                 .collect();
             let problems: Vec<_> = listing
                 .problems
@@ -141,12 +141,12 @@ mod tests {
         assert_eq!(
             kinds(&listed),
             [
-                pair("jlcpcb-2-layer", "built-in"),
-                pair("jlcpcb-4-layer", "built-in"),
+                pair("jlcpcb-2-layer", "shipped"),
+                pair("jlcpcb-4-layer", "shipped"),
             ],
-            "the built-ins, with an empty user library"
+            "the shipped profiles, with an empty user library"
         );
-        // A built-in exports like a user profile.
+        // A shipped profile exports like a user profile.
         let builtin = dir.path().join("builtin.json");
         reply(
             &library,
@@ -164,9 +164,9 @@ mod tests {
             kinds(&listed),
             [
                 pair("jlcpcb-2-layer", "user"),
-                pair("jlcpcb-4-layer", "built-in"),
+                pair("jlcpcb-4-layer", "shipped"),
             ],
-            "the user's copy replaces the built-in of its id"
+            "the user's copy replaces the shipped profile of its id"
         );
 
         let file = dir.path().join("again.json");

@@ -343,7 +343,7 @@ impl DatasheetAssist {
             }
         };
         // The model selects its run profile: the user's file listing it,
-        // else a built-in one, else the default.
+        // else a shipped one, else the default.
         let folder = sparksmith_io::settings::UserDirs::from_env()
             .ok()
             .map(|dirs| run_profile::user_folder(&dirs.config));

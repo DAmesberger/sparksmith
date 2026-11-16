@@ -45,7 +45,7 @@ impl PartEditor {
         &mut self.part_chooser
     }
 
-    /// Open the chooser at the package's part file, or the first built-in.
+    /// Open the chooser at the package's part file, or the first shipped one.
     pub(super) fn open_part_chooser(&mut self) {
         let current = self
             .draft

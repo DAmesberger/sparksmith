@@ -8,7 +8,7 @@ use sparksmith_core::product::SHORT_NAME as CLI;
 
 pub const USAGE: &str = "part check FILE.solidcraft|--builtin NAME [--set NAME=VALUE[mm|deg]]... [--json] [--materials]
                                    check a part file's conventions at values (exit 1 on a blocking finding)
-  part list [--json]               the built-in part files with their kind, prefix and parameters";
+  part list [--json]               the shipped part files with their kind, prefix and parameters";
 
 /// A `--set` value: `2.465mm`, `45deg`, `25` (a count) or `0.5` (a number).
 fn value(text: &str) -> Result<Value> {
@@ -87,7 +87,7 @@ pub fn run(args: &[String]) -> Result<()> {
     }
 }
 
-/// `part list`: `library.part_files`'s built-ins.
+/// `part list`: `library.part_files`'s shipped part files.
 fn list(args: &[String]) -> Result<()> {
     let json_out = match args {
         [] => false,

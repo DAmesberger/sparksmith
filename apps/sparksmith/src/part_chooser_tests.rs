@@ -68,7 +68,7 @@ fn the_chooser_lists_the_builtins_and_the_projects_part_files() -> TestResult {
     assert!(!shipped.is_empty());
     let groups = source_rows(&engine, &["/parts/nut.solidcraft".into()]);
     let names: Vec<&str> = groups.iter().map(|(g, _)| *g).collect();
-    assert_eq!(names, ["Built-in", "This project", "Recent files"]);
+    assert_eq!(names, ["Shipped", "This project", "Recent files"]);
     assert_eq!(groups[0].1.len(), shipped.len());
     for name in shipped.iter().map(|p| p.name.as_str()) {
         assert!(
@@ -83,7 +83,7 @@ fn the_chooser_lists_the_builtins_and_the_projects_part_files() -> TestResult {
         "an empty project holds no part file"
     );
     assert_eq!(groups[2].1[0].label, "nut.solidcraft");
-    // Drawn: every built-in by name, under its group.
+    // Drawn: every shipped part file by name, under its group.
     let mut frames = Frames::new();
     let mut chooser = PartChooser::default();
     chooser.open(ChooserMode::Use, None, PartValues::new());
@@ -95,7 +95,7 @@ fn the_chooser_lists_the_builtins_and_the_projects_part_files() -> TestResult {
         chooser.show(ui.ctx(), &engine);
     });
     assert!(
-        has(&texts, &format!("BUILT-IN  {}", shipped.len())) && has(&texts, "THIS PROJECT  0"),
+        has(&texts, &format!("SHIPPED  {}", shipped.len())) && has(&texts, "THIS PROJECT  0"),
         "{texts:?}"
     );
     for name in shipped.iter().map(|p| p.name.as_str()) {

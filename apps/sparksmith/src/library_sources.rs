@@ -1206,7 +1206,7 @@ impl LibrarySources {
     /// still file I/O, kept off the UI thread. The result comes back from
     /// [`Self::take_bundles`] tagged with `purpose`.
     pub fn read_bundle(&mut self, pick: FolderPick, purpose: BundlePurpose) {
-        // A shipped component (the palette's built-in parts): read with
+        // A shipped component (the palette's shipped parts): read with
         // the shipped library, so it is here already.
         let root = SourceRevision {
             lineage: pick.lineage,
