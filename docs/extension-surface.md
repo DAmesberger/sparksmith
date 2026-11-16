@@ -1,6 +1,6 @@
 # The capability surface
 
-The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2, S2b and S3) and how to change it.
+The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2, S2b, S3 and S6) and how to change it.
 
 ## Entries and modules
 
@@ -20,8 +20,9 @@ A **module** is the unit of identity and versioning. Each entry belongs to exact
 | `checks` | `project.issues`, `fabrication.preflight`, the fabrication waivers |
 | `fab` | fabrication output, the schematic PDF, firmware pin configuration |
 | `model3d` | the exact 3D export, the board interface, the assembly link, part files |
+| `assist` | documents attached to an assistant run, its working pinout documents (S6) |
 
-The per-entry assignment is `crates/automation/surface.lock`, generated from the declarations: every entry appears there under exactly one module. Names were not changed; a rename is a breaking change the lock makes deliberate. `view`, `settings`, `assist` and `host` come with the slices that give them entries (S2, S5, S6).
+The per-entry assignment is `crates/automation/surface.lock`, generated from the declarations: every entry appears there under exactly one module. Names were not changed; a rename is a breaking change the lock makes deliberate. `view`, `settings` and `host` come with the slices that give them entries (S5 and later).
 
 ## Declaring an entry
 
@@ -174,6 +175,20 @@ The `datasheet_to_component` prompt serves `skills/sparksmith-datasheet-part/SKI
 - `live_tools` and `live::WINDOW_ONLY`: the window's grant leaves out the `files` module.
 - The live channel's `engine.execute` `{command, params}`: it carries a `Call`.
 - `CommandInfo::permission_note` and the per-command tool schemas in `discovery`.
+
+## The built-in agent (S6)
+
+The datasheet runner (`crates/assist`) is the built-in agent on the surface:
+
+- **Its tools are the six verbs** with MCP's definitions: `assist::verbs::tools` is `mcp::tools::tools()` as the model layer's tool specs, and a test holds name, description and input schema byte-equal to `tools/list`. Every call runs the verb code MCP runs (`mcp::tools::dispatch`, over the `mcp::desk::Calls` trait that the MCP desk and the agent both implement), on the run's own session in process as `Principal::LocalAgent`, with `NoOne` as the asker. No MCP framing, client or socket sits between the agent and the engine.
+- **Leniency in the verb reader** (`mcp/lenient.rs`), for every client: where an entry's schema (or a verb's own) wants an array or object and not text, JSON text is read as meant, and text that is not valid JSON is refused with where it broke; where it wants an integer and not text, digits are read as the integer.
+- **Profiles as data.** A run's reach is a named filter over the catalog in the shipped library (`library/assist/reach/NAME.json`): `modules` with the highest class each may be used at, which become the run's `Grant`, and `reach`, what outside the document an entry may touch. The agent refuses an entry that touches anything else before the gate (`profile.reach`), and `find` lists only what the run reaches. The datasheet run's profile (`datasheet-part`) reaches no publishing (the library is below Ask), no files and no settings.
+- **The `assist` module.** `assist.document_text` and `assist.document_page` read the documents a host attached to the session (`Session::attach_documents`; by title, never by path, so they stay out of `files`); headless MCP has none and says so. `assist.pinout_edit`, `assist.pinout_preview` and `assist.pinout_apply` (the last in `library`, since it imports into the drafts) keep a working pinout document behind a handle for the session's life.
+
+## What S6 deleted
+
+- `assist::tools`: the hand-written seventeen-tool list (`definitions`), its `execute` match, the runner's `Workspace` and its private argument leniency. Recordings made before S6 replay through `assist::legacy`, which reads each old call as its verb call.
+- `assist::output_policy` and `RunConfig::policy`: the reach profile.
 
 ## Explicit context
 

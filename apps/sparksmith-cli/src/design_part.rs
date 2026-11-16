@@ -219,7 +219,6 @@ fn parse(args: &[String]) -> Result<Args> {
     let shipped = AssistLibrary::locate()?;
     let (mut config, connection) = configure(flags, &shipped)?;
     config.budget = budget;
-    config.policy = sparksmith_assist::output_policy(&out)?;
     Ok(Args {
         datasheets,
         name,
@@ -435,9 +434,10 @@ mod tests {
         assert_eq!(parsed.config.run_profile, defaults.run_profile);
         assert_eq!(parsed.config.base_prompt, defaults.base_prompt);
         assert_eq!(parsed.config.budget, defaults.budget);
-        // The run may name only its output folder.
-        let folder = std::path::absolute(".")?;
-        assert_eq!(parsed.config.policy.folders, vec![folder]);
+        // The run reaches what the shipped datasheet profile lets it: no
+        // files, so it names no folder; the CLI writes the outputs itself.
+        assert_eq!(parsed.config.reach, defaults.reach);
+        assert!(parsed.config.reach.grant().folders.is_empty());
         assert_eq!(
             parsed.connection.key,
             KeySource::Env("ANTHROPIC_API_KEY".into())

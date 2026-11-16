@@ -29,6 +29,9 @@ pub struct Replay {
     pub requests: Vec<KeptRequest>,
     /// What a token count answers.
     pub prompt_tokens: Option<u64>,
+    /// Set once a reply naming an old tool was answered, so the run keeps
+    /// reading old names after it.
+    legacy: bool,
 }
 
 impl Replay {
@@ -83,13 +86,28 @@ impl ModelBackend for Replay {
                 timeout: request.timeout,
             });
         }
-        self.replies
+        let reply = self
+            .replies
             .pop_front()
-            .ok_or_else(|| Error::Http("the recording has no more responses".into()))
+            .ok_or_else(|| Error::Http("the recording has no more responses".into()))?;
+        self.legacy |= reply.content.iter().any(|part| {
+            matches!(part, super::Part::ToolCall { name, .. }
+                if !crate::verbs::NAMES.contains(&name.as_str()))
+        });
+        Ok(reply)
     }
 
     fn count_prompt_tokens(&mut self, _request: &ModelRequest<'_>) -> Result<Option<u64>> {
         Ok(self.prompt_tokens)
+    }
+
+    fn legacy_tools(&self) -> bool {
+        self.replies.iter().any(|reply| {
+            reply.content.iter().any(|part| {
+                matches!(part, super::Part::ToolCall { name, .. }
+                    if !crate::verbs::NAMES.contains(&name.as_str()))
+            })
+        }) || self.legacy
     }
 }
 
@@ -117,6 +135,10 @@ impl<B: ModelBackend + ?Sized> ModelBackend for Box<B> {
 
     fn count_prompt_tokens(&mut self, request: &ModelRequest<'_>) -> Result<Option<u64>> {
         (**self).count_prompt_tokens(request)
+    }
+
+    fn legacy_tools(&self) -> bool {
+        (**self).legacy_tools()
     }
 }
 

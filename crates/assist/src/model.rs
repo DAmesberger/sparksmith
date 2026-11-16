@@ -218,6 +218,12 @@ pub trait ModelBackend {
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply>;
     /// The prompt tokens a request would take, when the backend can count.
     fn count_prompt_tokens(&mut self, request: &ModelRequest<'_>) -> Result<Option<u64>>;
+    /// Whether the replies call the tools a run offered before the six
+    /// verbs (a recording made before ABI S6): the run reads each such call
+    /// as its verb call ([`crate::legacy`]). Only a replay says yes.
+    fn legacy_tools(&self) -> bool {
+        false
+    }
 }
 
 /// Connect to the configured model: the provider's backend over HTTP, with

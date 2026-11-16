@@ -15,7 +15,11 @@
 use crate::model::{ModelProfile, Provider};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
+use sparksmith_automation::{Grant, Mode};
+use sparksmith_core::Class;
+use sparksmith_core::permission::{MODULES, Reach, Reaches};
 use sparksmith_io::shipped::{Shelf, ShippedLibrary};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// The one profile format until the first release.
@@ -34,6 +38,10 @@ pub const SETTINGS_FILE: &str = "assist.json";
 pub const PROMPT_FILE: &str = "system-prompt.md";
 /// The shipped profiles' folder inside `assist/`.
 pub const PROFILES_FOLDER: &str = "profiles";
+/// The shipped reach profiles' folder inside `assist/`.
+pub const REACH_FOLDER: &str = "reach";
+/// The reach profile of the datasheet-to-component run.
+pub const DATASHEET_REACH: &str = "datasheet-part";
 /// What the base prompt writes for the program's name.
 const PRODUCT_PLACEHOLDER: &str = "{product}";
 /// The one settings format until the first release.
@@ -161,17 +169,18 @@ impl RunProfile {
         if matches!(self.system, SystemPrompt::Replace(_)) && chars == 0 {
             return Err("system: a replacement prompt can't be empty".into());
         }
-        let known: Vec<String> = crate::tools::definitions()
-            .into_iter()
-            .map(|t| t.name)
-            .chain([crate::documents::VIEW_PAGE_TOOL.to_owned()])
-            .collect();
         for tool in &self.omit_tools {
-            if !known.contains(tool) {
-                return Err(format!("omit_tools: no tool {tool:?}"));
+            if !crate::verbs::NAMES.contains(&tool.as_str()) {
+                return Err(format!(
+                    "omit_tools: no tool {tool:?}; the tools are {}",
+                    crate::verbs::NAMES.join(", ")
+                ));
             }
-            if tool == "submit_review" {
-                return Err("omit_tools: submit_review ends the run and can't be left out".into());
+            if tool == crate::verbs::QUERY {
+                return Err(
+                    "omit_tools: query reads the review check, which ends the run, and can't be left out"
+                        .into(),
+                );
             }
         }
         if !(2..=20).contains(&self.harness.repeat_limit) {
@@ -235,6 +244,8 @@ pub struct AssistLibrary {
     pub default_model: String,
     /// The built-in profiles, by name.
     built_in: Vec<RunProfile>,
+    /// The datasheet run's reach profile.
+    pub reach: ReachProfile,
 }
 
 impl AssistLibrary {
@@ -305,10 +316,20 @@ impl AssistLibrary {
                 profiles.display()
             )));
         }
+        let reach_file = format!("{REACH_FOLDER}/{DATASHEET_REACH}.json");
+        let reach_origin = folder.join(&reach_file).display().to_string();
+        let reach = ReachProfile::parse(&read(&reach_file)?, &reach_origin)?;
+        if reach.name != DATASHEET_REACH {
+            return Err(Error::Config(format!(
+                "reach profile {reach_origin}: its name is {:?}; the file must be {}.json",
+                reach.name, reach.name
+            )));
+        }
         Ok(Self {
             system,
             default_model: settings.default_model,
             built_in,
+            reach,
         })
     }
 
@@ -381,6 +402,76 @@ impl AssistLibrary {
         let path = folder.join(format!("{name}.json"));
         crate::write_new(&path, profile.to_text()?.as_bytes())?;
         Ok(path)
+    }
+}
+
+/// What a run may reach: a named filter over the catalog, as data in the
+/// shipped library (`assist/reach/NAME.json`). `modules` gives each module
+/// the run may use its highest class; a module left out is out of reach.
+/// The gate holds a run to these as its [`Grant`]. `reach` lists what
+/// outside the document an entry may touch (`files`, `settings`,
+/// `network`, `window`, `runtime`); an entry that touches anything else is
+/// refused before it reaches the gate ([`crate::verbs::Agent`]), and `find`
+/// does not list it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReachProfile {
+    pub format: u32,
+    pub name: String,
+    /// A note for the person reading the file.
+    #[serde(default)]
+    pub about: String,
+    pub modules: BTreeMap<String, Class>,
+    #[serde(default)]
+    pub reach: Vec<Reach>,
+}
+
+impl ReachProfile {
+    /// Read and check a reach profile's text; `origin` names it in errors.
+    pub fn parse(text: &str, origin: &str) -> Result<Self> {
+        let profile: Self = serde_json::from_str(text)
+            .map_err(|e| Error::Config(format!("reach profile {origin}: {e}")))?;
+        if profile.format != PROFILE_FORMAT {
+            return Err(Error::Config(format!(
+                "reach profile {origin}: format {} is not supported (this version reads format {PROFILE_FORMAT})",
+                profile.format
+            )));
+        }
+        if !valid_name(&profile.name) {
+            return Err(Error::Config(format!(
+                "reach profile {origin}: name {:?}: use 1–{MAX_NAME} characters a–z, 0–9, '.', '-' or '_'",
+                profile.name
+            )));
+        }
+        for (module, class) in &profile.modules {
+            if !MODULES.iter().any(|m| m.id == module) {
+                return Err(Error::Config(format!(
+                    "reach profile {origin}: no module {module:?}; the modules are {}",
+                    MODULES.iter().map(|m| m.id).collect::<Vec<_>>().join(", ")
+                )));
+            }
+            if *class == Class::Never {
+                return Err(Error::Config(format!(
+                    "reach profile {origin}: {module} up to never: only a person reaches never"
+                )));
+            }
+        }
+        Ok(profile)
+    }
+
+    /// The grant the gate holds a run to: this profile's modules, the mode
+    /// auto-allow-edits and no folders.
+    pub fn grant(&self) -> Grant {
+        Grant {
+            mode: Mode::AutoAllowEdits,
+            folders: Vec::new(),
+            modules: self.modules.clone(),
+        }
+    }
+
+    /// Whether an entry that touches `reaches` is within this profile.
+    pub fn allows(&self, reaches: Reaches) -> bool {
+        reaches.iter().all(|r| self.reach.contains(&r))
     }
 }
 
@@ -513,7 +604,26 @@ mod tests {
             assist.join(PROFILES_FOLDER).join("default.json"),
             r#"{"format": 1, "name": "default"}"#,
         )?;
+        let error = AssistLibrary::load(&shipped).err().ok_or("refused")?;
+        assert!(error.to_string().contains("datasheet-part.json"), "{error}");
+        std::fs::create_dir_all(assist.join(REACH_FOLDER))?;
+        let reach = assist.join(REACH_FOLDER).join("datasheet-part.json");
+        // A module the catalog does not have, and never as a ceiling.
+        for broken in [
+            r#"{"format": 1, "name": "datasheet-part", "modules": {"publishing": "edit"}}"#,
+            r#"{"format": 1, "name": "datasheet-part", "modules": {"library": "never"}}"#,
+            r#"{"format": 1, "name": "other", "modules": {}}"#,
+        ] {
+            std::fs::write(&reach, broken)?;
+            let error = AssistLibrary::load(&shipped).err().ok_or("refused")?;
+            assert!(error.to_string().contains("datasheet-part.json"), "{error}");
+        }
+        std::fs::write(
+            &reach,
+            r#"{"format": 1, "name": "datasheet-part", "modules": {"library": "edit"}}"#,
+        )?;
         let loaded = AssistLibrary::load(&shipped)?;
+        assert_eq!(loaded.reach.grant().modules.len(), 1);
         assert_eq!(
             loaded.system,
             format!("You work in {}.", sparksmith_core::product_name!())
@@ -577,8 +687,8 @@ mod tests {
                 "no tool",
             ),
             (
-                r#"{"format": 1, "name": "default", "omit_tools": ["submit_review"]}"#,
-                "submit_review",
+                r#"{"format": 1, "name": "default", "omit_tools": ["query"]}"#,
+                "review check",
             ),
             (
                 r#"{"format": 1, "name": "default", "harness": {"repeat_limit": 1}}"#,

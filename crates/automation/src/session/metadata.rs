@@ -163,6 +163,16 @@ fn distance(a: &[char], b: &str) -> usize {
     row.last().copied().unwrap_or(a.len())
 }
 
+/// The reach the entry `name` declares, without the files a path parameter
+/// adds: whether a call names a path, and where, the gate decides per call.
+pub fn declared_reach(name: &str) -> Reaches {
+    let decl = discovery::entries()
+        .iter()
+        .find(|e| e.name == name)
+        .and_then(|e| e.decl);
+    reach(decl, false)
+}
+
 /// An entry's reach: its declared one, with files when it names a path.
 pub fn reach(decl: Option<&EntryDecl>, takes_path: bool) -> Reaches {
     let declared = decl.map_or(Reaches::NONE, |d| d.reach);
