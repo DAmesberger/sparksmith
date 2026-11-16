@@ -5,7 +5,7 @@ These decisions apply to the three plans in this folder: [file formats](file-for
 ## File formats
 - **Container:** a project is a folder named `<name>.sparksmith`, registered as a macOS package. "Share as single file" writes a ZIP of the same tree with the same extension.
 - **Library folders** are macOS packages as well, named `<name>.sparklib`.
-- **Versioning:** the file format is versioned from now on, starting at 2 and raised on every incompatible change. Optional capabilities are named features. Old files go through a chain of converters, golden trees are kept for every version, and a format-lock gate runs in CI. "No migrations" applied only to the design phase.
+- **Versioning:** until the first release the file format is version 1 and Sparksmith keeps no backward compatibility: a stored-type change edits version 1 in place, older files are refused, and the examples are regenerated. From the first release on, every incompatible change raises `FILE_VERSION` and adds a converter step.
 - **Encoding:** keyed JSON Lines on disk, one record per line, with the id first and lengths in integer nanometres. Single documents are laid-out JSON. Agent query replies are tables (columns named once, then rows). Agents read the design through scoped queries, not whole files.
 - **Agent evidence:** plan tests with real agents on a more complex board.
 - **Tracks:** one `board/tracks.jsonl`, sorted by net, then by id. Vias are stored the same way.

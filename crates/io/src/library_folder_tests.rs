@@ -104,11 +104,9 @@ fn sorted(mut records: Vec<RevisionRecord>) -> Vec<RevisionRecord> {
     records
 }
 
-fn manifest_text(format: u32, features: &[&str]) -> String {
-    let features: Vec<String> = features.iter().map(|f| format!("\"{f}\"")).collect();
+fn manifest_text(format: u32) -> String {
     format!(
-        "{{\"format\":{format},\"library\":\"000000000000000000000000000000aa\",\"name\":\"Bench\",\"required_features\":[{}],\"default_licence\":null}}",
-        features.join(",")
+        "{{\"format\":{format},\"library\":\"000000000000000000000000000000aa\",\"name\":\"Bench\",\"default_licence\":null}}"
     )
 }
 
@@ -137,7 +135,7 @@ fn create_then_open_gives_the_same_folder() -> Result<()> {
 }
 
 #[test]
-fn corrupt_or_unknown_feature_manifests_are_rejected() -> Result<()> {
+fn corrupt_or_other_format_manifests_are_rejected() -> Result<()> {
     let dir = tempfile::tempdir()?;
     assert_eq!(inspect_folder(dir.path()), Err(Disabled::PathMissing));
     assert!(open_folder(dir.path()).is_err());
@@ -155,24 +153,14 @@ fn corrupt_or_unknown_feature_manifests_are_rejected() -> Result<()> {
 
     std::fs::write(
         &path,
-        manifest_text(1, &[]).replace("\"name\"", "\"surprise\":1,\"name\""),
+        manifest_text(1).replace("\"name\"", "\"surprise\":1,\"name\""),
     )?;
     assert_eq!(
         open_folder(dir.path()).map(|_| ()).map_err(|e| e.code()),
         Err("malformed_file")
     );
 
-    std::fs::write(&path, manifest_text(1, &["sharded-lineages"]))?;
-    assert_eq!(
-        open_folder(dir.path()).map(|_| ()).map_err(|e| e.code()),
-        Err("unsupported")
-    );
-    assert_eq!(
-        inspect_folder(dir.path()),
-        Err(Disabled::UnknownFeatures(vec!["sharded-lineages".into()]))
-    );
-
-    std::fs::write(&path, manifest_text(2, &[]))?;
+    std::fs::write(&path, manifest_text(2))?;
     assert_eq!(
         open_folder(dir.path()).map(|_| ()).map_err(|e| e.code()),
         Err("unsupported")
@@ -182,11 +170,11 @@ fn corrupt_or_unknown_feature_manifests_are_rejected() -> Result<()> {
         Err(Disabled::UnsupportedFormat(2))
     );
 
-    // A newer format that adds a field is unsupported, not unreadable: the
+    // Another format with another field is unsupported, not unreadable: the
     // version is checked before the strict parse.
     std::fs::write(
         &path,
-        manifest_text(2, &[]).replace("\"name\"", "\"shards\":16,\"name\""),
+        manifest_text(2).replace("\"name\"", "\"shards\":16,\"name\""),
     )?;
     assert_eq!(
         open_folder(dir.path()).map(|_| ()).map_err(|e| e.code()),
@@ -196,16 +184,8 @@ fn corrupt_or_unknown_feature_manifests_are_rejected() -> Result<()> {
         inspect_folder(dir.path()),
         Err(Disabled::UnsupportedFormat(2))
     );
-    std::fs::write(
-        &path,
-        manifest_text(1, &["sharded-lineages"]).replace("\"name\"", "\"shards\":16,\"name\""),
-    )?;
-    assert_eq!(
-        inspect_folder(dir.path()),
-        Err(Disabled::UnknownFeatures(vec!["sharded-lineages".into()]))
-    );
 
-    std::fs::write(&path, manifest_text(1, &[]))?;
+    std::fs::write(&path, manifest_text(1))?;
     let folder = open_folder(dir.path())?;
     assert_eq!(folder.manifest.library, LibraryId(0xaa));
     Ok(())

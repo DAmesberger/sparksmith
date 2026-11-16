@@ -1243,16 +1243,6 @@ impl ProjectRules {
         std::borrow::Cow::Owned(rules)
     }
 
-    /// Whether the profile or an override sets the spoke angle of round
-    /// pads and vias (the file feature `round_pad_thermal_angle`).
-    pub fn sets_round_pad_thermal_angle(&self) -> bool {
-        let key = RuleKey::ThermalAngleRound;
-        self.profile
-            .as_ref()
-            .is_some_and(|p| p.entry(key).is_some())
-            || self.override_of(key).is_some()
-    }
-
     pub fn override_of(&self, key: RuleKey) -> Option<&RuleOverride> {
         let key = key.normalized();
         self.overrides.iter().find(|o| o.key.normalized() == key)

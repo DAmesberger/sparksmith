@@ -4,10 +4,8 @@
 //! converter chain for older format versions ([`convert`]).
 pub mod artwork;
 pub mod assembly_link;
-pub mod convert;
 pub mod fab_drawings;
 pub mod fabrication;
-mod former_name;
 pub mod generated;
 pub mod generator_bundle;
 pub mod interface;

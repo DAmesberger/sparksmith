@@ -45,20 +45,13 @@ fn the_bundle_takes_the_product_names() {
     )));
 }
 
-/// The bundle runs the desktop binary, opens both project extensions (the
-/// current one preferred) and names the current MIME type.
+/// The bundle runs the desktop binary, opens the project extension and
+/// names the MIME type.
 #[test]
-fn the_bundle_runs_this_binary_and_opens_both_extensions() {
+fn the_bundle_runs_this_binary_and_opens_the_project_extension() {
     assert_eq!(values("CFBundleExecutable"), [env!("CARGO_BIN_NAME")]);
     assert_eq!(env!("CARGO_BIN_NAME"), "sparksmith-desktop");
-    let extensions: String = sparksmith_core::format::EXTENSIONS
-        .iter()
-        .map(|e| format!("<string>{e}</string>"))
-        .collect();
-    assert_eq!(
-        sparksmith_core::format::EXTENSIONS,
-        ["sparksmith", "pcbcraft"]
-    );
+    let extensions = format!("<string>{}</string>", sparksmith_core::format::EXTENSION);
     assert_eq!(
         PLIST
             .matches(&format!("<array>{extensions}</array>"))
