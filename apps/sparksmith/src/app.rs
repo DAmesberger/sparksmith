@@ -1245,6 +1245,9 @@ impl App {
     /// switching to 3D shows it at once.
     fn request_model(&mut self, ctx: &egui::Context) {
         if let Some(key) = self.model_key() {
+            if self.workspace == Workspace::Part {
+                self.scene.package_subject(self.part.shown_component());
+            }
             let package = self.part.preview_package();
             let engine = &self.engine;
             self.scene
