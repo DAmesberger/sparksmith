@@ -113,7 +113,8 @@ fn a_plated_pad_hole_keeps_the_pth_annular_ring() -> Result<()> {
     assert!(
         findings.iter().any(|f| f.message
             == "R1 pad 1: annular ring 0.2 mm; needs at least 0.25 mm \
-                (JLCPCB 2-layer: min PTH annular ring)"),
+                (JLCPCB 2-layer: min PTH annular ring); JLCPCB 2-layer allows \
+                0.18 mm under JLCPCB values: Absolute minimum"),
         "{findings:#?}"
     );
     // 1.1 mm land: exactly 0.25 mm passes.

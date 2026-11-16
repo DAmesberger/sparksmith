@@ -230,9 +230,15 @@ fn rings(
     let mut issues = Vec::new();
     let least =
         |need: &super::limits::Need| format!("needs at least {} mm ({})", mm(need.mm), need.cite());
+    // A recommended limit the fabricator relaxes under another choice
+    // says so, naming the choice.
     let text = |ring: f64| {
+        let looser =
+            super::limits::looser_choice(limits.project(), RuleKey::PthAnnularRingMin, ring)
+                .map(|c| format!("; {c}"))
+                .unwrap_or_default();
         format!(
-            "annular ring {} mm; {}",
+            "annular ring {} mm; {}{looser}",
             mm_against(ring, need.mm),
             least(&need)
         )

@@ -78,6 +78,42 @@ pub fn mm_against(value: f64, limit: f64) -> String {
         .map_or_else(|| mm(value), |(v, _)| v)
 }
 
+/// When the board's profile, under another choice of one of its
+/// manufacturing options, would hold the scalar rule `key` to a limit that
+/// `value` meets: what that choice is ("JLCPCB 2-layer allows 0.18 mm under
+/// JLCPCB values: Absolute minimum"). `None` when an override sets the
+/// rule or no choice would allow `value`. A finding adds it so the person
+/// reads a recommended value as one, not as the fabricator's last word.
+pub fn looser_choice(rules: &ProjectRules, key: RuleKey, value: f64) -> Option<String> {
+    if rules.override_of(key).is_some() {
+        return None;
+    }
+    let profile = rules.profile.as_ref()?;
+    for option in profile.options() {
+        for choice in &option.choices {
+            if profile.chosen().get(&option.id) == Some(&choice.id) {
+                continue;
+            }
+            let pick = std::collections::BTreeMap::from([(option.id.clone(), choice.id.clone())]);
+            let Ok(other) = profile.with_choices(&pick) else {
+                continue;
+            };
+            if let RuleValue::Length(limit) = key.get(other.rules())
+                && value >= limit - 1e-9
+            {
+                return Some(format!(
+                    "{} allows {} mm under {}: {}",
+                    profile.name,
+                    mm(limit),
+                    option.name,
+                    choice.name
+                ));
+            }
+        }
+    }
+    None
+}
+
 /// The cite of a scalar rule resolved from `rules`.
 pub fn cite(rules: &ProjectRules, key: RuleKey) -> String {
     format!("{}: {}", rules.source_of(key).describe(), key.label())
