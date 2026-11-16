@@ -1779,6 +1779,7 @@ pub mod paths;
 mod pinout;
 mod preview;
 mod reply;
+pub use reply::difference;
 pub mod shipped_parts;
 pub mod surface;
 pub mod turns;

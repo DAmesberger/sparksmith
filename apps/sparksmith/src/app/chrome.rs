@@ -216,6 +216,19 @@ impl App {
                     if button.clicked() {
                         self.palette.toggle();
                     }
+                    let assistant = self.with_shortcut(
+                        if self.assistant.shown() {
+                            "Hide Assistant"
+                        } else {
+                            "Show Assistant"
+                        },
+                        AppCommand::ToggleAssistant,
+                    );
+                    let button = bar_icon(ui, "assistant", &assistant, true);
+                    reveal::register(&ctx, Target::App(AppCommand::ToggleAssistant), button.rect);
+                    if button.clicked() {
+                        self.toggle_assistant(&ctx);
+                    }
                     ui.add_space(t.space_8);
                     self.document_tab(ui);
                     // A save the system holds (a permission prompt, a slow

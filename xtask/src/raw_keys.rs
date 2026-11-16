@@ -137,6 +137,11 @@ const EXCEPTIONS: &[(&str, usize, &str)] = &[
         1,
         "grid: arrows move the highlighted tile",
     ),
+    (
+        "assistant.rs",
+        1,
+        "text field: Enter sends the message being typed in the assistant's composer (Shift+Enter breaks the line)",
+    ),
 ];
 
 #[derive(Default)]

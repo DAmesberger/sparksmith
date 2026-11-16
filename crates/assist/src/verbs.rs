@@ -17,7 +17,7 @@
 //! datasheet profile reaches, and a run has no folders.
 use crate::model::ToolSpec;
 use serde_json::{Value, json};
-use sparksmith_automation::front::{self, Call, CallCx, NoOne, Surface};
+use sparksmith_automation::front::{self, Asker, Call, CallCx, Surface, WindowHost};
 use sparksmith_automation::mcp::desk::Calls;
 use sparksmith_automation::mcp::tools as mcp;
 use sparksmith_automation::session::metadata::{self, EntryMeta};
@@ -43,8 +43,15 @@ pub fn tools() -> Vec<ToolSpec> {
 pub struct Agent<'a> {
     pub session: &'a mut Session,
     pub grant: &'a Grant,
-    /// The open turn every call joins (a workflow run's), when there is one.
+    /// The open turn every call joins (a workflow run's, the chat's
+    /// message), when there is one.
     pub turn: Option<&'a str>,
+    /// The window the calls run in (the chat's), or none (a headless run,
+    /// where `view` entries answer `host.unavailable`).
+    pub window: Option<&'a mut dyn WindowHost>,
+    /// How a person is asked: the chat's Ask card, or [`front::NoOne`] in a
+    /// headless run, where what needs a person is refused.
+    pub asker: &'a mut dyn Asker,
 }
 
 impl Agent<'_> {
@@ -71,9 +78,12 @@ impl Agent<'_> {
         }
         let cx = CallCx {
             who: Principal::LocalAgent { grant: self.grant },
-            asker: &mut NoOne,
+            asker: &mut *self.asker,
             verbose: false,
-            window: None,
+            window: match &mut self.window {
+                Some(window) => Some(&mut **window),
+                None => None,
+            },
         };
         front::envelope(self.session.call(cx, call))
     }
@@ -97,7 +107,7 @@ impl Calls for Agent<'_> {
     }
 
     fn is_live(&self) -> bool {
-        false
+        self.window.is_some()
     }
 
     fn reaches(&self, entry: &EntryMeta) -> bool {

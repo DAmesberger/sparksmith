@@ -4,6 +4,7 @@
 //! an [`Operation`], which [`App::apply`] sends through the engine, the same
 //! path the CLI and MCP use. Long work (3D builds, file I/O, recovery) runs on
 //! background threads and reports back with the input it was made from.
+mod assistant_host;
 mod browser;
 mod browser_catalog;
 mod chrome;
@@ -84,6 +85,8 @@ pub struct App {
     system_windows: [bool; 5],
     /// Live MCP: assistants editing this window's project (off at start).
     live: live_mcp::LiveMcp,
+    /// The assistant chat: its column and its one conversation.
+    assistant: crate::assistant::Assistant,
     /// The system's fallback fonts (CJK and others) are installed.
     system_fonts: bool,
     /// The Issues card, canvas badge and pill, and their cached answers.
@@ -237,6 +240,7 @@ impl App {
                 recording: false,
                 browser_shown: true,
                 issues_shown: false,
+                assistant_shown: false,
                 available: &|_| true,
             },
         ) {
@@ -329,6 +333,7 @@ impl App {
             import_report: import_report::ImportReport::default(),
             system_windows: [false; 5],
             live: Default::default(),
+            assistant: Default::default(),
             system_fonts: false,
             issues: Default::default(),
             undo_revision: None,
@@ -1123,6 +1128,8 @@ impl App {
         // Opened, recovered, new or imported: the launch's project is gone.
         self.launch_profile = false;
         self.import_report.clear();
+        // One conversation per open project.
+        self.assistant.document_opened();
         self.pcb.set_selection(None, None, None);
         self.pcb.document_opened();
         self.scene.document_opened();
@@ -1526,6 +1533,7 @@ impl App {
             recording: self.settings_window.is_recording(),
             browser_shown: self.browser_visible,
             issues_shown: self.issues.expanded(),
+            assistant_shown: self.assistant.shown(),
             available: &available,
         })
     }
@@ -1630,6 +1638,8 @@ impl eframe::App for App {
         // Assistants' requests, between the last frame and this one's
         // editors.
         self.serve_live(&ctx);
+        // The assistant chat's tool calls, likewise.
+        self.serve_assistant(&ctx);
         self.library_sources(&ctx);
         self.component_subject(&ctx);
         // A2: the Component workspace catalog's action and feed.
@@ -1648,6 +1658,7 @@ impl eframe::App for App {
         self.escape_review(&ctx);
         self.app_bar(ui);
         self.ribbon(ui);
+        self.assistant_column(ui);
         self.workspace_area(ui);
         self.production_folder();
         // Draft edits commit once their gesture ends, as one undo step.

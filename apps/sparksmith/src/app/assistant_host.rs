@@ -1,0 +1,782 @@
+//! The assistant chat in the window (`docs/assistant-panel.md` §7, slice
+//! C1): its column at the window's edge, and what its turns ask of the
+//! window.
+//!
+//! A message opens a turn (`project.turn_begin`) and reads what the window
+//! shows (`view.context`), both through the front door as the built-in
+//! agent; the turn's model runs off the UI thread
+//! ([`crate::assistant::worker`]). Its tool calls are served here between
+//! frames: each runs the verb on the window's engine as
+//! `Principal::LocalAgent` under the chat's reach (`library/assist/reach/
+//! chat.json`), in the message's turn, with this window as its
+//! `WindowHost`, so its edits undo as one step and `show` steers this
+//! window. A call the gate asks about waits as an Ask card for the person's
+//! Allow or Deny. When the turn ends it is closed (`project.turn_end`) and
+//! a summary card says what changed between the document before and after
+//! it (`sparksmith_automation::session::difference`).
+use super::App;
+use crate::assistant::worker::{self, ChatModel, FromTurn, ToolRequest};
+use crate::assistant::{
+    self, Action, Allow, AskCard, Dock, Held, Item, Now, OpenTurn, State, TurnSummary,
+};
+use crate::kit::severity::Level;
+use serde_json::{Value, json};
+use sparksmith_assist::chat::{self, ChatConfig, End, Outcome, ReachProfile};
+use sparksmith_assist::model::{Budget, Connection, KeySource, Message, Part, Provider, keys};
+use sparksmith_assist::settings::{self as ai, AssistSettings, Permissions, Rule, Shipped};
+use sparksmith_assist::verbs::Agent;
+use sparksmith_automation::front::{self, Answer, Asker, Call, CallCx, NoOne, Surface};
+use sparksmith_automation::{Grant, Principal, Question, WindowHost};
+use sparksmith_ui::theme::Tokens;
+use sparksmith_ui::ui_kit::{Container, Edge, Surface as Host};
+use std::sync::Arc;
+use std::sync::mpsc::TryRecvError;
+
+/// Messages from a turn handled per frame, so a flood cannot starve drawing.
+const PER_FRAME: usize = 64;
+/// New issues a summary card names.
+const NAMED_ISSUES: usize = 3;
+/// Names a summary line lists before it counts.
+const NAMED_OBJECTS: usize = 4;
+/// The longest undo label, in characters, before "…".
+const LABEL_CHARS: usize = 60;
+
+/// The kind of action a question is about, as Settings › AI's permissions
+/// name it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Edits,
+    Files,
+    PublishLibrary,
+    View,
+}
+
+impl Kind {
+    /// The kind of the entries a question names: an edit, a library
+    /// action that asks (publishing to a library), or anything else that
+    /// undo cannot take back (files, fabrication output, the 3D model).
+    fn of(question: &Question) -> Self {
+        let entries = || {
+            question
+                .command
+                .split(", ")
+                .filter_map(sparksmith_automation::session::metadata::find)
+        };
+        if entries().all(|e| e.class == sparksmith_core::Class::Show) {
+            Self::View
+        } else if entries().all(|e| e.class == sparksmith_core::Class::Edit) {
+            Self::Edits
+        } else if entries().any(|e| e.module == "library") {
+            Self::PublishLibrary
+        } else {
+            Self::Files
+        }
+    }
+
+    fn rule(self, permissions: &Permissions) -> Rule {
+        match self {
+            Self::Edits => permissions.edits,
+            Self::Files => permissions.files,
+            Self::PublishLibrary => permissions.publish_library,
+            Self::View => permissions.view,
+        }
+    }
+
+    fn set(self, permissions: &mut Permissions, rule: Rule) {
+        match self {
+            Self::Edits => permissions.edits = rule,
+            Self::Files => permissions.files = rule,
+            Self::PublishLibrary => permissions.publish_library = rule,
+            Self::View => permissions.view = rule,
+        }
+    }
+}
+
+/// How the chat asks: a question the gate asks follows Settings › AI's
+/// rule for its kind (always allowed, denied, or a card); a card is not
+/// shown when the person already allowed this call, or every entry it
+/// names runs without asking (the reach profile's `unasked`, or the
+/// person's Allow for this session or always).
+struct ChatAsker {
+    allowed: bool,
+    unasked: Vec<String>,
+    permissions: Permissions,
+    question: Option<Question>,
+}
+
+impl Asker for ChatAsker {
+    fn ask(&mut self, question: &Question) -> Answer {
+        let unasked = question
+            .command
+            .split(", ")
+            .all(|entry| self.unasked.iter().any(|u| u == entry));
+        if self.allowed || unasked {
+            return Answer::Allow;
+        }
+        match Kind::of(question).rule(&self.permissions) {
+            Rule::Always => Answer::Allow,
+            Rule::Deny => Answer::Deny,
+            Rule::Ask | Rule::Session => {
+                self.question = Some(question.clone());
+                Answer::Unavailable
+            }
+        }
+    }
+}
+
+/// Settings › AI as the person keeps it, the shipped starting values and
+/// its file.
+fn ai_settings() -> Result<(AssistSettings, Shipped, std::path::PathBuf), String> {
+    let dirs = sparksmith_io::settings::UserDirs::from_env().map_err(|e| e.to_string())?;
+    let path = ai::user_file(&dirs.config);
+    let settings = ai::read(&path).map_err(|e| e.to_string())?;
+    let shipped = Shipped::locate().map_err(|e| e.to_string())?;
+    Ok((settings, shipped, path))
+}
+
+/// A call of `entry` with `params`, outside any turn.
+fn call(entry: &str, params: Value) -> Call {
+    Call {
+        entry: entry.to_owned(),
+        params,
+        project: None,
+        expected_revision: None,
+        dry_run: false,
+        confirm: None,
+        turn: None,
+        job: false,
+    }
+}
+
+/// The undo label of a message's turn: "AI assistant: " and the message's
+/// start.
+pub(super) fn turn_label(text: &str) -> String {
+    let line = text.lines().next().unwrap_or_default().trim();
+    let mut label: String = line.chars().take(LABEL_CHARS).collect();
+    if line.chars().count() > LABEL_CHARS {
+        label.push('…');
+    }
+    format!("AI assistant: {label}")
+}
+
+impl App {
+    /// The chat's grant and reach: the shipped reach profile, with the
+    /// open project's folder the only one a path may name.
+    fn chat_grant(&mut self) -> Result<(Grant, ReachProfile), String> {
+        let reach = self.assistant.library()?.reach.clone();
+        let mut grant = reach.grant();
+        // No per-turn caps on changes or calls in the chat (founder, 16
+        // November): a long conversation is compacted instead.
+        grant.limits = sparksmith_automation::Limits {
+            changes: u32::MAX,
+            calls: u32::MAX,
+        };
+        grant.folders = self
+            .files
+            .path()
+            .and_then(std::path::Path::parent)
+            .filter(|folder| folder.is_absolute())
+            .map(std::path::Path::to_path_buf)
+            .into_iter()
+            .collect();
+        Ok((grant, reach))
+    }
+
+    /// The model the chat uses, its budget and the person's permissions:
+    /// Settings › AI's endpoint for the assistant, its limits when the
+    /// person set any (none by default: no per-turn caps), and its rules
+    /// per kind of action. A key comes from the keychain for the endpoint,
+    /// else for Anthropic `ANTHROPIC_API_KEY`.
+    fn chat_model(&mut self) -> Result<(ChatModel, Budget, Permissions), String> {
+        if let Some(model) = &self.assistant.model {
+            let shipped = Shipped::locate().map_err(|e| e.to_string())?;
+            return Ok((model.clone(), chat::unbounded(), shipped.permissions));
+        }
+        let (settings, shipped, _) = ai_settings()?;
+        let setting = settings
+            .run_endpoint()
+            .cloned()
+            .ok_or_else(|| "No model endpoint: add one in Settings › AI".to_owned())?;
+        let profile = setting.model_profile().map_err(|e| e.to_string())?;
+        let endpoint = setting.endpoint().map_err(|e| e.to_string())?;
+        let key = if endpoint.check_key_allowed().is_ok() && keys::keychain_has(&endpoint) {
+            KeySource::Keychain
+        } else {
+            match profile.provider {
+                Provider::Anthropic => KeySource::Env("ANTHROPIC_API_KEY".into()),
+                Provider::OpenAiCompatible => KeySource::None,
+            }
+        };
+        let connection = Connection { endpoint, key };
+        let declared = profile.clone();
+        let budget = ai::run_budget(settings.limits.as_ref(), None).unwrap_or_else(chat::unbounded);
+        Ok((
+            ChatModel {
+                profile,
+                connect: Arc::new(move || {
+                    sparksmith_assist::model::connect(&declared, &connection)
+                        .map_err(|e| e.to_string())
+                }),
+            },
+            budget,
+            settings.permissions_or(&shipped),
+        ))
+    }
+
+    /// Always allow on a card: Settings › AI's rule for the kind becomes
+    /// Always, kept in the person's settings file.
+    fn always_allow(&mut self, kind: Kind) {
+        if let Some(permissions) = self.assistant.permissions.as_mut() {
+            kind.set(permissions, Rule::Always);
+        }
+        if self.assistant.model.is_some() {
+            // A test's model: no settings file is touched.
+            return;
+        }
+        let kept = ai_settings().and_then(|(mut settings, shipped, path)| {
+            let mut permissions = settings.permissions_or(&shipped);
+            kind.set(&mut permissions, Rule::Always);
+            settings.permissions = Some(permissions);
+            ai::write(&path, &settings).map_err(|e| e.to_string())
+        });
+        if let Err(why) = kept {
+            self.say(
+                Level::Warning,
+                format!("Could not keep Always allow: {why}"),
+            );
+        }
+    }
+
+    /// The column, or its folded strip, at the window's edge: before the
+    /// workspace, which takes the room left.
+    pub(super) fn assistant_column(&mut self, ui: &mut egui::Ui) {
+        if !self.assistant.open {
+            return;
+        }
+        let ctx = ui.ctx().clone();
+        let t = Tokens::get();
+        let host = Container::new(&ctx, Host::Panel);
+        let edge = match self.assistant.dock {
+            Dock::Right => Edge::Right,
+            Dock::Left => Edge::Left,
+        };
+        let frame = host
+            .edge_frame(t.panel)
+            .inner_margin(egui::Margin::same(t.space_8 as i8));
+        let actions = if self.assistant.folded {
+            let panel = host
+                .edge("assistant-strip", edge)
+                .resizable(false)
+                .exact_size(assistant::STRIP_WIDTH);
+            let frame = host.edge_frame(t.panel).inner_margin(egui::Margin::same(0));
+            host.show_edge(ui, panel, frame, |ui| self.assistant.strip(ui))
+                .inner
+        } else {
+            let (window, engine) = self.window_and_engine();
+            let context = serde_json::to_value(window.context(engine)).unwrap_or_default();
+            let now = Now {
+                revision: self.engine.revision(),
+                undo_label: self.engine.undo_step().map(|step| step.line()),
+                context: assistant::context_line(&context),
+            };
+            let panel = host
+                .edge("assistant-column", edge)
+                .resizable(true)
+                .default_size(assistant::DEFAULT_WIDTH)
+                .size_range(assistant::MIN_WIDTH..=assistant::MAX_WIDTH);
+            host.show_edge(ui, panel, frame, |ui| self.assistant.column(ui, &now))
+                .inner
+        };
+        for action in actions {
+            self.assistant_action(&ctx, action);
+        }
+    }
+
+    /// ⇧⌘A, View › Assistant, the palette and the application bar's button.
+    pub(super) fn toggle_assistant(&mut self, ctx: &egui::Context) {
+        self.assistant.toggle();
+        if self.assistant.shown() {
+            ctx.memory_mut(|m| m.request_focus(assistant::Assistant::composer_id()));
+        }
+    }
+
+    fn assistant_action(&mut self, ctx: &egui::Context, action: Action) {
+        match action {
+            Action::Send => self.assistant_send(ctx),
+            Action::Stop => self.assistant.stop(),
+            Action::Answer { id, allow } => self.assistant_answer(ctx, id, allow),
+            Action::Show(id) => self.assistant_show(id),
+            Action::UndoTurn(id) => {
+                let undoable = self.assistant.conversation.summary(id).is_some_and(|card| {
+                    card.after != card.before
+                        && card.after == self.engine.revision()
+                        && self.engine.undo_step().map(|s| s.line()).as_deref()
+                            == Some(card.label.as_str())
+                });
+                if undoable {
+                    self.history(false);
+                }
+            }
+            Action::Fold(folded) => self.assistant.folded = folded,
+            Action::Dock(dock) => self.assistant.dock = dock,
+            Action::Close => self.assistant.open = false,
+        }
+    }
+
+    /// Send the composer's message: read what the window shows, open the
+    /// message's turn and start the model on it.
+    fn assistant_send(&mut self, ctx: &egui::Context) {
+        if self.assistant.job.is_some() || self.assistant.conversation.state.busy() {
+            return;
+        }
+        let text = self.assistant.composer.trim().to_owned();
+        if text.is_empty() {
+            return;
+        }
+        let (model, budget, permissions) = match self.chat_model() {
+            Ok(chosen) => chosen,
+            Err(why) => {
+                self.assistant.conversation.state = State::NotSetUp(why);
+                return;
+            }
+        };
+        self.assistant.permissions = Some(permissions);
+        let (grant, _) = match self.chat_grant() {
+            Ok(both) => both,
+            Err(why) => {
+                self.assistant.conversation.state = State::Error(why);
+                return;
+            }
+        };
+        let library = match self.assistant.library() {
+            Ok(library) => library.clone(),
+            Err(why) => {
+                self.assistant.conversation.state = State::Error(why);
+                return;
+            }
+        };
+        let label = turn_label(&text);
+        let path = self.files.path().map(std::path::Path::to_path_buf);
+        let (mut window, engine, assistant) = self.window_for_assistant(None);
+        let (context, begun) = assistant.session.lend(engine, path.as_deref(), |session| {
+            let context = front::envelope(session.call(
+                CallCx {
+                    who: Principal::LocalAgent { grant: &grant },
+                    asker: &mut NoOne,
+                    verbose: false,
+                    window: Some(&mut window),
+                },
+                call("view.context", json!({})),
+            ));
+            let begun = front::envelope(session.call(
+                CallCx {
+                    who: Principal::LocalAgent { grant: &grant },
+                    asker: &mut NoOne,
+                    verbose: false,
+                    window: None,
+                },
+                call("project.turn_begin", json!({"label": label})),
+            ));
+            (context, begun)
+        });
+        let Some(turn) = begun["result"]["turn"].as_str().map(str::to_owned) else {
+            let why = begun["error"]["message"]
+                .as_str()
+                .unwrap_or("the turn could not be opened")
+                .to_owned();
+            self.assistant.conversation.state = State::Error(why);
+            return;
+        };
+        let context = context["result"].clone();
+        self.assistant.turn = Some(OpenTurn {
+            id: turn,
+            label,
+            before: self.engine.document().clone(),
+            revision: self.engine.revision(),
+        });
+        self.assistant.conversation.sent(
+            text.clone(),
+            assistant::context_line(&context),
+            Vec::new(),
+        );
+        self.assistant.composer.clear();
+        let message = vec![Part::text(format!("The window shows: {context}\n\n{text}"))];
+        let config = ChatConfig::new(&library, model.profile.clone(), budget);
+        let history = std::mem::take(&mut self.assistant.history);
+        let wake = ctx.clone();
+        match worker::start(
+            config,
+            model.connect,
+            history,
+            message,
+            Arc::new(move || wake.request_repaint()),
+        ) {
+            Ok(job) => self.assistant.job = Some(job),
+            Err(why) => self.finish_turn(
+                Outcome {
+                    end: End::Failed(why),
+                    usage: Default::default(),
+                },
+                Vec::new(),
+            ),
+        }
+    }
+
+    /// What the turn running sent since the last frame: its events, its
+    /// tool calls and its end.
+    pub(super) fn serve_assistant(&mut self, ctx: &egui::Context) {
+        for _ in 0..PER_FRAME {
+            if self.assistant.held.is_some() {
+                return;
+            }
+            let Some(job) = &self.assistant.job else {
+                return;
+            };
+            let message = match job.rx.try_recv() {
+                Ok(message) => message,
+                Err(TryRecvError::Empty) => return,
+                Err(TryRecvError::Disconnected) => FromTurn::Done {
+                    outcome: Outcome {
+                        end: End::Failed("the turn ended without an answer".into()),
+                        usage: Default::default(),
+                    },
+                    history: Vec::new(),
+                },
+            };
+            match message {
+                FromTurn::Event(event) => self.assistant.conversation.apply(event),
+                FromTurn::Tool(request) => self.run_chat_call(ctx, request, false),
+                FromTurn::Done { outcome, history } => self.finish_turn(outcome, history),
+            }
+        }
+        // More are waiting: answer them next frame.
+        ctx.request_repaint();
+    }
+
+    /// Run one of the turn's tool calls on the window's engine, in the
+    /// turn, and answer it, or hold it as an Ask card when the gate asks.
+    /// `allowed`: the person allowed it on its card.
+    fn run_chat_call(&mut self, ctx: &egui::Context, request: ToolRequest, allowed: bool) {
+        let Some(turn) = self.assistant.turn.as_ref().map(|t| t.id.clone()) else {
+            return;
+        };
+        let (mut grant, reach) = match self.chat_grant() {
+            Ok(both) => both,
+            Err(why) => {
+                let _ = request.reply.send(
+                    json!({"ok": false, "error": {"code": "chat.unavailable", "message": why}}),
+                );
+                return;
+            }
+        };
+        let permissions = self.assistant.permissions.unwrap_or(Permissions {
+            edits: Rule::Always,
+            files: Rule::Ask,
+            publish_library: Rule::Ask,
+            view: Rule::Ask,
+        });
+        // Moving the person's view follows its own rule: the gate never
+        // asks about it.
+        let shown = request.input["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        if request.verb == sparksmith_assist::verbs::SHOW
+            && !allowed
+            && !self.assistant.allowed_session.contains(&shown)
+        {
+            match permissions.view {
+                Rule::Always => {}
+                Rule::Deny => {
+                    let _ = request.reply.send(json!({"ok": false, "error": {
+                        "code": "gate.denied",
+                        "message": "The person does not let the assistant move their view (Settings › AI). Nothing was changed."}}));
+                    return;
+                }
+                Rule::Ask | Rule::Session => {
+                    let question = Question {
+                        command: shown,
+                        class: sparksmith_core::Class::Show,
+                        paths: Vec::new(),
+                        why: "It moves your view.".to_owned(),
+                    };
+                    self.hold(request, question);
+                    return;
+                }
+            }
+        }
+        let busy = if allowed { None } else { self.live_busy(ctx) };
+        let path = self.files.path().map(std::path::Path::to_path_buf);
+        let mut unasked: Vec<String> = reach.unasked.clone();
+        unasked.extend(self.assistant.allowed_session.iter().cloned());
+        let mut asker = ChatAsker {
+            allowed,
+            unasked,
+            permissions,
+            question: None,
+        };
+        if permissions.edits != Rule::Always {
+            // Edits follow the person's rule too: the gate asks about each.
+            grant.mode = sparksmith_automation::Mode::AskEveryTime;
+        }
+        let (mut window, engine, assistant) = self.window_for_assistant(busy);
+        let reply = assistant.session.lend(engine, path.as_deref(), |session| {
+            Agent {
+                session,
+                grant: &grant,
+                window: Some(&mut window),
+                turn: Some(&turn),
+                asker: &mut asker,
+            }
+            .verb(&request.verb, request.input.clone())
+        });
+        match asker.question {
+            Some(question) if !allowed => self.hold(request, question),
+            _ => {
+                let _ = request.reply.send(reply);
+            }
+        }
+    }
+
+    /// Hold `request` as an Ask card about `question`.
+    fn hold(&mut self, request: ToolRequest, question: Question) {
+        let conversation = &mut self.assistant.conversation;
+        let id = conversation.next_id();
+        let command = sparksmith_automation::session::metadata::find(&question.command)
+            .map_or_else(|| question.command.clone(), |entry| entry.title.to_owned());
+        conversation.push(Item::Ask(AskCard {
+            id,
+            command,
+            why: question.why.clone(),
+            paths: question.paths.clone(),
+            answer: None,
+        }));
+        conversation.state = State::Waiting;
+        self.assistant.held = Some(Held {
+            request,
+            ask: id,
+            question,
+        });
+    }
+
+    /// The person's answer on Ask card `id`: Allow once, for this session
+    /// or always (the entries asked about then run without asking), or Deny.
+    fn assistant_answer(&mut self, ctx: &egui::Context, id: u64, allow: Allow) {
+        let Some(held) = self.assistant.held.take_if(|held| held.ask == id) else {
+            return;
+        };
+        if let Some(card) = self.assistant.conversation.ask_mut(id) {
+            card.answer = Some(allow);
+        }
+        self.assistant.conversation.state = State::Running;
+        let entries = held.question.command.split(", ").map(str::to_owned);
+        let kind = Kind::of(&held.question);
+        // Settings › AI's "once a session": the first Allow covers the rest.
+        let session_rule = self
+            .assistant
+            .permissions
+            .is_some_and(|p| kind.rule(&p) == Rule::Session);
+        match allow {
+            Allow::Session => self.assistant.allowed_session.extend(entries),
+            Allow::Once if session_rule => self.assistant.allowed_session.extend(entries),
+            Allow::Always => self.always_allow(kind),
+            Allow::Once | Allow::Deny => {}
+        }
+        if allow != Allow::Deny {
+            self.run_chat_call(ctx, held.request, true);
+        } else {
+            let _ = held
+                .request
+                .reply
+                .send(sparksmith_automation::gate::failure(
+                    &held.question.denied(),
+                ));
+        }
+    }
+
+    /// The turn ended: close it, and add its summary card.
+    fn finish_turn(&mut self, outcome: Outcome, history: Vec<Message>) {
+        self.assistant.job = None;
+        self.assistant.held = None;
+        self.assistant.history = history;
+        let Some(turn) = self.assistant.turn.take() else {
+            return;
+        };
+        if let Ok((grant, _)) = self.chat_grant() {
+            let path = self.files.path().map(std::path::Path::to_path_buf);
+            let (_, engine, assistant) = self.window_for_assistant(None);
+            assistant.session.lend(engine, path.as_deref(), |session| {
+                let _ = session.call(
+                    CallCx {
+                        who: Principal::LocalAgent { grant: &grant },
+                        asker: &mut NoOne,
+                        verbose: false,
+                        window: None,
+                    },
+                    call("project.turn_end", json!({"turn": turn.id})),
+                );
+            });
+        }
+        let difference = sparksmith_automation::session::difference(
+            &turn.before,
+            self.engine.document(),
+            self.engine.check_settings(),
+        )
+        .unwrap_or_default();
+        let id = self.assistant.conversation.next_id();
+        let card = summary_card(id, &turn, &difference, &outcome, &self.engine);
+        self.assistant.conversation.ended(card, &outcome.end);
+    }
+
+    /// Select what the turn of summary `id` changed, as the person.
+    fn assistant_show(&mut self, id: u64) {
+        let Some(ids) = self
+            .assistant
+            .conversation
+            .summary(id)
+            .map(|card| card.show.clone())
+        else {
+            return;
+        };
+        let path = self.files.path().map(std::path::Path::to_path_buf);
+        let (mut window, engine, assistant) = self.window_for_assistant(None);
+        let shown = assistant.session.lend(engine, path.as_deref(), |session| {
+            session.call(
+                CallCx {
+                    who: Principal::Person,
+                    asker: &mut NoOne,
+                    verbose: false,
+                    window: Some(&mut window),
+                },
+                call("view.select", json!({"ids": ids})),
+            )
+        });
+        if let Err(error) = shown {
+            self.say(Level::Warning, error.message);
+        }
+    }
+}
+
+/// The summary card of `turn`, which ended with `outcome`, from what
+/// `difference` found between the document before it and now.
+fn summary_card(
+    id: u64,
+    turn: &OpenTurn,
+    difference: &Value,
+    outcome: &Outcome,
+    engine: &sparksmith_core::Engine,
+) -> TurnSummary {
+    let changes = &difference["changes"];
+    let names = &difference["names"];
+    let mut lines = Vec::new();
+    let mut show = Vec::new();
+    for (kind, word) in [
+        ("added", "added"),
+        ("changed", "changed"),
+        ("removed", "removed"),
+    ] {
+        let Some(lists) = changes[kind].as_object() else {
+            continue;
+        };
+        for (path, ids) in lists {
+            let ids = ids.as_array().map(Vec::as_slice).unwrap_or_default();
+            let named: Vec<&str> = ids
+                .iter()
+                .filter_map(|id| names[id.to_string()].as_str())
+                .collect();
+            let what =
+                if !named.is_empty() && named.len() == ids.len() && ids.len() <= NAMED_OBJECTS {
+                    named.join(", ")
+                } else {
+                    ids.len().to_string()
+                };
+            lines.push(format!("{}: {what} {word}", collection(path)));
+            if kind != "removed" {
+                show.extend(ids.iter().filter_map(Value::as_u64).filter(|id| {
+                    sparksmith_automation::view::object_of(engine.project(), *id).is_some()
+                }));
+            }
+        }
+    }
+    if changes["fields"].as_array().is_some_and(|f| !f.is_empty()) {
+        lines.push("Project settings changed".to_owned());
+    }
+    show.truncate(sparksmith_automation::view::MAX_SELECT);
+    let findings = &difference["findings"];
+    let new: Vec<&Value> = findings["new"].as_array().into_iter().flatten().collect();
+    let issues_new = new.len() + findings["omitted"].as_u64().unwrap_or(0) as usize;
+    let issues_resolved = findings["resolved"].as_object().map_or(0, |r| {
+        r.values().filter_map(Value::as_u64).sum::<u64>() as usize
+    });
+    let end = match &outcome.end {
+        End::Answered => None,
+        End::Stopped => Some("Stopped by you.".to_owned()),
+        other => Some(format!("{}.", capital(&other.to_string()))),
+    };
+    TurnSummary {
+        id,
+        label: turn.label.clone(),
+        changes: lines,
+        issues_new,
+        issues_resolved,
+        new_issues: new
+            .iter()
+            .filter_map(|f| f["message"].as_str().map(str::to_owned))
+            .take(NAMED_ISSUES)
+            .collect(),
+        usage: outcome.usage,
+        before: turn.revision,
+        after: engine.revision(),
+        show,
+        end,
+    }
+}
+
+/// A collection's path as a person reads it: "layout.tracks" is "Tracks".
+fn collection(path: &str) -> String {
+    let last = path.rsplit('.').next().unwrap_or(path);
+    let words = match last {
+        "instances" => "Parts".to_owned(),
+        "items" if path.starts_with("drafts") => "Drafts".to_owned(),
+        other => other.replace('_', " "),
+    };
+    capital(&words)
+}
+
+fn capital(text: &str) -> String {
+    let mut chars = text.chars();
+    chars
+        .next()
+        .map(|first| first.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_turn_is_labelled_by_its_message() {
+        assert_eq!(
+            turn_label("Add two vias\nnear U1"),
+            "AI assistant: Add two vias"
+        );
+        let long = "x".repeat(LABEL_CHARS + 5);
+        assert_eq!(
+            turn_label(&long),
+            format!("AI assistant: {}…", "x".repeat(LABEL_CHARS))
+        );
+    }
+
+    #[test]
+    fn collections_read_as_words() {
+        assert_eq!(collection("vias"), "Vias");
+        assert_eq!(collection("instances"), "Parts");
+        assert_eq!(collection("drafts.items"), "Drafts");
+        assert_eq!(collection("part_dimensions"), "Part dimensions");
+    }
+}
+
+#[cfg(test)]
+#[path = "assistant_tests.rs"]
+mod assistant_tests;

@@ -349,6 +349,7 @@ impl App {
             AppCommand::Messages => self.messages_open = true,
             AppCommand::Settings => self.settings_window.toggle(),
             AppCommand::ConnectAssistants => self.live.toggle_window(),
+            AppCommand::ToggleAssistant => self.toggle_assistant(ctx),
             AppCommand::LibrarySources => self.sources.open_card(),
             AppCommand::ClearRecent => self.sources.forget_projects(None),
             AppCommand::Workspace(workspace) => self.enter(workspace),

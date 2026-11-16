@@ -578,6 +578,75 @@ fn findings_delta(old: &[Finding], new: &[Finding]) -> Value {
     out
 }
 
+/// What changed between two documents, as a compact reply says it:
+/// `changes` (the ids added, changed and removed per collection, and the
+/// fields), `names` (by the id's JSON text, the name a person reads for each
+/// listed id that has one: a designator, a net's or a sheet's name) and
+/// `findings` (design findings new and resolved, and how many are open).
+/// The chat's turn summary card reads it (`docs/assistant-panel.md` §7).
+pub fn difference(
+    before: &Document,
+    after: &Document,
+    settings: &layout::CheckSettings,
+) -> Result<Value> {
+    let mut changes = Changes::default();
+    let mut names = Map::new();
+    let mut out = Map::new();
+    if !Arc::ptr_eq(&before.project, &after.project) {
+        let old = Baseline::of(&before.project, settings)?;
+        let new = Baseline::of(&after.project, settings)?;
+        changes.diff("", &old.value, &new.value);
+        name_listed(&old.value, &changes.removed, &mut names);
+        name_listed(&new.value, &changes.added, &mut names);
+        name_listed(&new.value, &changes.changed, &mut names);
+        out.insert(
+            "findings".to_owned(),
+            findings_delta(&old.findings, &new.findings),
+        );
+    }
+    if !Arc::ptr_eq(&before.drafts, &after.drafts) {
+        let old = json!({"drafts": serde_json::to_value(before.drafts.as_ref())?});
+        let new = json!({"drafts": serde_json::to_value(after.drafts.as_ref())?});
+        let mut delta = Changes::default();
+        delta.diff("drafts", &old["drafts"], &new["drafts"]);
+        name_listed(&old, &delta.removed, &mut names);
+        name_listed(&new, &delta.added, &mut names);
+        name_listed(&new, &delta.changed, &mut names);
+        changes.merge(delta);
+    }
+    if let Some(changes) = changes.into_value() {
+        out.insert("changes".to_owned(), changes);
+    }
+    if !names.is_empty() {
+        out.insert("names".to_owned(), Value::Object(names));
+    }
+    Ok(Value::Object(out))
+}
+
+/// The person's name of each id in `lists` (collection path to ids) that
+/// `root` holds and that has one.
+fn name_listed(root: &Value, lists: &BTreeMap<String, Vec<Value>>, names: &mut Map<String, Value>) {
+    for (path, ids) in lists {
+        let Some(Value::Array(items)) = path.split('.').try_fold(root, |value, key| value.get(key))
+        else {
+            continue;
+        };
+        for id in ids {
+            let name = items
+                .iter()
+                .find(|item| identity(item).as_ref() == Some(id))
+                .and_then(|item| {
+                    ["designator", "name"]
+                        .iter()
+                        .find_map(|key| item.get(*key).and_then(Value::as_str))
+                });
+            if let Some(name) = name.filter(|n| !n.is_empty()) {
+                names.insert(id.to_string(), json!(name));
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 pub(super) mod tests_support {
     use super::*;
@@ -590,5 +659,13 @@ pub(super) mod tests_support {
 
     pub fn delta(old: &[Finding], new: &[Finding]) -> Value {
         findings_delta(old, new)
+    }
+
+    pub fn name_listed(
+        root: &Value,
+        lists: &BTreeMap<String, Vec<Value>>,
+        names: &mut Map<String, Value>,
+    ) {
+        super::name_listed(root, lists, names);
     }
 }

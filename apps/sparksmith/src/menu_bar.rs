@@ -126,6 +126,7 @@ pub const VIEW: &[Entry] = &[
     Sep,
     C(BROWSER, "Show Browser"),
     C(ISSUES, "Show Issues"),
+    C(ASSISTANT, "Show Assistant"),
     Sep,
     C("app.palette", "Command Palette…"),
 ];
@@ -182,6 +183,7 @@ pub const IN_WINDOW_FILE: &[Entry] = &[
 
 const BROWSER: &str = "view.browser";
 const ISSUES: &str = "view.issues";
+const ASSISTANT: &str = "assistant.toggle";
 
 /// What the menus depend on, read once per frame.
 pub struct Now<'a> {
@@ -194,6 +196,7 @@ pub struct Now<'a> {
     pub recording: bool,
     pub browser_shown: bool,
     pub issues_shown: bool,
+    pub assistant_shown: bool,
     /// Whether the command can run now (the dispatcher's availability).
     pub available: &'a dyn Fn(&Command) -> bool,
 }
@@ -315,6 +318,7 @@ fn label(now: &Now, id: &str, label: &str) -> String {
     match id {
         BROWSER => toggle(now.browser_shown, "Browser"),
         ISSUES => toggle(now.issues_shown, "Issues"),
+        ASSISTANT => toggle(now.assistant_shown, "Assistant"),
         _ if label.is_empty() => now
             .registry
             .get(id)

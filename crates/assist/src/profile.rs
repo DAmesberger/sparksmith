@@ -424,9 +424,20 @@ pub struct ReachProfile {
     pub modules: BTreeMap<String, Class>,
     #[serde(default)]
     pub reach: Vec<Reach>,
+    /// Ask-class entries that run without asking under this profile (the
+    /// chat publishes drafts into the open project without a card; a
+    /// publish to a library still asks). Each must be an Ask-class entry.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unasked: Vec<String>,
 }
 
 impl ReachProfile {
+    /// Whether the gate's question about `entry` is answered Allow without
+    /// asking the person.
+    pub fn unasked(&self, entry: &str) -> bool {
+        self.unasked.iter().any(|e| e == entry)
+    }
+
     /// Read and check a reach profile's text; `origin` names it in errors.
     pub fn parse(text: &str, origin: &str) -> Result<Self> {
         let profile: Self = serde_json::from_str(text)
@@ -453,6 +464,14 @@ impl ReachProfile {
             if *class == Class::Never {
                 return Err(Error::Config(format!(
                     "reach profile {origin}: {module} up to never: only a person reaches never"
+                )));
+            }
+        }
+        for entry in &profile.unasked {
+            let class = sparksmith_automation::session::metadata::find(entry).map(|e| e.class);
+            if class != Some(Class::Ask) {
+                return Err(Error::Config(format!(
+                    "reach profile {origin}: unasked {entry:?} is not an entry of the ask class"
                 )));
             }
         }

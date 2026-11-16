@@ -439,6 +439,8 @@ impl Runner<'_, '_> {
             session: self.context.session,
             grant: &self.context.grant,
             turn: self.context.turn.as_deref(),
+            window: None,
+            asker: &mut sparksmith_automation::front::NoOne,
         }
         .run(call);
         if reply["ok"] == true {

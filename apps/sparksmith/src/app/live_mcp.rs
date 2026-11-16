@@ -192,7 +192,10 @@ fn folders(project: Option<&std::path::Path>) -> Vec<PathBuf> {
 
 impl App {
     /// Why the person holds the window now, so an assistant's change waits.
-    fn live_busy(&mut self, ctx: &egui::Context) -> Option<String> {
+    /// Typing in the assistant's composer is not working in the window
+    /// (`docs/assistant-panel.md` §4.2).
+    pub(super) fn live_busy(&mut self, ctx: &egui::Context) -> Option<String> {
+        let composing = ctx.memory(|m| m.has_focus(crate::assistant::Assistant::composer_id()));
         let reviewing = self.part.review_mut().is_open()
             || self.schematic.review_mut().is_open()
             || self.pcb.review_mut().is_open();
@@ -200,7 +203,7 @@ impl App {
             "The window is waiting for the person to answer another assistant request"
         } else if self.files.busy() || self.files.prompting() {
             "A file operation or file question is open in the window"
-        } else if ctx.egui_wants_keyboard_input() {
+        } else if ctx.egui_wants_keyboard_input() && !composing {
             "The person is editing text in a field"
         } else if ctx.dragged_id().is_some() || ctx.input(|i| i.pointer.any_down()) {
             "The person is dragging in the window"
