@@ -21,8 +21,10 @@ Design for founder approval, 16 November 2026, written against `main` at 0123559
 | 7 | Category as a standard field | Yes | §3.3 |
 | 8 | Which generic parts are complete | **No hard-coded list.** A generator declares, as data, which outputs are parts (pins with an explicit pin mapping) | §3.2 |
 | 9 | One ranked list | Yes; groups only when browsing | §1.2 |
-| 10 | Chat entry | The chat **can do everything**: plan, make parts, place, route, check and export ("Claude Code for PCBs"), with the same verbs as every caller, under the person's permissions and review gates. No narrow `view.arm_place` | §5 |
+| 10 | Chat entry | The chat **can do everything**: plan, make parts, place, route, check and export ("Claude Code for PCBs"), with the same verbs as every caller, under the person's permissions and review gates. No narrow `view.arm_place`. No turn limits | §5 |
 | 11 | Online sources | Yes. Define the registry format; it will be hosted at `parts.sparkforge.io` | §6 (sketch; follow-up design) |
+
+- **Founder answers, round 2** (16 November 2026), recorded as decisions in §9: categories are not stored in projects; categories merge by id with name mapping; every pin has a name or the typed no-connect mode, and strict types replace strings wherever automation reasons; publishing a part into the project never asks, publishing to a library asks with harness-style choices; no turn limits, context compaction instead; a default designator prefix per category; modules are nothing special; the registry ships result and recipe; registry accounts, upload and moderation are designed in R0.
 
 Run 11 (`docs/e2e-run-11.md`, not yet on `main`) adds three concrete problems this design must fix:
 
@@ -39,6 +41,7 @@ Used in this sense throughout this document, the UI text and the chat's method t
 | **Package** | The physical body: its footprint (pads and lands, courtyard, silkscreen), its 3D model and its lead or terminal geometry. It has terminals numbered by position, and **no electrical meaning**: no pin names, no functions | A part; anything with a pin name |
 | **Part** (component) | A package plus a symbol, pins and their functions, the **explicit pin mapping** (which pin lands on which pad), fields and values, and an MPN where one is chosen. Only parts are placed | A package with a name |
 | **Electrical pad** | An SMD or plated-through pad that lands a terminal (the footprint rule `footprint.terminal_required`) | Mechanical pads, non-plated holes, fiducials |
+| **Pin** | A part's terminal, in one of two typed **modes**: **named** (an electrical terminal with a name and its functions) or **no-connect** (the device declares it not connected). Never a name that happens to read "NC" (§3.6) | A free text label |
 | **Mechanical part** | A part whose package has **no electrical pad** (a mounting hole, a fiducial, a standoff, a heatsink). It has no pins and is placed like any part, usually board-only | A package with electrical pads whose pins were left out |
 | **Generic part** | A part a generator declares whole from its parameters (a chip resistor, a pin header): its pins and mapping come from the generator. Its value is per instance | Any generator preset |
 | **Make** | Create a part (from a datasheet, a package, a generator's part output, or by hand) | Place |
@@ -114,14 +117,14 @@ Categories are **data** (§3.1), never code. The shipped set, from the [research
 
 Every template list ends in the shared fallback `{MPN}`, then `{Name}` (§3.5).
 
-**Modules** are no longer a top-level category: "module" is a **package style** (`style:module`), so a radio module is under RF and wireless, a power module under Power and a sensor board under Sensors, each findable with `style:module`. This follows the function-first rule of the distributors' trees and of IEC 81346-2 (see the appendix).
+**Modules are nothing special** (founder, 16 November): neither a category nor a package style. A module is a part filed by its function, like any other: a radio module under RF and wireless, a power module under Power, a sensor board under Sensors. Its package style is its pad form, as for any package: a castellated module is `style:castellated`, an LGA module `style:lga`. This follows the function-first rule of the distributors' trees and of IEC 81346-2 (see the appendix).
 
 **Filters**, all of them typed terms of the one query language:
 
 | Filter | Term | Source of the values |
 |---|---|---|
 | Category | `cat:passives`, `cat:passives/resistors`, `cat:other` | The part's Category field (§3.3). For generic outputs, the generator's declaration |
-| Package style | `style:sot`, `style:qfn`, `style:module` | The package's `style` facet (§3.2) |
+| Package style | `style:sot`, `style:qfn`, `style:castellated` | The package's `style` facet (§3.2) |
 | Pins | `pins:5`, `pins>=8` | `PackageShape` (built) |
 | Pitch | `pitch:0.5mm` | `PackageShape` (built) |
 | Body | `body<=3x3` | `PackageShape` (built) |
@@ -192,7 +195,7 @@ It is **not** reachable from the Place palette, the PCB editor or the Open page.
 ### 2.2 Search, categories and the single form
 
 - **Rows** are packages, not generators. Each preset is one row ("SOT-23-5", "SOIC-8 3.9 mm", "QFN-16 3×3 0.5 EP 1.7"). Each generator also gets one "Custom <style>…" row that starts from its defaults. The rows come from `library.generators` (the shelf), packages from library folders and packages the project already holds, with their source chip, so "a SOT-23-5 we already have" ranks first.
-- **Categories** are package styles, from data (§3.1): Chip, Molded, SOT/SC, SOIC/SOP/TSSOP, QFN/DFN, QFP, BGA/LGA, Through-hole (axial, radial, DIP, TO), Headers, Modules, Mechanical. Styles merge from the same sources as part categories and also end in **Other**.
+- **Categories** are package styles, from data (§3.1): Chip, Molded, SOT/SC, SOIC/SOP/TSSOP, QFN/DFN, QFP, BGA/LGA, Castellated, Through-hole (axial, radial, DIP, TO), Headers, Mechanical. Styles merge from the same sources as part categories and also end in **Other**.
 - **Filters**: `pins`, `pitch`, `body`, `style`, `lands:cited|estimated` (the preset's `basis`), `pads:mechanical` (packages without electrical pads) and source. Aliases ("SOT-753", "SC-74A") and JEDEC names are searched as text.
 - **The form** is the existing `generator_form` (built from the description, with groups, units, rules, refusals on their fields and G15 standing). From the New part dialog it has **Name** and **Pins** as its first section (§2.3). From Change package… it has neither.
 - **Scale**: there are no chips per generator. The list is virtualised (`kit/list`) and bounded per query (ROWS 200, then "Show all"). Categories and facets come from data, so 50 generators or a plugin folder add rows and facet values without any UI change.
@@ -209,7 +212,7 @@ library.new_part { name, manufacturer?, category, package, pins?, fields?, place
 
 It makes the package when it is new (package scope, keyed as a package, §3.4), drafts the component, symbol and binding with the pins and their explicit pad mapping (through the built pinout import), sets Category and fields, creates the `Part` record when a manufacturer is given, and publishes, as one undo step. Refusals change nothing and name the field:
 
-- **Every electrical pad must be landed by a pin, and every pin must have a name** ("NC" is a name). "Pad 4 of SOT-23-5 has no pin: name it, or NC" (`part.pad_unmapped`), "Pin 3 has no name" (`part.pin_unnamed`).
+- **Every electrical pad must be landed by a pin, and every pin is named or no-connect** (§3.6). "Pad 4 of SOT-23-5 has no pin: name it, or mark it no-connect" (`part.pad_unmapped`), "Pin 3 has no name: name it, or mark it no-connect" (`part.pin_unnamed`).
 - **No pins** is accepted only when the package has **no electrical pad**: the result is a mechanical part (§0). Otherwise: "SOT-23-5 has 5 electrical pads: a part needs their pins. To place a hole or fiducial, choose a package with mechanical pads only" (`part.pins_required`).
 
 | Field | Notes |
@@ -218,8 +221,9 @@ It makes the package when it is new (package scope, keyed as a package, §3.4), 
 | Manufacturer | Optional. With Name it creates the `Part` record |
 | Category | Choice from the merged category data, guessed from the package style (SOT → Discretes or ICs by pin count; mechanical-only pads → Board features). **New category…** at the end of the list (§3.1) |
 | Package | "SOT-23-5 · 5 pins · 2.9 × 1.6 mm" and **Choose…**, which opens the picker |
-| Pins | A multiline paste: "1 IN, 2 GND, 3 EN, 4 NC, 5 OUT", or two columns pasted from a datasheet table, parsed by the built pinout import with the preview's row errors on the field. Hidden for a package without electrical pads. "5 of 5 pads mapped" below |
+| Pins | A multiline paste: "1 IN, 2 GND, 3 EN, 4 NC, 5 OUT", or two columns pasted from a datasheet table, parsed by the built pinout import with the preview's row errors on the field. "NC", "N/C" and "not connected" in a paste are read into the no-connect mode here, at the input, and nowhere else (§3.6). Hidden for a package without electrical pads. "5 of 5 pads mapped" below |
 | Value | The category's value field, when it declares one |
+| Prefix | The designator prefix, from the category's `designator_prefix` when it has one (§3.1), else typed |
 
 **Create and place** (primary) sends `library.new_part` with `place: true`, which arms placement in the window after the publish. **Create and open** makes drafts only and opens the part editor; the drafts publish under the same rules. Run 11's five-step path becomes one dialog, with the pins from one paste.
 
@@ -237,10 +241,10 @@ It makes the package when it is new (package scope, keyed as a package, §3.4), 
                   "value_template": ["{Resistance}"]},
                  {"id": "capacitors", "title": "Capacitors", "value_field": "Capacitance",
                   "value_template": ["{Capacitance} {Rated voltage}", "{Capacitance}"]}]},
-   {"id": "audio", "title": "Audio", "same_as": ["sound"]}],
+   {"id": "audio", "title": "Audio", "same_as": ["sound"], "designator_prefix": "LS"}],
  "styles": [
    {"id": "sot", "title": "SOT / SC", "aliases": ["sot-23", "sc-70", "sc-74"]},
-   {"id": "module", "title": "Modules", "aliases": ["castellated"]}]}
+   {"id": "castellated", "title": "Castellated", "aliases": ["castellated holes", "half-hole"]}]}
 ```
 
 **Sources**, merged in this order (highest precedence first):
@@ -255,7 +259,8 @@ It makes the package when it is new (package scope, keyed as a package, §3.4), 
 **Merging rules** (one pure function in the core, `catalog::categories::merge`, with its tests):
 
 - A category is identified by its **path of ids** (`passives/resistors`). Ids are lower-case ASCII slugs, at most 32 bytes, at most 3 levels deep. Equal paths from different sources **are the same category**: their children are united. That is what keeps `cat:` comparable across sources.
-- **Titles, order, value field and value template** come from the highest-precedence source that sets them. A lower source's different value is kept out and listed in Settings › Library › Categories as "overridden by <source>".
+- **`designator_prefix`** (optional, an uppercase ASCII prefix of 1 to 4 letters: R, C, L, Y, F, D, Q, U, J, SW, K, H, TP, FID) is the New part dialog's default prefix for a part in that category (nearest category first, then its parents). It is only a default: the part's own prefix is what is stored.
+- **Titles, order, value field, value template and designator prefix** come from the highest-precedence source that sets them. A lower source's different value is kept out and listed in Settings › Library › Categories as "overridden by <source>".
 - **`same_as`** maps another id onto this one ("sound" → "audio"), so two folders that named the same idea differently merge without either being edited. A part whose Category names the alias is listed under the target.
 - **Refused, naming the source and the ids**: a duplicate id among siblings within one file, a cycle through `same_as`, an id that is `same_as` two targets, a `value_field` or template placeholder that names no standard field, and any redefinition of `other`. A refused file contributes nothing; the others still load.
 - **Other** (`other`) is shipped, always present, and cannot be removed, renamed or given children. Every part with no Category, or with a Category no loaded source defines, is listed there; its unknown id stays visible ("Other · audio-transducers"), so nothing is dropped and the field is never rewritten.
@@ -324,9 +329,44 @@ The value a person sees on the schematic, in the BOM's Value column, in Properti
 - **The value to-do.** A part whose category declares a `value_field` and an instance where it is empty is a to-do: "R3 has no resistance". The template then falls through to `{Name}`, so the sheet never shows a blank.
 - **BOM columns.** Value is the shown value; Package is the shared package lineage's name. Run 11's BOM then reads "10 kΩ", "100 nF 16 V", "TLV75733PDBVR", "Red" and "Pin header 1×4 2.54 mm".
 
+### 3.6 Pin modes, and strict types instead of strings
+
+**"NC" is a mode, not a name** (founder, 16 November). Every pin is in exactly one typed mode, so checks and automation reason over the type and never over spelling:
+
+```rust
+pub struct Terminal { pub id: TerminalId, pub mode: PinMode }
+pub enum PinMode {
+    Named { name: PinName, functions: TerminalFunctions },  // PinName: non-empty, trimmed, ≤ 64 bytes
+    NoConnect,                                             // device-declared not connected
+    Reserved { name: Option<PinName> },                    // reserved by the device ("RSVD")
+}
+```
+
+- **Today** the core already has the type half: `TerminalClass::{Electrical, DeviceNc, Reserved}` (`library/component.rs`), and the part editor's pins table reads "nc", "n/c" and "not connected" into `DeviceNc` (`part_editor/pins_table.rs`). What is left is that `Terminal::name` is a required free `String` for every class, so an NC pin carries a name "NC", an electrical pin may be named "NC", and an empty name is representable. K5 folds the name into the mode as above (a stored-type edit of format version 1, examples regenerated; §4), so a named pin cannot lack a name and a no-connect pin cannot pretend to have one. The UI shows "NC" for the mode; that text is display only.
+- **Checks use the mode.** `part.pad_unmapped` and `part.pin_unnamed` (§2.3) cannot fire on a no-connect pin; `instance.no_connect_connected` covers wiring a device NC as it covers the instance's own no-connect marks; the ERC never sees a no-connect pin as an unconnected input. A named pin called "NC" is refused on publish (`part.pin_named_nc`: "Pin 4 is named NC: mark it no-connect"), so the two can never be confused.
+- **Automation uses the mode.** `library.search`'s `pins:` counts and the chat's pinout reads report `mode: "no_connect"`; the datasheet workflow's pinout document already states the class per pin, and its reviewer row (`assist::pins::PinRow::class`, a string today) becomes the enum.
+- **Strings are read into types only at the input boundary** (a paste, an import, the command wire), with a refusal naming the text that did not parse.
+
+**Audit: free strings that should be strict types.** The same rule, applied to this design and to today's code (a quick grep on `main`, not exhaustive). Each is a recommendation for the slice named, or its own decision where none is.
+
+| Where | Today | Recommendation |
+|---|---|---|
+| Category path (this design, §3.1, §3.3) | `"passives/resistors"` as text in a standard field and in `PartOutput.category` | A `CategoryPath` type (1 to 3 slugs, checked on read) in K0; the field stores it, the query's `cat:` parses into it |
+| Package style (this design, `PartOffer.style`, `Preset.style`) | `Option<String>` | A `StyleId` slug type in K0, validated against the merged style data on load |
+| Value template placeholders (§3.5) | `{Resistance}` names in text | Parsed on load into standard-field ids (already checked on load); stored parsed, so a renamed field title cannot break a template |
+| Designator prefix | `prefix: String` in `session/mechanical_parts.rs` and `session/shipped_parts.rs` | A `DesignatorPrefix` type (uppercase ASCII letters) shared with `categories.json` (K0) |
+| Generic part specs | `GenericSpec::Chip { imperial: String }`, `Diode { package: String }` (`library/component.rs`), `PackageRow::imperial` | An `ImperialSize` enum or checked code type from the generator's declared sizes (K2) |
+| Peripheral kind | `Resource::kind`, `PinoutPeripheral::kind`, `FirmwarePeripheral::kind`: free text ("uart", "spi"), documented as never used for compatibility | Keep as text for search, but add a closed `PeripheralKind` enum with `Other(text)` once firmware templates key on it (own decision) |
+| Pin reviewer rows | `assist::pins::PinRow::class: String` ("electrical", "device_nc", "reserved") | The `PinMode` tag (K5) |
+| Interface datum role | `SidecarDatum::role: String` (`board.top`, `hole`, `part.frame`, …) | A `DatumRole` enum; the sidecar is a published contract, so its tokens stay the same on the wire (own decision) |
+| Fabrication drawing kind | `fabrication/drawing.rs` `kind: String` | An enum of the drawing kinds the writer emits (own decision) |
+| Quantity unit | `quantity.rs` `unit: Option<String>` beside typed quantities | Check whether any caller branches on it; if so, the unit enum the typed fields already use |
+
+Not on the list: human text (labels, titles, names shown to people, sources and citations) and finding codes, which are a closed set checked by `issues::KNOWN_CODES`.
+
 ## 4. No migration: the rule holds by construction
 
-Founder Q6: nobody uses the software yet, so there is **no migration** for projects that hold package-only components, and none is planned. Until the first release the file format is version 1 with no backward compatibility: a stored-type change edits version 1 (no `FILE_VERSION` raise, no named feature, no converter step) and the examples are regenerated. Nothing in this design changes a stored type: Category and Value template are standard-field records, and the rest is commands and shipped data.
+Founder Q6: nobody uses the software yet, so there is **no migration** for projects that hold package-only components, and none is planned. Until the first release the file format is version 1 with no backward compatibility: a stored-type change edits version 1 (no `FILE_VERSION` raise, no named feature, no converter step) and the examples are regenerated. The one stored-type edit is the pin mode (§3.6), an edit of version 1's terminal record. Category and Value template are standard-field records, and the rest is commands and shipped data.
 
 - **The rule holds by construction.** Component scope accepts only declared part outputs, whose mappings the host checks (§3.2). `library.new_part` refuses unmapped electrical pads (§2.3). The publish check gains the same rule for hand-drawn parts (`component.pad_unmapped`), so no path can produce a placeable component that leaves an electrical pad without a pin.
 - **Examples are regenerated** with the new generators and `library.new_part` (`examples/esp32-s31-devboard`, `examples/tlv75733-*` and the parity records), and their golden files are blessed again.
@@ -345,9 +385,9 @@ The chat is "Claude Code for PCBs": asked to build a board, it plans, searches a
 
 What bounds it is the person's, never the design's:
 
-- **Permissions** (Settings › AI › Permissions): document edits are allowed inside a reviewable turn (approved 5 November); files, network (the registry), publishing to folders and exports are Ask-class and show an Allow/Deny card; keys, endpoints and grants are Never-class.
+- **Permissions** (Settings › AI › Permissions), per kind of action, as a coding agent's harness asks: each kind is Ask every time, Ask once a session, Always allow or Deny, and an ask offers **Allow once**, **Allow for this session**, **Always allow** and **Deny**. Document edits run inside a reviewable turn; **publishing a part into the project never asks**; **publishing to a library asks** (unless the person chose otherwise); files and network (the registry) ask. Keys, endpoints and grants are Never-class.
 - **Review gates**: every preview is a dry run with an impact card bound to its revision; a workflow's `confirm` gates; each message is one labelled undo step with **Undo turn**.
-- **Limits** per turn (requests, tokens, time, edits, calls) from Settings › AI.
+- **No turn limits.** A whole board may be one message. A long conversation stays within the model's context through compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)); the person's optional run limits and a workflow's budget are the only stops besides Stop.
 
 ### 5.2 Part search and part making, end to end in the chat
 
@@ -360,13 +400,13 @@ What bounds it is the person's, never the design's:
 | A registry part (later) | `query library.search … src:online`, then `act library.import_preview`, then `apply library.import` | The import preview card (licence, provenance, closure); network and import are Ask-class |
 | No part found, datasheet available | `show assist.offer {workflow: "datasheet-to-component", inputs: {part}}`: the workflow runs in the chat with its own controls (pick, pinout impact card, result) | The workflow card, then its controls |
 | No part found, pins known | `apply library.new_part {name, category, package: {generate: …}, pins}`; it chose the package from `query library.generators` | The new part's tool row; refusals name the unmapped pad |
-| No category fits | `apply library.category_define {scope: user, …}` (settings-class: an Ask card) | Allow/Deny card |
+| No category fits | `apply library.category_define {scope: user, …}` (settings-class: an ask) | The ask card |
 | Place, wire and lay out | `component.place`, `schematic.connect`, the board and routing entries; geometry through the [compact encoding](../llm-geometry.md) | Each message one undo step |
-| Check and export | `checks.*`, then `fab.*` (Ask-class: files) | The checks' findings; an Allow/Deny card before files are written |
+| Check and export | `checks.*`, then `fab.*` (files: asks) | The checks' findings; the ask card before files are written, unless allowed for the session or always |
 
-- **Making stays reviewable.** Parts the chat makes are published only through the same publish rules as the dialog (§2.3); the datasheet workflow keeps its `reach` (it cannot publish, as approved), and its result card shows **Publish** and **Place** as the person's actions. Outside a workflow, `library.new_part` publishes as part of the turn and is undone with it.
+- **Making stays reviewable.** Parts the chat makes pass the same publish checks as the dialog's (§2.3). Publishing into the project never asks: `library.new_part` publishes as part of the turn and is undone with it. Publishing to a library asks. The datasheet workflow keeps its `reach` (it cannot publish, as approved), and its result card shows **Publish** and **Place** as the person's actions.
 - **The palette's make rows open the chat** with the workflow card; the chat's result card's **Place** arms placement in the window. Both are the person's clicks, not catalog entries.
-- **A board-sized request spans several turns.** One message is one turn; a build runs as the model's plan of turns (parts, schematic, placement, routing, checks, export), each its own undo step within the per-turn limits. See open question 5.
+- **A board-sized request needs no special handling.** One message is one turn and one undo step, however many edits it takes; the model works through its plan (parts, schematic, placement, routing, checks, export) and reports each stage in the chat. There is no cap on a turn's edits or calls.
 
 ### 5.3 What changes in the assistant plan
 
@@ -400,7 +440,7 @@ An **entry** is one immutable, versioned unit: `publisher/name@version` (version
 - `GET /v1/index` → the current index snapshot id and its shard list; shards are content-addressed, so a client fetches only what changed.
 - `GET /v1/search?q=&cat=&style=&pins=&pitch=&body=&field…&page=` → rows in the `SourceCatalog` entry shape (identity, facets, level, digest), plus facet counts. The query terms are the same as §1.3's, so the client sends its own query unchanged.
 - `GET /v1/entries/{publisher}/{name}/{version}` → the manifest. `GET /v1/blobs/{sha256}` → content, immutable and cacheable.
-- Read-only and anonymous. Publishing to the registry is outside this design.
+- Search and fetch are read-only and anonymous. Publisher accounts, upload and moderation are designed in R0.
 
 ### 6.3 Trust
 
@@ -484,7 +524,7 @@ Space replaces the list with the preview, and Space again goes back. The categor
 │ BGA / LGA  11  │  Custom SOT…                         │ └───────┘ └───────┘ └───────┘               │
 │ Through-h. 26  │   tabbed v2 · start from defaults    │  [footprint preview]   [3D preview]           │
 │ Headers    40  │                                      │  Lands are cited: TI SBVS... p.32             │
-│ Modules     3  │                                      │  5 of 5 pads mapped                           │
+│ Castellated 3  │                                      │  5 of 5 pads mapped                           │
 │ Mechanical  6  │                                      │                                               │
 │ FILTERS pins 5 │                                      │                       [Cancel] [Use package]  │
 ├────────────────┴──────────────────────────────────────┴───────────────────────────────────────────────┤
@@ -536,12 +576,12 @@ At most five agents at once. Every slice ships with its tests. UI evidence is ga
 
 | # | Slice | Delivers | Hours | Needs |
 |---|---|---|---|---|
-| **K0** | Contract | `categories.json` format 1 (with `same_as`, `value_template`, styles, `other`) and its load check; the shipped category and style data (§1.3); ABI optional fields `PartOffer.style`, `parts`, `categories`, `Preset.style`, `tags` (ABI minor); the Category and Value template standard-field records; `generic-families.json` `category`; GLOSSARY **Part** entry; the nine generators' declarations, versions raised, modules rebuilt | 7–10 | — |
+| **K0** | Contract | `categories.json` format 1 (with `same_as`, `value_template`, styles, `other`) and its load check; the shipped category and style data (§1.3); ABI optional fields `PartOffer.style`, `parts`, `categories`, `Preset.style`, `tags` (ABI minor); the Category and Value template standard-field records; `designator_prefix` and the `CategoryPath`, `StyleId` and `DesignatorPrefix` types (§3.6); `generic-families.json` `category`; GLOSSARY **Part** entry; the nine generators' declarations, versions raised, modules rebuilt | 7–10 | — |
 | **K1** | Core search and categories | `Source::{Shipped, Generic}`; `cat:`, `style:`, `src:`, `is:` terms; source precedence in ranking; generic outputs only from `parts`; `catalog::categories::merge` over shipped, plugin, folder and user sources with its refusals; Other for unknown ids; category facets; `library.search` reports `make` offers; catalog module version bump | 9–13 | K0 |
 | **K2** | Generation rules, values, BOM | Host check of a `PartOutput` (pads, pins, binding) and `generator.not_a_part`; package half keyed and named as a package, shared across parts; `value_field` on generic parts with the parsed value on the instance; value-template rendering (schematic value text, Properties, BOM Value, search rows) with its load check; the value to-do; BOM Package column | 9–13 | K0 |
 | **K3** | Place palette | The list on `kit/list`, category rail and chips from merged data, facet panel, rows, preview pane and Space, make rows (chat offer, New part). "From generator" removed. PCB `P` with mechanical and board-only first | 10–14 | K1 |
 | **K4** | Package picker | `package_picker.rs` replaces `generator_gallery.rs`: styles, filters, rows from presets, customs and held packages, the one form with the Name/Pins section. Entry from Change package…, From generator, start page. Gallery deleted | 8–12 | K0 |
-| **K5** | New part | `library.new_part` (package scope, pins through the pinout import, explicit mapping, mechanical parts without pins, one undo step, refusals) and the publish check `component.pad_unmapped`; the docked dialog with Create and place / Create and open; library module version bump | 8–11 | K2, K4 |
+| **K5** | New part | The pin mode (§3.6: `PinMode` replaces `Terminal::name` plus `TerminalClass`, `part.pin_named_nc`, `PinRow::class` as the enum); `library.new_part` (package scope, pins through the pinout import, explicit mapping, mechanical parts without pins, one undo step, refusals) and the publish check `component.pad_unmapped`; the docked dialog with Create and place / Create and open; library module version bump | 10–14 | K2, K4 |
 | **K6** | Categories as the person's data | `library.categories`, `library.category_define` (user file, writable folder), folder manifest `categories`, New category… in the dialog, Settings › Library › Categories (tree, sources, overridden values, per-category value template) | 5–7 | K1 |
 | **K7** | Chat end to end | The datasheet workflow 1.1 as data (package scope plus `library.new_part`, Choose another package… in `pick`, Publish and Place on the result card); `method.md` "Finding and making parts"; a recorded chat run (replayed in tests) that searches, places generic passives, makes an LDO through `new_part` and places it, with no paid calls | 5–8 | K3, K5, assistant W2 |
 | **K8** | Examples regenerated | `examples/` boards and parts made again with the new generators and `new_part`; golden and parity records blessed; package-only components gone from every example | 2–4 | K2, K5 |
@@ -558,19 +598,19 @@ At most five agents at once. Every slice ships with its tests. UI evidence is ga
 | 4 | K8, K7 (once assistant W2 is merged) |
 | 5 | K9 |
 
-**Total** about **66–96 agent hours** for K0–K9, plus **4–6 h** for the registry design (R0); building the registry itself is estimated in R0. The critical path is K0 → K2 → K5 → K7 → K9, about 32–46 h, with K7 waiting on the assistant plan's W2. Run 11's three findings are closed after round 3, with K2 and K5 doing the work.
+**Total** about **68–99 agent hours** for K0–K9, plus **4–6 h** for the registry design (R0); building the registry itself is estimated in R0. The critical path is K0 → K2 → K5 → K7 → K9, about 34–49 h, with K7 waiting on the assistant plan's W2. Run 11's three findings are closed after round 3, with K2 and K5 doing the work.
 
-## 9. Open questions, each with a recommendation
+## 9. Decisions (founder, 16 November 2026)
 
-1. **Does a project carry the category definitions its parts use?** A project from someone with their own top-level "Audio" opens elsewhere with "Other · audio". *Recommendation: no, not now.* The Category field keeps the path id, which is never rewritten; Other shows it readably. Carrying definitions would add project data (an edit of format version 1) and a second copy of each definition, for a cosmetic gain. Revisit when the registry ships categories.
-2. **Category ids from different sources: merge by id, or namespace them?** *Recommendation: merge by plain id* (equal paths are one category), with `same_as` for differing names and titles from the highest-precedence source. Namespaced ids (`team:audio`) would keep `cat:` filters from meaning the same thing across folders, which is why categories exist.
-3. **Can a part be created with pins named only by number?** *Recommendation: no.* Every electrical pad needs a named pin (NC counts) before publishing or placing. Create and open still allows unfinished drafts. A part with pins "1…5" is what the founder ruled out.
-4. **Should publishing a part the chat made ask the person?** *Recommendation: inside a turn, no*: `library.new_part` publishes as part of the turn, which is one undo step, and the datasheet workflow keeps its approved rule (no publish inside the workflow; Publish on the result card). Publishing to a library folder stays Ask-class.
-5. **Board-sized requests and per-turn limits.** "Build me a USB-C LDO board" exceeds 60 edits in one turn. *Recommendation:* the model works as a plan of turns (one per stage), each its own undo step within the limits, and continues on its own within a total-run budget the person sets in Settings › AI (default: ask before each stage). A "build a board" workflow as data comes later, as its own decision.
-6. **Should category data carry a default designator prefix** (R, C, L, Y, F, D, Q, U, J, SW, K, H, TP, FID)? *Recommendation: yes, as an optional field in `categories.json`*, used only as the New part dialog's default. Today the prefix is typed by hand or guessed, which is a hidden rule.
-7. **Modules: top-level category or package style?** *Recommendation: style* (`style:module`), with the part under its function (RF, Power, Sensors). Distributors file modules by function; a function-first tree avoids a part belonging in two places.
-8. **Registry parts made by a generator: ship the result, the recipe, or both?** *Recommendation: both.* The client accepts the result by digest and signature, and, when the generator is approved, regenerates from the recipe and compares result hashes, showing "verified by generator" in the import preview.
-9. **Registry hosting and identity.** `parts.sparkforge.io` serves read-only, anonymous search and blobs. *Recommendation:* publisher accounts, upload and moderation are designed in R0 and need the founder's decision before any service is built or published.
+1. **Categories are not stored in projects.** The Category field keeps the path id, which is never rewritten; a part whose category the opening computer does not define is listed as "Other · audio".
+2. **Categories merge by id, with name mapping.** Equal paths are one category; `same_as` maps a differing id onto it; titles come from the highest-precedence source (§3.1).
+3. **Every pin has a name or the no-connect mode.** A part with pins "1…5" is refused; no-connect is a typed mode, not the name "NC" (§3.6). Create and open still allows unfinished drafts. Strict types replace strings wherever automation reasons (the audit in §3.6).
+4. **Publishing.** Into the project never asks: `library.new_part` publishes as part of the turn, one undo step. To a library asks, with Allow once, Allow for this session, Always allow and Deny. The datasheet workflow publishes nothing itself; Publish is on its result card.
+5. **No turn limits.** A board-sized request may be one message; long conversations stay within the context by compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)).
+6. **Default designator prefix per category**, optional, in `categories.json` (§3.1), used as the New part dialog's default.
+7. **Modules are nothing special.** Neither a category nor a package style: a module is a part filed by its function, and its package style is its pad form (castellated, LGA) (§1.3).
+8. **The registry ships result and recipe.** The client accepts the result by digest and signature and, when the generator is approved, regenerates from the recipe and compares result hashes ("verified by generator" in the import preview).
+9. **Registry accounts, upload and moderation are designed in R0**, with read-only anonymous search and blobs at `parts.sparkforge.io`.
 
 ## Appendix: category research
 
@@ -592,9 +632,9 @@ The founder asked whether six top-level categories (passives, discretes, ICs, co
 | Connectors, cables | Connectors, Interconnects; Cables, Wires; Cable Assemblies | Connectors; Wire and Cable | Connectors; Cables | IEEE 315 J, P, W; IEC 81346-2 "connecting" class | Connectors (no cables) | **Connectors and cables** |
 | Heatsinks, fasteners, enclosures | Fans, Thermal Management; Hardware, Fasteners; Boxes, Enclosures | Thermal Management; Enclosures | Hardware, Fasteners; Thermal | IEEE 315 H (hardware) | Mechanical | Mechanical and hardware |
 | Test points, fiducials, mounting holes | Test and Measurement (test points) | — | — | Common designators TP, FID, H, MH | Mechanical | **Board features** |
-| Modules | Spread by function (RF transceiver modules under RF; power modules under power supplies) | Spread by function | Spread by function | IEEE 315 A (assemblies) | Modules | Package style `module` |
+| Modules | Spread by function (RF transceiver modules under RF; power modules under power supplies) | Spread by function | Spread by function | IEEE 315 A (assemblies) | Modules | Filed by function; package style by pad form (castellated, LGA) |
 | Tools, test equipment, office, industrial, kits | Many | Many | Many | — | — | Not board parts; left out. Any source may add them; Other catches the rest |
 
-**Result.** The six missed **electromechanical** parts (switches, relays, buzzers, motors) entirely, and folded six families that every distributor keeps at the top level into other headings: **magnetics, frequency control, circuit protection, optoelectronics, sensors and RF**. Power and batteries, and cables, also had no home. Distributors and IEC 81346-2 classify by function; the shipped set therefore files by function, keeps "module" as a package style, and adds a **Board features** category for the pin-less and one-pin board items (fiducials, mounting holes, test points, net ties). The recommended shipped top-level set is the fifteen of §1.3: **Passives, Magnetics, Frequency control, Protection, Discretes, Optoelectronics, ICs, Sensors, RF and wireless, Power, Electromechanical, Connectors and cables, Mechanical and hardware, Board features, Other.**
+**Result.** The six missed **electromechanical** parts (switches, relays, buzzers, motors) entirely, and folded six families that every distributor keeps at the top level into other headings: **magnetics, frequency control, circuit protection, optoelectronics, sensors and RF**. Power and batteries, and cables, also had no home. Distributors and IEC 81346-2 classify by function; the shipped set therefore files by function, modules included, and adds a **Board features** category for the pin-less and one-pin board items (fiducials, mounting holes, test points, net ties). The recommended shipped top-level set is the fifteen of §1.3: **Passives, Magnetics, Frequency control, Protection, Discretes, Optoelectronics, ICs, Sensors, RF and wireless, Power, Electromechanical, Connectors and cables, Mechanical and hardware, Board features, Other.**
 
 Sources (top-level names only, read 16 November 2026): [Digi-Key product index](https://www.digikey.com/en/products); [LCSC products](https://www.lcsc.com/products) (its catalog page lists a largely Digi-Key-aligned tree); [Mouser products](https://www.mouser.com/products) (Passive Components, Semiconductors, Optoelectronics, Electromechanical, Circuit Protection, Sensors, Connectors, Wire and Cable, Thermal Management, Power); [reference designator class letters](https://en.wikipedia.org/wiki/Reference_designator) (IEEE 315, ASME Y14.44); [IEC 81346-2:2019](https://webstore.iec.ch/en/publication/29181) (classification of objects by inherent function).

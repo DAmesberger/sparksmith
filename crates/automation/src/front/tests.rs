@@ -714,71 +714,12 @@ fn a_turn_undoes_as_one_step_with_its_label() -> Fallible {
         call("project.turn_end", json!({"turn": turn}), None),
     )
     .map_err(failed)?;
-    assert_eq!(ended["changes"], 7, "{ended}");
+    assert_eq!(ended["turn"], turn.as_str(), "{ended}");
     let revision = session.engine().revision();
     let Err(error) = turn_via(&mut session, agent, &turn, 12.0) else {
         return Err("an ended turn ran".into());
     };
     assert!(format!("{error}").contains("turn.unknown"), "{error}");
     assert_eq!(session.engine().revision(), revision);
-    Ok(())
-}
-
-/// A turn past its change or call limit stops with `gate.turn_limit` and
-/// changes nothing; the limit is the lower of the turn's and the grant's.
-#[test]
-fn a_turn_past_its_limit_stops() -> Fallible {
-    let mut session = Session::new(Engine::demo()?);
-    let grant = Grant::local_agent([]);
-    let agent = Principal::LocalAgent { grant: &grant };
-    let turn = begin(
-        &mut session,
-        agent,
-        json!({"label": "Two edits", "changes": 2}),
-    )?;
-    turn_via(&mut session, agent, &turn, 1.0)?;
-    turn_via(&mut session, agent, &turn, 2.0)?;
-    let revision = session.engine().revision();
-    let before = session.engine().to_file();
-    let Err(error) = turn_via(&mut session, agent, &turn, 3.0) else {
-        return Err("a third edit ran".into());
-    };
-    assert!(format!("{error}").contains("gate.turn_limit"), "{error}");
-    assert_eq!(session.engine().to_file(), before);
-    assert_eq!(session.engine().revision(), revision);
-    // Reads still run, within the call limit.
-    run(
-        &mut session,
-        agent,
-        in_turn(&turn, call("project.inspect", json!({}), None)),
-    )
-    .map_err(failed)?;
-
-    // The grant's call limit holds whatever the turn asks.
-    let mut tight = Grant::local_agent([]);
-    tight.limits.calls = 2;
-    let agent = Principal::LocalAgent { grant: &tight };
-    let turn = begin(
-        &mut session,
-        agent,
-        json!({"label": "Three calls", "calls": 100}),
-    )?;
-    for _ in 0..2 {
-        run(
-            &mut session,
-            agent,
-            in_turn(&turn, call("project.inspect", json!({}), None)),
-        )
-        .map_err(failed)?;
-    }
-    let Err(error) = run(
-        &mut session,
-        agent,
-        in_turn(&turn, call("project.inspect", json!({}), None)),
-    ) else {
-        return Err("a third call ran".into());
-    };
-    assert_eq!(error.code, "gate.turn_limit", "{error:?}");
-    assert!(error.instead.is_some(), "{error:?}");
     Ok(())
 }

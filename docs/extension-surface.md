@@ -181,10 +181,10 @@ The prompts are the host's workflows, generated from their data (W1, [workflow f
 
 A **turn** is a labelled group of calls whose edits undo as one step: one message of the built-in agent, one workflow run, or a group a remote agent opens.
 
-- **Open and close.** `project.turn_begin {label, changes?, calls?}` answers `{turn: "t_…", label, calls, changes}`; `project.turn_end {turn}` closes it and answers what it did. Both are reads of the `project` module (6.2): they change no document. A session holds at most 16 open turns; opening another closes the oldest.
+- **Open and close.** `project.turn_begin {label}` answers `{turn: "t_…", label}`; `project.turn_end {turn}` closes it and answers the same. Both are reads of the `project` module (since 6.2): they change no document. A session holds at most 16 open turns; opening another closes the oldest.
 - **A call in a turn** names it in the envelope's `turn`. An unknown or ended turn is refused (`turn.unknown`) and nothing runs.
 - **One undo step.** The front door opens the engine's undo group around each of the turn's calls (`Engine::begin_group(label)`, then `continue_group(label, mark)` for the next call, `end_group()` after it). Every step the turn makes joins its one step, which keeps the document from before the turn as its undo target and reads the label (`Step::label`, shown by `Step::line`). A step anyone else makes in between (the person's own edit, an undo or redo) splits it: the turn's next edit makes a new step under the same label, so undo order stays what happened. A dry run keeps nothing and joins nothing.
-- **Limits.** `Grant::limits` (`Limits {changes, calls}`, default 60 and 400 as in Settings › AI) bound every turn of a principal with a grant; `turn_begin`'s `changes` and `calls` can only lower them. Every call carrying the turn counts as a call, gate refusals included; a call that takes `expected_revision` is a change when it moves the revision. A call past either limit stops with `gate.turn_limit`, changing nothing. The person and the operator have no grant and no limits, but their turns group the same way. A call without a turn is not counted.
+- **No limits.** A turn is not counted or capped: it groups undo and nothing else. The person and the operator group their turns the same way.
 
 Not yet (S4b): jobs, `Progress` and events. MCP's verbs do not carry `turn` yet; the live channel's `surface.call` does, since it sends the envelope whole.
 

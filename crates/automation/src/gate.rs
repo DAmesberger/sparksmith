@@ -77,9 +77,6 @@ pub struct Grant {
     /// The highest class each module may be used at, by module id.
     #[serde(default = "every_module")]
     pub modules: BTreeMap<String, Class>,
-    /// How much one turn may do ([`crate::session::turns`]).
-    #[serde(default)]
-    pub limits: Limits,
     /// What outside the document an entry may declare it touches (`files`,
     /// `settings`, `network`, `window`, `runtime`): an entry declaring
     /// anything else is refused (`gate.reach`), and the verbs' `find` does
@@ -87,25 +84,6 @@ pub struct Grant {
     /// A path a call names is the folders' to judge, not this.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reach: Option<Vec<Reach>>,
-}
-
-/// What one turn of a principal may do: calls that change the document,
-/// and calls of any kind. A turn past either stops with `gate.turn_limit`.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Limits {
-    pub changes: u32,
-    pub calls: u32,
-}
-
-impl Default for Limits {
-    /// The defaults of Settings › AI (`docs/assistant-panel.md` §6.3):
-    /// 60 changes, below the undo depth, and 400 calls.
-    fn default() -> Self {
-        Self {
-            changes: 60,
-            calls: 400,
-        }
-    }
 }
 
 /// Every declared module up to Ask: what a run's flags allow.
@@ -130,7 +108,6 @@ impl Grant {
             mode,
             folders: folders.into_iter().collect(),
             modules: every_module(),
-            limits: Limits::default(),
             reach: None,
         }
     }
@@ -154,7 +131,6 @@ impl Grant {
             mode: Mode::AutoAllowEdits,
             folders: folders.into_iter().collect(),
             modules,
-            limits: Limits::default(),
             reach: None,
         }
     }
@@ -183,7 +159,7 @@ impl Grant {
 
     /// This grant held to `ceiling` as well: each module at the lower of
     /// the two classes, and a module `ceiling` leaves out out of reach (a
-    /// workflow's `reach`). Mode, folders, reach and limits stay.
+    /// workflow's `reach`). Mode, folders and reach stay.
     #[must_use]
     pub fn narrowed(mut self, ceiling: &BTreeMap<String, Class>) -> Self {
         self.modules = std::mem::take(&mut self.modules)

@@ -485,7 +485,6 @@ impl ReachProfile {
             mode: Mode::AutoAllowEdits,
             folders: Vec::new(),
             modules: self.modules.clone(),
-            limits: Default::default(),
             reach: Some(self.reach.clone()),
         }
     }
