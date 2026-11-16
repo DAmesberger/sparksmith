@@ -178,7 +178,7 @@ impl Wants {
 }
 
 /// A `$ref` followed into `root`'s definitions.
-fn deref<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
+pub(super) fn deref<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
     let mut schema = schema;
     for _ in 0..8 {
         let Some(name) = schema

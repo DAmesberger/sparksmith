@@ -418,6 +418,16 @@ pub enum Query {
     /// pairs also report uncoupled length, and every length group its window.
     #[serde(rename = "layout.length_report")]
     LengthReport {},
+    /// The placed parts' connected pads: designator, pad number, net and
+    /// board position (mm), where `layout.route` starts and ends. Narrowed
+    /// to `designators` and to `net` when given.
+    #[serde(rename = "layout.pads")]
+    Pads {
+        #[serde(default)]
+        designators: Vec<String>,
+        #[serde(default)]
+        net: Option<Id>,
+    },
     /// What `layout.route_step` would do, without applying it. The edit set
     /// (the step's copper and every shoved track and via), where the head ends
     /// and why it stopped short.
@@ -496,6 +506,7 @@ declare_entries!(Query in project {
     ImpedanceTable "impedance.table" Read "Impedance table" [in rules, link],
     SuggestPairs "diff_pair.suggest" Read "Suggest differential pairs" [in layout, link],
     LengthReport "layout.length_report" Read "Length report" [in layout, link],
+    Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1)],
     RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link],
     TrackDragPreview "layout.track_drag_preview" Read "Preview a track drag" [in layout, link],
     TunePreview "layout.tune_preview" Read "Preview length tuning" [in layout, link],
@@ -542,6 +553,7 @@ pub enum QueryResult {
     ImpedanceTable(Box<layout::impedance::ImpedanceTable>),
     PairSuggestions(Vec<rules::signal::PairSuggestion>),
     LengthReport(Box<layout::length::LengthReport>),
+    Pads(Vec<layout::PadRow>),
     TunePreview(Box<layout::meander::TunePreview>),
     RoutePreview(Box<layout::router::RoutePlan>),
     Preflight(Box<fabrication::PreflightReport>),
@@ -2189,6 +2201,11 @@ impl Engine {
                     project.nets.iter().map(|n| (n.id, n.name.as_str())),
                 )))
             }
+            Query::Pads { designators, net } => Ok(QueryResult::Pads(layout::pad_rows(
+                &self.document.project,
+                &designators,
+                net,
+            )?)),
             Query::LengthReport {} => Ok(QueryResult::LengthReport(Box::new(
                 layout::length::report_with(&self.document.project, &self.copper_graph()),
             ))),

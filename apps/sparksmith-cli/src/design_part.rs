@@ -283,6 +283,7 @@ fn print_event(event: Event) {
         // Lines, not pieces as they arrive.
         Event::TextDelta(_)
         | Event::ReasoningDelta(_)
+        | Event::Condensed(_)
         | Event::Usage(_)
         | Event::Call {
             state: CallState::Writing | CallState::Running { .. },

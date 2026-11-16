@@ -14,6 +14,7 @@
 //! refusal of the gate, so the model reads their code.
 use super::catalog::{self, Unreachable};
 use super::desk::{self, Calls};
+use super::fields::{self, Sent};
 use super::lenient;
 use super::outcome;
 use crate::front::Call;
@@ -626,6 +627,14 @@ fn run(desk: &mut dyn Calls, kind: Kind, args: RunArgs) -> Value {
     if let Err(why) = lenient::read_params(&entry.name, &mut params) {
         return desk::failure("arguments.invalid", why);
     }
+    let how = if kind == Kind::Query {
+        Sent::Query
+    } else {
+        Sent::Act
+    };
+    if let Err(why) = fields::check(&entry.name, &params, how) {
+        return desk::failure("arguments.invalid", why);
+    }
     let sent = envelope(&entry.name, params, args.expected_revision);
     if OPENS.contains(&entry.name.as_str()) {
         if args.project.is_some() {
@@ -654,7 +663,7 @@ fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
     }
     let mut operations = Vec::with_capacity(count);
     let mut alone = None;
-    for step in args.operations {
+    for (n, step) in (1..).zip(args.operations) {
         if let Some(failure) = too_long("op", &step.op, MAX_NAME) {
             return failure;
         }
@@ -665,6 +674,14 @@ fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
         let mut params = Value::Object(step.params);
         if let Err(why) = lenient::read_params(&entry.name, &mut params) {
             return desk::failure("arguments.invalid", why);
+        }
+        if let Err(why) = fields::check(&entry.name, &params, Sent::Apply) {
+            let which = if count > 1 {
+                format!(" (operation {n} of {count})")
+            } else {
+                String::new()
+            };
+            return desk::failure("arguments.invalid", format!("{why}{which}"));
         }
         match discovery::call(&entry.name, params.clone()) {
             Some(Typed::Operation(operation)) => operations.push(operation),
@@ -705,6 +722,9 @@ fn show(desk: &mut dyn Calls, args: &ShowArgs) -> Value {
     };
     let mut params = Value::Object(args.params.clone());
     if let Err(why) = lenient::read_params(&entry.name, &mut params) {
+        return desk::failure("arguments.invalid", why);
+    }
+    if let Err(why) = fields::check(&entry.name, &params, Sent::Show) {
         return desk::failure("arguments.invalid", why);
     }
     let sent = envelope(&entry.name, params, None);
