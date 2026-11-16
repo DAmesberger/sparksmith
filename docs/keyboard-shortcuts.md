@@ -48,7 +48,7 @@ On macOS the menu bar (`native_menu.rs`, built with muda as in Solidcraft) repla
 | Sparksmith | About · Settings… ⌘, · Services · Hide, Hide Others, Show All · Quit ⌘Q |
 | File | New Project ⌘N · Open… ⌘O · Save ⌘S · Save As… ⇧⌘S · Export to Solidcraft… ⇧⌘E · Export Schematic PDF… · Library Sources… · Close Window ⌘W |
 | Edit | Undo ⌘Z · Redo ⇧⌘Z · Cut ⌘X · Copy ⌘C · Paste ⌘V · Delete · Select All ⌘A |
-| View | Component ⌘1 · Schematic ⌘2 · PCB ⌘3 · Switch Layout and 3D · Fit View · Show/Hide Browser ⌘B · Show/Hide Issues ⇧⌘I · Command Palette… ⌘P |
+| View | Component ⌘1 · Schematic ⌘2 · PCB ⌘3 · Switch Layout and 3D · Fit View · Show/Hide Browser ⌘B · Show/Hide Issues ⇧⌘I · Show/Hide Assistant ⇧⌘A · Command Palette… ⌘P |
 | Window | Minimize, Zoom, Enter Full Screen · Messages… ⇧⌘M · Bring All to Front |
 | Help | Keyboard Shortcuts ⌘/ |
 
@@ -113,7 +113,7 @@ The keymap is original. Letters are mnemonic where they can be: R route, V via, 
 
 | Context | Keys |
 | --- | --- |
-| Everywhere | ⌘P / ⇧⌘P palette · ⌘/ shortcuts · ⌘, settings · ⌘Q quit · ⌘W close window · ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as · ⇧⌘E export to Solidcraft · ⌘Z undo · ⇧⌘Z redo · ⌘B Browser · ⇧⌘I Issues · ⇧⌘M Messages · ⌘1 / ⌘2 / ⌘3 Component / Schematic / PCB · ⇧⌘U update PCB from schematic (opens PCB) · F fit view |
+| Everywhere | ⌘P / ⇧⌘P palette · ⌘/ shortcuts · ⌘, settings · ⌘Q quit · ⌘W close window · ⌘N new · ⌘O open · ⌘S save · ⇧⌘S save as · ⇧⌘E export to Solidcraft · ⌘Z undo · ⇧⌘Z redo · ⌘B Browser · ⇧⌘I Issues · ⇧⌘A Assistant · ⇧⌘M Messages · ⌘1 / ⌘2 / ⌘3 Component / Schematic / PCB · ⇧⌘U update PCB from schematic (opens PCB) · F fit view |
 | Component | ⇧⌘N new component · ⇧⌘O open component · ⌘[ / ⌘] previous / next component |
 | Symbol tab | L line · ⇧L polyline · R rectangle · C circle · A arc · ⇧P polygon · ⇧T text · ⇧F field · N pin · ⌘R rotate · ⇧X mirror · ⌘D duplicate · Delete or Backspace · ⇧R repeat tool · Enter finish · Esc cancel |
 | Footprint tab | N pad · ⇧N pad row · H drill · ⇧H slot · L / A / C / R draw · D dimension · X construction ↔ silkscreen · Space turn pad · ⇧R repeat · Delete or Backspace · Esc |

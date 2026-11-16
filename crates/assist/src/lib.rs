@@ -27,6 +27,7 @@
 //!
 //! This crate sits above `sparksmith-automation` and below the apps
 //! (`cargo xtask layers`); the HTTP client stays out of the core.
+pub mod chat;
 pub mod documents;
 pub mod legacy;
 pub mod model;

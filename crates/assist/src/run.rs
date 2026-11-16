@@ -17,6 +17,7 @@ use crate::verbs::{self, Agent};
 use crate::{Error, Event, Goal, Outcome, Result, Stop, legacy};
 use serde_json::{Value, json};
 use sparksmith_automation::session::assist::Documents;
+use sparksmith_automation::front::NoOne;
 use sparksmith_automation::{Grant, Session};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -147,13 +148,13 @@ fn dispatch_tool_call(
                 return (name.to_owned(), reply(json!({"refused": why}), true, None));
             }
             None => {
-                let refused = agent(context).verb(name, input.clone());
+                let refused = agent(context, &mut NoOne).verb(name, input.clone());
                 return (name.to_owned(), reply(refused["error"].clone(), true, None));
             }
         }
     };
     let before = context.session.engine().revision();
-    let answer = agent(context).verb(verb, arguments.clone());
+    let answer = agent(context, &mut NoOne).verb(verb, arguments.clone());
     let after = context.session.engine().revision();
     if answer["ok"] != true {
         return (label, reply(answer["error"].clone(), true, None));
@@ -200,11 +201,14 @@ fn dispatch_tool_call(
     (label, reply(result, false, step))
 }
 
-fn agent<'a>(context: &'a mut ToolContext<'_>) -> Agent<'a> {
+fn agent<'a>(context: &'a mut ToolContext<'_>, asker: &'a mut NoOne) -> Agent<'a> {
     Agent {
         session: context.session,
         grant: &context.grant,
         reach: context.reach,
+        window: None,
+        turn: None,
+        asker,
     }
 }
 
@@ -275,7 +279,7 @@ const MAX_EXACT_INTEGER: u64 = 1 << 53;
 /// that parses JSON numbers as doubles) can't round them: a model once
 /// copied a preview's 19-digit base as a float and was refused 54 times.
 /// The verbs read such text back as the integer.
-fn integers_as_text(value: &mut Value) {
+pub(crate) fn integers_as_text(value: &mut Value) {
     match value {
         Value::Number(n) => {
             let big = n.as_u64().is_some_and(|v| v > MAX_EXACT_INTEGER)

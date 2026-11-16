@@ -315,6 +315,7 @@ mod tests {
             recording: false,
             browser_shown: true,
             issues_shown: false,
+            assistant_shown: false,
             available: &|_| true,
         };
         for (_, entries) in BAR {

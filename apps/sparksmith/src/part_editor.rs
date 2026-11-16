@@ -1516,6 +1516,12 @@ impl PartEditor {
         &mut self.update
     }
 
+    /// The Create from datasheet form, whose model the assistant chat uses
+    /// until Settings › AI holds it.
+    pub fn datasheet_assist(&mut self) -> &mut datasheet_assist::DatasheetAssist {
+        &mut self.assist
+    }
+
     /// A subject that fills the slot without a Properties card: `Some`
     /// with the operation it sends this frame, `None` for the card.
     fn slot_subject(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Option<Operation>> {

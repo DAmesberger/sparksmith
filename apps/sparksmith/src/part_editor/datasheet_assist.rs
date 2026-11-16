@@ -324,6 +324,38 @@ impl DatasheetAssist {
         }
     }
 
+    /// The model and connection this form sets, for the assistant chat
+    /// until Settings › AI holds them (`docs/assistant-panel.md`, slice C3):
+    /// the same declarations, with a key already in the keychain for the
+    /// endpoint, else for Anthropic `ANTHROPIC_API_KEY`. A key typed here
+    /// reaches the keychain only when a run starts.
+    pub fn chat_connection(&mut self) -> Result<(ModelProfile, Connection), String> {
+        if self.provider == Provider::Anthropic && self.model.trim().is_empty() {
+            self.model = self.default_model();
+        }
+        let endpoint = Endpoint::parse(&self.endpoint).map_err(|e| e.to_string())?;
+        let profile = match self.provider {
+            Provider::Anthropic => ModelProfile::anthropic(self.model.trim()),
+            Provider::OpenAiCompatible => {
+                let context = self.context_tokens.round() as u64;
+                let mut p = ModelProfile::openai_compatible(self.model.trim(), context);
+                p.capabilities.vision = self.vision;
+                p.capabilities.native_pdf = self.native_pdf;
+                p
+            }
+        };
+        profile.check().map_err(|e| e.to_string())?;
+        let key = if endpoint.check_key_allowed().is_ok() && keys::keychain_has(&endpoint) {
+            KeySource::Keychain
+        } else {
+            match self.provider {
+                Provider::Anthropic => KeySource::Env("ANTHROPIC_API_KEY".into()),
+                Provider::OpenAiCompatible => KeySource::None,
+            }
+        };
+        Ok((profile, Connection { endpoint, key }))
+    }
+
     /// The run the form describes, or why it can't start.
     fn plan(&self) -> Result<Plan, String> {
         let endpoint = Endpoint::parse(&self.endpoint).map_err(|e| e.to_string())?;

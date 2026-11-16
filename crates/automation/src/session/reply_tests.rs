@@ -441,3 +441,26 @@ mod diff {
         assert_eq!(out["open"], 100);
     }
 }
+
+/// The chat's turn summary: what changed between the document before a
+/// turn and after it, by id with the names a person reads, and the
+/// findings that came and went.
+#[test]
+fn the_difference_between_two_documents_names_what_changed() -> TestResult {
+    let mut session = demo()?;
+    let before = session.engine().document().clone();
+    let settings = *session.engine().check_settings();
+    assert_eq!(difference(&before, &before, &settings)?, json!({}));
+    let reply = ok(session.respond(Caller::Operator, add_via(&session, [1.0, 1.0])))?;
+    let via = reply["outcome"]["via"].clone();
+    let after = session.engine().document().clone();
+    let summary = difference(&before, &after, &settings)?;
+    assert_eq!(summary["changes"]["added"]["vias"], json!([via]), "{summary}");
+    assert!(summary["findings"]["open"].is_u64(), "{summary}");
+    let mut names = serde_json::Map::new();
+    let root = json!({"layout": {"parts": [{"id": 7, "designator": "U1"}, {"id": 8}]}});
+    let listed = std::collections::BTreeMap::from([("layout.parts".to_owned(), vec![json!(7), json!(8)])]);
+    super::reply::tests_support::name_listed(&root, &listed, &mut names);
+    assert_eq!(Value::Object(names), json!({"7": "U1"}));
+    Ok(())
+}

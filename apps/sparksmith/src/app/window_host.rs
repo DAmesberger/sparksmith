@@ -67,6 +67,23 @@ impl App {
         (window, &mut self.engine, &mut self.live)
     }
 
+    /// The window with `busy`, the engine and the assistant chat, for
+    /// running the chat's call on the window's engine.
+    pub(super) fn window_for_assistant(
+        &mut self,
+        busy: Option<String>,
+    ) -> (Window<'_>, &mut Engine, &mut crate::assistant::Assistant) {
+        let window = Window {
+            workspace: &mut self.workspace,
+            part: &mut self.part,
+            schematic: &mut self.schematic,
+            pcb: &mut self.pcb,
+            toasts: &mut self.toasts,
+            busy,
+        };
+        (window, &mut self.engine, &mut self.assistant)
+    }
+
     /// The shown workspace's selection, as issue objects.
     pub(super) fn selection(&self) -> Vec<ObjectRef> {
         selection(

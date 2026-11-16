@@ -6,7 +6,9 @@
 //! session in process: each becomes one [`Call`] through the front door as
 //! [`Principal::LocalAgent`] under the run's grant. No MCP framing, client
 //! or socket sits between the agent and the engine. Nobody can be asked
-//! during a run, so what needs a person is refused (`gate.needs_person`).
+//! during a headless run, so what needs a person is refused
+//! (`gate.needs_person`); the chat asks through its own [`Asker`], runs the
+//! calls in the window and joins each to its message's turn.
 //!
 //! The run's reach profile ([`ReachProfile`]) narrows the catalog: its
 //! modules are the grant the gate holds, and an entry that declares it
@@ -18,7 +20,7 @@
 use crate::model::ToolSpec;
 use crate::profile::ReachProfile;
 use serde_json::{Value, json};
-use sparksmith_automation::front::{self, Call, CallCx, NoOne, Surface};
+use sparksmith_automation::front::{self, Asker, Call, CallCx, Surface, WindowHost};
 use sparksmith_automation::mcp::desk::Calls;
 use sparksmith_automation::mcp::tools as mcp;
 use sparksmith_automation::session::metadata::{self, EntryMeta};
@@ -45,6 +47,14 @@ pub struct Agent<'a> {
     pub session: &'a mut Session,
     pub grant: &'a Grant,
     pub reach: &'a ReachProfile,
+    /// The window the calls run in (the chat's), or none (a headless run,
+    /// where `view` entries answer `host.unavailable`).
+    pub window: Option<&'a mut dyn WindowHost>,
+    /// The turn every call joins (the chat's message), if any.
+    pub turn: Option<&'a str>,
+    /// How a person is asked: the chat's Ask card, or [`front::NoOne`] in a
+    /// headless run, where what needs a person is refused.
+    pub asker: &'a mut dyn Asker,
 }
 
 impl Agent<'_> {
@@ -63,7 +73,7 @@ impl Agent<'_> {
         })
     }
 
-    fn run(&mut self, call: Call) -> Value {
+    fn run(&mut self, mut call: Call) -> Value {
         let declared = metadata::declared_reach(&call.entry);
         if let Some(entry) = metadata::find(&call.entry)
             && !self.reach.allows(declared)
@@ -83,11 +93,17 @@ impl Agent<'_> {
                 ),
             );
         }
+        if let Some(turn) = self.turn {
+            call.turn = Some(turn.to_owned());
+        }
         let cx = CallCx {
             who: Principal::LocalAgent { grant: self.grant },
-            asker: &mut NoOne,
+            asker: &mut *self.asker,
             verbose: false,
-            window: None,
+            window: match &mut self.window {
+                Some(window) => Some(&mut **window),
+                None => None,
+            },
         };
         front::envelope(self.session.call(cx, call))
     }
@@ -111,7 +127,7 @@ impl Calls for Agent<'_> {
     }
 
     fn is_live(&self) -> bool {
-        false
+        self.window.is_some()
     }
 
     fn reaches(&self, entry: &EntryMeta) -> bool {

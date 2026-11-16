@@ -1,0 +1,335 @@
+//! The assistant chat in the whole app, driven through its accessibility
+//! tree on a scripted model (no network): the column opens by its key and
+//! its application-bar button, folds, docks left and keeps the canvas room
+//! at 1024×640; a message runs one turn whose tool rows, reply and summary
+//! card show, whose edits undo as one step from the card; an Ask waits for
+//! the person; Stop ends a turn.
+use super::super::ax_harness::{Ax, Fallible};
+use crate::assistant::worker::ChatModel;
+use crate::assistant::{Item, RowState, State};
+use crate::shell::Workspace;
+use egui::accesskit::Role;
+use serde_json::{Value, json};
+use sparksmith_assist::model::{
+    ModelBackend, ModelProfile, ModelReply, ModelRequest, Part, StopReason,
+};
+use sparksmith_assist::usage::Usage;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+
+const SMALL: egui::Vec2 = egui::vec2(1024.0, 640.0);
+const LARGE: egui::Vec2 = egui::vec2(1920.0, 1080.0);
+
+/// A model answering from a script shared with the test.
+struct Script(Arc<Mutex<VecDeque<ModelReply>>>);
+
+impl ModelBackend for Script {
+    fn label(&self) -> String {
+        "script".into()
+    }
+    fn send(&mut self, _: &ModelRequest<'_>) -> sparksmith_assist::Result<ModelReply> {
+        self.0
+            .lock()
+            .ok()
+            .and_then(|mut replies| replies.pop_front())
+            .ok_or_else(|| sparksmith_assist::Error::Protocol("the script ended".into()))
+    }
+    fn count_prompt_tokens(
+        &mut self,
+        _: &ModelRequest<'_>,
+    ) -> sparksmith_assist::Result<Option<u64>> {
+        Ok(None)
+    }
+}
+
+fn reply(content: Vec<Part>, stop: StopReason) -> ModelReply {
+    ModelReply {
+        model: "scripted".into(),
+        content,
+        stop,
+        usage: Usage {
+            input_tokens: 1_000,
+            output_tokens: 50,
+            ..Usage::default()
+        },
+        usage_estimated: false,
+    }
+}
+
+fn text(text: &str) -> ModelReply {
+    reply(vec![Part::text(text)], StopReason::EndTurn)
+}
+
+fn tool(verb: &str, input: Value) -> ModelReply {
+    reply(
+        vec![Part::ToolCall {
+            id: "c1".into(),
+            name: verb.into(),
+            input,
+            malformed: None,
+            replay: None,
+        }],
+        StopReason::ToolCalls,
+    )
+}
+
+/// The app on the demo board at `window`, its chat on `replies`.
+fn chat(window: egui::Vec2, replies: Vec<ModelReply>) -> Fallible<Ax> {
+    let mut ax = Ax::new(Workspace::Pcb)?;
+    ax.window = window;
+    let script = Arc::new(Mutex::new(VecDeque::from(replies)));
+    ax.app.assistant.model = Some(ChatModel {
+        profile: ModelProfile::openai_compatible("scripted", 32_768),
+        connect: Arc::new(move || Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)),
+    });
+    ax.settle();
+    Ok(ax)
+}
+
+fn shift_command() -> egui::Modifiers {
+    egui::Modifiers::COMMAND | egui::Modifiers::SHIFT
+}
+
+/// Open the column with ⇧⌘A, type `message` into the composer (focused on
+/// opening) and press Enter.
+fn send(ax: &mut Ax, message: &str) -> Fallible {
+    if !ax.app.assistant.shown() {
+        ax.key_with(egui::Key::A, shift_command());
+    }
+    // A click on a card's button took the keyboard: back to the composer.
+    ax.ctx
+        .memory_mut(|m| m.request_focus(crate::assistant::Assistant::composer_id()));
+    ax.frame(vec![]);
+    ax.type_text(message);
+    ax.key(egui::Key::Enter);
+    Ok(())
+}
+
+fn idle(ax: &Ax) -> bool {
+    !ax.app.assistant.conversation.state.busy() && ax.app.assistant.job.is_none()
+}
+
+/// A via on the demo board's first net at `x`, as `apply` takes it.
+fn add_via(ax: &Ax, x: f64) -> Value {
+    let net = ax.app.engine.project().nets.first().map_or(0, |n| n.id);
+    json!({"expected_revision": ax.app.engine.revision(), "operations": [{"op": "layout.add_via",
+        "params": {"via": {"net": net, "position": [x, 1.0], "drill": 0.3, "diameter": 0.6,
+        "span": "through", "tented": true}}}]})
+}
+
+#[test]
+fn the_column_opens_by_key_and_button_folds_docks_and_leaves_the_canvas_room() -> Fallible {
+    let mut ax = chat(SMALL, vec![])?;
+    assert!(!ax.has(Role::Button, "Close the assistant"));
+    ax.key_with(egui::Key::A, shift_command());
+    let close = ax.find(Role::Button, "Close the assistant")?;
+    // Docked at the right edge, within its widths.
+    assert!(close.rect.right() > SMALL.x - 60.0, "{:?}", close.rect);
+    let send = ax.find(Role::Button, "Send")?;
+    assert!(send.disabled, "nothing typed yet");
+    let left = send.rect.left().min(close.rect.left());
+    assert!(SMALL.x - left <= crate::assistant::MAX_WIDTH, "{}", ax.dump());
+    // The canvas keeps the rest: the application bar and ribbon still show.
+    ax.find_prefix(Role::Button, "Command palette")?;
+    // Fold to the strip, and back.
+    ax.button("Fold the assistant")?;
+    let unfold = ax.find(Role::Button, "Unfold the assistant")?;
+    assert!(unfold.rect.left() > SMALL.x - crate::assistant::STRIP_WIDTH - 1.0);
+    assert!(!ax.has(Role::Button, "Send"));
+    ax.button("Unfold the assistant")?;
+    // Dock left.
+    ax.button("Dock the assistant left")?;
+    ax.settle();
+    let close = ax.find(Role::Button, "Close the assistant")?;
+    assert!(close.rect.right() < crate::assistant::MAX_WIDTH + 20.0, "{:?}", close.rect);
+    ax.button("Close the assistant")?;
+    assert!(!ax.has(Role::Button, "Send"));
+    // The application bar's button opens it again; so does the key.
+    ax.click(Role::Button, "Show Assistant (⇧⌘A)")
+        .or_else(|_| ax.click(Role::Button, "Show Assistant (Ctrl+Shift+A)"))?;
+    ax.find(Role::Button, "Send")?;
+    ax.key_with(egui::Key::A, shift_command());
+    assert!(!ax.has(Role::Button, "Send"));
+    Ok(())
+}
+
+#[test]
+fn a_message_is_one_turn_whose_edits_undo_as_one_step_from_its_card() -> Fallible {
+    let mut ax = chat(LARGE, vec![])?;
+    let start = ax.app.engine.revision();
+    let vias = ax.app.engine.project().vias.len();
+    let first = add_via(&ax, 1.0);
+    let mut second = add_via(&ax, 2.0);
+    second["expected_revision"] = json!(start + 1);
+    if let Some(model) = &ax.app.assistant.model {
+        let script = vec![
+            tool("query", json!({"name": "view.context"})),
+            tool("apply", first),
+            tool("apply", second),
+            text("Added **two vias** on the first net."),
+        ];
+        let script = Arc::new(Mutex::new(VecDeque::from(script)));
+        ax.app.assistant.model = Some(ChatModel {
+            profile: model.profile.clone(),
+            connect: Arc::new(move || {
+                Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)
+            }),
+        });
+    }
+    send(&mut ax, "Add two vias")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    let assistant = &ax.app.assistant;
+    assert_eq!(assistant.conversation.state, State::Idle, "{:?}", assistant.conversation.items);
+    let items = &assistant.conversation.items;
+    assert!(matches!(&items[0], Item::You { text, context, .. }
+        if text == "Add two vias" && context.starts_with("PCB · Layout")));
+    let rows: Vec<(&str, &RowState)> = items
+        .iter()
+        .filter_map(|i| match i {
+            Item::Call(row) => Some((row.line.as_str(), &row.state)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("query view.context", &RowState::Done),
+            ("apply layout.add_via", &RowState::Done),
+            ("apply layout.add_via", &RowState::Done),
+        ]
+    );
+    // The reply, the card and the rows show.
+    assert!(ax.texts.iter().any(|t| t.contains("two vias")), "{:?}", ax.texts);
+    assert!(ax.texts.iter().any(|t| t == "Done · 1 undo step"), "{:?}", ax.texts);
+    assert!(ax.texts.iter().any(|t| t == "Vias: 2 added"), "{:?}", ax.texts);
+    assert_eq!(ax.app.engine.project().vias.len(), vias + 2);
+    assert_eq!(
+        ax.app.engine.undo_step().map(|s| s.line()).as_deref(),
+        Some("AI assistant: Add two vias")
+    );
+    // Show selects what it made; Undo turn takes both back as one step.
+    ax.button("Show")?;
+    ax.settle();
+    ax.button("Undo turn")?;
+    ax.settle();
+    assert_eq!(ax.app.engine.project().vias.len(), vias);
+    assert!(ax.find(Role::Button, "Undo turn")?.disabled);
+    // The model's history keeps the conversation for the next message.
+    assert_eq!(ax.app.assistant.history.len(), 8);
+    Ok(())
+}
+
+#[test]
+fn an_ask_waits_for_the_person_and_deny_tells_the_model() -> Fallible {
+    let mut ax = chat(
+        SMALL,
+        vec![
+            tool("act", json!({"name": "project.save", "params": {}})),
+            text("I left the file as it was."),
+        ],
+    )?;
+    send(&mut ax, "Save it")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Deny"))?;
+    assert_eq!(ax.app.assistant.conversation.state, State::Waiting);
+    assert!(
+        ax.texts.iter().any(|t| t == "Allow: Save the project?"),
+        "{:?}",
+        ax.texts
+    );
+    ax.button("Deny")?;
+    ax.until("the turn's end", idle)?;
+    let refused = ax.app.assistant.conversation.items.iter().any(|i| {
+        matches!(i, Item::Call(row) if row.state == RowState::Refused && row.reply.contains("gate.denied"))
+    });
+    assert!(refused, "{:?}", ax.app.assistant.conversation.items);
+    assert!(!ax.path().exists() || ax.app.assistant.conversation.state == State::Idle);
+    Ok(())
+}
+
+#[test]
+fn stop_ends_a_turn_waiting_on_the_person_and_the_next_message_runs() -> Fallible {
+    let mut ax = chat(
+        LARGE,
+        vec![
+            tool("act", json!({"name": "project.save", "params": {}})),
+            text("unused"),
+            text("Still here."),
+        ],
+    )?;
+    send(&mut ax, "Save it")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Stop"))?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Deny"))?;
+    ax.button("Stop")?;
+    ax.until("the turn's end", idle)?;
+    assert_eq!(ax.app.assistant.conversation.state, State::Stopped);
+    assert!(ax.texts.iter().any(|t| t == "Stopped by you."), "{:?}", ax.texts);
+    send(&mut ax, "Are you there?")?;
+    ax.until("the second turn's end", idle)?;
+    assert!(
+        ax.app
+            .assistant
+            .conversation
+            .items
+            .iter()
+            .any(|i| matches!(i, Item::Reply(t) if t == "unused" || t == "Still here.")),
+        "{:?}",
+        ax.app.assistant.conversation.items
+    );
+    Ok(())
+}
+
+#[test]
+fn a_new_project_starts_an_empty_conversation() -> Fallible {
+    let mut ax = chat(SMALL, vec![text("Hello.")])?;
+    send(&mut ax, "Hi")?;
+    ax.until("the turn's end", idle)?;
+    assert!(!ax.app.assistant.conversation.items.is_empty());
+    ax.app.document_replaced();
+    assert!(ax.app.assistant.conversation.items.is_empty());
+    assert!(ax.app.assistant.history.is_empty());
+    Ok(())
+}
+
+#[test]
+fn allow_for_this_session_lets_the_entry_run_without_asking_again() -> Fallible {
+    let save = || tool("act", json!({"name": "project.save", "params": {}}));
+    let mut ax = chat(
+        LARGE,
+        vec![save(), text("Saved."), save(), text("Saved again.")],
+    )?;
+    send(&mut ax, "Save it")?;
+    ax.until("the Ask card", |ax| {
+        ax.has(Role::Button, "Allow for this session")
+    })?;
+    ax.button("Allow for this session")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    assert!(
+        ax.texts.iter().any(|t| t == "Allowed for this session."),
+        "{:?}",
+        ax.texts
+    );
+    send(&mut ax, "Save again")?;
+    ax.until("the second turn's end", idle)?;
+    let items = &ax.app.assistant.conversation.items;
+    let cards = items.iter().filter(|i| matches!(i, Item::Ask(_))).count();
+    assert_eq!(cards, 1, "the second save asked nobody: {items:?}");
+    let saved = items
+        .iter()
+        .filter(|i| matches!(i, Item::Call(row) if row.state == RowState::Done))
+        .count();
+    assert_eq!(saved, 2, "{items:?}");
+    Ok(())
+}
+
+#[test]
+fn the_chat_publishes_into_the_project_unasked_and_asks_to_publish_to_a_library() -> Fallible {
+    let reach = sparksmith_assist::chat::ChatLibrary::locate()?.reach;
+    assert!(reach.unasked("library.publish"));
+    assert!(!reach.unasked("library.promote"));
+    assert!(!reach.unasked("library.publish_to_folder"));
+    // No per-turn caps on the chat's changes or calls.
+    assert_eq!(sparksmith_assist::chat::unbounded().max_requests, u32::MAX);
+    Ok(())
+}

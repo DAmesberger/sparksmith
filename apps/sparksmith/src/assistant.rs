@@ -1,0 +1,750 @@
+//! The assistant chat (`docs/assistant-panel.md` §7, slice C1): one
+//! conversation per open project, in a docked column at the window's edge
+//! (resizable from [`MIN_WIDTH`] to [`MAX_WIDTH`], on the right or the
+//! left), which folds to a [`STRIP_WIDTH`] strip with a state dot.
+//!
+//! This module holds the conversation and draws the column; the window
+//! (`app/assistant_host.rs`) runs what it asks for. Each message is one
+//! turn of the built-in agent (`sparksmith_assist::chat`) off the UI thread
+//! ([`worker`]): its tool calls come back to the window, run through the
+//! front door on the window's engine in the message's turn, and undo as one
+//! step. The transcript shows the person's message with the window's
+//! context when it was sent, the reply in bounded Markdown, folded
+//! reasoning, one row per tool call, Ask cards, and a summary card at the
+//! end of each turn with what changed, Show and Undo turn.
+mod conversation;
+mod markdown;
+pub mod worker;
+
+pub use conversation::{Allow, AskCard, Conversation, Item, RowState, State, TurnSummary, context_line};
+
+use crate::kit;
+use egui::{Ui, vec2};
+use sparksmith_assist::chat::ChatLibrary;
+use sparksmith_assist::model::Message;
+use sparksmith_automation::Session;
+use sparksmith_ui::theme::Tokens;
+use sparksmith_ui::ui_kit::{self, Button, type_face};
+use std::collections::HashSet;
+use worker::{ChatModel, Job, ToolRequest};
+
+/// The column's narrowest and widest, and its width before the person drags
+/// it (points).
+pub const MIN_WIDTH: f32 = 300.0;
+pub const MAX_WIDTH: f32 = 560.0;
+pub const DEFAULT_WIDTH: f32 = 360.0;
+/// The folded column: a strip with the state dot.
+pub const STRIP_WIDTH: f32 = 30.0;
+/// The composer's lines before it scrolls.
+const COMPOSER_ROWS: usize = 3;
+/// The longest message the composer sends, in bytes.
+pub const MAX_MESSAGE_BYTES: usize = 16 * 1024;
+
+/// Which edge the column docks at.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Dock {
+    #[default]
+    Right,
+    Left,
+}
+
+/// What the person asked of the column this frame; the window does it.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Action {
+    Send,
+    Stop,
+    /// The person's answer on the Ask card `id`.
+    Answer {
+        id: u64,
+        allow: Allow,
+    },
+    /// Select what the turn of summary `id` changed.
+    Show(u64),
+    /// Undo the turn of summary `id`.
+    UndoTurn(u64),
+    Fold(bool),
+    Dock(Dock),
+    Close,
+}
+
+/// The turn a message opened: its handle, its undo label, and the document
+/// and revision before it, for its summary.
+pub struct OpenTurn {
+    pub id: String,
+    pub label: String,
+    pub before: sparksmith_core::Document,
+    pub revision: u64,
+}
+
+/// A tool call waiting for the person's Allow or Deny on card `ask`.
+pub struct Held {
+    pub request: ToolRequest,
+    pub ask: u64,
+    pub question: sparksmith_automation::Question,
+}
+
+/// What the column shows that the window knows.
+pub struct Now {
+    /// The project's revision.
+    pub revision: u64,
+    /// The label of the step Undo would take back.
+    pub undo_label: Option<String>,
+    /// What the window shows now, in the person's words.
+    pub context: String,
+}
+
+/// The chat: its column and its one conversation.
+pub struct Assistant {
+    pub open: bool,
+    pub folded: bool,
+    pub dock: Dock,
+    pub composer: String,
+    pub conversation: Conversation,
+    /// What the model has been sent and answered, for the next turn.
+    pub history: Vec<Message>,
+    pub job: Option<Job>,
+    pub turn: Option<OpenTurn>,
+    pub held: Option<Held>,
+    /// The session the chat's calls run in, over the window's engine; it
+    /// keeps the turns open between calls.
+    pub session: Session,
+    /// The model the chat uses instead of the one set up (tests).
+    pub model: Option<ChatModel>,
+    library: Option<Result<ChatLibrary, String>>,
+    /// Transcript items shown expanded (tool rows, reasoning).
+    expanded: HashSet<usize>,
+    /// Entries the person allowed for this session on an Ask card: they
+    /// run without asking until the app quits, in any project.
+    pub allowed_session: HashSet<String>,
+    /// Entries the person always allows. Kept for the app's run until
+    /// Settings › AI (slice C3) stores them in its permissions.
+    pub allowed_always: HashSet<String>,
+}
+
+impl Default for Assistant {
+    fn default() -> Self {
+        Self {
+            open: false,
+            folded: false,
+            dock: Dock::Right,
+            composer: String::new(),
+            conversation: Conversation::default(),
+            history: Vec::new(),
+            job: None,
+            turn: None,
+            held: None,
+            session: Session::lending(),
+            model: None,
+            library: None,
+            expanded: HashSet::new(),
+            allowed_session: HashSet::new(),
+            allowed_always: HashSet::new(),
+        }
+    }
+}
+
+impl Assistant {
+    /// ⇧⌘A: open the column (unfolded), or close it when it shows.
+    pub fn toggle(&mut self) {
+        if self.open && !self.folded {
+            self.open = false;
+        } else {
+            self.open = true;
+            self.folded = false;
+        }
+    }
+
+    /// Whether the column shows, unfolded.
+    pub fn shown(&self) -> bool {
+        self.open && !self.folded
+    }
+
+    /// The shipped chat data, read once.
+    pub fn library(&mut self) -> Result<&ChatLibrary, String> {
+        self.library
+            .get_or_insert_with(|| ChatLibrary::locate().map_err(|e| e.to_string()))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+
+    /// The composer's id, which the busy rule leaves out: typing a message
+    /// is not working in the window.
+    pub fn composer_id() -> egui::Id {
+        egui::Id::unique("assistant-composer")
+    }
+
+    /// Stop the turn running: the model stops between chunks or calls, and
+    /// a call waiting for the person is given up.
+    pub fn stop(&mut self) {
+        if let Some(job) = &self.job {
+            job.stop();
+        }
+        if let Some(held) = self.held.take()
+            && let Some(card) = self.conversation.ask_mut(held.ask)
+        {
+            card.answer = Some(Allow::Deny);
+        }
+    }
+
+    /// Another project opened: its conversation starts empty, and a turn
+    /// of the last one ends without touching the new project.
+    pub fn document_opened(&mut self) {
+        self.stop();
+        self.job = None;
+        self.turn = None;
+        self.conversation = Conversation::default();
+        self.history.clear();
+        self.expanded.clear();
+    }
+
+    /// The folded column: the state dot and the button that unfolds it.
+    pub fn strip(&mut self, ui: &mut Ui) -> Vec<Action> {
+        let t = Tokens::get();
+        let mut actions = Vec::new();
+        ui.vertical_centered(|ui| {
+            ui.add_space(t.space_8);
+            if icon_button(ui, "assistant", "Unfold the assistant").clicked() {
+                actions.push(Action::Fold(false));
+            }
+            ui.add_space(t.space_8);
+            state_dot(ui, &self.conversation.state);
+        });
+        actions
+    }
+
+    /// The column: header, transcript and composer.
+    pub fn column(&mut self, ui: &mut Ui, now: &Now) -> Vec<Action> {
+        let t = Tokens::get();
+        let mut actions = Vec::new();
+        self.header(ui, &mut actions);
+        kit::rule(ui);
+        // The composer keeps its room at the bottom; the transcript takes
+        // the rest and follows the newest item.
+        let composer = composer_height(ui);
+        let transcript = (ui.available_height() - composer).max(t.control_height * 2.0);
+        egui::ScrollArea::vertical()
+            .id_salt("assistant-transcript")
+            .max_height(transcript)
+            .min_scrolled_height(transcript)
+            .auto_shrink([false, false])
+            .stick_to_bottom(true)
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                if self.conversation.items.is_empty() {
+                    kit::note(
+                        ui,
+                        "Ask about the open design or ask for a change. Each message is one undo step.",
+                    );
+                }
+                self.transcript(ui, now, &mut actions);
+            });
+        kit::rule(ui);
+        self.composer(ui, now, &mut actions);
+        actions
+    }
+
+    fn header(&mut self, ui: &mut Ui, actions: &mut Vec<Action>) {
+        let t = Tokens::get();
+        ui.horizontal(|ui| {
+            ui.set_min_height(t.control_height);
+            state_dot(ui, &self.conversation.state);
+            ui.label(
+                egui::RichText::new("Assistant")
+                    .font(type_face::semibold(t.font_heading))
+                    .color(t.text),
+            );
+            kit::note(ui, self.conversation.state.label());
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if icon_button(ui, "close", "Close the assistant").clicked() {
+                    actions.push(Action::Close);
+                }
+                let fold = match self.dock {
+                    Dock::Right => "chevron_right",
+                    Dock::Left => "chevron",
+                };
+                if icon_button(ui, fold, "Fold the assistant").clicked() {
+                    actions.push(Action::Fold(true));
+                }
+                let (other, tip) = match self.dock {
+                    Dock::Right => (Dock::Left, "Dock the assistant left"),
+                    Dock::Left => (Dock::Right, "Dock the assistant right"),
+                };
+                if icon_button(ui, "display", tip).clicked() {
+                    actions.push(Action::Dock(other));
+                }
+            });
+        });
+        if let State::NotSetUp(why) | State::Error(why) = &self.conversation.state {
+            kit::refusal_wrapped(ui, why);
+        }
+    }
+
+    fn transcript(&mut self, ui: &mut Ui, now: &Now, actions: &mut Vec<Action>) {
+        let t = Tokens::get();
+        let mut toggled = None;
+        for (index, item) in self.conversation.items.iter().enumerate() {
+            ui.add_space(t.space_6);
+            let open = self.expanded.contains(&index);
+            ui.push_id(("assistant-item", index), |ui| match item {
+                Item::You {
+                    text,
+                    context,
+                    attachments,
+                } => you(ui, text, context, attachments),
+                Item::Reply(text) => markdown(ui, text),
+                Item::Reasoning(text) => {
+                    let first = text.lines().next().unwrap_or_default();
+                    if disclosure(ui, open, "Reasoning", first, None).clicked() {
+                        toggled = Some(index);
+                    }
+                    if open {
+                        detail(ui, text);
+                    }
+                }
+                Item::Call(row) => {
+                    let (word, level) = match &row.state {
+                        RowState::Running => ("running".to_owned(), None),
+                        RowState::Done => ("done".to_owned(), Some(kit::severity::Level::Ok)),
+                        RowState::Refused => {
+                            ("refused".to_owned(), Some(kit::severity::Level::Warning))
+                        }
+                        RowState::NotRun(why) => {
+                            (format!("not run: {why}"), Some(kit::severity::Level::ToDo))
+                        }
+                    };
+                    if disclosure(ui, open, &row.line, &word, level).clicked() {
+                        toggled = Some(index);
+                    }
+                    if open {
+                        kit::note(ui, "Input");
+                        detail(ui, &row.input);
+                        if !row.reply.is_empty() {
+                            kit::note(ui, "Reply");
+                            detail(ui, &row.reply);
+                        }
+                    }
+                }
+                Item::Ask(card) => ask(ui, card, actions),
+                Item::Summary(card) => summary(ui, card, now, actions),
+            });
+        }
+        if let Some(index) = toggled
+            && !self.expanded.remove(&index)
+        {
+            self.expanded.insert(index);
+        }
+    }
+
+    fn composer(&mut self, ui: &mut Ui, now: &Now, actions: &mut Vec<Action>) {
+        let t = Tokens::get();
+        kit::note(ui, &now.context);
+        let id = Self::composer_id();
+        // Enter sends, Shift+Enter breaks the line: taken before the field
+        // sees the key.
+        let focused = ui.memory(|m| m.has_focus(id));
+        let busy = self.conversation.state.busy();
+        let can_send = !busy
+            && !self.composer.trim().is_empty()
+            && !matches!(self.conversation.state, State::NotSetUp(_));
+        if focused
+            && ui.input_mut(|i| !i.modifiers.any() && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+            && can_send
+        {
+            actions.push(Action::Send);
+        }
+        let edit = egui::TextEdit::multiline(&mut self.composer)
+            .id(id)
+            .hint_text("Ask about this design…")
+            .desired_rows(COMPOSER_ROWS)
+            .desired_width(ui.available_width())
+            .char_limit(MAX_MESSAGE_BYTES);
+        ui.add(edit);
+        ui.add_space(t.space_2);
+        kit::actions(ui, |ui| {
+            if busy {
+                if ui_kit::button(ui, "Stop", Button::Enabled(true)).clicked() {
+                    actions.push(Action::Stop);
+                }
+            } else if kit::primary(ui, "Send", can_send).clicked() {
+                actions.push(Action::Send);
+            }
+            if self.conversation.state == State::Running {
+                let usage = &self.conversation.usage;
+                kit::note(ui, &usage_line(usage.requests, usage.tokens, usage.seconds));
+            }
+        });
+    }
+}
+
+/// The height the composer and its context line take.
+fn composer_height(ui: &Ui) -> f32 {
+    let t = Tokens::get();
+    let line = ui.text_style_height(&egui::TextStyle::Body);
+    t.font_small * 1.6
+        + line * COMPOSER_ROWS as f32
+        + t.space_8 * 2.0
+        + t.space_4
+        + t.control_height
+        + t.space_8 * 2.0
+}
+
+/// "3 requests · 12 k tokens · 14 s".
+pub fn usage_line(requests: u32, tokens: u64, seconds: f64) -> String {
+    let tokens = if tokens >= 10_000 {
+        format!("{} k tokens", tokens / 1_000)
+    } else {
+        format!("{tokens} tokens")
+    };
+    let time = if seconds >= 90.0 {
+        format!("{:.0} min", seconds / 60.0)
+    } else {
+        format!("{seconds:.0} s")
+    };
+    format!(
+        "{} · {tokens} · {time}",
+        kit::counted(requests as usize, "request", "requests")
+    )
+}
+
+/// The state dot's ink.
+fn state_level(state: &State) -> kit::severity::Level {
+    use kit::severity::Level;
+    match state {
+        State::NotSetUp(_) | State::Stopped => Level::ToDo,
+        State::Idle => Level::Ok,
+        State::Running => Level::Info,
+        State::Waiting => Level::Warning,
+        State::Error(_) => Level::Error,
+    }
+}
+
+fn state_dot(ui: &mut Ui, state: &State) {
+    let t = Tokens::get();
+    let size = t.space_8;
+    let (rect, response) = ui.allocate_exact_size(vec2(size, size), egui::Sense::hover());
+    ui.painter().circle_filled(
+        rect.center(),
+        size / 2.0,
+        kit::severity::ink(state_level(state)),
+    );
+    response.on_hover_text(state.label());
+}
+
+/// A square icon button with its accessible name and tooltip.
+fn icon_button(ui: &mut Ui, icon: &str, label: &str) -> egui::Response {
+    let t = Tokens::get();
+    let (rect, response) =
+        ui.allocate_exact_size(vec2(t.control_height, t.control_height), egui::Sense::click());
+    if response.hovered() || response.has_focus() {
+        ui.painter().rect_filled(rect, t.radius_sm, t.hover);
+    }
+    sparksmith_ui::icons::paint_on(ui.painter(), rect.shrink(t.space_4), icon, None, 1.0);
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, label));
+    response.on_hover_text(label)
+}
+
+/// A one-line row that expands: its text, and a state at its end.
+fn disclosure(
+    ui: &mut Ui,
+    open: bool,
+    text: &str,
+    state: &str,
+    level: Option<kit::severity::Level>,
+) -> egui::Response {
+    let t = Tokens::get();
+    let width = ui.available_width().max(0.0);
+    let (rect, response) = ui.allocate_exact_size(vec2(width, t.control_height), egui::Sense::click());
+    if response.hovered() || response.has_focus() {
+        ui.painter()
+            .rect_filled(rect.shrink2(vec2(0.0, 1.0)), t.radius_sm, t.hover);
+    }
+    let icon = egui::pos2(rect.left() + t.space_8, rect.center().y);
+    kit::disclosure(ui.painter(), icon, open, t.form_dim);
+    let mut left = icon.x + t.space_8;
+    if let Some(level) = level {
+        let glyph = egui::pos2(left + t.space_6, rect.center().y);
+        kit::severity_glyph(ui.painter(), glyph, t.font_label, level);
+        left = glyph.x + t.space_8;
+    }
+    let state_galley = kit::text::one_line(
+        ui,
+        state,
+        egui::FontId::proportional(t.font_small),
+        t.form_dim,
+        (width * 0.4).max(0.0),
+    );
+    let state_left = rect.right() - t.space_4 - state_galley.size().x;
+    let galley = kit::text::one_line(
+        ui,
+        text,
+        egui::FontId::monospace(t.font_small),
+        t.text,
+        (state_left - t.space_8 - left).max(0.0),
+    );
+    let cut = galley.elided;
+    ui.painter().galley(
+        egui::pos2(left, rect.center().y - galley.size().y / 2.0),
+        galley,
+        t.text,
+    );
+    ui.painter().galley(
+        egui::pos2(state_left, rect.center().y - state_galley.size().y / 2.0),
+        state_galley,
+        t.form_dim,
+    );
+    let name = format!("{text}: {state}");
+    response.widget_info(|| {
+        egui::WidgetInfo::selected(egui::Role::DisclosureTriangle, true, open, &name)
+    });
+    if cut {
+        response.on_hover_text(text)
+    } else {
+        response
+    }
+}
+
+/// An expanded row's text: monospace, small, selectable.
+fn detail(ui: &mut Ui, text: &str) {
+    let t = Tokens::get();
+    egui::Frame::NONE
+        .fill(t.input_fill())
+        .corner_radius(t.radius_sm)
+        .inner_margin(egui::Margin::same(t.space_4 as i8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(text)
+                        .monospace()
+                        .size(t.font_small)
+                        .color(t.form_ink),
+                )
+                .wrap()
+                .selectable(true),
+            );
+        });
+}
+
+/// The person's message: the context line, attachment chips and the text.
+fn you(ui: &mut Ui, text: &str, context: &str, attachments: &[String]) {
+    let t = Tokens::get();
+    egui::Frame::NONE
+        .fill(t.panel_header)
+        .corner_radius(t.radius_lg)
+        .inner_margin(egui::Margin::same(t.space_8 as i8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            kit::note(ui, context);
+            if !attachments.is_empty() {
+                ui.horizontal_wrapped(|ui| {
+                    for name in attachments {
+                        kit::status_chip(ui, None, name);
+                    }
+                });
+            }
+            ui.add(
+                egui::Label::new(egui::RichText::new(text).size(t.font_body).color(t.text))
+                    .wrap()
+                    .selectable(true),
+            );
+        });
+}
+
+/// A reply in bounded Markdown.
+fn markdown(ui: &mut Ui, text: &str) {
+    use markdown::Block;
+    let t = Tokens::get();
+    let (blocks, cut) = markdown::parse(text);
+    for block in blocks {
+        match block {
+            Block::Heading(level, spans) => {
+                let size = if level <= 2 { t.font_heading } else { t.font_body };
+                rich(ui, &spans, size, true, 0.0, None);
+            }
+            Block::Paragraph(spans) => rich(ui, &spans, t.font_body, false, 0.0, None),
+            Block::Item {
+                depth,
+                marker,
+                spans,
+            } => rich(
+                ui,
+                &spans,
+                t.font_body,
+                false,
+                t.space_12 * f32::from(depth),
+                Some(&marker),
+            ),
+            Block::Code(code) => detail(ui, &code),
+            Block::Rule => kit::rule(ui),
+        }
+    }
+    if cut {
+        kit::note(ui, "The rest of this reply is not shown: it is too long.");
+    }
+}
+
+/// One block of inline spans, wrapped, with an optional list marker.
+fn rich(
+    ui: &mut Ui,
+    spans: &[markdown::Span],
+    size: f32,
+    heading: bool,
+    indent: f32,
+    marker: Option<&str>,
+) {
+    let t = Tokens::get();
+    let mut job = egui::text::LayoutJob::default();
+    if let Some(marker) = marker {
+        job.append(
+            &format!("{marker} "),
+            indent,
+            egui::TextFormat::simple(egui::FontId::proportional(size), t.text_dim),
+        );
+    }
+    for (i, span) in spans.iter().enumerate() {
+        let font = if span.code {
+            egui::FontId::monospace(size * 0.92)
+        } else if span.bold || heading {
+            type_face::semibold(size)
+        } else {
+            egui::FontId::proportional(size)
+        };
+        let mut format = egui::TextFormat::simple(font, t.text);
+        format.italics = span.italic;
+        if span.code {
+            format.background = t.input_fill();
+        }
+        let leading = if marker.is_none() && i == 0 { indent } else { 0.0 };
+        job.append(&span.text, leading, format);
+    }
+    job.wrap.max_width = ui.available_width();
+    ui.add(egui::Label::new(job).wrap().selectable(true));
+}
+
+/// An Ask card: what the assistant wants to do; Allow once, for this
+/// session or always, or Deny.
+fn ask(ui: &mut Ui, card: &AskCard, actions: &mut Vec<Action>) {
+    let t = Tokens::get();
+    card_frame(ui, |ui| {
+        ui.label(
+            egui::RichText::new(format!("Allow: {}?", card.command))
+                .font(type_face::semibold(t.font_body))
+                .color(t.text),
+        );
+        for path in &card.paths {
+            kit::value_row(ui, "Path", path);
+        }
+        kit::note(ui, &card.why);
+        let Some(answer) = card.answer else {
+            let mut answer = |allow| {
+                actions.push(Action::Answer { id: card.id, allow });
+            };
+            // Primary last, at the right: right to left.
+            kit::actions(ui, |ui| {
+                if kit::primary(ui, "Allow once", true).clicked() {
+                    answer(Allow::Once);
+                }
+                if ui_kit::button(ui, "Deny", Button::Enabled(true)).clicked() {
+                    answer(Allow::Deny);
+                }
+            });
+            kit::actions(ui, |ui| {
+                if ui_kit::button(ui, "Always allow", Button::Enabled(true)).clicked() {
+                    answer(Allow::Always);
+                }
+                if ui_kit::button(ui, "Allow for this session", Button::Enabled(true)).clicked() {
+                    answer(Allow::Session);
+                }
+            });
+            return;
+        };
+        kit::note(ui, answer.said());
+    });
+}
+
+/// The card at the end of a turn.
+fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, actions: &mut Vec<Action>) {
+    let t = Tokens::get();
+    let changed = card.after != card.before;
+    card_frame(ui, |ui| {
+        let title = match (&card.end, changed) {
+            (None, true) => "Done · 1 undo step",
+            (None, false) => "Done · nothing changed",
+            (Some(_), true) => "Ended early · 1 undo step",
+            (Some(_), false) => "Ended early · nothing changed",
+        };
+        ui.label(
+            egui::RichText::new(title)
+                .font(type_face::semibold(t.font_body))
+                .color(t.text),
+        );
+        if let Some(end) = &card.end {
+            kit::note(ui, end);
+        }
+        for line in &card.changes {
+            kit::note(ui, line);
+        }
+        if card.issues_new > 0 || card.issues_resolved > 0 {
+            kit::note(
+                ui,
+                &format!(
+                    "Issues: {} new, {} resolved",
+                    card.issues_new, card.issues_resolved
+                ),
+            );
+            for message in &card.new_issues {
+                kit::note(ui, message);
+            }
+        }
+        kit::note(
+            ui,
+            &usage_line(card.usage.requests, card.usage.tokens, card.usage.seconds),
+        );
+        let undoable = changed
+            && now.revision == card.after
+            && now.undo_label.as_deref() == Some(card.label.as_str());
+        kit::actions(ui, |ui| {
+            if ui_kit::button(ui, "Undo turn", Button::Enabled(undoable)).clicked() {
+                actions.push(Action::UndoTurn(card.id));
+            }
+            if ui_kit::button(ui, "Show", Button::Enabled(!card.show.is_empty())).clicked() {
+                actions.push(Action::Show(card.id));
+            }
+        });
+    });
+}
+
+fn card_frame(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
+    let t = Tokens::get();
+    egui::Frame::NONE
+        .stroke(egui::Stroke::new(1.0, t.border))
+        .corner_radius(t.radius_lg)
+        .inner_margin(egui::Margin::same(t.space_8 as i8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            add(ui);
+        });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_usage_line_counts_requests_tokens_and_time() {
+        assert_eq!(usage_line(1, 950, 4.2), "1 request · 950 tokens · 4 s");
+        assert_eq!(usage_line(3, 61_400, 360.0), "3 requests · 61 k tokens · 6 min");
+    }
+
+    #[test]
+    fn the_toggle_opens_unfolded_and_closes_what_shows() {
+        let mut a = Assistant::default();
+        a.toggle();
+        assert!(a.shown());
+        a.folded = true;
+        a.toggle();
+        assert!(a.shown(), "a folded column unfolds");
+        a.toggle();
+        assert!(!a.open);
+    }
+}

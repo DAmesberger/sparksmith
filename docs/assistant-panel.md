@@ -1,6 +1,6 @@
 # Assistant panel design
 
-**Status:** revised proposal for founder review, 16 November 2026. It replaces the 9 November proposal, whose eleven recommendations the founder approved (with one exception, no fake ACP agent). Where this revision changes an approved point, it says so. **Nothing of the panel is built.** Estimates are agent hours. Related: [extension surface](extension-surface.md), [extension ABI design](design/extension-abi-design.md), [MCP surface](mcp-surface.md), [LLM integration](llm-integration.md), [datasheet assistant](datasheet-assistant.md), [first MCP runs](datasheet-assistant-run-mcp-1.md), [board geometry for an LLM](llm-geometry.md).
+**Status:** revised proposal for founder review, 16 November 2026. It replaces the 9 November proposal, whose eleven recommendations the founder approved (with one exception, no fake ACP agent). Where this revision changes an approved point, it says so. **The chat panel (C1) is built; the rest of the panel is not.** Estimates are agent hours. Related: [extension surface](extension-surface.md), [extension ABI design](design/extension-abi-design.md), [MCP surface](mcp-surface.md), [LLM integration](llm-integration.md), [datasheet assistant](datasheet-assistant.md), [first MCP runs](datasheet-assistant-run-mcp-1.md), [board geometry for an LLM](llm-geometry.md).
 
 ## Founder direction (16 November 2026)
 
@@ -22,7 +22,8 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn, per-turn limits in the surface (ABI S4a) | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
 | The built-in agent on the surface (S6): the six verbs, `assist.document_text`, `assist.document_page`, `assist.pinout_edit` (with `assist.pinout_preview` and `assist.pinout_apply`), reach profiles as data, leniency in the verb reader | Built |
 | Jobs, events (ABI S4b); the window module's camera, layers and screenshot (S5b); elicitation (MCP P5) | Not built |
-| Assistant panel, Settings › AI | Not built |
+| Chat panel (C1): the column (⇧⌘A, View › Assistant, the palette, the application bar), one conversation per open project, the transcript (messages with their context line, bounded Markdown replies, folded reasoning, tool rows, Ask cards, the turn summary card with Show and Undo turn), the states; each message one turn of the built-in agent on the window's engine (`sparksmith_assist::chat`, `apps/sparksmith/src/assistant.rs`, `app/assistant_host.rs`); the chat's prompt and reach are data (`library/assist/chat-prompt.md`, `reach/chat.json`) | Built. No per-turn caps (founder, 16 November). Ask cards offer Allow once, Allow for this session, Always allow (kept for the run until Settings › AI stores it) and Deny; publishing drafts into the project runs unasked (`unasked` in the reach profile), publishing to a library asks. Its model is the Create from datasheet form's until Settings › AI (C3); replies arrive whole until the streaming loop (L1) |
+| Settings › AI | Not built |
 
 ## What this revision supersedes
 

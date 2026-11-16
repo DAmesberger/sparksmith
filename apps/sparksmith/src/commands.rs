@@ -469,6 +469,8 @@ pub enum AppCommand {
     LibrarySources,
     /// The Settings window (its Keyboard section).
     Settings,
+    /// The assistant chat's column (`docs/assistant-panel.md` §7).
+    ToggleAssistant,
     /// The Connect AI assistants window (live MCP).
     ConnectAssistants,
     Workspace(Workspace),
@@ -1297,6 +1299,10 @@ fn defaults() -> Vec<Command> {
             .chord(Chord::cmd(K::Comma))
             .icon("settings")
             .keywords("preferences options keyboard keymap shortcuts rebind keys"),
+        app("assistant.toggle", "Show or hide the Assistant", A::ToggleAssistant)
+            .chord(Chord::cmd(K::A).with_shift())
+            .icon("assistant")
+            .keywords("ai chat llm agent ask model claude conversation"),
         app(
             "app.connect-assistants",
             "Connect AI assistants…",

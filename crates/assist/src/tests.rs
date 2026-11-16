@@ -105,6 +105,9 @@ fn verb_as(session: &mut Session, reach: &ReachProfile, name: &str, input: Value
         session,
         grant: &grant,
         reach,
+        window: None,
+        turn: None,
+        asker: &mut sparksmith_automation::front::NoOne,
     }
     .verb(name, input)
 }
@@ -682,6 +685,9 @@ fn agent_reaches(
         session: &mut session,
         grant,
         reach,
+        window: None,
+        turn: None,
+        asker: &mut sparksmith_automation::front::NoOne,
     }
     .reaches(entry)
 }

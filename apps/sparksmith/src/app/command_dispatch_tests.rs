@@ -364,6 +364,7 @@ fn command_s_through_the_menu_commits_the_field_then_saves_once() -> Result<(), 
         recording: false,
         browser_shown: true,
         issues_shown: false,
+        assistant_shown: false,
         available: &|_| true,
     };
     let save = menu_bar::FILE
@@ -504,6 +505,7 @@ fn keys_the_menu_hands_back_are_not_dispatched() {
                 recording: false,
                 browser_shown: true,
                 issues_shown: false,
+                assistant_shown: false,
                 available: &|_| true,
             };
             for entry in BAR.iter().flat_map(|(_, e)| e.iter()).copied() {
