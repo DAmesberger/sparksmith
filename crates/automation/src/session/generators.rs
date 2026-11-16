@@ -179,6 +179,7 @@ impl Session {
     /// elsewhere).
     pub fn set_shipped(&mut self, library: ShippedLibrary) {
         self.shipped = Some(library);
+        self.descriptions = std::sync::OnceLock::new();
     }
 
     /// Give the engine a generator runtime when it has none: a worker
@@ -228,7 +229,7 @@ impl Session {
         }
     }
 
-    fn describe(&self, bytes: &[u8]) -> Result<Description> {
+    pub(super) fn describe(&self, bytes: &[u8]) -> Result<Description> {
         self.runtime()
             .describe(bytes)
             .map_err(|f| crate::Error::Document(generated::failure(&f)))

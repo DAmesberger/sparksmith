@@ -600,6 +600,22 @@ impl Request {
         }
     }
 
+    /// The `component.place` requests among this request's operations.
+    pub fn placements(&self) -> Vec<&sparksmith_core::instances::NewInstance> {
+        let operations: &[Operation] = match self {
+            Self::Apply(params) => std::slice::from_ref(&params.operation),
+            Self::ApplyAll(params) => &params.operations,
+            _ => &[],
+        };
+        operations
+            .iter()
+            .filter_map(|operation| match operation {
+                Operation::Instance(sparksmith_core::InstanceCommand::Place(new)) => Some(new),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// What the gate reports as requested: the operation or query inside
     /// `project.apply` and `project.query`, else the request itself.
     pub fn subject(&self) -> &'static str {
@@ -1062,6 +1078,9 @@ pub struct Session {
     assist: assist::Assist,
     /// The turns open in this session.
     pub(crate) turns: turns::Turns,
+    /// The shipped generators' descriptions, once read (`library.search`'s
+    /// generic parts).
+    descriptions: std::sync::OnceLock<Vec<generators::v1::Description>>,
 }
 
 /// A test fixture, never in the product: a session on the core's fixture
@@ -1089,6 +1108,7 @@ impl Session {
             shipped: None,
             assist: assist::Assist::default(),
             turns: turns::Turns::default(),
+            descriptions: std::sync::OnceLock::new(),
         }
     }
     /// A session without a project of its own, for a host that only lends
@@ -1223,11 +1243,19 @@ impl Session {
                     },
                     other => other,
                 };
-                return Ok(serde_json::to_value(self.engine.query_using(
+                let searched = match &query {
+                    Query::Search { query, .. } => Some(query.clone()),
+                    _ => None,
+                };
+                let mut reply = serde_json::to_value(self.engine.query_using(
                     query,
                     &self.sources.context(),
                     Some(&sparksmith_solidcraft::footprint::SketchEvaluator),
-                )?)?);
+                )?)?;
+                if let Some(text) = searched {
+                    self.add_generic(&text, &mut reply);
+                }
+                return Ok(reply);
             }
             Request::Undo(params) => {
                 let step = self.engine.undo_step();
@@ -1781,6 +1809,7 @@ pub mod discovery;
 mod firmware;
 mod generated_models;
 pub mod generators;
+mod generic_search;
 mod interface;
 mod marking;
 pub mod mechanical_parts;

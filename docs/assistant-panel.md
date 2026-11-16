@@ -319,6 +319,31 @@ No turn limits (founder, 16 November): instead, as a conversation approaches the
 
 **Recommendation:** C always, then B as the kept record, and A only for the conversation's remaining prose, written into the record's notes. C and B need no model request for their deterministic parts, which matters on small local models. Provider features (server-side context editing) may replace C on a connection that declares them; the result must read the same.
 
+**As built (K1, 16 November 2026, after E2E run 12 finding 12).** `sparksmith_assist::chat::context`, policy `Policy::CHAT`:
+- **Small replies.** A tool reply over 12 000 characters is shortened as JSON: lists keep their first items and count the rest, long texts and deep objects are cut, and `_shortened` says how to ask for less. Before, a reply could be 120 000 characters.
+- **No re-sending.** A reply of 1 500 characters or more that is older than the last 2 rounds of calls is replaced by a stub naming its call. These replies are cleared together once 18 000 characters have piled up, so the prompt cache is rebuilt rarely. An edit's stub keeps the ids and names its reply gave (`It gave: instance 12, designator "U1"`). This also runs inside one long turn, between requests.
+- **Condensing at 70 %.** Every earlier reply over 400 characters is cleared the same way. If, at a turn boundary, the prompt is still above 35 %, the turns before the latest are summarised. The summary request uses `library/assist/condense-prompt.md`. It replaces those turns with the kept record and the summary, put in front of the latest message.
+- **The kept record (B)** is built from the history alone. It holds what the person asked, every edit with the ids and names its reply gave, the last revision seen and the count of refused calls. The model-filled part, the `assist` entry for goals and the plan, is **not built**; the summary carries them as prose.
+- **The divider.** `Event::Condensed` draws the divider row ("Condensed 6 earlier tool replies · 31 k → 12 k tokens"), which unfolds to the record.
+- **Caching.** The Anthropic backend already marks the system prompt (tools and system) and the conversation tail for caching, for the chat and the workflows alike.
+- **Measured.** The scripted trace `chat::tests::board_chat` runs one message through the loop with the real verbs: it explores (including the 135 KB `rules.fab_profiles`), searches, makes and places three generic parts, wires them, updates the PCB, places, routes, pours GND and checks (0 errors). It takes 14 requests. Prompt sizes are estimated at 3 characters per token.
+
+  | | Largest request | All requests |
+  |---|---|---|
+  | `Policy::KEEP_ALL` (before K1) | 37.5 k tokens | 458 k tokens |
+  | `Policy::CHAT` | 11.8 k tokens | 105 k tokens |
+
+  For comparison, E2E run 12 measured 13 k tokens for the first request and 100–140 k tokens for later ones.
+- **What the chat needs from the verbs** (run 12 findings 13–15):
+  - A wrong field name is refused naming the right one, with every field and a call that works (`mcp::fields`).
+  - `library.search` lists the generic parts its words name, together with the operation that makes each one, or with its component and footprint once it is made.
+  - `layout.pads` gives pad centres to route between.
+  - `layout.sync` goes through `apply`.
+  - `component.place` needs only the component. Without a position, the part lands in a free spot on the sheet; an agent's position outside the frame is refused, naming the frame.
+  - `view.select` takes the occurrence the place call returned, or designators.
+  - The playbook (`library/assist/chat-playbook.md`) is appended to the chat prompt.
+  - Generated parts carry no value field yet (GP1), so a value stays in the answer, not on the instance.
+
 ## 7. The chat UI (kept, with the new cards)
 
 - **Placement:** its own docked column at the right edge, resizable 300–560 pt, can dock left, folds to a 30 pt strip with a state dot (approved Q1). Opened by `assistant.toggle` (⇧⌘A / Ctrl+Shift+A through the shortcut registry), View › Assistant, the palette and an AI button in the application bar.
@@ -372,7 +397,7 @@ At most five agents at once. Each slice ships with its tests. Nothing runs the d
 | M1 | Forms for MCP clients | `input_required` from workflow inputs and `impact` gates (with MCP P5) | 4–6 | W1, P5 |
 | D1 | Small-model detection | Measure the index, `offer_when` and `classify` on Flash Next and `qwen3.8:27b`; set the profile defaults from the result | 3–4 | W2 |
 | E1 | Evidence | VM runs: plain chat editing the demo board and the datasheet workflow on a local endpoint; an ACP agent on a local model | 2–3 | W2, A1 |
-| K1 | Context compaction | §6.5: the kept record's schema and its `assist` entry; clearing old tool results with stubs; the summary of remaining prose; the trigger and the divider row; tests on recorded long conversations (ids and plan kept, dropped replies re-queried) | 6–9 | C1, L1 |
+| K1 | Context compaction (**built** without the `assist` entry, §6.5 "As built") | §6.5: the kept record's schema and its `assist` entry; clearing old tool results with stubs; the summary of remaining prose; the trigger and the divider row; tests on recorded long conversations (ids and plan kept, dropped replies re-queried) | 6–9 | C1, L1 |
 | R1 | Review on a copy | Accept or reject a large run as a whole (`review-diff`) | 4–6 | C1 |
 
 ★ **First demo** after W2: a chat on a local model that answers about the open board, selects and edits through the verbs with one undo step per message, and runs Datasheet → component in the chat with its inputs, the generator choice, the pinout impact card and the result card.

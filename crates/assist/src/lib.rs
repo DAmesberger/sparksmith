@@ -139,6 +139,9 @@ pub enum Event {
     },
     /// Something a person should know about this run's result.
     Warning(String),
+    /// The chat condensed what the model is sent (`docs/assistant-panel.md`
+    /// §6.5): the divider row. The transcript is unchanged.
+    Condensed(chat::context::Condensed),
 }
 
 /// Where a tool call is.

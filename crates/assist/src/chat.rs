@@ -25,16 +25,20 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 pub use crate::profile::ReachProfile;
+pub use context::{Condensed, Policy};
+
+pub mod context;
 
 /// The chat's base system prompt, in the library's `assist/` folder.
 pub const PROMPT_FILE: &str = "chat-prompt.md";
+/// The playbook for building a board, after the prompt.
+pub const PLAYBOOK_FILE: &str = "chat-playbook.md";
+/// The summariser's instructions for condensing earlier turns.
+pub const CONDENSE_FILE: &str = "condense-prompt.md";
 /// The chat's reach profile, `assist/reach/chat.json`.
 pub const REACH: &str = "chat";
 /// Largest shipped file read.
 const MAX_FILE_BYTES: u64 = 256 * 1024;
-/// Characters of one tool reply the model reads; longer replies are cut
-/// with a note (the model can ask for a narrower view).
-pub const MAX_REPLY_CHARS: usize = crate::MAX_RESULT_CHARS;
 /// Characters per token of the history, for the estimate of the next
 /// prompt.
 const CHARS_PER_TOKEN: u64 = 3;
@@ -44,8 +48,11 @@ const PRODUCT_PLACEHOLDER: &str = "{product}";
 /// What ships for the chat: its system prompt and its reach.
 #[derive(Clone, Debug)]
 pub struct ChatLibrary {
+    /// The prompt, then the playbook.
     pub system: String,
     pub reach: ReachProfile,
+    /// The summariser's instructions ([`context::summarise`]).
+    pub condense: String,
 }
 
 impl ChatLibrary {
@@ -67,13 +74,22 @@ impl ChatLibrary {
             String::from_utf8(bytes)
                 .map_err(|_| Error::Config(format!("{}: not UTF-8 text", path.display())))
         };
-        let system = read(PROMPT_FILE)?;
-        if system.trim().is_empty() {
-            return Err(Error::Config(format!(
-                "{}: the chat's prompt is empty",
-                folder.join(PROMPT_FILE).display()
-            )));
-        }
+        let nonempty = |name: &str| -> Result<String> {
+            let text = read(name)?;
+            if text.trim().is_empty() {
+                return Err(Error::Config(format!(
+                    "{}: the file is empty",
+                    folder.join(name).display()
+                )));
+            }
+            Ok(text)
+        };
+        let system = format!(
+            "{}\n\n{}",
+            nonempty(PROMPT_FILE)?.trim_end(),
+            nonempty(PLAYBOOK_FILE)?.trim_end()
+        );
+        let condense = nonempty(CONDENSE_FILE)?;
         let file = format!("{}/{REACH}.json", crate::profile::REACH_FOLDER);
         let origin = folder.join(&file).display().to_string();
         let reach = ReachProfile::parse(&read(&file)?, &origin)?;
@@ -83,11 +99,14 @@ impl ChatLibrary {
                 reach.name, reach.name
             )));
         }
+        let product = |text: &str| {
+            text.trim_end()
+                .replace(PRODUCT_PLACEHOLDER, sparksmith_core::product_name!())
+        };
         Ok(Self {
-            system: system
-                .trim_end()
-                .replace(PRODUCT_PLACEHOLDER, sparksmith_core::product_name!()),
+            system: product(&system),
             reach,
+            condense: product(&condense),
         })
     }
 }
@@ -112,6 +131,10 @@ pub struct ChatConfig {
     pub budget: Budget,
     /// The six verbs, as MCP's `tools/list` defines them.
     pub tools: Vec<ToolSpec>,
+    /// How much of the conversation the model is sent.
+    pub policy: Policy,
+    /// The summariser's instructions.
+    pub condense: String,
 }
 
 impl ChatConfig {
@@ -123,6 +146,8 @@ impl ChatConfig {
             system: library.system.clone(),
             budget,
             tools: crate::verbs::tools(),
+            policy: Policy::CHAT,
+            condense: library.condense.clone(),
         }
     }
 
@@ -231,8 +256,47 @@ pub fn turn(
     }
     let budget = &config.budget;
     let profile = &config.profile;
+    let policy = &config.policy;
     let fixed =
         (config.system.len() + serde_json::to_string(&config.tools).map_or(0, |t| t.len())) as u64;
+    let estimate = |history: &[Message]| -> u64 {
+        history
+            .iter()
+            .map(|m| crate::model::appended_chars(&m.content))
+            .fold(fixed, u64::saturating_add)
+            .div_ceil(CHARS_PER_TOKEN)
+    };
+    let context = profile.capabilities.context_tokens;
+    // At the turn's start, a boundary: condense, and summarise the earlier
+    // turns if even that leaves too much.
+    let share = |history: &[Message]| estimate(history) as f64 / context.max(1) as f64;
+    let before = estimate(history);
+    let over = share(history) > policy.trigger;
+    let mut condensed = context::condense(history, policy, context, &estimate);
+    if (over || condensed.is_some())
+        && share(history) > policy.target
+        && let Some((turns, record)) = context::summarise(
+            history,
+            backend,
+            &config.condense,
+            profile.output.per_request,
+            profile.request_timeout,
+        )
+    {
+        let shown = condensed.get_or_insert(Condensed {
+            cleared: 0,
+            turns: 0,
+            before_tokens: before,
+            after_tokens: 0,
+            record: None,
+        });
+        shown.turns = turns;
+        shown.record = Some(record);
+        shown.after_tokens = estimate(history);
+    }
+    if let Some(condensed) = condensed {
+        events(Event::Condensed(condensed));
+    }
     let end = loop {
         if cancel.load(Ordering::Relaxed) {
             break End::Stopped;
@@ -254,11 +318,25 @@ pub fn turn(
         if limit == 0 {
             break End::Limit(format!("{} output tokens", budget.max_output_tokens));
         }
-        let prompt = history
-            .iter()
-            .map(|m| crate::model::appended_chars(&m.content))
-            .fold(fixed, u64::saturating_add)
-            .div_ceil(CHARS_PER_TOKEN);
+        // Between requests: replies read and moved past go, together.
+        let before = estimate(history);
+        let cleared = context::clear_settled(history, policy);
+        if let Some(condensed) = context::condense(history, policy, context, &estimate) {
+            events(Event::Condensed(Condensed {
+                cleared: condensed.cleared + cleared,
+                before_tokens: before,
+                ..condensed
+            }));
+        } else if cleared > 0 {
+            events(Event::Condensed(Condensed {
+                cleared,
+                turns: 0,
+                before_tokens: before,
+                after_tokens: estimate(history),
+                record: None,
+            }));
+        }
+        let prompt = estimate(history);
         let used = tally
             .usage
             .prompt()
@@ -396,7 +474,7 @@ pub fn turn(
                 answer["error"].clone()
             };
             crate::run::integers_as_text(&mut body);
-            let text = cut_reply(body.to_string());
+            let text = context::shrink(&body, policy.reply_chars);
             events(row(if ok {
                 CallState::Done {
                     reply: text.clone(),
@@ -445,19 +523,6 @@ fn result(call_id: String, text: String, error: bool) -> Part {
         error,
         images: Vec::new(),
     }
-}
-
-/// `text` cut to [`MAX_REPLY_CHARS`], saying so.
-fn cut_reply(mut text: String) -> String {
-    if text.len() > MAX_REPLY_CHARS {
-        let mut end = MAX_REPLY_CHARS;
-        while !text.is_char_boundary(end) {
-            end -= 1;
-        }
-        text.truncate(end);
-        text.push_str("… [cut: the result exceeded the tool reply limit; ask for a narrower view]");
-    }
-    text
 }
 
 #[cfg(test)]

@@ -487,6 +487,86 @@ pub fn placed_point(placement: &Placement, point: Point, datum: Point) -> Point 
     ]
 }
 
+/// One connected pad where a route starts or ends: `layout.pads`.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct PadRow {
+    pub designator: String,
+    /// The pad's number on its footprint ("1", "A1", "EP").
+    pub pad: String,
+    pub net: Id,
+    pub net_name: String,
+    /// The pad's centre on the board, in mm.
+    pub position: Point,
+    pub layer: Layer,
+    /// Plated through: on every copper layer.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub through: bool,
+}
+
+/// The most designators one `layout.pads` names.
+pub const MAX_PAD_FILTER: usize = 256;
+
+/// The placed parts' connected pads, by designator and number, with their
+/// net and board position: what a route between two pads starts and ends
+/// at. `designators` (none: every part) and `net` narrow the list; a
+/// designator no instance has is refused, naming it.
+pub fn pad_rows(project: &Project, designators: &[String], net: Option<Id>) -> Result<Vec<PadRow>> {
+    if designators.len() > MAX_PAD_FILTER {
+        return Err(Error::Invalid(format!(
+            "it names {} designators; name at most {MAX_PAD_FILTER}",
+            designators.len()
+        )));
+    }
+    let mut wanted = BTreeSet::new();
+    for designator in designators {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or_else(|| Error::NotFound(format!("No part has the designator {designator}.")))?;
+        wanted.insert(instance.id);
+    }
+    if let Some(net) = net
+        && project.net(net).is_none()
+    {
+        return Err(Error::NotFound(format!("The project has no net {net}.")));
+    }
+    let mut rows = Vec::new();
+    for pad in pads(project) {
+        if (!wanted.is_empty() && !wanted.contains(&pad.instance))
+            || net.is_some_and(|n| n != pad.net)
+        {
+            continue;
+        }
+        let Some(instance) = project.instance(pad.instance) else {
+            continue;
+        };
+        let number = instances::resolve(&project.library, instance)
+            .ok()
+            .and_then(|r| r.physical)
+            .and_then(|p| {
+                p.footprint
+                    .definition
+                    .pads
+                    .iter()
+                    .find(|q| q.id == pad.pad)
+                    .map(|q| q.number.clone())
+            })
+            .unwrap_or_default();
+        rows.push(PadRow {
+            designator: instance.designator.clone(),
+            pad: number,
+            net: pad.net,
+            net_name: project
+                .net(pad.net)
+                .map(|n| n.name.clone())
+                .unwrap_or_default(),
+            position: pad.position,
+            layer: pad.layer,
+            through: pad.through,
+        });
+    }
+    Ok(rows)
+}
+
 /// Connected copper pads with their exact shapes. [`BoardCopper::of`]
 /// adds their board outlines.
 pub fn pads(project: &Project) -> Vec<WorldPad> {

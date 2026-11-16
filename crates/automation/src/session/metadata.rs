@@ -140,7 +140,7 @@ pub fn closest(name: &str, keep: impl Fn(&EntryMeta) -> bool) -> Vec<&'static st
 
 /// The Levenshtein distance between `a` and the first [`MAX_COMPARED`]
 /// characters of `b`.
-fn distance(a: &[char], b: &str) -> usize {
+pub(crate) fn distance(a: &[char], b: &str) -> usize {
     let b: Vec<char> = b.chars().take(MAX_COMPARED).collect();
     let mut row: Vec<usize> = (0..=b.len()).collect();
     for (i, x) in a.iter().enumerate() {

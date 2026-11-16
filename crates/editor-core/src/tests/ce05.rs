@@ -223,9 +223,9 @@ fn ce05_power_unit_decisions_and_regrouping_are_explicit() -> Result<()> {
             component: amp.r1(),
             designator: Some("U2".into()),
             properties: vec![text(gain, "2")],
-            representation: amp.symbol,
-            unit: B,
-            position: pt([60.0, 0.0]),
+            representation: Some(amp.symbol),
+            unit: Some(B),
+            position: Some(pt([60.0, 0.0])),
             physical: Some(amp.physical()),
         })),
     ) else {

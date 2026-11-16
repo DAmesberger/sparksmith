@@ -423,6 +423,15 @@ impl Assistant {
                         actions.push(Action::Card(action));
                     }
                 }
+                Item::Condensed { line, record } => {
+                    kit::rule(ui);
+                    if disclosure(ui, open, line, "", None).clicked() {
+                        toggled = Some(index);
+                    }
+                    if open {
+                        detail(ui, record);
+                    }
+                }
             });
         }
         if let Some(index) = toggled

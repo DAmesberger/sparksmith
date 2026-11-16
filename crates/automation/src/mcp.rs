@@ -38,6 +38,7 @@
 //! rather than misapplied.
 pub mod catalog;
 pub mod desk;
+pub mod fields;
 pub mod lenient;
 pub mod prompts;
 pub mod tools;

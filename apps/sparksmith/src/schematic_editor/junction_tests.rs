@@ -101,9 +101,9 @@ fn engine() -> Result<(Engine, [Id; 4], Id), Box<dyn std::error::Error>> {
                 component: first.component,
                 designator: Some(name.into()),
                 properties: vec![],
-                representation: first.representation,
-                unit: sparksmith_core::UnitId(1),
-                position: pt(at),
+                representation: Some(first.representation),
+                unit: Some(sparksmith_core::UnitId(1)),
+                position: Some(pt(at)),
                 physical: None,
             })),
         )?;

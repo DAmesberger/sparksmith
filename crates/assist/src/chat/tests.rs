@@ -427,3 +427,9 @@ fn the_verbs_of_one_message_join_its_turn_and_undo_as_one_step() -> Fallible {
     assert_eq!(fork.project().vias.len(), vias);
     Ok(())
 }
+
+#[path = "board_trace.rs"]
+mod board_trace;
+
+#[path = "board_chat.rs"]
+mod board_chat;

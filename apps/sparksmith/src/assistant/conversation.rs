@@ -146,6 +146,13 @@ pub enum Item {
     /// A workflow's card or a run's (C2), by its key in the window's
     /// workflow cards (`crate::workflow_cards`).
     Workflow(u64),
+    /// The divider where the chat condensed what the model is sent
+    /// (`docs/assistant-panel.md` §6.5): its line, and the kept record it
+    /// unfolds to. The transcript above is unchanged.
+    Condensed {
+        line: String,
+        record: String,
+    },
 }
 
 /// The transcript, its state and the use of the turn running.
@@ -236,6 +243,12 @@ impl Conversation {
                     seconds: meter.minutes.used as f64 * 60.0,
                 };
             }
+            Event::Condensed(condensed) => self.push(Item::Condensed {
+                line: condensed_line(&condensed),
+                record: condensed.record.unwrap_or_else(|| {
+                    "Older tool replies the model had read were cleared; it asks again when it needs them.".into()
+                }),
+            }),
             Event::Response { .. } | Event::Warning(_) => {}
         }
     }
@@ -372,6 +385,34 @@ fn detail(text: &str) -> String {
         end -= 1;
     }
     format!("{}…", &text[..end])
+}
+
+/// The divider's line: "Condensed 14 earlier tool replies · 182 k → 61 k
+/// tokens".
+fn condensed_line(condensed: &sparksmith_assist::chat::Condensed) -> String {
+    let k = |tokens: u64| {
+        if tokens >= 10_000 {
+            format!("{} k", tokens / 1_000)
+        } else {
+            tokens.to_string()
+        }
+    };
+    let replies = match condensed.cleared {
+        1 => "1 earlier tool reply".to_owned(),
+        n => format!("{n} earlier tool replies"),
+    };
+    let what = match (condensed.turns, condensed.cleared) {
+        (0, _) => replies,
+        (1, 0) => "1 earlier turn".to_owned(),
+        (t, 0) => format!("{t} earlier turns"),
+        (1, _) => format!("1 earlier turn and {replies}"),
+        (t, _) => format!("{t} earlier turns and {replies}"),
+    };
+    format!(
+        "Condensed {what} · {} → {} tokens",
+        k(condensed.before_tokens),
+        k(condensed.after_tokens)
+    )
 }
 
 /// The context line of a message: what `view.context` answered, in the

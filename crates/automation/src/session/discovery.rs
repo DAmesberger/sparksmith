@@ -172,6 +172,12 @@ pub enum Call {
 /// [`Call`] for the entry named `name`, or `None` when no entry is.
 pub fn call(name: &str, params: Value) -> Option<Call> {
     let entry = entries().iter().find(|e| e.name == name)?;
+    // An operation without parameters (`layout.sync`) is a unit variant:
+    // `{}` or nothing is sent without `params`.
+    let none = entry.kind == "operation"
+        && entry.schema["properties"].get("params").is_none()
+        && params.as_object().is_some_and(Map::is_empty);
+    let params = if none { Value::Null } else { params };
     let fill = |template: &Value| fill_params(template, &params);
     Some(match (entry.kind, &entry.send) {
         ("operation", Some(send)) => Call::Operation(fill(&send["operation"])),
@@ -187,6 +193,7 @@ fn fill_params(template: &Value, params: &Value) -> Value {
         Value::Object(object) => Value::Object(
             object
                 .iter()
+                .filter(|(_, inner)| !(params.is_null() && inner.as_str() == Some("<params>")))
                 .map(|(key, inner)| (key.clone(), fill_params(inner, params)))
                 .collect(),
         ),
