@@ -87,18 +87,47 @@ The types are in the ABI crate, `sparksmith_generator_abi::surface` (`no_std` + 
 - **Module digest:** SHA-256 of the module's canonical description: its entries sorted by name, each with its kind, class, effect, reach, needs, person step, time, result size, `since` and the digest of its canonical input schema.
 - **Canonical schema:** the entry's parameter schema with the definitions it reaches renumbered in the order they are first referenced, without `description`, `title`, `$comment`, `examples` and `$schema`. A renamed Rust type or an edited doc comment changes nothing; a changed field does. Titles and summaries are not contract.
 - **Per entry:** the class, the first 16 hex digits of the schema digest, the same per top-level parameter, and the required parameters.
+- **Beside it, `crates/automation/surface.schemas`:** each entry's canonical schema itself, one line per entry, so the next change can be compared structurally ([what a change needs](#what-a-change-needs)). `--update` writes both files; `--check` fails when either is out of date.
 
 `cargo xtask surface --check` (in `cargo xtask ci`) compares the catalog with the lock. It runs the automation test `session::surface::tests::the_lock_holds`, since the catalog is built from that crate's types. It fails when:
 
 - a module's digest changed and its version did not;
 - a version went back, or a module was removed;
-- from 1.0, an entry was removed, a parameter removed or retyped, a parameter became required, or a class became stricter, without a major raise;
+- from 1.0, an entry was removed, its parameters changed incompatibly ([what a change needs](#what-a-change-needs)), or a class became stricter, without a major raise;
 - an entry is new and its `since` is not the module's new version;
 - the lock is otherwise out of date.
 
 `cargo xtask surface --update` rewrites the lock, after the same rules pass. To change the surface, raise the module's version in `MODULES` (and `since` on a new entry), then update the lock.
 
-**Versions.** Every module was `0.x` until the MCP cut-over (S3), where each started at `1.0` (decision 12; `permission::CUT_OVER`). From 1.0 a break raises the major and an addition the minor: a new entry raises its module's minor and declares `since` it (for example `since(1, 1)`).
+**Versions.** Every module was `0.x` until the MCP cut-over (S3), where each started at `1.0` (decision 12; `permission::CUT_OVER`). From 1.0 a break raises the major and an addition the minor: a new entry raises its module's minor and declares `since` it (for example `since(1, 1)`). Versions recorded before the structural comparison (for example `project` 6.0, `layout` 2.0) stay as they are.
+
+### What a change needs
+
+Decided 2026-11-16: adding an optional field to an entry's parameters or reply is a minor change. The gate compares the recorded canonical schema of each entry with the current one, structurally and at any depth (`session::surface::compat`). A parameter schema is what a caller sends, so a change is compatible when every value the old schema accepted is still accepted with the same meaning:
+
+| Change (at any depth, in a definition too) | Needs |
+|---|---|
+| a new entry | minor, declared `since` the new version |
+| a new optional field (not required; `Option`, `#[serde(default)]` or skipped when absent) | minor |
+| a required field made optional | minor |
+| a wider type (`T` to `Option<T>`, `integer` to `number`), a removed or looser bound, a dropped `format`/`pattern` | minor |
+| a new enum value or union variant (a new operation inside `project.apply`) | minor |
+| a new default where none was | minor |
+| an edited doc comment, a renamed type | no version (the digest is the same) |
+| reordered fields or variants | minor (the digest changed, the contract did not) |
+| a removed or renamed field, entry or variant | major |
+| a new required field, an optional field made required | major |
+| a narrower or other type, an enum value removed, a tighter bound, a new `format`, `pattern` or path mark | major |
+| a changed or removed default (what an omitted value means) | major |
+| unknown properties newly refused (`additionalProperties: false`) | major |
+| a stricter class | major |
+| any schema keyword the comparison does not know | major |
+
+Before 1.0 any change raises the minor. Without a recorded schema for an entry (the first change after the schemas file was added), the old digest rule applies: any retyped parameter is major.
+
+**Wrappers.** `project.apply`, `project.apply_all` and `project.query` carry the union of every operation or query, so a change inside one is also a change to the `project` module. Under these rules a new operation, or a new optional field in one, is a minor raise of `project` as well as of the operation's own module; a break in an operation is a major raise of both. The wrappers' schemas stay in the digest, so a caller of `project.apply` is told the truth about what the wrapper accepts.
+
+**Enum values: widened inputs are minor, widened replies would be major.** A caller sends parameters, so a new enum value or variant takes nothing away from what it could send: minor. In a reply the direction turns: a new value can reach a client that matches every value it knows, so a reply's new enum value would be a break, while a reply's new optional field stays minor (clients ignore fields they do not know). Today the lock records parameter schemas only; replies have no schema in the catalog, so no reply change is gated yet. When reply schemas are recorded they compare with the direction turned for enums and variants.
 
 ## What S1 deleted
 

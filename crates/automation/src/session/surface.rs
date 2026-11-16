@@ -5,11 +5,13 @@
 //! by name, each with what it declares and the canonical schema of its
 //! parameters. The lock records per module its version and digest, and per
 //! entry its class, a schema digest, a digest per parameter and the
-//! required parameters, so [`ratchet`] can tell a compatible change (a new
-//! entry, a new optional parameter: a minor bump) from a breaking one (a
-//! removed entry or parameter, a retyped parameter, a new required one, a
-//! stricter class: a major bump). `cargo xtask surface --check` runs
-//! [`tests::the_lock_holds`].
+//! required parameters. Beside it, `surface.schemas` keeps each entry's
+//! canonical parameter schema, so [`ratchet`] compares old and new
+//! structurally ([`compat`]) and tells a compatible change (a new entry, a
+//! new optional field at any depth, a wider type: a minor bump) from a
+//! breaking one (a removed entry or field, a narrowed type, a new required
+//! field, a stricter class: a major bump). `cargo xtask surface --check`
+//! runs [`tests::the_lock_holds`].
 use super::discovery::{self, Entry};
 use super::metadata::{self, EntryMeta};
 use serde_json::{Map, Value, json};
@@ -22,6 +24,14 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The lock's place in the repository, beside this crate's manifest.
 pub const LOCK_FILE: &str = "surface.lock";
+/// Each entry's canonical parameter schema, beside the lock.
+pub const SCHEMAS_FILE: &str = "surface.schemas";
+/// The format of [`SCHEMAS_FILE`].
+const SCHEMAS_FORMAT: u64 = 1;
+
+/// Each entry's canonical parameter schema by name, as [`SCHEMAS_FILE`]
+/// records it.
+pub type Schemas = BTreeMap<String, Value>;
 
 /// Schema keywords that change no call: doc comments and type names.
 const IGNORED: &[&str] = &["description", "title", "$comment", "examples", "$schema"];
@@ -189,6 +199,65 @@ pub fn current() -> Lock {
     }
 }
 
+/// Every entry's canonical parameter schema, by name.
+pub fn schemas() -> Schemas {
+    discovery::entries()
+        .iter()
+        .map(|entry| (entry.name.clone(), canonical(input(entry), entry.root)))
+        .collect()
+}
+
+/// [`SCHEMAS_FILE`]'s text: one line per entry.
+pub fn schemas_text(schemas: &Schemas) -> Result<String, serde_json::Error> {
+    let mut out = format!("{{\"format\": {SCHEMAS_FORMAT}, \"entries\": {{\n");
+    for (i, (name, form)) in schemas.iter().enumerate() {
+        out.push_str(&format!(
+            " {}: {}{}\n",
+            serde_json::to_string(name)?,
+            serde_json::to_string(form)?,
+            if i + 1 < schemas.len() { "," } else { "" }
+        ));
+    }
+    out.push_str("}}\n");
+    Ok(out)
+}
+
+/// [`SCHEMAS_FILE`] read back; a format this build does not read is an
+/// error that names it.
+pub fn read_schemas(text: &str) -> Result<Schemas, String> {
+    let value: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
+    if value["format"].as_u64() != Some(SCHEMAS_FORMAT) {
+        return Err(format!(
+            "{SCHEMAS_FILE} has format {}; this build reads {SCHEMAS_FORMAT}",
+            value["format"]
+        ));
+    }
+    match value.get("entries") {
+        Some(Value::Object(entries)) => Ok(entries
+            .iter()
+            .map(|(name, form)| (name.clone(), form.clone()))
+            .collect()),
+        _ => Err(format!("{SCHEMAS_FILE} has no entries")),
+    }
+}
+
+/// The schemas a ratchet compares: the recorded ones, when there are, and
+/// the current ones.
+#[derive(Clone, Copy, Default)]
+pub struct Compared<'a> {
+    pub old: Option<&'a Schemas>,
+    pub new: Option<&'a Schemas>,
+}
+
+impl Compared<'_> {
+    /// How `name`'s parameters changed, when both sides are recorded.
+    fn classify(&self, name: &str) -> Option<compat::Outcome> {
+        let old = self.old?.get(name)?;
+        let new = self.new?.get(name)?;
+        Some(compat::classify(old, new))
+    }
+}
+
 /// The lock's text: one line per entry, so a change reads as a line.
 pub fn text(lock: &Lock) -> Result<String, serde_json::Error> {
     let mut out = format!("{{\"format\": {}, \"modules\": [\n", lock.format);
@@ -220,7 +289,12 @@ pub fn text(lock: &Lock) -> Result<String, serde_json::Error> {
 
 /// What a change from `locked` to `current` breaks without the version it
 /// needs, in plain words. Empty when every change is numbered.
-pub fn ratchet(locked: &Lock, current: &Lock, declared: &[ModuleDecl]) -> Vec<String> {
+pub fn ratchet(
+    locked: &Lock,
+    current: &Lock,
+    declared: &[ModuleDecl],
+    schemas: Compared<'_>,
+) -> Vec<String> {
     let mut problems = Vec::new();
     let since: HashMap<&str, (u16, u16)> = metadata::entries()
         .iter()
@@ -256,7 +330,7 @@ pub fn ratchet(locked: &Lock, current: &Lock, declared: &[ModuleDecl]) -> Vec<St
                 "module {} changed without a version change: raise it from {} ({})",
                 new.id,
                 old.version,
-                breaking(old, new)
+                breaking(old, new, schemas)
                     .first()
                     .map_or("a minor change", String::as_str)
             ));
@@ -265,7 +339,7 @@ pub fn ratchet(locked: &Lock, current: &Lock, declared: &[ModuleDecl]) -> Vec<St
         // Before 1.0 the minor is the breaking number, as in semver: any
         // raise numbers a break. From 1.0 a break raises the major.
         if now.0 == was.0 && was.0 != 0 {
-            for why in breaking(old, new) {
+            for why in breaking(old, new, schemas) {
                 problems.push(format!(
                     "module {} {} needs a major version, not {}",
                     new.id, why, new.version
@@ -290,8 +364,10 @@ pub fn ratchet(locked: &Lock, current: &Lock, declared: &[ModuleDecl]) -> Vec<St
     problems
 }
 
-/// The changes from `old` to `new` that break a caller.
-fn breaking(old: &LockedModule, new: &LockedModule) -> Vec<String> {
+/// The changes from `old` to `new` that break a caller. With both schemas
+/// recorded an entry's parameters compare structurally ([`compat`]);
+/// without, by the lock's digests (any retyped parameter breaks).
+fn breaking(old: &LockedModule, new: &LockedModule, schemas: Compared<'_>) -> Vec<String> {
     let mut out = Vec::new();
     for was in &old.entries {
         let Some(now) = new.entries.iter().find(|e| e.name == was.name) else {
@@ -305,6 +381,17 @@ fn breaking(old: &LockedModule, new: &LockedModule) -> Vec<String> {
                 was.class.name(),
                 now.class.name()
             ));
+        }
+        if let Some(outcome) = schemas.classify(&was.name) {
+            if outcome.change == compat::Change::Major {
+                out.extend(
+                    outcome
+                        .reasons
+                        .iter()
+                        .map(|why| format!("changed {}{why}", was.name)),
+                );
+            }
+            continue;
         }
         for (field, digest) in &was.fields {
             match now.fields.iter().find(|(name, _)| name == field) {
@@ -323,6 +410,8 @@ fn breaking(old: &LockedModule, new: &LockedModule) -> Vec<String> {
     }
     out
 }
+
+mod compat;
 
 #[cfg(test)]
 mod tests;
