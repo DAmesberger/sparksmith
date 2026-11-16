@@ -9,7 +9,7 @@ use serde_json::Value;
 use sparksmith_generator_abi::v1::{self, ErrorBody, Request, Scope};
 use sparksmith_generator_abi::{Failure, codec, hex, result_hash};
 use sparksmith_generators::{Limits, WasmiRuntime, config};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 type TestResult = Result<(), String>;
@@ -22,8 +22,16 @@ fn modules_dir() -> Result<PathBuf, String> {
         })
 }
 
+/// The workspace root, from the manifest directory cargo gives the test at
+/// run time. The compile-time one is only a fallback: a shared target
+/// directory can reuse a test binary built in another (since removed)
+/// checkout of the same crate, with that checkout's path baked in.
 fn workspace() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
+    std::env::var_os("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")))
+        .join("..")
+        .join("..")
 }
 
 /// A generator crate's module and golden cases.
@@ -39,7 +47,8 @@ fn goldens() -> Result<Vec<Golden>, String> {
     let dir = modules_dir()?;
     let generators = workspace().join("generators");
     let mut found = Vec::new();
-    let entries = std::fs::read_dir(&generators).map_err(|e| e.to_string())?;
+    let entries =
+        std::fs::read_dir(&generators).map_err(|e| format!("{}: {e}", generators.display()))?;
     let mut crates: Vec<(String, PathBuf)> = entries
         .filter_map(|e| e.ok())
         .filter(|e| e.path().join("golden.json").is_file())
@@ -51,10 +60,12 @@ fn goldens() -> Result<Vec<Golden>, String> {
         workspace().join("crates").join("generators-fixture"),
     ));
     for (name, path) in crates {
+        let golden_path = path.join("golden.json");
         let golden: Value = serde_json::from_str(
-            &std::fs::read_to_string(path.join("golden.json")).map_err(|e| e.to_string())?,
+            &std::fs::read_to_string(&golden_path)
+                .map_err(|e| format!("{}: {e}", golden_path.display()))?,
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("{}: {e}", golden_path.display()))?;
         let module_path = dir.join(format!("sparksmith_gen_{}.wasm", name.replace('-', "_")));
         let module =
             std::fs::read(&module_path).map_err(|e| format!("{}: {e}", module_path.display()))?;
@@ -143,8 +154,8 @@ fn probe_input(module: &[u8], request: &Request) -> Result<Vec<u8>, String> {
 #[test]
 #[ignore = "needs built modules: cargo xtask generators check"]
 fn golden_hashes_match_under_wasmi_built_for_wasm32() -> TestResult {
-    let probe = std::fs::read(modules_dir()?.join("sparksmith_generators_probe.wasm"))
-        .map_err(|e| format!("probe module: {e}"))?;
+    let probe_path = modules_dir()?.join("sparksmith_generators_probe.wasm");
+    let probe = std::fs::read(&probe_path).map_err(|e| format!("{}: {e}", probe_path.display()))?;
     // The probe is the interpreter itself, which uses floats: it runs
     // under a host that allows them. The generator inside it is still
     // validated by the probe's own host, which refuses floats.
