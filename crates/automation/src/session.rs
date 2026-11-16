@@ -1007,8 +1007,8 @@ impl Request {
             ),
             info::<crate::workflow::entries::OfferParams>(
                 "assist.offer",
-                "Offer a workflow in the chat as a card with the inputs you already have; the person chooses Use it or Just chat.",
-                "Show the workflow's card in the window's chat: its title and summary, why it fits (one sentence), the inputs given (each checked against the workflow's input) and those the run will still ask for. Answers the card's id and the missing inputs; the person's answer comes as their next message. Nothing starts until they choose Use it. Not a document change; a host without a window answers host.unavailable.",
+                "Offer a workflow in the chat as one card with every input the conversation gives; the person accepts and continues, or just chats.",
+                "Show the workflow's card in the window's chat: its title and summary, why it fits (one sentence), the inputs given (each checked against the workflow's input, changed in place by the person; the latest files the person attached fill its files inputs) and an inline field for each required one still missing. Answers the card's id and the missing inputs; the person's answer comes as their next message. Nothing starts until they choose Accept and continue. Not a document change; a host without a window answers host.unavailable.",
             ),
             info::<turns::TurnBeginParams>(
                 "project.turn_begin",

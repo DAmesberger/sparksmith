@@ -171,14 +171,7 @@ impl App {
     pub(super) fn chat_grant(&mut self) -> Result<(Grant, ReachProfile), String> {
         let reach = self.assistant.library()?.reach.clone();
         let mut grant = reach.grant();
-        grant.folders = self
-            .files
-            .path()
-            .and_then(std::path::Path::parent)
-            .filter(|folder| folder.is_absolute())
-            .map(std::path::Path::to_path_buf)
-            .into_iter()
-            .collect();
+        grant.folders = self.project_folder().into_iter().collect();
         Ok((grant, reach))
     }
 
@@ -288,6 +281,7 @@ impl App {
                 revision: self.engine.revision(),
                 undo_label: self.engine.undo_step().map(|step| step.line()),
                 context: assistant::context_line(&context),
+                folder: self.project_folder(),
             };
             let panel = host
                 .edge("assistant-column", edge)
@@ -303,6 +297,15 @@ impl App {
         for action in actions {
             self.assistant_action(&ctx, action);
         }
+    }
+
+    /// The open project's folder, when it is saved.
+    pub(super) fn project_folder(&self) -> Option<std::path::PathBuf> {
+        self.files
+            .path()
+            .and_then(std::path::Path::parent)
+            .filter(|folder| folder.is_absolute())
+            .map(std::path::Path::to_path_buf)
     }
 
     /// Whether a model is connected, looked at once when the chat opens and
@@ -380,6 +383,8 @@ impl App {
         {
             return;
         }
+        // A path still being typed becomes a chip too.
+        self.assistant.chip_paths(ctx, true);
         let text = self.assistant.composer.trim().to_owned();
         if text.is_empty() {
             return;
@@ -448,12 +453,30 @@ impl App {
             before: self.engine.document().clone(),
             revision: self.engine.revision(),
         });
+        // The message's files: attached to the conversation (a workflow's
+        // files input is filled from them) and named to the model.
+        let files = std::mem::take(&mut self.assistant.files);
+        self.workflow_cards.attach(&files);
+        let names: Vec<String> = files
+            .iter()
+            .map(|p| assistant::mentions::file_name(p))
+            .collect();
         self.assistant.conversation.sent(
             text.clone(),
             assistant::context_line(&context),
-            Vec::new(),
+            names.clone(),
         );
         self.assistant.composer.clear();
+        let attached: String = files
+            .iter()
+            .zip(&names)
+            .map(|(path, name)| format!("\n- @{name}: {}", path.display()))
+            .collect();
+        let text = if attached.is_empty() {
+            text
+        } else {
+            format!("{text}\n\nFiles attached to this message:{attached}")
+        };
         // What happened in the chat since the last message: a workflow card
         // declined, a run's result.
         let mut said = std::mem::take(&mut self.assistant.notes);

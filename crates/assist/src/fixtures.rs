@@ -130,7 +130,8 @@ pub fn exr22_answers() -> [(&'static str, Value); 3] {
         (
             "plan",
             json!({"generator": "module", "params": crate::legacy::module_params(&module_values()),
-                "why": "EXR-22 module, drawing on page 9"}),
+                "why": "EXR-22 module, drawing on page 9",
+                "pages": "exr22.pdf: pinout 1, drawing 2, land pattern 2"}),
         ),
         ("pinout", json!({"document": pinout()})),
         (

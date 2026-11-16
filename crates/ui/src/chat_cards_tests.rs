@@ -137,62 +137,116 @@ fn every_size(mut check: impl FnMut(&mut Harness)) {
     }
 }
 
-const GIVEN: [GivenRow<'static>; 2] =
-    [GivenRow { title: "Datasheets", value: "tlv757p.pdf (38 pages)" }, GivenRow { title: "Part name", value: "TLV75733PDBVR" }];
+const OPTIONS: [FileOption<'static>; 2] = [
+    FileOption { title: "tlv757p.pdf", detail: "38 pages · 1.2 MB", chosen: true },
+    FileOption { title: "tlv757p-errata.pdf", detail: "Attached", chosen: false },
+];
 
-fn the_offer() -> Offer<'static> {
-    Offer {
-        title: "Datasheet → component",
-        version: "1.0",
-        summary: "Drafts the part from the datasheet, every value cited.",
-        why: "",
-        given: &GIVEN,
-        missing: &[],
+/// The compact confirmation: one line per input (a file with its ⌄ list and Change…, a part
+/// name to edit in place), Accept and continue, and the decline its caller names.
+fn draw_confirm<'a>(
+    part: &'a mut String,
+    chosen: &'a Cell<Option<ConfirmChoice>>,
+    file: &'a Cell<Option<FileChoice>>,
+    active: bool,
+) -> impl FnMut(&mut Ui) + 'a {
+    move |ui: &mut Ui| {
+        let view = Confirm { title: "Datasheet → component", version: "1.1", why: "You asked for a part.", decline: "Just chat" };
+        let choice = confirm(ui, &view, active, |ui| {
+            if let Some(e) = compact_row(ui, "Datasheets", None, |ui| file_value(ui, egui::Id::unique("files"), "tlv757p.pdf · 38 pages", &OPTIONS))
+            {
+                file.set(Some(e));
+            }
+            let response = compact_row(ui, "Part name", None, |ui| text_input(ui, egui::Id::unique("part"), part, false, 64, false));
+            entered(ui, &response)
+        });
+        if let Some(c) = choice {
+            chosen.set(Some(c));
+        }
     }
 }
 
 #[test]
-fn workflow_card_offers_just_chat_and_use_it() {
+fn the_compact_confirmation_changes_values_in_place_and_accepts() {
     every_size(|h| {
-        let chosen = Cell::new(None);
-        let mut draw = |ui: &mut Ui| {
-            if let Some(c) = offer(ui, &the_offer(), true) {
-                chosen.set(Some(c));
-            }
-        };
+        let mut part = "TLV75733PDBVR".to_owned();
+        let (chosen, file) = (Cell::new(None), Cell::new(None));
+        let mut draw = draw_confirm(&mut part, &chosen, &file, true);
         h.settle(&mut draw);
         h.buttons_fit();
-        h.click(Role::Button, "Use it", &mut draw);
-        assert_eq!(chosen.take(), Some(OfferChoice::UseIt));
+        h.find(Role::TextInput, "Part name");
+        assert!(h.nodes.iter().any(|n| n.name == "You asked for a part."), "{:#?}", h.names());
+        h.click(Role::Button, "Change…", &mut draw);
+        assert_eq!(file.take(), Some(FileChoice::Change));
+        h.click(Role::Button, "tlv757p.pdf · 38 pages ⌄", &mut draw);
+        h.settle(&mut draw);
+        h.click(Role::CheckBox, "tlv757p-errata.pdf · Attached", &mut draw);
+        assert_eq!(file.take(), Some(FileChoice::Toggle(1)));
+        h.click(Role::Button, "Accept and continue", &mut draw);
+        assert_eq!(chosen.take(), Some(ConfirmChoice::Accept));
         h.click(Role::Button, "Just chat", &mut draw);
-        assert_eq!(chosen.take(), Some(OfferChoice::JustChat));
+        assert_eq!(chosen.take(), Some(ConfirmChoice::Decline));
     });
 }
 
 #[test]
-fn enter_uses_an_active_offer_and_esc_declines_it() {
+fn enter_accepts_an_active_confirmation_and_esc_declines_it() {
     let mut h = Harness::new(SIZES[0], COLUMNS[0]);
-    let mut chosen = Vec::new();
-    let mut active = true;
-    let mut draw = |ui: &mut Ui| {
-        if let Some(c) = offer(ui, &the_offer(), active) {
-            chosen.push(c);
-        }
-    };
+    let mut part = "TLV75733PDBVR".to_owned();
+    let (chosen, file) = (Cell::new(None), Cell::new(None));
+    let mut draw = draw_confirm(&mut part, &chosen, &file, true);
     h.settle(&mut draw);
     h.key(egui::Key::Enter, &mut draw);
+    assert_eq!(chosen.take(), Some(ConfirmChoice::Accept));
     h.key(egui::Key::Escape, &mut draw);
-    assert_eq!(chosen, vec![OfferChoice::UseIt, OfferChoice::JustChat]);
-    // An inactive card reads no keys: only the card the run waits on does.
-    active = false;
-    let mut chosen = Vec::new();
-    let mut draw = |ui: &mut Ui| {
-        if let Some(c) = offer(ui, &the_offer(), active) {
-            chosen.push(c);
-        }
-    };
+    assert_eq!(chosen.take(), Some(ConfirmChoice::Decline));
+    // Enter in the part's field accepts too.
+    h.click(Role::TextInput, "Part name", &mut draw);
     h.key(egui::Key::Enter, &mut draw);
-    assert!(chosen.is_empty());
+    assert_eq!(chosen.take(), Some(ConfirmChoice::Accept));
+    // An inactive card reads no keys: only the card the conversation waits on does.
+    drop(draw);
+    let mut draw = draw_confirm(&mut part, &chosen, &file, false);
+    h.settle(&mut draw);
+    h.key(egui::Key::Enter, &mut draw);
+    assert_eq!(chosen.take(), None);
+}
+
+#[test]
+fn a_file_chip_is_named_and_removed() {
+    every_size(|h| {
+        let removed = Cell::new(false);
+        let mut draw = |ui: &mut Ui| {
+            if file_chip(ui, "tlv757p.pdf", true) {
+                removed.set(true);
+            }
+        };
+        h.settle(&mut draw);
+        assert!(h.nodes.iter().any(|n| n.name == "@tlv757p.pdf"), "{:#?}", h.names());
+        h.click(Role::Button, "Remove tlv757p.pdf", &mut draw);
+        assert!(removed.get());
+    });
+}
+
+#[test]
+fn a_menu_moves_with_the_keys_it_is_given() {
+    let rows = [
+        MenuRow { title: "tlv757p.pdf", summary: "Attached", enabled: true },
+        MenuRow { title: "tlv757p-errata.pdf", summary: "datasheets", enabled: true },
+    ];
+    let mut highlighted = 0;
+    let mut h = Harness::new(SIZES[1], COLUMNS[1]);
+    let mut chosen = Vec::new();
+    let mut nav = MenuNav { down: true, ..MenuNav::default() };
+    let mut draw = |ui: &mut Ui| {
+        if let Some(i) = menu(ui, &rows, &mut highlighted, Some(nav)) {
+            chosen.push(i);
+        }
+        nav = MenuNav { enter: true, ..MenuNav::default() };
+    };
+    h.frame(vec![], &mut draw);
+    h.frame(vec![], &mut draw);
+    assert_eq!(chosen, vec![1], "↓ then Enter chooses the second row");
 }
 
 #[test]
@@ -303,7 +357,7 @@ fn result_card_opens_in_the_editor_and_undoes_the_run() {
         let mut chosen = Vec::new();
         let mut draw = |ui: &mut Ui| {
             let view = Outcome { title: "Done · 1 undo step", items: &items, findings: &findings, actions: &["Show", "Open in editor"], undo: true };
-            if let Some(c) = outcome(ui, &view) {
+            if let Some(c) = outcome(ui, &view, |_| {}) {
                 chosen.push(c);
             }
         };

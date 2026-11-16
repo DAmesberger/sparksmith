@@ -1,7 +1,7 @@
 {
   "format": 1,
   "id": "datasheet-to-component",
-  "version": "1.0",
+  "version": "1.1",
   "title": "Datasheet → component",
   "summary": "Draft a component, symbol, package, footprint, binding and 3D model from manufacturer datasheets, every value cited, for you to review and publish.",
   "intents": [
@@ -20,7 +20,6 @@
   "inputs": {
     "datasheets": {"type": "files", "title": "Datasheets", "accept": ["application/pdf"], "min": 1, "max": 4},
     "part": {"type": "text", "title": "Part name", "help": "The manufacturer part number", "max": 64},
-    "pages": {"type": "page_ranges", "title": "Pages to read first", "optional": true, "of": "datasheets"},
     "notes": {"type": "text", "title": "Notes", "help": "Package variant, what to leave out", "optional": true, "multiline": true, "max": 4096}
   },
   "outputs": {
@@ -30,6 +29,7 @@
         "generator": {"type": "text", "help": "A generator's name from library.generators"},
         "preset": {"type": "text", "optional": true, "help": "A preset of that generator, when one is the package"},
         "params": {"type": "object", "help": "Parameter values: lengths in integer nanometres, angles in integer millidegrees"},
+        "pages": {"type": "text", "help": "The pages you found and read, by document: \"tlv757p.pdf: pinout 3, drawing 31, land pattern 32\""},
         "why": {"type": "text", "help": "One line: the package and where its values come from"}
       }
     },
@@ -43,10 +43,10 @@
     }
   },
   "steps": [
-    {"id": "ask", "kind": "input", "title": "Inputs", "inputs": ["datasheets", "part", "pages", "notes"]},
-    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title", "pages": "/inputs/pages"}},
+    {"id": "ask", "kind": "input", "title": "Inputs", "inputs": ["datasheets", "part", "notes"]},
+    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title"}},
     {"id": "gens", "kind": "tool", "title": "Generators", "call": "library.generators", "params": {}},
-    {"id": "plan", "kind": "model", "title": "Package", "goal": "Choose the generator and preset that make the package and give every value the mechanical drawing and the land pattern state.", "method": "method.md#procedure", "output": "package_plan", "check": "make"},
+    {"id": "plan", "kind": "model", "title": "Package", "goal": "Find the pages with the pin layout, the mechanical drawing and the land pattern; choose the generator and preset that make the package and give every value the drawing and the land pattern state.", "method": "method.md#procedure", "output": "package_plan", "check": "make"},
     {"id": "pick", "kind": "review", "title": "Generator", "gate": "notify", "control": "choice", "show": "/steps/plan/generator", "options": {"list": "/steps/gens/shipped", "value": "/name", "title": "/title"}, "change": "plan"},
     {"id": "make", "kind": "tool", "title": "Made", "call": "library.generate_part", "params": {"generator": "/steps/plan/generator", "preset": "/steps/plan/preset", "params": "/steps/plan/params", "name": "/inputs/part", "scope": "component"}},
     {"id": "drafts", "kind": "tool", "title": "Drafts", "call": "library.draft_closure", "params": {"component": {"id": "/steps/make/outcome/report/root/id", "revision": "/steps/make/outcome/report/root/revision"}}},
@@ -58,7 +58,8 @@
     {"id": "accept", "kind": "tool", "title": "Review", "call": "library.review_check", "params": {"report": "/steps/report/report"}},
     {"id": "done", "kind": "result", "title": "Done",
      "items": [
-       {"title": "Drafts", "from": "/steps/drafts/outcome"},
+       {"title": "Drafts", "from": "/steps/drafts"},
+       {"title": "Pages used", "from": "/steps/plan/pages"},
        {"title": "Findings", "from": "/steps/check"},
        {"title": "Review", "from": "/steps/accept"}
      ],

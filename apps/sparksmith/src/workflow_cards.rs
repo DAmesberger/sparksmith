@@ -1,7 +1,8 @@
-//! The chat's workflow cards (assistant slice C2, `docs/assistant-panel.md`
-//! §3, §4): the workflow card a model, a signal, the `/` menu or the palette
-//! puts in the conversation; a running workflow's block; and the cards of
-//! its steps, drawn with `sparksmith_ui::chat_cards` from the runner's
+//! The chat's workflow cards (assistant slices C2, W2, `docs/assistant-panel.md`
+//! §3, §4): the compact confirmation a model, a signal, the `/` menu or the
+//! palette puts in the conversation, its inputs filled from the
+//! conversation; a running workflow's block; and the cards of its steps,
+//! drawn with `sparksmith_ui::chat_cards` from the runner's
 //! [`ControlCard`]s, answered with [`ControlAnswer`]s.
 //!
 //! This is the thin adapter between the workflow contract and the widgets:
@@ -10,10 +11,18 @@
 //! millidegrees), and reports what the person chose as a [`CardAction`] for
 //! the host (the chat, the runner) to carry out. It holds no workflow
 //! logic: which inputs, cards and gates there are is the workflow's data.
+//!
+//! **Filled from the conversation.** The files the person attached (`@`,
+//! a typed path, a drop, a pick) are kept here; a workflow's start inputs
+//! that take their type are filled from the latest of them
+//! ([`workflow::Workflow::fill_files`]), and the model fills the rest in
+//! its offer. The confirmation shows each filled input as a value to change
+//! in place and an inline field only for a required input nothing filled;
+//! Enter accepts and continues.
 use serde_json::{Map, Value};
 use sparksmith_assist::workflow::control::{ControlAnswer, ControlCard, Quantity};
 use sparksmith_assist::workflow::event::{OfferedBy, RunEnd, WorkflowEvent};
-use sparksmith_assist::workflow::{self, Listed, Offer, Signal, offer};
+use sparksmith_assist::workflow::{self, Listed, Offer, Signal, Workflow, offer};
 use sparksmith_core::units::{LengthUnit, Nm, format_number, parse_length};
 use sparksmith_ui::chat_cards as cards;
 use std::path::{Path, PathBuf};
@@ -26,11 +35,14 @@ const MAX_ITEMS: usize = 256;
 /// The most bytes of one document a datasheet field takes (the runner's
 /// own bound on attached datasheets).
 const MAX_FILE_BYTES: u64 = sparksmith_assist::MAX_DATASHEET_BYTES;
+/// The most files the conversation keeps as attached, the oldest going
+/// first.
+const MAX_ATTACHED: usize = 64;
 
 /// What the person chose on a card, for the host to carry out.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum CardAction {
-    /// Use it: start the workflow with these inputs.
+    /// Accept and continue: start the workflow with these inputs.
     Start {
         card: String,
         workflow: String,
@@ -65,13 +77,18 @@ struct Document {
     failed: bool,
 }
 
-/// One field of an input card, with what the person typed.
+/// One input of a confirmation, with what the person typed.
 struct FieldEdit {
     card: ControlCard,
     text: String,
     chosen: Vec<String>,
     documents: Vec<Document>,
     error: Option<String>,
+    /// Whether its row shows: it holds a value, or it is required. An
+    /// optional input nothing filled stays out of the way.
+    shown: bool,
+    /// The person changed it: a later offer leaves it as it is.
+    edited: bool,
 }
 
 enum State {
@@ -80,11 +97,11 @@ enum State {
 }
 
 enum Item {
+    /// A workflow offered, its start inputs filled from the conversation.
     Offer {
         card: String,
         offer: Offer,
-        /// The workflow's input titles, by name.
-        titles: Vec<(String, String)>,
+        fields: Vec<FieldEdit>,
         state: State,
     },
     Run {
@@ -182,8 +199,17 @@ pub(crate) struct WorkflowCards {
     /// Keys added since [`Self::take_new`].
     fresh: Vec<u64>,
     /// What the person chose that the chat's run host carries out (W2):
-    /// Use it, Just chat, a run's answers, Stop.
+    /// Accept and continue, Just chat, a run's answers, Stop.
     pub outbox: Vec<CardAction>,
+    /// Files attached in this session (`@`, typed paths, drops, picks), the
+    /// latest last: the composer's `@` and a datasheet value's ⌄ offer them.
+    attached: Vec<PathBuf>,
+    /// The latest message's (or drop's) files and their media types: what
+    /// an offer's files inputs are filled from.
+    latest: Vec<(String, String)>,
+    /// The open project's folder, and its files once listed.
+    project: Option<PathBuf>,
+    project_files: Option<Vec<PathBuf>>,
 }
 
 impl WorkflowCards {
@@ -241,26 +267,47 @@ impl WorkflowCards {
     }
 
     /// Put a checked workflow card in the conversation (`assist.offer` from
-    /// the window, a signal, the `/` menu, the palette); answers its id.
+    /// the window, a signal, the `/` menu, the palette), its files inputs
+    /// filled from the latest attached files; answers its id. While a card
+    /// of the same workflow waits, the offer fills that one instead: each
+    /// value it gives replaces one the person has not changed.
     pub(crate) fn show_offer(&mut self, offer: Offer) -> String {
+        let offer = self.filled(offer);
+        let fields = self.offer_fields(&offer);
+        let waiting = self.items.iter_mut().rev().find_map(|item| match item {
+            Item::Offer {
+                card,
+                offer: old,
+                fields: own,
+                state: State::Waiting,
+            } if old.workflow == offer.workflow => Some((card.clone(), old, own)),
+            _ => None,
+        });
+        if let Some((card, old, own)) = waiting {
+            for field in fields {
+                let name = input_name(&field.card);
+                if !offer.inputs.contains_key(&name) {
+                    continue;
+                }
+                if let Some(mine) = own.iter_mut().find(|f| input_name(&f.card) == name)
+                    && !mine.edited
+                {
+                    *mine = field;
+                }
+            }
+            old.inputs.extend(offer.inputs);
+            old.missing = offer.missing;
+            if !offer.why.is_empty() {
+                old.why = offer.why;
+            }
+            self.open_requested = true;
+            return card;
+        }
         let card = self.card_id();
-        let titles = self
-            .listed()
-            .iter()
-            .filter_map(|l| l.loaded.as_ref())
-            .find(|l| l.workflow.id == offer.workflow)
-            .map(|l| {
-                l.workflow
-                    .inputs
-                    .iter()
-                    .map(|(name, input)| (name.clone(), input.title.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
         self.push(Item::Offer {
             card: card.clone(),
             offer,
-            titles,
+            fields,
             state: State::Waiting,
         });
         card
@@ -276,6 +323,139 @@ impl WorkflowCards {
     ) -> Result<String, String> {
         let offer = Offer::check(self.listed(), id, inputs, why)?;
         Ok(self.show_offer(offer))
+    }
+
+    /// The workflow `id` as the host lists it.
+    fn workflow(&mut self, id: &str) -> Option<Workflow> {
+        self.listed()
+            .iter()
+            .filter_map(|l| l.loaded.as_ref())
+            .find(|l| l.workflow.id == id)
+            .map(|l| l.workflow.clone())
+    }
+
+    /// `offer` with its files inputs that nothing gave filled from the
+    /// latest attached files, checked again.
+    fn filled(&mut self, offer: Offer) -> Offer {
+        let Some(workflow) = self.workflow(&offer.workflow) else {
+            return offer;
+        };
+        let mut inputs = offer.inputs.clone();
+        workflow.fill_files(&mut inputs, &self.latest);
+        if inputs.len() == offer.inputs.len() {
+            return offer;
+        }
+        Offer::check(self.listed(), &offer.workflow, inputs, &offer.why).unwrap_or(offer)
+    }
+
+    /// The confirmation's fields: the workflow's start inputs with what the
+    /// offer gives.
+    fn offer_fields(&mut self, offer: &Offer) -> Vec<FieldEdit> {
+        let Some(workflow) = self.workflow(&offer.workflow) else {
+            return Vec::new();
+        };
+        let cards: Vec<ControlCard> = workflow
+            .start_inputs()
+            .into_iter()
+            .filter_map(|name| {
+                let input = workflow.input(name)?;
+                Some(ControlCard::for_input(
+                    name,
+                    input,
+                    offer.inputs.get(name),
+                    Vec::new(),
+                ))
+            })
+            .collect();
+        cards
+            .into_iter()
+            .map(|card| {
+                let mut field = FieldEdit::new(card);
+                // A file given by path is read like a dropped one: its page
+                // count, and its copy in the conversation's folder.
+                for document in &mut field.documents {
+                    *document = self.document(document.given.clone());
+                }
+                field
+            })
+            .collect()
+    }
+
+    /// The document read from `path`, or a placeholder while it is read.
+    fn document(&mut self, path: PathBuf) -> Document {
+        if let Some(read) = self.documents.iter().find(|d| d.given == path) {
+            return read.clone();
+        }
+        self.probe(path.clone());
+        Document {
+            title: file_name(&path),
+            detail: "Reading…".into(),
+            given: path,
+            stored: None,
+            failed: false,
+        }
+    }
+
+    /// Files the person attached to a message, dropped or picked: they are
+    /// the latest the next offer is filled from, and stay attached for the
+    /// composer's `@` and a datasheet value's ⌄. A PDF is read for its
+    /// pages and copied into the conversation's folder.
+    pub(crate) fn attach(&mut self, paths: &[PathBuf]) {
+        if paths.is_empty() {
+            return;
+        }
+        self.latest.clear();
+        for path in paths {
+            if let Some(media) = media_type_of(path) {
+                self.latest
+                    .push((path.display().to_string(), media.to_owned()));
+                if media == offer::PDF {
+                    self.probe(path.clone());
+                }
+            }
+            self.attached.retain(|p| p != path);
+            self.attached.push(path.clone());
+        }
+        let over = self.attached.len().saturating_sub(MAX_ATTACHED);
+        self.attached.drain(..over);
+    }
+
+    /// The files attached in this session, the latest last.
+    pub(crate) fn attached(&self) -> &[PathBuf] {
+        &self.attached
+    }
+
+    /// The open project's folder, for the files a datasheet value offers.
+    pub(crate) fn set_project(&mut self, folder: Option<PathBuf>) {
+        if self.project != folder {
+            self.project = folder;
+            self.project_files = None;
+        }
+    }
+
+    /// The files a datasheet value may be: the PDFs attached (the latest
+    /// first), then those in the project's folder. Listed by name only;
+    /// the one chosen is read for its type like any other.
+    fn file_candidates(&mut self) -> Vec<PathBuf> {
+        let pdf = |p: &PathBuf| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
+        let mut out: Vec<PathBuf> = self
+            .attached
+            .iter()
+            .rev()
+            .filter(|p| pdf(p))
+            .cloned()
+            .collect();
+        if let Some(folder) = self.project.clone() {
+            let files = self
+                .project_files
+                .get_or_insert_with(|| crate::assistant::mentions::project_files(&folder));
+            for path in files.iter().filter(|p| pdf(p)) {
+                if !out.contains(path) {
+                    out.push(path.clone());
+                }
+            }
+        }
+        out
     }
 
     /// The event the chat sends the model for card `card`, when it is a
@@ -329,14 +509,16 @@ impl WorkflowCards {
         })
     }
 
-    /// Files dropped on the chat. The waiting input card with a datasheet
-    /// field takes them; otherwise each file's type is a signal, and a
-    /// workflow that names it is offered with the files as its input.
-    /// Answers a sentence for each file nothing took.
+    /// Files dropped on the chat. They are attached to the conversation;
+    /// the waiting confirmation with a datasheet value takes them;
+    /// otherwise each file's type is a signal, and a workflow that names it
+    /// is offered with the files as its input. Answers a sentence for each
+    /// file nothing took.
     pub(crate) fn drop_files(&mut self, paths: Vec<PathBuf>) -> Vec<String> {
+        self.attach(&paths);
         if let Some(index) = self.datasheet_field() {
             for path in paths {
-                self.add_document(index, path);
+                self.add_document(index, path, false);
             }
             return Vec::new();
         }
@@ -402,22 +584,47 @@ impl WorkflowCards {
         refused
     }
 
-    /// Files the host's picker returned for card `card`.
+    /// Files the host's picker returned for card `card`: they are attached,
+    /// and its datasheet value takes them (one replaces a single file).
     pub(crate) fn picked(&mut self, card: &str, paths: Vec<PathBuf>) {
-        let index = self.items.iter().position(
-            |item| matches!(item, Item::Inputs { card: c, state: State::Waiting, .. } if c == card),
-        );
+        self.attach(&paths);
+        let index = self.items.iter().position(|item| match item {
+            Item::Inputs {
+                card: c,
+                state: State::Waiting,
+                ..
+            }
+            | Item::Offer {
+                card: c,
+                state: State::Waiting,
+                ..
+            } => c == card,
+            _ => false,
+        });
         if let Some(index) = index {
             for path in paths {
-                self.add_document(index, path);
+                self.add_document(index, path, true);
             }
         }
     }
 
-    /// The waiting input card with a datasheet field that takes more.
+    /// The fields of the item at `index` that take input.
+    fn fields_mut(&mut self, index: usize) -> Option<&mut Vec<FieldEdit>> {
+        match self.items.get_mut(index)? {
+            Item::Inputs { fields, .. } | Item::Offer { fields, .. } => Some(fields),
+            _ => None,
+        }
+    }
+
+    /// The waiting confirmation with a datasheet value that takes more.
     fn datasheet_field(&self) -> Option<usize> {
         self.items.iter().rposition(|item| match item {
             Item::Inputs {
+                fields,
+                state: State::Waiting,
+                ..
+            }
+            | Item::Offer {
                 fields,
                 state: State::Waiting,
                 ..
@@ -426,25 +633,52 @@ impl WorkflowCards {
         })
     }
 
-    fn add_document(&mut self, index: usize, path: PathBuf) {
-        let Some(Item::Inputs { fields, .. }) = self.items.get_mut(index) else {
+    /// Put `path` in the datasheet value of the item at `index`: added
+    /// while it takes more, or, with `replace`, in place of a single file.
+    fn add_document(&mut self, index: usize, path: PathBuf, replace: bool) {
+        let document = self.document(path);
+        let Some(fields) = self.fields_mut(index) else {
             return;
         };
-        let Some(field) = fields.iter_mut().find(|f| matches!(f.card, ControlCard::Datasheet { max, .. } if (f.documents.len() as u64) < max)) else {
+        let Some(field) = fields
+            .iter_mut()
+            .find(|f| matches!(f.card, ControlCard::Datasheet { .. }))
+        else {
             return;
         };
-        if field.documents.iter().any(|d| d.given == path) {
+        let ControlCard::Datasheet { max, .. } = field.card else {
+            return;
+        };
+        if field.documents.iter().any(|d| d.given == document.given) {
             return;
         }
-        field.documents.push(Document {
-            title: file_name(&path),
-            detail: "Reading…".into(),
-            given: path.clone(),
-            stored: None,
-            failed: false,
+        if replace && max == 1 {
+            field.documents.clear();
+        }
+        if (field.documents.len() as u64) < max {
+            field.documents.push(document);
+            field.error = None;
+            field.edited = true;
+            field.shown = true;
+        }
+    }
+
+    /// The person's ⌄ choice on the datasheet value of the item at
+    /// `index`: a single file is replaced, several toggle.
+    fn toggle_document(&mut self, index: usize, path: PathBuf) {
+        let had = self.fields_mut(index).is_some_and(|fields| {
+            fields.iter_mut().any(|f| {
+                let before = f.documents.len();
+                if matches!(f.card, ControlCard::Datasheet { max, .. } if max > 1) {
+                    f.documents.retain(|d| d.given != path);
+                }
+                f.edited |= f.documents.len() != before;
+                f.documents.len() != before
+            })
         });
-        field.error = None;
-        self.probe(path);
+        if !had {
+            self.add_document(index, path, true);
+        }
     }
 
     /// Read `path` off the UI thread: its kind, page count and size, then
@@ -486,7 +720,7 @@ impl WorkflowCards {
         });
         for document in done {
             for item in &mut self.items {
-                if let Item::Inputs { fields, .. } = item {
+                if let Item::Inputs { fields, .. } | Item::Offer { fields, .. } = item {
                     for field in fields.iter_mut() {
                         for d in &mut field.documents {
                             if d.given == document.given {
@@ -730,291 +964,411 @@ impl WorkflowCards {
     }
 
     fn show_item(&mut self, ui: &mut egui::Ui, index: usize, active: bool) -> Option<CardAction> {
-        let documents = self.documents.clone();
         let key = *self.keys.get(index)?;
-        let item = self.items.get_mut(index)?;
-        ui.push_id(("workflow-card", key), |ui| match item {
+        let candidates = match self.items.get(index)? {
             Item::Offer {
-                card,
-                offer,
-                titles,
-                state,
-            } => {
-                let given = given_rows(offer, titles, &documents);
-                let given: Vec<cards::GivenRow<'_>> = given
-                    .iter()
-                    .map(|(t, v)| cards::GivenRow { title: t, value: v })
-                    .collect();
-                let missing: Vec<String> = offer
-                    .missing
-                    .iter()
-                    .map(|name| input_title(titles, name))
-                    .collect();
-                let missing: Vec<&str> = missing.iter().map(String::as_str).collect();
-                let view = cards::Offer {
-                    title: &offer.title,
-                    version: &offer.version,
-                    summary: &offer.summary,
-                    why: &offer.why,
-                    given: &given,
-                    missing: &missing,
-                };
-                if let State::Answered(how) = state {
-                    cards::card(ui, &offer.title, how, |ui| cards::note(ui, &offer.summary));
-                    return None;
-                }
-                match cards::offer(ui, &view, active)? {
-                    cards::OfferChoice::UseIt => {
-                        *state = State::Answered("Used");
-                        Some(CardAction::Start {
-                            card: card.clone(),
-                            workflow: offer.workflow.clone(),
-                            inputs: stored_inputs(&offer.inputs, &documents),
-                        })
-                    }
-                    cards::OfferChoice::JustChat => {
-                        *state = State::Answered("Just chat");
-                        Some(CardAction::JustChat { card: card.clone() })
-                    }
-                }
+                state: State::Waiting,
+                fields,
+                ..
             }
-            Item::Run {
-                title,
-                version,
-                steps,
-                meter,
-                ended,
-                run,
-            } => {
-                let lines: Vec<cards::StepLine<'_>> = steps
-                    .iter()
-                    .map(|(_, title, state, summary)| cards::StepLine {
-                        title,
-                        state: *state,
-                        summary,
-                    })
-                    .collect();
-                let gauges: Vec<cards::GaugeRow<'_>> = meter
-                    .iter()
-                    .flat_map(|m| {
-                        [("requests", m[0]), ("tokens", m[1]), ("min", m[2])]
-                            .map(|(unit, (used, limit))| cards::GaugeRow { unit, used, limit })
-                    })
-                    .collect();
-                let end = ended.as_ref().map(end_line).unwrap_or_default();
-                let view = cards::Run {
+            | Item::Inputs {
+                state: State::Waiting,
+                fields,
+                ..
+            } if fields
+                .iter()
+                .any(|f| matches!(f.card, ControlCard::Datasheet { .. })) =>
+            {
+                self.file_candidates()
+            }
+            _ => Vec::new(),
+        };
+        let mut toggle = None;
+        let item = self.items.get_mut(index)?;
+        let action = ui
+            .push_id(("workflow-card", key), |ui| match item {
+                Item::Offer {
+                    card,
+                    offer,
+                    fields,
+                    state,
+                } => {
+                    if let State::Answered(how) = state {
+                        answered(ui, &offer.title, how, fields);
+                        return None;
+                    }
+                    let view = cards::Confirm {
+                        title: &offer.title,
+                        version: &offer.version,
+                        why: &offer.why,
+                        decline: "Just chat",
+                    };
+                    let mut inputs = offer.inputs.clone();
+                    let shown =
+                        show_compact(ui, card, &view, fields, active, &candidates, &mut toggle);
+                    match shown? {
+                        Compact::Accept(values) => {
+                            *state = State::Answered("Accepted");
+                            for field in fields.iter() {
+                                inputs.remove(&input_name(&field.card));
+                            }
+                            inputs.extend(values);
+                            Some(CardAction::Start {
+                                card: card.clone(),
+                                workflow: offer.workflow.clone(),
+                                inputs,
+                            })
+                        }
+                        Compact::Decline => {
+                            *state = State::Answered("Just chat");
+                            Some(CardAction::JustChat { card: card.clone() })
+                        }
+                        Compact::Pick => Some(CardAction::PickFiles { card: card.clone() }),
+                    }
+                }
+                Item::Run {
                     title,
                     version,
-                    steps: &lines,
-                    gauges: &gauges,
-                    running: ended.is_none(),
-                    ended: &end,
-                };
-                cards::run_block(ui, &view).then(|| CardAction::Stop { run: run.clone() })
-            }
-            Item::Inputs {
-                card,
-                run,
-                step,
-                title,
-                fields,
-                state,
-            } => show_inputs(ui, card, run, step, title, fields, state, active),
-            Item::Gate {
-                card,
-                run,
-                step,
-                title,
-                counts,
-                findings,
-                rows,
-                leave_out,
-                state,
-            } => {
-                if let State::Answered(how) = state {
-                    cards::card(ui, title, how, |_| {});
-                    return None;
+                    steps,
+                    meter,
+                    ended,
+                    run,
+                } => {
+                    let lines: Vec<cards::StepLine<'_>> = steps
+                        .iter()
+                        .map(|(_, title, state, summary)| cards::StepLine {
+                            title,
+                            state: *state,
+                            summary,
+                        })
+                        .collect();
+                    let gauges: Vec<cards::GaugeRow<'_>> = meter
+                        .iter()
+                        .flat_map(|m| {
+                            [("requests", m[0]), ("tokens", m[1]), ("min", m[2])]
+                                .map(|(unit, (used, limit))| cards::GaugeRow { unit, used, limit })
+                        })
+                        .collect();
+                    let end = ended.as_ref().map(end_line).unwrap_or_default();
+                    let view = cards::Run {
+                        title,
+                        version,
+                        steps: &lines,
+                        gauges: &gauges,
+                        running: ended.is_none(),
+                        ended: &end,
+                    };
+                    cards::run_block(ui, &view).then(|| CardAction::Stop { run: run.clone() })
                 }
-                let counts: Vec<cards::CountRow<'_>> = counts
-                    .iter()
-                    .map(|(label, n)| cards::CountRow { label, n: *n })
-                    .collect();
-                let findings: Vec<cards::FindingRow<'_>> = findings
-                    .iter()
-                    .map(|(blocking, message)| cards::FindingRow {
-                        blocking: *blocking,
-                        message,
-                    })
-                    .collect();
-                let rows: Vec<cards::ChangeRow<'_>> = rows
-                    .iter()
-                    .map(|(id, text)| cards::ChangeRow { id, text })
-                    .collect();
-                let view = cards::Impact {
+                Item::Inputs {
+                    card,
+                    run,
+                    step,
                     title,
-                    gate: cards::Gate::Review,
-                    counts: &counts,
-                    findings: &findings,
-                    rows: &rows,
-                };
-                let choice = cards::impact(
-                    ui,
-                    egui::Id::unique(("gate", card.as_str())),
-                    &view,
-                    leave_out,
-                    active,
-                )?;
-                // A confirm gate's card: an Ask is the chat's own card (C1).
-                let (label, answer) = match choice {
-                    cards::GateChoice::Apply => (
-                        "Applied",
-                        ControlAnswer::Apply {
-                            leave_out: leave_out.clone(),
-                        },
-                    ),
-                    _ => ("Declined", ControlAnswer::Decline),
-                };
-                let action = CardAction::Answer {
-                    run: run.clone(),
-                    step: step.clone(),
-                    answer,
-                };
-                *state = State::Answered(label);
-                Some(action)
-            }
-            Item::Notify {
-                card,
-                run,
-                step,
-                field,
-                state,
-            } => {
-                let ControlCard::Choice {
-                    field: f,
-                    options,
-                    value: shown,
-                    ..
-                } = &field.card
-                else {
-                    return None;
-                };
-                let heading = cards::Field {
-                    title: &f.title,
-                    help: &f.help,
-                    optional: false,
-                };
-                let options: Vec<cards::ChoiceOption<'_>> = options
-                    .iter()
-                    .map(|o| cards::ChoiceOption {
-                        value: &o.value,
-                        title: &o.title,
+                    fields,
+                    state,
+                } => {
+                    if let State::Answered(how) = state {
+                        answered(ui, title, how, fields);
+                        return None;
+                    }
+                    let view = cards::Confirm {
+                        title,
+                        version: "",
+                        why: "",
+                        decline: "Decline",
+                    };
+                    let (label, answer) = match show_compact(
+                        ui,
+                        card,
+                        &view,
+                        fields,
+                        active,
+                        &candidates,
+                        &mut toggle,
+                    )? {
+                        Compact::Accept(values) => ("Accepted", ControlAnswer::Inputs { values }),
+                        Compact::Decline => ("Declined", ControlAnswer::Decline),
+                        Compact::Pick => {
+                            return Some(CardAction::PickFiles { card: card.clone() });
+                        }
+                    };
+                    *state = State::Answered(label);
+                    Some(CardAction::Answer {
+                        run: run.clone(),
+                        step: step.clone(),
+                        answer,
                     })
-                    .collect();
-                let aside = match state {
-                    State::Answered(how) => *how,
-                    State::Waiting => "",
-                };
-                let waiting = matches!(state, State::Waiting);
-                cards::card(ui, &f.title, aside, |ui| {
-                    cards::field(ui, &heading, None, |ui| {
-                        ui.add_enabled_ui(waiting, |ui| {
+                }
+                Item::Gate {
+                    card,
+                    run,
+                    step,
+                    title,
+                    counts,
+                    findings,
+                    rows,
+                    leave_out,
+                    state,
+                } => {
+                    if let State::Answered(how) = state {
+                        cards::card(ui, title, how, |_| {});
+                        return None;
+                    }
+                    let counts: Vec<cards::CountRow<'_>> = counts
+                        .iter()
+                        .map(|(label, n)| cards::CountRow { label, n: *n })
+                        .collect();
+                    let findings: Vec<cards::FindingRow<'_>> = findings
+                        .iter()
+                        .map(|(blocking, message)| cards::FindingRow {
+                            blocking: *blocking,
+                            message,
+                        })
+                        .collect();
+                    let rows: Vec<cards::ChangeRow<'_>> = rows
+                        .iter()
+                        .map(|(id, text)| cards::ChangeRow { id, text })
+                        .collect();
+                    let view = cards::Impact {
+                        title,
+                        gate: cards::Gate::Review,
+                        counts: &counts,
+                        findings: &findings,
+                        rows: &rows,
+                    };
+                    let choice = cards::impact(
+                        ui,
+                        egui::Id::unique(("gate", card.as_str())),
+                        &view,
+                        leave_out,
+                        active,
+                    )?;
+                    // A confirm gate's card: an Ask is the chat's own card (C1).
+                    let (label, answer) = match choice {
+                        cards::GateChoice::Apply => (
+                            "Applied",
+                            ControlAnswer::Apply {
+                                leave_out: leave_out.clone(),
+                            },
+                        ),
+                        _ => ("Declined", ControlAnswer::Decline),
+                    };
+                    let action = CardAction::Answer {
+                        run: run.clone(),
+                        step: step.clone(),
+                        answer,
+                    };
+                    *state = State::Answered(label);
+                    Some(action)
+                }
+                Item::Notify {
+                    card,
+                    run,
+                    step,
+                    field,
+                    state,
+                } => {
+                    let ControlCard::Choice {
+                        field: f,
+                        options,
+                        value: shown,
+                        ..
+                    } = &field.card
+                    else {
+                        return None;
+                    };
+                    let options: Vec<cards::ChoiceOption<'_>> = options
+                        .iter()
+                        .map(|o| cards::ChoiceOption {
+                            value: &o.value,
+                            title: &o.title,
+                        })
+                        .collect();
+                    let aside = match state {
+                        State::Answered(how) => *how,
+                        State::Waiting => "",
+                    };
+                    let waiting = matches!(state, State::Waiting);
+                    // The choice first, on one line with why; the other options
+                    // only once the person asks for them.
+                    let title_of = |value: Option<&String>| {
+                        value
+                            .and_then(|v| options.iter().find(|o| o.value == v.as_str()))
+                            .map_or_else(
+                                || value.cloned().unwrap_or_else(|| "None".to_owned()),
+                                |o| o.title.to_owned(),
+                            )
+                    };
+                    let open_id = egui::Id::unique(("notify-open", card.as_str()));
+                    let mut open = ui
+                        .ctx()
+                        .data(|d| d.get_temp::<bool>(open_id))
+                        .unwrap_or(false);
+                    cards::card(ui, &f.title, aside, |ui| {
+                        let chosen = title_of(field.chosen.first());
+                        let line = if f.help.is_empty() {
+                            chosen
+                        } else {
+                            format!("{chosen} · {}", f.help)
+                        };
+                        cards::line(ui, &line);
+                        if waiting && !open && options.len() > 1 {
+                            let other =
+                                cards::footer(ui, &[cards::FooterButton::new("Choose another…")]);
+                            if other.is_some() {
+                                open = true;
+                                ui.ctx().data_mut(|d| d.insert_temp(open_id, true));
+                            }
+                        }
+                        if waiting && open {
                             cards::choice_input(
                                 ui,
                                 egui::Id::unique(("notify", card.as_str())),
                                 &options,
                                 &mut field.chosen,
                                 false,
-                            )
-                        })
-                    });
-                    if !waiting {
-                        return None;
-                    }
-                    let differs = field.chosen != *shown;
-                    let why = if differs || field.chosen.is_empty() {
-                        ""
-                    } else {
-                        "Choose another option to change it"
-                    };
-                    // Continue keeps the model's choice; Change sends the run
-                    // back with the person's. Enter continues.
-                    let pressed = cards::footer(
-                        ui,
-                        &[
-                            cards::FooterButton::new("Change").unless(why),
-                            cards::FooterButton::primary("Continue"),
-                        ],
-                    );
-                    let key = cards::card_key(ui, active);
-                    let as_value =
-                        |v: Option<&String>| v.map_or(Value::Null, |v| Value::String(v.clone()));
-                    let (how, value) = match (pressed, key) {
-                        (Some(0), _) => ("Changed", as_value(field.chosen.first())),
-                        (Some(1), _) | (None, Some(cards::CardKey::Accept)) => {
-                            ("Kept", as_value(shown.first()))
+                            );
                         }
-                        _ => return None,
-                    };
-                    *state = State::Answered(how);
-                    Some(CardAction::Answer {
-                        run: run.clone(),
-                        step: step.clone(),
-                        answer: ControlAnswer::Change { value },
-                    })
-                })
-            }
-            Item::Result { run, card, undone } => {
-                let ControlCard::Result {
-                    title,
-                    items,
-                    findings,
-                    actions,
-                    undo,
-                } = card
-                else {
-                    return None;
-                };
-                let values: Vec<String> = items.iter().map(|i| value_text(&i.value)).collect();
-                let rows: Vec<cards::ItemRow<'_>> = items
-                    .iter()
-                    .zip(&values)
-                    .map(|(i, v)| cards::ItemRow {
-                        title: &i.title,
-                        value: v,
-                    })
-                    .collect();
-                let findings: Vec<cards::FindingRow<'_>> = findings
-                    .iter()
-                    .map(|f| cards::FindingRow {
-                        blocking: f.blocking,
-                        message: &f.message,
-                    })
-                    .collect();
-                let labels: Vec<&str> = actions.iter().map(|a| a.title.as_str()).collect();
-                let view = cards::Outcome {
-                    title,
-                    items: &rows,
-                    findings: &findings,
-                    actions: &labels,
-                    undo: *undo && !*undone,
-                };
-                match cards::outcome(ui, &view)? {
-                    cards::OutcomeChoice::Action(i) => actions.get(i).map(|a| CardAction::Show {
-                        call: a.call.clone(),
-                        params: a.params.clone(),
-                    }),
-                    cards::OutcomeChoice::UndoRun => {
-                        *undone = true;
+                        if !waiting {
+                            return None;
+                        }
+                        let differs = field.chosen != *shown;
+                        let why = if differs || field.chosen.is_empty() {
+                            ""
+                        } else {
+                            "Choose another option to change it"
+                        };
+                        // Continue keeps the model's choice; Change sends the run
+                        // back with the person's. Enter continues.
+                        let pressed = cards::footer(
+                            ui,
+                            &[
+                                cards::FooterButton::new("Change").unless(why),
+                                cards::FooterButton::primary("Continue"),
+                            ],
+                        );
+                        let key = cards::card_key(ui, active);
+                        let as_value = |v: Option<&String>| {
+                            v.map_or(Value::Null, |v| Value::String(v.clone()))
+                        };
+                        let (how, value) = match (pressed, key) {
+                            (Some(0), _) => ("Changed", as_value(field.chosen.first())),
+                            (Some(1), _) | (None, Some(cards::CardKey::Accept)) => {
+                                ("Kept", as_value(shown.first()))
+                            }
+                            _ => return None,
+                        };
+                        *state = State::Answered(how);
                         Some(CardAction::Answer {
                             run: run.clone(),
-                            step: String::new(),
-                            answer: ControlAnswer::UndoRun,
+                            step: step.clone(),
+                            answer: ControlAnswer::Change { value },
                         })
+                    })
+                }
+                Item::Result { run, card, undone } => {
+                    let ControlCard::Result {
+                        title,
+                        items,
+                        findings,
+                        actions,
+                        undo,
+                    } = card
+                    else {
+                        return None;
+                    };
+                    // A report's Markdown shows by its first line; Show report
+                    // opens it under the items.
+                    let values: Vec<String> = items
+                        .iter()
+                        .map(|i| workflow::control::readable(&i.value))
+                        .collect();
+                    let long: Vec<(String, String)> = items
+                        .iter()
+                        .filter_map(|i| {
+                            let text = i.value.as_str().filter(|t| t.contains('\n'))?;
+                            Some((i.title.clone(), text.to_owned()))
+                        })
+                        .collect();
+                    let rows: Vec<cards::ItemRow<'_>> = items
+                        .iter()
+                        .zip(&values)
+                        .map(|(i, v)| cards::ItemRow {
+                            title: &i.title,
+                            value: v,
+                        })
+                        .collect();
+                    let findings: Vec<cards::FindingRow<'_>> = findings
+                        .iter()
+                        .map(|f| cards::FindingRow {
+                            blocking: f.blocking,
+                            message: &f.message,
+                        })
+                        .collect();
+                    // After Undo run, what it made is gone: nothing to open.
+                    let labels: Vec<&str> = if *undone {
+                        Vec::new()
+                    } else {
+                        actions.iter().map(|a| a.title.as_str()).collect()
+                    };
+                    let view = cards::Outcome {
+                        title,
+                        items: &rows,
+                        findings: &findings,
+                        actions: &labels,
+                        undo: *undo && !*undone,
+                    };
+                    let shown_id = egui::Id::unique(("result-long", run.as_str()));
+                    let more = |ui: &mut egui::Ui| {
+                        for (title, text) in &long {
+                            let open = ui
+                                .ctx()
+                                .data(|d| d.get_temp::<bool>(shown_id.with(title)))
+                                .unwrap_or(false);
+                            let label = if open {
+                                format!("Hide {}", title.to_lowercase())
+                            } else {
+                                format!("Show {}", title.to_lowercase())
+                            };
+                            if sparksmith_ui::ui_kit::button(
+                                ui,
+                                label,
+                                sparksmith_ui::ui_kit::Button::Small,
+                            )
+                            .clicked()
+                            {
+                                ui.ctx()
+                                    .data_mut(|d| d.insert_temp(shown_id.with(title), !open));
+                            }
+                            if open {
+                                crate::assistant::markdown(ui, text);
+                            }
+                        }
+                    };
+                    match cards::outcome(ui, &view, more)? {
+                        cards::OutcomeChoice::Action(i) => {
+                            actions.get(i).map(|a| CardAction::Show {
+                                call: a.call.clone(),
+                                params: a.params.clone(),
+                            })
+                        }
+                        cards::OutcomeChoice::UndoRun => {
+                            *undone = true;
+                            Some(CardAction::Answer {
+                                run: run.clone(),
+                                step: String::new(),
+                                answer: ControlAnswer::UndoRun,
+                            })
+                        }
                     }
                 }
-            }
-        })
-        .inner
+            })
+            .inner;
+        if let Some(path) = toggle {
+            self.toggle_document(index, path);
+        }
+        action
     }
 }
 
@@ -1044,19 +1398,40 @@ impl FieldEdit {
                 .map(|f| Document {
                     given: PathBuf::from(&f.path),
                     title: f.title.clone(),
-                    detail: document_detail(f.pages.map(u64::from), f.bytes),
+                    detail: if f.bytes == 0 && f.pages.is_none() {
+                        String::new()
+                    } else {
+                        document_detail(f.pages.map(u64::from), f.bytes)
+                    },
                     stored: Some(PathBuf::from(&f.path)),
                     failed: false,
                 })
                 .collect(),
             _ => Vec::new(),
         };
-        Self {
+        let mut field = Self {
             card,
             text,
             chosen,
             documents,
             error: None,
+            shown: true,
+            edited: false,
+        };
+        field.shown = !field.optional() || !field.empty();
+        field
+    }
+
+    fn optional(&self) -> bool {
+        heading(&self.card).is_some_and(|h| h.optional)
+    }
+
+    /// Whether it holds nothing yet.
+    fn empty(&self) -> bool {
+        match &self.card {
+            ControlCard::Choice { .. } => self.chosen.is_empty(),
+            ControlCard::Datasheet { .. } => self.documents.is_empty(),
+            _ => self.text.trim().is_empty(),
         }
     }
 
@@ -1178,67 +1553,63 @@ fn required(optional: bool) -> Result<Option<Value>, String> {
     }
 }
 
-/// An input card: its fields, Decline and Continue. Enter (outside a
-/// multiline field) continues, Esc declines.
-#[allow(clippy::too_many_arguments)]
-fn show_inputs(
+/// The files a datasheet value's ⌄ lists at most.
+const MAX_FILE_CHOICES: usize = 12;
+
+/// What the person did on a compact confirmation.
+enum Compact {
+    /// Accept and continue, with the values of its inputs.
+    Accept(Map<String, Value>),
+    Decline,
+    /// Change… on a datasheet value: the host's picker.
+    Pick,
+}
+
+/// A compact confirmation: one line per input that shows (a value given,
+/// or a required one to fill in), each changed in place; then the decline
+/// and Accept and continue. Enter accepts; a required input left empty, or
+/// a value that does not pass, is marked and nothing is answered. When it
+/// first waits, the keyboard goes to the first input to fill in, or else
+/// leaves the composer, so Enter accepts.
+fn show_compact(
     ui: &mut egui::Ui,
     card: &str,
-    run: &str,
-    step: &str,
-    title: &str,
+    view: &cards::Confirm<'_>,
     fields: &mut [FieldEdit],
-    state: &mut State,
     active: bool,
-) -> Option<CardAction> {
-    if let State::Answered(how) = state {
-        cards::card(ui, title, how, |ui| {
-            for field in fields.iter() {
-                if let Some(heading) = heading(&field.card) {
-                    let shown = match field.value() {
-                        Ok(Some(value)) => value_text(&value),
-                        _ => "—".to_owned(),
-                    };
-                    cards::note(ui, &format!("{}: {shown}", heading.title));
-                }
-            }
-        });
-        return None;
-    }
-    // The page count of the first document this card was given, for its
-    // page ranges.
-    let pages = fields.iter().find_map(|f| {
-        f.documents
-            .first()
-            .and_then(|d| d.detail.split(' ').next())
-            .and_then(|n| n.parse::<u32>().ok())
-    });
-    let mut accepted = false;
-    let mut picked = false;
-    let mut first = true;
-    let answer = cards::card(ui, title, "", |ui| {
+    candidates: &[PathBuf],
+    toggle: &mut Option<PathBuf>,
+) -> Option<Compact> {
+    let mut pick = false;
+    let focus_once = egui::Id::unique(("workflow-confirm-focus", card));
+    let first_wait = active
+        && !ui
+            .ctx()
+            .data(|d| d.get_temp::<bool>(focus_once))
+            .unwrap_or(false);
+    let mut to_fill = None;
+    let choice = cards::confirm(ui, view, active, |ui| {
+        let mut entered = false;
         for (index, field) in fields.iter_mut().enumerate() {
-            let id = egui::Id::unique(("field", card, index));
-            let Some((title, help, optional)) =
-                heading(&field.card).map(|h| (h.title.to_owned(), h.help.to_owned(), h.optional))
-            else {
+            if !field.shown {
+                continue;
+            }
+            let Some(title) = heading(&field.card).map(|h| h.title.to_owned()) else {
                 continue;
             };
-            let head = cards::Field {
-                title: &title,
-                help: &help,
-                optional,
-            };
+            let id = egui::Id::unique(("workflow-field", card, index));
             let error = field.error.clone();
             let invalid = error.is_some();
+            let missing = !field.optional() && field.empty();
             let FieldEdit {
                 card: control,
                 text,
                 chosen,
                 documents,
+                edited,
                 ..
             } = field;
-            let response = cards::field(ui, &head, error.as_deref(), |ui| match &*control {
+            let response = cards::compact_row(ui, &title, error.as_deref(), |ui| match &*control {
                 ControlCard::Text {
                     multiline,
                     max_bytes,
@@ -1268,92 +1639,87 @@ fn show_inputs(
                             title: &o.title,
                         })
                         .collect();
-                    cards::choice_input(ui, id, &options, chosen, *multiple);
+                    *edited |= cards::choice_input(ui, id, &options, chosen, *multiple);
                     None
                 }
-                ControlCard::Datasheet { accept, max, .. } => {
-                    let rows: Vec<cards::FileRow<'_>> = documents
+                ControlCard::Datasheet { .. } => {
+                    let shown = documents_line(documents);
+                    let rows: Vec<(String, String, bool)> = candidates
                         .iter()
-                        .map(|d| cards::FileRow {
-                            title: &d.title,
-                            detail: &d.detail,
+                        .take(MAX_FILE_CHOICES)
+                        .map(|path| {
+                            let held = documents
+                                .iter()
+                                .find(|d| d.given == *path || d.stored.as_ref() == Some(path));
+                            let detail = held.map_or_else(
+                                || {
+                                    path.parent()
+                                        .map(|p| p.display().to_string())
+                                        .unwrap_or_default()
+                                },
+                                |d| d.detail.clone(),
+                            );
+                            (file_name(path), detail, held.is_some())
                         })
                         .collect();
-                    let kinds = accepts(accept);
-                    match cards::files_input(ui, &rows, &kinds, (documents.len() as u64) < *max) {
-                        Some(cards::FilesEvent::Choose) => picked = true,
-                        Some(cards::FilesEvent::Remove(i)) if i < documents.len() => {
-                            documents.remove(i);
+                    let options: Vec<cards::FileOption<'_>> = rows
+                        .iter()
+                        .map(|(title, detail, chosen)| cards::FileOption {
+                            title,
+                            detail,
+                            chosen: *chosen,
+                        })
+                        .collect();
+                    match cards::file_value(ui, id, &shown, &options) {
+                        Some(cards::FileChoice::Change) => pick = true,
+                        Some(cards::FileChoice::Toggle(i)) => {
+                            *toggle = candidates.get(i).cloned();
                         }
-                        _ => {}
+                        None => {}
                     }
                     None
                 }
                 ControlCard::Url { .. } => Some(cards::url_input(ui, id, text, invalid)),
-                ControlCard::PageRanges { pages: own, .. } => {
-                    Some(cards::pages_input(ui, id, text, own.or(pages), invalid))
+                ControlCard::PageRanges { pages, .. } => {
+                    Some(cards::pages_input(ui, id, text, *pages, invalid))
                 }
                 _ => None,
             });
             if let Some(response) = response {
-                if first
-                    && active
-                    && !response.has_focus()
-                    && ui.ctx().memory(|m| m.focused().is_none())
-                {
-                    let shown = ui
-                        .ctx()
-                        .data(|d| d.get_temp::<bool>(id.with("focused")))
-                        .unwrap_or(false);
-                    if !shown {
-                        response.request_focus();
-                        ui.ctx()
-                            .data_mut(|d| d.insert_temp(id.with("focused"), true));
-                    }
+                if missing && to_fill.is_none() {
+                    to_fill = Some(response.id);
                 }
-                accepted |= active && cards::entered(ui, &response);
+                entered |= active && cards::entered(ui, &response);
                 if response.changed() {
                     field.error = None;
+                    field.edited = true;
                 }
             }
-            first = false;
         }
-        let key = cards::card_key(ui, active);
-        let pressed = cards::footer(
-            ui,
-            &[
-                cards::FooterButton::new("Decline"),
-                cards::FooterButton::primary("Continue"),
-            ],
-        );
-        match (pressed, key) {
-            (Some(0), _) | (None, Some(cards::CardKey::Decline)) => Some(false),
-            (Some(1), _) | (None, Some(cards::CardKey::Accept)) => Some(true),
-            _ if accepted => Some(true),
-            _ => None,
-        }
+        entered
     });
-    if picked {
-        return Some(CardAction::PickFiles {
-            card: card.to_owned(),
-        });
-    }
-    match answer? {
-        false => {
-            *state = State::Answered("Declined");
-            Some(CardAction::Answer {
-                run: run.to_owned(),
-                step: step.to_owned(),
-                answer: ControlAnswer::Decline,
-            })
+    if first_wait {
+        let ctx = ui.ctx();
+        ctx.data_mut(|d| d.insert_temp(focus_once, true));
+        let composer = crate::assistant::Assistant::composer_id();
+        match to_fill {
+            Some(id) => ctx.memory_mut(|m| m.request_focus(id)),
+            None if ctx.memory(|m| m.has_focus(composer)) => {
+                ctx.memory_mut(|m| m.surrender_focus(composer));
+            }
+            None => {}
         }
-        true => {
+    }
+    if pick {
+        return Some(Compact::Pick);
+    }
+    match choice? {
+        cards::ConfirmChoice::Decline => Some(Compact::Decline),
+        cards::ConfirmChoice::Accept => {
             let mut values = Map::new();
             let mut ok = true;
             for field in fields.iter_mut() {
-                let Some(name) = heading(&field.card).map(|_| input_name(&field.card)) else {
-                    continue;
-                };
+                let name = input_name(&field.card);
                 match field.value() {
                     Ok(Some(value)) => {
                         field.error = None;
@@ -1361,22 +1727,52 @@ fn show_inputs(
                     }
                     Ok(None) => field.error = None,
                     Err(why) => {
+                        // A hidden field is optional and empty: it cannot
+                        // refuse, but an error must show where it can.
+                        field.shown = true;
                         field.error = Some(why);
                         ok = false;
                     }
                 }
             }
-            if !ok {
-                return None;
-            }
-            *state = State::Answered("Given");
-            Some(CardAction::Answer {
-                run: run.to_owned(),
-                step: step.to_owned(),
-                answer: ControlAnswer::Inputs { values },
-            })
+            ok.then_some(Compact::Accept(values))
         }
     }
+}
+
+/// A datasheet value on one line: one file with its pages and size, or
+/// the names of several.
+fn documents_line(documents: &[Document]) -> String {
+    match documents {
+        [] => String::new(),
+        [one] if one.detail.is_empty() => one.title.clone(),
+        [one] => format!("{} · {}", one.title, one.detail),
+        many => many
+            .iter()
+            .map(|d| d.title.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+    }
+}
+
+/// An answered confirmation: what it gave, one line.
+fn answered(ui: &mut egui::Ui, title: &str, how: &str, fields: &[FieldEdit]) {
+    cards::card(ui, title, how, |ui| {
+        let given: Vec<String> = fields
+            .iter()
+            .filter_map(|field| {
+                let heading = heading(&field.card)?;
+                let shown = match &field.card {
+                    ControlCard::Datasheet { .. } => documents_line(&field.documents),
+                    _ => field.value().ok().flatten().map(|v| value_text(&v))?,
+                };
+                (!shown.is_empty()).then(|| format!("{}: {shown}", heading.title))
+            })
+            .collect();
+        if !given.is_empty() {
+            cards::note(ui, &given.join(" · "));
+        }
+    });
 }
 
 fn heading(card: &ControlCard) -> Option<cards::Field<'_>> {
@@ -1476,18 +1872,6 @@ fn number(n: f64) -> serde_json::Number {
     serde_json::Number::from_f64(n).unwrap_or_else(|| serde_json::Number::from(0))
 }
 
-/// "PDFs" for `application/pdf`; the media types otherwise.
-fn accepts(accept: &[String]) -> String {
-    if accept
-        .iter()
-        .all(|a| a.eq_ignore_ascii_case("application/pdf"))
-    {
-        "PDFs".into()
-    } else {
-        accept.join(", ")
-    }
-}
-
 fn file_name(path: &Path) -> String {
     path.file_name().map_or_else(
         || path.display().to_string(),
@@ -1572,75 +1956,6 @@ fn document_detail(pages: Option<u64>, bytes: u64) -> String {
         Some(n) => format!("{n} pages · {size}"),
         None => size,
     }
-}
-
-/// The given inputs as the workflow card shows them, by title: a files
-/// input as its names, with the page count once read.
-fn given_rows(
-    offer: &Offer,
-    titles: &[(String, String)],
-    documents: &[Document],
-) -> Vec<(String, String)> {
-    offer
-        .inputs
-        .iter()
-        .map(|(name, value)| {
-            let shown = match value {
-                Value::Array(list) => list
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(|p| {
-                        let path = PathBuf::from(p);
-                        match documents.iter().find(|d| d.given == path) {
-                            Some(d) if !d.failed => format!("{} ({})", d.title, d.detail),
-                            _ => file_name(&path),
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                other => value_text(other),
-            };
-            (input_title(titles, name), shown)
-        })
-        .collect()
-}
-
-/// The inputs a run starts with: dropped documents as their copies in the
-/// conversation's folder once read.
-fn stored_inputs(inputs: &Map<String, Value>, documents: &[Document]) -> Map<String, Value> {
-    inputs
-        .iter()
-        .map(|(name, value)| {
-            let value = match value {
-                Value::Array(list) => Value::Array(
-                    list.iter()
-                        .map(|v| {
-                            match v
-                                .as_str()
-                                .and_then(|p| documents.iter().find(|d| d.given == Path::new(p)))
-                            {
-                                Some(Document {
-                                    stored: Some(stored),
-                                    ..
-                                }) => Value::String(stored.display().to_string()),
-                                _ => v.clone(),
-                            }
-                        })
-                        .collect(),
-                ),
-                other => other.clone(),
-            };
-            (name.clone(), value)
-        })
-        .collect()
-}
-
-/// Input `name`'s title, or its name when the workflow has none for it.
-fn input_title(titles: &[(String, String)], name: &str) -> String {
-    titles
-        .iter()
-        .find(|(n, _)| n == name)
-        .map_or_else(|| name.to_owned(), |(_, title)| title.clone())
 }
 
 /// A value on a card: text as itself, a list joined, anything else as JSON.

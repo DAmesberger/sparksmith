@@ -144,7 +144,7 @@ fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
         .flatten()
         .filter_map(|a| a["name"].as_str())
         .collect();
-    assert_eq!(all, ["datasheets", "part", "pages", "notes"]);
+    assert_eq!(all, ["datasheets", "part", "notes"]);
     let workflow = &workflows.first().ok_or("a workflow")?.workflow;
     assert_eq!(prompt["title"], workflow.title.as_str());
     assert_eq!(prompt["description"], workflow.summary.as_str());
