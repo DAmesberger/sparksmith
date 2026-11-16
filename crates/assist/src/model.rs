@@ -271,3 +271,82 @@ pub fn connect(profile: &ModelProfile, connection: &Connection) -> Result<Box<dy
         Provider::OpenAiCompatible => Box::new(openai::OpenAiBackend::new(profile.clone(), http)),
     })
 }
+
+/// Output tokens [`check_connection`]'s one request may take.
+pub const CHECK_OUTPUT_TOKENS: u32 = 16;
+/// Longest wait for [`check_connection`]'s reply.
+const CHECK_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// Check that `endpoint` answers as `profile` with `key`: one short request
+/// (no tools, no reasoning, at most [`CHECK_OUTPUT_TOKENS`] output tokens),
+/// so it costs a few tokens. The model that answered, or the error, which
+/// never holds the key. Refuses a key over plain HTTP to another computer.
+pub fn check_connection(
+    profile: &ModelProfile,
+    endpoint: Endpoint,
+    key: Option<Secret>,
+) -> Result<String> {
+    profile.check()?;
+    let lean = lean(profile);
+    let http = wire::HttpWire::new(endpoint, key, profile.provider.auth_style())?;
+    match profile.provider {
+        Provider::Anthropic => check_on(&mut anthropic::AnthropicBackend::new(lean, http)),
+        Provider::OpenAiCompatible => check_on(&mut openai::OpenAiBackend::new(lean, http)),
+    }
+}
+
+/// `profile` without reasoning, effort, caching or fallbacks.
+fn lean(profile: &ModelProfile) -> ModelProfile {
+    let mut lean = profile.clone();
+    lean.capabilities.adaptive_thinking = false;
+    lean.capabilities.caching = false;
+    lean.capabilities.server_fallback = false;
+    lean.effort = None;
+    lean
+}
+
+/// [`check_connection`]'s one request on `backend`.
+fn check_on(backend: &mut dyn ModelBackend) -> Result<String> {
+    let messages = [Message {
+        role: Role::User,
+        content: vec![Part::text("Reply with OK.")],
+    }];
+    let reply = backend.send(&ModelRequest {
+        system: "This is a connection check.",
+        tools: &[],
+        messages: &messages,
+        max_output_tokens: CHECK_OUTPUT_TOKENS,
+        timeout: CHECK_TIMEOUT,
+    })?;
+    Ok(reply.model)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// The connection check is one short request: no tools, no reasoning,
+    /// no effort, a few output tokens; it names the model that answered.
+    #[test]
+    fn the_connection_check_sends_one_short_request() -> Result<()> {
+        let reply = json!({
+            "model": "served-model",
+            "content": [{"type": "text", "text": "OK"}],
+            "stop_reason": "end_turn",
+            "usage": {"input_tokens": 12, "output_tokens": 1}
+        });
+        let profile = lean(&ModelProfile::anthropic("asked-model"));
+        let mut backend =
+            anthropic::AnthropicBackend::new(profile, wire::ScriptedWire::new(vec![reply]));
+        assert_eq!(check_on(&mut backend)?, "served-model");
+        assert_eq!(backend.wire.posts.len(), 1, "one request");
+        let body = &backend.wire.posts[0].2;
+        assert_eq!(body["max_tokens"], json!(CHECK_OUTPUT_TOKENS));
+        assert_eq!(body["tools"], json!([]));
+        for absent in ["thinking", "output_config", "cache_control", "fallbacks"] {
+            assert!(body.get(absent).is_none(), "{absent} in {body}");
+        }
+        Ok(())
+    }
+}

@@ -168,7 +168,7 @@ pub(super) fn row_label_key() -> egui::Id {
 
 /// A field drawn in a [`row`] is named by the row's label in the
 /// accessibility tree, as screen readers and UI automation read it.
-pub(super) fn named_by_row(ui: &Ui, response: Response) -> Response {
+pub fn named_by_row(ui: &Ui, response: Response) -> Response {
     match ui.data(|d| d.get_temp::<egui::Id>(row_label_key())) {
         Some(label) => response.labelled_by(label),
         None => response,
@@ -647,6 +647,13 @@ pub fn section<R>(
     add: impl FnOnce(&mut Ui) -> R,
 ) -> Option<R> {
     section_with(ui, id, title, default_open, count, None, add)
+}
+
+/// Open the [`section`] `id` drawn next in `ui` (a link that leads to it),
+/// whatever the person left it as.
+pub fn open_section(ui: &mut Ui, id: impl std::hash::Hash + std::fmt::Debug) {
+    let id = ui.make_persistent_id(("section", id));
+    ui.ctx().data_mut(|d| d.insert_persisted(id, true));
 }
 
 /// A [`section`] that shows `summary` (one dim line, such as "0, 0, 0 mm ·
