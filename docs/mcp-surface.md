@@ -211,7 +211,7 @@ The catalog marks which entries need a person (new M2 field `person`):
   - `sparksmith-conventions`.
 - **Serving.** They are served through the skills extension (`skills/list`, `skills/get`, `resources/read`). Clients without it read the same files as plain resources, or through `describe {name: "guide:…"}`.
 
-**Prompts.** The five workflows of [assistant panel §4](assistant-panel.md#4-workflows-as-mcp-prompts) are `datasheet_to_component`, `fix_issues`, `review_schematic`, `route_nets` and `explain`.
+**Prompts.** The five workflows first proposed in the assistant panel design were `datasheet_to_component`, `fix_issues`, `review_schematic`, `route_nets` and `explain`.
 - **What a prompt returns.** Each returns one user message: the goal, and the skill embedded as a `resource` so that clients without skills still get it.
 - **Arguments.** Completions offer sheets, nets and object ids from the project. `prompts/get` may itself return `input_required` (MRTR), for example to choose the datasheet file when it is missing.
 
@@ -347,7 +347,7 @@ At most five agents at once. Each slice ships with its own tests, and nothing ru
 6. then P9, which deletes today's server;
 7. then P10 and P12.
 
-**How the slices fit the assistant panel's** ([§7 there](assistant-panel.md#7-slices)):
+**How the slices fit the assistant panel's** ([§8 there](assistant-panel.md#8-slices)):
 - **Panel S2** uses `rmcp`'s in-process duplex transport.
 - **Panel S3** becomes P4 and P5: prompts, skills and pinout review as `input_required`.
 - **Panel S4** is an `rmcp` client that renders elicitation, hosts skills, reads links and subscribes. Its "compact instructions and tools" item is gone.

@@ -1,385 +1,390 @@
 # Assistant panel design
 
-**Status:** proposal for founder review, 9 November 2026. Nothing here is built. Estimates are agent hours. Related: [LLM integration](llm-integration.md), [datasheet assistant](datasheet-assistant.md), [live MCP](development.md#live-mcp), [board geometry for an LLM](llm-geometry.md).
+**Status:** revised proposal for founder review, 16 November 2026. It replaces the 9 November proposal, whose eleven recommendations the founder approved (with one exception, no fake ACP agent). Where this revision changes an approved point, it says so. **Nothing of the panel is built.** Estimates are agent hours. Related: [extension surface](extension-surface.md), [extension ABI design](design/extension-abi-design.md), [MCP surface](mcp-surface.md), [LLM integration](llm-integration.md), [datasheet assistant](datasheet-assistant.md), [first MCP runs](datasheet-assistant-run-mcp-1.md), [board geometry for an LLM](llm-geometry.md).
 
-## Decisions this design follows
+## Founder direction (16 November 2026)
 
-- **MCP is the only AI surface.** That means its typed commands, its permission gate, the reviewable turn and undo. The in-app panel is a client of that surface and has no path of its own.
-- **The panel has two kinds of connection:**
-  - An **installed agent over ACP** (Claude Code, Codex, Gemini CLI and others). The agent brings its own model and login.
-  - A **model endpoint** through the provider abstraction in `crates/assist`. This includes local OpenAI-compatible servers such as Ollama, LM Studio, vLLM and `llama-server`.
-- **Run limits:** runs have token, request and time limits.
-- **Workflows are MCP prompts,** such as datasheet → component. They run the same way in the panel and in any other MCP client.
-- **LLM-first, small models included.** The panel works with small local models that have no vision.
-- **Earlier decisions still apply:**
-  - Edits are auto-allowed inside a reviewable turn. Files and publishing ask.
-  - The app doesn't detect models. You enter the agent's settings, as in Solidcraft.
-  - Prompts and harnesses per model can be edited.
-  - We build our own panel. Solidcraft's `agent_chat` is a reference only.
+> Build the assistant panel. As we already defined, create from datasheet should not be separate but automatically invoked with the prompt. That needs a proper design pass first. If we detect a certain action where we have a refined process for it, we should prompt it inside the chat (e.g. also datasheet path, etc). AI should be modular such that the unified chat notices when we have an optimized process for it and then uses it, and optimized processes can have in-chat controls/inputs, etc.
 
-## 1. One request path
+In one line: **one chat; refined processes ("workflows") are data the chat finds, offers and runs, with typed controls inside the conversation.**
 
-Every request the panel sends is an MCP `tools/call`. The server code that answers it, `mcp::Server` in live mode, is the same code that answers Claude Code connected through `sparksmith mcp --live`. Each call reaches the window's pump (`serve_live`) and then:
+## What exists today
 
-1. `live::admit` applies the window-only list, the busy refusal, the revision check and the gate.
-2. `live::run` runs it with `Session::lend` and then `Session::respond` on the window's engine.
-3. The window labels the change and adds it to the undo history.
-
-The panel never calls the engine directly.
-
-```
-           ACP agent (own process)                      Panel, endpoint backend (worker thread)
-                   │ MCP over stdio                                  │ MCP JSON-RPC values, in process
-       sparksmith mcp --live --port P --token-file F               │
-                   │ mcp::Server (live)                     mcp::Server (live)
-                   │ live::Client ── TCP, loopback, token          live::Client ── in-process channel
-                   ▼                                                 ▼
-             panel channel ───────────────► window pump (UI thread, between frames) ◄─── public channel
-                                              live::admit: window-only · busy · revision · gate        (Help › Connect AI
-                                              live::run: Session::lend → Session::respond             assistants…, external
-                                              turn bookkeeping · labels · toasts                       MCP clients)
-```
-
-### Connection kinds
-
-**ACP agent.** The agent starts our MCP server itself, because we list it in `session/new` (§2). That server is the existing `mcp --live` bridge. It connects to a **panel channel**: a second `live::Endpoint` on its own loopback port, with a fresh token per conversation. The token is in a file only the user can read, inside a private temporary folder, and never in the agent's arguments or environment. Solidcraft's agent chat uses this pattern (`listen_agent`). A second channel is needed because the window must know which requests belong to the panel's running turn. "Let AI assistants edit this project" in Help › Connect doesn't have to be on: starting a conversation is the consent, and the channel closes when the conversation ends.
-
-**Model endpoint.** The panel's worker thread runs the tool loop (§3) and is an MCP client of an in-process `mcp::Server::live`. The only new part is the transport. `live::Client` today is a TCP connection, and it gains an in-process variant that sends the same `ControlRequest` (method, params, reply sender) into the panel channel's queue. Tool names, descriptions, server instructions, prompts, compact replies and refusals are therefore byte for byte what an ACP agent or Claude Code gets. The worker thread never touches the engine.
-
-### What applies the same way to every request
-
-| Rule | Where it lives | Panel (either kind) | External live client |
-|---|---|---|---|
-| Typed command and its schema | The catalog behind the MCP verbs (`mcp::tools`) | Same | Same |
-| Window-only (`project.new`, `.open`, `.save`) | `live::grant` (no `files` module) | Refused, `gate.module` | Same |
-| Busy (typing, dragging, menu, dialog, review) | `live::admit` | Refused, `live.busy`; reads run | Same |
-| Revision | `admit`, and again in `Surface::call` | `stale_revision`, `malformed_request` without one | Same |
-| Permission gate | `Session::check_request` with the window's `Grant` | Run, Ask or Refuse | Same |
-| Ask | `Verdict::Ask` | An Allow/Deny card in the conversation | The window's "AI assistant asks" prompt |
-| Failed mutation | Engine | Document unchanged | Same |
-| Reviewable turn | Window pump and engine (below) | One undo step per message | One step per edit, as today (Q4) |
-| Undo label | Engine step label (below) | "AI assistant: *first line of message*" | "AI assistant edit: *subject*" |
-
-### The reviewable turn
-
-A **turn** is one message, from Send until the agent's `session/prompt` reply or the endpoint loop's last reply. The panel opens it on the panel channel. While the turn runs:
-
-- **Edits run** under Auto-allow edits. Each one is its own engine step, so the agent's own `project_undo` works. An undo past the turn's first step is refused (`assistant.undo_outside_turn`).
-- **Late requests are refused.** A panel-channel request that arrives outside a running turn is refused (`assistant.no_turn`), and so is one that arrives after Stop (`assistant.turn_ended`). A shared validity flag is checked before a request is admitted and again before it runs, as in Solidcraft.
-- **Per-turn limits** (§3) are counted in the pump for both connection kinds, so an ACP agent has the same edit and request caps as an endpoint model.
-- **At the end of the turn,** the engine folds the turn's steps into one with `Engine::join_since(revision_at_start, label)`. This is a generalisation of today's `join_last_step`. The per-turn edit cap stays below `MAX_UNDO` (100), so trimming can't cut into a turn before it is folded.
-- **If you edit by hand during a turn,** for example by clicking between two assistant calls, your step is never folded into the assistant's. The turn becomes segments, each its own undo step ("AI assistant: … (1 of 2)"). The next request the assistant sends gets a note that the project changed by hand (§5 context).
-- **Labels belong to steps in the core.** Undo entries gain an optional label. Undo, the toast, Messages and the MCP `project_undo` reply then all name the same thing. This replaces the app-side `live.edits` revision map.
-
-**"Reviewable"** means the turn shows a **summary card**:
-
-- what changed, by collection and by name, taken from each reply's `changes`;
-- new and resolved issues, taken from each reply's `findings`;
-- **Show**, which selects every changed object in the shared selection, so it works in 2D, 3D and every workspace;
-- **Undo turn**, while the turn is still the latest step.
-
-A run that works on a copy and offers the result as an accept-or-reject diff (`review-diff`) is a later slice (§7, S10).
-
-## 2. ACP agents
-
-Field names follow the [ACP specification](https://agentclientprotocol.com): protocol version `1`, JSON-RPC 2.0 over the agent's standard input and output.
-
-### Launching and configuring
-
-- **Adding an agent.** You add an agent in Settings › AI › Agents with a name, a command, its arguments and its environment variables. It runs without a shell. Presets fill these fields with known command lines (`claude-agent-acp`, `codex-acp`, `gemini --acp`, `opencode acp`). They are templates you edit: Sparksmith doesn't probe PATH or detect anything (Q5).
-- **Test.** **Test** starts the agent, sends `initialize` and shows `agentInfo`, `authMethods` and `agentCapabilities`.
-- **The process.** The agent runs in its own process group. Stop, closing the panel, closing the window and quitting all end it the same way: close its stdin, then after a grace period send TERM, then KILL. This is Solidcraft's `process.rs` design, written again for us.
-- **`initialize`.** We send `{protocolVersion: 1, clientCapabilities: {fs: {readTextFile: false, writeTextFile: false}, terminal: false}, clientInfo: {name: "sparksmith", title: "Sparksmith", version}}`. We offer no file system and no terminal, because the agent works through our tools. We read `agentCapabilities.promptCapabilities` (`image`, `audio`, `embeddedContext`), `agentCapabilities.mcpCapabilities`, `agentCapabilities.loadSession` and `authMethods`.
-- **Sign-in.** Login is the agent's own, and Sparksmith never holds an ACP agent's key. When the agent answers `-32000` "Authentication required" (on `session/new` or on the first `session/prompt`), the panel shows the agent's `authMethods`:
-  - a terminal method appears as its command with Copy;
-  - an agent method gets a button that calls `authenticate {methodId}`;
-  - an environment method names the variable to set.
-- **`session/new`.** We send `{cwd, mcpServers}`:
-  - `cwd` is an empty working folder of Sparksmith's own (`<data>/assistant/work/<conversation>`), not the project's folder.
-  - `mcpServers` has one stdio entry: `{name: "sparksmith-<random>", command: "<absolute path of sparksmith beside the app>", args: ["mcp", "--live", "--port", "P", "--token-file", "F"], env: []}`. Stdio is the transport every ACP agent must support, so we don't depend on `mcpCapabilities.http`. The server name is random per conversation, so a permission answer can't apply to some other server.
-- **Model and options.** We read the agent's `configOptions` (model, reasoning effort, mode) from the session reply and change them with `session/set_config_option {sessionId, configId, value}`. The chosen value is remembered per agent.
-- **System text, the ACP harness.** It goes in `systemPrompt: {mode: "append", content: [text]}` when the agent advertises `sessionCapabilities.systemPrompt`. Otherwise it is the first text block of the first `session/prompt`.
-- **The agent's own tools.** Where an adapter offers a way to turn off its own shell, file and web tools, the agent's profile sets it. Claude's adapter takes `_meta.claudeCode.options.disallowedTools`. That is an adapter extension, not part of the spec, so it is per profile and checked per adapter version.
-
-### Streaming
-
-`session/update` notifications are drawn as they arrive:
-
-| `sessionUpdate` | Shown as |
+| Piece | State |
 |---|---|
-| `agent_message_chunk` | Reply text (Markdown) |
-| `agent_thought_chunk` | Dimmed and folded reasoning |
-| `tool_call`, `tool_call_update` | A tool row with `title`, `kind`, `status` (`pending`, `in_progress`, `completed`, `failed`) and `rawInput` |
-| `plan` | A checklist, replaced as a whole |
-| `usage_update` | A context meter from `used` and `size`; other fields are ignored |
-| `config_option_update` | Replaces the option snapshot |
+| Surface: one catalog, `Surface::call`, principals, grants with module ceilings, `Asker`, one error (ABI S0–S2b) | Built |
+| MCP on `2026-07-28`: six verbs (`find`, `describe`, `query`, `apply`, `act`, `show`), headless and live (ABI S3) | Built. `show` has no entries yet |
+| MCP prompt `datasheet_to_component` | Built. Serves `skills/sparksmith-datasheet-part/SKILL.md`; its title, description and arguments are written in Rust (`crates/automation/src/mcp/prompts.rs`) |
+| Three Claude Code runs of that prompt | Done: footprints 0 nm against the sources, every pin right, about 17.5 USD ([run notes](datasheet-assistant-run-mcp-1.md)). Tooling defects T1–T11 found |
+| In-app datasheet runner (`crates/assist`): model layer, Anthropic and OpenAI-compatible backends, keychain keys, limits, recording and replay, profiles, PDF text and page images | Built. Has its own hand-written tool list (`assist::tools::definitions`) and runs in a headless session of its own, not on the open project |
+| "Create from datasheet…" dialog on the Component start page | Built (`apps/sparksmith/src/part_editor/datasheet_assist.rs`): its own model, endpoint and key fields, its own progress log. **Removed by this plan** |
+| Turns (`begin_group`), jobs, events (ABI S4); the window module `view.*` (S5); the built-in agent on the surface (S6); elicitation (MCP P5) | Not built |
+| Assistant panel, Settings › AI | Not built |
 
-**Two views of one tool call.** For our own tools the panel channel is authoritative: it sees the exact command, its gate decision, its outcome and its changes. The agent's `tool_call` for the same call is folded into that row when the tool name and `rawInput` match. Agent tool calls that don't match get rows of their own.
+## What this revision supersedes
 
-### Cancellation
-
-**Stop**, or Esc in the panel:
-
-1. sends `session/cancel {sessionId}`;
-2. answers every open `session/request_permission` with `{outcome: {outcome: "cancelled"}}`, as the spec requires;
-3. declines every held Ask;
-4. invalidates the turn flag, so later panel-channel requests are refused;
-5. folds the turn's completed steps into one undo step;
-6. waits for the `session/prompt` reply, which should have `stopReason: "cancelled"`.
-
-If the agent hasn't answered after 10 s, the panel offers **End agent**. Other stop reasons (`max_tokens`, `max_turn_requests`, `refusal`) are reported plainly and never treated as an answer.
-
-### Approvals
-
-- **Questions about our tools.** When the agent sends `session/request_permission` for a tool of its `sparksmith-<random>` server, the panel answers `allow_once` automatically and leaves an *Auto-allowed* note. Our gate decides the call when it arrives, so the agent's question adds nothing. A setting turns this off.
-- **Questions about the agent's own tools** appear as a card with the agent's `options` (`allow_once`, `allow_always`, `reject_once`, `reject_always`).
-- **Our gate's Ask** (an export, a file, publishing) appears as an Allow/Deny card in the conversation. It shows the command, the paths it names and why. A held Ask is declined just before the channel's `ASK_WAIT` runs out, and the model gets `gate.denied`.
-
-## 3. Endpoints
-
-### Provider abstraction
-
-`crates/assist/src/model` already has what the panel needs:
-
-- a neutral conversation (`Message`, `Part`, `ToolSpec`, `ModelRequest`, `ModelReply`) and the `ModelBackend` trait;
-- Anthropic Messages and OpenAI-compatible backends;
-- keys from the keychain for each base URL, refused over plain HTTP to another computer;
-- recording and replay.
-
-The panel adds three things:
-
-- **Streaming,** so text, reasoning and tool calls arrive as they are made (`stream: true` on both wire formats). Cancel is checked between chunks, which fixes today's "Cancel after the current request" limit.
-- **A general agent loop,** taken out of `run.rs`. Its input is the conversation, the tools from MCP `tools/list` (converted from `inputSchema` to `ToolSpec`), the profile and the limits. Each tool call becomes an MCP `tools/call` on the in-process client. The loop's events (text, reasoning, tool started and done, usage, stop) drive the panel. The datasheet runner's tool-specific code moves to MCP (§4).
-- **Endpoint settings** in Settings › AI › Endpoints: provider, base URL, model id, key (masked, stored in the keychain) and request timeout. The capabilities are the ones you declare: tool calling, vision, native PDF, context size and output limit. Nothing is detected (`ModelProfile`).
-
-### Profiles and harnesses per model
-
-A run profile (`profile.rs`, `<config>/assist-profiles/NAME.json`) says what a model is told and how the loop reacts. The panel uses the same files and extends the format:
-
-| Field | Today | Panel |
+| 9 November design | Now | Why |
 |---|---|---|
-| `system` (`base`, `add` or `replace`) | Datasheet prompt | Panel base prompt; per-model additions |
-| `omit_tools` | Assist tool names | MCP tool names |
-| `harness.repeat_limit` | 3 | Same, for the panel loop |
-| `prompts.<name>.add` | — | Paragraphs appended to one MCP prompt for this model (§4) |
-| `instructions` | — | `full` or `short` server instructions (below) |
-| `context_budget` | — | Tokens kept for the context preamble (§5) |
+| §1: the endpoint loop is an in-process MCP client of `mcp::Server` through a "panel channel" | The built-in loop calls `Surface::call` in process as `LocalAgent`, with the six verb definitions, byte-equal to MCP's. ACP agents still connect over `mcp --live` on a per-conversation channel | ABI decision 2, approved 14 November |
+| `Engine::join_since` and undo labels | `begin_group` / `end_group` with a label (ABI S4) | ABI design |
+| `window.context` | `view.context` (ABI S5) | ABI design |
+| Tools converted from `tools/list`; `instructions: short`, `tools: compact` | The six verbs; small models read the generated line form | ABI §2.2 |
+| §4: workflows are MCP prompts written in the automation crate | Workflows are versioned data in the shipped library. The MCP prompt is generated from that data, and so is the chat's form | Founder, 16 November; no hard-coded data |
+| Five prompts listed (`fix_issues`, `route_nets`, …) | One workflow ships first (datasheet → component). Others are data added later, each its own decision | Keep scope lean |
+| `document.text`, `document.view_page`, `review.submit` | `assist.document_text`, `assist.document_page`, `assist.pinout_edit`, `library.review_check` (built) | ABI §2.7 |
+| The datasheet dialog stays beside the panel | Removed; its run options move to Settings › AI | Founder, 16 November |
+| §7 slices S1–S11, 47–72 h | §8 below | |
 
-**For ACP agents,** a profile carries only the system text and adapter options, because the agent runs its own loop.
+Everything else carries over: ACP launch, sign-in, streaming, cancel and approvals; endpoint settings and keys; per-turn limits; the column, its fold and its states; attachments. Those sections are kept in shortened form in §6 and §7.
 
-**Editing.** Settings › AI › Profiles lists the built-in and user profiles. **Copy** writes the built-in to the config folder, and then the file is edited in a text field. The file is checked when it is saved, with the same refusals `llm-profile` gives today. A profile that fails the check is never used. The built-in `claude` and `default` profiles carry over. The tuned Flash Next profile is a user file (`examples/qwen3.8-flash-next/assist-profiles/`), not built in.
+---
 
-### Local models, small context and no vision
+## 1. One chat, the only AI entry point
 
-- **Size of what is sent.** Today the server instructions are about 16 KB (`mcp.rs`, LIVE plus base), and the tool list has 40 commands with generated schemas. On a model with 32 k of context that is a large share of the window. Two measures:
-  - `instructions: "short"` sends a one-paragraph orientation and points to `project_schema`;
-  - with `tools: "compact"`, each tool is offered with its one-line description and its schema is fetched on demand through `project_schema`, which exists already.
+- **One conversation per open project,** in a docked column (§7). It is the only place in the app where AI runs. No other dialog starts a model.
+- **Two connection kinds,** as approved: an ACP agent (Claude Code, Codex, Gemini CLI, OpenCode; their own login) or a model endpoint (Anthropic, OpenAI-compatible, local servers) through `crates/assist`.
+- **Plain chat** works on the board: the model reads `view.context` (what you see and have selected), uses the six verbs, and each of your messages is one undo step.
+- **Workflows** are the refined processes. The chat offers one when it fits (§3), the person confirms, and the workflow runs inside the conversation with its own controls (§4). A workflow run is one turn and one undo step.
+- **Every other entry point opens the chat.** The Component start page's "Create from datasheet…" button, the command palette and the `/` menu all open the chat with that workflow's card. Dropping a PDF on the chat offers it too.
+- **External MCP clients** (Claude Code, Codex) get the same workflows as MCP prompts, generated from the same data, and the same inputs as forms where they support elicitation (§4.3).
 
-  Both are measured on Flash Next and `qwen3.8:27b` before they become defaults (S4).
-- **Compact replies** (`session/reply.rs`) already keep mutations small. A via on the demo board answers in under 4 KB.
-- **When the context fills,** nothing is cut silently. The history only grows, as it does in the datasheet runner, because a rewrite breaks signed thinking and the cache. When the next request can't fit with 4 000 tokens of room, the turn stops and says why, and the panel offers **New conversation from a summary** (Q7). The truncation warning (the server counted fewer prompt tokens than the last request) carries over.
-- **No vision.** Attaching an image is refused with the reason. PDFs reach the model as text through the document tools (§4). Board geometry goes as text views ([llm-geometry](llm-geometry.md)). Features that need vision say so instead of guessing.
-- **No tool calling.** The endpoint is refused for the panel, with the reason: a model that can't call tools can't use the one request path.
+## 2. Workflows as data
 
-### Limits
+### 2.1 Where they live
 
-The limits, for every model local or hosted, are set in Settings › AI with these defaults (Q10):
+```
+library/assist/workflows/
+  datasheet-to-component/
+    workflow.json      what it is for, inputs, steps, budget, reach, controls
+    method.md          the judgement guide for its model steps (today's SKILL.md text)
+<config>/assist/workflows/<id>/   a person's own or changed workflows, same format (like run profiles)
+```
 
-| Limit | Per turn | Enforced |
+- **No workflow logic in the app.** The app has one generic runner and one closed set of controls. Which inputs, which entries, in which order, with which gates and budgets is all in `workflow.json`.
+- **Format 1, checked on load.** A workflow that fails the check is listed as unavailable with the reason and never runs. Unknown fields are refused, naming them.
+- **Versioned.** `version` is `major.minor`. A recording names the workflow id, version and the digest of its files, so a replay against another version is refused clearly.
+- **`needs`** names the surface modules and versions it uses (`{"module": "library", "major": 1, "class": "edit"}`), the same shape as a plugin's. A host that can't meet them lists the workflow as unavailable, naming both versions. `cargo xtask surface` already makes module versions honest.
+- **`reach`** is the workflow's ceiling per module. The effective grant of a run is the smaller of the chat's grant and the workflow's reach, so the datasheet workflow can't publish, save or touch settings, whatever the model is told.
+- **Single source for the method.** `skills/sparksmith-datasheet-part/SKILL.md` moves to `method.md` and the skills folder points to it (Q4). The MCP prompt serves `method.md`, as it serves the skill today.
+
+### 2.2 What a workflow says
+
+| Field | Meaning |
+|---|---|
+| `id`, `version`, `title`, `summary` | Identity, and the one line the chat and `prompts/list` show |
+| `intents` | Three to six example requests, so the model can match ("make a part from this datasheet") |
+| `offer_when` | Structured signals that offer the card without a model (§3.3): an attachment type, a workspace. Never text matching |
+| `needs`, `reach` | Modules and versions it requires; its per-module ceiling |
+| `budget` | Requests, output tokens, total tokens, minutes. A run gets the smaller of this and the Settings limits |
+| `inputs` | A typed schema: each input's type, title, help, bounds, default and control (§4) |
+| `steps` | The ordered steps (§2.3) |
+| `result` | What the result card shows and which `show` actions it offers |
+
+### 2.3 Steps
+
+Five kinds, run in order by the generic runner. No loops or expressions beyond what is listed; anything more complex is either an entry in the catalog or a model step.
+
+| Kind | Runs | Example |
+|---|---|---|
+| `input` | Shows controls for some inputs; waits for the person | Datasheets, part name |
+| `tool` | One `Surface::call` by entry name, params filled from inputs and earlier results (JSON pointers). `each` repeats it over a list input. No model involved | `assist.document_text` per datasheet; `library.generate_part`; `component.check_drafts` |
+| `model` | The model works on a goal with the verbs, within the run's reach and a step budget. Its guide is a section of `method.md`. It ends by calling `assist.step_result`, which checks its answer against the step's `output` schema | Read the drawings and choose generator, preset and values; write the pinout document; write the review report |
+| `review` | A person gate. `confirm` waits (impact preview, Allow/Deny); `notify` shows a card with a Change button and goes on | The generator choice (notify); the pinout import (confirm) |
+| `result` | The result card | Drafts, counts, open findings, Open in editor |
+
+A `tool` or `model` step may name `check`: a following tool step whose refusal sends the run back to that step with the refusal's text, at most `retries` times (default 3). That is how "preview until no blocking finding" and "review_check until accepted" are expressed.
+
+### 2.4 The datasheet workflow, as data (shortened)
+
+```json
+{"format": 1, "id": "datasheet-to-component", "version": "1.0",
+ "title": "Datasheet → component",
+ "summary": "Draft a component, symbol, package, footprint, binding and 3D model from manufacturer datasheets, every value cited, for you to review and publish.",
+ "intents": ["make a part from this datasheet", "create the component for TLV75733", "add this chip to my library"],
+ "offer_when": [{"attachment": "application/pdf"}],
+ "needs": [{"module": "library", "major": 1}, {"module": "generators", "major": 1},
+           {"module": "checks", "major": 1}, {"module": "assist", "major": 1}],
+ "reach": {"library": "edit", "generators": "edit", "checks": "read", "assist": "edit", "view": "show"},
+ "budget": {"requests": 40, "output_tokens": 200000, "minutes": 45},
+ "inputs": {
+   "datasheets": {"type": "files", "accept": ["application/pdf"], "min": 1, "max": 4, "control": "datasheet", "title": "Datasheets"},
+   "part":       {"type": "text", "max": 64, "title": "Part name", "help": "The manufacturer part number"},
+   "pages":      {"type": "page_ranges", "optional": true, "title": "Pages to read first"},
+   "notes":      {"type": "text", "optional": true, "multiline": true, "title": "Notes", "help": "Package variant, what to leave out"}},
+ "steps": [
+   {"id": "ask",     "kind": "input",  "inputs": ["datasheets", "part", "pages", "notes"]},
+   {"id": "read",    "kind": "tool",   "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"path": "/item", "pages": "/inputs/pages"}},
+   {"id": "gens",    "kind": "tool",   "call": "library.generators", "params": {}},
+   {"id": "plan",    "kind": "model",  "method": "method.md#find-a-generator", "output": "package_plan", "check": "make"},
+   {"id": "pick",    "kind": "review", "gate": "notify", "control": "choice", "show": "/steps/plan/generator"},
+   {"id": "make",    "kind": "tool",   "call": "library.generate_part", "params": {"generator": "/steps/plan/generator", "preset": "/steps/plan/preset", "params": "/steps/plan/params", "name": "/inputs/part", "scope": "component"}},
+   {"id": "drafts",  "kind": "tool",   "call": "library.draft_closure", "params": {"component": "/steps/make/component"}},
+   {"id": "pinout",  "kind": "model",  "method": "method.md#procedure", "output": "pinout_document", "check": "preview"},
+   {"id": "preview", "kind": "tool",   "call": "library.pinout_preview", "params": {"target": "/steps/drafts/component", "document": "/steps/pinout/document"}},
+   {"id": "import",  "kind": "review", "gate": "confirm", "control": "impact", "plan": "/steps/preview", "then": {"call": "library.pinout_apply"}},
+   {"id": "check",   "kind": "tool",   "call": "component.check_drafts", "params": {}},
+   {"id": "report",  "kind": "model",  "method": "method.md#the-review-report", "output": "review_report", "check": "accept"},
+   {"id": "accept",  "kind": "tool",   "call": "library.review_check", "params": {"report": "/steps/report/report"}},
+   {"id": "done",    "kind": "result", "show": ["drafts", "unreviewed", "uncertain", "findings"], "open": "view.open"}]}
+```
+
+Field names are illustrative; the contract slice (W0) fixes them. The deterministic parts (reading text, listing generators, generating, drafting, previewing, checking) run without the model, which is what makes the flow cheaper and steadier on small models than the free-form prompt: the model only does the three judgement steps.
+
+### 2.5 The steps for an external MCP client
+
+An external client has its own loop and no runner. `prompts/get datasheet_to_component` returns `method.md` plus the inputs as a task, exactly as today, so Claude Code keeps the text that produced the 0 nm results. A test checks that every entry a `tool` step names appears in `method.md`'s procedure, in the same order, so the two can't drift silently.
+
+## 3. How the chat notices a workflow
+
+### 3.1 The model chooses (default)
+
+- **The index is in context.** The chat's system text carries the workflow index: id, one-line summary and the intents, about 60 tokens a workflow, held under 1 KB by a test. Past that size the index is left out and the model calls `query assist.workflows {text}`, which ranks by the same fields.
+- **The model offers, the person decides.** When a request fits, the model calls `show assist.offer {workflow, inputs, why}` with whatever inputs it already has (an attached PDF, a part number from the message). The chat draws a card:
+
+  ```
+  ┌ I can do this with a workflow ────────────────────────────┐
+  │ Datasheet → component  v1.0                               │
+  │ Drafts the part from the datasheet, every value cited.    │
+  │ Datasheet  tlv757p.pdf (38 pages)   Part  TLV75733PDBVR   │
+  │                          [Just chat]   [Use it]  (Enter)  │
+  └───────────────────────────────────────────────────────────┘
+  ```
+
+- **Use it** starts the run with those inputs (the `input` step shows only what is missing). **Just chat** returns to free conversation and tells the model so.
+- `assist.offer` is a `show` entry: it changes no document and needs a window, so headless it answers `host.unavailable`.
+- No keyword matching in code. What the model reads is the workflow's own data.
+
+### 3.2 Explicit entry
+
+- **`/` in the composer** lists the workflows (title and summary). Choosing one shows its card.
+- **Command palette:** one entry per available workflow, generated from its data ("Assistant: Datasheet → component").
+- **Component start page:** "Create from datasheet…" now opens the chat with that card.
+- **MCP clients:** `prompts/list` (Claude Code shows prompts as slash commands).
+
+### 3.3 Small and local models
+
+- **Signals from data, not words.** `offer_when` lists structured signals: a dropped file's type, the workspace, an Issues row. When one matches and the model hasn't offered anything, the chat shows the card itself. Dropping a PDF therefore always offers the datasheet workflow, on any model.
+- **The `/` menu and the palette** need no model at all.
+- **Profile option `workflow_choice: "classify"`.** One extra small request before the turn: the message and the index, answered as a JSON enum of workflow ids or `none`. Measured on Flash Next and `qwen3.8:27b` before it is offered (slice D1).
+- **Inside a workflow,** the deterministic steps carry the load, and each model step sees only its own goal, its section of `method.md` and its inputs, which keeps a 32 k context workable.
+
+## 4. In-chat controls
+
+### 4.1 One closed set of controls
+
+The widgets are code, built once in `crates/ui` from `ui_kit::Container` and the shared tokens (`cargo xtask ui-containers` holds that). A workflow only chooses among them and fills their fields. A workflow naming a control the app doesn't have fails the load check.
+
+| Control | Shows | Input type in `workflow.json` |
+|---|---|---|
+| `text` | One line or multiline, with a byte limit | `text` |
+| `number` | A number with its unit; accepts `0.25`, `"0.25mm"`, `"10mil"` (the command wire) | `length`, `angle`, `number`, `integer` with `min`, `max` |
+| `choice` | Single or multiple choice, titled options; options may come from a step's result (generators and presets from `library.generators`) | `enum`, `enum_from` |
+| `datasheet` | File picker and drop target; shows title, page count and size; copies the file into the conversation's folder, which is in the grant | `files` with `accept`, `min`, `max` |
+| `url` | A URL, fetched only through an Ask (network reach) | `url` |
+| `page_ranges` | `"1-5, 31, 32"` against the file's page count | `page_ranges` |
+| `impact` | A plan's counts, findings and changed rows; a multi-select of rows to leave out; **Apply** / **Decline** | `review` steps with `gate: confirm` |
+| `progress` | Current step, done of total, **Stop** | every running step |
+| `meter` | Requests, tokens and minutes against the run's limits | always, for a running workflow |
+| `result` | What was made, counts, open findings; **Show**, **Open in editor**, **Undo run** | `result` steps |
+
+### 4.2 How a control reaches the person
+
+- **In the chat,** a control is a card in the conversation. Enter accepts, Esc declines; focus moves to the first field.
+- **Gates go through `Asker`.** A `review` step with `gate: confirm` calls `Asker::review(plan)`; the chat's `Asker` draws the `impact` card. The same trait answers Ask-class calls (an Allow/Deny card). So a workflow's gate and the surface's gate are one mechanism.
+- **Typing in the chat isn't "busy".** The busy rule refuses agent edits while the person types on the canvas or in a dialog; the composer and the chat's cards are excluded.
+
+### 4.3 The same inputs for an MCP client
+
+| Control | MCP `2026-07-28` | Without elicitation |
+|---|---|---|
+| `text`, `number`, `choice` | Form elicitation: string, number, titled enum | Prompt arguments (strings) |
+| `datasheet`, `url` | String path or URL, with the allowed folder in the help | Prompt argument |
+| `page_ranges` | String with a pattern | Prompt argument |
+| `impact` | `input_required` with the counts as the message and a titled multi-select of rows (MCP P5) | Headless: `gate.needs_person`. Live: the window's review |
+| `progress`, `meter` | `notifications/progress`; the client's own usage display | — |
+| `result` | Text and a resource link; the model may call `show view.open` when live | Text |
+
+`prompts/get` without a required argument answers `input_required` with the form built from `inputs` (MCP §3.7). Forms and prompt arguments are generated from the workflow data, so nothing is written twice.
+
+## 5. How it sits on the surface
+
+### 5.1 Callers and grants
+
+| Who | Principal | Grant |
+|---|---|---|
+| Chat on an endpoint (our loop) | `LocalAgent`, in process | `Grant::local_agent`: document modules to Edit; `view` to Show; `files`, `fab`, `model3d` to Ask; `settings` read |
+| Chat on an ACP agent | `RemoteAgent` over `mcp --live` on the conversation's channel | The window's grant, as approved (§6) |
+| A workflow run, either kind | The same principal | The above, narrowed by the workflow's `reach` |
+| The workflow runner's `tool` steps | The same principal as the chat | Same: the runner has no rights of its own |
+
+Every call, the runner's included, is one `Surface::call` with the envelope's `turn`. Nothing in the chat calls the engine directly.
+
+### 5.2 Turns, previews, undo
+
+- **A message is a turn; a workflow run is one turn.** The chat opens it with `begin_group(label)`: "AI assistant: route the USB pair", "Datasheet → component: TLV75733PDBVR". It undoes as one step. A person's own edit in between splits it, as approved.
+- **Previews are dry runs.** An `impact` card is the dry-run reply (`dry_run: true`). Apply sends the same call at the preview's revision, and the plan digest (`confirm`) once the plan slice serves it. A moved revision gives a fresh preview, never a silent apply.
+- **Stop** ends the turn: the runner stops at the next step boundary, a long entry gets its cancel through `Progress`, and what completed stays as one undo step with **Undo run** on the card.
+- **Per-turn limits** (§6.3) count in the surface for both connection kinds.
+
+### 5.3 The window
+
+- `query view.context` at the head of each message: workspace, view, selection with ids, visible layers, steps made by hand since the last turn.
+- `show view.select`, `view.open` (a workspace, a sheet, the Component editor on a draft) and `view.camera`. The result card's **Open in editor** is a `view.open`. Shown changes take no revision and no undo step.
+- Events (`project.changed`, `view.selection`) refresh the chat's context line and its "changed by hand" note.
+
+### 5.4 Prerequisites
+
+| Slice | From | Needed for the first demo? | What for |
+|---|---|---|---|
+| S4a turns: `begin_group`/`end_group`, labels, per-turn limits | ABI plan | **Yes** | One undo step per message and per run |
+| S4b jobs, `Progress`, events | ABI plan | Partly: `Progress` for Stop on a long entry; events can follow | Stop, "changed by hand" |
+| S5a `WindowHost`, `view.context`, `view.select`, `view.open` | ABI plan | **Yes** | "Talk to the board", Open in editor |
+| S5b camera, layers, screenshot, files through the window's prompts | ABI plan | No | Later |
+| S6 built-in agent on the surface, `assist.*` entries, leniency in the verb reader | ABI plan | **Yes** | The chat loop and the document entries |
+| Plans with `confirm` digests | ABI S4 / MCP P5 | No: the demo binds a preview to its revision and the pinout plan's `base` | Digest-bound review |
+| P5 elicitation (`input_required`) | MCP plan | No | Forms in external clients |
+| P4 prompts and skills from data | MCP plan | Only the prompt part, in W1 | |
+
+The ABI plan's hours for S4–S6 are counted there, not again below. This plan splits S4 and S5 so the demo needs only their first halves.
+
+## 6. Connections (kept from 9 November, shortened)
+
+### 6.1 ACP agents
+
+- **Setup:** Settings › AI › Agents: name, command, arguments, environment; no shell. Presets are editable templates (`claude-agent-acp`, `codex-acp`, `gemini --acp`, OpenCode through its own config); nothing is probed or detected. **Test** sends `initialize` and shows `agentInfo`, `authMethods` and capabilities.
+- **Process:** its own process group; Stop, closing the panel or window and quitting end it the same way (close stdin, TERM, KILL).
+- **`initialize`:** protocol `1`; no file system and no terminal offered, because the agent works through our tools.
+- **Sign-in:** the agent's own. On `-32000` the chat shows its `authMethods` (a command with Copy, a button for `authenticate`, or the variable to set). Sparksmith never holds an ACP agent's key.
+- **`session/new`:** `cwd` is an empty folder of ours; `mcpServers` has one stdio entry, `sparksmith mcp --live --port P --token-file F`, under a random server name. The token file is private and fresh per conversation. Starting a conversation is the consent for its own channel; Help › Connect stays separate for external clients.
+- **Options and system text:** `configOptions` through `session/set_config_option`, remembered per agent; system text through `systemPrompt` when advertised, else the first prompt block. Adapter-specific options (Claude's `disallowedTools`) live in the agent's profile.
+- **Streaming:** `agent_message_chunk`, `agent_thought_chunk` (folded), `tool_call` rows (folded into our own row for the same call), `plan`, `usage_update` for the meter.
+- **Cancel:** `session/cancel`, open permission requests answered `cancelled`, held Asks declined, the turn closed; **End agent** after 10 s.
+- **Approvals:** questions about our own tools are answered `allow_once` (our gate decides when the call arrives); questions about the agent's own tools show its options; our gate's Ask shows as a card.
+- **Workflows on an ACP agent.** Our runner drives the steps. A `model` step is one `session/prompt` with the step's goal, its `method.md` section and its inputs; the agent calls our verbs over its channel and ends with `assist.step_result`. `tool` steps and gates run in our runner as for an endpoint. So the controls, gates and limits are the same on both kinds (Q6).
+
+### 6.2 Endpoints
+
+- **Settings › AI › Endpoints:** provider, base URL, model id, key (masked, in the system keychain for that base URL, refused over plain HTTP to another computer), timeout, and declared capabilities (tool calling, vision, native PDF, context, output limit). Nothing is detected.
+- **Loop:** the datasheet runner's loop, generalised in S6 and given streaming (L1), so Stop acts between chunks rather than after a whole request.
+- **Profiles** per model (`library/assist/profiles/`, user copies in `<config>/assist-profiles/`): system additions, `omit_tools`, repeat limit, `workflow_choice`, per-workflow `method` additions. Edited in Settings › AI › Profiles as text, checked on save.
+- **No vision:** images refused with the reason; PDFs reach the model as text through `assist.document_text`, and page images only where vision is declared. **No tool calling:** the endpoint is refused for the chat, with the reason.
+- **Full context:** the turn stops with the reason and offers **New conversation from a summary** (approved Q7).
+
+### 6.3 Limits
+
+Settings › AI, the same for every model. They are ceilings: a workflow's `budget` sets its run's limits within them, never above.
+
+| Limit per turn | Default | Counted |
 |---|---|---|
 | Model requests | 40 | Endpoint loop |
 | Output tokens | 200 000 | Endpoint loop, worst case checked before each request |
 | Prompt plus output tokens | 4 000 000 | Endpoint loop |
-| Time | 30 min | Endpoint loop and panel (ACP) |
-| Edits that run | 60 (below `MAX_UNDO`) | Panel channel, both kinds |
-| Tool requests of any kind | 400 | Panel channel, both kinds |
+| Time | 30 min (45 proposed, Q7) | Loop and chat |
+| Edits that run | 60 (below `MAX_UNDO`) | Surface, both kinds |
+| Calls of any kind | 400 | Surface, both kinds |
 
-**Output limits** still come from the model's declared limit, not from a small fixed number. **When a limit is reached,** the model gets a tool result saying so and has one more request to say what is left. An ACP agent's tokens are its own business, so we show `usage_update` but can't cap its tokens. The edit, request and time caps hold for it because they are counted in our channel.
+An ACP agent's tokens are its own; the meter shows its `usage_update`, and the edit, call and time caps still hold. The product shows no prices (decision of 9 November).
 
-## 4. Workflows as MCP prompts
+### 6.4 Settings › AI
 
-`mcp.rs` gains the `prompts` capability: `prompts/list` and `prompts/get {name, arguments}`, as the MCP specification defines them. Arguments are strings. A prompt returns `messages`, a user message whose text names our tools. Built-in prompts live with the automation crate as plain data. They are the same for every client, so Claude Code (where they appear as slash commands), any other MCP client and the panel all start the same workflow from the same text.
+One page, in the shared settings containers: **Connections** (agents and endpoints, keys masked), **Permissions** (the window mode, an optional override per agent, "Let the assistant move my view"), **Limits**, **Profiles**, and **Workflows** (read-only list: id, version, shipped or user, available or why not). Keys, endpoints, modes and grants are Never-class: no agent can read or set them.
 
-**In the panel,** prompts appear as starting points in the empty conversation and behind the **/** key. Choosing one shows its arguments as a short form. The panel calls `prompts/get` and sends the returned text as the message: to the endpoint loop, or as `session/prompt` text blocks to an ACP agent. Model-specific tuning goes in the profile (`prompts.<name>.add` for endpoints, system text for agents), never into the prompt itself.
+## 7. The chat UI (kept, with the new cards)
 
-| Prompt | Arguments | What it does |
-|---|---|---|
-| `datasheet_to_component` | `datasheets` (paths, one per line), `part_name`, `notes` | The datasheet assistant's goal and method. It drafts a component, symbol, package, footprint and binding in the open project and publishes nothing (Q2) |
-| `fix_issues` | `scope` (selection, sheet, board), `codes` | Read `project.issues`, fix what a typed command can, explain the rest |
-| `review_schematic` | `sheet` | ERC and pin-report review, and explanation only (reads) |
-| `route_nets` | `nets`, `layers` | Route through `layout.route_step` with shove |
-| `explain` | `object` | Explain the selected object, rule or issue |
-
-### Making the datasheet workflow an MCP workflow
-
-The datasheet runner relies on things a plain MCP client doesn't have yet, and they move into the server, so every client benefits:
-
-- **Document tools,** class Read, each with a path, so the folder limit decides as for any path:
-  - `document.text {path, pages}` returns page-marked text and lists probable drawings, using `documents.rs` (`pdf-extract`);
-  - `document.view_page {path, page}` returns an MCP image content block, using `hayro`.
-
-  The 24-view and size limits stay.
-- **The working pinout document** becomes server-side state for each `Session`, with `library.pinout_edit` as a command. Today it is held by the runner (`library_pinout_edit`, preview, then apply the previewed document).
-- **Argument leniency** moves from the runner into `mcp.rs` `tools/call`: arrays or objects sent as JSON text, large integers as text, and refusals that say where invalid JSON broke.
-- **`submit_review`** becomes a `review.submit` query that checks the report: it refuses a report citing an unlisted document or no page. The panel draws the report as a card, and **Save review…** is an Ask (Q3).
-- **Repeat stop.** The repeat limit stays in the endpoint loop, because an ACP agent runs its own loop.
-
-**After this,** `sparksmith design-part` is the same prompt run by the same endpoint loop on a headless session. The 16 Flash Next tuning recordings, run 1 and the TLV replays must still grade the same (S9).
-
-**Coordination:** the `assist-to-mcp` agent is working in this area now. This section is the target shape, to agree with that work, not a second implementation.
-
-## 5. UI
-
-### Where it lives
-
-- **The column.** The panel is a docked column at the window's right edge, outside the right column, so the subject card and Issues stay visible while you review a turn (Q1). Drag its header to dock it at the left beside the Browser. It is resizable from 300 to 560 pt.
-- **Folding.** **Minimise** folds it to a 30 pt strip with a state dot and a count of open questions. × closes it and keeps the conversation.
-- **Solidcraft conventions.** Side, width and fold are user settings, not project data. The panel is built from `ui_kit::Container` (enforced by `cargo xtask ui-containers`), with shared tokens.
-- **Opening it.** The `assistant.toggle` command (⇧⌘A or Ctrl+Shift+A, through the shortcut registry, which works from the panel's own text field), View › Assistant, the command palette, and an AI button in the application bar beside today's *AI access* indicator.
-- **One conversation per open project,** in memory only. Replacing the project (New, Open, recovery) ends it, and its agent stops.
-
-### Conversation items
-
-- **Your message,** with attachment chips and the context line it carried (for example "Selection: R3, R6 · Board 2D").
-- **Reply text** as bounded Markdown, and reasoning dimmed and folded.
-- **A tool row for each call:** the command (`layout.route_step`), a one-line summary, and its state (running, done, refused with the refusal's text, or denied). Expanding a row shows the input and the compact reply. A refusal is never shown twice.
-- **Ask card:** "Export Gerbers to ~/boards/out?" with the command, the paths and why, and **Allow** (Enter) and **Deny** (Esc).
-- **Summary card at the end of each turn:**
-
-  ```
-  ┌ Turn · "route the USB pair" ─────────────────────┐
-  │ Changed  4 tracks · 2 vias · net USB_D+ USB_D−   │
-  │ Issues   2 resolved · 1 new (clearance U1 ↔ J1)  │
-  │ Requests 9 · 31 k tokens · 2 min                 │
-  │                    [Show]  [Undo turn]           │
-  └──────────────────────────────────────────────────┘
-  ```
-
-  The new issue links into Issues, which locates it. Tokens are shown for endpoints, and context from `usage_update` for agents.
-- **No file diffs.** ACP `diff` content (`path`, `oldText`, `newText`) is for text files and doesn't fit a design. Review is the change list, the canvas selection and the issues. Large changes use the docked impact review (D9 in [sidebar IA](sidebar-ia.md)) or, later, review on a copy.
-
-### Attachments
-
-Attach by dropping a file on the panel, with the paperclip, or by pasting an image. A file is copied into the conversation's folder, which is one of the policy's allowed folders, so our document tools can read it.
-
-| Attachment | ACP agent | Endpoint model |
-|---|---|---|
-| PDF | `resource` with `blob` (base64) and `mimeType: application/pdf` when `embeddedContext` is advertised; otherwise `resource_link {uri: file://…, name, mimeType, size}`. Either way, the message names the path for `document.text` and `document.view_page`, which work for every agent | Native PDF when declared; otherwise the message names the path and the model reads it through the document tools |
-| Image (screenshot) | `image {data, mimeType}` only when `promptCapabilities.image` is set | Only when vision is declared |
-| Anything else | Refused with the reason | Refused with the reason |
-
-Datasheets and other documents are untrusted. They are titled as data and never as instructions, and the gate holds whatever they say.
-
-### Context sent with each message
-
-The live channel gets one new read, `window.context`, and the panel puts its answer at the head of each message, sized by the profile's `context_budget`. Any live client can call it too, so this isn't a panel-only path. It returns:
-
-- the workspace and view (sheet, board, 2D or 3D, visible layers);
-- the selection with the ids its tools take;
-- open issue counts for what is in view;
-- the steps made by hand since a given revision.
-
-### Main states
+- **Placement:** its own docked column at the right edge, resizable 300–560 pt, can dock left, folds to a 30 pt strip with a state dot (approved Q1). Opened by `assistant.toggle` (⇧⌘A / Ctrl+Shift+A through the shortcut registry), View › Assistant, the palette and an AI button in the application bar.
+- **One conversation per open project,** in memory only (approved Q8).
+- **Items:** your message with its context line and attachment chips; reply text (bounded Markdown); folded reasoning; one row per tool call (entry, one-line summary, state; expands to input and compact reply); Ask cards; the **workflow card** (§3.1); **control cards** (§4); a **turn summary card** at the end of each turn (what changed by collection and name, issues new and resolved, requests and tokens, **Show**, **Undo turn**).
+- **A running workflow** is one block in the conversation: its title, a step list with the current step, the `meter`, **Stop**, and its cards in order.
 
 ```
- Not set up         Connecting           Sign-in needed               Ready
-┌──────────────┐  ┌──────────────┐   ┌───────────────────────┐   ┌─────────────────────────────┐
-│ Assistant    │  │ Claude Code ▾│   │ Claude Code ▾         │   │ qwen3.8 (local) ▾  ⋯   –  × │
-│              │  │              │   │ Not signed in.        │   │ Start from:                 │
-│ No agent or  │  │ Starting…    │   │ Run in a terminal:    │   │  Create part from datasheet │
-│ endpoint yet.│  │              │   │ claude-agent-acp --cli│   │  Fix issues on this board   │
-│ [Settings…]  │  │ [Cancel]     │   │  auth login  [Copy]   │   │  Review this schematic      │
-└──────────────┘  └──────────────┘   │ [Connect again]       │   │ ┌─────────────────────────┐ │
-                                     └───────────────────────┘   │ │ Message…        📎  [↑] │ │
-                                                                 │ └─────────────────────────┘ │
-                                                                 └─────────────────────────────┘
- Running                                Waiting for you              Stopped or limit reached
-┌───────────────────────────────┐   ┌──────────────────────────┐   ┌──────────────────────────┐
-│ you: route the USB pair       │   │ … tool rows …            │   │ Turn stopped: 40 model   │
-│ ▸ reasoning (folded)          │   │ ┌ Allow export? ───────┐ │   │ requests (the per-turn   │
-│ ✓ project_inspect             │   │ │ fabrication.export   │ │   │ limit). 6 edits kept as  │
-│ ✓ layout.route_step  +2 trk   │   │ │ ~/boards/out/        │ │   │ one undo step.           │
-│ ◌ layout.route_step …         │   │ │ [Deny]      [Allow]  │ │   │ [Show] [Undo turn]       │
-│ Routing D− next to D+…        │   │ └──────────────────────┘ │   │ [Continue]               │
-│ ● 9 req · 31 k tok    [Stop]  │   │ ● waiting      [Stop]    │   │                          │
-└───────────────────────────────┘   └──────────────────────────┘   └──────────────────────────┘
+┌ Datasheet → component · TLV75733PDBVR ──────────────── v1.0 ┐
+│ ✓ Inputs     tlv757p.pdf · pages 3, 31–32                   │
+│ ✓ Read       38 pages, drawings on 31, 32                   │
+│ ✓ Package    tabbed · tabbed-sot-23-5 · TI lands  [Change]  │
+│ ✓ Made       component, symbol, package, footprint, 3D      │
+│ ◌ Pinout     preview 2 of 3 · 1 blocking finding            │
+│ · Import  · Check  · Report                                 │
+│ 14 requests · 61 k tokens · 6 min of 45           [Stop]    │
+└─────────────────────────────────────────────────────────────┘
+┌ Import pinout into the drafts? ─────────────────────────────┐
+│ 5 pins · 5 functions · 0 rules · 0 uncertain                │
+│ Findings: none blocking                                     │
+│ [ ] leave out rows…                 [Decline]  [Apply] ⏎    │
+└─────────────────────────────────────────────────────────────┘
+┌ Done · 1 undo step ─────────────────────────────────────────┐
+│ Drafts: component, symbol, package, footprint, binding      │
+│ 5 pins unreviewed · 0 uncertain · open: pinout.unreviewed   │
+│ Review accepted (18 values cited)    [Save review…]         │
+│ [Show]  [Open in editor]  [Undo run]                        │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-Other states:
+- **States** as in the 9 November design: not set up, connecting, sign-in needed, ready, running, waiting for you, stopped or limit reached, agent ended, endpoint unreachable.
+- **Attachments:** drop, paperclip or paste. PDFs are copied into the conversation's folder; an ACP agent also gets them as `resource` or `resource_link`; images only where vision is declared. Documents are untrusted data, never instructions.
 
-- **Agent ended.** The process exited, with its last standard error lines and **Restart**.
-- **Endpoint unreachable.** The HTTP error, with the key redacted.
-- **Busy refusals** don't need a state of their own. They are tool rows, and the model retries.
+## 8. Slices
 
-## 6. What exists and what is new
+At most five agents at once. Each slice ships with its tests. Nothing runs the desktop app on the host: UI evidence is in the macOS VM.
 
-| Reused as is | Where |
-|---|---|
-| Typed engine, catalogue, classes, compact replies | `sparksmith-core`, `crates/automation/src/session*` |
-| MCP server (six verbs), headless and live | `crates/automation/src/mcp.rs`, `mcp/` |
-| Live channel: `Endpoint`, `admit`, `run`, `Client`, `--live` bridge | `crates/automation/src/live.rs`, Solidcraft's control channel |
-| Gate: `Grant`, `Principal`, `Mode`, `decide_entries`, `check_request`, refusals | `crates/automation/src/gate.rs` |
-| Window pump, busy rule, Ask prompt, AI indicator, toasts | `apps/sparksmith/src/app/live_mcp.rs` |
-| Model layer, backends, keys, endpoints, recording | `crates/assist/src/model*` |
-| Run profiles, harness fixes | `crates/assist/src/profile.rs`, `profiles/` |
-| PDF text and page rendering | `crates/assist/src/documents.rs` |
-| Undo fold (`join_last_step`) | `sparksmith-core` `Engine` |
-| Shortcut registry, palette, `ui_kit` containers, toasts, Messages | app |
-
-| New | Size |
-|---|---|
-| `Engine::join_since` and labels on undo steps | Small, in the core |
-| Panel channel: a second endpoint, a turn flag, per-turn counters, turn-scoped refusals, `--token-file` | Automation and app |
-| In-process `live::Client` transport | Automation |
-| MCP `prompts`, document tools, server-side pinout document and argument leniency, `review.submit`, `window.context` | Automation |
-| General endpoint loop with streaming and cancel; tools from `tools/list`; profile extensions | Assist |
-| ACP client: process group, `initialize`, auth, `session/new`, updates, permissions, cancel, config options | New module in the app, or a small crate beside assist |
-| Panel UI, Settings › AI | App |
-
-**Reference only, no code copied:** Solidcraft's `agent_chat` (design doc `docs/design/in-app-agent-chat.md`) and tangency-labs/pcbcraft's `craft-agents` and `app/assistant`, both MIT/Apache. Both run the API loop by starting their CLI's MCP bridge and acting as its client. That confirms the single-path design, and our in-process transport avoids starting a subprocess for endpoints. Both show that the panel channel needs a turn validity flag and random server names.
-
-## 7. Slices
-
-At most five agents at once. Each slice has its own tests and ships on its own.
-
-| # | Slice | Delivers | Estimate | Depends on |
+| # | Slice | Delivers | Hours | Needs |
 |---|---|---|---|---|
-| S1 | Core: `join_since`, step labels, segments around hand edits | One undo step per turn; labels in undo, Messages and MCP | 2–3 h | — |
-| S2 | Automation: panel channel, in-process client, turn flag and counters, `--token-file`, `window.context` | The one path, tested headless with a scripted client | 4–6 h | — |
-| S3 | MCP prompts and the datasheet workflow's server parts | `prompts/list`/`get`, document tools, pinout working document, leniency, `review.submit` | 5–8 h | Agreed with `assist-to-mcp` |
-| S4 | Assist: general loop, streaming, cancel, tools from MCP, profile extensions, compact instructions and tools measured | Endpoint backend without UI; replay tests | 6–9 h | S2 interface |
-| S5 | Panel UI on the endpoint backend: column, fold, transcript, tool rows, Ask card, summary card, states, ⇧⌘A | Chat in the app on a local model | 8–12 h | S1, S2, S4 |
-| S6 | ACP backend | Claude Code, Codex, Gemini CLI or OpenCode in the panel | 6–9 h | S2, S5 shell |
-| S7 | Settings › AI: agents, endpoints, keys, permission mode, limits, profile editor | Setup in the app | 4–6 h | S4 |
-| S8 | Attachments | PDFs and images per capability | 2–4 h | S3, S5 |
-| S9 | Datasheet prompt end to end; `design-part` on the same loop | Same graded results as today on the recordings | 4–6 h | S3, S4 |
-| S10 | Review on a copy (accept or reject, `review-diff`) for large runs | Proposal flow | 4–6 h | S5 |
-| S11 | VM evidence: local model through an endpoint, and an ACP agent on a local model | Recorded runs in the macOS VM | 2–3 h | S5–S8 |
+| **W0** | Contract | `workflow.json` format 1 as types with its load check; the control vocabulary; `assist.workflows`, `assist.offer`, `assist.step_result` signatures; the chat's event types | 2–3 | — |
+| S4a | Turns *(ABI plan)* | `begin_group`/`end_group`, labels, per-turn limits in the surface | *in ABI plan* | — |
+| S5a | Window, first half *(ABI plan)* | `WindowHost`, `view.context`, `view.select`, `view.open`, busy in the surface | *in ABI plan* | — |
+| S6 | Built-in agent on the surface *(ABI plan)* | The loop on the six verbs; `assist.document_text`, `assist.document_page`, `assist.pinout_edit`; leniency in the verb reader; `assist::tools` deleted | *in ABI plan* | S3 (built) |
+| **L1** | Streaming loop | Streaming on both wire formats; Stop between chunks; loop events for the chat | 3–5 | — |
+| **W1** | Workflow runner | Loader for shipped and user workflows; the step runner (input, tool, model, review, result; `each`, `check`, `retries`); budgets; recordings name the workflow and its digest; `assist.workflows` and `assist.step_result`; the datasheet workflow as data with `method.md` moved from `skills/`; `prompts/list` and `prompts/get` generated from workflow data (hard-coded arguments in `prompts.rs` deleted); the method-order test | 8–12 | W0, S6, S4a |
+| **C1** | Chat panel | Column, fold, transcript, tool rows, Ask card, turn summary card, states, ⇧⌘A, context line from `view.context`; endpoint backend | 10–14 | S4a, S5a, S6, L1 |
+| **C2** | Controls and cards | The ten controls in `crates/ui`; the workflow card and `assist.offer`; `/` menu; palette entries from workflows; `offer_when` signals; PDF drop | 8–12 | W0; C1's shell |
+| **C3** | Settings › AI | Connections (endpoints with keychain keys, agents), permissions, limits, profiles, workflows list | 5–7 | W0 |
+| **W2** | Datasheet workflow in the chat ★ | The workflow end to end in the chat on an endpoint; result card with Open in editor; `sparksmith design-part` runs the same workflow headless; **the "Create from datasheet…" dialog deleted**, its button opens the chat | 5–8 | W1, C1, C2, C3 |
+| A1 | ACP backend | Agents in the chat, workflows driven step by step (§6.1) | 6–9 | C1, W1 |
+| M1 | Forms for MCP clients | `input_required` from workflow inputs and `impact` gates (with MCP P5) | 4–6 | W1, P5 |
+| D1 | Small-model detection | Measure the index, `offer_when` and `classify` on Flash Next and `qwen3.8:27b`; set the profile defaults from the result | 3–4 | W2 |
+| E1 | Evidence | VM runs: plain chat editing the demo board and the datasheet workflow on a local endpoint; an ACP agent on a local model | 2–3 | W2, A1 |
+| R1 | Review on a copy | Accept or reject a large run as a whole (`review-diff`) | 4–6 | C1 |
 
-**Order:** S1, S2, S3 and S4 in parallel, then S5 and S7, then S6, S8 and S9, then S10 and S11. That is about **47–72 agent hours** in total. It replaces slices 3–6 of the [LLM integration build order](llm-integration.md#build-order).
+★ **First demo** after W2: a chat on a local model that answers about the open board, selects and edits through the verbs with one undo step per message, and runs Datasheet → component in the chat with its inputs, the generator choice, the pinout impact card and the result card.
+
+**Order.**
+
+| Round | Agents |
+|---|---|
+| 1 | W0, S4a, S5a, S6, L1 |
+| 2 | W1, C1, C2, C3 |
+| 3 | **W2 (demo)**, A1 |
+| 4 | D1, M1, E1, R1, and the ABI's S4b and S5b |
+
+**Hours.** This plan's own slices to the demo (W0, L1, W1, C1, C2, C3, W2): about **41–61 h**. After the demo (A1, M1, D1, E1, R1): about **19–28 h**. Total **60–89 h**, plus the ABI plan's S4a, S5a and S6. The critical path is S6 → W1 → W2. More workflows (fix issues, review a schematic) are data: about 2–4 h each, each with its own decision.
+
+### Testing without paid calls
+
+- **Replays.** `crates/assist` already records and replays model conversations. Every workflow test runs a recorded conversation against a headless session; the 16 Flash Next recordings and the TLV and WROOM-3 replays must grade as before (W1, W2).
+- **Scripted model in unit tests.** A model backend that answers from a script, for the runner's step logic, gates, Stop and limits. It is a test double for the endpoint, not a fake ACP agent (founder, 9 November).
+- **Deterministic steps need no model.** The `tool` steps of the datasheet workflow run in tests with fixed `model` step outputs.
+- **Local models live:** Flash Next on vLLM and `qwen3.8:27b` on Ollama for the demo and D1. ACP evidence with a real agent on a local model (OpenCode with Ollama).
+- **UI:** the accessibility harness with a replayed backend; the VM for end-to-end runs.
+- **Claude Code or the Anthropic API** only with the founder's go and a stated budget.
 
 ### Risks
 
-- **ACP adapters change fast.** Package names have moved before (`@zed-industries/*` to `@agentclientprotocol/*`), and some options are adapter extensions (`_meta.claudeCode…`). Mitigation: options live in editable profiles, and a fake ACP agent in the tests pins the protocol we speak.
-- **Agents' MCP tool timeouts** may be shorter than our 600 s `ASK_WAIT`, so a slow Allow could reach the agent as a failed call. Measure per agent, and decline before its timeout.
-- **Folding tool calls into channel rows** by name and `rawInput` is a heuristic. An unmatched call shows twice (once as narration) and is never lost.
-- **`sparksmith` must ship beside the app** in every package (the macOS bundle included). Otherwise an ACP agent has no MCP server, and the panel says so.
-- **Streaming cancel with ureq.** A blocking read only ends at a chunk boundary or a timeout. Use a short read timeout and check the flag. A local model at about 17 tokens a second produces chunks often enough.
-- **Small models and tool-list size.** If even compact tools don't fit 32 k, a model gets a profile-chosen subset (`omit_tools`). Measure before promising support for small contexts.
-- **UI-thread execution.** Tool requests run between frames, so a long command, such as a fill, stalls frames for an assistant just as it does for a person. This is existing behaviour, not new risk, but turns make it more frequent.
-- **Datasheet parity.** Moving the runner's conveniences into MCP must not lose the Flash Next gains. The replays grade it (S9).
-- **Parallel work.** `assist-to-mcp` touches `crates/assist` now, so S3 and S4 start after they merge.
+- **Two texts for one workflow** (`steps` for the runner, `method.md` for external clients). Mitigation: the order test in W1; one `method.md` section per model step.
+- **The step language growing into a programming language.** Five kinds, `each`, `check` and `retries`, and nothing else; anything more becomes a catalog entry or a model step.
+- **`assist.step_result` on weak models.** It is one more call to get right. Its refusals name the field and show an example, as `library.review_check` does.
+- **Tooling defects T1–T11** cost the external runs most of their tokens. The runner holds the pinout document by handle, which avoids T1 and T2 in the chat, but the MCP route needs the fixes too.
+- **ACP agent timeouts** shorter than our Ask wait: measure per agent; decline before the agent's timeout.
+- **`sparksmith` must ship beside the app** for ACP agents; the chat says so when it is missing.
 
-## 8. Open questions for the founder
+## 9. Open questions for the founder
 
-1. **Panel placement.** A column of its own at the right edge, or replacing the right column while open? **Recommendation:** its own column, so the subject card and Issues stay visible during a turn. It can dock left.
-2. **Where the datasheet workflow writes.** Into the open project as drafts (one turn step, nothing published), or into a new project file as `design-part` does? **Recommendation:** the open project in the panel and in live MCP, and a new file on the CLI, unchanged.
-3. **Keeping the review report.** **Recommendation:** shown as a card, with **Save review…** as an Ask. The CLI keeps writing `NAME.review.md` and `.json` beside the project. Storing it in the project would change the file format.
-4. **Turns for external live clients** (Claude Code through Help › Connect). They have no message boundaries we can see. **Recommendation:** keep one step per edit for them. The request path is the same, and only the grouping differs, because only the panel knows when a message starts and ends.
-5. **Agent presets.** Fill-in command lines with no PATH probing, or fully manual? **Recommendation:** presets as templates. This is not detection and keeps setup short.
-6. **Permission mode.** One for the window, or an override per agent? **Recommendation:** one window mode with an optional override per agent, which is what Solidcraft does. The default stays Auto-allow edits.
-7. **Full context on a small model.** Stop and offer **New conversation from a summary**, or compact automatically? **Recommendation:** stop and offer. Automatic compaction rewrites history silently, which breaks signed thinking and the cache.
-8. **Keeping conversations across restarts.** **Recommendation:** not in the first release. Conversations stay in memory, as in Solidcraft, and `session/load` comes later.
-9. **Evidence without paid calls.** Running Claude Code over ACP uses your own subscription. **Recommendation:** slice evidence uses a local model, both as an endpoint and behind an ACP agent such as OpenCode with Ollama, plus the fake ACP agent. A Claude Code run happens only with your go.
-10. **Default limits.** **Recommendation:** the table in §3: 40 model requests, 60 edits, 4 M tokens and 30 minutes per turn. They are editable, and the same for every model.
-11. **The panel and "Let AI assistants edit this project".** **Recommendation:** keep them separate. Starting a panel conversation is consent for its own channel, and the Help › Connect switch stays for external clients, off at every start.
+1. **Offer, then confirm.** Should the chat always show the workflow card and wait for **Use it**, or start a workflow directly when the model is sure? **Recommendation:** always the card. One click, and nothing long starts without the person.
+2. **Gates in the datasheet workflow.** **Recommendation:** the generator choice as a non-blocking card with **Change**; the pinout import as a blocking impact card; publishing never inside the workflow.
+3. **"Token/cost meter".** **Recommendation:** requests, tokens and minutes against the limits; no prices, as decided on 9 November.
+4. **One method text.** Move `skills/sparksmith-datasheet-part/SKILL.md` to `library/assist/workflows/datasheet-to-component/method.md` and point the skill and AGENTS.md there? **Recommendation:** yes.
+5. **Workflows a person writes.** Load them from `<config>/assist/workflows/`, like run profiles, from the first release, with no editor in the app? **Recommendation:** yes. They are data and can never widen a grant.
+6. **Workflows on an ACP agent.** Our runner drives the steps, or the agent gets the whole prompt as an external client would? **Recommendation:** our runner drives, so controls, gates and limits are the same on every connection.
+7. **Time limit.** The approved default is 30 minutes a turn. The WROOM-3 run took 32 minutes on Opus, and a local model is slower. **Recommendation:** raise the default to 45 minutes; the datasheet workflow's budget asks for 45 and 40 model requests (its deterministic steps need no model requests; Flash Next took 11–16 on small parts).
+8. **Signals without a model.** Should dropping a PDF always offer the datasheet workflow? **Recommendation:** yes. It is a card, not an action, and it works on any model.
+9. **The dialog's removal.** Delete "Create from datasheet…" in W2, before ACP agents arrive? **Recommendation:** yes, once Settings › AI holds the endpoint. An endpoint is enough for the demo.
+10. **Where the workflow writes.** As approved: the open project, as one turn. The CLI's `design-part` keeps writing a new project. **Recommendation:** unchanged.
+11. **More entry points.** "Ask about this" and "Fix this" on objects and Issues rows. **Recommendation:** after the demo, as workflows with `offer_when` signals, each decided on its own.
