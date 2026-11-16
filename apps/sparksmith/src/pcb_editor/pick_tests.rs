@@ -80,7 +80,7 @@ fn beside_a_usb_track(
 
 /// N1: with Top active, a click 3 px beside a Top track selects the track,
 /// not the GND plane on Inner 1 under it; Esc then clears the selection.
-/// Zoomed in twice: the USB pair's gap under the board's JLCPCB rules is
+/// Zoomed in twice: the USB pair's gap under the board's PCBWay rules is
 /// within the test's 6 px pick margin at the fitted zoom.
 #[test]
 fn a_click_just_beside_a_top_track_selects_it_and_esc_clears() -> TestResult {

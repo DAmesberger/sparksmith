@@ -87,7 +87,7 @@ These terms mean the same on every net, paired or not:
 
 **Copper off the path.** A pin-to-pin link is a track between two pins, so a pair has no separate branch concept. Copper off a half's signal path is net copper like any other: in the net's total length (`NetRow.length`, next to the half's `path`), in neither skew nor uncoupled length, and a stub if it reaches no pad. On the ESP32 board the USB-C receptacle J1 has two contacts per signal, and each half joins them: USB_DP by 2.245 mm to J1.A6, and USB_DN by 6.98 mm to J1.A7, through two vias and the bottom layer. Both are terminated and raise nothing.
 
-**What is shown.** For each half, the length report lists the path's pads (`from`, `to`, and `via_fill` when the path runs through a fill) with its length; the High speed card shows the same per half ("29.866 mm · J1.B6 to U1.43"), then the skew and the uncoupled length. An open end is in Issues as `board.track_dangling`.
+**What is shown.** For each half, the length report lists the path's pads (`from`, `to`, and `via_fill` when the path runs through a fill) with its length; the High speed card shows the same per half ("29.886 mm · J1.B6 to U1.43"), then the skew and the uncoupled length. An open end is in Issues as `board.track_dangling`.
 
 **Not built.** No rule limits the length of copper off the path, and parts do not yet say which contacts are open in some state. A future rule would be a net-class setting sourced from an interface's specification, unchecked by default. It would need those connector and part properties, since only a link to a contact that is open in operation acts as a stub electrically.
 

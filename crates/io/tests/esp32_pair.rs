@@ -4,10 +4,12 @@
 //!
 //! Hand-derived from the board's tracks. Along x = 20.75 and x = 19.25 the
 //! halves reach the ESD pads, then run coupled to the module:
-//! B6/B7 to U3 is 4.645 + 1.563 mm; U3 to U1 is 23.707 mm on each half at the
-//! pair width and gap the board's JLCPCB profile gives (the
-//! positive half's corners fall 0.174 mm apart from the negative's and
-//! cancel), so 29.915 mm each.
+//! B6/B7 to U3 is 4.645 + 1.563 mm; U3 to U1 is 23.678 mm on each half at the
+//! pair width (0.246 mm) and gap (0.127 mm) the board's PCBWay 4-layer
+//! profile gives: 1.080 + 0.486 + 7.212 + 1.461 + 0.338 mm of fan-out,
+//! bend and landing, and 13.1 mm of straight run either side of the bend
+//! (12.123 + 0.977 on the positive half, 12.277 + 0.823 on the negative,
+//! whose corners cancel), so 29.886 mm each.
 //! - The positive jumper, A6 to the T on B6's track, is 1.245 + 1.0 =
 //!   2.245 mm.
 //! - The negative jumper, A7 through a via, the bottom jumper and a via to
@@ -69,8 +71,8 @@ fn the_receptacle_jumpers_are_off_the_path_and_not_skew() -> Fallible {
     let report = length::report(&p);
     let usb = row(&report)?;
     assert_eq!(usb.measured, PairMeasured::Derived);
-    assert!(close(usb.positive, 29.915, 0.002), "{usb:?}");
-    assert!(close(usb.negative, 29.915, 0.002), "{usb:?}");
+    assert!(close(usb.positive, 29.886, 0.002), "{usb:?}");
+    assert!(close(usb.negative, 29.886, 0.002), "{usb:?}");
     assert!(usb.skew < 1e-3, "{usb:?}");
     let paths = usb.paths.as_ref().ok_or("no paths")?;
     assert_eq!(
@@ -206,9 +208,9 @@ fn set_endpoints_are_measured_and_validated() -> Fallible {
     let usb = row(&report)?;
     assert_eq!(usb.measured, PairMeasured::Set);
     // A6 joins 1.245 mm up B6's track after 2.245 mm: 1 mm longer than B6.
-    assert!(close(usb.positive, 30.915, 0.002), "{usb:?}");
+    assert!(close(usb.positive, 30.886, 0.002), "{usb:?}");
     // A7 through the jumper to B7: the whole 6.98 mm jumper joins the path.
-    assert!(close(usb.negative, 29.915 + 6.98, 0.01), "{usb:?}");
+    assert!(close(usb.negative, 29.886 + 6.98, 0.01), "{usb:?}");
     assert!(close(usb.skew, 5.98, 0.01), "{usb:?}");
     assert!(
         layout::checks(engine.project(), engine.check_settings())
@@ -318,9 +320,9 @@ fn a_track_across_the_pair_never_tears_it() -> Fallible {
 /// The founder's "Issues says 44, the production check says 50": the skew
 /// was in both counts, so gap 2 takes one from each. The difference was
 /// the findings only production makes: the two switches' envelope models.
-/// The switches now use the example's B3U-1000P part file, so both counts
-/// are 0 but for the production check's two waived J1 locating-peg
-/// findings (the GCT USB4105 recommended layout), which Issues leaves out.
+/// The switches now use the example's B3U-1000P part file, and the board's
+/// PCBWay 4-layer profile (at its minimum values) admits the GCT USB4105
+/// land pattern as drawn, so both counts are 0, with no waiver.
 /// Information is not counted: the production check leaves it out, and the
 /// only information on this board is the fills' removed thermal spokes
 /// (`fill.spokes_removed`, never blocking).
@@ -366,13 +368,9 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
         info.iter().map(|r| &r.finding.code).collect::<Vec<_>>()
     );
     assert_eq!(preflight.blocking, 0);
-    assert_eq!(preflight.items.len(), 2, "{:?}", preflight.items);
-    assert!(
-        preflight
-            .items
-            .iter()
-            .all(|i| i.code == "board.pad_hole_clearance" && i.waiver.is_some())
-    );
+    assert_eq!(preflight.waived, 0);
+    assert!(preflight.items.is_empty(), "{:?}", preflight.items);
+    assert!(engine.project().production.waivers.is_empty());
     assert_eq!(only_production.len(), 0);
     Ok(())
 }

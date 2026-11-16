@@ -2,12 +2,12 @@
   "DesignRules": [
     {
       "Layers": "Outer",
-      "MinLineWidth": 0.09,
-      "PadToPad": 0.15,
-      "PadToTrack": 0.1,
-      "RegionToRegion": 0.09,
-      "TrackToRegion": 0.09,
-      "TrackToTrack": 0.09
+      "MinLineWidth": 0.1016,
+      "PadToPad": 0.127,
+      "PadToTrack": 0.127,
+      "RegionToRegion": 0.18,
+      "TrackToRegion": 0.18,
+      "TrackToTrack": 0.127
     }
   ],
   "FilesAttributes": [

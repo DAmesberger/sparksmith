@@ -341,11 +341,19 @@ fn the_board_replay_builds_the_same_document_with_compact_replies() -> TestResul
         assert_eq!(reply["ok"], true, "{line}: {reply}");
         assert!(reply["result"].get("project").is_none(), "{line}");
         // `rules.fab_profiles` answers whole profiles by design (the
-        // board's and the built-in JLCPCB 2-layer, about 12 KB each); it is
-        // no document reply, so it has its own bound.
+        // board's and the shipped ones, 19 to 51 KB each, the PCBWay files
+        // the largest for their cited cases); it is no document reply, so
+        // each profile it lists has its own bound.
         let size = reply.to_string().len();
         if request["params"]["query"] == "rules.fab_profiles" {
-            assert!(size < 32 * 1024, "{line}: {size} bytes");
+            let profiles = reply["result"]["result"]
+                .as_array()
+                .ok_or("a list of profiles")?;
+            assert!(!profiles.is_empty(), "{line}");
+            for profile in profiles {
+                let size = profile.to_string().len();
+                assert!(size < 64 * 1024, "{}: {size} bytes", profile["id"]);
+            }
         } else {
             largest = largest.max(size);
         }
