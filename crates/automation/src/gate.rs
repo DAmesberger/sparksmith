@@ -76,6 +76,28 @@ pub struct Grant {
     /// The highest class each module may be used at, by module id.
     #[serde(default = "every_module")]
     pub modules: BTreeMap<String, Class>,
+    /// How much one turn may do ([`crate::session::turns`]).
+    #[serde(default)]
+    pub limits: Limits,
+}
+
+/// What one turn of a principal may do: calls that change the document,
+/// and calls of any kind. A turn past either stops with `gate.turn_limit`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Limits {
+    pub changes: u32,
+    pub calls: u32,
+}
+
+impl Default for Limits {
+    /// The defaults of Settings › AI (`docs/assistant-panel.md` §6.3):
+    /// 60 changes, below the undo depth, and 400 calls.
+    fn default() -> Self {
+        Self {
+            changes: 60,
+            calls: 400,
+        }
+    }
 }
 
 /// Every declared module up to Ask: what a run's flags allow.
@@ -100,6 +122,7 @@ impl Grant {
             mode,
             folders: folders.into_iter().collect(),
             modules: every_module(),
+            limits: Limits::default(),
         }
     }
 
@@ -121,6 +144,7 @@ impl Grant {
             mode: Mode::AutoAllowEdits,
             folders: folders.into_iter().collect(),
             modules,
+            limits: Limits::default(),
         }
     }
 

@@ -587,6 +587,10 @@ pub struct Step {
     /// The one part the step concerns, by designator.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub subject: Option<String>,
+    /// The name of the group the step gathers ([`Engine::begin_group`]):
+    /// a turn's label, read instead of the title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
 /// The registry phrases a step's part replaces: "Move a placed part" on R1
@@ -611,12 +615,16 @@ impl Step {
                 .instance()
                 .and_then(|id| project.instance(id))
                 .map(|i| i.designator.clone()),
+            label: None,
         }
     }
 
-    /// The step for people: its title, naming its part when it has one
-    /// ("Move R1", "Set instance properties (R1)").
+    /// The step for people: a group's label, else its title, naming its
+    /// part when it has one ("Move R1", "Set instance properties (R1)").
     pub fn line(&self) -> String {
+        if let Some(label) = &self.label {
+            return label.clone();
+        }
         let Some(name) = &self.subject else {
             return self.title.to_owned();
         };
@@ -684,6 +692,13 @@ pub struct Engine {
     /// The revision the latest undo step was applied at, until an undo,
     /// redo or new document ([`Engine::join_last_step`]).
     last_step: Option<u64>,
+    /// Which state of the history this is: a fresh value from
+    /// [`next_history`] whenever a step is made, undone, redone or joined,
+    /// or the history is cleared. An undo group joins only the step it
+    /// made itself, while this has not moved ([`GroupMark`]).
+    history: u64,
+    /// The undo group open now ([`Engine::begin_group`]).
+    group: Option<Group>,
     /// `fabrication.waive` refuses a waiver without a reason (a host
     /// setting; off by default).
     waiver_reason_required: bool,
@@ -790,6 +805,8 @@ impl Engine {
             undo: VecDeque::new(),
             redo: Vec::new(),
             last_step: None,
+            history: next_history(),
+            group: None,
             waiver_reason_required: false,
             check_settings: layout::CheckSettings::default(),
             copper: std::sync::OnceLock::new(),
@@ -1387,6 +1404,7 @@ impl Engine {
         self.undo.clear();
         self.redo.clear();
         self.last_step = None;
+        self.history = next_history();
         Ok(())
     }
 
@@ -1459,6 +1477,7 @@ impl Engine {
                 title: Step::MIXED,
                 area: Area::Schematic,
                 subject: None,
+                label: None,
             });
         if operations.iter().any(|o| o.title() != step.title) {
             step.title = Step::MIXED;
@@ -1542,6 +1561,8 @@ impl Engine {
             undo: self.undo.clone(),
             redo: self.redo.clone(),
             last_step: self.last_step,
+            history: self.history,
+            group: None,
             waiver_reason_required: self.waiver_reason_required,
             check_settings: self.check_settings,
             copper: self.copper.clone(),
@@ -2375,6 +2396,7 @@ impl Engine {
             .push((std::mem::replace(&mut self.document, previous), step));
         self.set_revision(revision);
         self.last_step = None;
+        self.history = next_history();
         Ok(())
     }
 
@@ -2394,6 +2416,7 @@ impl Engine {
             .push_back((std::mem::replace(&mut self.document, next), step));
         self.set_revision(revision);
         self.last_step = None;
+        self.history = next_history();
         Ok(())
     }
 
@@ -2429,7 +2452,48 @@ impl Engine {
             earlier.1 = step;
         }
         self.last_step = None;
+        self.history = next_history();
         Ok(())
+    }
+
+    /// Open an undo group named `label`: every step made until
+    /// [`Self::end_group`] joins one undo step, which keeps the document
+    /// from before the group as its undo target and reads `label`. Refused
+    /// while a group is open, and with an empty label.
+    pub fn begin_group(&mut self, label: impl Into<String>) -> Result<()> {
+        self.open_group(label.into(), None)
+    }
+
+    /// Open the group a former [`Self::end_group`] closed at `mark` again,
+    /// for the next call of the same turn: its steps join that group's
+    /// step while it is still the latest one, with nothing undone, redone
+    /// or made in between. Otherwise (a person's edit came between) they
+    /// make a new step under the same label, so undo order stays what
+    /// happened.
+    pub fn continue_group(&mut self, label: impl Into<String>, mark: GroupMark) -> Result<()> {
+        self.open_group(label.into(), Some(mark))
+    }
+
+    fn open_group(&mut self, label: String, mark: Option<GroupMark>) -> Result<()> {
+        if self.group.is_some() {
+            return Err(Error::History("an undo group is open already".into()));
+        }
+        let label = label.trim();
+        if label.is_empty() {
+            return Err(Error::Invalid("an undo group needs a label".into()));
+        }
+        self.group = Some(Group {
+            label: label.to_owned(),
+            mark,
+        });
+        Ok(())
+    }
+
+    /// Close the open group: where its latest step stands, for
+    /// [`Self::continue_group`]; `None` when no group was open or it has
+    /// made no step yet.
+    pub fn end_group(&mut self) -> Option<GroupMark> {
+        self.group.take().and_then(|group| group.mark)
     }
 
     /// The copper graph of the current revision: built once, on first use,
@@ -2463,8 +2527,31 @@ impl Engine {
         Ok(())
     }
 
-    fn commit(&mut self, candidate: Document, step: Step) -> Result<()> {
+    fn commit(&mut self, candidate: Document, mut step: Step) -> Result<()> {
         let revision = self.next_revision()?;
+        let history = next_history();
+        if let Some(group) = &mut self.group {
+            step.label = Some(group.label.clone());
+            let joins = group.mark == Some(GroupMark(self.history));
+            group.mark = Some(GroupMark(history));
+            // The group's own step is the latest: the document before the
+            // group stays its undo target.
+            if joins && let Some((_, earlier)) = self.undo.back_mut() {
+                if earlier.title != step.title {
+                    earlier.title = Step::MIXED;
+                }
+                if earlier.subject != step.subject {
+                    earlier.subject = None;
+                }
+                earlier.label = step.label;
+                self.document = candidate;
+                self.redo.clear();
+                self.last_step = Some(self.revision);
+                self.history = history;
+                self.set_revision(revision);
+                return Ok(());
+            }
+        }
         if self.undo.len() >= MAX_UNDO {
             self.undo.pop_front();
         }
@@ -2472,9 +2559,32 @@ impl Engine {
             .push_back((std::mem::replace(&mut self.document, candidate), step));
         self.redo.clear();
         self.last_step = Some(self.revision);
+        self.history = history;
         self.set_revision(revision);
         Ok(())
     }
+}
+
+/// An open undo group ([`Engine::begin_group`]).
+#[derive(Clone, Debug)]
+struct Group {
+    label: String,
+    /// Where the group's latest step stands; `None` before its first.
+    mark: Option<GroupMark>,
+}
+
+/// Where an undo group's latest step stands in an engine's history
+/// ([`Engine::end_group`]): a later step of the same group joins it only
+/// while the history is still there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GroupMark(u64);
+
+/// A value no history state of any engine in this process had before, so
+/// a [`GroupMark`] of one engine never matches another's.
+fn next_history() -> u64 {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
 /// JSON schemas of the document types every transport shares.

@@ -18,8 +18,10 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Three Claude Code runs of that prompt | Done: footprints 0 nm against the sources, every pin right, about 17.5 USD ([run notes](datasheet-assistant-run-mcp-1.md)). Tooling defects T1–T11 found |
 | In-app datasheet runner (`crates/assist`): model layer, Anthropic and OpenAI-compatible backends, keychain keys, limits, recording and replay, profiles, PDF text and page images | Built. Since S6 its tools are the six verbs, called through `Surface::call` as the local agent under a reach profile; it still runs in a headless session of its own, not on the open project |
 | "Create from datasheet…" dialog on the Component start page | Built (`apps/sparksmith/src/part_editor/datasheet_assist.rs`): its own model, endpoint and key fields, its own progress log. **Removed by this plan** |
+| Workflow contract (W0): `workflow.json` format 1 with its load check, the ten controls, the `assist.*` signatures, the run's events; the datasheet workflow's `workflow.json` | Built ([workflow format](workflow-format.md)). No runner, no entries in the catalog yet |
+| Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn, per-turn limits in the surface (ABI S4a) | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
 | The built-in agent on the surface (S6): the six verbs, `assist.document_text`, `assist.document_page`, `assist.pinout_edit` (with `assist.pinout_preview` and `assist.pinout_apply`), reach profiles as data, leniency in the verb reader | Built |
-| Turns (`begin_group`), jobs, events (ABI S4); the window module `view.*` (S5); elicitation (MCP P5) | Not built |
+| Jobs, events (ABI S4b); the window module `view.*` (S5); elicitation (MCP P5) | Not built |
 | Assistant panel, Settings › AI | Not built |
 
 ## What this revision supersedes
@@ -129,7 +131,7 @@ A `tool` or `model` step may name `check`: a following tool step whose refusal s
    {"id": "done",    "kind": "result", "show": ["drafts", "unreviewed", "uncertain", "findings"], "open": "view.open"}]}
 ```
 
-Field names are illustrative; the contract slice (W0) fixes them. The deterministic parts (reading text, listing generators, generating, drafting, previewing, checking) run without the model, which is what makes the flow cheaper and steadier on small models than the free-form prompt: the model only does the three judgement steps.
+Field names are illustrative; the contract slice (W0) fixed them in [workflow format](workflow-format.md), and the shipped file is `library/assist/workflows/datasheet-to-component/workflow.json`. The deterministic parts (reading text, listing generators, generating, drafting, previewing, checking) run without the model, which is what makes the flow cheaper and steadier on small models than the free-form prompt: the model only does the three judgement steps.
 
 ### 2.5 The steps for an external MCP client
 

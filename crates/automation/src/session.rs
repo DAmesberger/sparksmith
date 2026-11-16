@@ -486,6 +486,12 @@ pub enum Request {
     /// Import exactly the working pinout document last previewed.
     #[serde(rename = "assist.pinout_apply")]
     WorkingApply(assist::WorkingApplyParams),
+    /// Turns: open one; its handle goes in the envelope's `turn`.
+    #[serde(rename = "project.turn_begin")]
+    TurnBegin(turns::TurnBeginParams),
+    /// Turns: close one, with what it did.
+    #[serde(rename = "project.turn_end")]
+    TurnEnd(turns::TurnEndParams),
 }
 
 // A new request chooses its permission class here. `project.apply` and
@@ -546,6 +552,8 @@ sparksmith_core::declare_entries!(Request in project {
     PinoutEdit "assist.pinout_edit" Read "Edit a working pinout document" [in assist, effect(World), since(1, 0)],
     WorkingPreview "assist.pinout_preview" Read "Preview a working pinout document" [in assist, long, link, effect(World), since(1, 0)],
     WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2)],
+    TurnBegin "project.turn_begin" Read "Begin a turn" [since(6, 2)],
+    TurnEnd "project.turn_end" Read "End a turn" [since(6, 2)],
 });
 
 impl Request {
@@ -931,6 +939,16 @@ impl Request {
                 "Import exactly the working pinout document last previewed, as one undo step.",
                 "library.pinout_apply of the working pinout document as it was last previewed, by that preview's base (leave base out, or give it exactly; a rounded number is refused): one undo step, imported rows unreviewed. Refused when the working document changed since the preview.",
             ),
+            info::<turns::TurnBeginParams>(
+                "project.turn_begin",
+                "Open a turn: calls naming its handle in turn undo as one step under label, within its limits.",
+                "Open a turn and return its handle. Every call whose envelope names it in turn joins one undo step that reads label; an edit by anyone else in between splits it. changes and calls lower the caller's per-turn limits; a call past either is refused with gate.turn_limit. Not a document change.",
+            ),
+            info::<turns::TurnEndParams>(
+                "project.turn_end",
+                "Close a turn and report its calls and changes.",
+                "Close the turn turn and report its label and how many calls and changes it made. Not a document change.",
+            ),
         ]
     }
 }
@@ -987,6 +1005,8 @@ pub struct Session {
     shipped: Option<sparksmith_io::shipped::ShippedLibrary>,
     /// Attached documents and working pinout documents (`assist.*`).
     assist: assist::Assist,
+    /// The turns open in this session.
+    pub(crate) turns: turns::Turns,
 }
 
 /// A test fixture, never in the product: a session on the core's fixture
@@ -1013,6 +1033,7 @@ impl Session {
             baseline: None,
             shipped: None,
             assist: assist::Assist::default(),
+            turns: turns::Turns::default(),
         }
     }
     /// A session without a project of its own, for a host that only lends
@@ -1026,6 +1047,10 @@ impl Session {
     }
     pub fn engine(&self) -> &Engine {
         &self.engine
+    }
+    /// The engine, for the front door's undo groups.
+    pub(crate) fn engine_mut(&mut self) -> &mut Engine {
+        &mut self.engine
     }
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
@@ -1386,6 +1411,8 @@ impl Session {
             Request::PinoutEdit(params) => return self.pinout_edit(*params),
             Request::WorkingPreview(params) => return self.working_preview(params),
             Request::WorkingApply(params) => return self.working_apply(params),
+            Request::TurnBegin(params) => return self.turns.begin(params).map_err(Error::refused),
+            Request::TurnEnd(params) => return self.turns.end(&params).map_err(Error::refused),
         }
         Ok(self.document_reply())
     }
@@ -1707,6 +1734,7 @@ mod preview;
 mod reply;
 pub mod shipped_parts;
 pub mod surface;
+pub mod turns;
 pub(crate) use reply::take_verbose;
 pub mod sources;
 

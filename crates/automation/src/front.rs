@@ -26,7 +26,7 @@ pub use crate::gate::{Grant, Principal};
 pub use sparksmith_generator_abi::surface::Error;
 
 /// One call, the same for every transport: the entry, its parameters and
-/// the envelope's `expected_revision` and `dry_run`. `confirm`, `turn` and
+/// the envelope's `expected_revision`, `dry_run` and `turn`. `confirm` and
 /// `job` are refused until the slices that serve them; `project` is for the
 /// transport that holds several sessions, each of which is one project.
 pub type Call = sparksmith_generator_abi::surface::Call<Value>;
@@ -111,7 +111,23 @@ impl Surface for Session {
         let verbose = cx.verbose | take_verbose_params(&mut call.params);
         unsupported(&call)?;
         let target = read(&call)?;
-        match self.gate(&cx.who, &target.request) {
+        // A turn's call counts against its limits, the refused ones too,
+        // after the gate's own rules.
+        let gated = self.gate(&cx.who, &target.request);
+        let turn = match &call.turn {
+            Some(id) => {
+                let changes = target.expected.is_some() && !call.dry_run;
+                let limits = cx.who.grant().map(|grant| &grant.limits);
+                let admitted = self.turns.admit(id, &call.entry, changes, limits);
+                match (&gated, admitted) {
+                    (Decision::Refuse(_), _) => None,
+                    (_, Ok(admitted)) => Some((id.clone(), admitted)),
+                    (_, Err(error)) => return Err(error),
+                }
+            }
+            None => None,
+        };
+        match gated {
             Decision::Run => {}
             Decision::Refuse(error) => return Err(Box::new(error)),
             // A dry run keeps nothing, so what would ask a person runs.
@@ -122,6 +138,19 @@ impl Surface for Session {
                 Answer::Unavailable => return Err(Box::new(question.unanswered())),
             },
         }
+        // A turn's edits join its one undo step (a dry run keeps nothing).
+        let grouped = match &turn {
+            Some((_, admitted)) if !call.dry_run => {
+                let opened = match admitted.mark {
+                    Some(mark) => self.engine_mut().continue_group(&admitted.label, mark),
+                    None => self.engine_mut().begin_group(&admitted.label),
+                };
+                opened.map_err(|error| Box::new(from_diagnostic(error.diagnostic())))?;
+                true
+            }
+            _ => false,
+        };
+        let before = self.engine().revision();
         let result = if call.dry_run {
             self.rehearse_target(target)
         } else if verbose {
@@ -129,7 +158,19 @@ impl Surface for Session {
         } else {
             self.run_compact(target.request, target.expected)
         };
-        result.map_err(|error| Box::new(from_diagnostic(error.diagnostic())))
+        if let Some((id, admitted)) = turn {
+            let mark = if grouped {
+                self.engine_mut().end_group()
+            } else {
+                admitted.mark
+            };
+            let changed = !call.dry_run && self.engine().revision() != before;
+            self.turns.ran(&id, mark, changed);
+        }
+        result.map_err(|error| match error {
+            crate::Error::Refused(error) => error,
+            error => Box::new(from_diagnostic(error.diagnostic())),
+        })
     }
 }
 
@@ -327,8 +368,6 @@ fn take_verbose_params(params: &mut Value) -> bool {
 fn unsupported(call: &Call) -> Result<(), Box<Error>> {
     let field = if call.confirm.is_some() {
         "confirm"
-    } else if call.turn.is_some() {
-        "turn"
     } else if call.job {
         "job"
     } else {
