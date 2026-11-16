@@ -471,6 +471,21 @@ pub enum Request {
     /// Assembly link: link, update or relink, as previewed.
     #[serde(rename = "assembly.update")]
     AssemblyUpdate(sparksmith_core::interface::assembly_link::UpdateParams),
+    /// The text of pages of a document the host attached.
+    #[serde(rename = "assist.document_text")]
+    DocumentText(assist::DocumentTextParams),
+    /// One page of a document the host attached, rendered as an image.
+    #[serde(rename = "assist.document_page")]
+    DocumentPage(assist::DocumentPageParams),
+    /// Build a working pinout document in chunks behind a handle.
+    #[serde(rename = "assist.pinout_edit")]
+    PinoutEdit(Box<assist::PinoutEditParams>),
+    /// Preview a working pinout document's import (`library.pinout_preview`).
+    #[serde(rename = "assist.pinout_preview")]
+    WorkingPreview(assist::WorkingPreviewParams),
+    /// Import exactly the working pinout document last previewed.
+    #[serde(rename = "assist.pinout_apply")]
+    WorkingApply(assist::WorkingApplyParams),
     /// What the window shows: workspace, view, sheet and selection.
     #[serde(rename = "view.context")]
     ViewContext(crate::view::ContextParams),
@@ -541,6 +556,11 @@ sparksmith_core::declare_entries!(Request in project {
     AssemblyFollow "assembly.follow" Ask "Follow assembly geometry" [in model3d],
     AssemblyPreview "assembly.preview" Read "Preview a linked design update" [in model3d],
     AssemblyUpdate "assembly.update" Ask "Update from the linked design" [in model3d],
+    DocumentText "assist.document_text" Read "Read an attached document's text" [in assist, link, effect(World), since(1, 0)],
+    DocumentPage "assist.document_page" Read "See a page of an attached document" [in assist, link, effect(World), since(1, 0)],
+    PinoutEdit "assist.pinout_edit" Read "Edit a working pinout document" [in assist, effect(World), since(1, 0)],
+    WorkingPreview "assist.pinout_preview" Read "Preview a working pinout document" [in assist, long, link, effect(World), since(1, 0)],
+    WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2)],
     ViewContext "view.context" Read "What the window shows" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewSelect "view.select" Show "Select in the window" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewOpen "view.open" Show "Open a workspace or view" [in view, reach(Window), needs(Window), since(1, 0)],
@@ -921,6 +941,31 @@ impl Request {
                 "Read a STEP, GLB or .solidcraft model file and report its bodies, materials and bounds.",
                 "Read a STEP AP214/242, GLB or .solidcraft model file and report its bodies (keys, source colours, glTF materials), bounds and whether it has textures, for the import wizard's explicit mapping. Not a document change.",
             ),
+            info::<assist::DocumentTextParams>(
+                "assist.document_text",
+                "Read the text of pages of a document attached to this run, by its title.",
+                "The text taken from pages of a document the host attached to this session (an assistant run's datasheets), each marked === page N ===: every page, or pages such as 3-5 or 1, 4. By title, never by path; a session without attached documents refuses it.",
+            ),
+            info::<assist::DocumentPageParams>(
+                "assist.document_page",
+                "See one page of a document attached to this run, rendered as an image.",
+                "One page of an attached document rendered as a PNG (drawings, pin diagrams and land patterns are not in the text), for a model declared with vision; a run may view a limited number of pages.",
+            ),
+            info::<assist::PinoutEditParams>(
+                "assist.pinout_edit",
+                "Build a working pinout document in chunks behind a handle; the project does not change.",
+                "Set the working pinout document's header fields (format, device, variants), upsert peripherals and rules by label and pin rows by row key (at most 40 rows a call), remove rows or rules; clear starts over, new starts another document. All or nothing. Answers with the handle, the counts and per variant the pin numbers still missing. The handle lasts as long as the session.",
+            ),
+            info::<assist::WorkingPreviewParams>(
+                "assist.pinout_preview",
+                "Preview importing the working pinout document: changes, findings, review items and rule checks.",
+                "library.pinout_preview of the working pinout document (a document given replaces it) on target {target: new, name} or {target: draft, id}: change counts, findings, review items and each rule's evaluation, and the base assist.pinout_apply imports by. Changes nothing in the project.",
+            ),
+            info::<assist::WorkingApplyParams>(
+                "assist.pinout_apply",
+                "Import exactly the working pinout document last previewed, as one undo step.",
+                "library.pinout_apply of the working pinout document as it was last previewed, by that preview's base (leave base out, or give it exactly; a rounded number is refused): one undo step, imported rows unreviewed. Refused when the working document changed since the preview.",
+            ),
             info::<turns::TurnBeginParams>(
                 "project.turn_begin",
                 "Open a turn: calls naming its handle in turn undo as one step under label, within its limits.",
@@ -985,6 +1030,8 @@ pub struct Session {
     baseline: Option<reply::Baseline>,
     /// The shipped library, when the host gives it (else located).
     shipped: Option<sparksmith_io::shipped::ShippedLibrary>,
+    /// Attached documents and working pinout documents (`assist.*`).
+    assist: assist::Assist,
     /// The turns open in this session.
     pub(crate) turns: turns::Turns,
 }
@@ -1012,6 +1059,7 @@ impl Session {
             compact: false,
             baseline: None,
             shipped: None,
+            assist: assist::Assist::default(),
             turns: turns::Turns::default(),
         }
     }
@@ -1386,6 +1434,11 @@ impl Session {
             Request::AssemblyFollow(params) => return self.assembly_follow(params),
             Request::AssemblyPreview(params) => return self.assembly_preview(params),
             Request::AssemblyUpdate(params) => return self.assembly_update(params),
+            Request::DocumentText(params) => return self.document_text(params),
+            Request::DocumentPage(params) => return self.document_page(params),
+            Request::PinoutEdit(params) => return self.pinout_edit(*params),
+            Request::WorkingPreview(params) => return self.working_preview(params),
+            Request::WorkingApply(params) => return self.working_apply(params),
             // The front door runs these in the window; here is none.
             request @ (Request::ViewContext(_) | Request::ViewSelect(_) | Request::ViewOpen(_)) => {
                 return Err(crate::Error::refused(crate::view::unavailable(
@@ -1699,6 +1752,7 @@ pub fn schemas() -> Value {
 }
 
 mod assembly_link;
+pub mod assist;
 pub mod discovery;
 mod firmware;
 mod generated_models;

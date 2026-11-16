@@ -359,7 +359,7 @@ At most five agents at once. Each slice ships with its own tests, and nothing ru
 - **Reach.** Few clients can connect today (§1.3). Mitigation: setup notes per client, and the `initialize` error names the version.
 - **Generic verbs and model accuracy.** Small models may be worse at calling a verb with nested parameters than a specific tool. Today's `project_apply` already works this way for 147 operations. Validation errors point at the exact schema path, and P10 measures it.
 - **Cut-over in one step.** Today's server is deleted, not kept alongside, so P9 lands only when the live bridge, the panel and the datasheet runner all pass on the new one.
-- **Datasheet parity.** The Flash Next tuning relies on today's tool names. The prompt and skill must reach the same grades on the 16 recordings and the TLV replays (panel S9).
+- **Datasheet parity.** The Flash Next tuning relies on the tool names of before the verbs. The prompt and skill must reach the same grades on the 16 recordings and the TLV replays (panel S9). Since ABI S6 the built-in runner offers the verbs, and the recordings in the repository replay through `assist::legacy`, which reads each old call as its verb call; a new tuning round on the verbs needs live runs.
 - **Elicitation gaps.** Claude Code serves elicitation only interactively, so `-p` runs can't pass person-owned steps. That is intended: they get `needs_person`.
 - **Skills support** is thin (Claude Code doesn't list it). Prompts embed the skills, and `describe guide:` serves them.
 - **`rmcp` churn and unknowns.** Pin it exactly. M0 checks skills and subscriptions on stdio.

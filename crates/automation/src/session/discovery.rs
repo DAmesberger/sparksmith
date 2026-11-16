@@ -414,3 +414,14 @@ fn invalid(text: &str) -> Error {
 fn not_found(text: String) -> Error {
     sparksmith_core::Error::NotFound(text).into()
 }
+
+/// The parameter schema of the entry `name` and the schema whose `$defs`
+/// its references name, for a reader that walks a call's parameters.
+pub fn params_schema(name: &str) -> Option<(&'static Value, &'static Value)> {
+    let entry = entries().iter().find(|e| e.name == name)?;
+    let schema = match entry.kind {
+        "operation" | "query" => &entry.schema["properties"]["params"],
+        _ => &entry.schema,
+    };
+    Some((schema, entry.root))
+}

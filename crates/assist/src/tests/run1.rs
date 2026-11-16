@@ -79,7 +79,7 @@ fn the_first_live_run_replays_with_its_recorded_usage() -> Fallible {
     assert!(outcome.report.is_none());
     let refusal = results_of(&transport, 14)?.join("");
     assert!(
-        refusal.contains("refused")
+        refusal.contains("\"accepted\":false")
             && refusal.contains(
                 "91 imported pins have a function without a source page (GND, GND, 3V3, 3V3, EN, IO2, IO3, IO0, …)"
             ),
@@ -147,7 +147,7 @@ fn the_first_live_runs_guessed_rule_helpers_fail_at_preview() -> Fallible {
     // review lists them.
     assert_eq!(outcome.facts.rules.len(), 8);
     assert!(outcome.facts.rules.iter().all(|r| !r.failures.is_empty()));
-    let blocking: Vec<String> = tools::drafts(&session.snapshot())
+    let blocking: Vec<String> = crate::report::drafts(&session.snapshot())
         .iter()
         .flat_map(|d| d["findings"].as_array().cloned().unwrap_or_default())
         .filter(|f| f["code"] == "rule.runtime" && !f["blocks"].is_null())

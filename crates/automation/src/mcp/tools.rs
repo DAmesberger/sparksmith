@@ -13,7 +13,8 @@
 //! batch that cannot be one) are tool results with `isError`, like a
 //! refusal of the gate, so the model reads their code.
 use super::catalog::{self, Unreachable};
-use super::desk::{self, Desk};
+use super::desk::{self, Calls};
+use super::lenient;
 use super::outcome;
 use crate::front::Call;
 use crate::session::discovery::{self, Call as Typed};
@@ -327,48 +328,77 @@ pub async fn call(
     arguments: Option<JsonObject>,
 ) -> Result<CallToolResult, ErrorData> {
     let arguments = Value::Object(arguments.unwrap_or_default());
-    let reply = match name {
-        FIND => match parse::<FindArgs>(arguments) {
-            Ok(args) => find(args),
-            Err(failure) => failure,
-        },
-        DESCRIBE => match parse::<DescribeArgs>(arguments) {
-            Ok(args) => handle.run(move |d| describe(d, args)).await?,
-            Err(failure) => failure,
-        },
-        QUERY => match parse::<QueryArgs>(arguments) {
-            Ok(args) => {
-                handle
-                    .run(move |d| run(d, Kind::Query, args.into()))
-                    .await?
-            }
-            Err(failure) => failure,
-        },
-        APPLY => match parse::<ApplyArgs>(arguments) {
-            Ok(args) => handle.run(move |d| apply(d, args)).await?,
-            Err(failure) => failure,
-        },
-        ACT => match parse::<RunArgs>(arguments) {
-            Ok(args) => handle.run(move |d| run(d, Kind::Action, args)).await?,
-            Err(failure) => failure,
-        },
-        SHOW => match parse::<ShowArgs>(arguments) {
-            Ok(args) => handle.run(move |d| show(d, args)).await?,
-            Err(failure) => failure,
-        },
-        other => {
-            return Err(ErrorData::invalid_params(
-                format!(
-                    "unknown tool {other}: the tools are find, describe, query, apply, act and show"
-                ),
-                None,
-            ));
-        }
+    if !NAMES.contains(&name) {
+        return Err(ErrorData::invalid_params(
+            format!(
+                "unknown tool {name}: the tools are find, describe, query, apply, act and show"
+            ),
+            None,
+        ));
+    }
+    // `find` reads only the catalog: it never waits for the desk.
+    let reply = if name == FIND {
+        find_tool(arguments, &|_| true)
+    } else {
+        let name = name.to_owned();
+        handle
+            .run(move |d| dispatch(d, &name, arguments).unwrap_or(Value::Null))
+            .await?
     };
     Ok(outcome(&reply))
 }
 
-fn parse<T: DeserializeOwned>(arguments: Value) -> Result<T, Value> {
+/// The six verbs' names, in their fixed order.
+pub const NAMES: [&str; 6] = [FIND, DESCRIBE, QUERY, APPLY, ACT, SHOW];
+
+/// Runs the verb `name` with `arguments` where `desk` runs calls, and
+/// answers in the transport envelope; `None` for a name that is no verb.
+/// MCP runs it on its desk; the built-in agent on its own session. The
+/// arguments are read leniently first ([`lenient`]): arrays and objects
+/// sent as JSON text, and integers sent as digits, are read as meant.
+pub fn dispatch(desk: &mut dyn Calls, name: &str, arguments: Value) -> Option<Value> {
+    Some(match name {
+        FIND => find_tool(arguments, &|entry| desk.reaches(entry)),
+        DESCRIBE => match parse::<DescribeArgs>(name, arguments) {
+            Ok(args) => describe(desk, args),
+            Err(failure) => failure,
+        },
+        QUERY => match parse::<QueryArgs>(name, arguments) {
+            Ok(args) => run(desk, Kind::Query, args.into()),
+            Err(failure) => failure,
+        },
+        APPLY => match parse::<ApplyArgs>(name, arguments) {
+            Ok(args) => apply(desk, args),
+            Err(failure) => failure,
+        },
+        ACT => match parse::<RunArgs>(name, arguments) {
+            Ok(args) => run(desk, Kind::Action, args),
+            Err(failure) => failure,
+        },
+        SHOW => match parse::<ShowArgs>(name, arguments) {
+            Ok(args) => show(desk, &args),
+            Err(failure) => failure,
+        },
+        _ => return None,
+    })
+}
+
+fn find_tool(arguments: Value, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
+    match parse::<FindArgs>(FIND, arguments) {
+        Ok(args) => find(args, reaches),
+        Err(failure) => failure,
+    }
+}
+
+fn parse<T: DeserializeOwned>(verb: &str, mut arguments: Value) -> Result<T, Value> {
+    if let Some(schema) = tools()
+        .iter()
+        .find(|tool| tool.name == verb)
+        .map(|tool| Value::Object((*tool.input_schema).clone()))
+        && let Err(why) = lenient::read(&mut arguments, &schema, &Value::Null)
+    {
+        return Err(desk::failure("arguments.invalid", why));
+    }
     serde_json::from_value(arguments).map_err(|error| {
         desk::failure(
             "arguments.invalid",
@@ -388,7 +418,7 @@ fn too_long(what: &str, text: &str, max: usize) -> Option<Value> {
 
 /// `find`: the reachable entries whose name, title or summary match the
 /// most words of `text`, best first and then in catalog order.
-fn find(args: FindArgs) -> Value {
+fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
     if args.text.chars().count() > MAX_TEXT {
         return desk::failure(
             "arguments.invalid",
@@ -404,6 +434,7 @@ fn find(args: FindArgs) -> Value {
     }
     let wanted = words(&args.text);
     let mut scored: Vec<(usize, &EntryMeta)> = catalog::reachable()
+        .filter(|e| reaches(e))
         .filter(|e| args.kind.is_none_or(|kind| e.kind == Some(kind)))
         .filter_map(|e| {
             let score = score(&wanted, &args.text, e);
@@ -471,7 +502,7 @@ fn score(wanted: &[String], text: &str, entry: &EntryMeta) -> usize {
 
 /// `describe`: `project.schema` of one reachable entry, through the gate,
 /// with the call that sends it on this surface.
-fn describe(desk: &mut Desk, args: DescribeArgs) -> Value {
+fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
     if let Some(failure) = too_long("name", &args.name, MAX_NAME) {
         return failure;
     }
@@ -527,7 +558,7 @@ fn describe(desk: &mut Desk, args: DescribeArgs) -> Value {
 /// `describe` of a shipped generator's name (`gull-wing`): its
 /// `library.generators` entry in full, with the call that makes a part
 /// with it. `None` when no shipped generator has that name.
-fn generator(desk: &mut Desk, name: &str) -> Option<Value> {
+fn generator(desk: &mut dyn Calls, name: &str) -> Option<Value> {
     let mut reply = desk.catalog(envelope(
         "library.generators",
         json!({"generator": name}),
@@ -583,7 +614,7 @@ fn envelope(entry: &str, params: Value, expected: Option<u64>) -> Call {
 }
 
 /// `query` and `act`: one entry of `kind` as one call.
-fn run(desk: &mut Desk, kind: Kind, args: RunArgs) -> Value {
+fn run(desk: &mut dyn Calls, kind: Kind, args: RunArgs) -> Value {
     if let Some(failure) = too_long("name", &args.name, MAX_NAME) {
         return failure;
     }
@@ -591,11 +622,11 @@ fn run(desk: &mut Desk, kind: Kind, args: RunArgs) -> Value {
         Ok(entry) => entry,
         Err(unreachable) => return unreachable.reply(),
     };
-    let sent = envelope(
-        &entry.name,
-        Value::Object(args.params),
-        args.expected_revision,
-    );
+    let mut params = Value::Object(args.params);
+    if let Err(why) = lenient::read_params(&entry.name, &mut params) {
+        return desk::failure("arguments.invalid", why);
+    }
+    let sent = envelope(&entry.name, params, args.expected_revision);
     if OPENS.contains(&entry.name.as_str()) {
         if args.project.is_some() {
             return desk::failure(
@@ -613,7 +644,7 @@ fn run(desk: &mut Desk, kind: Kind, args: RunArgs) -> Value {
 
 /// `apply`: the steps as one call, `project.apply_all` for document
 /// operations, or the one command-level edit (undo, an update) alone.
-fn apply(desk: &mut Desk, args: ApplyArgs) -> Value {
+fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
     let count = args.operations.len();
     if count == 0 || count > MAX_BATCH {
         return desk::failure(
@@ -631,9 +662,13 @@ fn apply(desk: &mut Desk, args: ApplyArgs) -> Value {
             Ok(entry) => entry,
             Err(unreachable) => return unreachable.reply(),
         };
-        match discovery::call(&entry.name, Value::Object(step.params.clone())) {
+        let mut params = Value::Object(step.params);
+        if let Err(why) = lenient::read_params(&entry.name, &mut params) {
+            return desk::failure("arguments.invalid", why);
+        }
+        match discovery::call(&entry.name, params.clone()) {
             Some(Typed::Operation(operation)) => operations.push(operation),
-            _ if count == 1 => alone = Some((entry, step.params)),
+            _ if count == 1 => alone = Some((entry, params)),
             _ => {
                 return desk::failure(
                     "apply.alone",
@@ -646,11 +681,7 @@ fn apply(desk: &mut Desk, args: ApplyArgs) -> Value {
         }
     }
     let mut sent = match alone {
-        Some((entry, params)) => envelope(
-            &entry.name,
-            Value::Object(params),
-            Some(args.expected_revision),
-        ),
+        Some((entry, params)) => envelope(&entry.name, params, Some(args.expected_revision)),
         None => envelope(
             "project.apply_all",
             json!({"operations": operations}),
@@ -662,9 +693,9 @@ fn apply(desk: &mut Desk, args: ApplyArgs) -> Value {
 }
 
 /// `show`: one entry of the window's (`view.select`, `view.open`) as one
-/// call. It names no revision. Headless there is no window, so the front
-/// door answers `host.unavailable`; live, the window runs it.
-fn show(desk: &mut Desk, args: ShowArgs) -> Value {
+/// call. It names no revision. Headless there is no window, so it answers
+/// `host.unavailable`; live, the window runs it.
+fn show(desk: &mut dyn Calls, args: &ShowArgs) -> Value {
     if let Some(failure) = too_long("name", &args.name, MAX_NAME) {
         return failure;
     }
@@ -672,7 +703,11 @@ fn show(desk: &mut Desk, args: ShowArgs) -> Value {
         Ok(entry) => entry,
         Err(unreachable) => return unreachable.reply(),
     };
-    let sent = envelope(&entry.name, Value::Object(args.params), None);
+    let mut params = Value::Object(args.params.clone());
+    if let Err(why) = lenient::read_params(&entry.name, &mut params) {
+        return desk::failure("arguments.invalid", why);
+    }
+    let sent = envelope(&entry.name, params, None);
     if !desk.is_live() {
         return crate::front::envelope(Err(crate::view::unavailable(&sent.entry)));
     }
