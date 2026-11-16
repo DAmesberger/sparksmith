@@ -587,11 +587,24 @@ pub struct NewInstance {
     /// Initial field values, applied as one `instance.set_properties` batch.
     #[serde(default)]
     pub properties: Vec<PropertyEdit>,
-    pub representation: DefinitionId,
-    pub unit: UnitId,
-    #[serde(with = "crate::units::point_mm")]
-    #[schemars(with = "[crate::units::Length; 2]")]
-    pub position: PointNm,
+    /// The symbol drawn; the component's first representation when
+    /// omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub representation: Option<DefinitionId>,
+    /// The unit drawn first; the symbol's first unit when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit: Option<UnitId>,
+    /// Where the first unit's origin goes on its sheet, `[x, y]` mm with y
+    /// up; the page spans x from −30 to width − 30 and y from 30 − height to
+    /// 30. An agent's position must lie inside that frame. Omitted, the
+    /// unit goes to the next free spot inside the frame.
+    #[serde(
+        default,
+        with = "crate::units::option_point_mm",
+        skip_serializing_if = "Option::is_none"
+    )]
+    #[schemars(with = "Option<[crate::units::Length; 2]>")]
+    pub position: Option<PointNm>,
     pub physical: Option<PhysicalChoice>,
     /// The sheet the first unit is drawn on; the first sheet when omitted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -631,13 +644,64 @@ pub(crate) fn add_occurrence(
     Ok(id)
 }
 
+/// What placing a component draws and builds when the request leaves it
+/// open: its first representation, that symbol's first unit, and its first
+/// offered implementation with that binding's first footprint, if any.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FirstChoices {
+    pub representation: DefinitionId,
+    pub unit: UnitId,
+    pub physical: Option<PhysicalChoice>,
+}
+
+/// [`FirstChoices`] of `component`; `None` when the project holds no such
+/// published revision, or it has no representation with a unit.
+pub fn first_choices(project: &Project, component: ComponentRef) -> Option<FirstChoices> {
+    let library = &project.library;
+    let published = library.component(component)?;
+    let symbol_ref = *published.definition.representations.first()?;
+    let symbol = library.symbol(symbol_ref)?;
+    let unit = symbol.definition.units.first()?;
+    let physical = published.definition.implementations.first().and_then(|b| {
+        let binding = library.binding(*b)?;
+        let footprint = binding.definition.footprints.first()?;
+        Some(PhysicalChoice {
+            binding: b.id,
+            footprint: footprint.id,
+        })
+    });
+    Some(FirstChoices {
+        representation: symbol_ref.id,
+        unit: unit.id,
+        physical,
+    })
+}
+
 /// Create an instance and the occurrence of its first unit. Callers stage
-/// this on a candidate project they discard on failure.
+/// this on a candidate project they discard on failure. An omitted
+/// representation or unit is the component's first ([`first_choices`]); an
+/// omitted position is the sheet's origin, which `component.place` then
+/// moves to a free spot (`schematic::spot`).
 pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
     let Some(component) = project.library.component(request.component) else {
         return Err(Error::NotFound(
             "Choose a published component revision first.".into(),
         ));
+    };
+    let (representation, unit) = match (request.representation, request.unit) {
+        (Some(representation), Some(unit)) => (representation, unit),
+        (representation, unit) => {
+            let first = first_choices(project, request.component).ok_or_else(|| {
+                Error::Invalid(format!(
+                    "{} has no symbol with a unit to draw, so it cannot be placed on a sheet. Place it on the board only (component.place_board_only), or add a symbol to the component first.",
+                    component.meta.name
+                ))
+            })?;
+            (
+                representation.unwrap_or(first.representation),
+                unit.unwrap_or(first.unit),
+            )
+        }
     };
     let designator = match request.designator {
         Some(designator) => designator,
@@ -649,7 +713,7 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
         component: request.component,
         designator,
         properties: InstanceFields::new(),
-        representation: request.representation,
+        representation,
         physical: request.physical,
         unused_units: BTreeSet::new(),
         no_connect: BTreeSet::new(),
@@ -661,7 +725,8 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
         board_only: false,
     });
     let sheet = request.sheet.unwrap_or_else(|| project.sheets.first());
-    let occurrence = add_occurrence(project, id, request.unit, request.position, sheet)?;
+    let position = request.position.unwrap_or(PointNm::ORIGIN);
+    let occurrence = add_occurrence(project, id, unit, position, sheet)?;
     apply_properties(project, id, &request.properties)?;
     check_instance(project, id)?;
     check_designators(project)?;

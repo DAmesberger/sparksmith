@@ -782,9 +782,9 @@ fn regenerating_with_an_inserted_pad_keeps_every_other_id_and_the_tracks() -> Te
                 component: ComponentRef::new(component.id, component.revision),
                 designator: Some(designator.into()),
                 properties: vec![],
-                representation: symbol.id,
-                unit: UnitId(1),
-                position: crate::tests::support::pt([x, 0.0]),
+                representation: Some(symbol.id),
+                unit: Some(UnitId(1)),
+                position: Some(crate::tests::support::pt([x, 0.0])),
                 physical: Some(PhysicalChoice {
                     binding: binding.id,
                     footprint: footprint.id,

@@ -543,9 +543,9 @@ pub fn place_ref(
             component,
             designator: Some(designator.into()),
             properties: vec![],
-            representation: fixture.symbol,
-            unit: UnitId(unit),
-            position: pt(position),
+            representation: Some(fixture.symbol),
+            unit: Some(UnitId(unit)),
+            position: Some(pt(position)),
             physical,
         })),
     )? {

@@ -228,9 +228,9 @@ fn fixture(engine: &mut Engine) -> Result<Ids, Box<dyn std::error::Error>> {
             component: r2,
             designator: Some("U1".into()),
             properties: Vec::new(),
-            representation: symbol.id,
-            unit,
-            position: crate::schematic_editor::pt([0.0, 20.0]),
+            representation: Some(symbol.id),
+            unit: Some(unit),
+            position: Some(crate::schematic_editor::pt([0.0, 20.0])),
             physical,
         })),
     )?;

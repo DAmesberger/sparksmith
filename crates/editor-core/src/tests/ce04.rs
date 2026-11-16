@@ -91,9 +91,9 @@ fn ce04_two_units_share_one_package_placement_and_identity() -> Result<()> {
             component: q.r1(),
             designator: Some("Q1".into()),
             properties: vec![],
-            representation: q.symbol,
-            unit: A,
-            position: pt([10.0, 10.0]),
+            representation: Some(q.symbol),
+            unit: Some(A),
+            position: Some(pt([10.0, 10.0])),
             physical: None,
         })),
     )?;

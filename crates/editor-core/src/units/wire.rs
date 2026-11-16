@@ -122,6 +122,22 @@ pub mod point_mm {
     }
 }
 
+/// [`point_mm`] for an optional field, with
+/// `#[schemars(with = "Option<[Length; 2]>")]`.
+pub mod option_point_mm {
+    use super::Length;
+    use crate::units::PointNm;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S: Serializer>(p: &Option<PointNm>, s: S) -> Result<S::Ok, S::Error> {
+        p.map(|p| [Length(p.x_nm), Length(p.y_nm)]).serialize(s)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Option<PointNm>, D::Error> {
+        Ok(Option::<[Length; 2]>::deserialize(d)?.map(|[x, y]| PointNm::new(x.0, y.0)))
+    }
+}
+
 impl From<Nm> for Length {
     fn from(nm: Nm) -> Self {
         Self(nm)

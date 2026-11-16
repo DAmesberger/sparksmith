@@ -59,13 +59,15 @@ fn request(
         component,
         designator: designator.map(Into::into),
         properties: vec![],
-        representation: definition
-            .representations
-            .first()
-            .ok_or_else(|| Error::NotFound("symbol".into()))?
-            .id,
-        unit: UnitId(1),
-        position: pt([0.0, 0.0]),
+        representation: Some(
+            definition
+                .representations
+                .first()
+                .ok_or_else(|| Error::NotFound("symbol".into()))?
+                .id,
+        ),
+        unit: Some(UnitId(1)),
+        position: Some(pt([0.0, 0.0])),
         physical: Some(PhysicalChoice {
             binding: binding.id,
             footprint: footprint.id,

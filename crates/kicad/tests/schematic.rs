@@ -608,9 +608,9 @@ fn a_new_qfn_places_on_a_routed_imported_sheet() -> Fallible<()> {
                 component: sparksmith_core::ComponentRef::new(id, sparksmith_core::Revision::FIRST),
                 designator: None,
                 properties: vec![],
-                representation: symbol.id,
-                unit: sparksmith_core::UnitId(1),
-                position: PointNm::from_mm_f64_rounded(at)?,
+                representation: Some(symbol.id),
+                unit: Some(sparksmith_core::UnitId(1)),
+                position: Some(PointNm::from_mm_f64_rounded(at)?),
                 physical: Some(sparksmith_core::PhysicalChoice {
                     binding: binding.id,
                     footprint: footprint.id,

@@ -160,7 +160,18 @@ impl InstanceCommand {
 pub(crate) fn apply_instance(project: &mut Project, command: InstanceCommand) -> Result<Outcome> {
     match command {
         InstanceCommand::Place(request) => {
+            // A position left out is the next free spot inside the frame. A
+            // given one is the caller's: a person may draw beside the page,
+            // while the front door holds an agent to the frame
+            // (`schematic::spot::check_on_page`).
+            let given = request.position;
             let (instance, occurrence) = instances::place(project, request)?;
+            if given.is_none() {
+                let spot = crate::schematic::spot::free_spot(project, occurrence)?;
+                if let Some(placed) = project.occurrences.iter_mut().find(|o| o.id == occurrence) {
+                    placed.position = spot;
+                }
+            }
             let designator = project
                 .instance(instance)
                 .map(|i| i.designator.clone())

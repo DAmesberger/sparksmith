@@ -1028,9 +1028,12 @@ impl Engine {
                     component: ComponentRef::new(lineages.component, Revision::FIRST),
                     designator: Some((*designator).into()),
                     properties: vec![],
-                    representation: lineages.symbol.id,
-                    unit: UnitId(1),
-                    position: units::PointNm::from_mm_f64_rounded([column * 40.0, -row * 40.0])?,
+                    representation: Some(lineages.symbol.id),
+                    unit: Some(UnitId(1)),
+                    position: Some(units::PointNm::from_mm_f64_rounded([
+                        column * 40.0,
+                        -row * 40.0,
+                    ])?),
                     physical: Some(PhysicalChoice {
                         binding: lineages.binding.id,
                         footprint: lineages.footprint.id,
@@ -1267,9 +1270,9 @@ impl Engine {
                         field,
                         input: fields::PropertyInput::Text("10k".into()),
                     }],
-                    representation: refs.symbol.id,
-                    unit: UnitId(1),
-                    position,
+                    representation: Some(refs.symbol.id),
+                    unit: Some(UnitId(1)),
+                    position: Some(position),
                     physical: Some(PhysicalChoice {
                         binding: refs.binding.id,
                         footprint: refs.footprint.id,

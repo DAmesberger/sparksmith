@@ -20,7 +20,9 @@ mod wire;
 
 pub use sparksmith_units_derive::Params;
 pub use text::{LengthUnit, format_length, format_number, parse_length};
-pub use wire::{ArcMm, Degrees, Length, PointMm, length_mm, option_length_mm, point_mm};
+pub use wire::{
+    ArcMm, Degrees, Length, PointMm, length_mm, option_length_mm, option_point_mm, point_mm,
+};
 
 #[cfg(test)]
 mod tests;

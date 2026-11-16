@@ -43,6 +43,7 @@ pub mod labels;
 pub mod params;
 pub mod scene;
 pub mod sheets;
+pub mod spot;
 pub mod wire_edit;
 mod wiring;
 pub use annotate::{AnnotateMode, AnnotateOrder, Numbering, Renumbered};
