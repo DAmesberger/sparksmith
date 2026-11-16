@@ -438,9 +438,6 @@ fn a_search_lists_the_generic_part_its_words_name_to_make_then_to_place() -> Tes
     let temp = tempfile::tempdir()?;
     let root = library(temp.path())?;
     let mut session = session(&root)?;
-    // A new project's standard fields, which carry the parts' values.
-    let fields = call(&mut session, "library.import_standard_fields", json!({}));
-    assert_eq!(fields["ok"], true, "{fields}");
     let search = |session: &mut Session| -> TestResult<Value> {
         let found = session.dispatch(json!({"command": "project.query", "params":
             {"query": "library.search", "params": {"query": "resistor 0603 10k"}}}));
@@ -462,8 +459,11 @@ fn a_search_lists_the_generic_part_its_words_name_to_make_then_to_place() -> Tes
     let hint = search(&mut session)?;
     assert!(hint["component"]["id"].is_number(), "{hint}");
     assert!(hint.get("make").is_none(), "{hint}");
-    assert_eq!(hint["properties"][0]["input"], "text", "{hint}");
-    assert_eq!(hint["properties"][0]["value"], "10 kΩ", "{hint}");
+    assert!(hint["physical"]["footprint"].is_number(), "{hint}");
+    // A generated part selects no value field yet (GP1): the value is
+    // named for the person instead.
+    assert_eq!(hint["values"][0]["text"], "10 kΩ", "{hint}");
+    assert!(hint["note"].is_string(), "{hint}");
     // Words that name no generic part add nothing.
     let found = session.dispatch(json!({"command": "project.query", "params":
         {"query": "library.search", "params": {"query": "TLV75733PDBVR"}}}));

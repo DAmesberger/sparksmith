@@ -162,6 +162,9 @@ fn steps() -> Vec<Step> {
         vec![
             ("query", json!({"name": "project.inspect", "params": {}})),
             ("query", json!({"name": "library.generators", "params": {}})),
+            // The fab rules: a 135 KB listing, like the bulky replies run
+            // 12's model read.
+            ("query", json!({"name": "rules.fab_profiles", "params": {}})),
             ("describe", json!({"name": "component.place"})),
             (
                 "find",
@@ -171,13 +174,19 @@ fn steps() -> Vec<Step> {
     }));
     // 2. Search for the parts.
     out.push(Box::new(|_| PARTS.iter().map(|(w, _)| search(w)).collect()));
-    // 3. Make the generic parts the search offers.
+    // 3. Make the generic parts the search offers: each make goes alone,
+    // one revision after the other.
     out.push(Box::new(move |m| {
-        let n = 2;
-        let ops = (0..PARTS.len())
-            .map(|k| reply_to(m, &format!("c{n}_{k}"))["generic"][0]["make"].clone())
-            .collect();
-        vec![apply(m, ops)]
+        let start = revision(m).as_u64().unwrap_or_default();
+        (0..PARTS.len())
+            .map(|k| {
+                let make = reply_to(m, &format!("c2_{k}"))["generic"][0]["make"].clone();
+                (
+                    "apply",
+                    json!({"expected_revision": start + k as u64, "operations": [make]}),
+                )
+            })
+            .collect()
     }));
     // 4. Search again: now held, with their place data.
     out.push(Box::new(|_| PARTS.iter().map(|(w, _)| search(w)).collect()));

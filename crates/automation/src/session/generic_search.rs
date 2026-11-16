@@ -6,14 +6,17 @@
 //! of its own.
 //!
 //! Each candidate says where it stands. One the project holds carries its
-//! `component` and the `properties` that set its values on a placed
-//! instance, ready for `component.place`; one not yet made carries the
+//! `component`, the `physical` choice the Place palette gives it and the
+//! `properties` that set its values on a placed instance, ready for
+//! `component.place` (a generated part selects no value field yet, GP1:
+//! then its `values` with a note); one not yet made carries the
 //! `make` operation (`library.generate_part`) that makes it, after which
 //! the same search lists it as held.
 use super::Session;
 use super::generators::v1::Description;
 use serde_json::{Value, json};
 use sparksmith_core::catalog::generic::{self, generators};
+use sparksmith_core::instances;
 
 impl Session {
     /// Add the generic parts `text` reads as to a `library.search` reply,
@@ -31,7 +34,8 @@ impl Session {
         if found.is_empty() {
             return;
         }
-        let library = &self.engine.project().library;
+        let project = self.engine.project();
+        let library = &project.library;
         let hints: Vec<Value> = found
             .iter()
             .map(|candidate| {
@@ -43,9 +47,21 @@ impl Session {
                     hint["refused"] = json!(why);
                 } else if let Some(component) = candidate.component() {
                     hint["component"] = json!(component);
+                    // The footprint the Place palette would give it.
+                    if let Some(physical) =
+                        instances::first_choices(project, component).and_then(|c| c.physical)
+                    {
+                        hint["physical"] = json!(physical);
+                    }
                     let properties = generic::properties(library, component, &candidate.values);
                     if !properties.is_empty() {
                         hint["properties"] = json!(properties);
+                    } else if !candidate.values.is_empty() {
+                        // Generated parts select no fields yet (GP1).
+                        hint["values"] = json!(candidate.values);
+                        hint["note"] = json!(
+                            "this part has no value field yet: name the values in your answer so the person can set them"
+                        );
                     }
                 } else {
                     hint["make"] = json!({"op": "library.generate_part", "params": {
