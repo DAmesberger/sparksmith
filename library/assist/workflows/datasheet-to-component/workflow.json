@@ -15,7 +15,7 @@
     {"module": "generators", "major": 1, "minor": 2},
     {"module": "assist", "major": 1}
   ],
-  "reach": {"library": "edit", "generators": "edit", "assist": "edit", "view": "show"},
+  "reach": {"project": "read", "library": "edit", "generators": "edit", "assist": "edit", "view": "show"},
   "budget": {"requests": 40, "output_tokens": 200000, "minutes": 45},
   "inputs": {
     "datasheets": {"type": "files", "title": "Datasheets", "accept": ["application/pdf"], "min": 1, "max": 4},
@@ -44,15 +44,15 @@
   },
   "steps": [
     {"id": "ask", "kind": "input", "title": "Inputs", "inputs": ["datasheets", "part", "pages", "notes"]},
-    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"path": "/item", "pages": "/inputs/pages"}},
+    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title", "pages": "/inputs/pages"}},
     {"id": "gens", "kind": "tool", "title": "Generators", "call": "library.generators", "params": {}},
     {"id": "plan", "kind": "model", "title": "Package", "goal": "Choose the generator and preset that make the package and give every value the mechanical drawing and the land pattern state.", "method": "method.md#procedure", "output": "package_plan", "check": "make"},
     {"id": "pick", "kind": "review", "title": "Generator", "gate": "notify", "control": "choice", "show": "/steps/plan/generator", "options": {"list": "/steps/gens/shipped", "value": "/name", "title": "/title"}, "change": "plan"},
     {"id": "make", "kind": "tool", "title": "Made", "call": "library.generate_part", "params": {"generator": "/steps/plan/generator", "preset": "/steps/plan/preset", "params": "/steps/plan/params", "name": "/inputs/part", "scope": "component"}},
-    {"id": "drafts", "kind": "tool", "title": "Drafts", "call": "library.draft_closure", "params": {"component": "/steps/make/outcome/report/root"}},
+    {"id": "drafts", "kind": "tool", "title": "Drafts", "call": "library.draft_closure", "params": {"component": {"id": "/steps/make/outcome/report/root/id", "revision": "/steps/make/outcome/report/root/revision"}}},
     {"id": "pinout", "kind": "model", "title": "Pinout", "goal": "Write the pinout document: every pin's number, name, functions and rules, each with its page and table.", "method": "method.md#procedure", "output": "pinout_document", "check": "preview"},
     {"id": "preview", "kind": "tool", "title": "Preview", "call": "library.pinout_preview", "params": {"target": {"target": "draft", "id": "/steps/drafts/outcome/ids/0"}, "document": "/steps/pinout/document"}},
-    {"id": "import", "kind": "review", "title": "Import", "gate": "confirm", "control": "impact", "plan": "/steps/preview", "then": {"call": "library.pinout_apply", "params": {"target": {"target": "draft", "id": "/steps/drafts/outcome/ids/0"}, "document": "/steps/pinout/document", "base": "/steps/preview/base", "accept": {"accept": "all"}}}},
+    {"id": "import", "kind": "review", "title": "Import", "gate": "confirm", "control": "impact", "plan": "/steps/preview/result", "then": {"call": "library.pinout_apply", "params": {"target": {"target": "draft", "id": "/steps/drafts/outcome/ids/0"}, "document": "/steps/pinout/document", "base": "/steps/preview/result/base", "accept": {"accept": "all"}}}},
     {"id": "check", "kind": "tool", "title": "Check", "call": "component.check_drafts", "params": {}},
     {"id": "report", "kind": "model", "title": "Report", "goal": "Write the review report: every value with its page and table, confidence and open questions.", "method": "method.md#the-review-report", "output": "review_report", "check": "accept"},
     {"id": "accept", "kind": "tool", "title": "Review", "call": "library.review_check", "params": {"report": "/steps/report/report"}},

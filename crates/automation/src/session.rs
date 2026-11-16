@@ -486,6 +486,12 @@ pub enum Request {
     /// Import exactly the working pinout document last previewed.
     #[serde(rename = "assist.pinout_apply")]
     WorkingApply(assist::WorkingApplyParams),
+    /// The workflows the host offers, ranked by a request's text.
+    #[serde(rename = "assist.workflows")]
+    Workflows(crate::workflow::entries::WorkflowsParams),
+    /// A workflow model step's answer, checked against its output.
+    #[serde(rename = "assist.step_result")]
+    StepResult(crate::workflow::entries::StepResultParams),
     /// Turns: open one; its handle goes in the envelope's `turn`.
     #[serde(rename = "project.turn_begin")]
     TurnBegin(turns::TurnBeginParams),
@@ -552,6 +558,8 @@ sparksmith_core::declare_entries!(Request in project {
     PinoutEdit "assist.pinout_edit" Read "Edit a working pinout document" [in assist, effect(World), since(1, 0)],
     WorkingPreview "assist.pinout_preview" Read "Preview a working pinout document" [in assist, long, link, effect(World), since(1, 0)],
     WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2)],
+    Workflows "assist.workflows" Read "List workflows" [in assist, effect(World), since(1, 1)],
+    StepResult "assist.step_result" Read "Answer a workflow step" [in assist, effect(World), since(1, 1)],
     TurnBegin "project.turn_begin" Read "Begin a turn" [since(6, 2)],
     TurnEnd "project.turn_end" Read "End a turn" [since(6, 2)],
 });
@@ -618,6 +626,7 @@ impl Request {
                 name,
                 module: module_of(name),
                 class,
+                reach: metadata::declared_reach(name),
             }
         }
         match self {
@@ -938,6 +947,16 @@ impl Request {
                 "assist.pinout_apply",
                 "Import exactly the working pinout document last previewed, as one undo step.",
                 "library.pinout_apply of the working pinout document as it was last previewed, by that preview's base (leave base out, or give it exactly; a rounded number is refused): one undo step, imported rows unreviewed. Refused when the working document changed since the preview.",
+            ),
+            info::<crate::workflow::entries::WorkflowsParams>(
+                "assist.workflows",
+                "List the workflows this host offers: refined processes for a request, with their inputs.",
+                "The workflows the host lent this session (shipped and the person's own), ranked by text against each one's title, summary and example requests: id, version, title, summary, intents, inputs and, with unavailable, those that cannot run here and why. Not a document change.",
+            ),
+            info::<crate::workflow::entries::StepResultParams>(
+                "assist.step_result",
+                "Answer the workflow step you are working on; the answer is checked against the step's output.",
+                "End the open model step of a workflow run with its answer, an object with the fields of the step's output. Answers accepted, or the problems by field (each a pointer into result) with an example; fix them and answer again. A session with no open step refuses it. Not a document change.",
             ),
             info::<turns::TurnBeginParams>(
                 "project.turn_begin",
@@ -1411,6 +1430,8 @@ impl Session {
             Request::PinoutEdit(params) => return self.pinout_edit(*params),
             Request::WorkingPreview(params) => return self.working_preview(params),
             Request::WorkingApply(params) => return self.working_apply(params),
+            Request::Workflows(params) => return self.workflows(&params),
+            Request::StepResult(params) => return self.step_result(params),
             Request::TurnBegin(params) => return self.turns.begin(params).map_err(Error::refused),
             Request::TurnEnd(params) => return self.turns.end(&params).map_err(Error::refused),
         }

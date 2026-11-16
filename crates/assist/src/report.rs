@@ -109,17 +109,22 @@ pub struct RequestFacts {
 }
 
 /// Fill in what the runner measured once a run has stopped.
+/// The requests and tokens of `tally` in `facts`.
+pub(crate) fn tally_facts(facts: &mut RunFacts, tally: &crate::usage::Tally) {
+    facts.requests = tally.requests;
+    facts.input_tokens = tally.usage.input_tokens;
+    facts.output_tokens = tally.usage.output_tokens;
+    facts.cache_write_tokens = tally.usage.cache_write_tokens;
+    facts.cache_read_tokens = tally.usage.cache_read_tokens;
+}
+
 pub(crate) fn finish_facts(
     facts: &mut RunFacts,
     tally: &crate::usage::Tally,
     stop: &crate::Stop,
     session: &sparksmith_automation::Session,
 ) {
-    facts.requests = tally.requests;
-    facts.input_tokens = tally.usage.input_tokens;
-    facts.output_tokens = tally.usage.output_tokens;
-    facts.cache_write_tokens = tally.usage.cache_write_tokens;
-    facts.cache_read_tokens = tally.usage.cache_read_tokens;
+    tally_facts(facts, tally);
     facts.stop = stop.to_string();
     let snapshot = session.snapshot();
     facts.pins = crate::pins::rows(&snapshot);

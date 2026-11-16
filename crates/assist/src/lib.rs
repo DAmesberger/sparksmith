@@ -127,6 +127,8 @@ pub enum Event {
 pub enum Stop {
     /// The model submitted its review report.
     Submitted,
+    /// The model answered a workflow step with `assist.step_result`.
+    Answered,
     /// A cap would be exceeded by the next request.
     Budget(String),
     /// Replies kept stopping at the output limit.
@@ -146,6 +148,7 @@ impl std::fmt::Display for Stop {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Submitted => write!(f, "review report submitted"),
+            Self::Answered => write!(f, "step answered"),
             Self::Budget(why) => write!(f, "cap reached: {why}"),
             Self::CutOff(why) => write!(f, "cut off: {why}"),
             Self::Cancelled => write!(f, "cancelled"),

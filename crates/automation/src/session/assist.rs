@@ -14,7 +14,18 @@
 //!   again. A handle lasts as long as the session; a call may leave it out
 //!   while one working document exists. Nothing here changes the project
 //!   until `assist.pinout_apply`, which is one `library.pinout_apply`.
+//! - **Workflows** (W1). A host lends the session the workflows it offers
+//!   ([`Session::lend_workflows`]); `assist.workflows` lists them, ranked
+//!   by a request's text. A workflow run opens one model step at a time
+//!   ([`Session::open_step`]); `assist.step_result` checks the model's
+//!   answer against that step's output, and the runner takes an accepted
+//!   answer as the step's result. Neither changes the project.
 use super::Session;
+use crate::workflow::entries::{
+    DEFAULT_LIMIT, MAX_LIMIT, MAX_QUERY, StepResultParams, StepResultReply, WorkflowSummary,
+    WorkflowsParams, WorkflowsReply,
+};
+use crate::workflow::{Listed, Output};
 use crate::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -60,12 +71,22 @@ pub struct PageImage {
     pub data: String,
 }
 
-/// The session's `assist` state: attached documents and working pinouts.
+/// The session's `assist` state: attached documents, working pinouts, the
+/// workflows lent and the open model step.
 #[derive(Default)]
 pub(crate) struct Assist {
     documents: Option<Box<dyn Documents>>,
     working: BTreeMap<String, Working>,
     made: u32,
+    workflows: Option<Vec<Listed>>,
+    step: Option<OpenStep>,
+}
+
+/// A workflow run's open model step: its id and the shape of its answer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct OpenStep {
+    pub step: String,
+    pub output: Output,
 }
 
 /// One working pinout document and what was last previewed from it.
@@ -186,6 +207,97 @@ impl Session {
         documents: Option<Box<dyn Documents>>,
     ) -> Option<Box<dyn Documents>> {
         std::mem::replace(&mut self.assist.documents, documents)
+    }
+
+    /// Lend the session the workflows a host offers, for
+    /// `assist.workflows`; `None` takes them back.
+    pub fn lend_workflows(&mut self, workflows: Option<Vec<Listed>>) {
+        self.assist.workflows = workflows;
+    }
+
+    /// Open a workflow run's model step for `assist.step_result`, answering
+    /// with the step open before; `None` closes it.
+    pub fn open_step(&mut self, step: Option<OpenStep>) -> Option<OpenStep> {
+        std::mem::replace(&mut self.assist.step, step)
+    }
+
+    /// `assist.workflows`: the lent workflows ranked by `text` against each
+    /// one's title, summary and intents; ties and an absent text by id.
+    pub(super) fn workflows(&self, params: &WorkflowsParams) -> Result<Value> {
+        let Some(listed) = &self.assist.workflows else {
+            return Err(refused(
+                "assist.no_workflows",
+                "this host lent no workflows to this session; an MCP client finds them with prompts/list".into(),
+            ));
+        };
+        let text = params.text.as_deref().unwrap_or_default();
+        if text.len() > MAX_QUERY {
+            return Err(refused(
+                "assist.workflows",
+                format!("give text of at most {MAX_QUERY} bytes"),
+            ));
+        }
+        let words: Vec<String> = text
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|w| w.len() > 2)
+            .map(str::to_lowercase)
+            .collect();
+        let mut ranked: Vec<(usize, WorkflowSummary)> = listed
+            .iter()
+            .filter(|l| params.unavailable || l.available())
+            .map(|l| {
+                let summary = summarise(l);
+                let haystack = format!(
+                    "{} {} {}",
+                    summary.title,
+                    summary.summary,
+                    summary.intents.join(" ")
+                )
+                .to_lowercase();
+                let score = words.iter().filter(|w| haystack.contains(*w)).count();
+                (score, summary)
+            })
+            .collect();
+        ranked.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.id.cmp(&b.1.id)));
+        let limit = params.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT) as usize;
+        let reply = WorkflowsReply {
+            workflows: ranked.into_iter().take(limit).map(|(_, s)| s).collect(),
+        };
+        Ok(serde_json::to_value(reply)?)
+    }
+
+    /// `assist.step_result`: the answer checked against the open step's
+    /// output.
+    pub(super) fn step_result(&mut self, params: StepResultParams) -> Result<Value> {
+        let Some(open) = &self.assist.step else {
+            return Err(refused(
+                "assist.no_step",
+                "no workflow step is open in this session: assist.step_result answers a model step of a workflow run".into(),
+            ));
+        };
+        if params.step != open.step {
+            let shown: String = params.step.chars().take(64).collect();
+            return Err(refused(
+                "assist.step",
+                format!(
+                    "the open step is {}, not {shown}: answer with step {:?}",
+                    open.step, open.step
+                ),
+            ));
+        }
+        let reply = match open.output.check_value(&params.result) {
+            Ok(()) => StepResultReply {
+                accepted: true,
+                problems: Vec::new(),
+                example: None,
+            },
+            Err(problems) => StepResultReply {
+                accepted: false,
+                problems: problems.into_iter().map(Into::into).collect(),
+                example: open.output.example.clone(),
+            },
+        };
+        Ok(serde_json::to_value(reply)?)
     }
 
     /// The title `asked` names among the attached documents.
@@ -676,6 +788,44 @@ fn apply_inputs(
         None => target.clone(),
     };
     Ok((target, base.clone(), document.clone()))
+}
+
+/// A lent workflow as `assist.workflows` lists it.
+fn summarise(listed: &Listed) -> WorkflowSummary {
+    match &listed.loaded {
+        Some(loaded) => {
+            let w = &loaded.workflow;
+            WorkflowSummary {
+                id: w.id.clone(),
+                version: w.version.clone(),
+                title: w.title.clone(),
+                summary: w.summary.clone(),
+                intents: w.intents.clone(),
+                source: listed.source,
+                inputs: w
+                    .inputs
+                    .iter()
+                    .map(|(name, input)| crate::workflow::entries::InputSummary {
+                        name: name.clone(),
+                        ty: input.ty,
+                        title: input.title.clone(),
+                        optional: input.optional,
+                    })
+                    .collect(),
+                why_not: listed.why_not.clone(),
+            }
+        }
+        None => WorkflowSummary {
+            id: listed.id.clone(),
+            version: String::new(),
+            title: listed.id.clone(),
+            summary: String::new(),
+            intents: Vec::new(),
+            source: listed.source,
+            inputs: Vec::new(),
+            why_not: listed.why_not.clone(),
+        },
+    }
 }
 
 /// A pinout plan without per-object detail: change counts (the changes

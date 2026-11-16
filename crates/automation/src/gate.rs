@@ -21,7 +21,7 @@ use crate::session::{Request, Session};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use sparksmith_core::Class;
-use sparksmith_core::permission::MODULES;
+use sparksmith_core::permission::{MODULES, Reach, Reaches};
 use std::collections::BTreeMap;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
@@ -65,9 +65,10 @@ impl FromStr for Mode {
 }
 
 /// What a principal may do: the permission mode, the folders paths may lie
-/// in, and a ceiling per module. With no folders, every request naming a
-/// path is refused; name `/` to lift the limit. A module absent from
-/// `modules` is out of reach.
+/// in, a ceiling per module and, optionally, what outside the document its
+/// entries may touch. With no folders, every request naming a path is
+/// refused; name `/` to lift the limit. A module absent from `modules` is
+/// out of reach.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Grant {
     pub mode: Mode,
@@ -79,6 +80,13 @@ pub struct Grant {
     /// How much one turn may do ([`crate::session::turns`]).
     #[serde(default)]
     pub limits: Limits,
+    /// What outside the document an entry may declare it touches (`files`,
+    /// `settings`, `network`, `window`, `runtime`): an entry declaring
+    /// anything else is refused (`gate.reach`), and the verbs' `find` does
+    /// not list it. `None` leaves it to the module ceilings and the folders.
+    /// A path a call names is the folders' to judge, not this.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reach: Option<Vec<Reach>>,
 }
 
 /// What one turn of a principal may do: calls that change the document,
@@ -123,6 +131,7 @@ impl Grant {
             folders: folders.into_iter().collect(),
             modules: every_module(),
             limits: Limits::default(),
+            reach: None,
         }
     }
 
@@ -145,6 +154,7 @@ impl Grant {
             folders: folders.into_iter().collect(),
             modules,
             limits: Limits::default(),
+            reach: None,
         }
     }
 
@@ -159,6 +169,29 @@ impl Grant {
     #[must_use]
     pub fn without_module(mut self, module: &str) -> Self {
         self.modules.remove(module);
+        self
+    }
+
+    /// Whether an entry that declares it touches `reaches` is within this
+    /// grant's reach.
+    pub fn reaches(&self, reaches: Reaches) -> bool {
+        self.reach
+            .as_ref()
+            .is_none_or(|allowed| reaches.iter().all(|r| allowed.contains(&r)))
+    }
+
+    /// This grant held to `ceiling` as well: each module at the lower of
+    /// the two classes, and a module `ceiling` leaves out out of reach (a
+    /// workflow's `reach`). Mode, folders, reach and limits stay.
+    #[must_use]
+    pub fn narrowed(mut self, ceiling: &BTreeMap<String, Class>) -> Self {
+        self.modules = std::mem::take(&mut self.modules)
+            .into_iter()
+            .filter_map(|(module, class)| {
+                let other = ceiling.get(&module)?;
+                Some((module, class.min(*other)))
+            })
+            .collect();
         self
     }
 }
@@ -280,24 +313,27 @@ pub fn failure(error: &Error) -> Value {
     json!({"ok": false, "error": error})
 }
 
-/// One entry a call reaches, as the gate weighs it: its name, its module
-/// and its class.
+/// One entry a call reaches, as the gate weighs it: its name, its module,
+/// its class and what outside the document it declares it touches.
 #[derive(Clone, Copy, Debug)]
 pub struct Subject<'a> {
     pub name: &'a str,
     pub module: &'a str,
     pub class: Class,
+    pub reach: Reaches,
 }
 
 /// The one decision, the same rules for every principal, in this order:
 ///
 /// 1. The person and the operator run everything.
 /// 2. Never is refused to everyone else (`gate.never`).
-/// 3. A class above the grant's ceiling for the entry's module is refused
+/// 3. An entry declaring that it touches something outside the document
+///    which the grant's reach leaves out is refused (`gate.reach`).
+/// 4. A class above the grant's ceiling for the entry's module is refused
 ///    (`gate.module`).
-/// 4. Every path must lie inside the grant's folders (`gate.path_outside`);
+/// 5. Every path must lie inside the grant's folders (`gate.path_outside`);
 ///    `inside` says whether one does.
-/// 5. The mode decides Run or Ask.
+/// 6. The mode decides Run or Ask.
 ///
 /// `subjects` are the entries the call reaches: several for a batch, whose
 /// strictest member decides. A call naming a path makes each at least Ask.
@@ -330,6 +366,9 @@ pub fn decide_entries(
                 "."
             ),
         ));
+    }
+    if let Some(subject) = subjects.iter().find(|s| !grant.reaches(s.reach)) {
+        return Decision::Refuse(beyond_reach(subject, grant));
     }
     for subject in subjects {
         let class = class_of(subject);
@@ -371,6 +410,24 @@ pub fn decide_entries(
         paths: paths.to_vec(),
         why: why.to_owned(),
     })
+}
+
+fn beyond_reach(subject: &Subject<'_>, grant: &Grant) -> Error {
+    let touches: Vec<&str> = subject
+        .reach
+        .iter()
+        .filter(|r| !grant.reaches(Reaches::NONE.with(*r)))
+        .map(Reach::name)
+        .collect();
+    refusal(
+        "gate.reach",
+        subject.name,
+        &format!(
+            "it touches {}, which this run does not reach. Nothing was changed.",
+            touches.join(" and ")
+        ),
+        "Carry on without it and say what is left for the person.",
+    )
 }
 
 fn beyond_module(subject: &Subject<'_>, class: Class, ceiling: Option<Class>) -> Error {

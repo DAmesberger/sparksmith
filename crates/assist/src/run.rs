@@ -4,11 +4,14 @@
 //! the front door and its gate as the built-in agent.
 //!
 //! The run ends when the review check (`query library.review_check`)
-//! accepts the model's report: that report is the run's.
+//! accepts the model's report: that report is the run's. The same loop
+//! ([`converse`]) runs each model step of a workflow
+//! ([`crate::workflow::runner`]), which ends when `assist.step_result`
+//! accepts the step's answer.
 use crate::documents::{self, Prepared};
 use crate::model::{
     Budget, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason,
-    appended_chars,
+    ToolSpec, appended_chars,
 };
 use crate::profile::{AssistLibrary, ReachProfile, RunProfile};
 use crate::report::{self, RequestFacts, ReviewReport, RunFacts};
@@ -99,17 +102,38 @@ pub(crate) enum ToolOutcome {
     },
     /// The review check accepted the model's report: the run is complete.
     Report(Box<ReviewReport>),
+    /// `assist.step_result` accepted the answer of a workflow's model step.
+    Step(Value),
+}
+
+/// What ends a conversation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Finish {
+    /// `library.review_check` accepts the report: a whole datasheet run.
+    Report,
+    /// `assist.step_result` accepts the answer: a workflow's model step.
+    StepResult,
+}
+
+/// What a finished conversation produced.
+#[derive(Debug)]
+pub(crate) enum Finished {
+    Report(Box<ReviewReport>),
+    Step(Value),
 }
 
 /// What tools act on during a run.
-struct ToolContext<'a> {
-    session: &'a mut Session,
-    grant: Grant,
-    reach: &'a ReachProfile,
+pub(crate) struct ToolContext<'a> {
+    pub(crate) session: &'a mut Session,
+    pub(crate) grant: Grant,
+    /// The open turn every call joins (a workflow run's).
+    pub(crate) turn: Option<String>,
     /// The replies call the tools of before the verbs ([`legacy`]).
-    legacy: bool,
+    pub(crate) legacy: bool,
     /// Reported in the review: which document's pages the model looked at.
-    facts: Vec<documents::DocumentFacts>,
+    pub(crate) facts: Vec<documents::DocumentFacts>,
+    /// What ends the conversation.
+    pub(crate) finish: Finish,
 }
 
 /// One tool call, whatever the model asked: the one door between a model and
@@ -160,8 +184,18 @@ fn dispatch_tool_call(
     }
     let mut result = answer["result"].clone();
     let entry = arguments["name"].as_str().unwrap_or_default();
-    if verb == verbs::QUERY && entry == "library.review_check" {
+    if verb == verbs::QUERY && entry == "library.review_check" && context.finish == Finish::Report {
         return (label, review(&arguments, result));
+    }
+    if verb == verbs::QUERY
+        && entry == "assist.step_result"
+        && context.finish == Finish::StepResult
+        && result["accepted"] == true
+    {
+        let mut params = arguments["params"].clone();
+        if sparksmith_automation::mcp::lenient::read_params(entry, &mut params).is_ok() {
+            return (label, ToolOutcome::Step(params["result"].clone()));
+        }
     }
     if verb == verbs::QUERY && entry == "assist.document_page" {
         let mut images = Vec::new();
@@ -204,7 +238,7 @@ fn agent<'a>(context: &'a mut ToolContext<'_>) -> Agent<'a> {
     Agent {
         session: context.session,
         grant: &context.grant,
-        reach: context.reach,
+        turn: context.turn.as_deref(),
     }
 }
 
@@ -293,7 +327,7 @@ fn integers_as_text(value: &mut Value) {
 
 /// A short description of an outcome for the run log: its keys, and how
 /// a package replacement matched the terminals.
-fn summary(outcome: &Value) -> String {
+pub(crate) fn summary(outcome: &Value) -> String {
     match outcome {
         Value::Object(map) => {
             let keys = map.keys().take(4).cloned().collect::<Vec<_>>().join(", ");
@@ -348,6 +382,48 @@ fn preflight(config: &RunConfig, prepared: &Prepared, prompt: u64) -> Result<()>
     Ok(())
 }
 
+/// The system prompt of a run: the run profile's additions on the shipped
+/// base prompt.
+pub(crate) fn system_prompt(config: &RunConfig) -> Result<String> {
+    let system = config.run_profile.system_prompt(&config.base_prompt);
+    if system.trim().is_empty() {
+        return Err(Error::Config(
+            "the run has no system prompt: the shipped base prompt was not loaded".into(),
+        ));
+    }
+    Ok(system)
+}
+
+/// The six verbs, less what the run profile leaves out.
+pub(crate) fn tool_specs(run_profile: &RunProfile) -> Vec<ToolSpec> {
+    let mut specs = verbs::tools();
+    specs.retain(|t| !run_profile.omit_tools.contains(&t.name));
+    specs
+}
+
+/// A prompt estimate without a count: `document_tokens`, the tools and the
+/// system prompt.
+pub(crate) fn first_estimate(system: &str, specs: &[ToolSpec], document_tokens: u64) -> u64 {
+    let tool_chars = serde_json::to_string(specs).map_or(0, |t| t.len() as u64);
+    document_tokens
+        .saturating_add((tool_chars + system.len() as u64) / CHARS_PER_TOKEN)
+        .saturating_add(ESTIMATE_MARGIN)
+}
+
+/// The facts a run starts with: the model, its declarations and the
+/// transport.
+pub(crate) fn run_facts(config: &RunConfig, backend: &dyn ModelBackend) -> RunFacts {
+    let profile = &config.profile;
+    RunFacts {
+        model: profile.model.clone(),
+        provider: profile.provider.label().to_owned(),
+        capabilities: profile.declared(),
+        transport: backend.label(),
+        run_profile: config.run_profile.name.clone(),
+        ..RunFacts::default()
+    }
+}
+
 /// Run the tool loop until the model submits its report, a cap is reached,
 /// the run is cancelled or the backend fails. Drafts land in `session`;
 /// nothing is saved or published here.
@@ -361,61 +437,133 @@ pub fn run(
 ) -> Result<Outcome> {
     let profile = &config.profile;
     profile.check()?;
-    let budget = &config.budget;
     let mut prepared = documents::prepare(&goal.datasheets, &profile.capabilities)?;
-    let run_profile = &config.run_profile;
-    let system = run_profile.system_prompt(&config.base_prompt);
-    if system.trim().is_empty() {
-        return Err(Error::Config(
-            "the run has no system prompt: the shipped base prompt was not loaded".into(),
-        ));
-    }
-    let mut specs = verbs::tools();
-    specs.retain(|t| !run_profile.omit_tools.contains(&t.name));
-    let tool_chars = serde_json::to_string(&specs)?.len() as u64;
+    let system = system_prompt(config)?;
+    let specs = tool_specs(&config.run_profile);
     // Without a count: the documents, the tools and the system prompt.
-    let first_estimate = prepared
-        .tokens
-        .saturating_add((tool_chars + system.len() as u64) / CHARS_PER_TOKEN)
-        .saturating_add(ESTIMATE_MARGIN);
-    preflight(config, &prepared, first_estimate)?;
-    let mut messages = vec![first_message(goal, &prepared)];
+    let estimate = first_estimate(&system, &specs, prepared.tokens);
+    preflight(config, &prepared, estimate)?;
+    let messages = vec![first_message(goal, &prepared)];
     session.ensure_generators();
     let lent: Box<dyn Documents> = Box::new(std::mem::take(&mut prepared.pages));
     let attached = session.attach_documents(Some(lent));
     let mut context = ToolContext {
         session,
         grant: config.reach.grant(),
-        reach: &config.reach,
+        turn: None,
         legacy: backend.legacy_tools(),
         facts: std::mem::take(&mut prepared.facts),
+        finish: Finish::Report,
     };
     let mut tally = Tally::default();
-    let mut facts = RunFacts {
-        model: profile.model.clone(),
-        provider: profile.provider.label().to_owned(),
-        capabilities: profile.declared(),
-        transport: backend.label(),
-        run_profile: run_profile.name.clone(),
-        ..RunFacts::default()
-    };
+    let mut facts = run_facts(config, backend);
     let started = Instant::now();
-    let mut report: Option<ReviewReport> = None;
+    let conversation = Conversation {
+        system: &system,
+        specs: &specs,
+        messages,
+        first_estimate: estimate,
+        document_tokens: prepared.tokens,
+        max_requests: config.budget.max_requests,
+    };
+    let (stop, finished) = converse(
+        &mut Driver {
+            config,
+            backend,
+            context: &mut context,
+            tally: &mut tally,
+            facts: &mut facts,
+            started,
+            events,
+            cancel,
+        },
+        conversation,
+    );
+    let report = match finished {
+        Some(Finished::Report(report)) => Some(*report),
+        _ => None,
+    };
+    facts.elapsed_seconds = started.elapsed().as_secs_f64();
+    facts.documents = std::mem::take(&mut context.facts);
+    let session = context.session;
+    session.attach_documents(attached);
+    report::finish_facts(&mut facts, &tally, &stop, session);
+    Ok(Outcome {
+        report,
+        stop,
+        facts,
+    })
+}
+
+/// One conversation's opening: the system prompt, the tools, the first
+/// messages, and what the loop estimates and stops by.
+pub(crate) struct Conversation<'a> {
+    pub(crate) system: &'a str,
+    pub(crate) specs: &'a [ToolSpec],
+    pub(crate) messages: Vec<Message>,
+    /// The first prompt's size when the backend cannot count it.
+    pub(crate) first_estimate: u64,
+    /// The datasheets' tokens in the prompt, for the truncation warning.
+    pub(crate) document_tokens: u64,
+    /// The conversation stops before the tally reaches this many requests.
+    pub(crate) max_requests: u32,
+}
+
+/// What drives conversations, shared by a workflow's model steps: the
+/// run's model, budget and limits, its session through the verbs, and
+/// what it has used so far.
+pub(crate) struct Driver<'a, 'c> {
+    pub(crate) config: &'a RunConfig,
+    pub(crate) backend: &'a mut dyn ModelBackend,
+    pub(crate) context: &'a mut ToolContext<'c>,
+    pub(crate) tally: &'a mut Tally,
+    pub(crate) facts: &'a mut RunFacts,
+    /// When the run started: its time limit counts from here.
+    pub(crate) started: Instant,
+    pub(crate) events: &'a mut dyn FnMut(Event),
+    pub(crate) cancel: &'a AtomicBool,
+}
+
+/// The tool loop of one conversation: requests until the finishing call is
+/// accepted ([`Finish`]), a cap is reached, it is cancelled or the backend
+/// fails. Usage adds to the driver's tally and facts.
+pub(crate) fn converse(
+    driver: &mut Driver<'_, '_>,
+    conversation: Conversation<'_>,
+) -> (Stop, Option<Finished>) {
+    let config = driver.config;
+    let profile = &config.profile;
+    let run_profile = &config.run_profile;
+    let budget = &config.budget;
+    let Conversation {
+        system,
+        specs,
+        mut messages,
+        first_estimate,
+        document_tokens,
+        max_requests,
+    } = conversation;
+    let finish = driver.context.finish;
+    let started = driver.started;
+    let mut finished: Option<Finished> = None;
     let mut limit = profile.output.per_request;
     let mut nudges = 0;
     let mut cuts = 0;
     let mut last_prompt = 0u64;
     let mut appended = 0u64;
+    let mut first = true;
     // Refused calls by tool and exact input since the last call that
     // succeeded, to notice a model repeating one.
     let mut refused: HashMap<(String, String), u32> = HashMap::new();
     let mut repeated: Option<String> = None;
     let stop = loop {
-        if cancel.load(Ordering::Relaxed) {
+        let tally = &mut *driver.tally;
+        let facts = &mut *driver.facts;
+        if driver.cancel.load(Ordering::Relaxed) {
             break Stop::Cancelled;
         }
-        if tally.requests >= budget.max_requests {
-            break Stop::Budget(format!("{} requests", budget.max_requests));
+        if tally.requests >= max_requests {
+            break Stop::Budget(format!("{max_requests} requests"));
         }
         let left = budget.max_duration.saturating_sub(started.elapsed());
         if left.is_zero() {
@@ -431,15 +579,15 @@ pub fn run(
             break Stop::Budget(format!("{} output tokens", budget.max_output_tokens));
         }
         let mut request = ModelRequest {
-            system: &system,
-            tools: &specs,
+            system,
+            tools: specs,
             messages: &messages,
             max_output_tokens: limit,
             timeout: profile.request_timeout.min(left),
         };
-        let prompt_tokens = if tally.requests == 0 {
+        let prompt_tokens = if first {
             // Count exactly when the backend can; otherwise the estimate.
-            match backend.count_prompt_tokens(&request) {
+            match driver.backend.count_prompt_tokens(&request) {
                 Ok(Some(n)) => n,
                 _ => first_estimate,
             }
@@ -471,9 +619,9 @@ pub fn run(
             ));
         }
         let n = tally.requests + 1;
-        events(Event::Request { n, prompt_tokens });
+        (driver.events)(Event::Request { n, prompt_tokens });
         let sent = Instant::now();
-        let reply = match backend.send(&request) {
+        let reply = match driver.backend.send(&request) {
             Ok(r) => r,
             Err(e) => {
                 let over = budget
@@ -490,11 +638,12 @@ pub fn run(
                 };
             }
         };
+        first = false;
         let seconds = sent.elapsed().as_secs_f64();
         tally.book(&reply.usage);
         facts.usage_estimated |= reply.usage_estimated;
-        if let Some(warning) = check_prompt(&reply, n, last_prompt, prepared.tokens) {
-            events(Event::Warning(warning.clone()));
+        if let Some(warning) = check_prompt(&reply, n, last_prompt, document_tokens) {
+            (driver.events)(Event::Warning(warning.clone()));
             facts.warnings.push(warning);
         }
         last_prompt = reply.usage.prompt();
@@ -517,7 +666,7 @@ pub fn run(
             seconds,
             tools: Vec::new(),
         });
-        events(Event::Response {
+        (driver.events)(Event::Response {
             n,
             stop_reason: stop_label,
             output_tokens: reply.usage.output_tokens,
@@ -525,7 +674,7 @@ pub fn run(
         });
         for part in &reply.content {
             if let Part::Text { text, .. } = part {
-                events(Event::Text(text.clone()));
+                (driver.events)(Event::Text(text.clone()));
             }
         }
         if let StopReason::Refusal { category } = &reply.stop {
@@ -564,7 +713,14 @@ pub fn run(
                 let text = if was_cut {
                     "Your reply was cut off at the output limit. Continue with smaller steps (pin rows in chunks of at most 40 with assist.pinout_edit)."
                 } else {
-                    "Continue with the tools; finish with query library.review_check."
+                    match finish {
+                        Finish::Report => {
+                            "Continue with the tools; finish with query library.review_check."
+                        }
+                        Finish::StepResult => {
+                            "Continue with the tools; finish with query assist.step_result."
+                        }
+                    }
                 };
                 appended += text.len() as u64;
                 messages.push(Message {
@@ -583,7 +739,7 @@ pub fn run(
                 if let Some(r) = logged {
                     r.tools.push(format!("{name}!"));
                 }
-                events(Event::Tool {
+                (driver.events)(Event::Tool {
                     name: name.clone(),
                     error: true,
                     step: None,
@@ -597,7 +753,7 @@ pub fn run(
                 continue;
             }
             let (label, outcome) =
-                dispatch_tool_call(&mut context, &name, &input, malformed.as_deref());
+                dispatch_tool_call(driver.context, &name, &input, malformed.as_deref());
             if let Some(r) = logged {
                 let failed = matches!(outcome, ToolOutcome::Reply { error: true, .. });
                 r.tools.push(if failed {
@@ -608,13 +764,22 @@ pub fn run(
             }
             match outcome {
                 ToolOutcome::Report(r) => {
-                    events(Event::Tool {
+                    (driver.events)(Event::Tool {
                         name: name.clone(),
                         error: false,
                         step: None,
                     });
-                    report = Some(*r);
+                    finished = Some(Finished::Report(r));
                     results.push(result(id, "Report received.", false, Vec::new()));
+                }
+                ToolOutcome::Step(answer) => {
+                    (driver.events)(Event::Tool {
+                        name: name.clone(),
+                        error: false,
+                        step: None,
+                    });
+                    finished = Some(Finished::Step(answer));
+                    results.push(result(id, "Answer accepted.", false, Vec::new()));
                 }
                 ToolOutcome::Reply {
                     mut text,
@@ -646,7 +811,7 @@ pub fn run(
                     if let Some(step) = &step {
                         facts.steps.push(step.clone());
                     }
-                    events(Event::Tool {
+                    (driver.events)(Event::Tool {
                         name: name.clone(),
                         error,
                         step,
@@ -660,23 +825,17 @@ pub fn run(
             role: Role::User,
             content: results,
         });
-        if report.is_some() {
-            break Stop::Submitted;
+        if finished.is_some() {
+            break match finish {
+                Finish::Report => Stop::Submitted,
+                Finish::StepResult => Stop::Answered,
+            };
         }
         if let Some(why) = repeated.take() {
             break Stop::Repeated(why);
         }
     };
-    facts.elapsed_seconds = started.elapsed().as_secs_f64();
-    facts.documents = std::mem::take(&mut context.facts);
-    let session = context.session;
-    session.attach_documents(attached);
-    report::finish_facts(&mut facts, &tally, &stop, session);
-    Ok(Outcome {
-        report,
-        stop,
-        facts,
-    })
+    (stop, finished)
 }
 
 fn result(id: String, text: &str, error: bool, images: Vec<Image>) -> Part {

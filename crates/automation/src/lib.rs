@@ -14,6 +14,7 @@ pub mod live;
 pub mod mcp;
 pub mod review;
 pub mod session;
+pub mod workflow;
 
 pub use front::{Answer, Asker, Call, CallCx, Surface};
 pub use gate::{Caller, Decision, Grant, Limits, Mode, Principal, Question};

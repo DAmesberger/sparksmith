@@ -224,6 +224,11 @@ pub trait ModelBackend {
     fn legacy_tools(&self) -> bool {
         false
     }
+    /// The workflow a recording was made with, when this replays one: a
+    /// workflow run refuses a replay of another workflow or version.
+    fn recorded_workflow(&self) -> Option<&record::WorkflowMark> {
+        None
+    }
 }
 
 /// Connect to the configured model: the provider's backend over HTTP, with

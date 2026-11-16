@@ -1,9 +1,12 @@
 //! Recording and replay, in one neutral format: JSON lines of
 //! [`ModelReply`]. A recording made on any backend replays offline, with no
 //! key and no network. Requests carry the datasheets and are not written;
-//! the key is never part of a reply.
+//! the key is never part of a reply. A workflow run's recording starts with
+//! one line naming the workflow, its version and the digest of its files
+//! ([`WorkflowMark`]), so a replay against another version is refused.
 use super::{Message, ModelBackend, ModelReply, ModelRequest, ToolSpec};
 use crate::{Error, Result};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -19,9 +22,28 @@ pub struct KeptRequest {
     pub timeout: Duration,
 }
 
+/// The workflow a recording was made with: its id, version and the
+/// `sha256:` digest of its files (`workflow::load::digest`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkflowMark {
+    pub id: String,
+    pub version: String,
+    pub digest: String,
+}
+
+/// A recording's first line when it is a workflow run's.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Header {
+    workflow: WorkflowMark,
+}
+
 /// Recorded replies, answered in order.
 #[derive(Debug, Default)]
 pub struct Replay {
+    /// The workflow the recording names, when it is a workflow run's.
+    pub workflow: Option<WorkflowMark>,
     replies: VecDeque<ModelReply>,
     source: String,
     /// Keep each request (they hold the datasheets, so off for real files).
@@ -48,8 +70,16 @@ impl Replay {
     pub fn from_file(path: &Path) -> Result<Self> {
         let text = std::fs::read_to_string(path)?;
         let mut replies = Vec::new();
+        let mut workflow = None;
         for (k, line) in text.lines().enumerate() {
             if line.trim().is_empty() {
+                continue;
+            }
+            if replies.is_empty()
+                && workflow.is_none()
+                && let Ok(header) = serde_json::from_str::<Header>(line)
+            {
+                workflow = Some(header.workflow);
                 continue;
             }
             replies.push(serde_json::from_str(line).map_err(|e| {
@@ -63,6 +93,7 @@ impl Replay {
         Ok(Self {
             replies: replies.into(),
             source: path.display().to_string(),
+            workflow,
             ..Self::default()
         })
     }
@@ -101,6 +132,10 @@ impl ModelBackend for Replay {
         Ok(self.prompt_tokens)
     }
 
+    fn recorded_workflow(&self) -> Option<&WorkflowMark> {
+        self.workflow.as_ref()
+    }
+
     fn legacy_tools(&self) -> bool {
         self.replies.iter().any(|reply| {
             reply.content.iter().any(|part| {
@@ -122,6 +157,14 @@ impl<B> Recording<B> {
     pub fn new(inner: B, path: PathBuf) -> Self {
         Self { inner, path }
     }
+
+    /// A workflow run's recording: a new file at `path` whose first line
+    /// names `workflow`. An existing file is refused.
+    pub fn for_workflow(inner: B, path: PathBuf, workflow: WorkflowMark) -> Result<Self> {
+        let line = serde_json::to_string(&Header { workflow })?;
+        crate::write_new(&path, format!("{line}\n").as_bytes())?;
+        Ok(Self { inner, path })
+    }
 }
 
 impl<B: ModelBackend + ?Sized> ModelBackend for Box<B> {
@@ -139,6 +182,10 @@ impl<B: ModelBackend + ?Sized> ModelBackend for Box<B> {
 
     fn legacy_tools(&self) -> bool {
         (**self).legacy_tools()
+    }
+
+    fn recorded_workflow(&self) -> Option<&WorkflowMark> {
+        (**self).recorded_workflow()
     }
 }
 
@@ -252,6 +299,26 @@ mod tests {
         assert!(!recording.label().contains("sk-rec-9"));
         let mut replay = Replay::from_file(&path)?;
         assert_eq!(replay.send(&request())?, reply);
+        Ok(())
+    }
+
+    #[test]
+    fn a_workflow_recording_names_its_workflow_and_replays() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("w.jsonl");
+        let mark = WorkflowMark {
+            id: "datasheet-to-component".into(),
+            version: "1.0".into(),
+            digest: "sha256:00".into(),
+        };
+        let mut recording =
+            Recording::for_workflow(Replay::new(vec![reply("1")]), path.clone(), mark.clone())?;
+        recording.send(&request())?;
+        assert!(Recording::for_workflow(Replay::default(), path.clone(), mark.clone()).is_err());
+        let mut replay = Replay::from_file(&path)?;
+        assert_eq!(replay.recorded_workflow(), Some(&mark));
+        assert_eq!(replay.send(&request())?.content, vec![Part::text("1")]);
+        assert!(replay.send(&request()).is_err());
         Ok(())
     }
 
