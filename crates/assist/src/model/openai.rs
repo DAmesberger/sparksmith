@@ -8,6 +8,11 @@
 //! or malformed text; missing or repeated call ids; missing usage (estimated
 //! from the characters and flagged). None of it panics, and a malformed call
 //! is answered with an error and never run.
+//!
+//! A streamed reply ([`ModelBackend::stream`]) is put back together from its
+//! chunks as the completion a whole request gives, and read by the same
+//! [`parse_reply`]; usage comes in a last chunk where the server sends one.
+use super::stream::{self, Delta, SseEvent, Streamed, ThinkSplitter};
 use super::wire::{HttpWire, Wire};
 use super::{
     DocumentSource, Message, ModelBackend, ModelProfile, ModelReply, ModelRequest, Part, Role,
@@ -17,6 +22,7 @@ use crate::usage::Usage;
 use crate::{Error, Result};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Rough characters per token, where a server reports no usage.
 const CHARS_PER_TOKEN: u64 = 4;
@@ -306,6 +312,165 @@ fn estimated_tokens(chars: u64) -> u64 {
     chars.div_ceil(CHARS_PER_TOKEN)
 }
 
+/// The error a response or a stream's chunk reports inside a 200, as
+/// OpenRouter and others do for a failed generation.
+fn reported_error(response: &Value) -> Option<Error> {
+    let error = response.get("error").filter(|e| !e.is_null())?;
+    let message = error["message"]
+        .as_str()
+        .or_else(|| error.as_str())
+        .unwrap_or("the server reported an error");
+    Some(Error::Api {
+        status: error["code"]
+            .as_u64()
+            .and_then(|c| u16::try_from(c).ok())
+            .unwrap_or(200),
+        message: message.to_owned(),
+    })
+}
+
+/// Most tool calls one streamed reply may open.
+const MAX_STREAM_CALLS: usize = 1024;
+
+/// One tool call as its chunks arrive.
+#[derive(Debug, Default)]
+struct StreamedCall {
+    id: String,
+    name: String,
+    /// Argument text so far, or an object a server sent whole.
+    arguments: Value,
+}
+
+/// A chat completions stream put back together as the completion a whole
+/// request gives, so [`parse_reply`] reads both the same way.
+#[derive(Debug, Default)]
+struct Chunks {
+    model: Option<String>,
+    content: String,
+    think: ThinkSplitter,
+    reasoning: String,
+    refusal: String,
+    /// By the server's call index.
+    calls: std::collections::BTreeMap<u64, StreamedCall>,
+    announced: u32,
+    finish: Option<String>,
+    usage: Value,
+    done: bool,
+}
+
+impl Chunks {
+    fn event(&mut self, event: &SseEvent, deltas: &mut dyn FnMut(Delta)) -> Result<()> {
+        let data = event.data.trim();
+        if data.is_empty() {
+            return Ok(());
+        }
+        if data == "[DONE]" {
+            self.done = true;
+            return Ok(());
+        }
+        let chunk: Value = serde_json::from_str(data)
+            .map_err(|e| Error::Protocol(format!("a stream chunk is not JSON: {e}")))?;
+        if let Some(error) = reported_error(&chunk) {
+            return Err(error);
+        }
+        if let Some(model) = chunk["model"].as_str() {
+            self.model = Some(model.to_owned());
+        }
+        if chunk["usage"].is_object() {
+            self.usage = chunk["usage"].clone();
+        }
+        let Some(choice) = chunk["choices"].get(0) else {
+            return Ok(());
+        };
+        let delta = &choice["delta"];
+        let text = content_text(&delta["content"]);
+        if !text.is_empty() {
+            self.content.push_str(&text);
+            self.think.push(&text, deltas);
+        }
+        if let Some(reasoning) = ["reasoning", "reasoning_content", "thinking"]
+            .iter()
+            .find_map(|k| delta[*k].as_str().filter(|s| !s.is_empty()))
+        {
+            self.reasoning.push_str(reasoning);
+            deltas(Delta::Reasoning(reasoning.to_owned()));
+        }
+        if let Some(refusal) = delta["refusal"].as_str() {
+            self.refusal.push_str(refusal);
+        }
+        for (k, call) in delta["tool_calls"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+        {
+            let index = call["index"].as_u64().unwrap_or(k as u64);
+            if !self.calls.contains_key(&index) && self.calls.len() >= MAX_STREAM_CALLS {
+                return Err(Error::Protocol(format!(
+                    "the reply opened more than {MAX_STREAM_CALLS} tool calls"
+                )));
+            }
+            let kept = self.calls.entry(index).or_default();
+            if let Some(id) = call["id"].as_str().filter(|id| !id.is_empty())
+                && kept.id.is_empty()
+            {
+                id.clone_into(&mut kept.id);
+            }
+            let function = &call["function"];
+            if let Some(name) = function["name"].as_str().filter(|n| !n.is_empty())
+                && kept.name.is_empty()
+            {
+                name.clone_into(&mut kept.name);
+                deltas(Delta::ToolCall {
+                    index: self.announced,
+                    name: name.to_owned(),
+                });
+                self.announced = self.announced.saturating_add(1);
+            }
+            match (&mut kept.arguments, &function["arguments"]) {
+                (Value::String(so_far), Value::String(piece)) => so_far.push_str(piece),
+                (slot, Value::String(piece)) => *slot = Value::String(piece.clone()),
+                (slot, whole @ Value::Object(_)) => *slot = whole.clone(),
+                _ => {}
+            }
+        }
+        if let Some(finish) = choice["finish_reason"].as_str() {
+            self.finish = Some(finish.to_owned());
+        }
+        Ok(())
+    }
+
+    /// The completion, as a whole request would have given it.
+    fn finish(self) -> Value {
+        let calls: Vec<Value> = self
+            .calls
+            .into_values()
+            .map(|c| {
+                json!({"id": c.id, "type": "function",
+                    "function": {"name": c.name, "arguments": c.arguments}})
+            })
+            .collect();
+        let mut message = json!({"role": "assistant", "content": self.content});
+        if !self.reasoning.is_empty() {
+            message["reasoning_content"] = json!(self.reasoning);
+        }
+        if !self.refusal.is_empty() {
+            message["refusal"] = json!(self.refusal);
+        }
+        if !calls.is_empty() {
+            message["tool_calls"] = Value::Array(calls);
+        }
+        let mut response = json!({
+            "choices": [{"message": message, "finish_reason": self.finish}],
+            "usage": self.usage,
+        });
+        if let Some(model) = self.model {
+            response["model"] = json!(model);
+        }
+        response
+    }
+}
+
 /// A chat completion in neutral form. `prompt_chars` stands in for the prompt
 /// tokens of a server that reports no usage.
 pub fn parse_reply(
@@ -314,19 +479,8 @@ pub fn parse_reply(
     prompt_chars: u64,
     counter: &mut u64,
 ) -> Result<ModelReply> {
-    // OpenRouter and others report a failed generation inside a 200.
-    if let Some(error) = response.get("error").filter(|e| !e.is_null()) {
-        let message = error["message"]
-            .as_str()
-            .or_else(|| error.as_str())
-            .unwrap_or("the server reported an error");
-        return Err(Error::Api {
-            status: error["code"]
-                .as_u64()
-                .and_then(|c| u16::try_from(c).ok())
-                .unwrap_or(200),
-            message: message.to_owned(),
-        });
+    if let Some(error) = reported_error(response) {
+        return Err(error);
     }
     let Some(choice) = response["choices"].get(0) else {
         return Err(Error::Protocol("the response has no choices".into()));
@@ -434,6 +588,82 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
             prompt_chars,
             &mut self.calls,
         )
+    }
+
+    fn stream(
+        &mut self,
+        request: &ModelRequest<'_>,
+        deltas: &mut dyn FnMut(Delta),
+        cancel: &AtomicBool,
+    ) -> Result<ModelReply> {
+        let path = "/chat/completions";
+        // Usage comes in a last chunk when asked for; a server that refuses
+        // the option is asked again without it, and its usage is estimated.
+        let mut usage_option = true;
+        let mut chunks = Chunks::default();
+        let (body, streamed) = loop {
+            let mut body = request_body(&self.profile, request, self.completion_field)?;
+            if let Some(fields) = body.as_object_mut() {
+                fields.insert("stream".into(), Value::Bool(true));
+                if usage_option {
+                    fields.insert("stream_options".into(), json!({"include_usage": true}));
+                }
+            }
+            let sent = self
+                .wire
+                .post_stream(path, &[], &body, request.timeout, &mut |event| {
+                    chunks.event(&event, deltas)?;
+                    Ok(!cancel.load(Ordering::Relaxed))
+                });
+            match sent {
+                Err(Error::Api {
+                    status: 400,
+                    message,
+                }) if !self.completion_field && message.contains("max_completion_tokens") => {
+                    // OpenAI's newer models take the limit under another name.
+                    self.completion_field = true;
+                }
+                Err(Error::Api {
+                    status: 400,
+                    message,
+                }) if usage_option && message.contains("stream_options") => usage_option = false,
+                other => break (body, other?),
+            }
+        };
+        let prompt_chars = body["messages"].to_string().len() as u64;
+        let (response, stopped) = match streamed {
+            Streamed::Whole(response) => {
+                let reply = parse_reply(
+                    &response,
+                    &self.profile.model,
+                    prompt_chars,
+                    &mut self.calls,
+                )?;
+                stream::deltas_of(&reply, deltas);
+                return Ok(reply);
+            }
+            Streamed::Stopped => (chunks.finish(), true),
+            Streamed::Done if chunks.done || chunks.finish.is_some() => {
+                chunks.think.finish(deltas);
+                (chunks.finish(), false)
+            }
+            Streamed::Done => {
+                return Err(Error::Protocol(
+                    "the stream ended before the reply was complete".into(),
+                ));
+            }
+        };
+        let response = self.wire.clean_value(response);
+        let mut reply = parse_reply(
+            &response,
+            &self.profile.model,
+            prompt_chars,
+            &mut self.calls,
+        )?;
+        if stopped {
+            reply.stop = StopReason::Stopped;
+        }
+        Ok(reply)
     }
 
     fn count_prompt_tokens(&mut self, _request: &ModelRequest<'_>) -> Result<Option<u64>> {
@@ -776,6 +1006,170 @@ mod tests {
             wire_messages("S", &messages),
             Err(Error::Unsupported(_))
         ));
+    }
+
+    fn empty_request<'a>() -> ModelRequest<'a> {
+        ModelRequest {
+            system: "S",
+            tools: &[],
+            messages: &[],
+            max_output_tokens: 777,
+            timeout: Duration::from_secs(1),
+        }
+    }
+
+    fn streamed(
+        wire: ScriptedWire,
+        cancel_after: Option<usize>,
+    ) -> (Result<ModelReply>, Vec<Delta>, OpenAiBackend<ScriptedWire>) {
+        let mut backend = OpenAiBackend::new(profile(), wire);
+        let cancel = AtomicBool::new(false);
+        let mut seen = Vec::new();
+        let reply = backend.stream(
+            &empty_request(),
+            &mut |d| {
+                seen.push(d);
+                if cancel_after.is_some_and(|n| seen.len() >= n) {
+                    cancel.store(true, Ordering::Relaxed);
+                }
+            },
+            &cancel,
+        );
+        (reply, seen, backend)
+    }
+
+    fn calls_and_reasoning() -> Value {
+        reply(
+            json!({"role": "assistant", "content": "", "reasoning_content": "Pins first, then µ-checks.",
+                "tool_calls": [
+                    {"id": "c1", "type": "function", "function": {"name": "query", "arguments": "{\"name\": \"assist.document_text\", \"params\": {\"pages\": [3]}}"}},
+                    {"id": "", "type": "function", "function": {"name": "find", "arguments": "not json"}}]}),
+            "tool_calls",
+        )
+    }
+
+    #[test]
+    fn a_streamed_reply_is_the_whole_reply() -> Result<()> {
+        for whole in [
+            calls_and_reasoning(),
+            reply(
+                json!({"content": "<think>hm, pin 3</think>\n\nThe answer."}),
+                "stop",
+            ),
+        ] {
+            let mut counter = 0;
+            let expected = parse_reply(&whole, "local", 0, &mut counter)?;
+            let wire = ScriptedWire::new(vec![stream::fixtures::chat(&whole)]);
+            let (reply, deltas, backend) = streamed(wire, None);
+            let reply = reply?;
+            assert_eq!(reply, expected);
+            // What the deltas showed is what the reply holds.
+            let (mut text, mut reasoning) = (String::new(), String::new());
+            for d in &deltas {
+                match d {
+                    Delta::Text(t) => text.push_str(t),
+                    Delta::Reasoning(t) => reasoning.push_str(t),
+                    Delta::ToolCall { .. } => {}
+                }
+            }
+            for part in &reply.content {
+                match part {
+                    Part::Text { text: t, .. } => assert_eq!(&text, t),
+                    Part::Reasoning { text: t, .. } => assert_eq!(reasoning.trim(), t),
+                    _ => {}
+                }
+            }
+            let (_, _, body, _) = &backend.wire.posts[0];
+            assert_eq!(body["stream"], true);
+            assert_eq!(body["stream_options"]["include_usage"], true);
+        }
+        let (_, deltas, _) = streamed(
+            ScriptedWire::new(vec![stream::fixtures::chat(&calls_and_reasoning())]),
+            None,
+        );
+        let calls: Vec<&Delta> = deltas
+            .iter()
+            .filter(|d| matches!(d, Delta::ToolCall { .. }))
+            .collect();
+        assert_eq!(
+            calls,
+            [
+                &Delta::ToolCall {
+                    index: 0,
+                    name: "query".into()
+                },
+                &Delta::ToolCall {
+                    index: 1,
+                    name: "find".into()
+                }
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn stop_between_chunks_and_a_stream_without_usage() -> Result<()> {
+        let (reply, deltas, _) = streamed(
+            ScriptedWire::new(vec![stream::fixtures::chat(&calls_and_reasoning())]),
+            Some(1),
+        );
+        let reply = reply?;
+        assert_eq!(reply.stop, StopReason::Stopped);
+        assert_eq!(deltas.len(), 1);
+        // No usage chunk: estimated and flagged, as for a whole reply.
+        let mut whole = reply_without_usage();
+        let wire = ScriptedWire::new(vec![stream::fixtures::chat(&whole)]);
+        let (reply, _, _) = streamed(wire, None);
+        let reply = reply?;
+        assert!(reply.usage_estimated);
+        assert_eq!(reply.content, vec![Part::text("12345678")]);
+        // A stream that ends before its finish is not an answer.
+        whole["choices"][0]["finish_reason"] = Value::Null;
+        let Value::String(events) = stream::fixtures::chat(&whole) else {
+            return Err(Error::Protocol("a stream".into()));
+        };
+        let cut = events.replace("data: [DONE]", "");
+        let (reply, _, _) = streamed(ScriptedWire::new(vec![json!(cut)]), None);
+        assert!(matches!(reply, Err(Error::Protocol(_))), "{reply:?}");
+        // An error chunk inside the 200.
+        let failed = json!("data: {\"error\": {\"message\": \"overloaded\", \"code\": 503}}\n\n");
+        let (reply, _, _) = streamed(ScriptedWire::new(vec![failed]), None);
+        assert!(
+            matches!(reply, Err(Error::Api { status: 503, .. })),
+            "{reply:?}"
+        );
+        Ok(())
+    }
+
+    fn reply_without_usage() -> Value {
+        json!({"model": "local", "choices": [{"message": {"content": "12345678"}, "finish_reason": "stop"}]})
+    }
+
+    #[test]
+    fn a_server_refusing_the_usage_option_or_streaming_is_asked_plainly() -> Result<()> {
+        let mut wire = ScriptedWire::default();
+        wire.replies.push_back(Err(Error::Api {
+            status: 400,
+            message: "Use max_completion_tokens instead.".into(),
+        }));
+        wire.replies.push_back(Err(Error::Api {
+            status: 400,
+            message: "unknown field stream_options".into(),
+        }));
+        // It then answers with one whole reply, not a stream.
+        wire.replies
+            .push_back(Ok(reply(json!({"content": "ok"}), "stop")));
+        let (reply, deltas, backend) = streamed(wire, None);
+        assert_eq!(reply?.content, vec![Part::text("ok")]);
+        assert_eq!(deltas, vec![Delta::Text("ok".into())]);
+        let bodies: Vec<&Value> = backend.wire.posts.iter().map(|(_, _, b, _)| b).collect();
+        assert_eq!(bodies.len(), 3);
+        assert_eq!(bodies[0]["max_tokens"], 777);
+        assert_eq!(bodies[1]["max_completion_tokens"], 777);
+        assert!(bodies[1].get("stream_options").is_some());
+        assert!(bodies[2].get("stream_options").is_none());
+        assert_eq!(bodies[2]["stream"], true);
+        Ok(())
     }
 
     #[test]

@@ -2,11 +2,12 @@
 //! [`ModelReply`]. A recording made on any backend replays offline, with no
 //! key and no network. Requests carry the datasheets and are not written;
 //! the key is never part of a reply.
-use super::{Message, ModelBackend, ModelReply, ModelRequest, ToolSpec};
+use super::{Delta, Message, ModelBackend, ModelReply, ModelRequest, ToolSpec};
 use crate::{Error, Result};
 use std::collections::VecDeque;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 /// What a replay kept of a request, for tests to inspect.
@@ -122,6 +123,15 @@ impl<B> Recording<B> {
     pub fn new(inner: B, path: PathBuf) -> Self {
         Self { inner, path }
     }
+
+    fn append(&self, reply: &ModelReply) -> Result<()> {
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+        writeln!(file, "{}", serde_json::to_string(reply)?)?;
+        Ok(())
+    }
 }
 
 impl<B: ModelBackend + ?Sized> ModelBackend for Box<B> {
@@ -131,6 +141,15 @@ impl<B: ModelBackend + ?Sized> ModelBackend for Box<B> {
 
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
         (**self).send(request)
+    }
+
+    fn stream(
+        &mut self,
+        request: &ModelRequest<'_>,
+        deltas: &mut dyn FnMut(Delta),
+        cancel: &AtomicBool,
+    ) -> Result<ModelReply> {
+        (**self).stream(request, deltas, cancel)
     }
 
     fn count_prompt_tokens(&mut self, request: &ModelRequest<'_>) -> Result<Option<u64>> {
@@ -153,11 +172,19 @@ impl<B: ModelBackend> ModelBackend for Recording<B> {
 
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
         let reply = self.inner.send(request)?;
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.path)?;
-        writeln!(file, "{}", serde_json::to_string(&reply)?)?;
+        self.append(&reply)?;
+        Ok(reply)
+    }
+
+    fn stream(
+        &mut self,
+        request: &ModelRequest<'_>,
+        deltas: &mut dyn FnMut(Delta),
+        cancel: &AtomicBool,
+    ) -> Result<ModelReply> {
+        // A stopped reply is recorded too: its replay stops where it did.
+        let reply = self.inner.stream(request, deltas, cancel)?;
+        self.append(&reply)?;
         Ok(reply)
     }
 

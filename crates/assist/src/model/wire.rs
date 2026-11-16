@@ -1,7 +1,9 @@
-//! The HTTP seam under the backends: one JSON POST in, one JSON value out.
-//! [`HttpWire`] is the only code that holds a key at request time. It
-//! follows no redirects (a redirect could carry the key elsewhere), bounds
-//! the response, and removes the key from everything it returns.
+//! The HTTP seam under the backends: one JSON POST in, one JSON value out,
+//! or a stream of server-sent events. [`HttpWire`] is the only code that
+//! holds a key at request time. It follows no redirects (a redirect could
+//! carry the key elsewhere), bounds the response, and removes the key from
+//! everything it returns.
+use super::stream::{self, SseEvent, Streamed};
 use super::{Endpoint, Secret};
 use crate::{Error, Result};
 use serde_json::Value;
@@ -31,6 +33,22 @@ pub trait Wire {
         body: &Value,
         timeout: Duration,
     ) -> Result<Value>;
+    /// POST `body` and read the reply as server-sent events, giving each to
+    /// `on` until the stream ends or `on` answers false; a server that
+    /// answers with one JSON reply instead gives [`Streamed::Whole`].
+    fn post_stream(
+        &mut self,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &Value,
+        timeout: Duration,
+        on: &mut dyn FnMut(SseEvent) -> Result<bool>,
+    ) -> Result<Streamed>;
+    /// `value` without the key, for a reply put together from many events:
+    /// a key split across two of them is whole again here.
+    fn clean_value(&self, value: Value) -> Value {
+        value
+    }
 }
 
 /// The real thing, over ureq.
@@ -89,6 +107,80 @@ impl Wire for HttpWire {
         body: &Value,
         timeout: Duration,
     ) -> Result<Value> {
+        let mut response = self.send(path, headers, body, timeout)?;
+        let text = self.read_text(&mut response)?;
+        reply_value(&text)
+    }
+
+    fn post_stream(
+        &mut self,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &Value,
+        timeout: Duration,
+        on: &mut dyn FnMut(SseEvent) -> Result<bool>,
+    ) -> Result<Streamed> {
+        let mut response = self.send(path, headers, body, timeout)?;
+        let events = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.contains("text/event-stream"));
+        if !events {
+            // Not a stream: one reply, or events under another type.
+            let text = self.read_text(&mut response)?;
+            return match serde_json::from_str::<Value>(&text) {
+                Ok(value) => Ok(Streamed::Whole(value)),
+                Err(_) => {
+                    let stopped =
+                        stream::read_sse(&mut text.as_bytes(), &|line| line.to_owned(), on)?;
+                    Ok(if stopped {
+                        Streamed::Stopped
+                    } else {
+                        Streamed::Done
+                    })
+                }
+            };
+        }
+        let reader = response
+            .body_mut()
+            .with_config()
+            .limit(MAX_RESPONSE_BYTES)
+            .reader();
+        let mut reader = std::io::BufReader::new(reader);
+        let clean = |line: &str| self.clean(line);
+        // Dropping the reader on a stop closes the connection.
+        let stopped = stream::read_sse(&mut reader, &clean, on)
+            .map_err(|e| Error::Http(self.clean(&e.to_string())))?;
+        Ok(if stopped {
+            Streamed::Stopped
+        } else {
+            Streamed::Done
+        })
+    }
+
+    fn clean_value(&self, value: Value) -> Value {
+        let Some(key) = &self.key else {
+            return value;
+        };
+        let text = value.to_string();
+        let cleaned = key.redact(&text);
+        if cleaned == text {
+            return value;
+        }
+        serde_json::from_str(&cleaned).unwrap_or(value)
+    }
+}
+
+impl HttpWire {
+    /// Send one POST: the response with a success status, or the error.
+    fn send(
+        &mut self,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &Value,
+        timeout: Duration,
+    ) -> Result<ureq::http::Response<ureq::Body>> {
         let url = format!("{}{path}", self.endpoint.base());
         let mut request = self
             .agent
@@ -118,23 +210,33 @@ impl Wire for HttpWire {
                 message: "the endpoint redirected the request; give the final URL".into(),
             });
         }
+        if status >= 400 {
+            let text = self.read_text(&mut response)?;
+            let value = serde_json::from_str::<Value>(&text);
+            return Err(Error::Api {
+                status,
+                message: error_message(value.as_ref().ok(), &text),
+            });
+        }
+        Ok(response)
+    }
+
+    /// The whole body as text, bounded, without the key: a server that
+    /// echoes the key cannot put it in a log or a recording.
+    fn read_text(&self, response: &mut ureq::http::Response<ureq::Body>) -> Result<String> {
         let text = response
             .body_mut()
             .with_config()
             .limit(MAX_RESPONSE_BYTES)
             .read_to_string()
             .map_err(|e| Error::Http(self.clean(&e.to_string())))?;
-        // A server that echoes the key cannot put it in a log or a recording.
-        let text = self.clean(&text);
-        let value = serde_json::from_str::<Value>(&text);
-        if status >= 400 {
-            return Err(Error::Api {
-                status,
-                message: error_message(value.as_ref().ok(), &text),
-            });
-        }
-        value.map_err(|e| Error::Protocol(format!("the reply is not JSON: {e}")))
+        Ok(self.clean(&text))
     }
+}
+
+fn reply_value(text: &str) -> Result<Value> {
+    serde_json::from_str::<Value>(text)
+        .map_err(|e| Error::Protocol(format!("the reply is not JSON: {e}")))
 }
 
 /// The message of an error body, in any of the common shapes.
@@ -211,6 +313,29 @@ impl Wire for ScriptedWire {
         self.replies
             .pop_front()
             .unwrap_or_else(|| Err(Error::Http("the recording has no more responses".into())))
+    }
+
+    /// A scripted reply that is a string is an event stream; anything else
+    /// is a whole reply.
+    fn post_stream(
+        &mut self,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &Value,
+        timeout: Duration,
+        on: &mut dyn FnMut(SseEvent) -> Result<bool>,
+    ) -> Result<Streamed> {
+        match self.post(path, headers, body, timeout)? {
+            Value::String(events) => {
+                let stopped = stream::read_sse(&mut events.as_bytes(), &|l| l.to_owned(), on)?;
+                Ok(if stopped {
+                    Streamed::Stopped
+                } else {
+                    Streamed::Done
+                })
+            }
+            whole => Ok(Streamed::Whole(whole)),
+        }
     }
 }
 
@@ -349,5 +474,82 @@ mod tests {
         let v = json!({"error": {"message": "too long", "type": "invalid"}});
         assert_eq!(error_message(Some(&v), ""), "invalid: too long");
         assert_eq!(error_message(None, " bad gateway "), "bad gateway");
+    }
+
+    fn stream_of(wire: &mut HttpWire) -> Result<(Streamed, Vec<String>)> {
+        let mut seen = Vec::new();
+        let streamed = wire.post_stream("/s", &[], &json!({}), LONG, &mut |e| {
+            seen.push(e.data);
+            Ok(true)
+        })?;
+        Ok((streamed, seen))
+    }
+
+    #[test]
+    fn a_real_stream_is_read_event_by_event_without_the_key() -> Result<()> {
+        let events = "data: one sk-secret-4\n\ndata: two\n\n";
+        let (base, handle) = server(format!(
+            "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\n{events}"
+        ))?;
+        let mut wire = HttpWire::new(
+            Endpoint::parse(&base)?,
+            Secret::new("sk-secret-4"),
+            AuthStyle::Bearer,
+        )?;
+        let (streamed, seen) = stream_of(&mut wire)?;
+        assert_eq!(streamed, Streamed::Done);
+        assert_eq!(seen, vec!["one [redacted]", "two"]);
+        let _ = handle.join();
+        // A server that answers with one JSON reply instead.
+        let (base, handle) = server(http("200 OK", r#"{"whole": true}"#))?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+        let (streamed, seen) = stream_of(&mut wire)?;
+        assert_eq!(streamed, Streamed::Whole(json!({"whole": true})));
+        assert!(seen.is_empty());
+        let _ = handle.join();
+        // An error status is an error before any event.
+        let (base, handle) = server(http("429 Too Many Requests", r#"{"error": "slow down"}"#))?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+        let error = stream_of(&mut wire).err();
+        assert!(
+            matches!(error, Some(Error::Api { status: 429, .. })),
+            "{error:?}"
+        );
+        let _ = handle.join();
+        Ok(())
+    }
+
+    #[test]
+    fn stop_between_chunks_does_not_wait_for_the_rest() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0")?;
+        let base = format!("http://{}", listener.local_addr()?);
+        let (go_on, wait) = std::sync::mpsc::channel::<()>();
+        let handle = std::thread::spawn(move || {
+            let Ok((mut stream, _)) = listener.accept() else {
+                return;
+            };
+            let mut chunk = [0u8; 8192];
+            let _ = stream.read(&mut chunk);
+            let _ = stream.write_all(
+                b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\ndata: first\n\n",
+            );
+            let _ = stream.flush();
+            // The rest only comes once the test is done, or never.
+            let _ = wait.recv_timeout(Duration::from_secs(20));
+            let _ = stream.write_all(b"data: second\n\n");
+        });
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, None, AuthStyle::Bearer)?;
+        let started = std::time::Instant::now();
+        let mut seen = Vec::new();
+        let streamed = wire.post_stream("/s", &[], &json!({}), LONG, &mut |e| {
+            seen.push(e.data);
+            Ok(false)
+        })?;
+        assert_eq!(streamed, Streamed::Stopped);
+        assert_eq!(seen, vec!["first"]);
+        assert!(started.elapsed() < Duration::from_secs(10));
+        let _ = go_on.send(());
+        let _ = handle.join();
+        Ok(())
     }
 }

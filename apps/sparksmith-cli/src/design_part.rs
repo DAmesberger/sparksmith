@@ -18,7 +18,7 @@ use sparksmith_assist::model::{
     Provider, Secret, keys,
 };
 use sparksmith_assist::profile as run_profile;
-use sparksmith_assist::{AssistLibrary, Datasheet, Event, Goal, RunConfig};
+use sparksmith_assist::{AssistLibrary, CallState, Datasheet, Event, Goal, RunConfig};
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::io::Read as _;
 use std::path::PathBuf;
@@ -246,13 +246,32 @@ fn print_event(event: Event) {
                 "response {n}: {stop_reason}; {output_tokens} output tokens in {seconds:.0} s"
             );
         }
-        Event::Tool { name, error, step } => {
-            let status = if error { "refused" } else { "ok" };
-            eprintln!(
-                "  {name}: {status}{}",
-                step.map(|s| format!(" — {s}")).unwrap_or_default()
-            );
-        }
+        Event::Call {
+            name,
+            state: CallState::Done { step, .. },
+            ..
+        } => eprintln!(
+            "  {name}: ok{}",
+            step.map(|s| format!(" — {s}")).unwrap_or_default()
+        ),
+        Event::Call {
+            name,
+            state: CallState::Refused { .. },
+            ..
+        } => eprintln!("  {name}: refused"),
+        Event::Call {
+            name,
+            state: CallState::NotRun { why },
+            ..
+        } => eprintln!("  {name}: not run ({why})"),
+        // Lines, not pieces as they arrive.
+        Event::TextDelta(_)
+        | Event::ReasoningDelta(_)
+        | Event::Usage(_)
+        | Event::Call {
+            state: CallState::Writing | CallState::Running { .. },
+            ..
+        } => {}
         Event::Text(text) => {
             let line: String = text.chars().take(200).collect();
             eprintln!("  model: {line}");
