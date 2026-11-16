@@ -28,7 +28,7 @@ use sparksmith_automation::Session;
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button, type_face};
 use std::collections::HashSet;
-use worker::{ChatModel, Job, ToolRequest};
+use worker::{ChatModel, Job, RunJob, ToolRequest};
 
 /// The column's narrowest and widest, and its width before the person drags
 /// it (points).
@@ -89,6 +89,14 @@ pub struct Held {
     pub question: sparksmith_automation::Question,
 }
 
+/// A workflow run that ended: Undo run takes it back while the document
+/// still stands at `after` and its step is the one Undo would take.
+pub struct RunDone {
+    pub run: String,
+    pub label: String,
+    pub after: u64,
+}
+
 /// What the column shows that the window knows.
 pub struct Now {
     /// The project's revision.
@@ -109,6 +117,13 @@ pub struct Assistant {
     /// What the model has been sent and answered, for the next turn.
     pub history: Vec<Message>,
     pub job: Option<Job>,
+    /// The workflow run going on in the conversation.
+    pub run: Option<RunJob>,
+    /// Runs that ended, for their result cards' Undo run.
+    pub runs: Vec<RunDone>,
+    /// What the model is told with the person's next message: a workflow
+    /// card declined (Just chat), a run's result.
+    pub notes: Vec<String>,
     pub turn: Option<OpenTurn>,
     pub held: Option<Held>,
     /// The session the chat's calls run in, over the window's engine; it
@@ -137,6 +152,9 @@ impl Default for Assistant {
             conversation: Conversation::default(),
             history: Vec::new(),
             job: None,
+            run: None,
+            runs: Vec::new(),
+            notes: Vec::new(),
             turn: None,
             held: None,
             session: Session::lending(),
@@ -179,11 +197,15 @@ impl Assistant {
         egui::Id::unique("assistant-composer")
     }
 
-    /// Stop the turn running: the model stops between chunks or calls, and
-    /// a call waiting for the person is given up.
+    /// Stop the turn or run going on: the model stops between chunks or
+    /// calls, a run at its next step boundary, and a call waiting for the
+    /// person is given up.
     pub fn stop(&mut self) {
         if let Some(job) = &self.job {
             job.stop();
+        }
+        if let Some(run) = &self.run {
+            run.stop();
         }
         if let Some(held) = self.held.take()
             && let Some(card) = self.conversation.ask_mut(held.ask)
@@ -197,6 +219,9 @@ impl Assistant {
     pub fn document_opened(&mut self) {
         self.stop();
         self.job = None;
+        self.run = None;
+        self.runs.clear();
+        self.notes.clear();
         self.turn = None;
         self.conversation = Conversation::default();
         self.history.clear();
@@ -696,45 +721,46 @@ fn rich(
     ui.add(egui::Label::new(job).wrap().selectable(true));
 }
 
-/// An Ask card: what the assistant wants to do; Allow once, for this
-/// session or always, or Deny.
+/// An Ask card: what the assistant wants to do, drawn with the impact
+/// card's ask mode (one look for every question); Allow once, for this
+/// session or always, or Deny. Enter allows once and Esc denies while it
+/// waits.
 fn ask(ui: &mut Ui, card: &AskCard, actions: &mut Vec<Action>) {
-    let t = Tokens::get();
-    card_frame(ui, |ui| {
-        ui.label(
-            egui::RichText::new(format!("Allow: {}?", card.command))
-                .font(type_face::semibold(t.font_body))
-                .color(t.text),
-        );
-        for path in &card.paths {
-            kit::value_row(ui, "Path", path);
-        }
-        kit::note(ui, &card.why);
-        let Some(answer) = card.answer else {
-            let mut answer = |allow| {
-                actions.push(Action::Answer { id: card.id, allow });
-            };
-            // Primary last, at the right: right to left.
-            kit::actions(ui, |ui| {
-                if kit::primary(ui, "Allow once", true).clicked() {
-                    answer(Allow::Once);
-                }
-                if ui_kit::button(ui, "Deny", Button::Enabled(true)).clicked() {
-                    answer(Allow::Deny);
-                }
-            });
-            kit::actions(ui, |ui| {
-                if ui_kit::button(ui, "Always allow", Button::Enabled(true)).clicked() {
-                    answer(Allow::Always);
-                }
-                if ui_kit::button(ui, "Allow for this session", Button::Enabled(true)).clicked() {
-                    answer(Allow::Session);
-                }
-            });
-            return;
-        };
-        kit::note(ui, answer.said());
-    });
+    use sparksmith_ui::chat_cards as cards;
+    let title = format!("Allow: {}?", card.command);
+    if let Some(answer) = card.answer {
+        cards::card(ui, &title, "", |ui| cards::note(ui, answer.said()));
+        return;
+    }
+    let lines: Vec<String> = card
+        .paths
+        .iter()
+        .map(|path| format!("Path: {path}"))
+        .chain(std::iter::once(card.why.clone()))
+        .collect();
+    let findings: Vec<cards::FindingRow<'_>> = lines
+        .iter()
+        .map(|message| cards::FindingRow {
+            blocking: false,
+            message,
+        })
+        .collect();
+    let view = cards::Impact {
+        title: &title,
+        gate: cards::Gate::Ask,
+        counts: &[],
+        findings: &findings,
+        rows: &[],
+    };
+    let id = egui::Id::unique(("assistant-ask", card.id));
+    let allow = match cards::impact(ui, id, &view, &mut Vec::new(), true) {
+        Some(cards::GateChoice::AllowOnce) => Allow::Once,
+        Some(cards::GateChoice::AllowForSession) => Allow::Session,
+        Some(cards::GateChoice::AlwaysAllow) => Allow::Always,
+        Some(cards::GateChoice::Deny) => Allow::Deny,
+        _ => return,
+    };
+    actions.push(Action::Answer { id: card.id, allow });
 }
 
 /// The card at the end of a turn.

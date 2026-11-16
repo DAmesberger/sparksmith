@@ -170,9 +170,12 @@ pub fn offered_on<'a>(listed: &'a [Listed], signal: &Signal) -> Vec<&'a super::L
     found
 }
 
+/// A PDF's media type: a datasheet's.
+pub const PDF: &str = "application/pdf";
+
 /// The media type of a dropped or attached file, from its first bytes:
 /// only the types a workflow can ask for are known. A name's extension is
 /// never trusted on its own.
 pub fn media_type(head: &[u8]) -> Option<&'static str> {
-    head.starts_with(b"%PDF-").then_some("application/pdf")
+    head.starts_with(b"%PDF-").then_some(PDF)
 }

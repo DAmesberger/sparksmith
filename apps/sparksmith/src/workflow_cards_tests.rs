@@ -643,6 +643,44 @@ fn impact_and_result_cards_answer_the_run() -> Fallible {
     Ok(())
 }
 
+/// Continue on a notify card keeps the model's choice: the run goes on.
+#[test]
+fn a_notify_card_continues_with_the_models_choice() -> Fallible {
+    for size in SIZES {
+        let mut chat = Chat::new(size)?;
+        started(&mut chat);
+        card(
+            &mut chat,
+            "pick",
+            ControlCard::Choice {
+                field: field("pick", "Generator", false),
+                multiple: false,
+                options: vec![sparksmith_assist::workflow::control::Choice {
+                    value: "sot-23".into(),
+                    title: "SOT-23".into(),
+                }],
+                value: vec!["sot-23".into()],
+            },
+        );
+        chat.settle();
+        chat.click(Role::Button, "Continue")?;
+        assert_eq!(
+            chat.actions,
+            [CardAction::Answer {
+                run: "run-1".into(),
+                step: "pick".into(),
+                answer: ControlAnswer::Change {
+                    value: json!("sot-23")
+                }
+            }]
+        );
+        chat.settle();
+        assert!(chat.find(Role::Button, "Continue").is_err());
+        assert!(chat.has("Kept"), "{:?}", chat.names());
+    }
+    Ok(())
+}
+
 /// A notify card shows the model's choice; Change answers with another.
 #[test]
 fn a_notify_card_changes_the_choice() -> Fallible {

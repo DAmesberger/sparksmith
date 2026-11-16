@@ -14,6 +14,10 @@
 //! Allow or Deny. When the turn ends it is closed (`project.turn_end`) and
 //! a summary card says what changed between the document before and after
 //! it (`sparksmith_automation::session::difference`).
+//!
+//! A workflow run's calls come here the same way
+//! (`app/assistant_run.rs`): under the run's grant and in the run's turn
+//! instead of the message's.
 use super::App;
 use crate::assistant::worker::{self, ChatModel, FromTurn, ToolRequest};
 use crate::assistant::{
@@ -22,9 +26,9 @@ use crate::assistant::{
 use crate::kit::severity::Level;
 use serde_json::{Value, json};
 use sparksmith_assist::chat::{self, ChatConfig, End, Outcome, ReachProfile};
+use sparksmith_assist::desk::{self, Called};
 use sparksmith_assist::model::{Budget, Connection, KeySource, Message, Part, Provider, keys};
 use sparksmith_assist::settings::{self as ai, AssistSettings, Permissions, Rule, Shipped};
-use sparksmith_assist::verbs::Agent;
 use sparksmith_automation::front::{self, Answer, Asker, Call, CallCx, NoOne, Surface};
 use sparksmith_automation::{Grant, Principal, Question, WindowHost};
 use sparksmith_ui::theme::Tokens;
@@ -162,7 +166,7 @@ pub(super) fn turn_label(text: &str) -> String {
 impl App {
     /// The chat's grant and reach: the shipped reach profile, with the
     /// open project's folder the only one a path may name.
-    fn chat_grant(&mut self) -> Result<(Grant, ReachProfile), String> {
+    pub(super) fn chat_grant(&mut self) -> Result<(Grant, ReachProfile), String> {
         let reach = self.assistant.library()?.reach.clone();
         let mut grant = reach.grant();
         grant.folders = self
@@ -181,7 +185,7 @@ impl App {
     /// person set any (none by default: no per-turn caps), and its rules
     /// per kind of action. A key comes from the keychain for the endpoint,
     /// else for Anthropic `ANTHROPIC_API_KEY`.
-    fn chat_model(&mut self) -> Result<(ChatModel, Budget, Permissions), String> {
+    pub(super) fn chat_model(&mut self) -> Result<(ChatModel, Budget, Permissions), String> {
         if let Some(model) = &self.assistant.model {
             let shipped = Shipped::locate().map_err(|e| e.to_string())?;
             return Ok((model.clone(), chat::unbounded(), shipped.permissions));
@@ -326,7 +330,10 @@ impl App {
     /// Send the composer's message: read what the window shows, open the
     /// message's turn and start the model on it.
     fn assistant_send(&mut self, ctx: &egui::Context) {
-        if self.assistant.job.is_some() || self.assistant.conversation.state.busy() {
+        if self.assistant.job.is_some()
+            || self.assistant.run.is_some()
+            || self.assistant.conversation.state.busy()
+        {
             return;
         }
         let text = self.assistant.composer.trim().to_owned();
@@ -403,7 +410,11 @@ impl App {
             Vec::new(),
         );
         self.assistant.composer.clear();
-        let message = vec![Part::text(format!("The window shows: {context}\n\n{text}"))];
+        // What happened in the chat since the last message: a workflow card
+        // declined, a run's result.
+        let mut said = std::mem::take(&mut self.assistant.notes);
+        said.push(format!("The window shows: {context}\n\n{text}"));
+        let message = vec![Part::text(said.join("\n\n"))];
         let config = ChatConfig::new(&library, model.profile.clone(), budget);
         let history = std::mem::take(&mut self.assistant.history);
         let wake = ctx.clone();
@@ -456,21 +467,33 @@ impl App {
         ctx.request_repaint();
     }
 
-    /// Run one of the turn's tool calls on the window's engine, in the
-    /// turn, and answer it, or hold it as an Ask card when the gate asks.
-    /// `allowed`: the person allowed it on its card.
-    fn run_chat_call(&mut self, ctx: &egui::Context, request: ToolRequest, allowed: bool) {
-        let Some(turn) = self.assistant.turn.as_ref().map(|t| t.id.clone()) else {
-            return;
-        };
-        let (mut grant, reach) = match self.chat_grant() {
+    /// Run one of the turn's (or a workflow run's) tool calls on the
+    /// window's engine, in its turn, and answer it, or hold it as an Ask
+    /// card when the gate asks. `allowed`: the person allowed it on its
+    /// card.
+    pub(super) fn run_chat_call(
+        &mut self,
+        ctx: &egui::Context,
+        request: ToolRequest,
+        allowed: bool,
+    ) {
+        let (chat_grant, reach) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {
-                let _ = request.reply.send(
+                let _ = request.reply.send(Called::refused(
                     json!({"ok": false, "error": {"code": "chat.unavailable", "message": why}}),
-                );
+                ));
                 return;
             }
+        };
+        // A run's call runs under the run's grant, in the run's turn; the
+        // chat's in the message's turn.
+        let (turn, mut grant) = match &request.run {
+            Some(run) => (run.turn.clone(), run.grant.clone()),
+            None => match self.assistant.turn.as_ref() {
+                Some(turn) => (Some(turn.id.clone()), chat_grant),
+                None => return,
+            },
         };
         let permissions = self.assistant.permissions.unwrap_or(Permissions {
             edits: Rule::Always,
@@ -491,9 +514,9 @@ impl App {
             match permissions.view {
                 Rule::Always => {}
                 Rule::Deny => {
-                    let _ = request.reply.send(json!({"ok": false, "error": {
+                    let _ = request.reply.send(Called::refused(json!({"ok": false, "error": {
                         "code": "gate.denied",
-                        "message": "The person does not let the assistant move their view (Settings › AI). Nothing was changed."}}));
+                        "message": "The person does not let the assistant move their view (Settings › AI). Nothing was changed."}})));
                     return;
                 }
                 Rule::Ask | Rule::Session => {
@@ -523,15 +546,36 @@ impl App {
             grant.mode = sparksmith_automation::Mode::AskEveryTime;
         }
         let (mut window, engine, assistant) = self.window_for_assistant(busy);
+        let entry = request.run.as_ref().is_some_and(|run| run.entry);
         let reply = assistant.session.lend(engine, path.as_deref(), |session| {
-            Agent {
-                session,
-                grant: &grant,
-                window: Some(&mut window),
-                turn: Some(&turn),
-                asker: &mut asker,
+            let input = request.input.clone();
+            if entry {
+                let before = session.engine().revision();
+                let envelope = desk::call_on(
+                    session,
+                    &grant,
+                    turn.as_deref(),
+                    Some(&mut window),
+                    &mut asker,
+                    &request.verb,
+                    input,
+                );
+                Called {
+                    envelope,
+                    before,
+                    after: session.engine().revision(),
+                }
+            } else {
+                desk::verb_on(
+                    session,
+                    &grant,
+                    turn.as_deref(),
+                    Some(&mut window),
+                    &mut asker,
+                    &request.verb,
+                    input,
+                )
             }
-            .verb(&request.verb, request.input.clone())
         });
         match asker.question {
             Some(question) if !allowed => self.hold(request, question),
@@ -591,9 +635,9 @@ impl App {
             let _ = held
                 .request
                 .reply
-                .send(sparksmith_automation::gate::failure(
+                .send(Called::refused(sparksmith_automation::gate::failure(
                     &held.question.denied(),
-                ));
+                )));
         }
     }
 

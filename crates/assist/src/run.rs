@@ -8,6 +8,7 @@
 //! ([`converse`]) runs each model step of a workflow
 //! ([`crate::workflow::runner`]), which ends when `assist.step_result`
 //! accepts the step's answer.
+use crate::desk::{self, Called, Desk};
 use crate::documents::{self, Prepared};
 use crate::model::{
     Budget, Delta, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role,
@@ -16,11 +17,10 @@ use crate::model::{
 use crate::profile::{AssistLibrary, ReachProfile, RunProfile};
 use crate::report::{self, RequestFacts, ReviewReport, RunFacts};
 use crate::usage::Tally;
-use crate::verbs::{self, Agent};
+use crate::verbs;
 use crate::workflow::control::Gauge;
 use crate::{CallState, Error, Event, Goal, Meter, Outcome, Result, Stop, legacy};
 use serde_json::{Value, json};
-use sparksmith_automation::front::NoOne;
 use sparksmith_automation::session::assist::Documents;
 use sparksmith_automation::{Grant, Session};
 use std::collections::HashMap;
@@ -126,7 +126,8 @@ pub(crate) enum Finished {
 
 /// What tools act on during a run.
 pub(crate) struct ToolContext<'a> {
-    pub(crate) session: &'a mut Session,
+    /// Where the calls run: the run's own session, or the window's.
+    pub(crate) desk: &'a mut dyn Desk,
     pub(crate) grant: Grant,
     /// The open turn every call joins (a workflow run's).
     pub(crate) turn: Option<String>,
@@ -163,7 +164,11 @@ fn dispatch_tool_call(
         (name, input.clone(), label(name, input))
     } else {
         let translated = if context.legacy {
-            legacy::translate(context.session, name, input)
+            let (name, input) = (name.to_owned(), input.clone());
+            desk::with(context.desk, move |session| {
+                legacy::translate(session, &name, &input)
+            })
+            .flatten()
         } else {
             None
         };
@@ -173,14 +178,16 @@ fn dispatch_tool_call(
                 return (name.to_owned(), reply(json!({"refused": why}), true, None));
             }
             None => {
-                let refused = agent(context, &mut NoOne).verb(name, input.clone());
+                let refused = verb_call(context, name, input.clone()).envelope;
                 return (name.to_owned(), reply(refused["error"].clone(), true, None));
             }
         }
     };
-    let before = context.session.engine().revision();
-    let answer = agent(context, &mut NoOne).verb(verb, arguments.clone());
-    let after = context.session.engine().revision();
+    let Called {
+        envelope: answer,
+        before,
+        after,
+    } = verb_call(context, verb, arguments.clone());
     if answer["ok"] != true {
         return (label, reply(answer["error"].clone(), true, None));
     }
@@ -236,14 +243,10 @@ fn dispatch_tool_call(
     (label, reply(result, false, step))
 }
 
-fn agent<'a>(context: &'a mut ToolContext<'_>, asker: &'a mut NoOne) -> Agent<'a> {
-    Agent {
-        session: context.session,
-        grant: &context.grant,
-        turn: context.turn.as_deref(),
-        window: None,
-        asker,
-    }
+fn verb_call(context: &mut ToolContext<'_>, verb: &str, input: Value) -> Called {
+    context
+        .desk
+        .verb(&context.grant, context.turn.as_deref(), verb, input)
 }
 
 /// How the run log names a verb call: the verb and the entries it names.
@@ -452,7 +455,7 @@ pub fn run(
     let lent: Box<dyn Documents> = Box::new(std::mem::take(&mut prepared.pages));
     let attached = session.attach_documents(Some(lent));
     let mut context = ToolContext {
-        session,
+        desk: &mut *session,
         grant: config.reach.grant(),
         turn: None,
         legacy: backend.legacy_tools(),
@@ -489,7 +492,7 @@ pub fn run(
     };
     facts.elapsed_seconds = started.elapsed().as_secs_f64();
     facts.documents = std::mem::take(&mut context.facts);
-    let session = context.session;
+    drop(context);
     session.attach_documents(attached);
     report::finish_facts(&mut facts, &tally, &stop, session);
     Ok(Outcome {

@@ -8,6 +8,10 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+# Fixtures for the tests of the crates above (never in the product).
+test-fixtures = []
+
 [dependencies]
 sparksmith-core.workspace = true
 sparksmith-automation.workspace = true

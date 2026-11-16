@@ -551,53 +551,7 @@ fn render_page(bytes: Arc<Vec<u8>>, page: u32) -> std::result::Result<RenderedPn
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-
-    /// A valid PDF, written by hand, with one page per text and a known size
-    /// (612 × 792 points); a page with empty text has none.
-    pub(crate) fn text_pdf(pages: &[&str]) -> Vec<u8> {
-        let mut objects: Vec<String> = Vec::new();
-        let n = pages.len();
-        let kids: Vec<String> = (0..n).map(|k| format!("{} 0 R", 4 + 2 * k)).collect();
-        objects.push("<< /Type /Catalog /Pages 2 0 R >>".into());
-        objects.push(format!(
-            "<< /Type /Pages /Kids [{}] /Count {n} >>",
-            kids.join(" ")
-        ));
-        objects.push("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into());
-        for (k, text) in pages.iter().enumerate() {
-            objects.push(format!(
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {} 0 R /Resources << /Font << /F1 3 0 R >> >> >>",
-                5 + 2 * k
-            ));
-            let stream = if text.is_empty() {
-                // A filled square, so a drawing-only page renders something.
-                "0 0 0 rg 100 100 200 200 re f".to_owned()
-            } else {
-                format!("BT /F1 12 Tf 72 700 Td ({text}) Tj ET")
-            };
-            objects.push(format!(
-                "<< /Length {} >>\nstream\n{stream}\nendstream",
-                stream.len()
-            ));
-        }
-        let mut out = b"%PDF-1.4\n".to_vec();
-        let mut offsets = Vec::new();
-        for (k, object) in objects.iter().enumerate() {
-            offsets.push(out.len());
-            out.extend_from_slice(format!("{} 0 obj\n{object}\nendobj\n", k + 1).as_bytes());
-        }
-        let xref = out.len();
-        let count = objects.len() + 1;
-        out.extend_from_slice(format!("xref\n0 {count}\n0000000000 65535 f \n").as_bytes());
-        for offset in offsets {
-            out.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
-        }
-        out.extend_from_slice(
-            format!("trailer\n<< /Size {count} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n")
-                .as_bytes(),
-        );
-        out
-    }
+    use crate::fixtures::text_pdf;
 
     fn caps(vision: bool, native_pdf: bool) -> Capabilities {
         let mut c = crate::model::ModelProfile::openai_compatible("m", 100_000).capabilities;

@@ -111,8 +111,7 @@ impl PartEditor {
                         let found = self.start_search(ui, engine);
                         let recent = self.start_recents(ui, engine).map(Chosen::Subject);
                         ui.add_space(t.space_16);
-                        let new = start_new(ui, &mut self.assist);
-                        self.assist.ui(ui);
+                        let new = start_new(ui, &mut self.datasheet_requested);
                         // The page scrolls clear of the canvas's floating
                         // navigation bar, so its last row is never under it.
                         ui.add_space(crate::navigation::bar_band());
@@ -423,9 +422,10 @@ impl PartEditor {
 }
 
 /// New from generator… (the one searchable gallery of every generator's
-/// presets and values), Create from datasheet… (opens the assistant's form
-/// below), and Import pinout….
-fn start_new(ui: &mut Ui, assist: &mut super::datasheet_assist::DatasheetAssist) -> bool {
+/// presets and values), Create from datasheet… (opens the assistant's chat
+/// on the datasheet workflow's card: `datasheet` is set), and Import
+/// pinout….
+fn start_new(ui: &mut Ui, datasheet: &mut bool) -> bool {
     kit::search_heading(ui, "New", 1);
     let mut chosen = false;
     ui.horizontal_wrapped(|ui| {
@@ -433,10 +433,10 @@ fn start_new(ui: &mut Ui, assist: &mut super::datasheet_assist::DatasheetAssist)
             .on_hover_text("Make a part with a generator: chip, SOIC, QFN, SOT, BGA, header, module…")
             .clicked();
         if ui_kit::button(ui, "Create from datasheet…", Button::Normal)
-            .on_hover_text("Draft a part from its datasheets with a model you configure: Claude or any OpenAI-compatible endpoint, local or hosted")
+            .on_hover_text("Draft a part from its datasheets in the assistant, with the model set up in Settings › AI")
             .clicked()
         {
-            assist.show();
+            *datasheet = true;
         }
         ui.add_enabled_ui(false, |ui| {
             ui_kit::button(ui, "Import pinout…", Button::Normal)
@@ -445,15 +445,6 @@ fn start_new(ui: &mut Ui, assist: &mut super::datasheet_assist::DatasheetAssist)
         .on_disabled_hover_text("Pinout import runs from the CLI or an agent for now");
     });
     chosen
-}
-
-/// [`start_new`] for the assistant's start-page test.
-#[cfg(test)]
-pub(super) fn start_new_for_tests(
-    ui: &mut Ui,
-    assist: &mut super::datasheet_assist::DatasheetAssist,
-) -> bool {
-    start_new(ui, assist)
 }
 
 /// What opening a catalog entry shows: a project lineage (a Part opens its

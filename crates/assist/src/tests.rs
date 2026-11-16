@@ -21,68 +21,7 @@ fn profiled_session() -> Session {
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// EXR-22: 8 + 6 + 8 castellated pads at 1.27 mm and a 2 × 2 ground array
-/// (terminal 23). Invented for this test.
-fn pinout() -> Value {
-    let mut pins = Vec::new();
-    for n in 1..=22u32 {
-        let (name, functions, default) = match n {
-            1 | 22 => (
-                format!("GND{n}"),
-                json!([{"label": "gnd", "direction": "power_input", "signal": "power"}]),
-                "gnd",
-            ),
-            2 => (
-                "VCC".to_owned(),
-                json!([{"label": "vcc", "direction": "power_input", "signal": "power"}]),
-                "vcc",
-            ),
-            _ => {
-                let g = n - 3;
-                let mut f = vec![
-                    json!({"label": "gpio_in", "direction": "input", "signal": "digital"}),
-                    json!({"label": "gpio_out", "direction": "output", "signal": "digital", "drive": "push_pull"}),
-                ];
-                if g == 0 {
-                    f.push(json!({"label": "uart0_tx", "direction": "output", "signal": "digital", "drive": "push_pull", "peripheral": "UART0", "role": "tx", "mux": "F1"}));
-                }
-                (format!("IO{g}"), json!(f), "gpio_in")
-            }
-        };
-        pins.push(
-            json!({"row": format!("r{n}"), "number": {"MOD": n.to_string()}, "name": name,
-            "class": "electrical", "functions": functions, "default": default,
-            "source": {"page": 3, "table": "Table 1"}}),
-        );
-    }
-    pins.push(
-        json!({"row": "r23", "number": {"MOD": "23"}, "name": "EPAD", "class": "electrical",
-        "functions": [{"label": "gnd", "direction": "power_input", "signal": "power"}],
-        "default": "gnd", "source": {"page": 9, "table": "Figure 4"}}),
-    );
-    json!({
-        "format": 1,
-        "device": {"name": "EXR-22 radio module", "reference": {"title": "EXR-22 datasheet (fictitious)", "document_revision": "1"}},
-        "variants": [{"name": "MOD", "terminal_count": 23}],
-        "peripherals": [{"label": "UART0", "kind": "uart", "roles": [{"label": "tx", "signal": "TX", "required_when_used": true}]}],
-        "pins": pins,
-        "rules": [{"label": "io0_strap", "script": "if active(\"IO0\", \"uart0_tx\") { warn(\"IO0 selects the boot mode at reset\", [\"IO0\"]) } else { ok() }", "source": {"page": 5}}],
-    })
-}
-
-fn module_values() -> Value {
-    json!({"family": "module", "width": 14.0, "length": 20.0, "height": 2.8, "pcb_thickness": 0.8,
-        "antenna_length": 5.0, "can_size": [12.0, 12.4], "can_centre": [0.0, -2.2],
-        "pitch": 1.27, "pad_size": [1.0, 0.8],
-        "rows": [
-            {"side": "left", "count": 8, "first": [-6.5, 2.2]},
-            {"side": "bottom", "count": 6, "first": [-3.175, -9.5]},
-            {"side": "right", "count": 8, "first": [6.5, 2.2 - 7.0 * 1.27]},
-        ],
-        "castellation": 0.5, "land_width": 0.8, "land_extend": [0.4, 0.0],
-        "ground": {"rows": 2, "cols": 2, "pitch": [2.0, 2.0], "size": [1.2, 1.2], "centre": [0.0, -3.0], "number": "23"},
-        "keepout": {"beyond": [0.0, 0.0, 0.0]}})
-}
+use crate::fixtures::{module_values, pinout};
 
 fn tool_turn(id: &str, name: &str, input: Value) -> Value {
     json!({"id": format!("msg_{id}"), "type": "message", "role": "assistant", "model": "claude-opus-5-5",
@@ -877,7 +816,7 @@ fn text_datasheet(dir: &tempfile::TempDir) -> Fallible<Datasheet> {
         "EXR-22 PIN TABLE {}",
         "PIN 1 GND PIN 2 VCC PIN 3 IO0 ".repeat(12)
     );
-    std::fs::write(&path, documents::tests::text_pdf(&[&table, ""]))?;
+    std::fs::write(&path, crate::fixtures::text_pdf(&[&table, ""]))?;
     Ok(Datasheet::File(path))
 }
 
