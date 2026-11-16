@@ -713,6 +713,73 @@ mod tests {
         Ok(())
     }
 
+    /// The PCBWay files are sourced and complete, and give PCBWay's
+    /// published limits: copper to an unplated hole 0.2 mm normal and
+    /// 0.15 mm minimum ("Normal" and "Min width between NP holes and
+    /// copper"), the 1 oz PTH ring 0.2 mm normal and 0.15 mm minimum, and
+    /// 2 oz its normal 0.21 mm under both. On 4 layers the inner-layer rows
+    /// hold on every layer: spacing 0.127 mm (35 µm, 5 mil) and copper to a
+    /// plated or via hole 0.1778 mm (the 4-layer isolation ring, 7 mil).
+    #[test]
+    fn the_pcbway_profiles_give_the_published_limits() -> Result<()> {
+        use sparksmith_core::rules::CopperObject::{NpthHole, Pad, PthHole, Track};
+        // (file, normal and minimum track spacing, copper to a plated hole)
+        for (name, space, space_min, pth) in [
+            ("pcbway-2-layer.json", 0.12, 0.1, 0.0),
+            ("pcbway-4-layer.json", 0.127, 0.127, 0.1778),
+        ] {
+            let text = shipped_text(name)?;
+            let p = decode(text.as_bytes())?;
+            assert_eq!(p.source.publisher, "PCBWay", "{name}");
+            assert_eq!(p.source.date, "2026-11-16", "{name}");
+            assert_eq!(decode(&encode(&p)?)?, p, "{name}");
+            assert!(p.options().iter().all(|o| !o.source.is_empty()), "{name}");
+            for option in p.options() {
+                for choice in &option.choices {
+                    let one = [(option.id.clone(), choice.id.clone())]
+                        .into_iter()
+                        .collect();
+                    let chosen = p.with_choices(&one)?;
+                    for key in sparksmith_core::rules::RuleKey::all() {
+                        let (_, source) = chosen.active(key).ok_or_else(|| {
+                            Error::Invalid(format!("{name}: {} has no entry", key.name()))
+                        })?;
+                        assert!(!source.is_empty(), "{name}: {}", key.name());
+                    }
+                }
+            }
+            let pick = |pairs: &[(&str, &str)]| {
+                p.with_choices(
+                    &pairs
+                        .iter()
+                        .map(|(o, c)| ((*o).to_owned(), (*c).to_owned()))
+                        .collect(),
+                )
+            };
+            for (r, npth, ring, gap) in [
+                (p.rules().clone(), 0.2, 0.2, space),
+                (
+                    pick(&[("limits", "minimum")])?.rules().clone(),
+                    0.15,
+                    0.15,
+                    space_min,
+                ),
+            ] {
+                let c = &r.copper.clearance;
+                assert_eq!(c.get(NpthHole, Pad), npth, "{name}");
+                assert_eq!(c.get(NpthHole, Track), npth, "{name}");
+                assert_eq!(r.holes.pth_annular_ring_min, ring, "{name}");
+                assert_eq!(c.get(Track, Track), gap, "{name}");
+                assert_eq!(c.get(PthHole, Track), pth, "{name}");
+            }
+            let heavy = pick(&[("limits", "minimum"), ("copper_weight", "2oz")])?;
+            assert_eq!(heavy.outer_copper_um(), Some(70.0), "{name}");
+            assert_eq!(heavy.rules().holes.pth_annular_ring_min, 0.21, "{name}");
+            assert_eq!(heavy.rules().copper.track_width_min, 0.13, "{name}");
+        }
+        Ok(())
+    }
+
     #[test]
     fn save_list_rename_delete_round_trip() -> Result<()> {
         let dir = tempfile::tempdir()?;
@@ -864,8 +931,8 @@ mod tests {
         Ok(())
     }
 
-    /// The two sourced JLCPCB files ship, are listed after the user's
-    /// profiles and read-only; a user profile with a shipped profile's id
+    /// The sourced JLCPCB and PCBWay files ship, are listed after the
+    /// user's profiles and read-only; a user profile with a shipped profile's id
     /// takes its place in the listing and in `get`. The shipped default is
     /// data.
     #[test]
@@ -875,9 +942,17 @@ mod tests {
         let all = library.builtins()?;
         assert_eq!(
             all.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(),
-            ["jlcpcb-2-layer", "jlcpcb-4-layer"]
+            [
+                "jlcpcb-2-layer",
+                "jlcpcb-4-layer",
+                "pcbway-2-layer",
+                "pcbway-4-layer"
+            ]
         );
-        assert!(all.iter().all(|p| p.source.publisher == "JLCPCB"));
+        assert!(
+            all.iter()
+                .all(|p| ["JLCPCB", "PCBWay"].contains(&p.source.publisher.as_str()))
+        );
         let default = library.default_id()?;
         assert_eq!(default, "jlcpcb-2-layer");
         let default = default.as_str();
@@ -888,7 +963,7 @@ mod tests {
         assert!(!library.dir().exists());
         // A saved copy is the user's own.
         let copy = library.save_as(&jlcpcb()?, "JLCPCB copy")?;
-        assert_eq!(library.list()?.builtins.len(), 2);
+        assert_eq!(library.list()?.builtins.len(), 4);
         assert_eq!(library.list()?.profiles, vec![copy]);
         // An import of the same file keeps its id and replaces the shipped one.
         let mut edited = jlcpcb()?;
@@ -903,7 +978,7 @@ mod tests {
                 .iter()
                 .map(|p| p.id.as_str())
                 .collect::<Vec<_>>(),
-            ["jlcpcb-4-layer"]
+            ["jlcpcb-4-layer", "pcbway-2-layer", "pcbway-4-layer"]
         );
         assert_eq!(library.get(default)?.name, "JLCPCB house rules");
         // Deleting the user's copy brings the shipped one back.
