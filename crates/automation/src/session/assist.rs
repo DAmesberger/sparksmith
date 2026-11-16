@@ -417,7 +417,7 @@ impl Session {
             apply_inputs(&working, &params).map_err(|why| refused("assist.pinout_apply", why))?;
         let accept = params
             .accept
-            .map(|accept| serde_json::to_value(accept))
+            .map(serde_json::to_value)
             .transpose()?
             .unwrap_or_else(|| json!({"accept": "all"}));
         let operation: Operation = serde_json::from_value(json!({
