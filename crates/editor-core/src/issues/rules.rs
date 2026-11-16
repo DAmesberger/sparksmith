@@ -11,10 +11,18 @@ use std::collections::BTreeSet;
 /// as a finding.
 pub(super) const NO_PART: &str = "purchasing.no_part";
 pub(super) const CHECK_FAILED: &str = "instance.check_failed";
+/// A package terminal no mapping carries: a to-do even though it blocks
+/// publishing ([`severity`]).
+pub(super) const UNMAPPED_PACKAGE_TERMINAL: &str = "binding.mapping_missing";
 
 /// How severe a finding is. Anything that blocks a stage is an error, so a
-/// publish blocker is always red and always counted.
+/// publish blocker is always red and always counted, except a package
+/// terminal not mapped yet: after a package change it is the next step of
+/// the work, a counted to-do that still blocks publishing.
 pub(super) fn severity(finding: &Finding) -> Severity {
+    if finding.code == UNMAPPED_PACKAGE_TERMINAL {
+        return Severity::ToDo;
+    }
     if finding.blocks.is_some() {
         return Severity::Error;
     }
@@ -166,6 +174,7 @@ pub fn group_title(code: &str) -> String {
         "component.mapping_missing" => "Unmapped terminals",
         "component.pin_missing" => "Terminals without a pin",
         "binding.mapping_missing" => "Unmapped package terminals",
+        "binding.mapping_duplicate" => "Package terminals mapped twice",
         "binding.mapping_retained" => "Mappings kept by position",
         "binding.footprint_unbound" => "Footprint not listed in a binding",
         "footprint.courtyard_missing" => "No courtyard",
@@ -276,7 +285,7 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         }
         "footprint.terminal_required" => "Assign the pad a package terminal, or make it mechanical",
         "footprint.terminal_without_pad" => "Assign a pad to the package terminal",
-        "component.mapping_missing" | "binding.mapping_missing" => {
+        "component.mapping_missing" | "binding.mapping_missing" | "binding.mapping_duplicate" => {
             "Map the terminal on the Mapping tab"
         }
         "component.pin_missing" => "Add a pin for the terminal on the Symbol tab",
@@ -511,6 +520,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "binding.footprint_count",
     "binding.footprint_package",
     "binding.footprint_unbound",
+    "binding.mapping_duplicate",
     "binding.mapping_missing",
     "binding.mapping_retained",
     "binding.mapping_unknown",

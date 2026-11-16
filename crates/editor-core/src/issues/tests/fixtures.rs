@@ -85,7 +85,7 @@ fn well_formed(engine: &Engine) -> Fallible<IssueReport> {
         for text in [&row.detail.cause, &row.detail.fix].into_iter().flatten() {
             assert_eq!(naming(text), Vec::<Problem>::new(), "{text}");
         }
-        if row.blocks().is_some() {
+        if row.blocks().is_some() && row.group.code != rules::UNMAPPED_PACKAGE_TERMINAL {
             assert_eq!(row.severity, Severity::Error, "{}", row.title);
         }
     }
@@ -309,6 +309,54 @@ fn an_unmapped_terminal_and_its_package_terminal_are_one_issue() -> Fallible<()>
         "{:?}",
         titles(&report)
     );
+    Ok(())
+}
+
+/// E2E run 10, finding 5: a package terminal no mapping carries yet (a
+/// package change added it) is a counted to-do that still blocks
+/// publishing; one mapped twice stays an error.
+#[test]
+fn an_unmapped_package_terminal_is_a_to_do_that_blocks_publishing() -> Fallible<()> {
+    let mut engine = Engine::default();
+    let spec = Spec {
+        package: vec![(1, "1"), (2, "2"), (3, "3")],
+        ..two("Pair")
+    };
+    draft(&mut engine, &spec)?;
+    let report = well_formed(&engine)?;
+    let row = report
+        .rows
+        .iter()
+        .find(|r| r.group.code == "binding.mapping_missing")
+        .ok_or_else(|| format!("no unmapped terminal in {:?}", titles(&report)))?;
+    assert_eq!(row.title, "Package terminal ‘3’ has no electrical terminal");
+    assert_eq!(row.severity, Severity::ToDo);
+    assert_eq!(row.blocks(), Some(Stage::Publish));
+    assert!(report.counts.to_do >= 1);
+
+    let mut engine = Engine::default();
+    let f = draft(&mut engine, &two("Pair"))?;
+    with(
+        &mut engine,
+        f.binding,
+        binding_body,
+        |b: &mut BindingDefinition| {
+            let mut twice = b.mappings[0].clone();
+            twice.terminal = b.mappings[1].terminal;
+            b.mappings.push(twice);
+        },
+    )?;
+    let report = well_formed(&engine)?;
+    let row = report
+        .rows
+        .iter()
+        .find(|r| r.group.code == "binding.mapping_duplicate")
+        .ok_or_else(|| format!("no duplicate mapping in {:?}", titles(&report)))?;
+    assert_eq!(
+        row.title,
+        "Package terminal ‘1’ is mapped to 2 electrical terminals"
+    );
+    assert_eq!(row.severity, Severity::Error);
     Ok(())
 }
 

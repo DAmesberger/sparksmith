@@ -802,8 +802,20 @@ fn form_column(
             },
         );
     }
-    if let Some(why) = blocked.as_ref().or(open.refusal.as_ref()) {
-        kit::refusal(ui, why);
+    // Making the part is work in progress, not a refusal: a neutral busy
+    // row, as the production check's.
+    let busy = open.making.is_some() || open.submitted.is_some();
+    match blocked.as_ref().or(open.refusal.as_ref()) {
+        Some(why) if busy => {
+            ui.horizontal(|ui| {
+                ui.add(egui::Spinner::new().size(Tokens::get().font_small));
+                kit::note(ui, why);
+            });
+        }
+        Some(why) => {
+            kit::refusal(ui, why);
+        }
+        None => {}
     }
     let label = match (&open.scope, standing) {
         (Scope::NewComponent, Some(Standing::Held { .. })) if open.to_place => "Place".to_owned(),

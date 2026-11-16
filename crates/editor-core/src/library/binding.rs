@@ -145,16 +145,27 @@ impl BindingDefinition {
             *mapped.entry(mapping.package_terminal).or_default() += 1;
         }
         for terminal in &package.definition.terminals {
-            let count = mapped.get(&terminal.id).copied().unwrap_or(0);
-            if count != 1 {
-                out.push(issue(
+            let objects = vec![this, object(self.package.id, terminal.id.0)];
+            match mapped.get(&terminal.id).copied().unwrap_or(0) {
+                1 => {}
+                // Not mapped yet (a package change added it): the next
+                // step of the work, still blocking publishing.
+                0 => out.push(issue(
                     "binding.mapping_missing",
                     format!(
-                        "Package terminal ‘{}’ needs exactly one electrical terminal ({count} mapped).",
+                        "Package terminal ‘{}’ has no electrical terminal.",
                         terminal.designation
                     ),
-                    vec![this, object(self.package.id, terminal.id.0)],
-                ));
+                    objects,
+                )),
+                count => out.push(issue(
+                    "binding.mapping_duplicate",
+                    format!(
+                        "Package terminal ‘{}’ is mapped to {count} electrical terminals.",
+                        terminal.designation
+                    ),
+                    objects,
+                )),
             }
         }
     }
