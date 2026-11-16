@@ -550,6 +550,14 @@ impl FileUi {
     pub fn path(&self) -> Option<&Path> {
         self.controller.path.as_deref()
     }
+    /// The file a project without a path of its own was imported or
+    /// restored from: its first save proposes, and gives an Untitled
+    /// project, this file's name.
+    pub fn unsaved_origin(&self) -> Option<&Path> {
+        self.restored_origin
+            .as_deref()
+            .filter(|_| self.controller.path.is_none())
+    }
     pub fn busy(&self) -> bool {
         self.controller.flight.is_some() || self.recovery_choice_pending
     }
@@ -792,10 +800,7 @@ impl FileUi {
     /// own file's, else (a restored session) the file it was restored
     /// from, else the project's name in the last folder used.
     fn save_proposal(&self) -> (&Path, String) {
-        let origin = self
-            .restored_origin
-            .as_deref()
-            .filter(|_| self.controller.path.is_none());
+        let origin = self.unsaved_origin();
         let folder = origin.and_then(Path::parent).unwrap_or(&self.folder);
         let name = proposed_file_name(
             self.controller.path.as_deref().or(origin),
