@@ -24,7 +24,8 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | The built-in agent on the surface (S6): the six verbs, `assist.document_text`, `assist.document_page`, `assist.pinout_edit` (with `assist.pinout_preview` and `assist.pinout_apply`), reach profiles as data, leniency in the verb reader | Built |
 | Streaming loop (L1): both wire formats stream; Stop between chunks; the loop's events for the chat (text and reasoning pieces, tool-call rows with their state, a meter of requests, tokens and minutes) | Built |
 | Jobs, events (ABI S4b); the window module's camera, layers and screenshot (S5b); elicitation (MCP P5) | Not built |
-| Assistant panel, Settings › AI | Not built |
+| Settings › AI (C3): endpoints with keychain keys, agents as configuration, permissions per kind of action (ask every time, once a session, always allow, deny; publishing into the project never asks), optional limits on model runs, off by default so the chat can build a whole board, while a workflow brings its own budget (no per-turn caps; founder, 16 November), profiles (copy to edit, checked on save), workflows listed with why one can't run | Built. Stored in `<config>/assist/settings.json`, apart from the app's settings; starting values in `library/assist/settings.json`. The datasheet dialog reads its endpoint from here and runs on the datasheet workflow's budget, within the person's limits when set. No agent is started yet (A1) |
+| Assistant panel | Not built |
 
 ## What this revision supersedes
 
