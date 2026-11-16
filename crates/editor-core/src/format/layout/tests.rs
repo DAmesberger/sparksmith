@@ -504,9 +504,9 @@ fn malformed_lines_are_refused_with_their_number() -> Fallible {
         );
         assert!(message.contains(expected), "{to:?}: {message}");
     }
-    let other_version = edited(&format!("\"version\":{FILE_VERSION}"), "\"version\":1")?;
+    let other_version = edited(&format!("\"version\":{FILE_VERSION}"), "\"version\":2")?;
     assert!(
-        other_version.contains("line 1: this file is format version 1"),
+        other_version.contains("line 1: this file is format version 2"),
         "{other_version}"
     );
     assert!(other_version.contains("another branch"), "{other_version}");
@@ -640,8 +640,8 @@ fn malformed_documents_are_refused_with_their_line() -> Fallible {
         refusal(&unknown)
     );
     assert!(refusal(&text.replace('\n', "\r\n")).contains("line 1: has a CR"));
-    let older = text.replace(&format!("\"version\":{FILE_VERSION}"), "\"version\":1");
-    assert!(refusal(&older).contains("format version 1"));
+    let other = text.replace(&format!("\"version\":{FILE_VERSION}"), "\"version\":2");
+    assert!(refusal(&other).contains("format version 2"));
     assert!(refusal("[]\n").contains("line 1: the file must hold one JSON object"));
     Ok(())
 }

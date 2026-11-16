@@ -262,7 +262,7 @@ pub const COLLECTIONS: &[Collection] = &[
 pub const PROJECT_MANIFEST: DocumentLayout = DocumentLayout {
     name: "project",
     path: "sparksmith-project.json",
-    fields: &["features", "name", "material_table", "next"],
+    fields: &["name", "material_table", "next"],
     tables: &[],
     numbers: Numbers::IntegersOnly,
 };
@@ -297,7 +297,7 @@ pub const BOARD: DocumentLayout = DocumentLayout {
 pub const LIBRARY_MANIFEST: DocumentLayout = DocumentLayout {
     name: "library",
     path: "sparksmith-library.json",
-    fields: &["features", "library", "name", "default_licence"],
+    fields: &["library", "name", "default_licence"],
     tables: &[],
     numbers: Numbers::IntegersOnly,
 };

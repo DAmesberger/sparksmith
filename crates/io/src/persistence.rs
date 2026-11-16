@@ -12,12 +12,7 @@ use std::{
 pub mod container;
 
 pub fn check_project_path(path: &Path) -> Result<()> {
-    // `.pcbcraft` (from before the rename) holds the same format: it opens
-    // through the same reader and version check, and Save keeps its name.
-    if path
-        .extension()
-        .is_none_or(|e| !format::EXTENSIONS.iter().any(|known| e == *known))
-    {
+    if path.extension().is_none_or(|e| e != format::EXTENSION) {
         return Err(Error::Invalid("use a .sparksmith project filename".into()));
     }
     if path.as_os_str().len() > 4096 {
@@ -26,8 +21,8 @@ pub fn check_project_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Read and validate a project container. The pre-release format has one
-/// version and no migrations; anything else is refused.
+/// Read and validate a project container of the one format version;
+/// anything else is refused.
 pub fn read_project(path: &Path) -> Result<EditorFile> {
     check_project_path(path)?;
     container::read_container(path)

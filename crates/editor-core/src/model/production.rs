@@ -16,7 +16,7 @@ pub const MAX_WAIVER_TEXT: usize = 1024;
 /// names) and why it is acceptable for this build.
 ///
 /// The key is held as the text commands and findings use
-/// ([`waiver_key`]) and stored as JSON (file format version 4): the code
+/// ([`waiver_key`]) and stored as JSON: the code
 /// and the objects as values ([`StoredKey`]), never as a string holding
 /// JSON. A key that is not a finding's key is refused
 /// ([`Production::within_bounds`]).

@@ -1,7 +1,7 @@
 //! Local library folders (S3, D2), shared as plain files or git:
 //!
 //! ```text
-//! <folder>/sparksmith-library.json       manifest: format, identity, name, required features
+//! <folder>/sparksmith-library.json       manifest: format, identity, name
 //! <folder>/lineages/<id>/r0001.json    one immutable `RevisionRecord` per revision
 //! <folder>/assets/sha256/<hash>        asset bytes by content hash
 //! <folder>/catalog.json                mutable shelves and tags (D13), not revisioned
@@ -32,9 +32,6 @@ pub const CATALOG_FILE: &str = "catalog.json";
 /// The one folder format this build reads and writes (pre-release: no
 /// migrations; any other version is refused).
 pub const FOLDER_FORMAT: u32 = 1;
-/// Required features this build understands. A manifest naming any other
-/// is refused, never read partially.
-pub const SUPPORTED_FEATURES: &[&str] = &[];
 /// Revision files one folder may hold.
 pub const MAX_FOLDER_RECORDS: usize = 20_000;
 /// Bytes of one revision or manifest file.
@@ -47,8 +44,6 @@ pub struct Manifest {
     pub format: u32,
     pub library: LibraryId,
     pub name: String,
-    #[serde(default)]
-    pub required_features: Vec<String>,
     #[serde(default)]
     pub default_licence: Option<String>,
 }
@@ -71,7 +66,7 @@ pub struct CatalogLabels {
     pub lineages: BTreeMap<SourceLineageId, Labels>,
 }
 
-/// An opened folder whose manifest passed the version and feature checks.
+/// An opened folder whose manifest passed the version check.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Folder {
     pub root: PathBuf,
@@ -108,7 +103,6 @@ pub enum Disabled {
     /// The manifest is unreadable or malformed.
     Malformed(String),
     UnsupportedFormat(u32),
-    UnknownFeatures(Vec<String>),
 }
 
 impl std::fmt::Display for Disabled {
@@ -118,9 +112,6 @@ impl std::fmt::Display for Disabled {
             Self::PathMissing => f.write_str("path missing"),
             Self::Malformed(why) => write!(f, "unreadable manifest: {why}"),
             Self::UnsupportedFormat(v) => write!(f, "unsupported format v{v}"),
-            Self::UnknownFeatures(names) => {
-                write!(f, "requires unsupported features: {}", names.join(", "))
-            }
         }
     }
 }
@@ -151,22 +142,14 @@ pub fn asset_path(hash: ContentHash) -> String {
     format!("assets/sha256/{hash}")
 }
 
-/// Check a parsed manifest: format version and required features.
+/// Check a parsed manifest's format version.
 pub fn check_manifest(manifest: &Manifest) -> std::result::Result<(), Disabled> {
-    check_manifest_parts(manifest.format, &manifest.required_features)
+    check_format(manifest.format)
 }
 
-fn check_manifest_parts(format: u32, required: &[String]) -> std::result::Result<(), Disabled> {
+fn check_format(format: u32) -> std::result::Result<(), Disabled> {
     if format != FOLDER_FORMAT {
         return Err(Disabled::UnsupportedFormat(format));
-    }
-    let unknown: Vec<String> = required
-        .iter()
-        .filter(|f| !SUPPORTED_FEATURES.contains(&f.as_str()))
-        .cloned()
-        .collect();
-    if !unknown.is_empty() {
-        return Err(Disabled::UnknownFeatures(unknown));
     }
     Ok(())
 }
@@ -273,18 +256,16 @@ fn present(path: &Path) -> bool {
     std::fs::symlink_metadata(path).is_ok()
 }
 
-/// The fields every manifest format keeps, read leniently before the
-/// strict parse, so a newer format that adds fields is reported as
-/// unsupported rather than unreadable.
+/// The manifest's format, read leniently before the strict parse, so
+/// another format with other fields is reported as unsupported rather
+/// than unreadable.
 #[derive(Deserialize)]
 struct ManifestProbe {
     format: u32,
-    #[serde(default)]
-    required_features: Vec<String>,
 }
 
-/// Why a manifest is not usable: unreadable, or of another format or
-/// feature set (checked first, from the lenient probe).
+/// Why a manifest is not usable: unreadable, or of another format
+/// (checked first, from the lenient probe).
 enum ManifestError {
     Malformed(String),
     Refused(Disabled),
@@ -293,7 +274,7 @@ enum ManifestError {
 fn parse_manifest(bytes: &[u8]) -> std::result::Result<Manifest, ManifestError> {
     let probe: ManifestProbe =
         serde_json::from_slice(bytes).map_err(|e| ManifestError::Malformed(e.to_string()))?;
-    check_manifest_parts(probe.format, &probe.required_features).map_err(ManifestError::Refused)?;
+    check_format(probe.format).map_err(ManifestError::Refused)?;
     let manifest: Manifest =
         serde_json::from_slice(bytes).map_err(|e| ManifestError::Malformed(e.to_string()))?;
     parse_checked(manifest).map_err(ManifestError::Malformed)
@@ -307,15 +288,14 @@ fn parse_checked(manifest: Manifest) -> std::result::Result<Manifest, String> {
         .default_licence
         .as_deref()
         .is_some_and(|l| !printable(l))
-        || manifest.required_features.iter().any(|f| !printable(f))
     {
-        return Err("a licence or feature name is not printable text".into());
+        return Err("the licence is not printable text".into());
     }
     Ok(manifest)
 }
 
 /// Open a folder for the Browser: the folder, or why it is not searchable
-/// (missing path, malformed manifest, other format, unknown feature).
+/// (missing path, malformed manifest, other format).
 pub fn inspect_folder(root: &Path) -> std::result::Result<Folder, Disabled> {
     let path = root.join(MANIFEST_FILE);
     if !path.exists() {
@@ -334,7 +314,7 @@ pub fn inspect_folder(root: &Path) -> std::result::Result<Folder, Disabled> {
 }
 
 /// Open a folder: read and check its manifest. Refuses an unsupported
-/// format or unknown required feature with `unsupported`, and a corrupt
+/// format with `unsupported`, and a corrupt
 /// manifest with `malformed_file`.
 pub fn open_folder(root: &Path) -> Result<Folder> {
     let path = root.join(MANIFEST_FILE);
@@ -383,7 +363,6 @@ pub fn create_folder_as(root: &Path, name: &str, library: LibraryId) -> Result<F
         format: FOLDER_FORMAT,
         library,
         name: name.to_owned(),
-        required_features: Vec::new(),
         default_licence: None,
     };
     if !create_new_atomic(&path, &pretty(&manifest)?)? {
@@ -935,12 +914,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn manifest_checks_refuse_other_versions_and_unknown_features() {
+    fn manifest_checks_refuse_other_versions() {
         let mut manifest = Manifest {
             format: FOLDER_FORMAT,
             library: LibraryId(7),
             name: "Mine".into(),
-            required_features: vec![],
             default_licence: None,
         };
         assert_eq!(check_manifest(&manifest), Ok(()));
@@ -948,12 +926,6 @@ mod tests {
         assert_eq!(
             check_manifest(&manifest),
             Err(Disabled::UnsupportedFormat(2))
-        );
-        manifest.format = FOLDER_FORMAT;
-        manifest.required_features = vec!["future".into()];
-        assert_eq!(
-            check_manifest(&manifest),
-            Err(Disabled::UnknownFeatures(vec!["future".into()]))
         );
     }
 

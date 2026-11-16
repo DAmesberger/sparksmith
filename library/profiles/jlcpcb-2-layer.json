@@ -8,7 +8,7 @@
       "document": "PCB Manufacturing & Assembly Capabilities",
       "url": "https://jlcpcb.com/capabilities/pcb-capabilities",
       "date": "2026-11-14",
-      "notes": "Rigid FR-4, 2 layers (JLCPCB's 1-layer boards drill 0.3 mm and up and have their own rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option); boards that pinned it as jlcpcb-2-layer-1oz, before copper weight was an option, find it by that former id. Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
+      "notes": "Rigid FR-4, 2 layers (JLCPCB's 1-layer boards drill 0.3 mm and up and have their own rows). Each rule names the row it comes from; rules marked as the author's choice are defaults, not limits. The options are JLCPCB's choices that change a limit; their defaults (recommended values, 1 oz outer copper, green mask, standard drilling) live in this file. The profile covers 1 oz and 2 oz outer copper (the Outer copper weight option). Under the recommended values the smallest drill is JLCPCB's preferred 0.2 mm via hole, so boards with 0.15–0.2 mm vias get a finding there and not under the absolute minimum. Re-read the page before ordering: JLCPCB changes it."
     },
     "drill_files": {
       "kind": "not_published",
@@ -571,8 +571,5 @@
         "source": "Profile author's choice (a default, not a JLCPCB limit)."
       }
     }
-  },
-  "former_ids": [
-    "jlcpcb-2-layer-1oz"
-  ]
+  }
 }

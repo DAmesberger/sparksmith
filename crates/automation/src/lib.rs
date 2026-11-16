@@ -5,7 +5,6 @@
 //! through the front door ([`front::Surface::call`]): the CLI's JSON-lines
 //! transport and the MCP servers are thin adapters over it, so every caller
 //! reaches the same typed operations, the same gate and the same error.
-pub mod convert_host;
 pub mod front;
 pub mod gate;
 pub mod kicad_import;

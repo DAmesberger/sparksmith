@@ -445,7 +445,7 @@ The routing mode in which the route head goes round other nets' copper, keepouts
 Where catalog entries come from: the project library snapshot, and the library folders listed in the user's settings. A folder source is read-only or writable, and one that cannot be read stays listed with its reason (path missing, unsupported format, unknown required feature). A source is authoritative only for new imports, never for a project that already holds a revision.
 
 **Library folder**:
-A directory of library items shared as plain files or through git: a `sparksmith-library.json` manifest (format version, random 128-bit library id, name, required features), one immutable file per revision at `lineages/<lineage id>/rNNNN.json`, asset bytes at `assets/sha256/<hash>` and the mutable `catalog.json` of shelves and tags. Lineage ids inside a folder are random, so two authors adding lineages never collide. A manifest of another format or with an unknown required feature is refused, never read partly.
+A directory of library items shared as plain files or through git: a `sparksmith-library.json` manifest (format version, random 128-bit library id, name), one immutable file per revision at `lineages/<lineage id>/rNNNN.json`, asset bytes at `assets/sha256/<hash>` and the mutable `catalog.json` of shelves and tags. Lineage ids inside a folder are random, so two authors adding lineages never collide. A manifest of another format or with an unknown required feature is refused, never read partly.
 _Avoid_: Library project, library file
 
 **Shelf**:
