@@ -753,6 +753,20 @@ impl LibrarySources {
         }
     }
 
+    /// The main window as last left.
+    pub fn window(&self) -> Option<settings::WindowState> {
+        self.settings.window
+    }
+
+    /// Remember the main window's state per user. A state the settings
+    /// would refuse is not kept.
+    pub fn set_window(&mut self, window: settings::WindowState) {
+        if window.check().is_ok() && Some(window) != self.settings.window {
+            self.settings.window = Some(window);
+            self.persist();
+        }
+    }
+
     /// The part files last opened in the part-file chooser, most recent
     /// first.
     pub fn recent_part_files(&self) -> &[std::path::PathBuf] {

@@ -425,6 +425,11 @@ pub struct SceneController {
     cameras: [Option<sparksmith_solidcraft::viewport::Camera>; 2],
     /// Another document was opened: its first board model is framed.
     fit_board: bool,
+    /// The component whose package the Part view shows; another one's
+    /// first model is framed (`fit_package`), never seen through the
+    /// previous component's camera.
+    package_subject: Option<sparksmith_core::DefinitionId>,
+    fit_package: bool,
     /// Results taken from the worker, current or dropped.
     #[cfg(test)]
     received: u64,
@@ -446,6 +451,8 @@ impl SceneController {
             status: Status::Idle,
             cameras: [None; 2],
             fit_board: false,
+            package_subject: None,
+            fit_package: false,
             #[cfg(test)]
             received: 0,
         }
@@ -477,6 +484,19 @@ impl SceneController {
         self.shown = None;
         self.sources.clear();
         self.prefetch = Prefetch::default();
+    }
+
+    /// The Part view shows the package of component `subject`. When that
+    /// is another component than before (a part just made, or another one
+    /// opened), its first model is framed: the package camera kept was the
+    /// other part's, and may look past this one. Later models of it (an
+    /// edit) keep the camera the person left.
+    pub fn package_subject(&mut self, subject: Option<sparksmith_core::DefinitionId>) {
+        if subject != self.package_subject {
+            self.package_subject = subject;
+            self.cameras[1] = None;
+            self.fit_package = true;
+        }
     }
 
     pub fn status(&self) -> &Status {
@@ -589,12 +609,20 @@ impl SceneController {
                 Ok((scene, sources)) => {
                     let was = self.shown.as_ref().map(ModelKey::is_package);
                     let now = Some(kind(&key));
+                    let empty = scene.bounds.is_empty();
                     self.viewport.set_model(scene);
                     if self.fit_board && now == Some(false) {
                         if was == Some(true) {
                             self.cameras[1] = Some(self.viewport.camera());
                         }
                         self.fit_board = false;
+                        self.viewport.fit();
+                    } else if self.fit_package && now == Some(true) {
+                        if was == Some(false) {
+                            self.cameras[0] = Some(self.viewport.camera());
+                        }
+                        // A model with nothing to frame waits for the next.
+                        self.fit_package = empty;
                         self.viewport.fit();
                     } else if was != now {
                         let slot = |package: bool| usize::from(package);
@@ -1213,6 +1241,70 @@ mod open_tests {
         kept.yaw += 0.3;
         scene.viewport.set_camera(kept);
         show(&mut scene, &ModelKey::Project(Arc::new(edited)))?;
+        assert_eq!(scene.viewport.camera(), kept);
+        Ok(())
+    }
+
+    /// Ask for `package`'s preview as the Part view does each frame, until
+    /// it is shown.
+    fn show_package(scene: &mut SceneController, package: &PackageDefinition) -> Fallible<()> {
+        let key = ModelKey::package(package).ok_or("package key")?;
+        for _ in 0..12_000 {
+            scene.request(key.clone(), Some(package), || Ok(None));
+            scene.receive();
+            if let Status::Failed(error) = scene.status() {
+                return Err(error.clone().into());
+            }
+            if scene.display(&key) == Display::Current {
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        Err("the package was never shown".into())
+    }
+
+    /// E2E run 11, finding 5: a component made (or opened) after another
+    /// one shows its model framed, not through the camera the previous
+    /// part was left with; an edit of it keeps the camera.
+    #[test]
+    fn another_components_package_is_framed_and_its_edits_keep_the_camera() -> Fallible<()> {
+        let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+        let mut scene = SceneController::new(
+            egui::Context::default(),
+            crate::viewport::Viewport::detached(),
+        );
+        let engine = Engine::demo()?;
+        let packages = &engine.project().library.packages;
+        let first = packages.first().ok_or("a package")?.definition.clone();
+        // Another component's part, three times the size.
+        let mut second = first.clone();
+        for side in &mut second.envelope_nm {
+            *side = side.checked_add(*side)?.checked_add(*side)?;
+        }
+        let ids = [
+            sparksmith_core::DefinitionId(1),
+            sparksmith_core::DefinitionId(2),
+        ];
+        scene.package_subject(ids.first().copied());
+        show_package(&mut scene, &first)?;
+        // The person looks somewhere far off the first part.
+        let mut away = scene.viewport.camera();
+        away.target.x += 500.0;
+        away.distance *= 0.1;
+        scene.viewport.set_camera(away);
+        scene.package_subject(ids.get(1).copied());
+        show_package(&mut scene, &second)?;
+        let framed = scene.viewport.camera();
+        assert_ne!(framed, away, "the other component's part was not framed");
+        // An edit of the same component keeps the camera.
+        let mut edited = second.clone();
+        edited.envelope_nm[0] =
+            edited.envelope_nm[0].checked_add(sparksmith_core::units::Nm::new(100_000)?)?;
+        let mut kept = framed;
+        kept.yaw += 0.3;
+        scene.viewport.set_camera(kept);
+        scene.package_subject(ids.get(1).copied());
+        show_package(&mut scene, &edited)?;
         assert_eq!(scene.viewport.camera(), kept);
         Ok(())
     }

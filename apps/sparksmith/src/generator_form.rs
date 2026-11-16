@@ -138,16 +138,24 @@ fn number(
     (changed, input.response, input.invalid)
 }
 
-/// A list value as text: items separated by commas.
-fn list_text(value: &ParamValue) -> String {
+/// A list value of `of` as text: items separated by commas, lengths in mm
+/// and angles in degrees with their unit, as the single-value fields show
+/// them (and as [`read_list`] reads them back).
+fn list_text(of: &v1::ParamType, value: &ParamValue) -> String {
     match value {
         ParamValue::List(items) => items
             .iter()
-            .map(|item| match item {
-                ParamValue::Int(v) => v.to_string(),
-                ParamValue::Bool(v) => v.to_string(),
-                ParamValue::Text(v) => v.clone(),
-                ParamValue::List(_) => String::new(),
+            .map(|item| match (of, item) {
+                (v1::ParamType::Length { .. }, ParamValue::Int(v)) => {
+                    format!("{} mm", kit::number_text(shown(*v, NM_PER_MM)))
+                }
+                (v1::ParamType::Angle { .. }, ParamValue::Int(v)) => {
+                    format!("{}°", kit::number_text(shown(*v, MDEG_PER_DEG)))
+                }
+                (_, ParamValue::Int(v)) => v.to_string(),
+                (_, ParamValue::Bool(v)) => v.to_string(),
+                (_, ParamValue::Text(v)) => v.clone(),
+                (_, ParamValue::List(_)) => String::new(),
             })
             .collect::<Vec<_>>()
             .join(", "),
@@ -253,7 +261,7 @@ fn param_row(
                 .texts
                 .get(&param.key)
                 .cloned()
-                .unwrap_or_else(|| list_text(&value));
+                .unwrap_or_else(|| list_text(of, &value));
             let before = text.clone();
             let read = read_list(of, &text);
             let too_many =
