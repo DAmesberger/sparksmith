@@ -42,6 +42,7 @@ use report::{ReviewReport, RunFacts};
 use serde_json::json;
 use sparksmith_automation::Session;
 use std::path::PathBuf;
+use workflow::control::Gauge;
 
 pub use documents::{MAX_DATASHEET_BYTES, TOKENS_PER_PAGE, pdf_pages};
 pub use profile::AssistLibrary;
@@ -97,11 +98,19 @@ pub struct Goal {
     pub notes: String,
 }
 
-/// Progress of a run.
+/// Progress of a run, in the order it happens: what the chat draws
+/// (`docs/assistant-panel.md` §7). Per request: [`Event::Request`], the
+/// deltas and [`Event::Call`] rows in `Writing` while the reply streams,
+/// [`Event::Response`] and [`Event::Usage`], the reply's [`Event::Text`],
+/// then each call's row through `Running` to how it ended.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     /// Request `n` is about to go out with an estimated prompt size.
     Request { n: u32, prompt_tokens: u64 },
+    /// Answer text as it arrives.
+    TextDelta(String),
+    /// Reasoning as it arrives; the chat folds it.
+    ReasoningDelta(String),
     /// Its response: why it stopped, its output tokens (reasoning
     /// included) and how long it took.
     Response {
@@ -110,16 +119,47 @@ pub enum Event {
         output_tokens: u64,
         seconds: f64,
     },
-    /// A tool ran.
-    Tool {
-        name: String,
-        error: bool,
-        step: Option<String>,
-    },
-    /// Text the model wrote.
+    /// Use against the run's limits, after each response.
+    Usage(Meter),
+    /// The reply's whole answer text, once it ended: it replaces what the
+    /// deltas showed.
     Text(String),
+    /// A tool-call row. `call` counts request `request`'s calls from 0, so
+    /// the two name the row; each new state replaces the last.
+    Call {
+        request: u32,
+        call: u32,
+        name: String,
+        state: CallState,
+    },
     /// Something a person should know about this run's result.
     Warning(String),
+}
+
+/// Where a tool call is.
+#[derive(Clone, Debug, PartialEq)]
+pub enum CallState {
+    /// The model is writing it.
+    Writing,
+    /// It runs, with this input.
+    Running { input: serde_json::Value },
+    /// It ran: the reply the model reads, and the run log's step when it
+    /// changed the document.
+    Done { reply: String, step: Option<String> },
+    /// It was refused or failed; the model reads why.
+    Refused { reply: String },
+    /// It never ran, and why: cut off at the output limit, or stopped.
+    NotRun { why: String },
+}
+
+/// Use against a run's limits: requests, output tokens, all tokens and
+/// whole minutes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Meter {
+    pub requests: Gauge,
+    pub output_tokens: Gauge,
+    pub tokens: Gauge,
+    pub minutes: Gauge,
 }
 
 /// Why a run stopped.

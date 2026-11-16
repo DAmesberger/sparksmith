@@ -10,14 +10,15 @@
 //! accepts the step's answer.
 use crate::documents::{self, Prepared};
 use crate::model::{
-    Budget, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason,
-    ToolSpec, appended_chars,
+    Budget, Delta, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role,
+    StopReason, ToolSpec, appended_chars,
 };
 use crate::profile::{AssistLibrary, ReachProfile, RunProfile};
 use crate::report::{self, RequestFacts, ReviewReport, RunFacts};
 use crate::usage::Tally;
 use crate::verbs::{self, Agent};
-use crate::{Error, Event, Goal, Outcome, Result, Stop, legacy};
+use crate::workflow::control::Gauge;
+use crate::{CallState, Error, Event, Goal, Meter, Outcome, Result, Stop, legacy};
 use serde_json::{Value, json};
 use sparksmith_automation::session::assist::Documents;
 use sparksmith_automation::{Grant, Session};
@@ -545,6 +546,9 @@ pub(crate) fn converse(
     } = conversation;
     let finish = driver.context.finish;
     let started = driver.started;
+    let cancel = driver.cancel;
+    let events = &mut *driver.events;
+    let backend = &mut *driver.backend;
     let mut finished: Option<Finished> = None;
     let mut limit = profile.output.per_request;
     let mut nudges = 0;
@@ -559,7 +563,7 @@ pub(crate) fn converse(
     let stop = loop {
         let tally = &mut *driver.tally;
         let facts = &mut *driver.facts;
-        if driver.cancel.load(Ordering::Relaxed) {
+        if cancel.load(Ordering::Relaxed) {
             break Stop::Cancelled;
         }
         if tally.requests >= max_requests {
@@ -587,7 +591,7 @@ pub(crate) fn converse(
         };
         let prompt_tokens = if first {
             // Count exactly when the backend can; otherwise the estimate.
-            match driver.backend.count_prompt_tokens(&request) {
+            match backend.count_prompt_tokens(&request) {
                 Ok(Some(n)) => n,
                 _ => first_estimate,
             }
@@ -619,9 +623,21 @@ pub(crate) fn converse(
             ));
         }
         let n = tally.requests + 1;
-        (driver.events)(Event::Request { n, prompt_tokens });
+        events(Event::Request { n, prompt_tokens });
         let sent = Instant::now();
-        let reply = match driver.backend.send(&request) {
+        let mut delta = |delta: Delta| {
+            events(match delta {
+                Delta::Text(text) => Event::TextDelta(text),
+                Delta::Reasoning(text) => Event::ReasoningDelta(text),
+                Delta::ToolCall { index, name } => Event::Call {
+                    request: n,
+                    call: index,
+                    name,
+                    state: CallState::Writing,
+                },
+            });
+        };
+        let reply = match backend.stream(&request, &mut delta, cancel) {
             Ok(r) => r,
             Err(e) => {
                 let over = budget
@@ -643,7 +659,7 @@ pub(crate) fn converse(
         tally.book(&reply.usage);
         facts.usage_estimated |= reply.usage_estimated;
         if let Some(warning) = check_prompt(&reply, n, last_prompt, document_tokens) {
-            (driver.events)(Event::Warning(warning.clone()));
+            events(Event::Warning(warning.clone()));
             facts.warnings.push(warning);
         }
         last_prompt = reply.usage.prompt();
@@ -666,15 +682,20 @@ pub(crate) fn converse(
             seconds,
             tools: Vec::new(),
         });
-        (driver.events)(Event::Response {
+        events(Event::Response {
             n,
             stop_reason: stop_label,
             output_tokens: reply.usage.output_tokens,
             seconds,
         });
+        events(Event::Usage(meter(tally, budget, started)));
+        if reply.stop == StopReason::Stopped {
+            // Stopped between chunks: the incomplete reply is never used.
+            break Stop::Cancelled;
+        }
         for part in &reply.content {
             if let Part::Text { text, .. } = part {
-                (driver.events)(Event::Text(text.clone()));
+                events(Event::Text(text.clone()));
             }
         }
         if let StopReason::Refusal { category } = &reply.stop {
@@ -732,18 +753,35 @@ pub(crate) fn converse(
             break Stop::Ended;
         }
         let mut results = Vec::new();
-        for (id, name, input, malformed) in calls {
+        for (call, (id, name, input, malformed)) in (0u32..).zip(calls) {
             let logged = facts.request_log.last_mut();
+            let row = |state| Event::Call {
+                request: n,
+                call,
+                name: name.clone(),
+                state,
+            };
+            if cancel.load(Ordering::Relaxed) {
+                // Stopped between two calls: the rest never run.
+                events(row(CallState::NotRun {
+                    why: "stopped".into(),
+                }));
+                results.push(result(
+                    id,
+                    "Not run: the person stopped the run.",
+                    true,
+                    Vec::new(),
+                ));
+                continue;
+            }
             if was_cut {
                 // The call's input may be incomplete: never run it.
                 if let Some(r) = logged {
                     r.tools.push(format!("{name}!"));
                 }
-                (driver.events)(Event::Tool {
-                    name: name.clone(),
-                    error: true,
-                    step: None,
-                });
+                events(row(CallState::NotRun {
+                    why: "cut off at the output limit".into(),
+                }));
                 results.push(result(
                     id,
                     "Cut off at the output limit before this call was complete; send it again in smaller pieces (pin rows in chunks of at most 40 with assist.pinout_edit; assist.pinout_preview and assist.pinout_apply take no document).",
@@ -752,6 +790,9 @@ pub(crate) fn converse(
                 ));
                 continue;
             }
+            events(row(CallState::Running {
+                input: input.clone(),
+            }));
             let (label, outcome) =
                 dispatch_tool_call(driver.context, &name, &input, malformed.as_deref());
             if let Some(r) = logged {
@@ -764,22 +805,22 @@ pub(crate) fn converse(
             }
             match outcome {
                 ToolOutcome::Report(r) => {
-                    (driver.events)(Event::Tool {
-                        name: name.clone(),
-                        error: false,
+                    let text = "Report received.";
+                    events(row(CallState::Done {
+                        reply: text.into(),
                         step: None,
-                    });
+                    }));
                     finished = Some(Finished::Report(r));
-                    results.push(result(id, "Report received.", false, Vec::new()));
+                    results.push(result(id, text, false, Vec::new()));
                 }
                 ToolOutcome::Step(answer) => {
-                    (driver.events)(Event::Tool {
-                        name: name.clone(),
-                        error: false,
+                    let text = "Answer accepted.";
+                    events(row(CallState::Done {
+                        reply: text.into(),
                         step: None,
-                    });
+                    }));
                     finished = Some(Finished::Step(answer));
-                    results.push(result(id, "Answer accepted.", false, Vec::new()));
+                    results.push(result(id, text, false, Vec::new()));
                 }
                 ToolOutcome::Reply {
                     mut text,
@@ -811,11 +852,16 @@ pub(crate) fn converse(
                     if let Some(step) = &step {
                         facts.steps.push(step.clone());
                     }
-                    (driver.events)(Event::Tool {
-                        name: name.clone(),
-                        error,
-                        step,
-                    });
+                    events(row(if error {
+                        CallState::Refused {
+                            reply: text.clone(),
+                        }
+                    } else {
+                        CallState::Done {
+                            reply: text.clone(),
+                            step,
+                        }
+                    }));
                     results.push(result(id, &text, error, images));
                 }
             }
@@ -836,6 +882,31 @@ pub(crate) fn converse(
         }
     };
     (stop, finished)
+}
+
+/// The run's use against its budget, for the chat's meter.
+fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
+    Meter {
+        requests: Gauge {
+            used: tally.requests.into(),
+            limit: budget.max_requests.into(),
+        },
+        output_tokens: Gauge {
+            used: tally.usage.output_tokens,
+            limit: budget.max_output_tokens,
+        },
+        tokens: Gauge {
+            used: tally
+                .usage
+                .prompt()
+                .saturating_add(tally.usage.output_tokens),
+            limit: budget.max_total_tokens,
+        },
+        minutes: Gauge {
+            used: started.elapsed().as_secs() / 60,
+            limit: budget.max_duration.as_secs().div_ceil(60),
+        },
+    }
 }
 
 fn result(id: String, text: &str, error: bool, images: Vec<Image>) -> Part {

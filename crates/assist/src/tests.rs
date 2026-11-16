@@ -310,8 +310,13 @@ fn a_recorded_run_authors_the_module_through_the_verbs_and_submits_its_review() 
     )?;
     assert_eq!(outcome.stop, Stop::Submitted, "{log:?}");
     assert!(
-        log.iter()
-            .all(|e| !matches!(e, Event::Tool { error: true, .. })),
+        log.iter().all(|e| !matches!(
+            e,
+            Event::Call {
+                state: CallState::Refused { .. } | CallState::NotRun { .. },
+                ..
+            }
+        )),
         "every tool call succeeded: {log:?}"
     );
     let report = outcome.report.ok_or("a report")?;
@@ -996,7 +1001,13 @@ fn replies_cut_off_at_the_limit_are_reported_never_used() -> Fallible {
     assert_eq!(session.engine().revision(), before, "nothing ran");
     assert!(
         log.iter()
-            .filter(|e| matches!(e, Event::Tool { error: true, .. }))
+            .filter(|e| matches!(
+                e,
+                Event::Call {
+                    state: CallState::NotRun { .. },
+                    ..
+                }
+            ))
             .count()
             == 2,
         "the first two cut-off calls were answered with errors; the third ended the run"
@@ -1145,5 +1156,6 @@ mod flash_next;
 mod local_run;
 mod profiles;
 mod run1;
+mod streaming;
 mod workflow_run;
 mod wroom3_binding;
