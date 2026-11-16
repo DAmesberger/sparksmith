@@ -33,6 +33,6 @@ The workspace layers are: `sparksmith-core` (pure document, typed operations, th
 | Solidcraft APIs, native models, copper geometry or performance | [sparksmith-solidcraft](skills/sparksmith-solidcraft/SKILL.md) |
 | Symbols, footprints, pin mapping, library revisions, design-file changes, source provenance or licensing | [sparksmith-libraries](skills/sparksmith-libraries/SKILL.md) |
 | Tests, benchmarks, CI, crash fixes or completion evidence | [sparksmith-verification](skills/sparksmith-verification/SKILL.md) |
-| Creating a component from datasheets through MCP (also served as the `datasheet_to_component` MCP prompt) | [sparksmith-datasheet-part](skills/sparksmith-datasheet-part/SKILL.md) |
+| Creating a component from datasheets through MCP (the datasheet-to-component workflow's method, also served as the `datasheet_to_component` MCP prompt) | [datasheet-to-component method](library/assist/workflows/datasheet-to-component/method.md) |
 
 Read only the branches relevant to the work. Maintain instructions and their enforcement together; do not copy upstream paths or commands that Sparksmith does not implement.

@@ -25,8 +25,6 @@ use syn::visit::Visit;
 enum Reason {
     /// The program's own interface assets: fonts, shaders, icons.
     UiAsset,
-    /// The MCP prompt served from a skill.
-    SkillPrompt,
 }
 
 /// `(source file, included path suffix, reason)`.
@@ -46,12 +44,6 @@ const ALLOWED: &[(&str, &str, Reason)] = &[
         "crates/ui/src/kit/blur_native.rs",
         "blur.wgsl",
         Reason::UiAsset,
-    ),
-    // The MCP skill prompt.
-    (
-        "crates/automation/src/mcp/prompts.rs",
-        "skills/sparksmith-datasheet-part/SKILL.md",
-        Reason::SkillPrompt,
     ),
 ];
 
@@ -516,7 +508,7 @@ mod tests {
         )])?;
         let allowed = [
             ("crates/ui/src/fonts.rs", "fonts/Plex.ttf", Reason::UiAsset),
-            ("crates/ui/src/gone.rs", "old.json", Reason::SkillPrompt),
+            ("crates/ui/src/gone.rs", "old.json", Reason::UiAsset),
         ];
         let report = review(&sites, &allowed);
         assert_eq!(report.allowed.len(), 1);
