@@ -5,7 +5,7 @@
     "edits": "always",
     "files": "ask",
     "publish_library": "ask",
-    "view": "ask"
+    "view": "always"
   },
   "limits_start": {
     "requests": 40,
@@ -48,7 +48,7 @@
     {"title": "OpenCode (opencode acp)", "agent": {"name": "OpenCode", "command": "opencode", "args": ["acp"]}}
   ],
   "sources": {
-    "permissions": "The founder's defaults for agents (docs/design/extension-abi-design.md): edits run inside the reviewable turn, which undoes as one step; files and publishing to a library ask; the view moves only when the person allows it. Publishing a part into the open project never asks (founder, 16 November). Each ask offers Allow once, Allow for this session, Always allow and Deny.",
+    "permissions": "The founder's defaults for agents (docs/design/extension-abi-design.md): edits run inside the reviewable turn, which undoes as one step; files and publishing to a library ask; the built-in chat moves the view without asking (founder, 14 November: view steering is on for the built-in agent). Publishing a part into the open project never asks (founder, 16 November). Each ask offers Allow once, Allow for this session, Always allow and Deny.",
     "limits_start": "Limits are unset by default, so the chat can build a whole board (founder, 16 November); a workflow brings its own budget in its workflow.json. These are only the values the limits start from when the person turns them on: docs/assistant-panel.md §6.3, 40 model requests, 200 000 output tokens and 4 000 000 tokens as approved on 9 November, 45 minutes as approved in Q7. There are no per-turn caps on edits or calls.",
     "endpoint_presets": "Anthropic's API base URL; Ollama's OpenAI-compatible endpoint on its default port 11434 (the person changes it for LM Studio, llama-server or a hosted server). The context is a starting value the person corrects to what their server gives the model. Timeouts: 30 minutes for a hosted model; 90 for a local one, which at 17 tokens a second takes 31 minutes for 32 000 output tokens.",
     "agent_presets": "The ACP launch commands each agent documents: claude-agent-acp, codex-acp, gemini --acp, opencode acp."

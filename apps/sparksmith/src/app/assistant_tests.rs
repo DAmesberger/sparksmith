@@ -366,7 +366,7 @@ fn the_chat_publishes_into_the_project_unasked_and_asks_to_publish_to_a_library(
 }
 
 #[test]
-fn moving_the_view_follows_its_settings_rule_and_asks_by_default() -> Fallible {
+fn the_chat_moves_the_view_without_asking_by_default() -> Fallible {
     let mut ax = chat(
         SMALL,
         vec![
@@ -378,21 +378,11 @@ fn moving_the_view_follows_its_settings_rule_and_asks_by_default() -> Fallible {
         ],
     )?;
     send(&mut ax, "Show me the schematic")?;
-    ax.until("the Ask card", |ax| ax.has(Role::Button, "Allow once"))?;
-    assert!(
-        ax.texts
-            .iter()
-            .any(|t| t == "Allow: Open a workspace or view?"),
-        "{:?}",
-        ax.texts
-    );
-    assert_eq!(
-        ax.app.workspace,
-        Workspace::Pcb,
-        "nothing moved before Allow"
-    );
-    ax.button("Allow once")?;
     ax.until("the turn's end", idle)?;
+    assert!(
+        !ax.has(Role::Button, "Allow once"),
+        "no Ask card for moving the view"
+    );
     assert_eq!(ax.app.workspace, Workspace::Schematic);
     Ok(())
 }
