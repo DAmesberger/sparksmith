@@ -134,6 +134,61 @@ impl Workflow {
         names
     }
 
+    /// The inputs a run starts from: those of the input steps before its
+    /// first other step, in order. The chat's one confirmation shows these;
+    /// an input step later in the run asks for its own when it comes.
+    pub fn start_inputs(&self) -> Vec<&str> {
+        self.steps
+            .iter()
+            .take_while(|s| s.kind == super::StepKind::Input)
+            .flat_map(|s| s.inputs.iter().map(String::as_str))
+            .collect()
+    }
+
+    /// Fill each `files` start input that `inputs` lacks from `attached`
+    /// (each a path and its media type, read from its first bytes): the
+    /// files of a type it takes, in order, up to its `max`. An input that
+    /// would get fewer than its `min` stays unfilled, and each file fills
+    /// one input at most. The pre-fill a conversation's attachments give,
+    /// without a model.
+    pub fn fill_files(&self, inputs: &mut Map<String, Value>, attached: &[(String, String)]) {
+        let mut used = vec![false; attached.len()];
+        for name in self.start_inputs() {
+            let Some(input) = self.input(name) else {
+                continue;
+            };
+            if input.ty != InputType::Files || inputs.contains_key(name) {
+                continue;
+            }
+            let bound = |b: &Option<serde_json::Number>| {
+                b.as_ref()
+                    .and_then(serde_json::Number::as_u64)
+                    .map_or(1, |n| usize::try_from(n).unwrap_or(usize::MAX))
+            };
+            let (min, max) = (bound(&input.min), bound(&input.max));
+            let taken: Vec<usize> = attached
+                .iter()
+                .enumerate()
+                .filter(|(i, (_, media))| {
+                    !used[*i] && input.accept.iter().any(|a| a.eq_ignore_ascii_case(media))
+                })
+                .map(|(i, _)| i)
+                .take(max)
+                .collect();
+            if taken.is_empty() || taken.len() < min {
+                continue;
+            }
+            let paths = taken
+                .iter()
+                .map(|i| {
+                    used[*i] = true;
+                    Value::String(attached[*i].0.clone())
+                })
+                .collect();
+            inputs.insert(name.to_owned(), Value::Array(paths));
+        }
+    }
+
     /// Whether `signal` offers this workflow (`offer_when`). A media type
     /// compares without case.
     pub fn offered_on(&self, signal: &Signal) -> bool {

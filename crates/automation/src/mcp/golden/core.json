@@ -415,11 +415,6 @@
                 "required": true
               },
               {
-                "description": "Pages to read first. Pages such as 1-5, 31, 32.",
-                "name": "pages",
-                "required": false
-              },
-              {
                 "description": "Notes: Package variant, what to leave out",
                 "name": "notes",
                 "required": false

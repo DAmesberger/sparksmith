@@ -1,6 +1,7 @@
 //! The assistant's in-chat cards (`docs/assistant-panel.md` §3.1, §4, §7): the ten controls of
-//! a workflow, the workflow card ("Just chat" / "Use it"), a running workflow's block and the
-//! `/` menu's rows. Sparksmith's own code, built once here on the kit's container, buttons,
+//! a workflow, the compact confirmation of its inputs (each a value to change in place, then
+//! "Accept and continue"), a running workflow's block, and the composer's `/` and `@` lists and
+//! file chips. Sparksmith's own code, built once here on the kit's container, buttons,
 //! fields and tokens; the chat transcript (the desktop app) supplies the content and acts on
 //! what each card returns.
 //!
@@ -556,8 +557,9 @@ pub enum OutcomeChoice {
     UndoRun,
 }
 
-/// `result`: what was made, the open findings, its actions and Undo run.
-pub fn outcome(ui: &mut Ui, view: &Outcome<'_>) -> Option<OutcomeChoice> {
+/// `result`: what was made, the open findings, its actions and Undo run. `more` draws what an
+/// item holds at length (a report's Markdown) under the items.
+pub fn outcome(ui: &mut Ui, view: &Outcome<'_>, more: impl FnOnce(&mut Ui)) -> Option<OutcomeChoice> {
     let t = Tokens::get();
     card(ui, view.title, "", |ui| {
         for item in view.items {
@@ -566,6 +568,7 @@ pub fn outcome(ui: &mut Ui, view: &Outcome<'_>) -> Option<OutcomeChoice> {
                 ui.add(egui::Label::new(RichText::new(item.value).size(t.font_label).color(t.form_ink)).wrap());
             });
         }
+        more(ui);
         for finding in view.findings.iter().take(IMPACT_ROWS) {
             if finding.blocking {
                 text(ui, finding.message, Text::Error(finding.message));
@@ -593,62 +596,151 @@ pub fn outcome(ui: &mut Ui, view: &Outcome<'_>) -> Option<OutcomeChoice> {
     })
 }
 
-/// A given input on the workflow card ("Datasheet  tlv757p.pdf (38 pages)").
+/// What a workflow's compact confirmation shows around its rows.
 #[derive(Clone, Copy, Debug)]
-pub struct GivenRow<'a> {
-    pub title: &'a str,
-    pub value: &'a str,
-}
-
-/// What a workflow card shows.
-#[derive(Clone, Copy, Debug)]
-pub struct Offer<'a> {
+pub struct Confirm<'a> {
     pub title: &'a str,
     pub version: &'a str,
-    pub summary: &'a str,
     /// Why it fits, as the model or the signal said; may be empty.
     pub why: &'a str,
-    pub given: &'a [GivenRow<'a>],
-    /// The titles of the required inputs the run will still ask for.
-    pub missing: &'a [&'a str],
+    /// The secondary button: "Just chat" on an offer, "Decline" on a run's input step.
+    pub decline: &'a str,
 }
 
-/// The person's answer on a workflow card.
+/// The person's answer on a compact confirmation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum OfferChoice {
-    JustChat,
-    UseIt,
+pub enum ConfirmChoice {
+    /// Accept and continue.
+    Accept,
+    Decline,
 }
 
-/// The workflow card (§3.1): "I can do this with a workflow", the workflow, what it was given and
-/// [Just chat] [Use it]. Enter uses it, Esc just chats.
-pub fn offer(ui: &mut Ui, view: &Offer<'_>, active: bool) -> Option<OfferChoice> {
-    let t = Tokens::get();
-    card(ui, "I can do this with a workflow", "", |ui| {
-        ui.horizontal(|ui| {
-            ui.add(egui::Label::new(RichText::new(view.title).font(type_face::semibold(t.font_label)).color(t.form_ink)).truncate());
-            ui.add(egui::Label::new(RichText::new(format!("v{}", view.version)).size(t.font_small).color(t.form_dim)));
-        });
-        line(ui, view.summary);
+/// The compact confirmation of a workflow's inputs (§3.1): the workflow, why it fits, one row per
+/// input that `rows` draws (answering whether a field took Enter), and [decline] [Accept and
+/// continue]. Enter accepts, Esc declines, while `active`.
+pub fn confirm(ui: &mut Ui, view: &Confirm<'_>, active: bool, rows: impl FnOnce(&mut Ui) -> bool) -> Option<ConfirmChoice> {
+    let aside = if view.version.is_empty() { String::new() } else { format!("v{}", view.version) };
+    card(ui, view.title, &aside, |ui| {
         if !view.why.is_empty() {
             note(ui, view.why);
         }
-        for given in view.given {
-            ui.horizontal(|ui| {
-                ui.add(egui::Label::new(RichText::new(given.title).size(t.font_label).color(t.form_dim)));
-                ui.add(egui::Label::new(RichText::new(given.value).size(t.font_label).color(t.form_ink)).truncate());
-            });
-        }
-        if !view.missing.is_empty() {
-            note(ui, &format!("It will ask for: {}", view.missing.join(", ")));
-        }
+        let entered = rows(ui);
         let key = card_key(ui, active);
-        match (footer(ui, &[FooterButton::new("Just chat"), FooterButton::primary("Use it")]), key) {
-            (Some(1), _) | (None, Some(CardKey::Accept)) => Some(OfferChoice::UseIt),
-            (Some(0), _) | (None, Some(CardKey::Decline)) => Some(OfferChoice::JustChat),
+        match (footer(ui, &[FooterButton::new(view.decline), FooterButton::primary("Accept and continue")]), key) {
+            (Some(1), _) | (None, Some(CardKey::Accept)) => Some(ConfirmChoice::Accept),
+            (Some(0), _) | (None, Some(CardKey::Decline)) => Some(ConfirmChoice::Decline),
+            _ if entered && active => Some(ConfirmChoice::Accept),
             _ => None,
         }
     })
+}
+
+/// One input on a compact confirmation: its title on the left, the value's control filling the
+/// rest of the line, and its error under it. The control is labelled with the title for
+/// assistive technology and the scenario driver.
+pub fn compact_row<R>(ui: &mut Ui, title: &str, error: Option<&str>, control: impl FnOnce(&mut Ui) -> R) -> R {
+    let t = Tokens::get();
+    let inner = ui
+        .horizontal(|ui| {
+            ui.set_width(dimension(ui.available_width()));
+            let width = (ui.available_width() * 0.3).clamp(t.space_24 * 2.0, t.space_24 * 4.0);
+            ui.allocate_ui(vec2(width, row_height()), |ui| {
+                ui.set_min_width(width);
+                ui.add(egui::Label::new(RichText::new(title).size(t.font_label).color(t.form_dim)).truncate());
+            });
+            let info = egui::UiStackInfo::default().with_tag_value(LABEL, title.to_owned());
+            ui.scope_builder(egui::UiBuilder::new().ui_stack_info(info), |ui| {
+                ui.set_width(dimension(ui.available_width()));
+                control(ui)
+            })
+            .inner
+        })
+        .inner;
+    if let Some(error) = error {
+        text(ui, error, Text::Error(error));
+    }
+    inner
+}
+
+/// A file a `datasheet` value may be: one the conversation has (attached, recently used, in the
+/// project's folder), and whether the value holds it.
+#[derive(Clone, Copy, Debug)]
+pub struct FileOption<'a> {
+    pub title: &'a str,
+    /// "38 pages · 1.2 MB", "Attached", the folder it is in.
+    pub detail: &'a str,
+    pub chosen: bool,
+}
+
+/// What the person did on a `datasheet` value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FileChoice {
+    /// The option at this index, from the ⌄ list: chosen, or taken out when it was.
+    Toggle(usize),
+    /// Change…: the host's file picker.
+    Change,
+}
+
+/// A `datasheet` value on one line: what it holds (`shown`, or "None"), with ⌄ listing the
+/// conversation's other files to choose from, and Change… for the host's picker.
+pub fn file_value(ui: &mut Ui, id: egui::Id, shown: &str, options: &[FileOption<'_>]) -> Option<FileChoice> {
+    let t = Tokens::get();
+    let mut event = None;
+    ui.horizontal(|ui| {
+        ui.set_width(dimension(ui.available_width()));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let change = if shown.is_empty() { "Choose…" } else { "Change…" };
+            if button(ui, change, Button::Small).clicked() {
+                event = Some(FileChoice::Change);
+            }
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                let (label, ink) = if shown.is_empty() { ("None", t.form_dim) } else { (shown, t.form_ink) };
+                if options.is_empty() {
+                    ui.add(egui::Label::new(RichText::new(label).size(t.font_label).color(ink)).truncate());
+                    return;
+                }
+                let response = button(ui, format!("{label} ⌄"), Button::Small);
+                let popup = Container::new(ui.ctx(), Surface::Popup).menu(&response).width(dimension(ui.available_width().max(t.space_24 * 8.0)));
+                popup.show(|ui| {
+                    ui.push_id(id, |ui| {
+                        for (index, option) in options.iter().enumerate() {
+                            let mut on = option.chosen;
+                            let name = if option.detail.is_empty() { option.title.to_owned() } else { format!("{} · {}", option.title, option.detail) };
+                            if checkbox(ui, &name, &mut on).changed() {
+                                event = Some(FileChoice::Toggle(index));
+                                ui.close();
+                            }
+                        }
+                    });
+                });
+            });
+        });
+    });
+    event
+}
+
+/// A file attached to a message being written: its name and × to take it out. Answers whether ×
+/// was pressed.
+pub fn file_chip(ui: &mut Ui, name: &str, removable: bool) -> bool {
+    let t = Tokens::get();
+    let frame = egui::Frame::NONE
+        .fill(t.selected_bg)
+        .corner_radius(t.radius_lg)
+        .inner_margin(egui::Margin::symmetric(t.space_6 as i8, t.space_2 as i8));
+    let mut removed = false;
+    Container::show_backing(ui, frame, |ui| {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = t.space_4;
+            ui.add(egui::Label::new(RichText::new(format!("@{name}")).size(t.font_small).color(t.selected_ink)).truncate()).on_hover_text(name);
+            if removable {
+                let response = ui.add(egui::Label::new(RichText::new("×").size(t.font_small).color(t.selected_ink)).sense(egui::Sense::click()));
+                let label = format!("Remove {name}");
+                response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
+                removed = response.on_hover_text(label).clicked();
+            }
+        });
+    });
+    removed
 }
 
 /// A step row's state in a running workflow's block.
@@ -724,7 +816,8 @@ pub fn run_block(ui: &mut Ui, view: &Run<'_>) -> bool {
     })
 }
 
-/// A row of the `/` menu: a workflow's title and summary, or why it cannot run here.
+/// A row of a composer's list (the `/` menu's workflows, the `@` menu's files): its title and a
+/// line under it (a summary, where a file is, or why it cannot be chosen).
 #[derive(Clone, Copy, Debug)]
 pub struct MenuRow<'a> {
     pub title: &'a str,
@@ -732,24 +825,66 @@ pub struct MenuRow<'a> {
     pub enabled: bool,
 }
 
+/// The list keys of one frame.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MenuNav {
+    pub up: bool,
+    pub down: bool,
+    /// Enter, or Tab.
+    pub enter: bool,
+}
+
+impl MenuNav {
+    /// The keys as pressed this frame, left for the field below as well.
+    pub fn pressed(ui: &Ui) -> Self {
+        ui.ctx().input(|i| Self {
+            up: i.key_pressed(egui::Key::ArrowUp),
+            down: i.key_pressed(egui::Key::ArrowDown),
+            enter: i.key_pressed(egui::Key::Enter),
+        })
+    }
+
+    /// The keys taken out of this frame, so the field the list completes (the composer) does not
+    /// also move its cursor or send.
+    pub fn take(ui: &Ui) -> Self {
+        ui.ctx().input_mut(|i| {
+            let none = egui::Modifiers::NONE;
+            Self {
+                up: i.consume_key(none, egui::Key::ArrowUp),
+                down: i.consume_key(none, egui::Key::ArrowDown),
+                enter: i.consume_key(none, egui::Key::Enter) | i.consume_key(none, egui::Key::Tab),
+            }
+        })
+    }
+}
+
 /// The `/` menu's list: one row per workflow, `highlighted` lit. While `active` (the composer
 /// holds the keyboard on a `/`), ↑↓ move the highlight over the rows that can run and Enter
 /// chooses it. Answers the row chosen.
 pub fn workflow_menu(ui: &mut Ui, rows: &[MenuRow<'_>], highlighted: &mut usize, active: bool) -> Option<usize> {
-    let t = Tokens::get();
-    let mut chosen = None;
     if rows.is_empty() {
         note(ui, "No workflow matches");
         return None;
     }
+    let nav = active.then(|| MenuNav::pressed(ui));
+    menu(ui, rows, highlighted, nav)
+}
+
+/// A composer's list: `rows`, `highlighted` lit. With `nav` (the composer holds the keyboard), ↑↓
+/// move the highlight over the rows that can be chosen and Enter chooses it; a click chooses
+/// too. Answers the row chosen.
+pub fn menu(ui: &mut Ui, rows: &[MenuRow<'_>], highlighted: &mut usize, nav: Option<MenuNav>) -> Option<usize> {
+    let t = Tokens::get();
+    let mut chosen = None;
+    if rows.is_empty() {
+        return None;
+    }
     let enabled = |i: usize| rows.get(i).is_some_and(|r| r.enabled);
-    if active {
-        let (up, down, enter) =
-            ui.ctx().input(|i| (i.key_pressed(egui::Key::ArrowUp), i.key_pressed(egui::Key::ArrowDown), i.key_pressed(egui::Key::Enter)));
+    if let Some(nav) = nav {
         let len = rows.len();
         *highlighted = (*highlighted).min(len - 1);
-        if up || down {
-            let step = if down { 1 } else { len - 1 };
+        if nav.up || nav.down {
+            let step = if nav.down { 1 } else { len - 1 };
             for _ in 0..len {
                 *highlighted = (*highlighted + step) % len;
                 if enabled(*highlighted) {
@@ -760,7 +895,7 @@ pub fn workflow_menu(ui: &mut Ui, rows: &[MenuRow<'_>], highlighted: &mut usize,
         if !enabled(*highlighted) {
             *highlighted = (0..len).find(|i| enabled(*i)).unwrap_or(0);
         }
-        if enter && enabled(*highlighted) {
+        if nav.enter && enabled(*highlighted) {
             chosen = Some(*highlighted);
         }
     }

@@ -2,8 +2,9 @@
 //! workflow's steps in order on a session, as the caller's principal held
 //! to the workflow's reach, inside one turn so the run undoes as one step.
 //!
-//! - **input** asks the person ([`Person::answer`]) for the step's inputs
-//!   the run was not given; a `files` input is attached to the session as
+//! - **input** asks the person ([`Person::answer`]) to confirm the step's
+//!   inputs when a required one was not given, on one set of cards with
+//!   the given values filled in; a `files` input is attached to the session as
 //!   its documents when its step completes, and pointers read it as the
 //!   attached documents, `[{title, pages}]`, never as paths (so the run's
 //!   reads stay out of the `files` module).
@@ -370,7 +371,7 @@ impl Runner<'_, '_> {
                     let summary = self
                         .results
                         .get(&step.id)
-                        .map(run::summary)
+                        .map(super::control::readable)
                         .unwrap_or_default();
                     person.event(&WorkflowEvent::StepDone {
                         run: self.run_id.clone(),
@@ -547,13 +548,19 @@ impl Runner<'_, '_> {
                 });
             }
             asks += 1;
+            // One confirmation of the whole step: what was given shows as
+            // its value, what is missing is to be filled.
             let cards: Vec<ControlCard> = step
                 .inputs
                 .iter()
-                .filter(|name| !values.contains_key(*name))
                 .filter_map(|name| {
                     let input = workflow.input(name)?;
-                    Some(ControlCard::for_input(name, input, None, Vec::new()))
+                    Some(ControlCard::for_input(
+                        name,
+                        input,
+                        values.get(name),
+                        Vec::new(),
+                    ))
                 })
                 .collect();
             for card in &cards {
@@ -957,10 +964,18 @@ impl Runner<'_, '_> {
                 });
             }
         }
+        // The step a change goes back to says why it chose so.
+        let why = step
+            .change
+            .as_deref()
+            .and_then(|id| self.results.get(id))
+            .and_then(|r| r.get("why"))
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         let field = Field {
             input: step.id.clone(),
             title: step.title.clone(),
-            help: String::new(),
+            help: why.to_owned(),
             optional: false,
         };
         let card = ControlCard::Choice {
@@ -1002,24 +1017,23 @@ impl Runner<'_, '_> {
             .as_deref()
             .and_then(|p| self.read(p, None))
             .unwrap_or(Value::Null);
+        // A count's label in the number it takes: "4 functions added".
+        let count = |label: &str, n: u64| Count {
+            label: super::control::counted_label(n, label)
+                .split_once(' ')
+                .map_or_else(|| label.to_owned(), |(_, l)| l.to_owned()),
+            n,
+        };
         let counts = match plan.get("change_counts").and_then(Value::as_object) {
             Some(map) => map
                 .iter()
-                .map(|(label, n)| Count {
-                    label: label.clone(),
-                    n: n.as_u64().unwrap_or(0),
-                })
+                .map(|(label, n)| count(label, n.as_u64().unwrap_or(0)))
                 .collect(),
             None => plan
                 .as_object()
                 .into_iter()
                 .flatten()
-                .filter_map(|(label, v)| {
-                    Some(Count {
-                        label: label.clone(),
-                        n: v.as_array()?.len() as u64,
-                    })
-                })
+                .filter_map(|(label, v)| Some(count(label, v.as_array()?.len() as u64)))
                 .collect(),
         };
         let findings = plan["findings"]
@@ -1031,8 +1045,18 @@ impl Runner<'_, '_> {
                 message: f["message"].as_str().unwrap_or_default().to_owned(),
             })
             .collect();
+        // What the plan is about: the part this run made, by name.
+        let made = self
+            .results
+            .values()
+            .filter_map(|r| r.get("drafts").and_then(Value::as_array))
+            .flatten()
+            .find_map(|d| d.get("name").and_then(Value::as_str));
         let card = ControlCard::Impact {
-            title: step.title.clone(),
+            title: match made {
+                Some(name) => format!("{} into the new part {name}", step.title),
+                None => step.title.clone(),
+            },
             counts,
             findings,
             rows: Vec::new(),
@@ -1079,6 +1103,26 @@ impl Runner<'_, '_> {
                 value: self.read(&item.from, None).unwrap_or(Value::Null),
             })
             .collect();
+        // The card says each in a person's words: findings as rows, a
+        // report's Markdown as itself, the rest one line.
+        let mut findings: Vec<Finding> = Vec::new();
+        for item in &items {
+            for finding in super::control::findings_of(&item.value) {
+                if !findings.contains(&finding) {
+                    findings.push(finding);
+                }
+            }
+        }
+        let shown: Vec<Item> = items
+            .iter()
+            .map(|item| Item {
+                title: item.title.clone(),
+                value: match item.value.get("markdown").and_then(Value::as_str) {
+                    Some(markdown) => Value::String(markdown.to_owned()),
+                    None => Value::String(super::control::readable(&item.value)),
+                },
+            })
+            .collect();
         // A button whose entry this host lacks (view.open headless) is left
         // off the card.
         let actions: Vec<Action> = step
@@ -1093,8 +1137,8 @@ impl Runner<'_, '_> {
             .collect();
         let card = ControlCard::Result {
             title: self.label.clone(),
-            items: items.clone(),
-            findings: Vec::new(),
+            items: shown,
+            findings,
             actions,
             undo: true,
         };

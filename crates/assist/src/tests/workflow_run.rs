@@ -50,7 +50,8 @@ fn answer(id: &str, step: &str, result: Value) -> Value {
 
 fn plan() -> Value {
     json!({"generator": "module", "params": crate::legacy::module_params(&module_values()),
-        "why": "EXR-22 module, drawing on page 9"})
+        "why": "EXR-22 module, drawing on page 9",
+        "pages": "exr22.pdf: pinout 1, drawing 2, land pattern 2"})
 }
 
 fn report(values: Value) -> Value {
@@ -193,7 +194,12 @@ fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
         _ => None,
     });
     let has_view = HostCatalog.module_version("view").is_some();
-    assert_eq!(card, Some((3, usize::from(has_view))));
+    assert_eq!(card, Some((4, usize::from(has_view))));
+    // The result names the pages the run found and used.
+    assert_eq!(
+        outcome.results["done"]["Pages used"],
+        "exr22.pdf: pinout 1, drawing 2, land pattern 2"
+    );
     assert!(matches!(
         person.events.last(),
         Some(WorkflowEvent::Ended {
@@ -331,19 +337,26 @@ fn a_missing_input_is_asked_for_and_a_bad_one_refused() -> Fallible {
         &mut person,
     )?;
     assert_eq!(outcome.end, RunEnd::Done, "{:#?}", person.events);
-    // The card asked only for what the run was not given.
+    // One confirmation of the step: what was given shows filled in, what
+    // is missing is empty to be filled.
     let (step, cards) = person.asked.first().ok_or("asked")?;
     assert_eq!(step, "ask");
-    let fields: Vec<&str> = cards
+    let fields: Vec<(&str, bool)> = cards
         .iter()
         .filter_map(|c| match c {
-            ControlCard::Text { field, .. } | ControlCard::PageRanges { field, .. } => {
-                Some(field.input.as_str())
+            ControlCard::Text { field, value, .. } => {
+                Some((field.input.as_str(), value.is_some()))
+            }
+            ControlCard::Datasheet { field, files, .. } => {
+                Some((field.input.as_str(), !files.is_empty()))
             }
             _ => None,
         })
         .collect();
-    assert_eq!(fields, ["part", "pages", "notes"]);
+    assert_eq!(
+        fields,
+        [("datasheets", true), ("part", false), ("notes", false)]
+    );
     // An input the workflow does not have is refused before anything runs.
     given.insert("colour".into(), json!("red"));
     let mut session = profiled_session();

@@ -361,7 +361,20 @@ impl ControlCard {
                 accept: input.accept.clone(),
                 min: count(&input.min),
                 max: count(&input.max),
-                files: Vec::new(),
+                files: value
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str)
+                    .map(|path| FileChip {
+                        path: path.to_owned(),
+                        title: std::path::Path::new(path)
+                            .file_name()
+                            .map_or_else(|| path.to_owned(), |n| n.to_string_lossy().into_owned()),
+                        pages: None,
+                        bytes: 0,
+                    })
+                    .collect(),
             },
             Control::Url => Self::Url {
                 field,
@@ -379,6 +392,202 @@ impl ControlCard {
                 value: text(),
             },
         }
+    }
+}
+
+/// The longest line [`readable`] answers, in characters.
+const READABLE_CHARS: usize = 120;
+
+/// A step's result in a person's words, on one line, never JSON: what was
+/// made, by name and kind (a reply's `drafts`); whether a check accepted
+/// it; a model's `why`; how many findings and how many block; the documents
+/// read and their pages; counts of changes. Text is its first line.
+pub fn readable(value: &Value) -> String {
+    let line = match value {
+        Value::Null => String::new(),
+        Value::Bool(b) => if *b { "Yes" } else { "No" }.to_owned(),
+        Value::Number(n) => n.to_string(),
+        Value::String(text) => text
+            .lines()
+            .map(|l| l.trim_start_matches('#').trim())
+            .find(|l| !l.is_empty())
+            .unwrap_or_default()
+            .to_owned(),
+        Value::Array(list) => readable_list(list),
+        Value::Object(map) => readable_object(map),
+    };
+    cut(&line)
+}
+
+fn cut(line: &str) -> String {
+    if line.chars().count() <= READABLE_CHARS {
+        return line.to_owned();
+    }
+    let mut out: String = line.chars().take(READABLE_CHARS - 1).collect();
+    out.push('…');
+    out
+}
+
+fn readable_list(list: &[Value]) -> String {
+    if list.is_empty() {
+        return "None".into();
+    }
+    let named: Vec<String> = list
+        .iter()
+        .filter_map(|item| {
+            let name = ["document", "title", "name"]
+                .iter()
+                .find_map(|k| item.get(*k).and_then(Value::as_str))?;
+            let pages = item
+                .get("text")
+                .and_then(Value::as_str)
+                .map_or(0, |t| t.matches("=== page ").count());
+            Some(if pages > 0 {
+                format!("{name} · {}", counted(pages as u64, "page"))
+            } else {
+                name.to_owned()
+            })
+        })
+        .collect();
+    if named.len() == list.len() {
+        return named.join(", ");
+    }
+    if list.iter().all(|v| !v.is_object() && !v.is_array()) {
+        return list.iter().map(readable).collect::<Vec<_>>().join(", ");
+    }
+    counted(list.len() as u64, "item")
+}
+
+fn readable_object(map: &serde_json::Map<String, Value>) -> String {
+    if let Some(made) = map.get("drafts").and_then(Value::as_array).filter(|d| !d.is_empty()) {
+        return made_line(made);
+    }
+    if let Some(accepted) = map.get("accepted").and_then(Value::as_bool) {
+        let problems = map.get("problems").and_then(Value::as_array).map_or(0, Vec::len);
+        return match (accepted, problems) {
+            (true, _) => "Accepted".into(),
+            (false, 0) => "Not accepted".into(),
+            (false, n) => format!("Not accepted: {}", counted(n as u64, "problem")),
+        };
+    }
+    if let Some(why) = map.get("why").and_then(Value::as_str) {
+        return why.to_owned();
+    }
+    if let Some(findings) = map.get("findings").and_then(Value::as_array) {
+        return findings_line(findings);
+    }
+    if let Some(added) = map
+        .get("changes")
+        .and_then(|c| c.get("added"))
+        .and_then(Value::as_object)
+        .filter(|a| !a.is_empty())
+    {
+        // "Added: components, symbols, footprints" (each collection's own
+        // word, the last of its path).
+        let kinds: Vec<String> = added
+            .keys()
+            .map(|path| path.rsplit('.').next().unwrap_or(path).replace('_', " "))
+            .collect();
+        return format!("Added: {}", kinds.join(", "));
+    }
+    for key in ["result", "outcome", "report"] {
+        match map.get(key) {
+            Some(inner @ Value::Object(_)) => return readable(inner),
+            Some(Value::String(word)) => {
+                let ids = map.get("ids").and_then(Value::as_array).map_or(0, Vec::len);
+                let word = sentence(word);
+                return if ids > 0 { format!("{word}: {ids}") } else { word };
+            }
+            _ => {}
+        }
+    }
+    if let Some(counts) = map.get("change_counts").and_then(Value::as_object) {
+        return counts
+            .iter()
+            .map(|(label, n)| counted_label(n.as_u64().unwrap_or(0), label))
+            .collect::<Vec<_>>()
+            .join(" · ");
+    }
+    if let Some(ids) = map.get("ids").and_then(Value::as_array) {
+        return counted(ids.len() as u64, "item");
+    }
+    if let Some((key, list)) = map.iter().find_map(|(k, v)| Some((k, v.as_array()?))) {
+        return format!("{} {}", list.len(), key.replace('_', " "));
+    }
+    "Done".into()
+}
+
+/// What a reply made, by name and kind: "TLV75733PDBVR: component, symbol,
+/// package, footprint, binding".
+fn made_line(drafts: &[Value]) -> String {
+    let mut names: Vec<(String, Vec<String>)> = Vec::new();
+    for draft in drafts {
+        let name = draft.get("name").and_then(Value::as_str).unwrap_or("Unnamed");
+        let kind = draft.get("kind").and_then(Value::as_str).unwrap_or("draft").replace('_', " ");
+        match names.iter_mut().find(|(n, _)| n == name) {
+            Some((_, kinds)) if !kinds.contains(&kind) => kinds.push(kind),
+            Some(_) => {}
+            None => names.push((name.to_owned(), vec![kind])),
+        }
+    }
+    names.iter().map(|(name, kinds)| format!("{name}: {}", kinds.join(", "))).collect::<Vec<_>>().join("; ")
+}
+
+/// "No findings", "3 findings, 1 blocking".
+fn findings_line(findings: &[Value]) -> String {
+    let blocking = findings.iter().filter(|f| f["blocks"] == true || f["blocking"] == true).count();
+    match (findings.len(), blocking) {
+        (0, _) => "No findings".into(),
+        (n, 0) => counted(n as u64, "finding"),
+        (n, b) => format!("{}, {b} blocking", counted(n as u64, "finding")),
+    }
+}
+
+/// The findings a result lists, wherever it holds them (`findings`, or a
+/// query's `result.findings`), each with whether it blocks.
+pub fn findings_of(value: &Value) -> Vec<Finding> {
+    let list = value
+        .get("findings")
+        .or_else(|| value.get("result").and_then(|r| r.get("findings")))
+        .and_then(Value::as_array);
+    list.into_iter()
+        .flatten()
+        .filter_map(|f| {
+            Some(Finding {
+                blocking: f["blocks"] == true || f["blocking"] == true,
+                message: f.get("message")?.as_str()?.to_owned(),
+            })
+        })
+        .collect()
+}
+
+/// `drafts_created` as "Drafts created".
+fn sentence(word: &str) -> String {
+    let words = word.replace('_', " ");
+    let mut chars = words.chars();
+    chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
+}
+
+/// "1 page", "38 pages".
+pub fn counted(n: u64, noun: &str) -> String {
+    format!("{n} {}", if n == 1 { noun.to_owned() } else { plural(noun) })
+}
+
+/// A count's label with its first word in the number it takes:
+/// "1 function added", "4 functions added".
+pub fn counted_label(n: u64, label: &str) -> String {
+    let (noun, rest) = label.split_once(' ').unwrap_or((label, ""));
+    let noun = if n == 1 { noun.to_owned() } else { plural(noun) };
+    if rest.is_empty() { format!("{n} {noun}") } else { format!("{n} {noun} {rest}") }
+}
+
+fn plural(noun: &str) -> String {
+    if noun.ends_with('s') || noun.ends_with('x') || noun.ends_with("ch") || noun.ends_with("sh") {
+        format!("{noun}es")
+    } else if let Some(stem) = noun.strip_suffix('y').filter(|s| !s.ends_with(['a', 'e', 'i', 'o', 'u'])) {
+        format!("{stem}ies")
+    } else {
+        format!("{noun}s")
     }
 }
 

@@ -23,7 +23,7 @@ pub enum WorkflowEvent {
         why: String,
         by: OfferedBy,
     },
-    /// The person chose Use it: a run starts, as one turn with this label.
+    /// The person chose Accept and continue: a run starts, as one turn with this label.
     Started {
         run: String,
         workflow: String,

@@ -259,9 +259,11 @@ fn started(chat: &mut Chat) {
     });
 }
 
-/// Dropping a PDF offers the datasheet workflow with the file as its
-/// datasheets, read for its page count and copied into the conversation's
-/// folder; Use it starts the run with the copy. Any model, no words.
+/// Dropping a PDF offers the datasheet workflow on one compact card: the
+/// file filled in, read for its page count and copied into the
+/// conversation's folder, an inline field only for the part name nothing
+/// gave, the optional notes left out. Accept and continue starts the run
+/// with the copy. Any model, no words.
 #[test]
 fn a_dropped_pdf_offers_the_datasheet_workflow() -> Fallible {
     for size in SIZES {
@@ -272,19 +274,20 @@ fn a_dropped_pdf_offers_the_datasheet_workflow() -> Fallible {
         assert!(chat.cards.open_requested);
         chat.read()?;
         chat.settle();
+        assert!(chat.has("Datasheet → component"), "{:?}", chat.names());
         assert!(
-            chat.has("I can do this with a workflow"),
+            chat.has("tlv757p.pdf · 1 page · 1 KB ⌄"),
             "{:?}",
             chat.names()
         );
-        assert!(chat.has("Datasheet → component"));
-        assert!(
-            chat.has("tlv757p.pdf (1 page · 1 KB)"),
-            "{:?}",
-            chat.names()
-        );
-        assert!(chat.has("It will ask for: Part name"), "{:?}", chat.names());
-        chat.click(Role::Button, "Use it")?;
+        chat.find(Role::Button, "Change…")?;
+        chat.find(Role::TextInput, "Part name")?;
+        assert!(chat.find(Role::TextInput, "Notes").is_err(), "optional and empty");
+        chat.click(Role::Button, "Accept and continue")?;
+        assert!(chat.actions.is_empty(), "the part name is required");
+        assert!(chat.has("required"), "{:?}", chat.names());
+        chat.type_into("Part name", "TLV75733PDBVR")?;
+        chat.click(Role::Button, "Accept and continue")?;
         let [
             CardAction::Start {
                 workflow, inputs, ..
@@ -295,12 +298,74 @@ fn a_dropped_pdf_offers_the_datasheet_workflow() -> Fallible {
         };
         assert_eq!(workflow, "datasheet-to-component");
         let copy = chat.dir.path().join("conversation").join("tlv757p.pdf");
-        assert_eq!(inputs["datasheets"], json!([copy.display().to_string()]));
+        assert_eq!(
+            Value::Object(inputs.clone()),
+            json!({"datasheets": [copy.display().to_string()], "part": "TLV75733PDBVR"})
+        );
         assert!(copy.exists());
-        // The card stays, answered, and a second drop offers again.
+        // The card stays, answered with what it gave.
         chat.settle();
-        assert!(chat.find(Role::Button, "Use it").is_err());
+        assert!(chat.find(Role::Button, "Accept and continue").is_err());
+        assert!(
+            chat.has("Datasheets: tlv757p.pdf · 1 page · 1 KB · Part name: TLV75733PDBVR"),
+            "{:?}",
+            chat.names()
+        );
     }
+    Ok(())
+}
+
+/// A message's files fill the files input of a workflow offered next,
+/// and the model's offer fills the waiting card instead of adding one:
+/// one card with both filled, Enter accepts.
+#[test]
+fn the_conversation_fills_one_card() -> Fallible {
+    let mut chat = Chat::new(SIZES[1])?;
+    let pdf = chat.pdf("tlv757p.pdf")?;
+    chat.cards.attach(std::slice::from_ref(&pdf));
+    chat.read()?;
+    let card = chat
+        .cards
+        .offer("datasheet-to-component", Map::new(), "")?;
+    let mut part = Map::new();
+    part.insert("part".into(), json!("TLV75733PDBVR"));
+    let again = chat
+        .cards
+        .offer("datasheet-to-component", part, "You named the part.")?;
+    assert_eq!(card, again);
+    assert_eq!(chat.cards.offers(), 1);
+    chat.settle();
+    assert!(chat.has("You named the part."), "{:?}", chat.names());
+    chat.key(egui::Key::Enter);
+    let [CardAction::Start { inputs, .. }] = chat.actions.as_slice() else {
+        return Err(format!("{:?}", chat.actions).into());
+    };
+    let copy = chat.dir.path().join("conversation").join("tlv757p.pdf");
+    assert_eq!(inputs["datasheets"], json!([copy.display().to_string()]));
+    assert_eq!(inputs["part"], "TLV75733PDBVR");
+    Ok(())
+}
+
+/// A file chosen with Change… that the conversation read before shows at
+/// once, not "Reading…" (run 12, finding 9).
+#[test]
+fn a_file_read_before_is_ready_when_chosen_again() -> Fallible {
+    let mut chat = Chat::new(SIZES[0])?;
+    let pdf = chat.pdf("tlv757p.pdf")?;
+    chat.cards.attach(std::slice::from_ref(&pdf));
+    chat.read()?;
+    let card = chat
+        .cards
+        .offer("datasheet-to-component", Map::new(), "")?;
+    // The attached file filled it already; a pick of the same file keeps it.
+    chat.cards.picked(&card, vec![pdf]);
+    chat.settle();
+    assert!(
+        chat.has("tlv757p.pdf · 1 page · 1 KB ⌄"),
+        "{:?}",
+        chat.names()
+    );
+    assert!(!chat.names().iter().any(|n| n.contains("Reading…")));
     Ok(())
 }
 
@@ -343,9 +408,9 @@ fn just_chat_declines_the_offer() -> Fallible {
     Ok(())
 }
 
-/// An input step's cards are one card: the person types, Continue answers
-/// with the values as the inputs take them; a required field left empty is
-/// marked and nothing is answered.
+/// An input step's cards are one compact confirmation: the person types,
+/// Accept and continue answers with the values as the inputs take them; a
+/// required field left empty is marked and nothing is answered.
 #[test]
 fn an_input_card_answers_with_typed_values() -> Fallible {
     for size in SIZES {
@@ -378,17 +443,16 @@ fn an_input_card_answers_with_typed_values() -> Fallible {
             ControlCard::PageRanges {
                 field: field("pages", "Pages to read first", true),
                 pages: Some(38),
-                value: None,
+                value: Some("3, 31-39".into()),
             },
         );
         chat.settle();
-        chat.click(Role::Button, "Continue")?;
+        chat.click(Role::Button, "Accept and continue")?;
         assert!(chat.actions.is_empty(), "{:?}", chat.actions);
         assert!(chat.has("required"), "{:?}", chat.names());
         chat.type_into("Part name", "TLV75733PDBVR")?;
         chat.type_into("Pitch", "10mil")?;
-        chat.type_into("Pages to read first", "3, 31-39")?;
-        chat.click(Role::Button, "Continue")?;
+        chat.click(Role::Button, "Accept and continue")?;
         assert!(
             chat.actions.is_empty(),
             "page 39 is past 38: {:?}",
@@ -406,7 +470,7 @@ fn an_input_card_answers_with_typed_values() -> Fallible {
         }
         chat.frame(vec![egui::Event::Text("3, 31-32".into())]);
         chat.frame(vec![]);
-        chat.click(Role::Button, "Continue")?;
+        chat.click(Role::Button, "Accept and continue")?;
         let [
             CardAction::Answer {
                 run,
@@ -438,7 +502,7 @@ fn an_input_card_answers_with_typed_values() -> Fallible {
     Ok(())
 }
 
-/// A datasheet field takes dropped and picked files while it waits:
+/// A datasheet value takes dropped and picked files while it waits:
 /// Choose… asks the host's picker, each file is read for its pages.
 #[test]
 fn a_datasheet_field_takes_dropped_and_picked_files() -> Fallible {
@@ -466,12 +530,9 @@ fn a_datasheet_field_takes_dropped_and_picked_files() -> Fallible {
     chat.cards.picked(&card, vec![a]);
     assert!(chat.cards.drop_files(vec![b]).is_empty());
     chat.read()?;
-    assert!(chat.has("a.pdf") && chat.has("b.pdf"), "{:?}", chat.names());
-    assert!(
-        chat.find(Role::Button, "Choose…").is_err(),
-        "two of two: no more"
-    );
-    chat.click(Role::Button, "Continue")?;
+    assert!(chat.has("a.pdf, b.pdf ⌄"), "{:?}", chat.names());
+    chat.find(Role::Button, "Change…")?;
+    chat.click(Role::Button, "Accept and continue")?;
     let [
         CardAction::Answer {
             answer: ControlAnswer::Inputs { values },
@@ -604,10 +665,16 @@ fn impact_and_result_cards_answer_the_run() -> Fallible {
             "done",
             ControlCard::Result {
                 title: "Done · 1 undo step".into(),
-                items: vec![ResultItem {
-                    title: "Drafts".into(),
-                    value: json!(["component", "symbol"]),
-                }],
+                items: vec![
+                    ResultItem {
+                        title: "Drafts".into(),
+                        value: json!(["component", "symbol"]),
+                    },
+                    ResultItem {
+                        title: "Review".into(),
+                        value: json!("# Review of TLV75733PDBVR\n\n- pitch 0.95 mm, page 31"),
+                    },
+                ],
                 findings: Vec::new(),
                 actions: vec![Action {
                     title: "Open in editor".into(),
@@ -619,6 +686,9 @@ fn impact_and_result_cards_answer_the_run() -> Fallible {
         );
         chat.settle();
         assert!(chat.has("component, symbol"), "{:?}", chat.names());
+        assert!(chat.has("Review of TLV75733PDBVR"), "{:?}", chat.names());
+        chat.click(Role::Button, "Show review")?;
+        assert!(chat.has("pitch 0.95 mm, page 31"), "{:?}", chat.names());
         chat.click(Role::Button, "Open in editor")?;
         chat.click(Role::Button, "Undo run")?;
         assert_eq!(
@@ -638,6 +708,10 @@ fn impact_and_result_cards_answer_the_run() -> Fallible {
         assert!(
             chat.find(Role::Button, "Undo run").is_err(),
             "Undo run is offered once"
+        );
+        assert!(
+            chat.find(Role::Button, "Open in editor").is_err(),
+            "what the run made is gone"
         );
     }
     Ok(())
@@ -686,11 +760,13 @@ fn a_notify_card_continues_with_the_models_choice() -> Fallible {
 fn a_notify_card_changes_the_choice() -> Fallible {
     let mut chat = Chat::new(SIZES[0])?;
     started(&mut chat);
+    let mut why = field("pick", "Generator", false);
+    why.help = "SOT-23-5, TI lands".into();
     card(
         &mut chat,
         "pick",
         ControlCard::Choice {
-            field: field("pick", "Generator", false),
+            field: why,
             multiple: false,
             options: vec![
                 sparksmith_assist::workflow::control::Choice {
@@ -706,6 +782,10 @@ fn a_notify_card_changes_the_choice() -> Fallible {
         },
     );
     chat.settle();
+    // The choice first, on one line; the others once asked for.
+    assert!(chat.has("SOT-23 · SOT-23-5, TI lands"), "{:?}", chat.names());
+    assert!(chat.find(Role::CheckBox, "QFN").is_err());
+    chat.click(Role::Button, "Choose another…")?;
     assert!(chat.find(Role::Button, "Change")?.disabled);
     chat.click(Role::CheckBox, "QFN")?;
     chat.click(Role::Button, "Change")?;

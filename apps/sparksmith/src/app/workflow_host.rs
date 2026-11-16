@@ -4,7 +4,7 @@
 //! `offer_when` names, and the Component start page's Create from
 //! datasheet…, which offers the workflows that take a datasheet. Each puts
 //! the workflow card in the chat ([`crate::workflow_cards`]); nothing starts
-//! until the person chooses Use it there (`app/assistant_run.rs`).
+//! until the person chooses Accept and continue there (`app/assistant_run.rs`).
 use super::App;
 use super::command_palette::PaletteRow;
 use crate::kit::severity::Level;
@@ -56,6 +56,8 @@ impl App {
     /// Once a frame, before the chat draws: the cards added since the last
     /// frame join its transcript, and the chat opens for a new one.
     pub(super) fn workflow_frame(&mut self, ctx: &egui::Context) {
+        let folder = self.project_folder();
+        self.workflow_cards.set_project(folder);
         self.dropped_files(ctx);
         if std::mem::take(&mut self.part.datasheet_requested) {
             self.offer_datasheet_workflows();
