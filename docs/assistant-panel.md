@@ -21,6 +21,7 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Workflow contract (W0): `workflow.json` format 1 with its load check, the ten controls, the `assist.*` signatures, the run's events; the datasheet workflow's `workflow.json` | Built ([workflow format](workflow-format.md)). No runner, no entries in the catalog yet |
 | Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn, per-turn limits in the surface (ABI S4a) | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
 | The built-in agent on the surface (S6): the six verbs, `assist.document_text`, `assist.document_page`, `assist.pinout_edit` (with `assist.pinout_preview` and `assist.pinout_apply`), reach profiles as data, leniency in the verb reader | Built |
+| Streaming loop (L1): both wire formats stream; Stop between chunks; the loop's events for the chat (text and reasoning pieces, tool-call rows with their state, a meter of requests, tokens and minutes) | Built |
 | Jobs, events (ABI S4b); the window module's camera, layers and screenshot (S5b); elicitation (MCP P5) | Not built |
 | Assistant panel, Settings › AI | Not built |
 
