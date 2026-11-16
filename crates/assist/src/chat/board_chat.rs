@@ -363,9 +363,11 @@ fn steps() -> Vec<Step> {
     out
 }
 
-/// One run of the script on a fresh project under `policy`: the requests'
-/// estimated prompts, the session, and the refused calls.
-fn build(policy: Policy) -> Fallible<(Vec<u64>, Vec<usize>, Session, Vec<String>)> {
+/// A build: estimated prompts, characters sent, the session, refused calls.
+type Built = (Vec<u64>, Vec<usize>, Session, Vec<String>);
+
+/// One run of the script on a fresh project under `policy`.
+fn build(policy: Policy) -> Fallible<Built> {
     let library = ChatLibrary::locate()?;
     let mut config = ChatConfig::new(
         &library,

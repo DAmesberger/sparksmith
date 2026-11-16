@@ -92,7 +92,7 @@ fn walk<'a>(
         .iter()
         .copied()
         // The envelope's revision fills an entry's own (project.undo).
-        .filter(|r| !given.contains_key(*r) && !(at.is_empty() && *r == REVISION))
+        .filter(|r| !(given.contains_key(*r) || (at.is_empty() && *r == REVISION)))
         .collect();
     for (key, inner) in given {
         if properties.contains_key(key) || (at.is_empty() && key == VERBOSE) {

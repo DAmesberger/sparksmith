@@ -424,7 +424,7 @@ impl Assistant {
                     }
                 }
                 Item::Condensed { line, record } => {
-                    ui.separator();
+                    kit::rule(ui);
                     if disclosure(ui, open, line, "", None).clicked() {
                         toggled = Some(index);
                     }
