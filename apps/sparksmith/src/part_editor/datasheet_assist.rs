@@ -19,7 +19,7 @@ use sparksmith_assist::model::{
     self, Connection, Endpoint, KeySource, ModelProfile, Provider, Secret, keys,
 };
 use sparksmith_assist::profile as run_profile;
-use sparksmith_assist::{AssistLibrary, Datasheet, Event, Goal, RunConfig};
+use sparksmith_assist::{AssistLibrary, CallState, Datasheet, Event, Goal, RunConfig};
 use sparksmith_automation::Session;
 use sparksmith_ui::ui_kit::{self, Button};
 use std::path::PathBuf;
@@ -501,13 +501,32 @@ fn work(
                 } => {
                     format!("Response {n}: {stop_reason}, {output_tokens} tokens in {seconds:.0} s")
                 }
-                Event::Tool { name, error, step } => {
-                    let status = if error { "refused" } else { "ok" };
-                    format!(
-                        "{name}: {status}{}",
-                        step.map(|s| format!(" ({s})")).unwrap_or_default()
-                    )
-                }
+                Event::Call {
+                    name,
+                    state: CallState::Done { step, .. },
+                    ..
+                } => format!(
+                    "{name}: ok{}",
+                    step.map(|s| format!(" ({s})")).unwrap_or_default()
+                ),
+                Event::Call {
+                    name,
+                    state: CallState::Refused { .. },
+                    ..
+                } => format!("{name}: refused"),
+                Event::Call {
+                    name,
+                    state: CallState::NotRun { why },
+                    ..
+                } => format!("{name}: not run ({why})"),
+                // The log shows lines, not pieces as they arrive.
+                Event::TextDelta(_)
+                | Event::ReasoningDelta(_)
+                | Event::Usage(_)
+                | Event::Call {
+                    state: CallState::Writing | CallState::Running { .. },
+                    ..
+                } => return,
                 Event::Text(text) => text.chars().take(160).collect(),
                 Event::Warning(text) => format!("Warning: {text}"),
             };

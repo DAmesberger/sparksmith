@@ -8,6 +8,11 @@
 //! blocks always, so a later request carries what the API sent. Opus 5.5
 //! binds thinking to the conversation before it, and a rewrite would also
 //! re-write the cache.
+//!
+//! A streamed reply ([`ModelBackend::stream`]) is put back together from its
+//! events as the response a whole request gives, and read by the same
+//! [`parse_reply`], so it is the same reply block for block.
+use super::stream::{self, Delta, SseEvent, Streamed};
 use super::wire::{HttpWire, Wire};
 use super::{
     DocumentSource, Message, ModelBackend, ModelProfile, ModelReply, ModelRequest, Part, Role,
@@ -16,6 +21,7 @@ use super::{
 use crate::usage::Usage;
 use crate::{Error, Result};
 use serde_json::{Value, json};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 /// The API version every request names.
@@ -249,6 +255,205 @@ pub fn parse_reply(response: &Value, requested_model: &str) -> Result<ModelReply
     })
 }
 
+/// Most content blocks one streamed reply may open; an index past it is a
+/// protocol error, not an allocation.
+const MAX_STREAM_BLOCKS: usize = 4096;
+
+/// A Messages event stream put back together as the response a whole
+/// request gives: the message from `message_start`, each block from its
+/// start and deltas, the stop and usage from `message_delta`.
+#[derive(Debug, Default)]
+struct Assembly {
+    message: serde_json::Map<String, Value>,
+    blocks: Vec<Value>,
+    /// Tool input JSON as it arrives, by block index.
+    inputs: std::collections::BTreeMap<usize, String>,
+    calls: u32,
+    complete: bool,
+}
+
+fn object(value: &mut Value) -> Result<&mut serde_json::Map<String, Value>> {
+    value
+        .as_object_mut()
+        .ok_or_else(|| Error::Protocol("a streamed block is not an object".into()))
+}
+
+/// Append `piece` to the string at `key` of `block`.
+fn append(block: &mut Value, key: &str, piece: &str) -> Result<()> {
+    let slot = object(block)?
+        .entry(key)
+        .or_insert_with(|| Value::String(String::new()));
+    match slot {
+        Value::String(text) => text.push_str(piece),
+        other => *other = Value::String(piece.to_owned()),
+    }
+    Ok(())
+}
+
+impl Assembly {
+    fn index(value: &Value) -> Result<usize> {
+        value["index"]
+            .as_u64()
+            .and_then(|i| usize::try_from(i).ok())
+            .filter(|i| *i < MAX_STREAM_BLOCKS)
+            .ok_or_else(|| Error::Protocol(format!("a stream event has no usable index: {value}")))
+    }
+
+    fn event(&mut self, event: &SseEvent, deltas: &mut dyn FnMut(Delta)) -> Result<()> {
+        if event.data.trim().is_empty() {
+            return Ok(());
+        }
+        let value: Value = serde_json::from_str(&event.data)
+            .map_err(|e| Error::Protocol(format!("a stream event is not JSON: {e}")))?;
+        let kind = value["type"].as_str().unwrap_or(event.event.as_str());
+        match kind {
+            "message_start" => {
+                if let Some(message) = value["message"].as_object() {
+                    self.message = message.clone();
+                }
+            }
+            "content_block_start" => {
+                let i = Self::index(&value)?;
+                let block = value["content_block"].clone();
+                if !block.is_object() {
+                    return Err(Error::Protocol("a streamed block is not an object".into()));
+                }
+                if block.get("input").is_some() {
+                    self.inputs.insert(i, String::new());
+                }
+                if block["type"] == "tool_use" {
+                    deltas(Delta::ToolCall {
+                        index: self.calls,
+                        name: block["name"].as_str().unwrap_or_default().to_owned(),
+                    });
+                    self.calls = self.calls.saturating_add(1);
+                }
+                if self.blocks.len() <= i {
+                    self.blocks.resize(i + 1, Value::Null);
+                }
+                if let Some(slot) = self.blocks.get_mut(i) {
+                    *slot = block;
+                }
+            }
+            "content_block_delta" => {
+                let i = Self::index(&value)?;
+                let delta = &value["delta"];
+                let Some(block) = self.blocks.get_mut(i).filter(|b| b.is_object()) else {
+                    return Err(Error::Protocol(format!(
+                        "a delta for block {i}, which did not start"
+                    )));
+                };
+                let text = |key: &str| delta[key].as_str().unwrap_or_default().to_owned();
+                match delta["type"].as_str() {
+                    Some("text_delta") => {
+                        let piece = text("text");
+                        append(block, "text", &piece)?;
+                        deltas(Delta::Text(piece));
+                    }
+                    Some("thinking_delta") => {
+                        let piece = text("thinking");
+                        append(block, "thinking", &piece)?;
+                        deltas(Delta::Reasoning(piece));
+                    }
+                    Some("signature_delta") => append(block, "signature", &text("signature"))?,
+                    Some("input_json_delta") => self
+                        .inputs
+                        .entry(i)
+                        .or_default()
+                        .push_str(&text("partial_json")),
+                    Some("citations_delta") => {
+                        let slot = object(block)?
+                            .entry("citations")
+                            .or_insert_with(|| Value::Array(Vec::new()));
+                        if !slot.is_array() {
+                            *slot = Value::Array(Vec::new());
+                        }
+                        if let Value::Array(list) = slot {
+                            list.push(delta["citation"].clone());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            "content_block_stop" => self.close(Self::index(&value)?),
+            "message_delta" => {
+                for (key, v) in value["delta"].as_object().into_iter().flatten() {
+                    self.message.insert(key.clone(), v.clone());
+                }
+                if let Some(usage) = value["usage"].as_object() {
+                    let slot = self
+                        .message
+                        .entry("usage")
+                        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+                    if !slot.is_object() {
+                        *slot = Value::Object(serde_json::Map::new());
+                    }
+                    if let Value::Object(kept) = slot {
+                        for (key, v) in usage {
+                            kept.insert(key.clone(), v.clone());
+                        }
+                    }
+                }
+            }
+            "message_stop" => self.complete = true,
+            "error" => {
+                let error = &value["error"];
+                let kind = error["type"].as_str().unwrap_or("error");
+                let status = match kind {
+                    "overloaded_error" => 529,
+                    "rate_limit_error" => 429,
+                    "api_error" => 500,
+                    _ => 400,
+                };
+                return Err(Error::Api {
+                    status,
+                    message: format!(
+                        "{kind}: {}",
+                        error["message"].as_str().unwrap_or("the stream failed")
+                    ),
+                });
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
+    /// A tool block's input, once all of it has arrived.
+    fn close(&mut self, i: usize) {
+        let (Some(json), Some(block)) = (self.inputs.remove(&i), self.blocks.get_mut(i)) else {
+            return;
+        };
+        if json.trim().is_empty() {
+            return;
+        }
+        let input = serde_json::from_str(&json).unwrap_or(Value::String(json));
+        if let Some(block) = block.as_object_mut() {
+            block.insert("input".into(), input);
+        }
+    }
+
+    /// The response, as a whole request would have given it.
+    fn finish(mut self) -> Value {
+        let open: Vec<usize> = self.inputs.keys().copied().collect();
+        for i in open {
+            self.close(i);
+        }
+        let blocks = self.blocks.into_iter().filter(|b| !b.is_null()).collect();
+        self.message.insert("content".into(), Value::Array(blocks));
+        Value::Object(self.message)
+    }
+}
+
+impl<W: Wire> AnthropicBackend<W> {
+    fn headers(body: &Value) -> Vec<(&'static str, &'static str)> {
+        let mut headers = vec![("anthropic-version", API_VERSION)];
+        if body.get("fallbacks").is_some() {
+            headers.push(("anthropic-beta", FALLBACK_BETA));
+        }
+        headers
+    }
+}
+
 impl<W: Wire> ModelBackend for AnthropicBackend<W> {
     fn label(&self) -> String {
         format!("Anthropic Messages at {}", self.wire.label())
@@ -256,14 +461,56 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
 
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
         let body = request_body(&self.profile, request);
-        let mut headers = vec![("anthropic-version", API_VERSION)];
-        if body.get("fallbacks").is_some() {
-            headers.push(("anthropic-beta", FALLBACK_BETA));
-        }
-        let response = self
-            .wire
-            .post("/v1/messages", &headers, &body, request.timeout)?;
+        let response = self.wire.post(
+            "/v1/messages",
+            &Self::headers(&body),
+            &body,
+            request.timeout,
+        )?;
         parse_reply(&response, &self.profile.model)
+    }
+
+    fn stream(
+        &mut self,
+        request: &ModelRequest<'_>,
+        deltas: &mut dyn FnMut(Delta),
+        cancel: &AtomicBool,
+    ) -> Result<ModelReply> {
+        let mut body = request_body(&self.profile, request);
+        if let Some(fields) = body.as_object_mut() {
+            fields.insert("stream".into(), Value::Bool(true));
+        }
+        let mut assembly = Assembly::default();
+        let streamed = self.wire.post_stream(
+            "/v1/messages",
+            &Self::headers(&body),
+            &body,
+            request.timeout,
+            &mut |event| {
+                assembly.event(&event, deltas)?;
+                Ok(!cancel.load(Ordering::Relaxed))
+            },
+        )?;
+        let stopped = match streamed {
+            Streamed::Whole(response) => {
+                let reply = parse_reply(&response, &self.profile.model)?;
+                stream::deltas_of(&reply, deltas);
+                return Ok(reply);
+            }
+            Streamed::Stopped => true,
+            Streamed::Done if assembly.complete => false,
+            Streamed::Done => {
+                return Err(Error::Protocol(
+                    "the stream ended before the reply was complete".into(),
+                ));
+            }
+        };
+        let response = self.wire.clean_value(assembly.finish());
+        let mut reply = parse_reply(&response, &self.profile.model)?;
+        if stopped {
+            reply.stop = StopReason::Stopped;
+        }
+        Ok(reply)
     }
 
     fn count_prompt_tokens(&mut self, request: &ModelRequest<'_>) -> Result<Option<u64>> {
@@ -449,6 +696,150 @@ mod tests {
                 .get("cache_control")
                 .is_none()
         );
+    }
+
+    fn request<'a>() -> ModelRequest<'a> {
+        ModelRequest {
+            system: "S",
+            tools: &[],
+            messages: &[],
+            max_output_tokens: 100,
+            timeout: Duration::from_secs(1),
+        }
+    }
+
+    /// A reply with every kind of block a stream carries.
+    fn whole() -> Result<Value> {
+        let thinking: Value = serde_json::from_str(
+            r#"{"type": "thinking", "thinking": "The pin table is on page 3.", "signature": "CAQS6g=="}"#,
+        )?;
+        Ok(
+            json!({"id": "msg_1", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
+            "content": [thinking,
+                {"type": "redacted_thinking", "data": "abc"},
+                {"type": "text", "text": "Reading the pinout — µ-sized steps."},
+                {"type": "tool_use", "id": "t1", "name": "query", "input": {"name": "assist.document_text", "params": {"pages": [3, 4]}}},
+                {"type": "tool_use", "id": "t2", "name": "find", "input": {}}],
+            "stop_reason": "tool_use", "stop_sequence": null,
+            "usage": {"input_tokens": 12, "output_tokens": 345, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 6000}}),
+        )
+    }
+
+    fn streamed(
+        events: Vec<Value>,
+        cancel_after: Option<usize>,
+    ) -> (
+        Result<ModelReply>,
+        Vec<Delta>,
+        AnthropicBackend<ScriptedWire>,
+    ) {
+        let mut backend = AnthropicBackend::new(profile(), ScriptedWire::new(events));
+        let cancel = AtomicBool::new(false);
+        let mut seen = Vec::new();
+        let reply = backend.stream(
+            &request(),
+            &mut |d| {
+                seen.push(d);
+                if cancel_after.is_some_and(|n| seen.len() >= n) {
+                    cancel.store(true, Ordering::Relaxed);
+                }
+            },
+            &cancel,
+        );
+        (reply, seen, backend)
+    }
+
+    #[test]
+    fn a_streamed_reply_is_the_whole_reply_byte_for_byte() -> Result<()> {
+        let whole = whole()?;
+        let (reply, deltas, backend) = streamed(vec![stream::fixtures::messages(&whole)], None);
+        let reply = reply?;
+        assert_eq!(reply, parse_reply(&whole, "m")?);
+        // Every block goes back exactly as a whole reply's would.
+        let rebuilt: Vec<Value> = reply.content.iter().map(block).collect();
+        assert_eq!(Value::Array(rebuilt), whole["content"]);
+        assert_eq!(reply.usage.output_tokens, 345);
+        assert_eq!(reply.usage.cache_read_tokens, 6000);
+        // The pieces: reasoning, text, then the two calls in order.
+        let text: String = deltas
+            .iter()
+            .filter_map(|d| match d {
+                Delta::Text(t) => Some(t.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(text, "Reading the pinout — µ-sized steps.");
+        assert!(matches!(deltas.first(), Some(Delta::Reasoning(_))));
+        let calls: Vec<&Delta> = deltas
+            .iter()
+            .filter(|d| matches!(d, Delta::ToolCall { .. }))
+            .collect();
+        assert_eq!(
+            calls,
+            [
+                &Delta::ToolCall {
+                    index: 0,
+                    name: "query".into()
+                },
+                &Delta::ToolCall {
+                    index: 1,
+                    name: "find".into()
+                }
+            ]
+        );
+        let (_, _, body, _) = &backend.wire.posts[0];
+        assert_eq!(body["stream"], true);
+        Ok(())
+    }
+
+    #[test]
+    fn stop_between_chunks_ends_the_reply_as_stopped() -> Result<()> {
+        let (reply, deltas, _) = streamed(vec![stream::fixtures::messages(&whole()?)], Some(2));
+        let reply = reply?;
+        assert_eq!(reply.stop, StopReason::Stopped);
+        assert_eq!(deltas.len(), 2, "nothing read after the stop: {deltas:?}");
+        Ok(())
+    }
+
+    #[test]
+    fn a_broken_stream_is_an_error_never_a_reply() -> Result<()> {
+        let error = json!(
+            "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"m\",\"usage\":{}}}\n\nevent: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}\n\n"
+        );
+        let (reply, _, _) = streamed(vec![error], None);
+        assert!(
+            matches!(reply, Err(Error::Api { status: 529, .. })),
+            "{reply:?}"
+        );
+        // Cut before message_stop: incomplete, not an answer.
+        let Value::String(full) = stream::fixtures::messages(&whole()?) else {
+            return Err(Error::Protocol("a stream".into()));
+        };
+        let cut = full
+            .split("event: message_delta")
+            .next()
+            .unwrap_or_default();
+        let (reply, _, _) = streamed(vec![json!(cut)], None);
+        assert!(matches!(reply, Err(Error::Protocol(_))), "{reply:?}");
+        // A delta for a block that never started, and a huge index.
+        for bad in [
+            "data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"x\"}}\n\n",
+            "data: {\"type\":\"content_block_start\",\"index\":99999999,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n",
+            "data: not json\n\n",
+        ] {
+            let (reply, _, _) = streamed(vec![json!(bad)], None);
+            assert!(matches!(reply, Err(Error::Protocol(_))), "{bad}: {reply:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn a_server_that_does_not_stream_still_answers() -> Result<()> {
+        let whole = whole()?;
+        let (reply, deltas, _) = streamed(vec![whole.clone()], None);
+        assert_eq!(reply?, parse_reply(&whole, "m")?);
+        assert_eq!(deltas.len(), 4, "reasoning, text and two calls: {deltas:?}");
+        Ok(())
     }
 
     #[test]
