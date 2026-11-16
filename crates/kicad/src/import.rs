@@ -377,12 +377,14 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
             component: ComponentRef::new(set.component, Revision::FIRST),
             designator,
             properties: vec![],
-            representation: set.symbol,
-            unit,
-            position: PointNm::from_mm_f64_rounded(position).map_err(|e| ImportError::Refused {
-                step: "component.place",
-                reason: e.to_string(),
-            })?,
+            representation: Some(set.symbol),
+            unit: Some(unit),
+            position: Some(PointNm::from_mm_f64_rounded(position).map_err(|e| {
+                ImportError::Refused {
+                    step: "component.place",
+                    reason: e.to_string(),
+                }
+            })?),
             physical: Some(PhysicalChoice {
                 binding: set.binding,
                 footprint: set.footprint,

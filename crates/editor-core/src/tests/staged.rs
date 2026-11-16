@@ -80,9 +80,9 @@ fn new_instance_commands_fail_atomically_on_stale_malformed_and_unknown_input() 
             component: f.r1(),
             designator: Some("R1".into()),
             properties: vec![],
-            representation: f.symbol,
-            unit: UnitId(1),
-            position: pt([0.0, 0.0]),
+            representation: Some(f.symbol),
+            unit: Some(UnitId(1)),
+            position: Some(pt([0.0, 0.0])),
             physical: None,
         })),
         Operation::Instance(InstanceCommand::Place(NewInstance {
@@ -90,9 +90,9 @@ fn new_instance_commands_fail_atomically_on_stale_malformed_and_unknown_input() 
             component: f.r1(),
             designator: Some("R5".into()),
             properties: vec![],
-            representation: f.package,
-            unit: UnitId(1),
-            position: pt([0.0, 0.0]),
+            representation: Some(f.package),
+            unit: Some(UnitId(1)),
+            position: Some(pt([0.0, 0.0])),
             physical: None,
         })),
         Operation::Instance(InstanceCommand::Place(NewInstance {
@@ -100,9 +100,9 @@ fn new_instance_commands_fail_atomically_on_stale_malformed_and_unknown_input() 
             component: f.r1(),
             designator: Some("R5".into()),
             properties: vec![],
-            representation: f.symbol,
-            unit: UnitId(9),
-            position: pt([0.0, 0.0]),
+            representation: Some(f.symbol),
+            unit: Some(UnitId(9)),
+            position: Some(pt([0.0, 0.0])),
             physical: None,
         })),
         Operation::Instance(InstanceCommand::Place(NewInstance {
@@ -110,9 +110,9 @@ fn new_instance_commands_fail_atomically_on_stale_malformed_and_unknown_input() 
             component: f.r1(),
             designator: Some("R5".into()),
             properties: vec![],
-            representation: f.symbol,
-            unit: UnitId(1),
-            position: pt([0.0, 0.0]),
+            representation: Some(f.symbol),
+            unit: Some(UnitId(1)),
+            position: Some(pt([0.0, 0.0])),
             physical: Some(PhysicalChoice {
                 binding: f.binding,
                 footprint: f.package,
@@ -172,7 +172,7 @@ fn new_instance_commands_fail_atomically_on_stale_malformed_and_unknown_input() 
         kept.assert_kept(&engine, &format!("{operation:?}"));
     }
     for malformed in [
-        json!({"editor":"Instance","operation":{"command":"component.place","params":{"component":{"id":1,"revision":1}}}}),
+        json!({"editor":"Instance","operation":{"command":"component.place","params":{"component":{"id":1,"revision":1},"position":[0,0,0]}}}),
         json!({"editor":"Instance","operation":{"command":"instance.set_unit_unused","params":{"instance":1,"unit":1,"unused":true,"extra":0}}}),
         json!({"editor":"Schematic","operation":{"command":"schematic.place","params":{}}}),
     ] {

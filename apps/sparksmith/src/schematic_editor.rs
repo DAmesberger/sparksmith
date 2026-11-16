@@ -26,7 +26,7 @@ use sparksmith_core::schematic::PlacedUnit;
 use sparksmith_core::units::PointNm;
 use sparksmith_core::{
     ComponentRef, DefinitionId, Endpoint, Engine, Id, InstanceCommand, Net, ObjectRef, Operation,
-    PhysicalChoice, Point, Project, Query, QueryResult, WireEnd,
+    Point, Project, Query, QueryResult, WireEnd,
     schematic::{self, ClipObject, SchematicCommand, WirePoint, WireTarget},
     updates::{ApplyUpdate, Change, InstanceChange},
 };
@@ -496,31 +496,29 @@ fn ghost_unit(project: &Project, component: ComponentRef) -> Option<PlacedUnit> 
 }
 
 /// What placing `component` creates: its first representation and unit and
-/// its first offered implementation, if any.
+/// its first offered implementation, if any (the core's
+/// `instances::first_choices`, which `component.place` uses when they are
+/// left out).
 fn first_choices(project: &Project, component: ComponentRef) -> Option<(NewInstance, &Unit)> {
+    let first = sparksmith_core::instances::first_choices(project, component)?;
     let library = &project.library;
     let published = library.component(component)?;
-    let symbol_ref = *published.definition.representations.first()?;
-    let symbol = library.symbol(symbol_ref)?;
-    let unit = symbol.definition.units.first()?;
-    let physical = published.definition.implementations.first().and_then(|b| {
-        let binding = library.binding(*b)?;
-        let footprint = binding.definition.footprints.first()?;
-        Some(PhysicalChoice {
-            binding: b.id,
-            footprint: footprint.id,
-        })
-    });
+    let symbol_ref = *published
+        .definition
+        .representations
+        .iter()
+        .find(|r| r.id == first.representation)?;
+    let unit = library.symbol(symbol_ref)?.definition.unit(first.unit)?;
     Some((
         NewInstance {
             sheet: None,
             component,
             designator: None,
             properties: Vec::new(),
-            representation: symbol_ref.id,
-            unit: unit.id,
-            position: PointNm::ORIGIN,
-            physical,
+            representation: Some(first.representation),
+            unit: Some(first.unit),
+            position: Some(PointNm::ORIGIN),
+            physical: first.physical,
         },
         unit,
     ))
@@ -1873,7 +1871,7 @@ impl SchematicEditor {
                 {
                     output = Some(Operation::Instance(InstanceCommand::Place(NewInstance {
                         sheet: Some(self.sheet),
-                        position,
+                        position: Some(position),
                         ..request
                     })));
                 }
@@ -2382,7 +2380,7 @@ impl SchematicEditor {
                             .filter(|r| *r == engine.revision());
                         output = Some(Operation::Instance(InstanceCommand::Place(NewInstance {
                             sheet: Some(self.sheet),
-                            position,
+                            position: Some(position),
                             properties: sparksmith_core::catalog::generic::properties(
                                 &project.library,
                                 request.component,
@@ -3526,9 +3524,9 @@ mod tests {
                     component: first.component,
                     designator: Some("R3".into()),
                     properties: vec![],
-                    representation: first.representation,
-                    unit: sparksmith_core::UnitId(1),
-                    position: pt([30.0, 0.0]),
+                    representation: Some(first.representation),
+                    unit: Some(sparksmith_core::UnitId(1)),
+                    position: Some(pt([30.0, 0.0])),
                     physical: first.physical,
                 },
             )),
@@ -3986,7 +3984,7 @@ mod tests {
             engine.revision(),
             Operation::Instance(InstanceCommand::Place(NewInstance {
                 sheet: None,
-                position: pt([30.0, 0.0]),
+                position: Some(pt([30.0, 0.0])),
                 ..request
             })),
         )?;
@@ -4088,7 +4086,7 @@ mod tests {
             Operation::Instance(InstanceCommand::Place(NewInstance {
                 sheet: None,
                 designator: Some("U1".into()),
-                position: pt([0.0, 20.0]),
+                position: Some(pt([0.0, 20.0])),
                 ..request
             })),
         )? {

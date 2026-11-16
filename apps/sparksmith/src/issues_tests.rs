@@ -752,9 +752,9 @@ fn an_unconnected_pin_row_marks_it_no_connect_with_one_undo() -> Fallible<()> {
                 component: first.component,
                 designator: Some(name.into()),
                 properties: vec![],
-                representation: first.representation,
-                unit: UnitId(1),
-                position: crate::schematic_editor::pt(at),
+                representation: Some(first.representation),
+                unit: Some(UnitId(1)),
+                position: Some(crate::schematic_editor::pt(at)),
                 physical: None,
             })),
         )?;

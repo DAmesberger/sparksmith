@@ -600,6 +600,22 @@ impl Request {
         }
     }
 
+    /// The `component.place` requests among this request's operations.
+    pub fn placements(&self) -> Vec<&sparksmith_core::instances::NewInstance> {
+        let operations: &[Operation] = match self {
+            Self::Apply(params) => std::slice::from_ref(&params.operation),
+            Self::ApplyAll(params) => &params.operations,
+            _ => &[],
+        };
+        operations
+            .iter()
+            .filter_map(|operation| match operation {
+                Operation::Instance(sparksmith_core::InstanceCommand::Place(new)) => Some(new),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// What the gate reports as requested: the operation or query inside
     /// `project.apply` and `project.query`, else the request itself.
     pub fn subject(&self) -> &'static str {

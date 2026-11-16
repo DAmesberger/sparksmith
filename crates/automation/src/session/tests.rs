@@ -218,9 +218,9 @@ fn placing_and_inspecting_through_json_matches_the_engine() -> TestResult {
         component,
         designator: Some("R3".into()),
         properties: vec![],
-        representation: first.representation,
-        unit: UnitId(1),
-        position: pt([30.0, 0.0]),
+        representation: Some(first.representation),
+        unit: Some(UnitId(1)),
+        position: Some(pt([30.0, 0.0])),
         physical: first.physical,
     }));
     let reply = session.dispatch(apply(&place, session.engine().revision()));
@@ -442,9 +442,9 @@ fn library_search_through_json_matches_the_engine_and_places() -> TestResult {
         ),
         designator: None,
         properties: vec![],
-        representation: id(&report["symbols"][0]["symbol"]["id"]).ok_or("symbol")?,
-        unit: UnitId(1),
-        position: pt([0.0, 0.0]),
+        representation: Some(id(&report["symbols"][0]["symbol"]["id"]).ok_or("symbol")?),
+        unit: Some(UnitId(1)),
+        position: Some(pt([0.0, 0.0])),
         physical: Some(sparksmith_core::PhysicalChoice {
             binding: id(&report["implementations"][0]["binding"]["id"]).ok_or("binding")?,
             footprint: id(&report["implementations"][0]["footprints"][0]["footprint"]["id"])

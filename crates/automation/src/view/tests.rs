@@ -267,3 +267,163 @@ fn an_offer_shows_the_workflow_card_in_the_window() -> Fallible {
     assert_eq!(session.engine().revision(), revision);
     Ok(())
 }
+
+/// Place `component` with only its id, as the person: the reply's
+/// outcome.
+fn place(session: &mut Session, component: Value) -> Fallible<Value> {
+    let revision = session.engine().revision();
+    let placed = session
+        .call(
+            CallCx {
+                who: Principal::Person,
+                asker: &mut NoOne,
+                verbose: false,
+                window: None,
+            },
+            Call {
+                expected_revision: Some(revision),
+                ..call("component.place", json!({"component": component}))
+            },
+        )
+        .map_err(|e| format!("{e:?}"))?;
+    Ok(placed["outcome"].clone())
+}
+
+/// What `component.place` returned selects what it placed: the occurrence
+/// id names its part, and so does the designator, in `ids` or in
+/// `designators`, in any case.
+#[test]
+fn what_was_just_placed_selects_by_its_occurrence_or_designator() -> Fallible {
+    let mut session = Session::new(Engine::demo()?);
+    let component = serde_json::to_value(
+        session
+            .engine()
+            .project()
+            .instances
+            .first()
+            .ok_or("no part")?
+            .component,
+    )?;
+    let outcome = place(&mut session, component)?;
+    let instance = outcome["instance"].as_u64().ok_or(format!("{outcome}"))?;
+    let occurrence = outcome["occurrence"].as_u64().ok_or(format!("{outcome}"))?;
+    let designator = outcome["designator"]
+        .as_str()
+        .ok_or(format!("{outcome}"))?
+        .to_owned();
+    assert_ne!(instance, occurrence);
+    let mut window = Fake::idle();
+    for params in [
+        json!({"ids": [occurrence]}),
+        json!({"ids": [instance]}),
+        json!({"ids": [designator]}),
+        json!({"ids": [designator.to_lowercase()]}),
+        json!({"designators": [designator.to_lowercase()]}),
+        json!({"ids": [occurrence.to_string()]}),
+    ] {
+        window.selection.clear();
+        let selected = run(
+            &mut session,
+            Some(&mut window),
+            call("view.select", params.clone()),
+        )
+        .map_err(|e| format!("{params}: {e:?}"))?;
+        assert_eq!(selected["selected"], 1, "{params}: {selected}");
+        assert_eq!(
+            window.selection,
+            vec![ObjectRef::Instance { id: instance }],
+            "{params}"
+        );
+    }
+    Ok(())
+}
+
+/// A designator no part has is refused, naming it and the designators the
+/// project has; nothing is selected.
+#[test]
+fn an_unknown_designator_is_refused_with_the_known_ones() -> Fallible {
+    let mut session = Session::new(Engine::demo()?);
+    let (_, designator) = first_part(&session)?;
+    let mut window = Fake::idle();
+    for params in [json!({"ids": ["Q99"]}), json!({"designators": ["Q99"]})] {
+        let Err(error) = run(
+            &mut session,
+            Some(&mut window),
+            call("view.select", params.clone()),
+        ) else {
+            return Err(format!("{params} selected").into());
+        };
+        assert_eq!(error.code, "view.unknown_object", "{error:?}");
+        assert!(error.message.contains("\"Q99\""), "{error:?}");
+        let instead = error.instead.clone().unwrap_or_default();
+        assert!(instead.contains(&designator), "{error:?}");
+    }
+    assert!(window.selection.is_empty());
+    Ok(())
+}
+
+/// `component.place` with `params`, as `who`.
+fn place_as(session: &mut Session, who: Principal<'_>, params: Value) -> Result<Value, Box<Error>> {
+    let revision = session.engine().revision();
+    session.call(
+        CallCx {
+            who,
+            asker: &mut NoOne,
+            verbose: false,
+            window: None,
+        },
+        Call {
+            expected_revision: Some(revision),
+            ..call("component.place", params)
+        },
+    )
+}
+
+/// An agent's symbol goes on the page: a position outside the sheet's
+/// frame is refused, naming the frame, and nothing changes; a position
+/// left out lands inside it. A person may still draw beside the page.
+#[test]
+fn an_agent_places_symbols_inside_the_sheet_frame() -> Fallible {
+    let mut session = Session::new(Engine::demo()?);
+    let component = serde_json::to_value(
+        session
+            .engine()
+            .project()
+            .instances
+            .first()
+            .ok_or("no part")?
+            .component,
+    )?;
+    let grant = Grant::new(Mode::AllowAll, []);
+    let agent = || Principal::RemoteAgent {
+        grant: &grant,
+        client: "test",
+    };
+    let revision = session.engine().revision();
+    let outside = json!({"component": component, "position": [100.0, 80.0]});
+    let Err(error) = place_as(&mut session, agent(), outside.clone()) else {
+        return Err("placed outside the frame".into());
+    };
+    assert!(
+        error.message.contains(
+            "(100, 80) mm is outside Sheet 1 (A4 landscape): its frame spans x -30\u{2026}267 mm and y -180\u{2026}30 mm, y up"
+        ),
+        "{error:?}"
+    );
+    assert_eq!(session.engine().revision(), revision);
+    let placed = place_as(&mut session, agent(), json!({"component": component}))
+        .map_err(|e| format!("{e:?}"))?;
+    let occurrence = placed["outcome"]["occurrence"]
+        .as_u64()
+        .ok_or(format!("{placed}"))?;
+    let project = session.engine().project();
+    let at = project
+        .occurrence(occurrence)
+        .ok_or("no occurrence")?
+        .position;
+    let first = project.sheets.first();
+    assert!(sparksmith_core::schematic::spot::check_on_page(project, first, at).is_ok());
+    // The person may place beside the page.
+    place_as(&mut session, Principal::Person, outside).map_err(|e| format!("{e:?}"))?;
+    Ok(())
+}

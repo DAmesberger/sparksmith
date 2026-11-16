@@ -26,14 +26,71 @@ pub struct ContextParams {}
 /// Select objects in the window, replacing the selection, and frame them,
 /// in the shown workspace when it shows them, else in the one that does.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
+#[serde(try_from = "RawSelect", deny_unknown_fields)]
 pub struct SelectParams {
-    /// Project object ids: parts, tracks, vias, fills, keepouts, wires.
+    /// Project object ids: parts (the instance, or the symbol occurrence
+    /// `component.place` returns), tracks, vias, fills, keepouts, wires,
+    /// labels and sheet symbols. A designator given here ("U1") is read as
+    /// one of `designators`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ids: Vec<Id>,
+    /// Parts by designator ("U1", "r3"), compared case-insensitively.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub designators: Vec<String>,
     /// Objects by kind, as findings name them (a net, a pad, a sheet).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub objects: Vec<ObjectRef>,
+}
+
+/// Select objects in the window, replacing the selection, and frame them,
+/// in the shown workspace when it shows them, else in the one that does.
+/// (`view.select`'s parameters as sent, and its schema: an id may be a
+/// designator.)
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RawSelect {
+    /// Project object ids: parts (the instance, or the symbol occurrence
+    /// `component.place` returns), tracks, vias, fills, keepouts, wires,
+    /// labels and sheet symbols. A designator given here ("U1") is read as
+    /// one of `designators`.
+    #[serde(default)]
+    ids: Vec<IdOrName>,
+    /// Parts by designator ("U1", "r3"), compared case-insensitively.
+    #[serde(default)]
+    designators: Vec<String>,
+    /// Objects by kind, as findings name them (a net, a pad, a sheet).
+    #[serde(default)]
+    objects: Vec<ObjectRef>,
+}
+
+/// An object id, or a part's designator.
+#[derive(Deserialize, JsonSchema)]
+#[serde(untagged)]
+enum IdOrName {
+    Id(Id),
+    Name(String),
+}
+
+impl TryFrom<RawSelect> for SelectParams {
+    type Error = String;
+
+    fn try_from(raw: RawSelect) -> Result<Self, String> {
+        let mut params = Self {
+            ids: Vec::with_capacity(raw.ids.len()),
+            designators: raw.designators,
+            objects: raw.objects,
+        };
+        for id in raw.ids {
+            match id {
+                IdOrName::Id(id) => params.ids.push(id),
+                IdOrName::Name(name) => match name.trim().parse::<Id>() {
+                    Ok(id) => params.ids.push(id),
+                    Err(_) => params.designators.push(name),
+                },
+            }
+        }
+        Ok(params)
+    }
 }
 
 /// Show a workspace: the PCB in its Layout or 3D view, a schematic sheet,
@@ -276,13 +333,17 @@ pub fn unavailable(entry: &str) -> Box<Error> {
 /// their kind.
 pub fn objects(project: &Project, params: &SelectParams) -> Result<Vec<ObjectRef>, Box<Error>> {
     const ENTRY: &str = "view.select";
-    let count = params.ids.len().saturating_add(params.objects.len());
+    let count = params
+        .ids
+        .len()
+        .saturating_add(params.designators.len())
+        .saturating_add(params.objects.len());
     if count == 0 || count > MAX_SELECT {
         return Err(refused(
             "malformed_request",
             ENTRY,
             &format!("it names {count} objects; name 1 to {MAX_SELECT}. Nothing was changed."),
-            "Send ids or objects.",
+            "Send ids, designators or objects.",
         ));
     }
     let mut out = Vec::with_capacity(count);
@@ -291,11 +352,32 @@ pub fn objects(project: &Project, params: &SelectParams) -> Result<Vec<ObjectRef
             refused(
                 "view.unknown_object",
                 ENTRY,
-                &format!("no part, track, via, fill, keepout or wire has id {id}. Nothing was selected."),
-                "Read the ids with query (layout.objects, project.inspect), or name a net, pad or sheet in objects.",
+                &format!(
+                    "no part, symbol, track, via, fill, keepout, wire, label or sheet symbol has id {id}. Nothing was selected."
+                ),
+                &format!(
+                    "Name parts by designator ({}), or read the ids with query project.inspect; name a net, pad or sheet in objects.",
+                    known_designators(project)
+                ),
             )
         })?;
         out.push(object);
+    }
+    for designator in &params.designators {
+        let instance = project
+            .instance_by_designator(designator.trim())
+            .ok_or_else(|| {
+                refused(
+                    "view.unknown_object",
+                    ENTRY,
+                    &format!(
+                        "no part has the designator {:?}. Nothing was selected.",
+                        designator.chars().take(64).collect::<String>()
+                    ),
+                    &format!("Name one the project has: {}.", known_designators(project)),
+                )
+            })?;
+        out.push(ObjectRef::Instance { id: instance.id });
     }
     for object in &params.objects {
         if !exists(project, object) {
@@ -314,10 +396,35 @@ pub fn objects(project: &Project, params: &SelectParams) -> Result<Vec<ObjectRef
     Ok(out)
 }
 
-/// The object a project object id names.
+/// Designators a refusal lists at most.
+const LISTED_DESIGNATORS: usize = 10;
+
+/// The project's designators, for a refusal: up to ten, then how many more.
+fn known_designators(project: &Project) -> String {
+    let all: Vec<&str> = project
+        .instances
+        .iter()
+        .map(|i| i.designator.as_str())
+        .collect();
+    if all.is_empty() {
+        return "the project has no parts yet".into();
+    }
+    let mut listed = all[..all.len().min(LISTED_DESIGNATORS)].join(", ");
+    if all.len() > LISTED_DESIGNATORS {
+        listed.push_str(&format!(" and {} more", all.len() - LISTED_DESIGNATORS));
+    }
+    listed
+}
+
+/// The object a project object id names. A symbol occurrence's id (what
+/// `component.place` returns beside the instance) names its part.
 pub fn object_of(project: &Project, id: Id) -> Option<ObjectRef> {
     if project.instance(id).is_some() {
         Some(ObjectRef::Instance { id })
+    } else if let Some(occurrence) = project.occurrence(id) {
+        Some(ObjectRef::Instance {
+            id: occurrence.instance,
+        })
     } else if project.tracks.iter().any(|t| t.id == id) {
         Some(ObjectRef::Track { id })
     } else if project.vias.iter().any(|v| v.id == id) {
@@ -328,6 +435,10 @@ pub fn object_of(project: &Project, id: Id) -> Option<ObjectRef> {
         Some(ObjectRef::Keepout { id })
     } else if project.wire(id).is_some() {
         Some(ObjectRef::Wire { id })
+    } else if project.label(id).is_some() {
+        Some(ObjectRef::Label { id })
+    } else if project.sheet_symbol(id).is_some() {
+        Some(ObjectRef::SheetSymbol { id })
     } else {
         None
     }

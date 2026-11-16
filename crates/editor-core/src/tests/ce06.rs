@@ -439,9 +439,9 @@ fn place_mcu(engine: &mut Engine, m: &Mcu, designator: &str, y: f64) -> Result<I
             component: ComponentRef::new(m.component, Revision::FIRST),
             designator: Some(designator.into()),
             properties: vec![],
-            representation: m.symbol,
-            unit: UnitId(1),
-            position: pt([0.0, y]),
+            representation: Some(m.symbol),
+            unit: Some(UnitId(1)),
+            position: Some(pt([0.0, y])),
             physical: Some(m.choice(m.b1)),
         })),
     )? {

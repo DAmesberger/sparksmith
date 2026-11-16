@@ -157,6 +157,21 @@ impl Surface for Session {
         {
             return Err(refused);
         }
+        // An agent places symbols on the page, where the person sees them;
+        // a person may draw beside it. A sheet the batch adds is the core's
+        // to check.
+        if cx.who.grant().is_some() {
+            let project = self.engine().project();
+            for new in target.request.placements() {
+                let sheet = new.sheet.unwrap_or_else(|| project.sheets.first());
+                if let Some(position) = new.position
+                    && project.sheet(sheet).is_some()
+                {
+                    sparksmith_core::schematic::spot::check_on_page(project, sheet, position)
+                        .map_err(|error| Box::new(from_diagnostic(error.diagnostic())))?;
+                }
+            }
+        }
         if let Some(view) = view {
             if call.dry_run {
                 return Err(malformed(

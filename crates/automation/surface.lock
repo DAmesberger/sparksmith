@@ -1,10 +1,10 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "7.1", "digest": "sha256:a4be946daa3b99fe6f79d727a77dba74273bc2fdb5b3314c0d474ef9c43644b6", "entries": [
-  {"name":"project.apply","class":"edit","schema":"d00a56b3e89a59d3","fields":[["expected_revision","9295ea67127970c6"],["operation","576566e6314efdfb"]],"required":["expected_revision","operation"]},
-  {"name":"project.apply_all","class":"edit","schema":"ccec9ff2be794052","fields":[["expected_revision","9295ea67127970c6"],["operations","2dff30b04127065a"]],"required":["expected_revision","operations"]},
+ {"id": "project", "version": "7.1", "digest": "sha256:eebcee0d0cbe7df46c1d3d592c1fdc62446f488d30124157a6c8f011f314ff27", "entries": [
+  {"name":"project.apply","class":"edit","schema":"4174f12be426b9a2","fields":[["expected_revision","9295ea67127970c6"],["operation","38a190f6ed4b951d"]],"required":["expected_revision","operation"]},
+  {"name":"project.apply_all","class":"edit","schema":"697556b46acd2652","fields":[["expected_revision","9295ea67127970c6"],["operations","4f6688c959662dc7"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"project.inspect","class":"read","schema":"249aa00f4b2dbec1","fields":[["at","40bd5b57f4261fe2"]],"required":[]},
-  {"name":"project.query","class":"read","schema":"9def2cfb9d3cd8cf","fields":[],"required":[]},
+  {"name":"project.query","class":"read","schema":"a24b4fbe7c498382","fields":[],"required":[]},
   {"name":"project.redo","class":"edit","schema":"5d360ab06dd84fb0","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]},
   {"name":"project.rename","class":"edit","schema":"92c2e30151865925","fields":[["name","f186891b5656c9ae"]],"required":["name"]},
   {"name":"project.schema","class":"read","schema":"7e398ef3b2cf4d96","fields":[["def","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"]],"required":[]},
@@ -18,9 +18,9 @@
   {"name":"project.open","class":"ask","schema":"7317cdb697af20e5","fields":[["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"]],"required":["expected_revision","path"]},
   {"name":"project.save","class":"ask","schema":"d6b27c72606417bf","fields":[["path","40bd5b57f4261fe2"]],"required":[]}
  ]},
- {"id": "schematic", "version": "1.0", "digest": "sha256:33d0503ee4e72531d5948c53adef647e4617020d23f69946bead47f35ad54a88", "entries": [
+ {"id": "schematic", "version": "1.1", "digest": "sha256:0ccbc1f9c881e9e4a5bea31698420bc3211d0de3044bf4b95f782a3de576d027", "entries": [
   {"name":"component.inspect","class":"read","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
-  {"name":"component.place","class":"edit","schema":"6d0333c6f8d45b1e","fields":[["component","22aa48fd0ddcd4f9"],["designator","428293de17850c2e"],["physical","022b01e9723dbee2"],["position","3a24a71d71b5fbb1"],["properties","008c01f70eeca47c"],["representation","dd016f7f1c3e2ab4"],["sheet","3b67158582ea34e4"],["unit","4fc1bca01b237b23"]],"required":["component","position","representation","unit"]},
+  {"name":"component.place","class":"edit","schema":"c33c11f7baa52915","fields":[["component","22aa48fd0ddcd4f9"],["designator","428293de17850c2e"],["physical","022b01e9723dbee2"],["position","bb2fc2c0f053c755"],["properties","008c01f70eeca47c"],["representation","6fcbdbe3a9c678cf"],["sheet","3b67158582ea34e4"],["unit","3b67158582ea34e4"]],"required":["component"]},
   {"name":"component.remove","class":"edit","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
   {"name":"drawing.add","class":"edit","schema":"99db693d57763415","fields":[["item","cef84504354a40b7"],["sheet","3b67158582ea34e4"]],"required":["item"]},
   {"name":"drawing.edit","class":"edit","schema":"8d58c4b58821c2d3","fields":[["drawing","9295ea67127970c6"],["item","cef84504354a40b7"]],"required":["drawing","item"]},
@@ -85,7 +85,7 @@
   {"name":"wire.set_path","class":"edit","schema":"705ecb1ce27bb5a3","fields":[["corners","73d1f761686fc06c"],["from","846e8bebc4584c84"],["to","846e8bebc4584c84"],["wire","9295ea67127970c6"]],"required":["wire"]},
   {"name":"wire.set_radius","class":"edit","schema":"e42e553e7eecee31","fields":[["index","2edcfeee1addbd20"],["radius","9bb62b1d9da95c32"],["wire","9295ea67127970c6"]],"required":["index","radius","wire"]}
  ]},
- {"id": "layout", "version": "2.1", "digest": "sha256:07c6d969c7e13aa80d60fdda07f7c76b53d751bbb84471f6d5ba4acf4e0508ba", "entries": [
+ {"id": "layout", "version": "2.0", "digest": "sha256:d975aed9c36a60f97629ca94738a2e934cf4402370837e1fc2a067080ca2b344", "entries": [
   {"name":"board.edit","class":"edit","schema":"61a6f30290e0b1f2","fields":[["edits","162f1d8bbf2ef47c"]],"required":["edits"]},
   {"name":"board.set_rectangle","class":"edit","schema":"a40811035afccce6","fields":[["size","6a3d87a414a20bc3"]],"required":["size"]},
   {"name":"board.shape","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
@@ -119,7 +119,6 @@
   {"name":"layout.lock_objects","class":"edit","schema":"1ca883f37b52de86","fields":[["locked","90c3f0cfcf6ff8f0"],["objects","b892fb3e7889152c"]],"required":["locked","objects"]},
   {"name":"layout.move","class":"edit","schema":"29400de56d6ae471","fields":[["instance","9295ea67127970c6"],["layer","3ffc43d40edbad71"],["position","6a3d87a414a20bc3"],["rotation_deg","b5684bda2c4d1bca"]],"required":["instance","layer","position","rotation_deg"]},
   {"name":"layout.move_parts","class":"edit","schema":"e178623f217ad117","fields":[["copper","f948383ca9ce25fc"],["moves","d2c7e6f02fbb5f8a"]],"required":["moves"]},
-  {"name":"layout.pads","class":"read","schema":"deaad234cf53d43d","fields":[["designators","4becd9a3f6ae1227"],["net","7a741a10d799de26"]],"required":[]},
   {"name":"layout.place","class":"edit","schema":"29400de56d6ae471","fields":[["instance","9295ea67127970c6"],["layer","3ffc43d40edbad71"],["position","6a3d87a414a20bc3"],["rotation_deg","b5684bda2c4d1bca"]],"required":["instance","layer","position","rotation_deg"]},
   {"name":"layout.place_part","class":"edit","schema":"7960e34d5da82eb7","fields":[["designator","428293de17850c2e"],["layer","3ffc43d40edbad71"],["part","5fa5b8dd5a012448"],["position","6a3d87a414a20bc3"],["rotation_deg","357133641c82f95d"]],"required":["layer","part","position"]},
   {"name":"layout.place_part_file","class":"edit","schema":"1dd382c6db40a241","fields":[["bom","77527e610f033c59"],["builtin","428293de17850c2e"],["designator","428293de17850c2e"],["expected_revision","9295ea67127970c6"],["lands","738624118754b260"],["lands_from","b817d5a10057bc50"],["layer","b6da350bc353bd25"],["licence","428293de17850c2e"],["model","b817d5a10057bc50"],["name","428293de17850c2e"],["pads","7dd3c6ac0b745dc2"],["path","428293de17850c2e"],["pick_and_place","77527e610f033c59"],["position","6a3d87a414a20bc3"],["prefix","428293de17850c2e"],["redistribution","f8cdd37b92f07225"],["rotation_deg","357133641c82f95d"],["values","2905ffaa50c97ef9"]],"required":["expected_revision","position"]},
@@ -290,9 +289,9 @@
   {"name":"assist.step_result","class":"read","schema":"62d1f9b0c9d2a315","fields":[["result","3239974ff60fabf0"],["step","f186891b5656c9ae"]],"required":["result","step"]},
   {"name":"assist.workflows","class":"read","schema":"d2a6eaec77fd86c3","fields":[["limit","178b2cc08ce4e9d4"],["text","428293de17850c2e"],["unavailable","90c3f0cfcf6ff8f0"]],"required":[]}
  ]},
- {"id": "view", "version": "1.0", "digest": "sha256:c56e11bc2528b4ca63d74d362ad80d8fffb921c426c11e0971c17d9b1ef18f16", "entries": [
+ {"id": "view", "version": "1.1", "digest": "sha256:3b31529101fb3005dabc8f950820dad478df5bf29550de63d663ad2846785b56", "entries": [
   {"name":"view.context","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"view.open","class":"show","schema":"f138f09bd022744a","fields":[["definition","6fcbdbe3a9c678cf"],["sheet","3b67158582ea34e4"],["view","c6274c58684e265b"],["workspace","145314089e5b05c0"]],"required":["workspace"]},
-  {"name":"view.select","class":"show","schema":"75502843f2eacf1e","fields":[["ids","6eed743aac2b3e81"],["objects","d7e0b48e4872f569"]],"required":[]}
+  {"name":"view.select","class":"show","schema":"dbae14c8b6c35b31","fields":[["designators","4becd9a3f6ae1227"],["ids","6d2acba515ad7076"],["objects","3e3681f4b10bca22"]],"required":[]}
  ]}
 ]}

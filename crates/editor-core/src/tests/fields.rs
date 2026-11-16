@@ -426,9 +426,9 @@ fn bounds_choices_types_and_text_length_are_rejected_atomically() -> Result<()> 
             component: part.r1(),
             designator: Some("R9".into()),
             properties: vec![text(f.count, "12")],
-            representation: part.symbol,
-            unit: crate::UnitId(1),
-            position: pt([40.0, 0.0]),
+            representation: Some(part.symbol),
+            unit: Some(crate::UnitId(1)),
+            position: Some(pt([40.0, 0.0])),
             physical: None,
         },
     ));

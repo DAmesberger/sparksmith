@@ -93,9 +93,9 @@ fn sync_adds_missing_instances_without_moving_or_ripping_up() -> Result<()> {
             component: f.r1(),
             designator: Some("R3".into()),
             properties: vec![],
-            representation: f.symbol,
-            unit: UnitId(1),
-            position: pt([40.0, 0.0]),
+            representation: Some(f.symbol),
+            unit: Some(UnitId(1)),
+            position: Some(pt([40.0, 0.0])),
             physical: Some(f.physical()),
         },
     )?;
