@@ -26,7 +26,7 @@ Make editing scope explicit: project-local definition/selected instances versus 
 
 Version persistence explicitly. Test unsupported-version refusal, damaged input and offline reopen. Write atomically through `sparksmith-io`. Treat renderer caches as disposable, versioned data; retain authoritative parametric definitions.
 
-`sparksmith_core::format` accepts only the current `FILE_VERSION` and the features it knows. A design-file change that breaks old files raises the version and adds a converter step and golden file (`sparksmith_io::convert`); `cargo xtask format-lock` fails until it does ([file versions](../../docs/development.md#file-versions)). Until the first release the chain runs only as `sparksmith convert`; do not refer to nonexistent upstream-style pending folders. A Solidcraft format change follows the actual instructions and migration machinery in the upstream checkout.
+`sparksmith_core::format` accepts only the current `FILE_VERSION`. Until the first release the file format is version 1 and Sparksmith keeps no backward compatibility: a design-file change edits version 1 in place, older files are refused, and the examples and the golden file are regenerated ([file versions](../../docs/development.md#file-versions)). Add no converter, feature flag or fallback for old files; do not refer to nonexistent upstream-style pending folders. A Solidcraft format change follows the actual instructions and migration machinery in the upstream checkout.
 
 Record imported asset provenance/license separately from code licensing. Report unsupported input features without silently changing the electrical meaning. Cover the relevant edge cases from the library proposal through the public command API.
 

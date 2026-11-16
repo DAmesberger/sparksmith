@@ -137,7 +137,7 @@ A part file names no terminal. When a package is given a part file, the host bin
 
 ## File version 3 (14 November 2026)
 
-Slices B1, B3 and B4 change what a project stores: the record (generator id, version, bundle, key-to-id map) and part-file values as integers (`PartValue`: `nm`, `mdeg`, `count`, `milli`). Version 3's converter step (`sparksmith convert`, `crates/io/src/convert/v2.rs`) turns stored values into integers and **detaches** version 2 generated parts: their modules speak the generator ABI before the one plugin ABI, which this build no longer runs, so their revisions stay as ordinary parts and the records and modules only they used are removed; the step says how many it detached. Make such a part again with the shipped generator to link it.
+Slices B1, B3 and B4 change what a project stores: the record (generator id, version, bundle, key-to-id map) and part-file values as integers (`PartValue`: `nm`, `mdeg`, `count`, `milli`).
 
 ## Open questions
 

@@ -2,15 +2,10 @@
 //! encoding. This module is pure; reading and writing files belongs to
 //! `sparksmith-io`.
 //!
-//! Versions (docs/design/file-format-plan.md §4.7): every incompatible change
-//! to a stored type raises [`FILE_VERSION`], and `cargo xtask format-lock`
-//! fails until it does. Optional capabilities are named [`FEATURES`]: a file
-//! lists exactly the features it uses, so a design that uses none stays
-//! readable by older builds, and a build refuses a feature it does not know,
-//! naming it. Until the first release this build reads only
-//! [`FILE_VERSION`]; an older file is refused with the command that converts
-//! it (`sparksmith convert`, the chain in `sparksmith_io::convert`), and a
-//! newer one is never guessed at.
+//! Versions: until the first release the format is version 1
+//! ([`FILE_VERSION`]) and keeps no backward compatibility. A stored-type
+//! change edits version 1 in place, and a file of any other version is
+//! refused.
 //!
 //! The project tree that replaces the single document (docs/file-format.md)
 //! is built from [`files`] (the tree in memory), [`layout`] (the two file
@@ -33,57 +28,15 @@ use std::io::Write;
 use std::sync::Arc;
 
 pub const MAX_FILE_BYTES: usize = 16 * 1024 * 1024;
-/// Raised on every incompatible change to a stored type, with a converter
-/// step from the previous version (`sparksmith_io::convert::STEPS`).
-pub const FILE_VERSION: u32 = 5;
-/// The optional capabilities this build reads, by the name a file lists
-/// them under. None are defined yet; a feature is added here together with
-/// its test in [`features_used`].
-pub const FEATURES: &[&str] = &[
-    PAD_FILL_OVERRIDES,
-    PARTS_WITHOUT_TERMINALS,
-    BOARD_ONLY_PARTS,
-    PROJECT_RULE_SOURCE,
-    PINS_ADDED_BY_IMPORT,
-    NET_DISAGREEMENTS,
-    REFUSED_IMPORT_TRACKS,
-    ROUND_PAD_THERMAL_ANGLE,
-];
-/// A placed part or pad overrides how fills join it
-/// (`Placement::fill_override`, `pad_fill_overrides`).
-pub const PAD_FILL_OVERRIDES: &str = "pad_fill_overrides";
-/// A component or package without terminals that no part file models.
-pub const PARTS_WITHOUT_TERMINALS: &str = "parts_without_terminals";
-/// An instance on the board only (`ComponentInstance::board_only`).
-pub const BOARD_ONLY_PARTS: &str = "board_only_parts";
-/// The project's own rule set names its source (`ProjectRules::source`).
-pub const PROJECT_RULE_SOURCE: &str = "project_rule_source";
-/// A symbol pin an import added for an unmapped pad
-/// (`Pin::added_by_import`).
-pub const PINS_ADDED_BY_IMPORT: &str = "pins_added_by_import";
-/// Where an imported board and its schematic disagreed on nets
-/// (`Project::net_disagreements`).
-pub const NET_DISAGREEMENTS: &str = "net_disagreements";
-/// Track pieces an import refused (`Project::refused_import_tracks`).
-pub const REFUSED_IMPORT_TRACKS: &str = "refused_import_tracks";
-/// The project's profile or an override sets the spoke angle of round
-/// pads and vias (`thermal_angle_round`).
-pub const ROUND_PAD_THERMAL_ANGLE: &str = "round_pad_thermal_angle";
+/// The one format version this build reads and writes. Until the first
+/// release a stored-type change edits it in place.
+pub const FILE_VERSION: u32 = 1;
 pub const EXTENSION: &str = "sparksmith";
-/// The extension before the rename from Pcbcraft (docs/rename-phase-b.md).
-/// Such a file holds this same format, so it opens through the same reader
-/// and version check, and Save keeps its name; Save As and new projects take
-/// [`EXTENSION`].
-pub const FORMER_EXTENSION: &str = "pcbcraft";
-/// The extensions a project file may have, [`EXTENSION`] first.
-pub const EXTENSIONS: [&str; 2] = [EXTENSION, FORMER_EXTENSION];
 
 /// Whether `extension` (without the dot) names a project file, in any
 /// letter case.
 pub fn is_project_extension(extension: &str) -> bool {
-    EXTENSIONS
-        .iter()
-        .any(|known| extension.eq_ignore_ascii_case(known))
+    extension.eq_ignore_ascii_case(EXTENSION)
 }
 
 /// The `.sparksmith` file is a ZIP container (D0, founder decision F5). It
@@ -118,75 +71,11 @@ pub fn encode_container_document(file: &EditorFile) -> Result<Vec<u8>> {
     encode_bounded(&Stored::of(&stripped))
 }
 
-/// The features `file` uses, sorted: what its saved form lists. Each
-/// feature in [`FEATURES`] adds its test here.
-pub fn features_used(file: &EditorFile) -> Vec<&'static str> {
-    let project = &file.project;
-    let mut out = Vec::new();
-    if project
-        .placements
-        .iter()
-        .any(|p| !p.fill_override.is_empty() || !p.pad_fill_overrides.is_empty())
-    {
-        out.push(PAD_FILL_OVERRIDES);
-    }
-    let library = &project.library;
-    let pinless_component = library.components.iter().any(|c| {
-        c.definition.terminals.is_empty()
-            && !crate::library::mechanical::implemented_mechanically(library, &c.definition)
-    });
-    let pinless_package = library.packages.iter().any(|p| {
-        p.definition.terminals.is_empty()
-            && !matches!(
-                p.definition.model,
-                crate::library::PackageModel::PartFile(_)
-            )
-    });
-    if pinless_component || pinless_package {
-        out.push(PARTS_WITHOUT_TERMINALS);
-    }
-    if project.instances.iter().any(|i| i.board_only) {
-        out.push(BOARD_ONLY_PARTS);
-    }
-    if project.rules.source.is_some() {
-        out.push(PROJECT_RULE_SOURCE);
-    }
-    let added = |symbol: &crate::library::SymbolDefinition| {
-        symbol
-            .units
-            .iter()
-            .flat_map(|u| &u.pins)
-            .any(|p| p.added_by_import)
-    };
-    let draft_added = file
-        .drafts
-        .items
-        .iter()
-        .any(|d| matches!(&d.definition, crate::library::Definition::Symbol(s) if added(s)));
-    if library.symbols.iter().any(|s| added(&s.definition)) || draft_added {
-        out.push(PINS_ADDED_BY_IMPORT);
-    }
-    if !project.net_disagreements.is_empty() {
-        out.push(NET_DISAGREEMENTS);
-    }
-    if !project.refused_import_tracks.is_empty() {
-        out.push(REFUSED_IMPORT_TRACKS);
-    }
-    if project.rules.sets_round_pad_thermal_angle() {
-        out.push(ROUND_PAD_THERMAL_ANGLE);
-    }
-    out
-}
-
-/// The saved form of an [`EditorFile`]: its fields, with the features it
-/// uses after the version, and its collections in key order
-/// ([`order::sort`]). The features are derived from the document, so the
-/// file in memory does not hold them a second time.
+/// The saved form of an [`EditorFile`]: its fields, with its collections
+/// in key order ([`order::sort`]).
 #[derive(Serialize)]
 struct Stored<'a> {
     version: u32,
-    #[serde(skip_serializing_if = "<[_]>::is_empty")]
-    features: Vec<&'static str>,
     project: Project,
     drafts: &'a Drafts,
 }
@@ -198,7 +87,6 @@ impl<'a> Stored<'a> {
         order::sort(&mut project);
         Self {
             version: file.version,
-            features: features_used(file),
             project,
             drafts: &file.drafts,
         }
@@ -282,68 +170,28 @@ fn parse_versioned(bytes: &[u8]) -> Result<EditorFile> {
     if bytes.len() > MAX_FILE_BYTES {
         return Err(Error::Limit("editor file exceeds 16 MiB".into()));
     }
-    let mut value: serde_json::Value = serde_json::from_slice(bytes)?;
+    let value: serde_json::Value = serde_json::from_slice(bytes)?;
     let version = value
         .get("version")
         .and_then(serde_json::Value::as_u64)
         .ok_or_else(|| Error::Invalid("editor file version is missing or invalid".into()))?;
     check_version(version)?;
-    let listed = match value
-        .as_object_mut()
-        .and_then(|object| object.remove("features"))
-    {
-        None => Vec::new(),
-        Some(features) => serde_json::from_value::<Vec<String>>(features)
-            .map_err(|_| Error::Invalid("editor file features must be a list of names".into()))?,
-    };
-    if let Some(unknown) = listed.iter().find(|f| !FEATURES.contains(&f.as_str())) {
-        let name = crate::product::NAME;
-        return Err(Error::Unsupported(format!(
-            "this file uses the feature \"{unknown}\", which this build of {name} does not know; open it with a newer {name}"
-        )));
-    }
     let mut file: EditorFile = serde_json::from_value(value)?;
     // A file this build wrote is in order already; one edited by hand is
     // read as if it were, since the order of its collections means nothing.
     order::sort(&mut file.project);
-    let used = features_used(&file);
-    if listed != used {
-        let names = |features: &[&str]| match features {
-            [] => "none".to_owned(),
-            some => some.join(", "),
-        };
-        let listed: Vec<&str> = listed.iter().map(String::as_str).collect();
-        return Err(Error::Invalid(format!(
-            "editor file lists the features {} but uses {}",
-            names(&listed),
-            names(&used)
-        )));
-    }
     Ok(file)
 }
 
-/// Refuses every version but [`FILE_VERSION`], saying how to go on.
+/// Refuses every version but [`FILE_VERSION`].
 fn check_version(version: u64) -> Result<()> {
-    use crate::product::{NAME, SHORT_NAME};
-    let current = u64::from(FILE_VERSION);
-    if version < current {
+    if version != u64::from(FILE_VERSION) {
         return Err(Error::Unsupported(format!(
-            "this file is format version {version}, from an earlier {NAME}; this build reads version \
-             {FILE_VERSION}. Convert it with `{SHORT_NAME} convert FILE` (the original is kept beside it), \
-             then open it again"
-        )));
-    }
-    if version > current {
-        return Err(Error::Unsupported(format!(
-            "this file is format version {version}, from a newer {NAME}; this build reads version {FILE_VERSION}"
+            "this file is format version {version}; this build of {} reads only version {FILE_VERSION}",
+            crate::product::NAME
         )));
     }
     Ok(())
-}
-
-/// The JSON Schema of the saved document, for `cargo xtask format-lock`.
-pub fn stored_schema() -> Result<serde_json::Value> {
-    Ok(serde_json::to_value(schemars::schema_for!(EditorFile))?)
 }
 
 /// Validate and serialize a document.
@@ -395,111 +243,31 @@ mod tests {
         }
     }
 
-    /// A file that uses no feature lists none, and reads back.
+    /// A file is written as the current version, and any other version is
+    /// refused, naming both.
     #[test]
-    fn a_file_without_features_lists_none() -> Result<()> {
-        let value = saved()?;
+    fn another_version_is_refused() -> Result<()> {
+        let mut value = saved()?;
         assert_eq!(value["version"], FILE_VERSION);
-        assert!(value.get("features").is_none());
-        let mut listed = value.clone();
-        listed["features"] = serde_json::json!([]);
-        assert_eq!(refusal(&listed)?, "accepted");
-        Ok(())
-    }
-
-    /// A file that names its project rule source lists that feature, and
-    /// one that leaves the list out is refused.
-    #[test]
-    fn a_used_feature_is_listed_and_required() -> Result<()> {
-        let mut document = Document::default();
-        std::sync::Arc::make_mut(&mut document.project).rules.source =
-            Some("From the KiCad project".into());
-        let file = EditorFile::from_document(&document);
-        let value: serde_json::Value = serde_json::from_slice(&encode(&file)?)?;
-        assert_eq!(value["features"], serde_json::json!([PROJECT_RULE_SOURCE]));
         assert_eq!(refusal(&value)?, "accepted");
-        let mut unlisted = value.clone();
-        if let Some(object) = unlisted.as_object_mut() {
-            object.remove("features");
+        for other in [0, FILE_VERSION + 1, 5] {
+            value["version"] = serde_json::json!(other);
+            let message = refusal(&value)?;
+            assert!(
+                message.contains(&format!("format version {other};")),
+                "{message}"
+            );
+            assert!(message.contains("reads only version 1"), "{message}");
         }
-        assert!(refusal(&unlisted)?.contains("project_rule_source"));
         Ok(())
     }
 
-    /// Net disagreements an import recorded are a named feature too.
+    /// A stored field the format does not have is refused, never dropped.
     #[test]
-    fn net_disagreements_are_a_named_feature() -> Result<()> {
-        use crate::model::import_review::{DisagreementKind, NetDisagreement};
-        let end = |terminal: u32| crate::ids::Endpoint {
-            instance: 1,
-            terminal: crate::ids::TerminalId(terminal),
-        };
-        let mut document = Document::default();
-        std::sync::Arc::make_mut(&mut document.project).net_disagreements = vec![NetDisagreement {
-            kind: DisagreementKind::BoardJoins,
-            groups: vec![vec![end(1)], vec![end(2)]],
-        }];
-        let file = EditorFile::from_document(&document);
-        let value: serde_json::Value = serde_json::from_slice(&encode(&file)?)?;
-        assert_eq!(value["features"], serde_json::json!([NET_DISAGREEMENTS]));
-        assert_eq!(refusal(&value)?, "accepted");
-        Ok(())
-    }
-
-    /// Track pieces an import refused are a named feature, and read back.
-    #[test]
-    fn refused_import_tracks_are_a_named_feature() -> Result<()> {
-        use crate::model::import_review::{RefusedTrack, TrackRefusal};
-        use crate::units::PointNm;
-        let mut document = Document::default();
-        let refused = vec![RefusedTrack {
-            net: 7,
-            layer: crate::model::CopperLayer::Top,
-            start: PointNm::from_mm_f64_rounded([1.0, 2.0])?,
-            end: PointNm::from_mm_f64_rounded([3.0, 2.0])?,
-            reason: TrackRefusal::Clearance,
-        }];
-        std::sync::Arc::make_mut(&mut document.project).refused_import_tracks = refused.clone();
-        let file = EditorFile::from_document(&document);
-        let bytes = encode(&file)?;
-        let value: serde_json::Value = serde_json::from_slice(&bytes)?;
-        assert_eq!(
-            value["features"],
-            serde_json::json!([REFUSED_IMPORT_TRACKS])
-        );
-        assert_eq!(refusal(&value)?, "accepted");
-        assert_eq!(decode(&bytes)?.project.refused_import_tracks, refused);
-        Ok(())
-    }
-
-    /// An unknown feature is refused by name, never dropped.
-    #[test]
-    fn an_unknown_feature_is_refused_by_name() -> Result<()> {
+    fn an_unknown_field_is_refused() -> Result<()> {
         let mut value = saved()?;
         value["features"] = serde_json::json!(["teleport_vias"]);
-        let message = refusal(&value)?;
-        assert!(message.contains("\"teleport_vias\""), "{message}");
-        assert!(message.contains("newer"), "{message}");
-        value["features"] = serde_json::json!("teleport_vias");
-        assert!(refusal(&value)?.contains("list of names"));
-        Ok(())
-    }
-
-    /// An older version is refused with the command that converts it; a
-    /// newer one says so.
-    #[test]
-    fn another_version_is_refused_with_the_way_on() -> Result<()> {
-        let mut value = saved()?;
-        value["version"] = serde_json::json!(FILE_VERSION - 1);
-        let message = refusal(&value)?;
-        assert!(
-            message.contains(&format!("`{} convert FILE`", crate::product::SHORT_NAME)),
-            "{message}"
-        );
-        value["version"] = serde_json::json!(FILE_VERSION + 1);
-        let message = refusal(&value)?;
-        assert!(message.contains("from a newer"), "{message}");
-        assert!(!message.contains("convert"), "{message}");
+        assert!(refusal(&value)?.contains("features"));
         Ok(())
     }
 

@@ -665,19 +665,14 @@ fn offered<'a>(ids: impl Iterator<Item = &'a str>) -> String {
     }
 }
 
-/// One fab profile file: [`PROFILE_FILE_FORMAT`], the profile
-/// (`fab_profile`) and the ids it had before (`former_ids`).
+/// One fab profile file: [`PROFILE_FILE_FORMAT`] and the profile
+/// (`fab_profile`).
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ProfileFile {
     pub format: u32,
     #[serde(rename = "fab_profile")]
     pub profile: RuleProfile,
-    /// Ids the profile was published under before: a project snapshot or
-    /// a setting that names one still finds this profile. Library data,
-    /// never part of the snapshot a project keeps.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub former_ids: Vec<String>,
 }
 
 /// The stored form of a [`RuleProfile`].

@@ -91,7 +91,7 @@ pub struct EvaluatorRef {
 /// order is accepted too; anything else is refused
 /// by the evaluator's round trip, which compares values).
 ///
-/// Held as text, stored as JSON (file format version 4): a file holds the
+/// Held as text, stored as JSON: a file holds the
 /// sketch as a JSON object, never as a string holding JSON, with its keys
 /// sorted. Reading it back gives that same sorted text, so opening and
 /// saving changes no byte.

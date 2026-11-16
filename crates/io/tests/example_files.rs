@@ -6,11 +6,16 @@ use std::path::{Path, PathBuf};
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-fn examples() -> [PathBuf; 2] {
+/// Every shipped example project, the dev board first.
+fn examples() -> [PathBuf; 6] {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples");
     [
         root.join("esp32-s31-devboard/esp32-s31-devboard.sparksmith"),
         root.join("esp32-s31-wroom-3/esp32-s31-wroom-3.sparksmith"),
+        root.join("esp32-s31-wroom-3/run1/esp32-s31-wroom-3.sparksmith"),
+        root.join("esp32-s31-wroom-3/run-mcp-1/ESP32-S31-WROOM-3.sparksmith"),
+        root.join("opa2333-mcp-1/OPA2333AIDR.sparksmith"),
+        root.join("tlv75733-mcp-1/TLV75733PDBVR.sparksmith"),
     ]
 }
 

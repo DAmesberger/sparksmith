@@ -19,7 +19,6 @@ use crate::settings::UserDirs;
 use crate::shipped::{Shelf, ShippedLibrary};
 use crate::{Error, Result};
 use sparksmith_core::rules::{PROFILE_FILE_FORMAT, ProfileFile, RuleProfile};
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// The library folder's name under the user config directory.
@@ -48,8 +47,6 @@ pub struct Listing {
     pub profiles: Vec<RuleProfile>,
     pub problems: Vec<Problem>,
     pub builtins: Vec<RuleProfile>,
-    /// The shipped profiles' former ids ([`shipped_former_ids`]).
-    pub former_ids: BTreeMap<String, String>,
 }
 
 /// The shipped profile files: every `.json` file in the shipped library's
@@ -87,21 +84,6 @@ pub fn shipped_profiles(shipped: &ShippedLibrary) -> Result<Vec<RuleProfile>> {
     Ok(shipped_files(shipped)?
         .into_iter()
         .map(|file| file.profile)
-        .collect())
-}
-
-/// The shipped profiles' former ids, each to the id it is now
-/// (`ProfileFile::former_ids`): a project snapshot or a setting naming a
-/// former id finds the profile under its current one.
-pub fn shipped_former_ids(shipped: &ShippedLibrary) -> Result<BTreeMap<String, String>> {
-    Ok(shipped_files(shipped)?
-        .into_iter()
-        .flat_map(|file| {
-            let id = file.profile.id;
-            file.former_ids
-                .into_iter()
-                .map(move |former| (former, id.clone()))
-        })
         .collect())
 }
 
@@ -169,7 +151,6 @@ pub fn encode(profile: &RuleProfile) -> Result<Vec<u8>> {
     let bytes = pretty(&ProfileFile {
         format: PROFILE_FILE_FORMAT,
         profile: profile.clone(),
-        former_ids: Vec::new(),
     })?;
     if bytes.len() > MAX_PROFILE_FILE_BYTES {
         return Err(Error::TooLarge(format!(
@@ -186,8 +167,7 @@ pub fn decode(bytes: &[u8]) -> Result<RuleProfile> {
     decode_file(bytes).map(|file| file.profile)
 }
 
-/// [`decode`], with the file's former ids: library ids, none the
-/// profile's own.
+/// [`decode`], keeping the whole file.
 fn decode_file(bytes: &[u8]) -> Result<ProfileFile> {
     if bytes.len() > MAX_PROFILE_FILE_BYTES {
         return Err(Error::TooLarge(format!(
@@ -213,15 +193,6 @@ fn decode_file(bytes: &[u8]) -> Result<ProfileFile> {
     }
     let file: ProfileFile = serde_json::from_value(value)?;
     file.profile.validate()?;
-    if let Some(bad) = file
-        .former_ids
-        .iter()
-        .find(|id| !valid_id(id) || **id == file.profile.id)
-    {
-        return Err(Error::Invalid(format!(
-            "the former id {bad:?} must be a library id other than the profile's own"
-        )));
-    }
     Ok(file)
 }
 
@@ -378,26 +349,17 @@ impl ProfileLibrary {
             profiles,
             problems,
             builtins,
-            former_ids: shipped_former_ids(&self.shipped)?,
         })
     }
 
-    /// One profile by id: the user's, else the shipped one, else the
-    /// shipped one that was published under `id` before.
+    /// One profile by id: the user's, else the shipped one.
     pub fn get(&self, id: &str) -> Result<RuleProfile> {
         match self.user(id) {
-            Err(error) if error.code() == "not_found" => {
-                let builtins = self.builtins()?;
-                let current = if builtins.iter().any(|p| p.id == id) {
-                    Some(id.to_owned())
-                } else {
-                    shipped_former_ids(&self.shipped)?.remove(id)
-                };
-                builtins
-                    .into_iter()
-                    .find(|p| current.as_deref() == Some(p.id.as_str()))
-                    .ok_or(error)
-            }
+            Err(error) if error.code() == "not_found" => self
+                .builtins()?
+                .into_iter()
+                .find(|p| p.id == id)
+                .ok_or(error),
             other => other,
         }
     }
@@ -759,7 +721,6 @@ mod tests {
             library.list()?,
             Listing {
                 builtins: library.builtins()?,
-                former_ids: shipped_former_ids(library.shipped())?,
                 ..Listing::default()
             },
             "missing folder: only the built-ins"
@@ -921,19 +882,6 @@ mod tests {
         assert_eq!(default, "jlcpcb-2-layer");
         let default = default.as_str();
         assert_eq!(library.get(default)?, jlcpcb()?);
-        // The ids from before copper weight was an option still find them.
-        assert_eq!(library.get("jlcpcb-2-layer-1oz")?, jlcpcb()?);
-        assert_eq!(library.get("jlcpcb-4-layer-1oz")?.id, "jlcpcb-4-layer");
-        assert_eq!(
-            library.list()?.former_ids.get("jlcpcb-2-layer-1oz"),
-            Some(&"jlcpcb-2-layer".to_owned())
-        );
-        // A profile's own id is not a former id of it.
-        let own = shipped_text("jlcpcb-2-layer.json")?.replace(
-            "\"former_ids\": [\n    \"jlcpcb-2-layer-1oz\"",
-            "\"former_ids\": [\n    \"jlcpcb-2-layer\"",
-        );
-        assert!(decode(own.as_bytes()).is_err());
         // Read-only: no rename or delete, and no file is written.
         assert!(library.rename(default, "Mine").is_err());
         assert!(library.delete(default).is_err());
