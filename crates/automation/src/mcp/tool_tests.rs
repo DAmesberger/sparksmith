@@ -774,6 +774,12 @@ fn show_needs_the_window() -> Fallible<()> {
     let (failed, shown) = tools.call(SHOW, json!({"name": "view.select", "params": {}}));
     assert!(failed);
     assert_eq!(shown["code"], "host.unavailable", "{shown}");
+    let (failed, context) = tools.call(QUERY, json!({"name": "view.context"}));
+    assert!(failed);
+    assert_eq!(context["code"], "host.unavailable", "{context}");
+    let (failed, other) = tools.call(SHOW, json!({"name": "project.undo"}));
+    assert!(failed);
+    assert_eq!(other["code"], "catalog.other_kind", "{other}");
     assert_eq!(tools.revision(), before);
     Ok(())
 }

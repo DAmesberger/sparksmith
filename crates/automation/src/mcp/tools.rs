@@ -157,7 +157,7 @@ fn build() -> Vec<Tool> {
         tool(
             FIND,
             "Find a catalog entry",
-            "Searches the catalog by what an entry does. A hit's kind names its tool: query, operation (apply) or action (act).",
+            "Searches the catalog by what an entry does. A hit's kind names its tool: query, operation (apply), show or action (act).",
             schema::<FindArgs>(),
             read,
         ),
@@ -192,7 +192,7 @@ fn build() -> Vec<Tool> {
         tool(
             SHOW,
             "Steer the window",
-            "Changes what the window shows (selection, camera, view); never the document, no undo step. Needs the window (mcp --live).",
+            "Changes what the window shows (view.select, view.open); never the document, no undo step. Needs the window (mcp --live).",
             schema::<ShowArgs>(),
             metadata::annotations(Class::Show, false),
         ),
@@ -591,6 +591,9 @@ fn example(entry: &EntryMeta) -> Value {
         }
         Some(Kind::Action) => json!({"tool": ACT, "arguments": {
             "project": "<project>", "name": name, "params": "<params>"}}),
+        Some(Kind::Show) => {
+            json!({"tool": SHOW, "arguments": {"name": name, "params": "<params>"}})
+        }
         _ => json!({"tool": QUERY, "arguments": {
             "project": "<project>", "name": name, "params": "<params>"}}),
     }
@@ -689,32 +692,24 @@ fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
     desk.call(args.project.as_deref(), sent)
 }
 
-/// `show`: the window's entries. Headless there is no window; live, no
-/// entry of the class is served yet (they arrive with the `view` module).
+/// `show`: one entry of the window's (`view.select`, `view.open`) as one
+/// call. It names no revision. Headless there is no window, so it answers
+/// `host.unavailable`; live, the window runs it.
 fn show(desk: &mut dyn Calls, args: &ShowArgs) -> Value {
     if let Some(failure) = too_long("name", &args.name, MAX_NAME) {
         return failure;
     }
-    if !desk.is_live() {
-        return desk::failure(
-            "host.unavailable",
-            concat!(
-                "this server has no window: show steers the ",
-                sparksmith_core::product_name!(),
-                " window, which mcp --live reaches. Nothing was changed."
-            )
-            .into(),
-        );
-    }
-    let shown: String = args.name.chars().take(64).collect();
-    let why = match catalog::entry(&args.name).and_then(|entry| entry.kind) {
-        Some(Kind::Query) => "it is a query: read it with query",
-        Some(Kind::Operation) => "it is an operation: make it with apply",
-        Some(Kind::Action) => "it is an action: run it with act",
-        None => "this build serves no show entry yet",
+    let entry = match catalog::resolve(Kind::Show, &args.name) {
+        Ok(entry) => entry,
+        Err(unreachable) => return unreachable.reply(),
     };
-    desk::failure(
-        "catalog.unknown",
-        format!("no show entry {shown}: {why}. Nothing was changed."),
-    )
+    let mut params = Value::Object(args.params.clone());
+    if let Err(why) = lenient::read_params(&entry.name, &mut params) {
+        return desk::failure("arguments.invalid", why);
+    }
+    let sent = envelope(&entry.name, params, None);
+    if !desk.is_live() {
+        return crate::front::envelope(Err(crate::view::unavailable(&sent.entry)));
+    }
+    desk.call(None, sent)
 }

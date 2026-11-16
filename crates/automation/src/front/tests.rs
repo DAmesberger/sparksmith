@@ -43,6 +43,7 @@ fn run(session: &mut Session, who: Principal<'_>, call: Call) -> Result<Value, B
             who,
             asker: &mut NoOne,
             verbose: false,
+            window: None,
         },
         call,
     )
@@ -82,6 +83,7 @@ enum Case {
 fn expected(case: &Case, class: Class, module: &str, outside: bool) -> &'static str {
     let local_ceiling = match module {
         "files" | "fab" | "model3d" => Class::Ask,
+        "view" => Class::Show,
         _ => Class::Edit,
     };
     match (case, class) {
@@ -95,7 +97,8 @@ fn expected(case: &Case, class: Class, module: &str, outside: bool) -> &'static 
         (Case::Remote(Mode::AllowAll), _) => "run",
         (Case::Remote(Mode::AutoAllowEdits) | Case::Local, Class::Ask) => "ask",
         (Case::Remote(Mode::AutoAllowEdits) | Case::Local, _) => "run",
-        (Case::Remote(Mode::AskEveryTime), Class::Read) => "run",
+        // A show entry changes only the window: no one approves it.
+        (Case::Remote(Mode::AskEveryTime), Class::Read | Class::Show) => "run",
         (Case::Remote(Mode::AskEveryTime), _) => "ask",
     }
 }
@@ -488,6 +491,7 @@ fn the_asker_answers_what_needs_a_person() -> Fallible {
             who,
             asker: &mut asker,
             verbose: false,
+            window: None,
         };
         let Err(error) = session.call(
             cx,
@@ -511,6 +515,7 @@ fn the_asker_answers_what_needs_a_person() -> Fallible {
                 who,
                 asker: &mut asker,
                 verbose: false,
+                window: None,
             },
             dry,
         )
@@ -525,6 +530,7 @@ fn the_asker_answers_what_needs_a_person() -> Fallible {
                 who,
                 asker: &mut asker,
                 verbose: false,
+                window: None,
             },
             call("layout.add_via", via_params(&session), Some(revision)),
         )

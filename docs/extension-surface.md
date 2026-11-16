@@ -1,6 +1,6 @@
 # The capability surface
 
-The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2, S2b, S3, S4a and S6) and how to change it.
+The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2, S2b, S3, S4a, S5a and S6) and how to change it.
 
 ## Entries and modules
 
@@ -21,8 +21,9 @@ A **module** is the unit of identity and versioning. Each entry belongs to exact
 | `fab` | fabrication output, the schematic PDF, firmware pin configuration |
 | `model3d` | the exact 3D export, the board interface, the assembly link, part files |
 | `assist` | documents attached to an assistant run, its working pinout documents (S6) |
+| `view` | what the window shows (`view.context`), selecting in it (`view.select`), opening a workspace, sheet or PCB view (`view.open`) |
 
-The per-entry assignment is `crates/automation/surface.lock`, generated from the declarations: every entry appears there under exactly one module. Names were not changed; a rename is a breaking change the lock makes deliberate. `view`, `settings` and `host` come with the slices that give them entries (S5 and later).
+The per-entry assignment is `crates/automation/surface.lock`, generated from the declarations: every entry appears there under exactly one module. Names were not changed; a rename is a breaking change the lock makes deliberate. `settings` and `host` come with the slices that give them entries (S5 and later).
 
 ## Declaring an entry
 
@@ -63,7 +64,7 @@ A parameter that names a file or folder has the type `sparksmith_core::permissio
 
 The types are in the ABI crate, `sparksmith_generator_abi::surface` (`no_std` + `alloc`, so a plugin can read what the host writes; no generator module uses them, so module bytes do not change):
 
-- `Class`: `read < show < edit < ask < never`. `show` (the window only: no revision, no undo step) has no entries until S5.
+- `Class`: `read < show < edit < ask < never`. `show`: the window only, no revision, no undo step, no rebuilt geometry (`view.select`, `view.open`).
 - `Kind`: `query`, `operation`, `show`, `action`, `event`.
 - `Effect` (`pure`, `revision`, `world`), `Person` (`none`, `review`, `approval`), `Time` (`instant`, `short`, `long`), `ResultSize` (`inline`, `link`), `Reach`, `HostFeature`.
 - `EntryDecl` and `ModuleDecl`: what a declaration says, built in `const` context. Reaches and needs are small bit sets.
@@ -150,7 +151,7 @@ Every call reaches the engine through one function, `Surface::call` (`crates/aut
 - **Asking.** What needs a person goes to the host's `Asker`: Allow runs, Deny answers `gate.denied`, and a host with no way to ask (`NoOne`) answers `gate.needs_person`, saying where a person can allow it. A dry run asks no one, since it keeps nothing.
 - **One error.** Every failure is `sparksmith_generator_abi::surface::Error`: engine and file diagnostics keep their codes, and gate refusals carry `instead`. On the wire it is a superset of the old diagnostic, so replies keep their shape.
 
-Not yet: the `review` person step does not ask (it comes with plans, `dry_run` and `confirm`), no entry needs a window yet (the MCP `show` verb answers `host.unavailable` headless), and the busy rule stays in the live channel until S5.
+Not yet: the `review` person step does not ask (it comes with plans, `dry_run` and `confirm`).
 
 ## What S2 deleted
 
@@ -160,11 +161,11 @@ Not yet: the `review` person step does not ask (it comes with plans, `dry_run` a
 
 ## The MCP cut-over (S3)
 
-`sparksmith mcp` and `sparksmith mcp --live` serve the catalog on MCP `2026-07-28` only, through six verbs: `find`, `describe`, `query`, `apply`, `act` and `show` (`crates/automation/src/mcp/tools.rs`). `tools/list` is the verbs and nothing else (3,398 bytes, held under 3.5 KB by a test); every entry, the generator entries included, is data behind them. Each verb call becomes one `Call` through `Surface::call` as a remote agent:
+`sparksmith mcp` and `sparksmith mcp --live` serve the catalog on MCP `2026-07-28` only, through six verbs: `find`, `describe`, `query`, `apply`, `act` and `show` (`crates/automation/src/mcp/tools.rs`). `tools/list` is the verbs and nothing else (held under 3.5 KB by a test); every entry, the generator entries included, is data behind them. Each verb call becomes one `Call` through `Surface::call` as a remote agent:
 
 - **Headless**, on the server's own sessions (project handles, `docs/mcp-surface.md` §3.2). Nobody can be asked, so a person-owned step is refused with `gate.needs_person`.
 - **Live**, sent to the window as the same envelope (the live channel's `surface.call`); the window decides with its own grant (`live::grant`: every module but `files`, so opening, saving and starting a project stay the person's, refused with `gate.module`) and asks the person in the window.
-- **`show`** steers the window. No entry has the show class yet (S5), so headless it answers `host.unavailable`.
+- **`show`** steers the window: `view.select` and `view.open` ([the window](#the-window-s5a)). Headless it answers `host.unavailable`.
 
 The `datasheet_to_component` prompt serves `skills/sparksmith-datasheet-part/SKILL.md`. [MCP surface, as built: S3](mcp-surface.md#as-built-s3-the-cut-over-14-november-2026) has the detail.
 
@@ -200,6 +201,24 @@ The datasheet runner (`crates/assist`) is the built-in agent on the surface:
 
 - `assist::tools`: the hand-written seventeen-tool list (`definitions`), its `execute` match, the runner's `Workspace` and its private argument leniency. Recordings made before S6 replay through `assist::legacy`, which reads each old call as its verb call.
 - `assist::output_policy` and `RunConfig::policy`: the reach profile.
+
+## The window (S5a)
+
+The `view` module is the window's. Its entries are declared beside `Request` (`crates/automation/src/view.rs`), so the catalog and the lock hold them like any other; a window runs them.
+
+| Entry | Class | Params | Answers |
+|---|---|---|---|
+| `view.context` | read | `{}` | `{revision, workspace, view?, sheet?, selection}`: `component`, `schematic` or `pcb`; the PCB's `layout` or `3d`; the sheet `{id, name}`; the selection as objects (`{kind, id, name?}`, a designator or net name) |
+| `view.select` | show | `{ids?, objects?}`: project object ids (parts, tracks, vias, fills, keepouts, wires) and any finding's object | `{selected, workspace}`. Replaces the selection and frames it, in the shown workspace when it shows the objects, else in one that does |
+| `view.open` | show | `{workspace, view?, sheet?, definition?}`: the PCB's view, the schematic's sheet, a component draft for the Component editor | what `view.context` answers, after |
+
+- **`WindowHost`** (`sparksmith_automation::WindowHost`): `busy`, `context`, `select`, `open`, each given the engine the call runs on. The host hands it to the front door in `CallCx::window`. A host without one (the CLI, headless MCP, JSON lines) answers every `view` entry with `host.unavailable`, before the gate.
+- **The busy rule is the front door's** (`front::busy`): while the person types, drags or has a menu, dialog or review open, anything but a read or a dry run is refused with `live.busy`, naming why. The live channel applies it before asking the person and the front door again when the call runs; a call the person allowed in the window runs.
+- **Show never asks.** Under ask-every-time a show entry runs like a read. The built-in agent's grant has `view` up to Show; the live window's has it like every other module.
+- **No revision, no undo step, no rebuild.** A `view` call names no `expected_revision` and has no dry run. `view.open` on a published component that has no draft is refused (`view.not_a_draft`), since drafting it would change the project.
+- **The person's own commands run the same functions** (`apps/sparksmith/src/app/window_host.rs`): Workspace, the PCB 2D/3D switch and the 3D commands that open it, and a Browser sheet. `view.select` locates as an issue row does (`issues::route`).
+- **Tests:** `view::tests` (headless, ask-every-time, busy, refusals), `live::tests::the_verbs_reach_the_window` (the `show` and `query` verbs through the bridge), and the desktop's `an_assistant_steers_the_window_and_the_project_stays` over the live channel: select a part by id and the PCB selects it; open Layout, 3D and a sheet; revision, undo history and the model request counter unchanged; refused during a drag.
+- **Later (S5b):** `view.camera`, `view.layers` (and visible layers in the context), `view.screenshot`, what changed by hand since the caller's last call, `files.*` through the window's prompts, the `view.selection` event, and the panel setting "Let the assistant move my view".
 
 ## Explicit context
 

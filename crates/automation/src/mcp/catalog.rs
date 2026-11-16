@@ -1,7 +1,8 @@
 //! The catalog behind the tools: the 237 entries of
 //! [`crate::session::metadata`] (requests, operations and queries), looked
 //! up by name. A model reaches an entry only through the verb of its
-//! [`Kind`] (`query` a query, `apply` an operation, `act` an action), and
+//! [`Kind`] (`query` a query, `apply` an operation, `show` a show entry,
+//! `act` an action), and
 //! never a Never-class entry, which has no kind and is unknown here. P2's
 //! verbs resolve their `name` argument through [`resolve`]; `find` and the
 //! catalog resources (P4) list [`reachable`].
@@ -91,6 +92,7 @@ impl Unreachable {
                 match kind {
                     Kind::Query => "read it with query",
                     Kind::Operation => "make it with apply",
+                    Kind::Show => "send it with show",
                     Kind::Action => "run it with act",
                 }
             ),
@@ -130,6 +132,7 @@ fn article(kind: Kind) -> &'static str {
     match kind {
         Kind::Query => "a query",
         Kind::Operation => "an operation",
+        Kind::Show => "a show entry",
         Kind::Action => "an action",
     }
 }

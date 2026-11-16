@@ -27,8 +27,9 @@ pub const MAX_SUMMARY: usize = sparksmith_core::permission::MAX_SUMMARY;
 /// instead of inline content (`docs/mcp-surface.md` §3.4).
 pub const INLINE_RESULT: usize = 2 * 1024;
 
-/// How an entry is reached: a read, an undoable document edit, or an action
-/// on files, folders or what undo cannot take back.
+/// How an entry is reached: a read, an undoable document edit, a change to
+/// what the window shows, or an action on files, folders or what undo
+/// cannot take back.
 #[derive(
     Clone, Copy, Debug, Eq, PartialEq, Serialize, serde::Deserialize, schemars::JsonSchema,
 )]
@@ -36,6 +37,7 @@ pub const INLINE_RESULT: usize = 2 * 1024;
 pub enum Kind {
     Query,
     Operation,
+    Show,
     Action,
 }
 
@@ -227,9 +229,8 @@ pub fn kind(class: Class, takes_path: bool) -> Option<Kind> {
         (Class::Never, _) => None,
         (Class::Ask, _) | (_, true) => Some(Kind::Action),
         (Class::Read, false) => Some(Kind::Query),
-        // No entry steers the window yet; until the `show` verb a window
-        // entry is reached like an edit.
-        (Class::Edit | Class::Show, false) => Some(Kind::Operation),
+        (Class::Show, false) => Some(Kind::Show),
+        (Class::Edit, false) => Some(Kind::Operation),
     }
 }
 

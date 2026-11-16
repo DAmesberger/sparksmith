@@ -79,6 +79,7 @@ impl Session {
                 who,
                 asker,
                 verbose,
+                window: None,
             };
             self.call(cx, call)
         });

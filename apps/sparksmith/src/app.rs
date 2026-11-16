@@ -17,6 +17,7 @@ mod open_timing;
 mod settings_window;
 mod shortcut_sheet;
 mod system_windows;
+mod window_host;
 
 use crate::file_ui::{self, Effect, FileUi};
 use crate::kit::messages::Messages;

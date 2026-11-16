@@ -87,6 +87,7 @@ impl Agent<'_> {
             who: Principal::LocalAgent { grant: self.grant },
             asker: &mut NoOne,
             verbose: false,
+            window: None,
         };
         front::envelope(self.session.call(cx, call))
     }

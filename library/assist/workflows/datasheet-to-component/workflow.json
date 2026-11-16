@@ -62,6 +62,6 @@
        {"title": "Findings", "from": "/steps/check"},
        {"title": "Review", "from": "/steps/accept"}
      ],
-     "actions": [{"title": "Open in editor", "call": "view.open", "params": {"draft": "/steps/drafts/outcome/ids/0"}}]}
+     "actions": [{"title": "Open in editor", "call": "view.open", "params": {"workspace": "component", "definition": "/steps/drafts/outcome/ids/0"}}]}
   ]
 }
