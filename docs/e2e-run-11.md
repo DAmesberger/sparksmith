@@ -185,7 +185,7 @@ Export before saving: the production check read "3 errors · 14 warnings" (Unrou
 
 ## Clips
 
-Under `/Users/amd/dev/sparksmith-media/run11/` (not in the repository):
+Under `~/dev/sparksmith-media/run11/` (not in the repository):
 
 | File | What it shows |
 |---|---|
@@ -203,7 +203,7 @@ Each clip has a `.webp` preview (960 wide, 12 fps). `shove-routing`, `3d-orbit`,
 
 ## Recording helpers for the next run
 
-The helpers stay installed in the guest with their grants, so the deferred AI recording can reuse them as they are. Their sources and scripts are in `/Users/amd/dev/sparksmith-media/run11/tools/`.
+The helpers stay installed in the guest with their grants, so the deferred AI recording can reuse them as they are. Their sources and scripts are in `~/dev/sparksmith-media/run11/tools/`.
 
 **Recorder** (`screenrec.swift`, `~/Applications/ScreenRec.app`, bundle id `dev.local.screenrec`, `LSUIElement`):
 - It is a ScreenCaptureKit stream of the main display at 30 fps, with the cursor shown.
@@ -233,6 +233,6 @@ A grant is tied to the ad-hoc signature, so **rebuilding either app voids it**. 
 - **Guest:** Sparksmith quit normally, and its Recovery folder is empty. `~/Documents/e2e11` (the project, both production folders and the KiCad copy) and the test frame folders were deleted.
 - **Helper apps kept:** `~/Applications/ScreenRec.app` and `~/Applications/Puppet.app` stay in the guest with their Screen Recording and Accessibility grants, for the AI recording after W2. Puppet is still running; `~/Movies/puppet` and `~/Movies/rec/target.txt` remain.
 - **Shared folder:** the 15 GB of frames in `results/run11/raw/` were deleted after every video was checked. All 6 scene takes, 9 clips, 9 WebP and 5 GIF previews decode without errors with ffmpeg. `results/run11/` keeps the edited videos, the stills, the KiCad project, `issues-after-reopen.txt` and `_rec.sh` (about 40 MB).
-- **Media:** everything is in `/Users/amd/dev/sparksmith-media/run11/`, outside the repository.
+- **Media:** everything is in `~/dev/sparksmith-media/run11/`, outside the repository.
 - **Display:** left as found (1920 × 1080 at 1.0).
 - **Pasteboard:** the guest pasteboard holds the last Issues report.

@@ -30,7 +30,7 @@ The founder asked: "can we do complex board shapes also with solidcrafts sketch 
 
 ## 2. What Solidcraft offers (upstream, public)
 
-Checked in two places: upstream `tangency-labs/solidcraft` main as checked out at `/Users/amd/dev/solidcraft` (4f3ac07; `origin/main` has moved since, so check again at repin), and our pin (`DAmesberger/solidcraft` 04d3c2f). Paths are relative to `crates/`, and exist at both unless noted.
+Checked in two places: upstream `tangency-labs/solidcraft` main as checked out at `~/dev/solidcraft` (4f3ac07; `origin/main` has moved since, so check again at repin), and our pin (`DAmesberger/solidcraft` 04d3c2f). Paths are relative to `crates/`, and exist at both unless noted.
 
 | Need | API | Path |
 | --- | --- | --- |

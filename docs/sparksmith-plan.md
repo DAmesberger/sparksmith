@@ -21,7 +21,7 @@ The UI and interaction style should match Solidcraft. Altium informs the integra
 
 ## What to carry over from Solidcraft
 
-The inspected checkout is [tangency-labs/solidcraft at 4f3ac07](https://github.com/tangency-labs/solidcraft/tree/4f3ac07aec69489183185071f07d7fbcf4f51e64), cloned into `/Users/amd/dev/solidcraft`. Its workspace declares Rust 2024, Rust 1.95, egui/eframe 0.36 and wgpu 30. These are the inspected versions, not a promise to track every upstream update. [Dependency manifest](https://github.com/tangency-labs/solidcraft/blob/4f3ac07aec69489183185071f07d7fbcf4f51e64/Cargo.toml).
+The inspected checkout is [tangency-labs/solidcraft at 4f3ac07](https://github.com/tangency-labs/solidcraft/tree/4f3ac07aec69489183185071f07d7fbcf4f51e64), cloned into `~/dev/solidcraft`. Its workspace declares Rust 2024, Rust 1.95, egui/eframe 0.36 and wgpu 30. These are the inspected versions, not a promise to track every upstream update. [Dependency manifest](https://github.com/tangency-labs/solidcraft/blob/4f3ac07aec69489183185071f07d7fbcf4f51e64/Cargo.toml).
 
 Carry over these architectural commitments:
 
