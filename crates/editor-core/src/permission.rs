@@ -71,6 +71,11 @@ pub const MODULES: &[ModuleDecl] = &[
         "3D model",
         "The exact 3D export, the board interface, the assembly link and part files.",
     ),
+    module(
+        "view",
+        "View",
+        "What the window shows: workspace, sheet, 2D or 3D, and the selection.",
+    ),
 ];
 
 /// The version every module started at with the MCP cut-over (decision 12).

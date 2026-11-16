@@ -325,6 +325,7 @@ fn headless(session: &mut Session, policy: &Grant, call: Call) -> Value {
         who: remote(policy),
         asker: &mut NoOne,
         verbose: false,
+        window: None,
     };
     front::envelope(session.call(cx, call))
 }

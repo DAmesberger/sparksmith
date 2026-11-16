@@ -471,6 +471,15 @@ pub enum Request {
     /// Assembly link: link, update or relink, as previewed.
     #[serde(rename = "assembly.update")]
     AssemblyUpdate(sparksmith_core::interface::assembly_link::UpdateParams),
+    /// What the window shows: workspace, view, sheet and selection.
+    #[serde(rename = "view.context")]
+    ViewContext(crate::view::ContextParams),
+    /// Select and frame objects in the window.
+    #[serde(rename = "view.select")]
+    ViewSelect(crate::view::SelectParams),
+    /// Show a workspace, a sheet, the PCB in 2D or 3D, or a draft.
+    #[serde(rename = "view.open")]
+    ViewOpen(crate::view::OpenParams),
 }
 
 // A new request chooses its permission class here. `project.apply` and
@@ -526,6 +535,9 @@ sparksmith_core::declare_entries!(Request in project {
     AssemblyFollow "assembly.follow" Ask "Follow assembly geometry" [in model3d],
     AssemblyPreview "assembly.preview" Read "Preview a linked design update" [in model3d],
     AssemblyUpdate "assembly.update" Ask "Update from the linked design" [in model3d],
+    ViewContext "view.context" Read "What the window shows" [in view, reach(Window), needs(Window), since(1, 0)],
+    ViewSelect "view.select" Show "Select in the window" [in view, reach(Window), needs(Window), since(1, 0)],
+    ViewOpen "view.open" Show "Open a workspace or view" [in view, reach(Window), needs(Window), since(1, 0)],
 });
 
 impl Request {
@@ -881,6 +893,21 @@ impl Request {
                 "Link the linked design, or update or relink the board from it as previewed.",
                 "Read the SolidCraft assembly at path whose component links design (interface.publish's path). None linked: link it. Else apply it at expect_hash, relinking if path moved; one undo step.",
             ),
+            info::<crate::view::ContextParams>(
+                "view.context",
+                "What the window shows: workspace, PCB view, sheet and the selection with ids.",
+                "What the open window shows now: the workspace (component, schematic or pcb), the PCB's view (layout or 3d), the schematic sheet, and the selection as objects with ids and their designators or net names, with the revision. Needs the window (mcp --live); a host without one answers host.unavailable.",
+            ),
+            info::<crate::view::SelectParams>(
+                "view.select",
+                "Select and frame objects in the window by id; never the document, no undo step.",
+                "Replace the window's selection with the objects named (ids: parts, tracks, vias, fills, keepouts, wires; objects: any finding's object, such as a net, pad or sheet) and frame them, in the shown workspace when it shows them, else in one that does. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
+            ),
+            info::<crate::view::OpenParams>(
+                "view.open",
+                "Show a workspace: the PCB in layout or 3d, a schematic sheet, or a component draft.",
+                "Show workspace component, schematic or pcb; view layout or 3d for the PCB, sheet for the schematic, definition (a draft's lineage) for the Component editor. Answers what the window then shows, as view.context. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
+            ),
             info::<models::ModelFileParams>(
                 "library.inspect_model_file",
                 "Read a STEP, GLB or .solidcraft model file and report its bodies, materials and bounds.",
@@ -1010,6 +1037,7 @@ impl Session {
             who: crate::gate::Principal::Operator,
             asker: &mut NoOne,
             verbose: true,
+            window: None,
         };
         self.call(cx, call).map_err(Error::refused)
     }
@@ -1333,6 +1361,12 @@ impl Session {
             Request::AssemblyFollow(params) => return self.assembly_follow(params),
             Request::AssemblyPreview(params) => return self.assembly_preview(params),
             Request::AssemblyUpdate(params) => return self.assembly_update(params),
+            // The front door runs these in the window; here is none.
+            request @ (Request::ViewContext(_) | Request::ViewSelect(_) | Request::ViewOpen(_)) => {
+                return Err(crate::Error::refused(crate::view::unavailable(
+                    request.command(),
+                )));
+            }
         }
         Ok(self.document_reply())
     }
@@ -1537,6 +1571,7 @@ impl Session {
                 who: crate::gate::Principal::Operator,
                 asker: &mut NoOne,
                 verbose: true,
+                window: None,
             };
             self.call(cx, call)
         });

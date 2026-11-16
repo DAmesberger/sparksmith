@@ -386,3 +386,115 @@ fn the_access_checkbox_starts_at_the_left() -> Fallible {
     );
     Ok(())
 }
+
+/// S5a over the live channel: the assistant selects a placed part by id and
+/// the PCB inspects it, opens the Layout and 3D views and a sheet, and
+/// reads what the window shows. None of it changes the revision, adds an
+/// undo step or asks for a model; steering is refused while the person
+/// drags, and reading what the window shows still answers.
+#[test]
+fn an_assistant_steers_the_window_and_the_project_stays() -> Fallible {
+    let mut h = Harness::new()?;
+    // A step of the assistant's own first: the one undo below takes it
+    // back, so no view call added a step after it.
+    let before = h.app.engine.document().clone();
+    let reply = h.call(live::CALL, h.add_via(h.app.engine.revision()))?;
+    assert_eq!(reply["ok"], true, "{reply}");
+    let revision = h.app.engine.revision();
+    let (id, designator) = {
+        let project = h.app.engine.project();
+        let placement = project.placements.first().ok_or("no placed part")?;
+        let instance = project.instance(placement.instance).ok_or("no part")?;
+        (instance.id, instance.designator.clone())
+    };
+    // The person shows the 3D view once, so its model is asked for now.
+    h.app.window().show_pcb(true);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    let requests = h.app.scene.requests();
+
+    let opened = h.call(
+        live::CALL,
+        json!({"entry": "view.open", "params": {"workspace": "pcb", "view": "layout"}}),
+    )?;
+    assert_eq!(opened["result"]["view"], "layout", "{opened}");
+    assert!(!h.app.pcb.is_3d());
+
+    let selected = h.call(
+        live::CALL,
+        json!({"entry": "view.select", "params": {"ids": [id]}}),
+    )?;
+    assert_eq!(selected["result"]["workspace"], "pcb", "{selected}");
+    assert_eq!(h.app.workspace, Workspace::Pcb);
+    assert_eq!(h.app.pcb.selected_instance(), Some(id));
+
+    let opened = h.call(
+        live::CALL,
+        json!({"entry": "view.open", "params": {"workspace": "pcb", "view": "3d"}}),
+    )?;
+    assert_eq!(opened["result"]["view"], "3d", "{opened}");
+    assert!(h.app.pcb.is_3d());
+    // The selection is the design's, the same in 3D.
+    assert_eq!(
+        opened["result"]["selection"],
+        json!([{"kind": "instance", "id": id, "name": designator}]),
+        "{opened}"
+    );
+
+    let sheet = h.app.engine.project().sheets.first();
+    let opened = h.call(
+        live::CALL,
+        json!({"entry": "view.open", "params": {"workspace": "schematic", "sheet": sheet}}),
+    )?;
+    assert_eq!(opened["result"]["sheet"]["id"], json!(sheet), "{opened}");
+    assert_eq!(h.app.workspace, Workspace::Schematic);
+    assert_eq!(h.app.schematic.active_sheet(), sheet);
+
+    let context = h.call(live::CALL, json!({"entry": "view.context", "params": {}}))?;
+    assert_eq!(context["result"]["workspace"], "schematic", "{context}");
+    assert_eq!(context["result"]["revision"], revision, "{context}");
+
+    // While the person drags, steering waits; reading answers.
+    let at = egui::pos2(700.0, 450.0);
+    h.frame(vec![
+        egui::Event::PointerMoved(at),
+        egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers: egui::Modifiers::NONE,
+        },
+    ]);
+    let dragging = h.call(
+        live::CALL,
+        json!({"entry": "view.open", "params": {"workspace": "pcb"}}),
+    )?;
+    assert_eq!(code(&dragging), "live.busy", "{dragging}");
+    assert_eq!(h.app.workspace, Workspace::Schematic);
+    let read = h.call(live::CALL, json!({"entry": "view.context", "params": {}}))?;
+    assert_eq!(read["ok"], true, "{read}");
+    h.frame(vec![egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed: false,
+        modifiers: egui::Modifiers::NONE,
+    }]);
+
+    // Back in 3D (the function the person's own commands run), frames ask
+    // for no model: nothing was rebuilt.
+    h.app.window().show_pcb(true);
+    for _ in 0..3 {
+        h.frame(Vec::new());
+    }
+    assert_eq!(
+        h.app.scene.requests(),
+        requests,
+        "a view call rebuilt the model"
+    );
+    assert_eq!(h.app.engine.revision(), revision);
+    // One undo takes back the via: the view calls added no step.
+    h.app.history(false);
+    assert_eq!(h.app.engine.document(), &before);
+    Ok(())
+}

@@ -4,7 +4,9 @@
 //! Off at every start. Turning it on opens `sparksmith_automation::live`'s
 //! loopback endpoint with a new token; its requests run here, on the UI
 //! thread at the start of a frame, through the same `Session::respond` the
-//! CLI and headless MCP use. Changes are refused while the person types,
+//! CLI and headless MCP use, with the window as its `WindowHost`
+//! (`window_host`): `view.select` and `view.open` steer this window. Changes
+//! and view steering are refused while the person types,
 //! drags or has a menu, dialog or review open; Ask-class requests wait for
 //! Allow or Deny in the window. Each assistant edit is a toast with Undo and
 //! a Messages line, and undoing one says it was the assistant's.
@@ -229,23 +231,15 @@ impl App {
             let busy = self.live_busy(ctx);
             let policy = live::grant(self.live.mode, folders(self.files.path()));
             let path = self.files.path().map(std::path::Path::to_path_buf);
-            let verdict = self
-                .live
-                .session
-                .lend(&mut self.engine, path.as_deref(), |s| {
-                    live::admit(
-                        s,
-                        &policy,
-                        busy.as_deref(),
-                        &request.method,
-                        &request.params,
-                    )
-                });
+            let (window, engine, live_mcp) = self.window_for_live(busy.clone());
+            let verdict = live_mcp.session.lend(engine, path.as_deref(), |s| {
+                live::admit(s, &policy, &window, &request.method, &request.params)
+            });
             match verdict {
                 Verdict::Reply(reply) => {
                     let _ = request.reply.send(reply);
                 }
-                Verdict::Run(admitted) => self.run_live(request, &admitted),
+                Verdict::Run(admitted) => self.run_live(request, &admitted, busy),
                 Verdict::Ask(admitted, question) => {
                     self.live.held = Some(Held {
                         request,
@@ -259,9 +253,11 @@ impl App {
         ctx.request_repaint();
     }
 
-    /// Run one admitted request on the window's engine and answer it. A
-    /// change is the assistant's: a toast with Undo, and a Messages line.
-    fn run_live(&mut self, request: ControlRequest, admitted: &Admitted) {
+    /// Run one admitted request on the window's engine and answer it, with
+    /// `busy` why the person holds the window (none once they answered its
+    /// question). A change is the assistant's: a toast with Undo, and a
+    /// Messages line.
+    fn run_live(&mut self, request: ControlRequest, admitted: &Admitted, busy: Option<String>) {
         let before = self.engine.revision();
         // An undo or redo says the step it took, as the person's own does.
         let history = match admitted.subject() {
@@ -270,12 +266,10 @@ impl App {
             _ => None,
         };
         let path = self.files.path().map(std::path::Path::to_path_buf);
-        let reply = self
-            .live
-            .session
-            .lend(&mut self.engine, path.as_deref(), |s| {
-                live::run(s, admitted)
-            });
+        let (mut window, engine, live_mcp) = self.window_for_live(busy);
+        let reply = live_mcp.session.lend(engine, path.as_deref(), |s| {
+            live::run(s, admitted, &mut window)
+        });
         let _ = request.reply.send(reply);
         let now = self.engine.revision();
         if now != before
@@ -431,7 +425,7 @@ impl App {
             return;
         };
         if allow {
-            self.run_live(held.request, &held.admitted);
+            self.run_live(held.request, &held.admitted, None);
         } else {
             let _ = held
                 .request

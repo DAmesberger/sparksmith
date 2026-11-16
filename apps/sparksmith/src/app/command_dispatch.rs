@@ -301,10 +301,7 @@ impl App {
     }
 
     fn enter(&mut self, workspace: Workspace) {
-        if workspace != self.workspace {
-            self.clear_error();
-            self.workspace = workspace;
-        }
+        self.window().show_workspace(workspace);
     }
 
     fn app_command(&mut self, ctx: &egui::Context, app: AppCommand) {
@@ -357,9 +354,8 @@ impl App {
             AppCommand::Workspace(workspace) => self.enter(workspace),
             AppCommand::FitView => self.fit_view(),
             AppCommand::TogglePcb3d => {
-                self.enter(Workspace::Pcb);
-                let three_d = self.pcb.is_3d();
-                self.pcb.set_3d(!three_d);
+                let three_d = !self.pcb.is_3d();
+                self.window().show_pcb(three_d);
             }
             AppCommand::View3d(view) => self.view_3d(view),
             AppCommand::ToggleRealistic => self.toggle_realistic(),
@@ -374,10 +370,7 @@ impl App {
     /// Switch the PCB 3D view's look, opening the 3D view if needed: a view
     /// preference, never part of the document or its undo history.
     pub(super) fn toggle_realistic(&mut self) {
-        self.enter(Workspace::Pcb);
-        if !self.pcb.is_3d() {
-            self.pcb.set_3d(true);
-        }
+        self.window().show_pcb(true);
         let on = !self.scene.viewport.realistic();
         self.scene.viewport.set_realistic(on);
     }
@@ -386,10 +379,7 @@ impl App {
     /// needed: a view preference, never part of the document or its undo
     /// history. Turned on with nothing to follow, it says what to select.
     pub(super) fn toggle_follow_net(&mut self) {
-        self.enter(Workspace::Pcb);
-        if !self.pcb.is_3d() {
-            self.pcb.set_3d(true);
-        }
+        self.window().show_pcb(true);
         let on = !self.scene.viewport.follow_net();
         // The focus as the 3D view sets it each frame, for the hint below.
         self.scene.highlight(
@@ -407,10 +397,7 @@ impl App {
     pub(super) fn view_3d(&mut self, view: crate::commands::View3d) {
         use crate::commands::View3d as V;
         use sparksmith_solidcraft::viewport::StandardView as S;
-        self.enter(Workspace::Pcb);
-        if !self.pcb.is_3d() {
-            self.pcb.set_3d(true);
-        }
+        self.window().show_pcb(true);
         let standard = match view {
             V::Top => S::Top,
             V::Bottom => S::Bottom,

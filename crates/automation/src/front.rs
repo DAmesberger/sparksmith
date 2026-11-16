@@ -16,6 +16,11 @@
 //!
 //! What needs a person is asked through the host's [`Asker`]; a host with
 //! no way to ask ([`NoOne`]) refuses it, saying so.
+//!
+//! A host with a window hands the call its [`WindowHost`]: the `view`
+//! entries run there (`host.unavailable` without one), and while the person
+//! holds the window (typing, dragging, a dialog) anything but a read or a
+//! dry run is refused with `live.busy` ([`busy`]).
 use crate::gate::{self, Decision, Question, Subject};
 use crate::session::{ApplyParams, Request, Session, metadata, take_verbose};
 use serde_json::{Map, Value, json};
@@ -23,6 +28,7 @@ use sparksmith_core::{Diagnostic, Operation, Query};
 use std::path::PathBuf;
 
 pub use crate::gate::{Grant, Principal};
+pub use crate::view::WindowHost;
 pub use sparksmith_generator_abi::surface::Error;
 
 /// One call, the same for every transport: the entry, its parameters and
@@ -74,6 +80,8 @@ pub struct CallCx<'a> {
     /// Answer with the whole document state instead of what the call
     /// changed. `verbose: true` in the parameters asks for it too.
     pub verbose: bool,
+    /// The window the call runs in; `None` for a host without one.
+    pub window: Option<&'a mut dyn WindowHost>,
 }
 
 /// The front door.
@@ -111,6 +119,10 @@ impl Surface for Session {
         let verbose = cx.verbose | take_verbose_params(&mut call.params);
         unsupported(&call)?;
         let target = read(&call)?;
+        let view = crate::view::Request::of(&target.request);
+        if view.is_some() && cx.window.is_none() {
+            return Err(crate::view::unavailable(&call.entry));
+        }
         match self.gate(&cx.who, &target.request) {
             Decision::Run => {}
             Decision::Refuse(error) => return Err(Box::new(error)),
@@ -121,6 +133,25 @@ impl Surface for Session {
                 Answer::Deny => return Err(Box::new(question.denied())),
                 Answer::Unavailable => return Err(Box::new(question.unanswered())),
             },
+        }
+        if let Some(window) = &cx.window
+            && let Some(refused) = busy(
+                &**window,
+                target.request.subject(),
+                target.request.effective_class(),
+                call.dry_run,
+            )
+        {
+            return Err(refused);
+        }
+        if let Some(view) = view {
+            if call.dry_run {
+                return Err(malformed(
+                    &call.entry,
+                    "it changes only the window, so it has no dry run",
+                ));
+            }
+            return crate::view::run(cx.window, self.engine(), &call.entry, view);
         }
         let result = if call.dry_run {
             self.rehearse_target(target)
@@ -167,6 +198,28 @@ impl Session {
         };
         gate::decide_entries(who, &subjects, &paths, &inside)
     }
+}
+
+/// The busy rule: while the person holds `window` (typing, dragging, a
+/// menu, dialog or review), a call of `class` other than a read or a dry
+/// run is refused with `live.busy`, naming why.
+pub fn busy(
+    window: &dyn WindowHost,
+    subject: &str,
+    class: sparksmith_core::Class,
+    dry_run: bool,
+) -> Option<Box<Error>> {
+    if class == sparksmith_core::Class::Read || dry_run {
+        return None;
+    }
+    window.busy().map(|reason| {
+        Box::new(gate::refusal(
+            "live.busy",
+            subject,
+            &format!("{reason}. Nothing was changed."),
+            "Wait a moment and send it again; check the revision first, as the person may have changed the project.",
+        ))
+    })
 }
 
 /// `{"command", "params"}` (with `verbose` beside `command` or inside

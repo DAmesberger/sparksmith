@@ -13,12 +13,12 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Piece | State |
 |---|---|
 | Surface: one catalog, `Surface::call`, principals, grants with module ceilings, `Asker`, one error (ABI S0–S2b) | Built |
-| MCP on `2026-07-28`: six verbs (`find`, `describe`, `query`, `apply`, `act`, `show`), headless and live (ABI S3) | Built. `show` has no entries yet |
+| MCP on `2026-07-28`: six verbs (`find`, `describe`, `query`, `apply`, `act`, `show`), headless and live (ABI S3) | Built. `show` serves `view.select` and `view.open` (S5a) |
 | MCP prompt `datasheet_to_component` | Built. Serves `skills/sparksmith-datasheet-part/SKILL.md`; its title, description and arguments are written in Rust (`crates/automation/src/mcp/prompts.rs`) |
 | Three Claude Code runs of that prompt | Done: footprints 0 nm against the sources, every pin right, about 17.5 USD ([run notes](datasheet-assistant-run-mcp-1.md)). Tooling defects T1–T11 found |
 | In-app datasheet runner (`crates/assist`): model layer, Anthropic and OpenAI-compatible backends, keychain keys, limits, recording and replay, profiles, PDF text and page images | Built. Has its own hand-written tool list (`assist::tools::definitions`) and runs in a headless session of its own, not on the open project |
 | "Create from datasheet…" dialog on the Component start page | Built (`apps/sparksmith/src/part_editor/datasheet_assist.rs`): its own model, endpoint and key fields, its own progress log. **Removed by this plan** |
-| Turns (`begin_group`), jobs, events (ABI S4); the window module `view.*` (S5); the built-in agent on the surface (S6); elicitation (MCP P5) | Not built |
+| Turns (`begin_group`), jobs, events (ABI S4); the window module's camera, layers and screenshot (S5b); the built-in agent on the surface (S6); elicitation (MCP P5) | Not built |
 | Assistant panel, Settings › AI | Not built |
 
 ## What this revision supersedes
