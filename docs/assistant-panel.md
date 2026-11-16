@@ -22,7 +22,8 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn, per-turn limits in the surface (ABI S4a) | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
 | The built-in agent on the surface (S6): the six verbs, `assist.document_text`, `assist.document_page`, `assist.pinout_edit` (with `assist.pinout_preview` and `assist.pinout_apply`), reach profiles as data, leniency in the verb reader | Built |
 | Jobs, events (ABI S4b); the window module `view.*` (S5); elicitation (MCP P5) | Not built |
-| Assistant panel, Settings › AI | Not built |
+| Settings › AI (C3): endpoints with keychain keys, agents as configuration, permissions per kind of action (ask every time, once a session, always allow, deny; publishing into the project never asks), a model run's limits (no per-turn caps, founder 16 November), profiles (copy to edit, checked on save), workflows listed with why one can't run | Built. Stored in `<config>/assist/settings.json`, apart from the app's settings; starting values in `library/assist/settings.json`. The datasheet dialog reads its endpoint and limits from here. No agent is started yet (A1) |
+| Assistant panel | Not built |
 
 ## What this revision supersedes
 

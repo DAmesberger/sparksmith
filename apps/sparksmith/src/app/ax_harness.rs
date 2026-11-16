@@ -111,6 +111,8 @@ impl Ax {
             },
         );
         app.workspace = workspace;
+        // Settings › AI reads and writes here, never the person's config.
+        app.settings_window.ai = settings_ai::AiPage::at(dir.path().join("config"));
         crate::keys::publish(&ctx, &app.registry);
         let mut ax = Self {
             app,

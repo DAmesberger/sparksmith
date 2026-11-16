@@ -5,20 +5,17 @@
 //! review report beside it; nothing is published, and the open project is
 //! not touched.
 //!
-//! The model is the user's choice: Anthropic, or any OpenAI-compatible
-//! endpoint (Ollama, LM Studio, `llama-server`, OpenAI, OpenRouter), with
-//! what it can do declared here; nothing is detected. A key typed here goes
-//! to the system keychain for that endpoint only, and is never shown,
-//! written to a file or sent over plain HTTP to another computer. Without
-//! one, an Anthropic run falls back to `ANTHROPIC_API_KEY`. A full settings
-//! page comes with the assistant panel.
+//! The model is the endpoint set up in Settings › AI (the assistant's,
+//! else the first), with what it can do declared there; nothing is
+//! detected. Its key is the one Settings › AI keeps in the system keychain
+//! for that endpoint; without one, an Anthropic run falls back to
+//! `ANTHROPIC_API_KEY`. Settings › AI's limits cap the run. This form goes
+//! when the chat runs the datasheet workflow (slice W2).
 use crate::kit;
 use egui::Ui;
-use sparksmith_assist::model::profile::ANTHROPIC_BASE_URL;
-use sparksmith_assist::model::{
-    self, Connection, Endpoint, KeySource, ModelProfile, Provider, Secret, keys,
-};
+use sparksmith_assist::model::{self, Connection, Endpoint, KeySource, Provider, keys};
 use sparksmith_assist::profile as run_profile;
+use sparksmith_assist::settings::{self as ai_settings, EndpointSetting, Limits};
 use sparksmith_assist::{AssistLibrary, Datasheet, Event, Goal, RunConfig};
 use sparksmith_automation::Session;
 use sparksmith_ui::ui_kit::{self, Button};
@@ -29,9 +26,30 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 /// Lines of progress kept.
 const MAX_LOG: usize = 200;
-/// The context offered for a new OpenAI-compatible model: a guess the user
-/// corrects to what their server gives it.
-const DEFAULT_CONTEXT: f64 = 32_768.0;
+
+/// The endpoint and limits from Settings › AI.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Chosen {
+    pub endpoint: EndpointSetting,
+    pub limits: Limits,
+}
+
+/// Settings › AI's endpoint for a model run and its limits, or why there
+/// is none.
+fn chosen_from_settings() -> Result<Chosen, String> {
+    let dirs = sparksmith_io::settings::UserDirs::from_env().map_err(|e| e.to_string())?;
+    let settings =
+        ai_settings::read(&ai_settings::user_file(&dirs.config)).map_err(|e| e.to_string())?;
+    let shipped = ai_settings::Shipped::locate().map_err(|e| e.to_string())?;
+    let endpoint = settings
+        .run_endpoint()
+        .cloned()
+        .ok_or_else(|| "No model endpoint: add one in Settings › AI".to_owned())?;
+    Ok(Chosen {
+        endpoint,
+        limits: settings.limits_or(&shipped),
+    })
+}
 
 /// A finished run.
 #[derive(Clone, Debug, PartialEq)]
@@ -53,6 +71,7 @@ struct Job {
 }
 
 /// The form, the running job and its log.
+#[derive(Default)]
 pub struct DatasheetAssist {
     pub open: bool,
     /// Scroll the form into view on its next draw (it was just opened).
@@ -60,44 +79,11 @@ pub struct DatasheetAssist {
     datasheets: String,
     name: String,
     out: String,
-    provider: Provider,
-    endpoint: String,
-    model: String,
-    /// Typed once, moved to the keychain on Start, never kept.
-    key: String,
-    context_tokens: f64,
-    vision: bool,
-    native_pdf: bool,
+    /// Settings › AI's endpoint and limits, read when the form opens.
+    chosen: Option<Result<Chosen, String>>,
     job: Option<Job>,
     log: Vec<String>,
     result: Option<Result<Finished, String>>,
-    /// The shipped prompt, default model and run profiles, read when the
-    /// form first opens.
-    shipped: Option<Result<AssistLibrary, String>>,
-}
-
-impl Default for DatasheetAssist {
-    fn default() -> Self {
-        Self {
-            open: false,
-            reveal: false,
-            datasheets: String::new(),
-            name: String::new(),
-            out: String::new(),
-            provider: Provider::Anthropic,
-            endpoint: ANTHROPIC_BASE_URL.into(),
-            // The shipped default, filled in when the form opens.
-            model: String::new(),
-            key: String::new(),
-            context_tokens: DEFAULT_CONTEXT,
-            vision: false,
-            native_pdf: false,
-            job: None,
-            log: Vec::new(),
-            result: None,
-            shipped: None,
-        }
-    }
 }
 
 /// What a run needs, taken from the form.
@@ -105,54 +91,15 @@ struct Plan {
     goal: Goal,
     config: RunConfig,
     endpoint: Endpoint,
-    key: Option<Secret>,
 }
 
 impl DatasheetAssist {
-    /// Open the form, scrolled into view on its next draw.
+    /// Open the form, scrolled into view on its next draw, with the
+    /// endpoint Settings › AI holds now.
     pub fn show(&mut self) {
         self.open = true;
         self.reveal = true;
-        if self.provider == Provider::Anthropic && self.model.trim().is_empty() {
-            self.model = self.default_model();
-        }
-    }
-
-    /// The shipped assistant data, read once.
-    fn shipped(&mut self) -> Result<&AssistLibrary, String> {
-        self.shipped
-            .get_or_insert_with(|| AssistLibrary::locate().map_err(|e| e.to_string()))
-            .as_ref()
-            .map_err(Clone::clone)
-    }
-
-    /// The shipped default model, or nothing when the library is unreadable
-    /// (Start then says why).
-    fn default_model(&mut self) -> String {
-        self.shipped()
-            .map(|s| s.default_model.clone())
-            .unwrap_or_default()
-    }
-
-    /// The model ids the shipped run profiles list, for the Messages API's
-    /// model choice.
-    fn listed_models(&mut self) -> Vec<(String, String)> {
-        let Ok(shipped) = self.shipped() else {
-            return Vec::new();
-        };
-        let mut models = Vec::new();
-        for name in shipped.built_in_names() {
-            for model in shipped
-                .built_in(name)
-                .map(|p| p.models.clone())
-                .unwrap_or_default()
-            {
-                if !models.iter().any(|(m, _): &(String, String)| *m == model) {
-                    models.push((model.clone(), model));
-                }
-            }
-        }
-        models
+        self.chosen = None;
     }
 
     /// Take the background thread's messages.
@@ -228,7 +175,17 @@ impl DatasheetAssist {
         kit::text_row(ui, "Part name", &mut self.name);
         kit::text_row(ui, "Save as", &mut self.out)
             .on_hover_text("A new .sparksmith file; the review is written beside it");
-        self.model_rows(ui);
+        let chosen = self.chosen.get_or_insert_with(chosen_from_settings).clone();
+        let model = match &chosen {
+            Ok(chosen) => format!("{}: {}", chosen.endpoint.name, chosen.endpoint.summary()),
+            Err(_) => "None set up".to_owned(),
+        };
+        kit::value_row(ui, "Model", &model);
+        kit::hint(
+            ui,
+            "The model, its key and the limits are set in Settings › AI",
+            "Settings › AI › Connections: the assistant's endpoint, else the first one.",
+        );
         match &self.result {
             Some(Ok(done)) => {
                 kit::value_row(
@@ -242,13 +199,17 @@ impl DatasheetAssist {
             Some(Err(message)) => {
                 kit::refusal(ui, message);
             }
-            None => {}
+            None => {
+                if let Err(why) = &chosen {
+                    kit::refusal(ui, why);
+                }
+            }
         }
         ui.horizontal(|ui| {
             let ready = !self.datasheets.trim().is_empty()
                 && !self.name.trim().is_empty()
                 && self.out.trim().ends_with(".sparksmith")
-                && !self.model.trim().is_empty();
+                && chosen.is_ok();
             if ui
                 .add_enabled_ui(ready, |ui| ui_kit::button(ui, "Start", Button::Primary))
                 .inner
@@ -262,102 +223,23 @@ impl DatasheetAssist {
         });
     }
 
-    /// Provider, endpoint, model, key and what the model can do.
-    fn model_rows(&mut self, ui: &mut Ui) {
-        let providers = [
-            (Provider::Anthropic, "Anthropic".to_owned()),
-            (
-                Provider::OpenAiCompatible,
-                "OpenAI-compatible (Ollama, LM Studio, OpenAI, …)".to_owned(),
-            ),
-        ];
-        let before = self.provider;
-        kit::choice_row(ui, "Provider", &mut self.provider, &providers);
-        if self.provider != before {
-            match self.provider {
-                Provider::Anthropic => {
-                    self.endpoint = ANTHROPIC_BASE_URL.into();
-                    self.model = self.default_model();
-                }
-                Provider::OpenAiCompatible => {
-                    self.endpoint = "http://localhost:11434/v1".into();
-                    self.model.clear();
-                }
-            }
-        }
-        kit::text_row(ui, "Endpoint", &mut self.endpoint).on_hover_text(
-            "The API's base URL. Data goes there; a key goes only over HTTPS or to this computer",
-        );
-        match self.provider {
-            Provider::Anthropic => {
-                let models = self.listed_models();
-                kit::choice_row(ui, "Model", &mut self.model, &models);
-            }
-            Provider::OpenAiCompatible => {
-                kit::text_row(ui, "Model", &mut self.model)
-                    .on_hover_text("The model name as the server knows it");
-            }
-        }
-        kit::row(ui, "API key", |ui| {
-            ui.add(
-                egui::TextEdit::singleline(&mut self.key)
-                    .password(true)
-                    .hint_text("in the keychain, or none")
-                    .desired_width(ui.available_width()),
-            )
-        })
-        .on_hover_text("Stored in the system keychain for this endpoint only when you start. Leave empty for a local server, or to use the stored key");
-        if self.provider == Provider::OpenAiCompatible {
-            kit::number_row(
-                ui,
-                "Context",
-                &mut self.context_tokens,
-                "tokens",
-                2_048.0..=10_000_000.0,
-            );
-            kit::check_row(ui, "Takes images (vision)", &mut self.vision);
-            kit::check_row(ui, "Reads PDFs itself", &mut self.native_pdf);
-            kit::note(
-                ui,
-                "Declare what this model can do; nothing is detected. Without PDF reading, the datasheets' text is sent, and pages are shown as images to a model that takes them.",
-            );
-        }
-    }
-
     /// The run the form describes, or why it can't start.
     fn plan(&self) -> Result<Plan, String> {
-        let endpoint = Endpoint::parse(&self.endpoint).map_err(|e| e.to_string())?;
-        let key = Secret::new(&self.key);
-        if key.is_some() {
-            endpoint.check_key_allowed().map_err(|e| e.to_string())?;
-        }
-        let profile = match self.provider {
-            Provider::Anthropic => ModelProfile::anthropic(self.model.trim()),
-            Provider::OpenAiCompatible => {
-                // The number row keeps the value within its range.
-                let context = self.context_tokens.round() as u64;
-                let mut p = ModelProfile::openai_compatible(self.model.trim(), context);
-                p.capabilities.vision = self.vision;
-                p.capabilities.native_pdf = self.native_pdf;
-                p
-            }
-        };
+        let chosen = match &self.chosen {
+            Some(chosen) => chosen.clone(),
+            None => chosen_from_settings(),
+        }?;
+        let endpoint = chosen.endpoint.endpoint().map_err(|e| e.to_string())?;
+        let profile = chosen.endpoint.model_profile().map_err(|e| e.to_string())?;
         // The model selects its run profile: the user's file listing it,
         // else a built-in one, else the default.
         let folder = sparksmith_io::settings::UserDirs::from_env()
             .ok()
             .map(|dirs| run_profile::user_folder(&dirs.config));
-        let located;
-        let shipped = match &self.shipped {
-            Some(Ok(shipped)) => shipped,
-            Some(Err(why)) => return Err(why.clone()),
-            None => {
-                located = AssistLibrary::locate().map_err(|e| e.to_string())?;
-                &located
-            }
-        };
-        let config =
-            RunConfig::new(shipped, profile, None, folder.as_deref()).map_err(|e| e.to_string())?;
+        let shipped = AssistLibrary::locate().map_err(|e| e.to_string())?;
+        let mut config = RunConfig::new(&shipped, profile, None, folder.as_deref())
+            .map_err(|e| e.to_string())?;
+        config.budget = chosen.limits.cap(config.budget);
         let goal = Goal {
             name: self.name.trim().to_owned(),
             datasheets: self
@@ -373,15 +255,11 @@ impl DatasheetAssist {
             goal,
             config,
             endpoint,
-            key,
         })
     }
 
     fn start(&mut self) {
-        let plan = self.plan();
-        // The key leaves the form whatever happens next.
-        self.key.clear();
-        let plan = match plan {
+        let plan = match self.plan() {
             Ok(plan) => plan,
             Err(why) => {
                 self.result = Some(Err(why));
@@ -407,14 +285,10 @@ impl DatasheetAssist {
     }
 }
 
-/// Where this run's key comes from: one typed now goes to the keychain for
-/// this endpoint; otherwise a stored one; otherwise, for Anthropic, the
-/// environment; otherwise none (a local server).
+/// Where this run's key comes from: the one Settings › AI keeps for this
+/// endpoint; otherwise, for Anthropic, the environment; otherwise none (a
+/// local server).
 fn key_source(plan: &Plan) -> Result<KeySource, String> {
-    if let Some(key) = &plan.key {
-        keys::keychain_store(&plan.endpoint, key).map_err(|e| e.to_string())?;
-        return Ok(KeySource::Keychain);
-    }
     if plan.endpoint.check_key_allowed().is_ok() && keys::keychain_has(&plan.endpoint) {
         return Ok(KeySource::Keychain);
     }
