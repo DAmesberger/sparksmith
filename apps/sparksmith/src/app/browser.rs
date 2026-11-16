@@ -1040,7 +1040,7 @@ mod tests {
             view("Gone", Status::Disabled(Disabled::PathMissing)),
             view(
                 "Vendor",
-                Status::Disabled(Disabled::UnknownFeatures(vec!["parametric-3d".into()])),
+                Status::Disabled(Disabled::Malformed("expected value".into())),
             ),
         ];
         let ctx = egui::Context::default();
@@ -1059,7 +1059,7 @@ mod tests {
             "Old",
             "unsupported format v7",
             "Vendor",
-            "unknown feature",
+            "unreadable manifest",
             "Gone",
             "path missing",
             "Manage sources…",

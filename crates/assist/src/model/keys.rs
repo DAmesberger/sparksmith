@@ -7,10 +7,6 @@ use crate::{Error, Result};
 /// The keychain service every Sparksmith model key is stored under; the entry
 /// is the connection's base URL, so a key is only ever used for its endpoint.
 const SERVICE: &str = "sparksmith-llm";
-/// The service before the rename from Pcbcraft (docs/rename-phase-b.md). A
-/// key found only there is copied to [`SERVICE`] when it is read; the former
-/// entry is kept, and removed only with the connection's key.
-const FORMER_SERVICE: &str = "pcbcraft-llm";
 
 /// A key in memory. It is not `Serialize`, and its `Debug` shows nothing.
 #[derive(Clone)]
@@ -118,28 +114,16 @@ impl Store for Keychain {
     }
 }
 
-/// The key under [`SERVICE`], or else the one under [`FORMER_SERVICE`],
-/// copied to [`SERVICE`] (a failed copy is tried again on the next read).
+/// The key under [`SERVICE`].
 fn get_from(store: &impl Store, account: &str) -> Result<Option<Secret>> {
-    if let Some(text) = store.get(SERVICE, account)? {
-        return Ok(Secret::new(&text));
-    }
-    let Some(secret) = store
-        .get(FORMER_SERVICE, account)?
-        .and_then(|text| Secret::new(&text))
-    else {
-        return Ok(None);
-    };
-    let _ = store.set(SERVICE, account, secret.expose());
-    Ok(Some(secret))
+    Ok(store
+        .get(SERVICE, account)?
+        .and_then(|text| Secret::new(&text)))
 }
 
-/// Remove the key under both names, so a removed key does not come back
-/// from the former entry; whether there was one.
+/// Remove the key; whether there was one.
 fn delete_from(store: &impl Store, account: &str) -> Result<bool> {
-    let current = store.delete(SERVICE, account)?;
-    let former = store.delete(FORMER_SERVICE, account)?;
-    Ok(current || former)
+    store.delete(SERVICE, account)
 }
 
 fn keychain_get(endpoint: &Endpoint) -> Result<Option<Secret>> {
@@ -232,37 +216,16 @@ mod tests {
     }
 
     #[test]
-    fn a_key_under_the_former_name_is_copied_and_the_former_entry_kept() -> Result<()> {
+    fn a_key_is_kept_per_connection_and_removed() -> Result<()> {
         let account = "https://api.example.com/v1";
         let store = Memory::default();
         assert_eq!(SERVICE, "sparksmith-llm");
-        assert_eq!(FORMER_SERVICE, "pcbcraft-llm");
         assert!(get_from(&store, account)?.is_none());
-
-        store.set("pcbcraft-llm", account, "sk-old")?;
+        store.set(SERVICE, account, "sk-test")?;
         let read = get_from(&store, account)?.map(|s| s.expose().to_owned());
-        assert_eq!(read.as_deref(), Some("sk-old"));
-        assert_eq!(
-            store.get("sparksmith-llm", account)?.as_deref(),
-            Some("sk-old")
-        );
-        assert_eq!(
-            store.get("pcbcraft-llm", account)?.as_deref(),
-            Some("sk-old")
-        );
-
-        // Once the new entry exists it wins; the former one stays.
-        store.set("sparksmith-llm", account, "sk-new")?;
-        let read = get_from(&store, account)?.map(|s| s.expose().to_owned());
-        assert_eq!(read.as_deref(), Some("sk-new"));
-        assert_eq!(
-            store.get("pcbcraft-llm", account)?.as_deref(),
-            Some("sk-old")
-        );
-        // Another connection's former key is not taken.
+        assert_eq!(read.as_deref(), Some("sk-test"));
+        // Another connection's key is not taken.
         assert!(get_from(&store, "http://localhost:1/v1")?.is_none());
-
-        // Removing the key removes both entries, so it does not come back.
         assert!(delete_from(&store, account)?);
         assert!(get_from(&store, account)?.is_none());
         assert!(!delete_from(&store, account)?);

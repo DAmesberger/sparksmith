@@ -71,10 +71,11 @@ pub const MODULES: &[ModuleDecl] = &[
         "3D model",
         "The exact 3D export, the board interface, the assembly link and part files.",
     ),
-    module(
+    module_at(
         "assist",
+        (1, 1),
         "Assistant",
-        "Documents attached to an assistant run and its working pinout documents.",
+        "Documents attached to an assistant run, its working pinout documents and its workflows.",
     ),
     module(
         "view",

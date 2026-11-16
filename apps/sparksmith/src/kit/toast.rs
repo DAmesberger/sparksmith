@@ -614,9 +614,9 @@ mod tests {
     /// reports a click.
     #[test]
     fn a_long_toast_wraps_inside_the_canvas_and_keeps_its_actions() -> Result<(), String> {
-        const LONG: &str = "Open failed: this file is format version 1, from an earlier \
-            Sparksmith; this build reads version 2. Convert it with `sparksmith convert \
-            FILE` (the original is kept beside it), then open it again";
+        const LONG: &str = "Open failed: this file is format version 2; this build of \
+            Sparksmith reads only version 1. Open it with the Sparksmith that saved it, or \
+            open the project's replay with this build to make the design again";
         let ctx = egui::Context::default();
         sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
         let mut toasts = Toasts::default();

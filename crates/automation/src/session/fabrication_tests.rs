@@ -366,7 +366,7 @@ fn a_required_reason_refuses_a_waiver_without_one() -> Fallible<()> {
     Ok(())
 }
 
-/// A file holds no fill copper (format version 4): `project.open` refills
+/// A file holds no fill copper: `project.open` refills
 /// before it answers, so the production check never sees an unfilled fill
 /// and fabrication never writes empty copper.
 #[test]

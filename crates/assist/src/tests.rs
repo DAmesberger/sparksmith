@@ -104,7 +104,7 @@ fn verb_as(session: &mut Session, reach: &ReachProfile, name: &str, input: Value
     Agent {
         session,
         grant: &grant,
-        reach,
+        turn: None,
     }
     .verb(name, input)
 }
@@ -614,15 +614,11 @@ fn the_datasheet_run_cannot_reach_publish_files_or_settings() -> Fallible {
         (
             "act",
             json!({"name": "library.publish_to_folder",
-                "params": {"library": 1, "root": {"kind": "component", "id": 1, "revision": 1}}}),
-            "profile.reach",
+                "params": {"library": "0123456789abcdef0123456789abcdef", "root": {"kind": "component", "id": 1, "revision": 1}}, "expected_revision": before}),
+            "gate.reach",
         ),
-        (
-            "query",
-            query("library.sources", json!({})),
-            "profile.reach",
-        ),
-        ("query", query("library.rescan", json!({})), "profile.reach"),
+        ("query", query("library.sources", json!({})), "gate.reach"),
+        ("query", query("library.rescan", json!({})), "gate.reach"),
     ] {
         let reply = verb_as(&mut session, &reach, tool, input.clone());
         assert_eq!(reply["ok"], false, "{input}: {reply}");
@@ -644,7 +640,7 @@ fn the_datasheet_run_cannot_reach_publish_files_or_settings() -> Fallible {
             || entry.module == "files"
             || entry.module == "settings"
             || (entry.name.contains("publish") && entry.class >= sparksmith_core::Class::Ask);
-        if agent_reaches(&reach, &grant, entry) {
+        if agent_reaches(&grant, entry) {
             reachable += 1;
             assert!(!outside, "{} is reachable", entry.name);
         }
@@ -666,7 +662,7 @@ fn the_datasheet_run_cannot_reach_publish_files_or_settings() -> Fallible {
     for hit in &hits {
         let name = hit["name"].as_str().unwrap_or_default();
         let entry = sparksmith_automation::session::metadata::find(name).ok_or("an entry")?;
-        assert!(agent_reaches(&reach, &grant, entry), "{name}");
+        assert!(agent_reaches(&grant, entry), "{name}");
         assert!(
             name != "library.publish" && name != "project.save",
             "{name}"
@@ -675,9 +671,8 @@ fn the_datasheet_run_cannot_reach_publish_files_or_settings() -> Fallible {
     Ok(())
 }
 
-/// Whether a run under `reach` reaches `entry`, as `find` filters.
+/// Whether a run under `grant` reaches `entry`, as `find` filters.
 fn agent_reaches(
-    reach: &ReachProfile,
     grant: &sparksmith_automation::Grant,
     entry: &sparksmith_automation::session::metadata::EntryMeta,
 ) -> bool {
@@ -686,7 +681,7 @@ fn agent_reaches(
     Agent {
         session: &mut session,
         grant,
-        reach,
+        turn: None,
     }
     .reaches(entry)
 }
@@ -1162,4 +1157,5 @@ mod local_run;
 mod profiles;
 mod run1;
 mod streaming;
+mod workflow_run;
 mod wroom3_binding;

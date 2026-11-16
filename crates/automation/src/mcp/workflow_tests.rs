@@ -3,12 +3,32 @@
 //! in place of a model (no network, no model). The agent's steps end at
 //! `library.review_check`; publishing stays behind the import review gate
 //! until the person has confirmed the rows.
-use super::prompts::{self, DATASHEET_PART, DATASHEET_PART_SKILL, skill_body};
+use super::prompts;
 use super::scenario::{EXM48, Fallible};
 use super::testing::Tools;
 use crate::session::Session;
+use crate::workflow::{HostCatalog, Loaded, METHOD_FILE, load};
 use crate::{Grant, Mode};
 use serde_json::{Value, json};
+
+/// The prompt of the shipped datasheet workflow.
+const DATASHEET_PART: &str = "datasheet_to_component";
+
+/// The shipped library's workflows that can run here.
+pub(super) fn shipped() -> Vec<Loaded> {
+    let folder =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library/assist/workflows");
+    load::available(&load::list(Some(&folder), None, &HostCatalog))
+}
+
+/// The shipped datasheet workflow's method, as on disk.
+fn method() -> Fallible<String> {
+    Ok(std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../library/assist/workflows/datasheet-to-component")
+            .join(METHOD_FILE),
+    )?)
+}
 
 /// A call that must succeed, named by its step.
 fn ok(step: &str, (failed, payload): (bool, Value)) -> Fallible<Value> {
@@ -100,7 +120,8 @@ fn draft_of(tools: &Tools, id: u64) -> Fallible<Value> {
 
 #[test]
 fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
-    let listed = serde_json::to_value(prompts::list())?;
+    let workflows = shipped();
+    let listed = serde_json::to_value(prompts::list(&workflows))?;
     let prompt = listed
         .as_array()
         .into_iter()
@@ -114,13 +135,32 @@ fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
         .filter(|a| a["required"] == true)
         .filter_map(|a| a["name"].as_str())
         .collect();
-    assert_eq!(required, ["part", "datasheets"]);
+    // Generated from the workflow's inputs, in the order its input step
+    // asks for them, titled and described by its data.
+    assert_eq!(required, ["datasheets", "part"]);
+    let all: Vec<&str> = prompt["arguments"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|a| a["name"].as_str())
+        .collect();
+    assert_eq!(all, ["datasheets", "part", "pages", "notes"]);
+    let workflow = &workflows.first().ok_or("a workflow")?.workflow;
+    assert_eq!(prompt["title"], workflow.title.as_str());
+    assert_eq!(prompt["description"], workflow.summary.as_str());
+    assert!(
+        prompt["arguments"][0]["description"]
+            .as_str()
+            .is_some_and(|d| d.starts_with("Datasheets. File paths or URLs (application/pdf)")),
+        "{prompt}"
+    );
 
     let arguments = |value: Value| match value {
         Value::Object(map) => Some(map),
         _ => None,
     };
     let got = serde_json::to_value(prompts::get(
+        &workflows,
         DATASHEET_PART,
         arguments(json!({"part": "EXM-48",
             "datasheets": "exm48.pdf\nhttps://example.com/exm48-errata.pdf", "notes": "QFN-48 only"}))
@@ -129,13 +169,11 @@ fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
     let message = &got["messages"][0];
     assert_eq!(message["role"], "user", "{got}");
     let text = message["content"]["text"].as_str().unwrap_or_default();
-    // The workflow first, word for word, then the task.
+    // The method first, word for word, then the task.
     let (workflow, task) = text.split_once("## Task\n").ok_or("a task section")?;
-    assert_eq!(
-        workflow.trim_end(),
-        skill_body(DATASHEET_PART_SKILL).trim_end()
-    );
-    assert!(task.contains("\"EXM-48\"") && task.contains("- exm48.pdf"));
+    assert_eq!(workflow.trim_end(), method()?.trim_end());
+    assert!(task.contains("Part name: EXM-48") && task.contains("- exm48.pdf"));
+    assert_eq!(got["description"], "Datasheet → component: EXM-48");
     assert!(
         task.contains("- https://example.com/exm48-errata.pdf") && task.contains("QFN-48 only")
     );
@@ -158,37 +196,43 @@ fn the_prompt_is_listed_and_returns_the_workflow() -> Fallible<()> {
         ("other", json!({"part": "X", "datasheets": "a.pdf"})),
         (DATASHEET_PART, json!({"part": "X"})),
         (DATASHEET_PART, json!({"part": 3, "datasheets": "a.pdf"})),
+        (
+            DATASHEET_PART,
+            json!({"part": "X", "datasheets": "a.pdf", "colour": "red"}),
+        ),
+        (
+            DATASHEET_PART,
+            json!({"part": "X".repeat(65), "datasheets": "a.pdf"}),
+        ),
     ] {
         assert!(
-            prompts::get(name, arguments(bad.clone()).as_ref()).is_err(),
+            prompts::get(&workflows, name, arguments(bad.clone()).as_ref()).is_err(),
             "{name} {bad}"
         );
     }
     Ok(())
 }
 
-/// One file is the source of both: the prompt serves the skill file in the
-/// repository, read now, without its front matter.
+/// One file is the source of both: the prompt serves the workflow's
+/// method.md, read when the server starts, and the skill points there.
 #[test]
-fn the_skill_file_and_the_prompt_are_one_source() -> Fallible<()> {
-    let path = concat!(
+fn the_method_file_and_the_prompt_are_one_source() -> Fallible<()> {
+    let on_disk = method()?;
+    assert!(on_disk.starts_with("# Create a component from datasheets"));
+    let skill = std::fs::read_to_string(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../skills/sparksmith-datasheet-part/SKILL.md"
-    );
-    let on_disk = std::fs::read_to_string(path)?;
-    assert_eq!(on_disk, DATASHEET_PART_SKILL);
-    assert!(on_disk.starts_with("---\nname: sparksmith-datasheet-part\ndescription: "));
-    let body = skill_body(&on_disk);
-    assert!(body.starts_with("# Create a component from datasheets"));
-    assert!(!body.contains("\n---\n") && !body.contains("name: sparksmith"));
+    ))?;
+    assert!(skill.starts_with("---\nname: sparksmith-datasheet-part\ndescription: "));
+    assert!(skill.contains("library/assist/workflows/datasheet-to-component/method.md"));
     let mut arguments = rmcp::model::JsonObject::new();
     arguments.insert("part".into(), json!("P"));
     arguments.insert("datasheets".into(), json!("a.pdf"));
-    let got = serde_json::to_value(prompts::get(DATASHEET_PART, Some(&arguments))?)?;
+    let got = serde_json::to_value(prompts::get(&shipped(), DATASHEET_PART, Some(&arguments))?)?;
     let text = got["messages"][0]["content"]["text"]
         .as_str()
         .unwrap_or_default();
-    assert!(text.starts_with(body));
+    assert!(text.starts_with(on_disk.trim_end()));
     Ok(())
 }
 

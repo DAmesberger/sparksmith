@@ -110,7 +110,6 @@ impl SourceView {
     pub fn short(&self) -> String {
         match &self.status {
             Status::Disabled(Disabled::Malformed(_)) => "unreadable manifest".into(),
-            Status::Disabled(Disabled::UnknownFeatures(_)) => "unknown feature".into(),
             Status::Failed(_) => "not searchable".into(),
             _ => self.secondary(),
         }
@@ -1829,7 +1828,7 @@ mod tests {
 
     fn manifest(library: u128, name: &str) -> String {
         format!(
-            "{{\"format\":{},\"library\":\"{:032x}\",\"name\":\"{name}\",\"required_features\":[]}}",
+            "{{\"format\":{},\"library\":\"{:032x}\",\"name\":\"{name}\"}}",
             folder::FOLDER_FORMAT,
             library
         )
@@ -1850,8 +1849,8 @@ mod tests {
     }
 
     /// A source that cannot be searched is listed with io's reason, never
-    /// dropped: a missing folder, a corrupt manifest, another format, an
-    /// unknown required feature and a source turned off.
+    /// dropped: a missing folder, a corrupt manifest, another format and a
+    /// source turned off.
     #[test]
     fn unusable_sources_keep_their_typed_reason() -> Result<(), Box<dyn std::error::Error>> {
         let dir = tempfile::tempdir()?;
@@ -1872,20 +1871,6 @@ mod tests {
             Status::Disabled(Disabled::Malformed(_))
         ));
         assert!(view.secondary().starts_with("unreadable manifest: "));
-
-        let future = dir.path().join("future");
-        write(
-            &future,
-            &manifest(1, "Future").replace(
-                "\"required_features\":[]",
-                "\"required_features\":[\"sketch-v9\"]",
-            ),
-        )?;
-        let view = load(&setting(future, true), Some(&cache));
-        assert_eq!(
-            view.reason().as_deref(),
-            Some("requires unsupported features: sketch-v9")
-        );
 
         let newer = dir.path().join("newer");
         write(
@@ -1922,7 +1907,6 @@ mod tests {
                             format: folder::FOLDER_FORMAT,
                             library: LibraryId(5),
                             name: "Team".into(),
-                            required_features: vec![],
                             default_licence: None,
                         },
                     },

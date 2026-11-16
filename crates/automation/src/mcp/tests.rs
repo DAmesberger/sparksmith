@@ -95,7 +95,7 @@ fn rmcp_client_discovers_and_lists_at_2026_07_28() -> Fallible<()> {
         assert_eq!(code(unknown)?, ErrorCode::INVALID_PARAMS);
         let prompts = client.list_prompts(None).await?;
         let names: Vec<&str> = prompts.prompts.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, [prompts::DATASHEET_PART]);
+        assert_eq!(names, ["datasheet_to_component"]);
         assert_eq!(prompts.cache_scope, Some(CacheScope::Public));
         assert_eq!(
             code(client.list_resources(None).await)?,
@@ -318,7 +318,7 @@ fn the_wire_matches_the_golden_transcript() -> Fallible<()> {
     assert_eq!(reply(17)["result"], *list, "the list is the same each time");
     assert_eq!(
         reply(8)["result"]["prompts"][0]["name"],
-        prompts::DATASHEET_PART
+        "datasheet_to_component"
     );
     for (id, code) in [(3, -32601), (6, -32602), (7, -32602), (9, -32601)] {
         assert_eq!(reply(id)["error"]["code"], code, "{}", reply(id));
@@ -523,23 +523,24 @@ fn the_instructions_hold_their_budget() {
     }
 }
 
-/// The datasheet workflow is served as a prompt: the skill's text, then the
-/// task; and the skill names only verbs and entries this server has.
+/// The datasheet workflow is served as a prompt: its method, then the task;
+/// and the method names only verbs and entries this server has.
 #[test]
-fn the_datasheet_prompt_serves_the_skill() -> Fallible<()> {
+fn the_datasheet_prompt_serves_the_method() -> Fallible<()> {
+    let workflows = super::workflow_tests::shipped();
     let mut arguments = rmcp::model::JsonObject::new();
     arguments.insert("part".into(), json!("EXM-48"));
     arguments.insert("datasheets".into(), json!("/data/exm48.pdf\n\n"));
-    let prompt = prompts::get(prompts::DATASHEET_PART, Some(&arguments))?;
+    let prompt = prompts::get(&workflows, "datasheet_to_component", Some(&arguments))?;
     let text = serde_json::to_value(&prompt.messages)?.to_string();
-    assert!(text.contains("Create the part \\\"EXM-48\\\""), "{text}");
+    assert!(text.contains("Part name: EXM-48"), "{text}");
     assert!(text.contains("- /data/exm48.pdf"), "{text}");
-    assert!(prompts::get("explain", None).is_err());
+    assert!(prompts::get(&workflows, "explain", None).is_err());
     let mut missing = rmcp::model::JsonObject::new();
     missing.insert("part".into(), json!("EXM-48"));
-    assert!(prompts::get(prompts::DATASHEET_PART, Some(&missing)).is_err());
+    assert!(prompts::get(&workflows, "datasheet_to_component", Some(&missing)).is_err());
 
-    let skill = prompts::skill_body(prompts::DATASHEET_PART_SKILL);
+    let skill = &workflows.first().ok_or("a workflow")?.method;
     for tool in [
         tools::FIND,
         tools::DESCRIBE,
@@ -563,6 +564,8 @@ fn the_datasheet_prompt_serves_the_skill() -> Fallible<()> {
             && !name.starts_with("pinout.")
             && !name.starts_with("binding.")
             && !name.starts_with("package.")
+            && !name.ends_with(".json")
+            && !name.ends_with(".md")
         {
             assert!(catalog::entry(name).is_some(), "the skill names {name}");
             named += 1;

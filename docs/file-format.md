@@ -6,10 +6,10 @@ This page is the normative contract for Sparksmith's project and library files. 
 
 | Part | State |
 |---|---|
-| Versions, features, converter chain, `format-lock` gate | Built (F0). See [file versions](development.md#file-versions). |
+| Version 1, every other version refused | Built. See [file versions](development.md#file-versions). |
 | This contract, both layouts, the tree in memory (`FileSet`), declared field order and sort keys, the table reply type | Built (F1), in `sparksmith_core::format::{files, layout, records, table}`. **Nothing saves through it yet.** |
-| Fills out of the document, collections sorted by key, order audit ([4.1](#41-order-audit)), sketch and waiver keys as real JSON | Built (F2), version 4. Applies to today's `project.json` too. |
-| Packages store lead contacts and solder joints; typed forms and generated models gone | Built (part generation D2), version 5. |
+| Fills out of the document, collections sorted by key, order audit ([4.1](#41-order-audit)), sketch and waiver keys as real JSON | Built (F2). Applies to today's `project.json` too. |
+| Packages store lead contacts and solder joints; typed forms and generated models gone | Built (part generation D2). |
 | Encoding and decoding the whole document as a tree; a ZIP of the tree replaces today's single `project.json` | F3 |
 | The folder store: journaled saves, changed files only, lock, external-change detection | F4 |
 | Library folders in this layout, canonical revision hashes | F7 |
@@ -89,7 +89,7 @@ Both are JSON, written by one encoder from the stored Rust types, so `jq`, Pytho
 A collection is a file of many records of one concern.
 
 ```json
-{"format":"sparksmith/tracks","version":2}
+{"format":"sparksmith/tracks","version":1}
 {"id":394,"net":6,"layer":"Top","width":0.3,"start":[19.75,7.355],"end":[19.75,8.6],"locked":false}
 {"id":396,"net":6,"layer":"Top","width":0.3,"start":[20.75,7.355],"end":[20.75,8.6],"locked":false}
 {"id":12,"net":9,"layer":"Top","width":0.3,"start":[1.0,7.355],"end":[1.0,8.6],"locked":false}
@@ -110,7 +110,7 @@ A document is one object of one concern.
 ```json
 {
   "format":"sparksmith/sheets",
-  "version":2,
+  "version":1,
   "sheets":[
     {"id":1,"name":"Power"},
     {"id":3,"name":"MCU"}
@@ -132,7 +132,7 @@ These hold for every value in both layouts.
 1. **Text**: UTF-8 without a byte order mark, every string and key in Unicode NFC. Lines end with LF only, the last line included; a CR anywhere is refused (on Windows, check git's `core.autocrlf`; the project's `.gitattributes` sets `* -text`). No empty lines.
 2. **Inside a record**: no whitespace; objects nested in a record have their keys sorted by UTF-8 bytes, each key once. Strings are escaped as `serde_json` escapes them.
 3. **No `null`.** An absent optional value is left out. A `null` inside an array is refused, since it cannot mean "absent" there.
-4. **Defaults are left out** where the type says so, and a default is part of the format version: changing one is a version change.
+4. **Defaults are left out** where the type says so, and a default is part of the format: changing one is a stored-type change ([file versions](development.md#file-versions)).
 5. **Numbers** are integers. Lengths are integer nanometres, angles integer millidegrees, and a key that holds a unit says so (`width_nm`, `rotation_mdeg`). Points are `[x, y]` integer pairs. Any other non-integer is a scaled integer with its scale in the key (`_ppm`) or an exact decimal string for a value a person typed (`"si": "5100"`).
    **Until the units migration finishes** (U2, U3), a file that holds a field on the `f64-lengths` allowlist allows floats, written in `serde_json`'s shortest round-trip form. Every other file refuses them. The [declaration table](#4-field-order-and-sort-keys) says which files allow floats today; when the allowlist is empty, every file refuses them.
 6. **Nothing is nested as a string.** A value that is JSON is written as JSON, never as a string holding JSON. Since F2 a board or footprint `sketch` is a JSON object (its keys sorted) and a waiver `key` is `{"code":…,"objects":[…]}`. The rule is not checked by the encoder, because a person's text may look like JSON.
@@ -159,11 +159,11 @@ The declarations are data in `sparksmith_core::format::records`, and the encoder
 
 | Document | Members after `format` and `version`, in order | Tables |
 |---|---|---|
-| `sparksmith-project.json` | `features`, `name`, `material_table`, `next` | none |
+| `sparksmith-project.json` | `name`, `material_table`, `next` | none |
 | `properties.json` | `title`, `revision`, `date`, `author`, `company` | none |
 | `schematic/sheets.json` | `sheets` | `sheets` |
 | `board/board.json` | `size`, `shape`, `stackup`, `fabrication` | none |
-| `sparksmith-library.json` | `features`, `library`, `name`, `default_licence` | none |
+| `sparksmith-library.json` | `library`, `name`, `default_licence` | none |
 
 Notes:
 
@@ -171,7 +171,7 @@ Notes:
 - **A sheet file** holds what the records' `sheet` field holds today, so its records do not repeat it; the header names the sheet.
 - **Computed fill copper is not a stored field** (F2): `Fill::computed` is skipped by serialization, so a fill is written with its definition only.
 - A sort key is made of integers and texts. Integers sort by value, texts by UTF-8 bytes, an integer before a text. A structured key (a waiver's `{"code","objects"}`) sorts as the text it is written as on the line.
-- Field names and values are today's. When U3 changes the board records (integer nanometres, `width_nm`, tracks as a `path` that can hold arcs), these declarations change in the same version step.
+- Field names and values are today's. When U3 changes the board records (integer nanometres, `width_nm`, tracks as a `path` that can hold arcs), these declarations change with them.
 - Files the tables do not list yet (`interface.jsonl`, `link.json`, `rules.json`, `profile.json`, `generated.jsonl`, `model-traces.jsonl`, drafts and library revisions) get their declarations with the slice that writes them.
 
 ### 4.1 Order audit
@@ -204,16 +204,14 @@ F2 checked every collection of the project (each `Shared<Vec<T>>` in `sparksmith
 ```json
 {
   "format":"sparksmith/project",
-  "version":2,
-  "features":["…"],
+  "version":1,
   "name":"ESP32-S31 dev board",
   "material_table":1,
   "next":{"id":654,"net":175,"sheet":3}
 }
 ```
 
-- `format` and `version` are the tree's. **Every file in the tree carries the same version.** A file of another version was saved by another build, most often merged in from another branch; it is refused with that explanation, and the project is converted as a whole (`sparksmith convert`).
-- `features` lists the [named optional features](development.md#file-versions) the project uses, sorted, and is left out when it uses none. A reader refuses a feature it does not know, naming it.
+- `format` and `version` are the tree's. **Every file in the tree carries the same version.** A file of another version was saved by another build, most often merged in from another branch; it is refused with that explanation.
 - `next` holds the id counters: objects and definition lineages (`id`), nets (`net`) and sheets (`sheet`).
 - `material_table` is the built-in material table revision the library snapshot's package materials are read from.
 
@@ -223,7 +221,7 @@ A user or team library folder, the project's `library/` snapshot and, with GP5, 
 
 ```text
 <library>/
-  sparksmith-library.json            format, version, library id, name, features, default licence
+  sparksmith-library.json            format, version, library id, name, default licence
   components/<lineage>/r0001.json    one immutable file per revision, never rewritten
   symbols/<lineage>/r0001.json
   packages/ footprints/ bindings/ parts/ models/ fields/ quantity-kinds/ package-rows/
@@ -284,7 +282,7 @@ There is no cap on the size of a design beyond these. The limits bound untrusted
 
 ## 10. Reading
 
-- **Refuse, never guess.** A reader accepts exactly the bytes the writer writes for the value it reads, so opening and saving changes no byte. Unknown files, fields, record types, versions and features refuse the file; nothing is dropped.
+- **Refuse, never guess.** A reader accepts exactly the bytes the writer writes for the value it reads, so opening and saving changes no byte. Unknown files, fields, record types and versions refuse the file; nothing is dropped.
 - A refusal names the file, the line and what is wrong: `board/tracks.jsonl, line 3: the field "id" comes after "net"; the declared order is id, net, layer, width, start, end, locked`.
 - A file that a person, script or agent edited into a different but valid spelling (spacing, key order, `0.30`) is refused with its line, and `sparksmith fmt` (F5) will rewrite it into the written form.
 - Every load validates the whole document after reading it, as today.

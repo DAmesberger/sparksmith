@@ -49,42 +49,32 @@ fn saved_project_reopens_offline_with_exact_revisions_and_drafts() -> Result<()>
     Ok(())
 }
 
-/// A `.pcbcraft` file from before the rename holds the same format: it
-/// opens through the same reader and version check, and saving keeps its
-/// name. Other extensions are refused as before.
+/// The golden project (`tests/fixtures/format/demo.sparksmith`: the demo
+/// design, its library and open drafts, at [`format::FILE_VERSION`]) opens
+/// and saves byte for byte. A stored-type change regenerates it.
 #[test]
-fn a_project_under_the_former_extension_opens_and_saves_in_place() -> Result<()> {
+fn the_golden_project_opens_and_saves_byte_for_byte() -> Result<()> {
+    let golden =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/format/demo.sparksmith");
+    let file = read_project(&golden)?;
+    assert_eq!(file.version, format::FILE_VERSION);
+    Engine::from_file(file.clone())?;
     let dir = tempfile::tempdir()?;
-    let current = dir.path().join("board.sparksmith");
-    let former = dir.path().join("board.pcbcraft");
-    let mut engine = Engine::demo()?;
-    unfinished(&mut engine)?;
-    write_project(&current, &engine.to_file())?;
-    std::fs::copy(&current, &former)?;
-    assert_eq!(read_project(&former)?, read_project(&current)?);
-    write_project(&former, &engine.to_file())?;
-    assert_eq!(std::fs::read(&former)?, std::fs::read(&current)?);
-
-    // The same version check: another version is refused under either name.
-    let mut newer = engine.to_file();
-    newer.version = sparksmith_core::format::FILE_VERSION + 1;
-    assert!(write_project(&former, &newer).is_err());
-    assert_eq!(read_project(&former)?, read_project(&current)?);
-
-    for refused in ["board.json", "board.PCBCRAFT", "board"] {
-        assert!(
-            read_project(&dir.path().join(refused)).is_err(),
-            "{refused}"
-        );
-    }
-
-    // A file the app wrote under its former name (the first assistant
-    // run's project) opens.
-    let run1 = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/esp32-s31-wroom-3/run1/esp32-s31-wroom-3.pcbcraft");
-    let opened = Engine::from_file(read_project(&run1)?)?;
-    assert!(!opened.drafts().items.is_empty());
+    let saved = dir.path().join("saved.sparksmith");
+    write_project(&saved, &file)?;
+    assert_eq!(std::fs::read(&saved)?, std::fs::read(&golden)?);
     Ok(())
+}
+
+/// Only a `.sparksmith` file name is a project.
+#[test]
+fn other_extensions_are_refused() {
+    let dir = Path::new("/nonexistent");
+    for refused in ["board.json", "board.pcbcraft", "board.SPARKSMITH", "board"] {
+        assert!(read_project(&dir.join(refused)).is_err(), "{refused}");
+        assert!(check_project_path(&dir.join(refused)).is_err(), "{refused}");
+    }
+    assert!(check_project_path(&dir.join("board.sparksmith")).is_ok());
 }
 
 #[test]

@@ -274,7 +274,6 @@ impl RulesPanel {
                 .and_then(|shipped| {
                     Ok(Listing {
                         builtins: rule_profiles::shipped_profiles(&shipped)?,
-                        former_ids: rule_profiles::shipped_former_ids(&shipped)?,
                         ..Listing::default()
                     })
                 })
@@ -970,18 +969,9 @@ fn picks(
     };
     let mut current = Pick::Board;
     let mut differs = None;
-    // A board that pinned a shipped profile under a former id no library
-    // profile has finds it under its current one, as one that differs.
-    let pinned = panel
-        .listing
-        .as_ref()
-        .ok()
-        .filter(|_| !choices.iter().any(|p| p.id == snapshot.id))
-        .and_then(|l| l.former_ids.get(&snapshot.id))
-        .unwrap_or(&snapshot.id);
     for p in &choices {
         let pick = Pick::User(p.id.clone());
-        if p.id == *pinned {
+        if p.id == snapshot.id {
             // The board's own choices of the profile's options are not a
             // difference from the library's.
             if snapshot.same_but_choices(p) {

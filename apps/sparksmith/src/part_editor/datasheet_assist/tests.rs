@@ -72,20 +72,19 @@ fn the_start_page_button_opens_the_form() -> Result<(), String> {
     }
     assert!(assist.open);
     let painted = frame(&ctx, vec![], |ui| draw(ui, &mut assist));
-    for label in [
-        "Datasheets",
-        "Part name",
-        "Save as",
-        "Provider",
-        "Endpoint",
-        "Model",
-        "API key",
-        "Start",
-    ] {
+    for label in ["Datasheets", "Part name", "Save as", "Model", "Start"] {
         assert!(
             painted.iter().any(|(t, _)| t == label),
             "{label}: {painted:?}"
         );
+    }
+    // The model and its key are set in Settings › AI, not here.
+    assert!(
+        painted.iter().any(|(t, _)| t.contains("Settings › AI")),
+        "{painted:?}"
+    );
+    for gone in ["Provider", "Endpoint", "API key"] {
+        assert!(!painted.iter().any(|(t, _)| t == gone), "{gone}");
     }
     // No prices in the product: no cost cap, no spend.
     assert!(
@@ -163,9 +162,9 @@ fn the_form_opens_in_view() -> Result<(), String> {
     );
     let key = painted
         .iter()
-        .find(|(t, _)| t == "API key")
-        .ok_or_else(|| format!("the key row: {painted:?}"))?;
-    assert!(key.1.bottom() <= view, "the key row is in view: {key:?}");
+        .find(|(t, _)| t == "Model")
+        .ok_or_else(|| format!("the model row: {painted:?}"))?;
+    assert!(key.1.bottom() <= view, "the model row is in view: {key:?}");
     Ok(())
 }
 
@@ -200,62 +199,97 @@ fn progress_and_the_result_arrive_from_the_thread() {
     );
 }
 
+fn local_endpoint() -> ai_settings::EndpointSetting {
+    ai_settings::EndpointSetting {
+        name: "Local".into(),
+        provider: ai_settings::Wire::Openai,
+        base_url: "http://localhost:11434/v1".into(),
+        model: "qwen3.8:27b".into(),
+        timeout_minutes: 90,
+        capabilities: Some(ai_settings::Declared {
+            tool_calling: true,
+            vision: true,
+            native_pdf: false,
+            context_tokens: 65_536,
+            output_tokens: None,
+        }),
+    }
+}
+
+/// The run takes the model, as declared, from Settings › AI, and the
+/// datasheet workflow's own budget; the person's limits, when set, hold it.
 #[test]
-fn an_openai_compatible_model_is_declared_not_detected() -> Result<(), String> {
+fn the_run_takes_the_endpoint_and_the_workflows_budget() -> Result<(), String> {
     let ctx = egui::Context::default();
     sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+    let library = sparksmith_io::shipped::ShippedLibrary::locate().map_err(|e| e.to_string())?;
+    let own = ai_settings::workflow_budget(&library, WORKFLOW).map_err(|e| e.to_string())?;
     let mut assist = DatasheetAssist {
         open: true,
-        provider: Provider::OpenAiCompatible,
-        endpoint: "http://localhost:11434/v1".into(),
-        model: "qwen3.8:27b".into(),
+        chosen: Some(Ok(Chosen {
+            endpoint: local_endpoint(),
+            limits: None,
+        })),
+        datasheets: "a.pdf".into(),
+        name: "X".into(),
         ..DatasheetAssist::default()
     };
     let painted = frame(&ctx, vec![], |ui| assist.ui(ui));
-    for label in [
-        "Context",
-        "Takes images (vision)",
-        "Reads PDFs itself",
-        "API key",
-    ] {
-        assert!(
-            painted.iter().any(|(t, _)| t == label),
-            "{label}: {painted:?}"
-        );
-    }
-    assist.vision = true;
-    assist.context_tokens = 65_536.0;
-    assist.datasheets = "a.pdf".into();
-    assist.name = "X".into();
+    assert!(
+        painted
+            .iter()
+            .any(|(t, _)| t.starts_with("Local: qwen3.8:27b") && t.contains("this computer")),
+        "{painted:?}"
+    );
     let plan = assist.plan()?;
     let p = &plan.config.profile;
     assert_eq!(p.provider, Provider::OpenAiCompatible);
     assert_eq!(p.capabilities.context_tokens, 65_536);
     assert!(p.capabilities.vision && !p.capabilities.native_pdf);
     assert!(plan.endpoint.is_loopback());
-    assert!(plan.key.is_none());
+    assert_eq!(plan.config.budget.max_requests, own.requests);
+    assert_eq!(
+        plan.config.budget.max_duration,
+        std::time::Duration::from_secs(u64::from(own.minutes) * 60)
+    );
+    // The person's tighter limit holds the workflow's budget.
+    let mut limits = ai_settings::Shipped::locate()
+        .map_err(|e| e.to_string())?
+        .limits_start;
+    limits.minutes = 5;
+    if let Some(Ok(chosen)) = &mut assist.chosen {
+        chosen.limits = Some(limits);
+    }
+    let plan = assist.plan()?;
+    assert_eq!(
+        plan.config.budget.max_duration,
+        std::time::Duration::from_secs(5 * 60)
+    );
     Ok(())
 }
 
+/// Without an endpoint in Settings › AI, Start is off and says where to
+/// add one; nothing starts.
 #[test]
-fn a_key_for_plain_http_to_another_computer_is_refused_and_never_kept() {
+fn without_an_endpoint_nothing_starts_and_settings_is_named() -> Result<(), String> {
+    let ctx = egui::Context::default();
+    sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+    let why = "No model endpoint: add one in Settings › AI".to_owned();
     let mut assist = DatasheetAssist {
         open: true,
-        provider: Provider::OpenAiCompatible,
-        endpoint: "http://192.168.1.20:11434/v1".into(),
-        model: "m".into(),
-        key: "sk-typed".into(),
+        chosen: Some(Err(why.clone())),
         datasheets: "a.pdf".into(),
         name: "X".into(),
         out: "x.sparksmith".into(),
         ..DatasheetAssist::default()
     };
-    assist.start();
-    assert!(assist.key.is_empty(), "the key leaves the form");
-    assert!(assist.job.is_none(), "nothing started");
+    let painted = frame(&ctx, vec![], |ui| assist.ui(ui));
     assert!(
-        matches!(&assist.result, Some(Err(why)) if why.contains("plain HTTP") && !why.contains("sk-typed")),
-        "{:?}",
-        assist.result
+        painted.iter().any(|(t, _)| t == "None set up"),
+        "{painted:?}"
     );
+    assist.start();
+    assert!(assist.job.is_none(), "nothing started");
+    assert_eq!(assist.result, Some(Err(why)));
+    Ok(())
 }

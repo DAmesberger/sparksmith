@@ -19,8 +19,9 @@
 //!   refused with `-32602`) and cached `public` for a day. The tools are the
 //!   six verbs of [`tools`] (`find`, `describe`, `query`, `apply`, `act`,
 //!   `show`); the catalog's entries are data behind them ([`catalog`]). The
-//!   prompts are the workflows of [`prompts`]. Resources and completion
-//!   answer `-32601` until their slices.
+//!   prompts are the host's workflows, generated from their data when the
+//!   server starts ([`prompts`]). Resources and completion answer `-32601`
+//!   until their slices.
 //! - **Errors** use the spec's codes: `-32602` for an unknown tool or bad
 //!   parameters, `-32601` for a method not served, `-32603` when the session
 //!   thread is gone, `-32022` for another version. A failure of the call
@@ -45,6 +46,7 @@ pub mod wire;
 use crate::gate::Grant;
 use crate::live;
 use crate::session::Session;
+use crate::workflow::{Loaded, load};
 use desk::Desk;
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, CallToolResult, CompleteRequestMethod,
@@ -111,6 +113,8 @@ pub fn instructions(live: bool) -> String {
 pub struct Server {
     desk: desk::Handle,
     live: bool,
+    /// The workflows its prompts are made from.
+    workflows: Vec<Loaded>,
 }
 
 impl Server {
@@ -131,6 +135,7 @@ impl Server {
         Ok(Self {
             desk: Desk::start(session, policy, new_session)?,
             live: false,
+            workflows: load::available(&load::host()),
         })
     }
 
@@ -140,7 +145,21 @@ impl Server {
         Ok(Self {
             desk: Desk::start_live(client)?,
             live: true,
+            workflows: load::available(&load::host()),
         })
+    }
+
+    /// This server with its prompts made from `workflows` instead of the
+    /// host's.
+    #[must_use]
+    pub fn with_workflows(mut self, workflows: Vec<Loaded>) -> Self {
+        self.workflows = workflows;
+        self
+    }
+
+    /// The workflows its prompts are made from.
+    pub fn workflows(&self) -> &[Loaded] {
+        &self.workflows
     }
 
     /// The session thread, for the tools built on it.
@@ -268,9 +287,11 @@ impl ServerHandler for Server {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListPromptsResult, ErrorData> {
         one_page(request.as_ref())?;
-        Ok(ListPromptsResult::with_all_items(prompts::list())
-            .with_ttl_ms(LIST_TTL_MS)
-            .with_cache_scope(CacheScope::Public))
+        Ok(
+            ListPromptsResult::with_all_items(prompts::list(&self.workflows))
+                .with_ttl_ms(LIST_TTL_MS)
+                .with_cache_scope(CacheScope::Public),
+        )
     }
 
     async fn get_prompt(
@@ -278,7 +299,7 @@ impl ServerHandler for Server {
         request: GetPromptRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<GetPromptResponse, ErrorData> {
-        prompts::get(&request.name, request.arguments.as_ref())
+        prompts::get(&self.workflows, &request.name, request.arguments.as_ref())
             .map(GetPromptResponse::from)
             .map_err(|why| ErrorData::invalid_params(why, None))
     }

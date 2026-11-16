@@ -3,7 +3,6 @@ mod clean_room;
 mod connectivity;
 mod core_modules;
 mod f64_lengths;
-mod format_lock;
 mod generators;
 mod generic_terms;
 mod kicad_compare;
@@ -58,11 +57,6 @@ fn cargo(args: &[&str]) -> Result<()> {
 fn run() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     if let Some((command, rest)) = args.split_first()
-        && command == "format-lock"
-    {
-        return format_lock::run(rest);
-    }
-    if let Some((command, rest)) = args.split_first()
         && command == "generators"
     {
         return generators::run(rest);
@@ -89,7 +83,6 @@ fn run() -> Result<()> {
             core_modules::check()?;
             connectivity::check()?;
             f64_lengths::check()?;
-            format_lock::check()?;
             surface(&["--check".into()])?;
             licences::check()?;
             brand_crates::check()?;
@@ -150,7 +143,7 @@ fn run() -> Result<()> {
         _ => Err(
             "usage: cargo xtask ci | ci-native | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
-             | format-lock [--update] | surface --check | --update | kicad-compare [--design PATH]"
+             | surface --check | --update | kicad-compare [--design PATH]"
                 .into(),
         ),
     }

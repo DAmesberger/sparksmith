@@ -22,6 +22,8 @@ solidcraft-control.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
+# The digest a workflow run and its recording name (`workflow::load::digest`).
+sha2.workspace = true
 getrandom.workspace = true
 thiserror.workspace = true
 rmcp = { workspace = true, features = ["server", "transport-io"] }

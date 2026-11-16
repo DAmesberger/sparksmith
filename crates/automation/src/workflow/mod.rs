@@ -6,15 +6,18 @@
 //! judgement guide its model steps read). Shipped workflows are in the
 //! library's `assist/workflows/`; a person's own in
 //! `<config>/assist/workflows/`, same format. The app holds no workflow
-//! logic: one generic runner (W1) and one closed set of controls
-//! ([`Control`]) read what the file says.
+//! logic: one generic runner (`sparksmith_assist::workflow::runner`) and one
+//! closed set of controls ([`Control`]) read what the file says.
 //!
 //! This module is the contract (W0): the format as types, its load check
 //! ([`Workflow::parse`], [`Workflow::check`], [`Workflow::check_method`],
 //! [`Workflow::availability`]), the controls ([`control`]), the `assist.*`
 //! entries' parameters and replies ([`entries`]) and the run's events
 //! ([`event`]). A file that fails the check is refused with the reason,
-//! naming the field; unknown fields are refused, naming them.
+//! naming the field; unknown fields are refused, naming them. It sits in
+//! the automation crate, below the runner, because the catalog's
+//! `assist.workflows` and `assist.step_result` and the MCP prompts
+//! ([`crate::mcp::prompts`]) are made from the same data.
 pub mod control;
 pub mod entries;
 pub mod event;
@@ -1616,23 +1619,44 @@ fn method_anchor(reference: &str) -> Result<&str, String> {
 /// The anchors of a Markdown text's headings, as GitHub writes them:
 /// lowercase, spaces as `-`, punctuation other than `-` and `_` dropped.
 pub fn heading_anchors(markdown: &str) -> BTreeSet<String> {
+    headings(markdown).map(|(_, _, anchor)| anchor).collect()
+}
+
+/// The section of `markdown` under the heading whose anchor is `anchor`:
+/// the heading line and everything up to the next heading of the same or a
+/// higher level. What a model step reads of `method.md`.
+pub fn method_section<'a>(markdown: &'a str, anchor: &str) -> Option<&'a str> {
+    let mut found: Option<(usize, usize)> = None;
+    for (offset, level, name) in headings(markdown) {
+        match found {
+            None if name == anchor => found = Some((offset, level)),
+            Some((start, at)) if level <= at => return markdown.get(start..offset),
+            _ => {}
+        }
+    }
+    found.and_then(|(start, _)| markdown.get(start..))
+}
+
+/// Each heading outside code fences: its byte offset, level and anchor.
+fn headings(markdown: &str) -> impl Iterator<Item = (usize, usize, String)> + '_ {
     let mut fenced = false;
-    let mut anchors = BTreeSet::new();
-    for line in markdown.lines() {
+    let mut offset = 0;
+    markdown.split_inclusive('\n').filter_map(move |line| {
+        let at = offset;
+        offset += line.len();
         if line.trim_start().starts_with("```") {
             fenced = !fenced;
-            continue;
+            return None;
         }
         if fenced {
-            continue;
+            return None;
         }
-        let Some(heading) = line.strip_prefix('#') else {
-            continue;
-        };
-        let heading = heading.trim_start_matches('#');
+        let rest = line.strip_prefix('#')?;
+        let heading = rest.trim_start_matches('#');
         if !heading.starts_with(' ') {
-            continue;
+            return None;
         }
+        let level = 1 + rest.len() - heading.len();
         let anchor: String = heading
             .trim()
             .chars()
@@ -1643,9 +1667,8 @@ pub fn heading_anchors(markdown: &str) -> BTreeSet<String> {
                 _ => None,
             })
             .collect();
-        anchors.insert(anchor);
-    }
-    anchors
+        Some((at, level, anchor))
+    })
 }
 
 fn item_pointer_rule(out: &mut Vec<Problem>, at: &str, text: &str) {

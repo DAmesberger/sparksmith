@@ -1,6 +1,6 @@
 # Workflow format
 
-**Status:** contract (slice W0 of the [assistant panel](assistant-panel.md#8-slices)), 16 November 2026. The types, the load check and the first instance are built; the runner (W1), the chat (C1) and the controls' widgets (C2) are not. Code: `crates/assist/src/workflow/`.
+**Status:** contract (slice W0 of the [assistant panel](assistant-panel.md#8-slices)) and runner (W1), 16 November 2026. The types, the load check, the first instance with its method, the runner, the `assist.workflows` and `assist.step_result` entries and the MCP prompts are built; the chat (C1) and the controls' widgets (C2) are not. Code: the contract in `crates/automation/src/workflow/` (below the runner, since the catalog's entries and the MCP prompts are made from the same data; `sparksmith_assist::workflow` re-exports it), the runner in `crates/assist/src/workflow/runner.rs`.
 
 A workflow is a refined process the chat finds, offers and runs, with typed controls inside the conversation. It is data, never code: the app has one generic runner and one closed set of ten controls, and a workflow only chooses among them.
 
@@ -18,7 +18,9 @@ library/assist/workflows/<id>/        shipped
 - **Digest.** `sha256:` over `workflow.json` and `method.md`, each preceded by its name and length (`load::digest`). A recording names the workflow's id, version and digest.
 - **Bounds.** Each file at most 256 KiB; at most 64 workflows a folder.
 
-The first instance is `library/assist/workflows/datasheet-to-component/workflow.json`. Its `method.md` arrives in W1, when `skills/sparksmith-datasheet-part/SKILL.md` moves there (approved Q4); until then the folder lists as unavailable, and the tests check its headings against the skill.
+- **Listed per host** (`load::host`): the shipped library's folder and the person's `<config>/assist/workflows/`, against this program's catalog.
+
+The first instance is `library/assist/workflows/datasheet-to-component/`: `workflow.json` and `method.md`, moved there from `skills/sparksmith-datasheet-part/SKILL.md` in W1 (approved Q4); the skill and `AGENTS.md` point to it.
 
 ## `workflow.json`, format 1
 
@@ -53,7 +55,7 @@ The JSON Schema of the format is `workflow::schema()`.
 | `integer` | a whole number | `min`, `max` | `number` |
 | `enum` | one option's value, or a list with `multiple` | `options: [{value, title}]` (1–64), `multiple` | `choice` |
 | `enum_from` | as `enum`, options from a step's result | `from: {list, value, title?}`, `multiple` | `choice` |
-| `files` | a list of paths | `accept` (media types), `min`, `max` (default 1, at most 16) | `datasheet` |
+| `files` | a list of paths; in a run, the attached documents (below) | `accept` (media types), `min`, `max` (default 1, at most 16) | `datasheet` |
 | `url` | an `https://` URL | | `url` |
 | `page_ranges` | `"1-5, 31, 32"` | `of`: the `files` input whose pages | `page_ranges` |
 
@@ -84,6 +86,8 @@ Strings in `params`, `each`, `show`, `plan`, `from` and `options.list` that star
 
 `{"literal": "/text"}` writes a string that starts with `/` as itself. A pointer to a value that is absent leaves the parameter out.
 
+A `files` input is attached to the run's session as its documents when its input step completes (their text read on this computer), and from then on a pointer reads it as the attached documents, `[{"title", "pages"}]`, never as paths: the datasheet workflow reads with `assist.document_text {"document": "/item/title"}`, which stays out of the `files` module.
+
 ### Outputs
 
 ```json
@@ -91,6 +95,26 @@ Strings in `params`, `each`, `show`, `plan`, `from` and `options.list` that star
 ```
 
 Field types: `text`, `integer`, `number`, `boolean`, `object`, `list`, `any`. `assist.step_result` refuses a missing required field, a wrong type and a field the shape does not name, each by its pointer, with the `example` when there is one (`Output::check_value`).
+
+## The runner (W1)
+
+`sparksmith_assist::workflow::runner::run_workflow` drives a workflow's steps in order on a session; its model steps run on any model backend, its cards and events reach the host through `Person`.
+
+- **One turn.** Before its first step after the inputs, the run opens a turn (`project.turn_begin`) labelled with the title and its first text input ("Datasheet → component: TLV75733PDBVR"); every call, the runner's and the model's, carries it, so the run undoes as one step. The turn closes however the run ends; what completed stays.
+- **No rights of its own.** Every call is the caller's principal under the caller's grant held to the workflow's `reach` (`Grant::narrowed`), through `Surface::call`. An entry that takes a revision gets the session's current one.
+- **input** asks for the step's inputs the run was not given (a card for each, in the step's order); values are checked like a default; Decline and Stop end the run.
+- **tool** fills its pointers and makes the call (`each`: once per item, the replies a list).
+- **model** is one conversation: the step's goal, its output's fields, the inputs, the earlier steps' results (each cut at 120,000 characters) and its section of `method.md` (`method_section`), with the six verbs. The session holds the step open (`Session::open_step`) and `assist.step_result` checks the answer; an accepted answer is the step's result. A `requests` cap holds the step to that many more requests.
+- **review**, `confirm`: an `impact` card from the plan (its `change_counts`, or the length of each list; its findings); Apply makes `then`, Decline ends the run. `notify`: a `choice` card; Change sends the run back to `change` with the person's choice.
+- **result**: the result card; a button whose entry the host lacks is left off.
+- **check and retries.** A tool step refuses when its call fails; one that a `check` names also refuses when its reply says `"accepted": false` or lists a finding that blocks (`blocks` or `blocking`). The run goes back to the checking step with the refusal's text in its brief, at most `retries` times, then fails.
+- **Budget.** The smaller of the workflow's `budget` and the configured limits, counted over all model steps; a `meter` event after each model step.
+- **Refused before anything runs:** a workflow this host cannot run, an input it does not have or that does not pass, and a replay recorded with another workflow, version or digest.
+- **Recordings** of a run start with one line naming the workflow (`{"workflow": {"id", "version", "digest"}}`, `Recording::for_workflow`); a replay reads it and the runner compares it.
+
+## MCP prompts
+
+`prompts/list` and `prompts/get` are generated from the host's available workflows (`mcp::prompts`): the prompt's name is the id with `_` for `-`, its title and description the workflow's `title` and `summary`, its arguments the inputs in the order the input steps ask for them (required unless `optional`; the description is the input's title and help, and how to write its type as text). `prompts/get` serves `method.md`, then a task: the summary and each given input. A missing required argument, one the workflow has no input for, and text past its input's `max` are refused, naming it. A test holds the order of the tool steps' entries in `method.md`'s procedure.
 
 ## `method.md`
 
@@ -115,13 +139,13 @@ Markdown. Each model step reads one section, named by its heading's anchor (GitH
 
 ## The `assist.*` entries
 
-Signatures only (`workflow::entries`); they join the catalog in the `assist` module with S6 and W1, declared with `declare_entries!` like every entry, and `cargo xtask surface` records them then.
+Parameters and replies in `workflow::entries`. `assist.workflows` and `assist.step_result` are in the catalog since W1 (`assist` 1.1); `assist.offer` comes with the chat's cards (C2).
 
 | Entry | Kind, class | Parameters | Reply |
 |---|---|---|---|
-| `assist.workflows` | query, read | `{text?, limit?, unavailable?}` | `{workflows: [{id, version, title, summary, intents, source, inputs, why_not}]}` |
+| `assist.workflows` | query, read | `{text?, limit?, unavailable?}` | `{workflows: [{id, version, title, summary, intents, source, inputs, why_not}]}`; the workflows the host lent the session (`Session::lend_workflows`), else `assist.no_workflows` |
 | `assist.offer` | show, show; headless `host.unavailable` | `{workflow, inputs?, why}` | `{card, missing}` |
-| `assist.step_result` | query, read; changes no document | `{step, result}` | `{accepted, problems: [{at, message}], example?}` |
+| `assist.step_result` | query, read; changes no document | `{step, result}` | `{accepted, problems: [{at, message}], example?}`; refused without an open step (`assist.no_step`) or for another step |
 
 ## Events
 

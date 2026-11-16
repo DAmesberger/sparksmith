@@ -17,7 +17,7 @@ use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use sparksmith_automation::{Grant, Mode};
 use sparksmith_core::Class;
-use sparksmith_core::permission::{MODULES, Reach, Reaches};
+use sparksmith_core::permission::{MODULES, Reach};
 use sparksmith_io::shipped::{Shelf, ShippedLibrary};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -408,11 +408,11 @@ impl AssistLibrary {
 /// What a run may reach: a named filter over the catalog, as data in the
 /// shipped library (`assist/reach/NAME.json`). `modules` gives each module
 /// the run may use its highest class; a module left out is out of reach.
-/// The gate holds a run to these as its [`Grant`]. `reach` lists what
-/// outside the document an entry may touch (`files`, `settings`,
-/// `network`, `window`, `runtime`); an entry that touches anything else is
-/// refused before it reaches the gate ([`crate::verbs::Agent`]), and `find`
-/// does not list it.
+/// `reach` lists what outside the document an entry may touch (`files`,
+/// `settings`, `network`, `window`, `runtime`). Both are the run's
+/// [`Grant`], which the front door's gate holds every call to: an entry
+/// that touches anything else is refused (`gate.reach`), and `find` does
+/// not list it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReachProfile {
@@ -459,20 +459,16 @@ impl ReachProfile {
         Ok(profile)
     }
 
-    /// The grant the gate holds a run to: this profile's modules, the mode
-    /// auto-allow-edits and no folders.
+    /// The grant the gate holds a run to: this profile's modules and reach,
+    /// the mode auto-allow-edits and no folders.
     pub fn grant(&self) -> Grant {
         Grant {
             mode: Mode::AutoAllowEdits,
             folders: Vec::new(),
             modules: self.modules.clone(),
             limits: Default::default(),
+            reach: Some(self.reach.clone()),
         }
-    }
-
-    /// Whether an entry that touches `reaches` is within this profile.
-    pub fn allows(&self, reaches: Reaches) -> bool {
-        reaches.iter().all(|r| self.reach.contains(&r))
     }
 }
 

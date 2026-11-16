@@ -522,13 +522,11 @@ fn core(error: sparksmith_core::Error) -> Error {
 }
 
 /// A missing folder is `not_found`; anything else the manifest says is
-/// `unsupported` (another format or feature) or `invalid_input`.
+/// `unsupported` (another format) or `invalid_input`.
 fn refusal(why: &Disabled, message: &str) -> Error {
     core(match why {
         Disabled::PathMissing => sparksmith_core::Error::NotFound(message.into()),
-        Disabled::UnsupportedFormat(_) | Disabled::UnknownFeatures(_) => {
-            sparksmith_core::Error::Unsupported(message.into())
-        }
+        Disabled::UnsupportedFormat(_) => sparksmith_core::Error::Unsupported(message.into()),
         Disabled::Off | Disabled::Malformed(_) => sparksmith_core::Error::Invalid(message.into()),
     })
 }

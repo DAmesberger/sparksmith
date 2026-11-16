@@ -521,7 +521,7 @@ fn check_format(
     match object.remove("version").as_ref().and_then(Value::as_u64) {
         Some(found) if found == u64::from(version) => Ok(()),
         Some(found) => Err(format!(
-            "this file is format version {found} but the project is version {version}; a file saved by another version, often merged from another branch, must be converted with the rest of the project"
+            "this file is format version {found} but the project is version {version}; a file saved by another version, often merged from another branch, is refused"
         )),
         None => Err("\"version\" must be a whole number".into()),
     }

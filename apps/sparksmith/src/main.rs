@@ -64,8 +64,6 @@ pub(crate) fn test_stack() -> Result<sparksmith_solidcraft::stack::Stack, String
 
 fn main() -> eframe::Result {
     let compact = std::env::args().any(|argument| argument == "--compact");
-    // Before anything reads or creates the per-user folders.
-    sparksmith_io::settings::adopt_former_folders();
     // Files opened from Finder arrive as AppKit events, not arguments.
     #[cfg(target_os = "macos")]
     open_documents::install();
