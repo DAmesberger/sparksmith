@@ -188,6 +188,7 @@ pub(crate) struct WorkflowCards {
 
 impl WorkflowCards {
     /// Cards over `listed` workflows, documents copied into `folder`.
+    #[cfg(test)]
     pub(crate) fn with(listed: Vec<Listed>, folder: Option<PathBuf>) -> Self {
         Self {
             listed: Some(listed),
@@ -305,6 +306,7 @@ impl WorkflowCards {
     }
 
     /// How many workflow cards the conversation holds.
+    #[cfg(test)]
     pub(crate) fn offers(&self) -> usize {
         self.items
             .iter()
@@ -713,6 +715,7 @@ impl WorkflowCards {
     }
 
     /// Draw every card in conversation order; answers what the person chose.
+    #[cfg(test)]
     pub(crate) fn show(&mut self, ui: &mut egui::Ui) -> Vec<CardAction> {
         self.poll();
         let active = self.items.iter().rposition(Item::waiting);

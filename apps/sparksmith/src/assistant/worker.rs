@@ -166,7 +166,7 @@ pub enum FromRun {
     /// Work on the chat's session; `done` once it ran.
     Work(Work, Sender<()>),
     /// The run ended, or was refused before anything ran.
-    Done(Result<WorkflowOutcome, String>),
+    Done(Box<Result<WorkflowOutcome, String>>),
 }
 
 /// A workflow run in the chat.
@@ -331,7 +331,7 @@ pub fn start_run(
                 )
                 .map_err(|e| e.to_string())
             });
-            let _ = tx.send(FromRun::Done(outcome));
+            let _ = tx.send(FromRun::Done(Box::new(outcome)));
             wake();
         }))
         .map_err(|e| format!("could not start the run: {e}"))?;

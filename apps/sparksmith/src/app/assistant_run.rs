@@ -197,7 +197,7 @@ impl App {
                 Ok(message) => message,
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
-                    FromRun::Done(Err("the run ended without an answer".into()))
+                    FromRun::Done(Box::new(Err("the run ended without an answer".into())))
                 }
             };
             match message {
@@ -209,7 +209,7 @@ impl App {
                     assistant.session.lend(engine, path.as_deref(), work);
                     let _ = done.send(());
                 }
-                FromRun::Done(result) => self.finish_run(result),
+                FromRun::Done(result) => self.finish_run(*result),
             }
         }
         // More are waiting: take them next frame.
