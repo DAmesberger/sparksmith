@@ -219,12 +219,13 @@ impl App {
                     ui.add_space(t.space_8);
                     self.document_tab(ui);
                     // A save the system holds (a permission prompt, a slow
-                    // disk) shows that it runs, as the 3D view's update does.
-                    if self.files.saving() {
-                        kit::status_chip(ui, None, "Saving\u{2026}");
-                    }
-                    if self.files.importing() {
-                        kit::status_chip(ui, None, "Importing KiCad project\u{2026}");
+                    // disk) shows that it runs, as the 3D view's update does,
+                    // and after a few seconds what it may be waiting for.
+                    if let Some((text, wake)) = self.files.activity() {
+                        kit::status_chip(ui, None, &text);
+                        if let Some(wake) = wake {
+                            ctx.request_repaint_after(wake);
+                        }
                     }
                     self.live_indicator(ui);
                     let (_, drag) = ui.allocate_exact_size(
