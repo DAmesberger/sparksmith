@@ -9,14 +9,15 @@
 //! else the first), with what it can do declared there; nothing is
 //! detected. Its key is the one Settings › AI keeps in the system keychain
 //! for that endpoint; without one, an Anthropic run falls back to
-//! `ANTHROPIC_API_KEY`. Settings › AI's limits cap the run. This form goes
+//! `ANTHROPIC_API_KEY`. The run's budget is the datasheet workflow's own,
+//! within Settings › AI's limits when the person set any. This form goes
 //! when the chat runs the datasheet workflow (slice W2).
 use crate::kit;
 use egui::Ui;
 use sparksmith_assist::model::{self, Connection, Endpoint, KeySource, Provider, keys};
 use sparksmith_assist::profile as run_profile;
 use sparksmith_assist::settings::{self as ai_settings, EndpointSetting, Limits};
-use sparksmith_assist::{AssistLibrary, Datasheet, Event, Goal, RunConfig};
+use sparksmith_assist::{AssistLibrary, CallState, Datasheet, Event, Goal, RunConfig};
 use sparksmith_automation::Session;
 use sparksmith_ui::ui_kit::{self, Button};
 use std::path::PathBuf;
@@ -27,11 +28,15 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 /// Lines of progress kept.
 const MAX_LOG: usize = 200;
 
-/// The endpoint and limits from Settings › AI.
+/// The shipped workflow this form runs the process of; its budget is the
+/// run's.
+const WORKFLOW: &str = "datasheet-to-component";
+
+/// The endpoint and the person's limits, if any, from Settings › AI.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chosen {
     pub endpoint: EndpointSetting,
-    pub limits: Limits,
+    pub limits: Option<Limits>,
 }
 
 /// Settings › AI's endpoint for a model run and its limits, or why there
@@ -40,14 +45,13 @@ fn chosen_from_settings() -> Result<Chosen, String> {
     let dirs = sparksmith_io::settings::UserDirs::from_env().map_err(|e| e.to_string())?;
     let settings =
         ai_settings::read(&ai_settings::user_file(&dirs.config)).map_err(|e| e.to_string())?;
-    let shipped = ai_settings::Shipped::locate().map_err(|e| e.to_string())?;
     let endpoint = settings
         .run_endpoint()
         .cloned()
         .ok_or_else(|| "No model endpoint: add one in Settings › AI".to_owned())?;
     Ok(Chosen {
         endpoint,
-        limits: settings.limits_or(&shipped),
+        limits: settings.limits,
     })
 }
 
@@ -239,7 +243,13 @@ impl DatasheetAssist {
         let shipped = AssistLibrary::locate().map_err(|e| e.to_string())?;
         let mut config = RunConfig::new(&shipped, profile, None, folder.as_deref())
             .map_err(|e| e.to_string())?;
-        config.budget = chosen.limits.cap(config.budget);
+        // The datasheet workflow's own budget, within the person's limits.
+        let library =
+            sparksmith_io::shipped::ShippedLibrary::locate().map_err(|e| e.to_string())?;
+        let own = ai_settings::workflow_budget(&library, WORKFLOW).map_err(|e| e.to_string())?;
+        if let Some(budget) = ai_settings::run_budget(chosen.limits.as_ref(), Some(&own)) {
+            config.budget = budget;
+        }
         let goal = Goal {
             name: self.name.trim().to_owned(),
             datasheets: self
@@ -343,13 +353,32 @@ fn work(
                 } => {
                     format!("Response {n}: {stop_reason}, {output_tokens} tokens in {seconds:.0} s")
                 }
-                Event::Tool { name, error, step } => {
-                    let status = if error { "refused" } else { "ok" };
-                    format!(
-                        "{name}: {status}{}",
-                        step.map(|s| format!(" ({s})")).unwrap_or_default()
-                    )
-                }
+                Event::Call {
+                    name,
+                    state: CallState::Done { step, .. },
+                    ..
+                } => format!(
+                    "{name}: ok{}",
+                    step.map(|s| format!(" ({s})")).unwrap_or_default()
+                ),
+                Event::Call {
+                    name,
+                    state: CallState::Refused { .. },
+                    ..
+                } => format!("{name}: refused"),
+                Event::Call {
+                    name,
+                    state: CallState::NotRun { why },
+                    ..
+                } => format!("{name}: not run ({why})"),
+                // The log shows lines, not pieces as they arrive.
+                Event::TextDelta(_)
+                | Event::ReasoningDelta(_)
+                | Event::Usage(_)
+                | Event::Call {
+                    state: CallState::Writing | CallState::Running { .. },
+                    ..
+                } => return,
                 Event::Text(text) => text.chars().take(160).collect(),
                 Event::Warning(text) => format!("Warning: {text}"),
             };

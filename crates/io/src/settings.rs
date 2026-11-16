@@ -115,6 +115,9 @@ pub struct UserSettings {
     /// Row density, reduced motion and saved list filters.
     #[serde(default, skip_serializing_if = "ListSettings::is_default")]
     pub lists: ListSettings,
+    /// The main window as last left; `None`: the default frame.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub window: Option<WindowState>,
     /// The former "Mesh the board directly" setting. The direct mesh is
     /// now the 3D view's only way to draw the board, so the setting means
     /// nothing: a settings file that turned it on still reads, and the
@@ -252,6 +255,42 @@ impl SelectionFilter {
     }
 }
 
+/// Largest window coordinate or size kept, in points.
+pub const MAX_WINDOW_POINTS: f32 = 65_536.0;
+
+/// The main window as it was last left, restored on the next launch: full
+/// screen, maximized, or its frame. The frame is the window's last one out
+/// of full screen and maximized, so leaving either returns to it.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct WindowState {
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fullscreen: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub maximized: bool,
+    /// The outer top-left corner on the desktop, in points, when known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<[f32; 2]>,
+    /// The inner (content) size in points.
+    pub size: [f32; 2],
+}
+
+impl WindowState {
+    /// Finite, positive sizes and coordinates within [`MAX_WINDOW_POINTS`].
+    pub fn check(&self) -> Result<()> {
+        let within = |v: f32| v.is_finite() && v.abs() <= MAX_WINDOW_POINTS;
+        let size = self.size.iter().all(|v| within(*v) && *v > 0.0);
+        let position = self.position.is_none_or(|p| p.iter().all(|v| within(*v)));
+        if size && position {
+            Ok(())
+        } else {
+            Err(Error::Invalid(format!(
+                "the window's size must be positive and its size and position at most {MAX_WINDOW_POINTS} points"
+            )))
+        }
+    }
+}
+
 /// Where one project's production files go.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -279,6 +318,7 @@ impl Default for UserSettings {
             impedance_tolerance: None,
             selection_filter: SelectionFilter::default(),
             lists: ListSettings::default(),
+            window: None,
             former_mesh_board_directly: serde::de::IgnoredAny,
         }
     }
@@ -846,6 +886,9 @@ impl UserSettings {
                 "a favourite or recent entry is listed twice".into(),
             ));
         }
+        if let Some(window) = &self.window {
+            window.check()?;
+        }
         self.lists.check()
     }
 }
@@ -1025,6 +1068,42 @@ mod tests {
             full.save_filter("pcb.parts", &format!("x>{i}"))?;
         }
         assert!(full.save_filter("pcb.parts", "y>1").is_err());
+        Ok(())
+    }
+
+    /// E2E run 11, finding 7: the window's state (full screen, maximized,
+    /// its frame) round-trips; a size or position out of bounds is refused.
+    #[test]
+    fn the_window_state_round_trips_and_is_bounded() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join(SETTINGS_FILE);
+        let settings = UserSettings {
+            window: Some(WindowState {
+                fullscreen: true,
+                maximized: false,
+                position: Some([-1200.0, 40.0]),
+                size: [1380.0, 900.0],
+            }),
+            ..UserSettings::default()
+        };
+        write_settings(&path, &settings)?;
+        assert_eq!(read_settings(&path)?, settings);
+        for (position, size) in [
+            (None, [0.0, 900.0]),
+            (None, [f32::NAN, 900.0]),
+            (Some([MAX_WINDOW_POINTS * 2.0, 0.0]), [800.0, 600.0]),
+        ] {
+            let bad = UserSettings {
+                window: Some(WindowState {
+                    fullscreen: false,
+                    maximized: false,
+                    position,
+                    size,
+                }),
+                ..UserSettings::default()
+            };
+            assert!(bad.check().is_err(), "{position:?} {size:?}");
+        }
         Ok(())
     }
 

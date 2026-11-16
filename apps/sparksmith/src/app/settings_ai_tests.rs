@@ -83,8 +83,6 @@ fn the_page_shows_every_part_at_both_sizes() -> Fallible {
             "Read or write files",
             "Publish to a library",
             "Move my view",
-            "Model requests",
-            "Time",
         ] {
             assert!(
                 ax.has(Role::Label, label),
@@ -96,13 +94,18 @@ fn the_page_shows_every_part_at_both_sizes() -> Fallible {
         assert!(ax.texts.iter().any(|t| t == "Always allow"));
         assert!(ax.texts.iter().any(|t| t == "Ask every time"));
         assert!(!ax.has(Role::Label, "Edits") && !ax.has(Role::Label, "Calls"));
-        // The run limits start from the shipped values (45 minutes, Q7).
-        let state = page(&mut ax)?;
-        let shown = match (&state.settings, &state.shipped) {
-            (Ok(s), Ok(shipped)) => s.limits_or(shipped),
-            _ => return Err("the page read its settings".into()),
-        };
-        assert_eq!(shown.minutes, 45);
+        // Model runs are not limited by default (the chat can build a
+        // whole board); turned on, the limits start from the shipped
+        // values (45 minutes, Q7) and are kept.
+        let check = scroll_to(&mut ax, Role::CheckBox, "Limit model runs")?;
+        assert_eq!(check.toggled, Some(false));
+        assert!(!ax.has(Role::Label, "Model requests"));
+        ax.click_at(check.center());
+        ax.settle();
+        assert!(ax.has(Role::Label, "Model requests"), "{}", ax.dump());
+        assert!(ax.has(Role::Label, "Time"));
+        let saved = stored::read(&stored::user_file(&ax.dir.path().join("config")))?;
+        assert_eq!(saved.limits.map(|l| l.minutes), Some(45));
         // The shipped datasheet workflow, with where it comes from and
         // whether it can run here (or why not); its title once it loads,
         // else its folder's name.
@@ -147,9 +150,9 @@ fn an_endpoint_is_added_from_a_preset_and_its_key_kept_out_of_files() -> Fallibl
         let mut ax = settings_at(size)?;
         let config = ax.dir.path().join("config");
         // Add endpoint's preset menu sits in the control column of its row,
-        // level with the label, where the number fields are.
+        // level with the label, in the window's control column.
         let row = scroll_to(&mut ax, Role::Label, "Add endpoint")?;
-        let column = ax.find(Role::TextInput, "Model requests")?.center().x;
+        let column = ax.find(Role::TextInput, "Impedance tolerance")?.center().x;
         ax.click_at(egui::pos2(column, row.center().y));
         let preset = [
             Role::Button,
@@ -285,22 +288,22 @@ fn an_agent_is_saved_and_a_key_variable_refused() -> Fallible {
     Ok(())
 }
 
-/// Limits and permissions store only what differs from the shipped
-/// values, so a changed default reaches everyone who kept it.
+/// Limits the person sets are kept and checked; permissions left alone
+/// stay unset, so a changed shipped default reaches everyone.
 #[test]
-fn limits_and_permissions_keep_only_what_differs() -> Fallible {
+fn limits_are_kept_and_checked_and_permissions_unset_stay_shipped() -> Fallible {
     let dir = tempfile::tempdir()?;
     let mut page = read_page(dir.path());
     let state = page.state();
     let settings = state.settings.clone()?;
     let shipped = Shipped::locate()?;
     let mut next = settings.clone();
-    let mut limits = shipped.limits;
+    let mut limits = shipped.limits_start;
     limits.minutes = 90;
     next.limits = Some(limits);
     assert!(state.commit(next));
     let saved = stored::read(&stored::user_file(dir.path()))?;
-    assert_eq!(saved.limits_or(&shipped).minutes, 90);
+    assert_eq!(saved.limits.map(|l| l.minutes), Some(90));
     assert_eq!(saved.permissions, None);
     // A limit out of bounds is refused and nothing changes.
     let mut over = saved.clone();

@@ -188,6 +188,20 @@ fn body(ui: &mut egui::Ui, shown: &Shown, copy: &mut bool) {
                             kit::value_row(ui, &pattern.pattern, pattern.reason);
                         }
                     }
+                    // Each refused track piece or via, with the check that
+                    // refused it.
+                    let items: Vec<_> = report.refused_copper_of(row.case).collect();
+                    let all_id = ui.make_persistent_id(("kicad-import-refused-all", row.title));
+                    let all = ui.data(|d| d.get_temp::<bool>(all_id)).unwrap_or(false);
+                    let max = if all { items.len() } else { kit::LIST_MAX_ROWS };
+                    let listed = kit::list_frame(ui, items.len(), max, |ui, index| {
+                        if let Some(item) = items.get(index) {
+                            kit::value_row(ui, &item.what, &item.check);
+                        }
+                    });
+                    if listed.show_all {
+                        ui.data_mut(|d| d.insert_temp(all_id, true));
+                    }
                 }
             },
         );

@@ -10,23 +10,31 @@
 //!
 //! Recordings ([`record`]) hold neutral replies, so a recording made on one
 //! backend replays without any network, on any backend.
+//!
+//! A run streams ([`ModelBackend::stream`]): the backend hands the chat
+//! [`Delta`]s as they arrive and checks between them whether the person
+//! pressed Stop; the reply it returns is the one a whole response would
+//! have given.
 pub mod anthropic;
 pub mod endpoint;
 pub mod keys;
 pub mod openai;
 pub mod profile;
 pub mod record;
+pub mod stream;
 pub mod wire;
 
 use crate::Result;
 use crate::usage::Usage;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 pub use endpoint::Endpoint;
 pub use keys::{KeySource, Secret};
 pub use profile::{Budget, Capabilities, Connection, ModelProfile, OutputLimits, Provider};
+pub use stream::Delta;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -181,6 +189,9 @@ pub enum StopReason {
     Other {
         reason: String,
     },
+    /// The person pressed Stop while the reply arrived: whatever came is
+    /// incomplete, and it is never used.
+    Stopped,
 }
 
 impl StopReason {
@@ -191,6 +202,7 @@ impl StopReason {
             Self::EndTurn => "end_turn".into(),
             Self::CutOff => "cut_off".into(),
             Self::Refusal { .. } => "refusal".into(),
+            Self::Stopped => "stopped".into(),
             Self::Other { reason } => reason.clone(),
         }
     }
@@ -216,6 +228,22 @@ pub trait ModelBackend {
     fn label(&self) -> String;
     /// Send one request; the reply, or a transport or API error.
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply>;
+    /// Send one request and give its pieces to `deltas` as they arrive,
+    /// checking `cancel` between them: once it is set, the reply ends with
+    /// [`StopReason::Stopped`]. Otherwise the reply is the one
+    /// [`Self::send`] gives. A backend that cannot stream sends, then gives
+    /// the whole reply's pieces.
+    fn stream(
+        &mut self,
+        request: &ModelRequest<'_>,
+        deltas: &mut dyn FnMut(Delta),
+        cancel: &AtomicBool,
+    ) -> Result<ModelReply> {
+        let _ = cancel;
+        let reply = self.send(request)?;
+        stream::deltas_of(&reply, deltas);
+        Ok(reply)
+    }
     /// The prompt tokens a request would take, when the backend can count.
     fn count_prompt_tokens(&mut self, request: &ModelRequest<'_>) -> Result<Option<u64>>;
     /// Whether the replies call the tools a run offered before the six

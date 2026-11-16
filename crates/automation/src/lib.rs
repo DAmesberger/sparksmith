@@ -14,10 +14,12 @@ pub mod live;
 pub mod mcp;
 pub mod review;
 pub mod session;
+pub mod view;
 
 pub use front::{Answer, Asker, Call, CallCx, Surface};
 pub use gate::{Caller, Decision, Grant, Limits, Mode, Principal, Question};
 pub use session::{Request, Session, part_files};
+pub use view::WindowHost;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

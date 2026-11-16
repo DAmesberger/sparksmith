@@ -43,7 +43,13 @@ fn code(reply: &Value) -> &str {
 }
 
 fn decide(session: &Session, busy: Option<&str>, params: &Value) -> Verdict {
-    admit(session, &policy(), busy, CALL, params)
+    admit(
+        session,
+        &policy(),
+        &crate::view::Fake::held(busy),
+        CALL,
+        params,
+    )
 }
 
 /// A change at the current revision runs and answers compactly; at an older
@@ -95,7 +101,10 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
     let Verdict::Run(admitted) = decide(&session, Some("The person is typing"), &read) else {
         return Err("a read was refused while the person types".into());
     };
-    assert_eq!(run(&mut session, &admitted)["ok"], true);
+    assert_eq!(
+        run(&mut session, &admitted, &mut crate::view::Fake::idle())["ok"],
+        true
+    );
 
     // A dry run keeps nothing, so it runs while the person types too.
     let mut tried = add_via(&session, revision);
@@ -104,7 +113,7 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
         return Err("a dry run was refused while the person types".into());
     };
     assert!(admitted.dry_run());
-    let reply = run(&mut session, &admitted);
+    let reply = run(&mut session, &admitted, &mut crate::view::Fake::idle());
     assert_eq!(reply["result"]["dry_run"], true, "{reply}");
     assert_eq!(session.engine().document(), &before);
     assert_eq!(session.engine().revision(), revision);
@@ -113,7 +122,7 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
         return Err("a current change was not admitted".into());
     };
     assert_eq!(admitted.subject(), "layout.add_via");
-    let reply = run(&mut session, &admitted);
+    let reply = run(&mut session, &admitted, &mut crate::view::Fake::idle());
     assert_eq!(reply["ok"], true, "{reply}");
     assert!(
         reply["result"]["changes"]["added"]["vias"].is_array(),
@@ -131,7 +140,10 @@ fn changes_need_the_current_revision_and_a_free_window() -> Fallible {
     let Verdict::Run(admitted) = decide(&session, None, &undo) else {
         return Err("a current undo was not admitted".into());
     };
-    assert_eq!(run(&mut session, &admitted)["ok"], true);
+    assert_eq!(
+        run(&mut session, &admitted, &mut crate::view::Fake::idle())["ok"],
+        true
+    );
     assert_eq!(session.engine().document(), &before);
     Ok(())
 }
@@ -182,7 +194,13 @@ fn the_window_decides_files_and_asks() -> Fallible {
         return Err("a never-class request was admitted".into());
     };
     assert_eq!(code(&never), "gate.never", "{never}");
-    let Verdict::Reply(unknown) = admit(&session, &policy(), None, "ui.click", &json!({})) else {
+    let Verdict::Reply(unknown) = admit(
+        &session,
+        &policy(),
+        &crate::view::Fake::idle(),
+        "ui.click",
+        &json!({}),
+    ) else {
         return Err("an unknown method was admitted".into());
     };
     assert_eq!(code(&unknown), "live.unknown_method");
@@ -191,7 +209,13 @@ fn the_window_decides_files_and_asks() -> Fallible {
         return Err("a request that is no call was admitted".into());
     };
     assert_eq!(code(&malformed), "malformed_request", "{malformed}");
-    let Verdict::Reply(now) = admit(&session, &policy(), Some("busy"), REVISION, &json!({})) else {
+    let Verdict::Reply(now) = admit(
+        &session,
+        &policy(),
+        &crate::view::Fake::held(Some("busy")),
+        REVISION,
+        &json!({}),
+    ) else {
         return Err("the revision was not answered".into());
     };
     assert_eq!(now["result"]["revision"], revision);
@@ -215,7 +239,7 @@ fn an_allowed_change_is_checked_again() -> Fallible {
         }}},
     }});
     assert_eq!(session.dispatch(mine)["ok"], true);
-    let reply = run(&mut session, &admitted);
+    let reply = run(&mut session, &admitted, &mut crate::view::Fake::idle());
     assert_eq!(code(&reply), "stale_revision", "{reply}");
     assert_eq!(session.engine().revision(), revision + 1);
     Ok(())
@@ -254,8 +278,13 @@ fn the_socket_needs_the_token_and_waits_for_the_window() -> Fallible {
     };
     assert_eq!(request.method, REVISION);
     assert_eq!(endpoint.connections(), 1);
-    let Verdict::Reply(reply) = admit(&session, &policy(), None, &request.method, &request.params)
-    else {
+    let Verdict::Reply(reply) = admit(
+        &session,
+        &policy(),
+        &crate::view::Fake::idle(),
+        &request.method,
+        &request.params,
+    ) else {
         return Err("the revision was not answered".into());
     };
     request.reply.send(reply)?;
@@ -275,14 +304,23 @@ fn window(
     stop: Arc<AtomicBool>,
 ) -> std::thread::JoinHandle<Session> {
     std::thread::spawn(move || {
+        let mut shown = crate::view::Fake::idle();
         while !stop.load(Ordering::Acquire) {
             let Some(request) = endpoint.next() else {
                 std::thread::sleep(Duration::from_millis(2));
                 continue;
             };
-            let reply = match admit(&session, &policy(), None, &request.method, &request.params) {
+            let reply = match admit(
+                &session,
+                &policy(),
+                &shown,
+                &request.method,
+                &request.params,
+            ) {
                 Verdict::Reply(reply) => reply,
-                Verdict::Run(admitted) | Verdict::Ask(admitted, _) => run(&mut session, &admitted),
+                Verdict::Run(admitted) | Verdict::Ask(admitted, _) => {
+                    run(&mut session, &admitted, &mut shown)
+                }
             };
             let _ = request.reply.send(reply);
         }
@@ -293,7 +331,7 @@ fn window(
 /// `sparksmith mcp --live`: the verbs reach the window through the bridge.
 /// A read and an edit run there, a dry run keeps nothing, what asks waits
 /// for the person (who allows it here), the window's file is refused, and
-/// `show` finds no entry yet.
+/// `show` steers the window without a revision.
 #[test]
 fn the_verbs_reach_the_window() -> Fallible {
     let endpoint = Endpoint::start(TEST_APP, Listen::Exact(0), || {})?;
@@ -308,6 +346,13 @@ fn the_verbs_reach_the_window() -> Fallible {
     let session = Session::new(Engine::demo()?);
     let revision = session.engine().revision();
     let via = add_via(&session, revision)["params"].clone();
+    let placed = session
+        .engine()
+        .project()
+        .placements
+        .first()
+        .ok_or("no placed part")?
+        .instance;
     let stop = Arc::new(AtomicBool::new(false));
     let serving = window(endpoint, session, Arc::clone(&stop));
     let tools = crate::mcp::testing::Tools::live(client)?;
@@ -363,9 +408,17 @@ fn the_verbs_reach_the_window() -> Fallible {
     )?;
     assert_eq!(checked["report"]["ok"], true, "{checked}");
 
-    let (failed, shown) = tools.call("show", json!({"name": "view.select"}));
+    let shown = tools.ok(
+        "show",
+        json!({"name": "view.select", "params": {"ids": [placed]}}),
+    )?;
+    assert_eq!(shown["selected"], 1, "{shown}");
+    let context = tools.ok("query", json!({"name": "view.context"}))?;
+    assert_eq!(context["selection"][0]["id"], placed, "{context}");
+    assert_eq!(context["revision"], revision + 1, "{context}");
+    let (failed, other) = tools.call("show", json!({"name": "view.context"}));
     assert!(failed);
-    assert_eq!(shown["code"], "catalog.unknown", "{shown}");
+    assert_eq!(other["code"], "catalog.other_kind", "{other}");
 
     stop.store(true, Ordering::Release);
     let session = serving.join().map_err(|_| "window thread")?;
@@ -386,7 +439,9 @@ fn the_window_never_adds_a_library_source() -> Fallible {
     );
     for mode in [Mode::AskEveryTime, Mode::AutoAllowEdits, Mode::AllowAll] {
         let policy = grant(mode, [std::env::temp_dir()]);
-        let Verdict::Reply(reply) = admit(&session, &policy, None, CALL, &call) else {
+        let Verdict::Reply(reply) =
+            admit(&session, &policy, &crate::view::Fake::idle(), CALL, &call)
+        else {
             return Err(format!("{mode:?}: library.source.add was admitted").into());
         };
         assert_eq!(code(&reply), "gate.never", "{mode:?}: {reply}");
@@ -419,7 +474,7 @@ fn a_read_naming_a_path_runs_on_allow() -> Fallible {
         return Err("a path-named read was not held for the person".into());
     };
     assert_eq!(question.command, "library.check_part_file");
-    let reply = run(&mut session, &admitted);
+    let reply = run(&mut session, &admitted, &mut crate::view::Fake::idle());
     assert_eq!(reply["ok"], true, "{reply}");
     assert_eq!(reply["result"]["report"]["ok"], true, "{reply}");
 
@@ -432,7 +487,7 @@ fn a_read_naming_a_path_runs_on_allow() -> Fallible {
     let Verdict::Ask(admitted, _) = decide(&session, None, &preview) else {
         return Err("a preview naming a template was not held".into());
     };
-    let reply = run(&mut session, &admitted);
+    let reply = run(&mut session, &admitted, &mut crate::view::Fake::idle());
     assert!(
         !code(&reply).starts_with("live.") && !code(&reply).starts_with("gate."),
         "{reply}"

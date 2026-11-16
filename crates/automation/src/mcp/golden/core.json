@@ -120,7 +120,7 @@
               "openWorldHint": false,
               "readOnlyHint": true
             },
-            "description": "Searches the catalog by what an entry does. A hit's kind names its tool: query, operation (apply) or action (act).",
+            "description": "Searches the catalog by what an entry does. A hit's kind names its tool: query, operation (apply), show or action (act).",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -128,6 +128,7 @@
                   "enum": [
                     "query",
                     "operation",
+                    "show",
                     "action"
                   ],
                   "type": "string"
@@ -295,7 +296,7 @@
               "openWorldHint": false,
               "readOnlyHint": false
             },
-            "description": "Changes what the window shows (selection, camera, view); never the document, no undo step. Needs the window (mcp --live).",
+            "description": "Changes what the window shows (view.select, view.open); never the document, no undo step. Needs the window (mcp --live).",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -721,7 +722,7 @@
               "openWorldHint": false,
               "readOnlyHint": true
             },
-            "description": "Searches the catalog by what an entry does. A hit's kind names its tool: query, operation (apply) or action (act).",
+            "description": "Searches the catalog by what an entry does. A hit's kind names its tool: query, operation (apply), show or action (act).",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
@@ -729,6 +730,7 @@
                   "enum": [
                     "query",
                     "operation",
+                    "show",
                     "action"
                   ],
                   "type": "string"
@@ -896,7 +898,7 @@
               "openWorldHint": false,
               "readOnlyHint": false
             },
-            "description": "Changes what the window shows (selection, camera, view); never the document, no undo step. Needs the window (mcp --live).",
+            "description": "Changes what the window shows (view.select, view.open); never the document, no undo step. Needs the window (mcp --live).",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {

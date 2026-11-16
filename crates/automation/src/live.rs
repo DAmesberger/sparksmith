@@ -1,6 +1,10 @@
 //! Live MCP: AI assistants edit the project open in the desktop window, on
 //! the window's own engine and undo history.
 //!
+//! The window hands each call its [`WindowHost`], so the `view` entries
+//! (selection, workspace, sheet, 2D or 3D) run in it and the busy rule is
+//! the front door's ([`front::busy`]).
+//!
 //! The channel is Solidcraft's control channel (`solidcraft-control`,
 //! docs/control-protocol.md there): a loopback-only listener, a per-session
 //! token kept in a file only the user can read, one JSON line per request
@@ -18,7 +22,7 @@
 //! agent, under the window's [`grant`]; Ask waits for the person's Allow in
 //! the window. The CLI's `mcp --live` bridges an MCP client to this channel
 //! ([`Client`]).
-use crate::front::{self, AlreadyAllowed, Asker, Call, CallCx, NoOne, Surface};
+use crate::front::{self, AlreadyAllowed, Asker, Call, CallCx, NoOne, Surface, WindowHost};
 use crate::gate::{Decision, Grant, Mode, Principal, Question, failure};
 use crate::session::Session;
 use serde_json::{Value, json};
@@ -112,7 +116,8 @@ impl Protocol for LiveProtocol {
             .and_then(crate::session::metadata::find)
             .map(|meta| meta.name.as_str());
         let effect = match (method, class) {
-            (REVISION, _) | (_, Some(Class::Read)) => Effect::ReadsOnly,
+            // A show entry changes only the window, never the project.
+            (REVISION, _) | (_, Some(Class::Read | Class::Show)) => Effect::ReadsOnly,
             (_, Some(Class::Ask)) if names_path => Effect::WritesFile,
             _ => Effect::Changes,
         };
@@ -127,7 +132,7 @@ impl Protocol for LiveProtocol {
             // Anything but a read may wait for a person: Ask always, an edit
             // under ask-every-time. Timing it out first would leave it held,
             // still to run on Allow, after the agent was told it failed.
-            long: method != REVISION && class.is_some_and(|class| class != Class::Read),
+            long: method != REVISION && class.is_some_and(|class| class > Class::Show),
         }
     }
     fn document(&self) -> &'static str {
@@ -397,13 +402,13 @@ fn agent(policy: &Grant) -> Principal<'_> {
 }
 
 /// Decide one request on the window's session, under `policy` (the
-/// window's [`grant`]). `busy` says why the person holds the window now
-/// (typing, dragging, a dialog): changes are refused then; reads and dry
-/// runs still run.
+/// window's [`grant`]). While the person holds `window` (typing, dragging,
+/// a dialog) anything but a read or a dry run is refused
+/// ([`front::busy`]), before a person would be asked.
 pub fn admit(
     session: &Session,
     policy: &Grant,
-    busy: Option<&str>,
+    window: &dyn WindowHost,
     method: &str,
     params: &Value,
 ) -> Verdict {
@@ -448,16 +453,8 @@ pub fn admit(
         policy: policy.clone(),
         asked: false,
     };
-    if class != Class::Read
-        && !admitted.call.dry_run
-        && let Some(reason) = busy
-    {
-        return Verdict::Reply(refusal(
-            "live.busy",
-            admitted.subject,
-            format!("{reason}. Nothing was changed."),
-            "Wait a moment and send it again; check the revision first, as the person may have changed the project.",
-        ));
+    if let Some(busy) = front::busy(window, admitted.subject, class, admitted.call.dry_run) {
+        return Verdict::Reply(failure(&busy));
     }
     // A stale change is refused now rather than after the person's Allow;
     // the front door checks it again when it runs.
@@ -482,8 +479,9 @@ pub fn admit(
 /// compact reply. The front door gates it again under the grant it was
 /// admitted with (a held one as allowed: the host runs it only on the
 /// person's Allow) and checks the revision again: the person may have
-/// edited while it waited.
-pub fn run(session: &mut Session, admitted: &Admitted) -> Value {
+/// edited while it waited. `window` runs the `view` entries and holds the
+/// busy rule again.
+pub fn run(session: &mut Session, admitted: &Admitted, window: &mut dyn WindowHost) -> Value {
     let mut no_one = NoOne;
     let mut allowed = AlreadyAllowed;
     let asker: &mut dyn Asker = if admitted.asked {
@@ -495,6 +493,7 @@ pub fn run(session: &mut Session, admitted: &Admitted) -> Value {
         who: agent(&admitted.policy),
         asker,
         verbose: false,
+        window: Some(window),
     };
     front::envelope(session.call(cx, admitted.call.clone()))
 }

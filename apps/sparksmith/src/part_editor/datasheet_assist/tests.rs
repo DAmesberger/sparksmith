@@ -216,19 +216,19 @@ fn local_endpoint() -> ai_settings::EndpointSetting {
     }
 }
 
-/// The run takes the model, as declared, and the limits from Settings › AI.
+/// The run takes the model, as declared, from Settings › AI, and the
+/// datasheet workflow's own budget; the person's limits, when set, hold it.
 #[test]
-fn the_run_takes_the_endpoint_and_limits_from_settings() -> Result<(), String> {
+fn the_run_takes_the_endpoint_and_the_workflows_budget() -> Result<(), String> {
     let ctx = egui::Context::default();
     sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
-    let limits = ai_settings::Shipped::locate()
-        .map_err(|e| e.to_string())?
-        .limits;
+    let library = sparksmith_io::shipped::ShippedLibrary::locate().map_err(|e| e.to_string())?;
+    let own = ai_settings::workflow_budget(&library, WORKFLOW).map_err(|e| e.to_string())?;
     let mut assist = DatasheetAssist {
         open: true,
         chosen: Some(Ok(Chosen {
             endpoint: local_endpoint(),
-            limits,
+            limits: None,
         })),
         datasheets: "a.pdf".into(),
         name: "X".into(),
@@ -247,10 +247,23 @@ fn the_run_takes_the_endpoint_and_limits_from_settings() -> Result<(), String> {
     assert_eq!(p.capabilities.context_tokens, 65_536);
     assert!(p.capabilities.vision && !p.capabilities.native_pdf);
     assert!(plan.endpoint.is_loopback());
-    assert_eq!(plan.config.budget.max_requests, limits.requests);
+    assert_eq!(plan.config.budget.max_requests, own.requests);
     assert_eq!(
         plan.config.budget.max_duration,
-        std::time::Duration::from_secs(u64::from(limits.minutes) * 60)
+        std::time::Duration::from_secs(u64::from(own.minutes) * 60)
+    );
+    // The person's tighter limit holds the workflow's budget.
+    let mut limits = ai_settings::Shipped::locate()
+        .map_err(|e| e.to_string())?
+        .limits_start;
+    limits.minutes = 5;
+    if let Some(Ok(chosen)) = &mut assist.chosen {
+        chosen.limits = Some(limits);
+    }
+    let plan = assist.plan()?;
+    assert_eq!(
+        plan.config.budget.max_duration,
+        std::time::Duration::from_secs(5 * 60)
     );
     Ok(())
 }

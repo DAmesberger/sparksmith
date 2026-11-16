@@ -17,7 +17,7 @@ fn names(family: &str) -> Vec<&'static str> {
 }
 
 #[test]
-fn the_catalog_has_its_265_entries() {
+fn the_catalog_has_its_268_entries() {
     assert_eq!(names("command").len(), Request::ENTRIES.len());
     assert_eq!(names("operation").len(), Operation::entries().count());
     assert_eq!(names("query").len(), Query::ENTRIES.len());
@@ -28,8 +28,9 @@ fn the_catalog_has_its_265_entries() {
     // then schematic.set_net_disagreements joined, then
     // layout.set_refused_import_tracks, then library.package_from_generator;
     // then the nine template entries went (part-generation D2); then the two
-    // turn entries joined (S4a); then the five assist entries (S6).
-    assert_eq!(metadata::entries().len(), 265);
+    // turn entries joined (S4a); then the five assist entries (S6); then
+    // the window's view.context, view.select and view.open (S5a).
+    assert_eq!(metadata::entries().len(), 268);
 }
 
 /// A title is short, says more than the wire name, and is unique within its
@@ -107,7 +108,8 @@ fn kind_and_person_follow_the_class_and_paths() {
             (Class::Never, _) => None,
             (Class::Ask, _) | (_, true) => Some(Kind::Action),
             (Class::Read, false) => Some(Kind::Query),
-            (Class::Show | Class::Edit, false) => Some(Kind::Operation),
+            (Class::Show, false) => Some(Kind::Show),
+            (Class::Edit, false) => Some(Kind::Operation),
         };
         assert_eq!(entry.kind, expected, "{}", entry.name);
         if entry.kind == Some(Kind::Action) {

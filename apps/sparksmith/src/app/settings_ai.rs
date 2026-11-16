@@ -18,8 +18,8 @@ use sparksmith_assist::AssistLibrary;
 use sparksmith_assist::model::{Endpoint, Secret, keys};
 use sparksmith_assist::profile as run_profile;
 use sparksmith_assist::settings::{
-    self as stored, AgentSetting, AssistSettings, CONTEXT_RANGE, EndpointSetting, Limits,
-    OUTPUT_RANGE, ProfileEntry, ProfileSource, Rule, Shipped, TIMEOUT_RANGE, Wire,
+    self as stored, AgentSetting, AssistSettings, CONTEXT_RANGE, EndpointSetting, OUTPUT_RANGE,
+    ProfileEntry, ProfileSource, Rule, Shipped, TIMEOUT_RANGE, Wire,
 };
 use sparksmith_assist::workflow::{self, HostCatalog, Listed, Source, load};
 use sparksmith_ui::{ui_kit, ui_kit::Button};
@@ -814,9 +814,26 @@ fn permissions(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, 
     }
 }
 
+/// The person's own limits on model runs: off by default, so the chat can
+/// build a whole board; a workflow brings its own budget, held within
+/// these when they are on.
 fn limits(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, shipped: &Shipped) {
     use workflow::{MAX_MINUTES, MAX_OUTPUT_TOKENS, MAX_REQUESTS, MAX_TOTAL_TOKENS};
-    let mut l: Limits = settings.limits_or(shipped);
+    let mut on = settings.limits.is_some();
+    if kit::check_row(ui, "Limit model runs", &mut on) {
+        let mut next = settings.clone();
+        next.limits = on.then_some(shipped.limits_start);
+        state.commit(next);
+        return;
+    }
+    let Some(mut l) = settings.limits else {
+        kit::hint(
+            ui,
+            "No limit: the chat runs until it is done or you stop it",
+            "A workflow brings its own budget (the datasheet workflow: its requests and minutes). Turn this on to hold every run, the chat's and the workflows', within your own limits.",
+        );
+        return;
+    };
     let before = l;
     number_u32(ui, "Model requests", &mut l.requests, "", (1, MAX_REQUESTS));
     number_u64(
@@ -837,20 +854,11 @@ fn limits(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, shipp
     kit::hint(
         ui,
         "A model run stops at the first of these it reaches",
-        "All tokens counts prompt and output. A workflow's budget sets its run's limits within these, never above. An agent's tokens are its own; its time still holds.",
+        "All tokens counts prompt and output. A workflow's budget is held within these, never above. An agent's tokens are its own; its time still holds.",
     );
-    if settings.limits.is_some() {
-        kit::actions(ui, |ui| {
-            if ui_kit::button(ui, "Reset to the defaults", Button::Normal).clicked() {
-                let mut next = settings.clone();
-                next.limits = None;
-                state.commit(next);
-            }
-        });
-    }
     if l != before {
         let mut next = settings.clone();
-        next.limits = (l != shipped.limits).then_some(l);
+        next.limits = Some(l);
         state.commit(next);
     }
 }

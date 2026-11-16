@@ -34,7 +34,7 @@ fn agent(name: &str) -> AgentSetting {
 #[test]
 fn the_shipped_settings_load() -> Fallible {
     let shipped = Shipped::locate()?;
-    assert_eq!(shipped.limits.minutes, 45);
+    assert_eq!(shipped.limits_start.minutes, 45);
     assert_eq!(shipped.permissions.edits, Rule::Always);
     assert_eq!(shipped.permissions.files, Rule::Ask);
     assert_eq!(shipped.permissions.publish_library, Rule::Ask);
@@ -69,7 +69,7 @@ fn settings_round_trip_and_a_missing_file_is_empty() -> Fallible {
             publish_library: Rule::Deny,
             view: Rule::Always,
         }),
-        limits: Some(Shipped::locate()?.limits),
+        limits: Some(Shipped::locate()?.limits_start),
         ..AssistSettings::default()
     };
     write(&path, &settings)?;
@@ -180,12 +180,25 @@ fn an_endpoint_gives_the_model_as_declared() -> Fallible {
     Ok(())
 }
 
+/// The chat runs unlimited unless the person sets limits; the datasheet
+/// workflow keeps its own budget, held within the person's limits.
 #[test]
-fn limits_cap_a_budget() -> Fallible {
-    let limits = Shipped::locate()?.limits;
-    let capped = limits.cap(Budget::default());
-    assert_eq!(capped.max_requests, 40);
-    assert_eq!(capped.max_duration, Duration::from_secs(45 * 60));
+fn a_run_budget_is_the_workflows_own_within_the_persons_limits() -> Fallible {
+    assert_eq!(run_budget(None, None), None, "the chat is not capped");
+    let library = ShippedLibrary::locate().map_err(|e| e.to_string())?;
+    let datasheet = workflow_budget(&library, "datasheet-to-component")?;
+    let own = run_budget(None, Some(&datasheet)).ok_or("a budget")?;
+    assert_eq!(own.max_requests, datasheet.requests);
+    assert_eq!(
+        own.max_duration,
+        Duration::from_secs(u64::from(datasheet.minutes) * 60)
+    );
+    let mut limits = Shipped::locate()?.limits_start;
+    limits.minutes = 10;
+    let held = run_budget(Some(&limits), Some(&datasheet)).ok_or("a budget")?;
+    assert_eq!(held.max_duration, Duration::from_secs(10 * 60));
+    let chat = run_budget(Some(&limits), None).ok_or("the person's limits")?;
+    assert_eq!(chat.max_requests, limits.requests);
     Ok(())
 }
 
