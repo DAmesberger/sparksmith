@@ -19,6 +19,7 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | In-app datasheet runner (`crates/assist`): model layer, Anthropic and OpenAI-compatible backends, keychain keys, limits, recording and replay, profiles, PDF text and page images | Built. Has its own hand-written tool list (`assist::tools::definitions`) and runs in a headless session of its own, not on the open project |
 | "Create from datasheet…" dialog on the Component start page | Built (`apps/sparksmith/src/part_editor/datasheet_assist.rs`): its own model, endpoint and key fields, its own progress log. **Removed by this plan** |
 | Turns (`begin_group`), jobs, events (ABI S4); the window module's camera, layers and screenshot (S5b); the built-in agent on the surface (S6); elicitation (MCP P5) | Not built |
+| Workflow contract (W0): `workflow.json` format 1 with its load check, the ten controls, the `assist.*` signatures, the run's events; the datasheet workflow's `workflow.json` | Built ([workflow format](workflow-format.md)). No runner, no entries in the catalog yet |
 | Assistant panel, Settings › AI | Not built |
 
 ## What this revision supersedes
@@ -128,7 +129,7 @@ A `tool` or `model` step may name `check`: a following tool step whose refusal s
    {"id": "done",    "kind": "result", "show": ["drafts", "unreviewed", "uncertain", "findings"], "open": "view.open"}]}
 ```
 
-Field names are illustrative; the contract slice (W0) fixes them. The deterministic parts (reading text, listing generators, generating, drafting, previewing, checking) run without the model, which is what makes the flow cheaper and steadier on small models than the free-form prompt: the model only does the three judgement steps.
+Field names are illustrative; the contract slice (W0) fixed them in [workflow format](workflow-format.md), and the shipped file is `library/assist/workflows/datasheet-to-component/workflow.json`. The deterministic parts (reading text, listing generators, generating, drafting, previewing, checking) run without the model, which is what makes the flow cheaper and steadier on small models than the free-form prompt: the model only does the three judgement steps.
 
 ### 2.5 The steps for an external MCP client
 
