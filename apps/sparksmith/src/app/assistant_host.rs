@@ -165,12 +165,6 @@ impl App {
     fn chat_grant(&mut self) -> Result<(Grant, ReachProfile), String> {
         let reach = self.assistant.library()?.reach.clone();
         let mut grant = reach.grant();
-        // No per-turn caps on changes or calls in the chat (founder, 16
-        // November): a long conversation is compacted instead.
-        grant.limits = sparksmith_automation::Limits {
-            changes: u32::MAX,
-            calls: u32::MAX,
-        };
         grant.folders = self
             .files
             .path()
