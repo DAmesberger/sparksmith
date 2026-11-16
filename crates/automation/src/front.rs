@@ -123,14 +123,11 @@ impl Surface for Session {
         if view.is_some() && cx.window.is_none() {
             return Err(crate::view::unavailable(&call.entry));
         }
-        // A turn's call counts against its limits, the refused ones too,
-        // after the gate's own rules.
+        // A call naming a turn joins it, after the gate's own rules.
         let gated = self.gate(&cx.who, &target.request);
         let turn = match &call.turn {
             Some(id) => {
-                let changes = target.expected.is_some() && !call.dry_run;
-                let limits = cx.who.grant().map(|grant| &grant.limits);
-                let admitted = self.turns.admit(id, &call.entry, changes, limits);
+                let admitted = self.turns.admit(id, &call.entry);
                 match (&gated, admitted) {
                     (Decision::Refuse(_), _) => None,
                     (_, Ok(admitted)) => Some((id.clone(), admitted)),
@@ -181,7 +178,6 @@ impl Surface for Session {
             }
             _ => false,
         };
-        let before = self.engine().revision();
         let result = if call.dry_run {
             self.rehearse_target(target)
         } else if verbose {
@@ -195,8 +191,7 @@ impl Surface for Session {
             } else {
                 admitted.mark
             };
-            let changed = !call.dry_run && self.engine().revision() != before;
-            self.turns.ran(&id, mark, changed);
+            self.turns.ran(&id, mark);
         }
         result.map_err(|error| match error {
             crate::Error::Refused(error) => error,

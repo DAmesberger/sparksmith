@@ -1,12 +1,12 @@
 //! Turns (`docs/extension-surface.md#turns`): a labelled group of calls
-//! whose edits undo as one step, counted against per-turn limits.
+//! whose edits undo as one step.
 //! `project.turn_begin` opens one and gives its handle; a call names it in
 //! the envelope's `turn`; `project.turn_end` closes it. The edits a turn's
 //! calls make join one undo step through the engine's undo group
 //! ([`sparksmith_core::Engine::begin_group`]); an edit by anyone else in
 //! between splits it, so undo order stays what happened.
 use crate::front::Error;
-use crate::gate::{self, Limits};
+use crate::gate;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -25,14 +25,6 @@ pub struct TurnBeginParams {
     /// What the turn's one undo step reads, for people ("AI assistant:
     /// route the USB pair").
     pub label: String,
-    /// At most this many calls that change the document; never above the
-    /// caller's own limit.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub changes: Option<u32>,
-    /// At most this many calls of any kind; never above the caller's own
-    /// limit.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub calls: Option<u32>,
 }
 
 /// `project.turn_end`: close a turn.
@@ -48,18 +40,13 @@ pub struct TurnEndParams {
 struct Turn {
     id: String,
     label: String,
-    /// The turn's own limits, below the caller's.
-    changes_limit: Option<u32>,
-    calls_limit: Option<u32>,
-    calls: u32,
-    changes: u32,
     /// Where its undo step stands in the engine's history.
     mark: Option<GroupMark>,
 }
 
 impl Turn {
     fn reply(&self) -> Value {
-        json!({"turn": self.id, "label": self.label, "calls": self.calls, "changes": self.changes})
+        json!({"turn": self.id, "label": self.label})
     }
 }
 
@@ -95,10 +82,6 @@ impl Turns {
         let turn = Turn {
             id: format!("t_{}", self.next),
             label: label.to_owned(),
-            changes_limit: params.changes,
-            calls_limit: params.calls,
-            calls: 0,
-            changes: 0,
             mark: None,
         };
         let reply = turn.reply();
@@ -109,7 +92,7 @@ impl Turns {
         Ok(reply)
     }
 
-    /// `project.turn_end`: what the turn did.
+    /// `project.turn_end`: the turn closed.
     pub(crate) fn end(&mut self, params: &TurnEndParams) -> Result<Value, Box<Error>> {
         let at = self.index(&params.turn, "project.turn_end")?;
         let turn = self
@@ -119,47 +102,20 @@ impl Turns {
         Ok(turn.reply())
     }
 
-    /// Admit a call of `entry` to the turn `id`, as one more call and, when
-    /// it can change the document, one more change, under the lower of the
-    /// turn's limits and `limits` (the caller's; `None` for the person and
-    /// the operator). A turn past a limit refuses the call
-    /// (`gate.turn_limit`), counting it.
-    pub(crate) fn admit(
-        &mut self,
-        id: &str,
-        entry: &str,
-        changes: bool,
-        limits: Option<&Limits>,
-    ) -> Result<Admitted, Box<Error>> {
+    /// Admit a call of `entry` to the turn `id`.
+    pub(crate) fn admit(&self, id: &str, entry: &str) -> Result<Admitted, Box<Error>> {
         let at = self.index(id, entry)?;
-        let turn = self.open.get_mut(at).ok_or_else(|| unknown(id, entry))?;
-        let lowest = |own: Option<u32>, caller: Option<u32>| match (own, caller) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        };
-        let calls_limit = lowest(turn.calls_limit, limits.map(|l| l.calls));
-        let changes_limit = lowest(turn.changes_limit, limits.map(|l| l.changes));
-        if let Some(limit) = calls_limit.filter(|limit| turn.calls >= *limit) {
-            return Err(past_limit(entry, &turn.label, limit, "calls"));
-        }
-        turn.calls = turn.calls.saturating_add(1);
-        if changes && let Some(limit) = changes_limit.filter(|limit| turn.changes >= *limit) {
-            return Err(past_limit(entry, &turn.label, limit, "changes"));
-        }
+        let turn = self.open.get(at).ok_or_else(|| unknown(id, entry))?;
         Ok(Admitted {
             label: turn.label.clone(),
             mark: turn.mark,
         })
     }
 
-    /// After a call of turn `id` ran: where its undo step now stands and
-    /// whether it changed the document.
-    pub(crate) fn ran(&mut self, id: &str, mark: Option<GroupMark>, changed: bool) {
+    /// After a call of turn `id` ran: where its undo step now stands.
+    pub(crate) fn ran(&mut self, id: &str, mark: Option<GroupMark>) {
         if let Some(turn) = self.open.iter_mut().find(|turn| turn.id == id) {
             turn.mark = mark;
-            if changed {
-                turn.changes = turn.changes.saturating_add(1);
-            }
         }
     }
 
@@ -180,16 +136,5 @@ fn unknown(id: &str, entry: &str) -> Box<Error> {
             "no open turn is {shown}: it was never opened, has ended, or was closed as the oldest of {MAX_OPEN} open turns. Nothing was changed."
         ),
         "Open a turn with project.turn_begin and send its handle, or send the call without turn.",
-    ))
-}
-
-fn past_limit(entry: &str, label: &str, limit: u32, what: &str) -> Box<Error> {
-    Box::new(gate::refusal(
-        "gate.turn_limit",
-        entry,
-        &format!(
-            "the turn \"{label}\" has made its {limit} {what}, the most its limit allows, so it stops here. Nothing was changed."
-        ),
-        "End the turn (project.turn_end) and tell the user what is left to do; they decide whether to go on.",
     ))
 }

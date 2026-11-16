@@ -987,13 +987,13 @@ impl Request {
             ),
             info::<turns::TurnBeginParams>(
                 "project.turn_begin",
-                "Open a turn: calls naming its handle in turn undo as one step under label, within its limits.",
-                "Open a turn and return its handle. Every call whose envelope names it in turn joins one undo step that reads label; an edit by anyone else in between splits it. changes and calls lower the caller's per-turn limits; a call past either is refused with gate.turn_limit. Not a document change.",
+                "Open a turn: calls naming its handle in turn undo as one step under label.",
+                "Open a turn and return its handle. Every call whose envelope names it in turn joins one undo step that reads label; an edit by anyone else in between splits it. Not a document change.",
             ),
             info::<turns::TurnEndParams>(
                 "project.turn_end",
-                "Close a turn and report its calls and changes.",
-                "Close the turn turn and report its label and how many calls and changes it made. Not a document change.",
+                "Close a turn.",
+                "Close the turn turn and report its handle and label. Not a document change.",
             ),
         ]
     }

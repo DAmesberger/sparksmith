@@ -20,11 +20,11 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | "Create from datasheet…" dialog on the Component start page | Built (`apps/sparksmith/src/part_editor/datasheet_assist.rs`): its own model, endpoint and key fields, its own progress log. **Removed by this plan** |
 | Workflow contract (W0): `workflow.json` format 1 with its load check, the ten controls, the `assist.*` signatures, the run's events; the datasheet workflow's `workflow.json` | Built ([workflow format](workflow-format.md)) |
 | Workflow runner (W1): loader for shipped and user workflows, the step runner with `each`, `check`, `retries` and budgets, one turn per run, recordings naming the workflow's digest, `assist.workflows` and `assist.step_result` (`assist` 1.1), the datasheet workflow's `method.md`, MCP prompts from workflow data; the reach filter in the gate's `Grant` (`gate.reach`) | Built ([workflow format](workflow-format.md#the-runner-w1)). No host runs it yet (W2) |
-| Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn, per-turn limits in the surface (ABI S4a) | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
+| Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn (ABI S4a); turns are not counted or capped | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
 | The built-in agent on the surface (S6): the six verbs, `assist.document_text`, `assist.document_page`, `assist.pinout_edit` (with `assist.pinout_preview` and `assist.pinout_apply`), reach profiles as data, leniency in the verb reader | Built |
 | Streaming loop (L1): both wire formats stream; Stop between chunks; the loop's events for the chat (text and reasoning pieces, tool-call rows with their state, a meter of requests, tokens and minutes) | Built |
 | Jobs, events (ABI S4b); the window module's camera, layers and screenshot (S5b); elicitation (MCP P5) | Not built |
-| Settings › AI (C3): endpoints with keychain keys, agents as configuration, permissions per kind of action (ask every time, once a session, always allow, deny; publishing into the project never asks), optional limits on model runs, off by default so the chat can build a whole board, while a workflow brings its own budget (no per-turn caps; founder, 16 November), profiles (copy to edit, checked on save), workflows listed with why one can't run | Built. Stored in `<config>/assist/settings.json`, apart from the app's settings; starting values in `library/assist/settings.json`. The datasheet dialog reads its endpoint from here and runs on the datasheet workflow's budget, within the person's limits when set. No agent is started yet (A1) |
+| Settings › AI (C3): endpoints with keychain keys, agents as configuration, permissions per kind of action (ask every time, once a session, always allow, deny; publishing into the project never asks), optional limits on model runs, off by default so the chat can build a whole board, while a workflow brings its own budget, profiles (copy to edit, checked on save), workflows listed with why one can't run | Built. Stored in `<config>/assist/settings.json`, apart from the app's settings; starting values in `library/assist/settings.json`. The datasheet dialog reads its endpoint from here and runs on the datasheet workflow's budget, within the person's limits when set. No agent is started yet (A1) |
 | Assistant panel | Not built |
 
 ## What this revision supersedes
@@ -41,7 +41,7 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | The datasheet dialog stays beside the panel | Removed; its run options move to Settings › AI | Founder, 16 November |
 | §7 slices S1–S11, 47–72 h | §8 below | |
 
-Everything else carries over: ACP launch, sign-in, streaming, cancel and approvals; endpoint settings and keys; per-turn limits; the column, its fold and its states; attachments. Those sections are kept in shortened form in §6 and §7.
+Everything else carries over: ACP launch, sign-in, streaming, cancel and approvals; endpoint settings and keys; the column, its fold and its states; attachments. Those sections are kept in shortened form in §6 and §7.
 
 ---
 
@@ -49,6 +49,9 @@ Everything else carries over: ACP launch, sign-in, streaming, cancel and approva
 
 - **One conversation per open project,** in a docked column (§7). It is the only place in the app where AI runs. No other dialog starts a model.
 - **Two connection kinds,** as approved: an ACP agent (Claude Code, Codex, Gemini CLI, OpenCode; their own login) or a model endpoint (Anthropic, OpenAI-compatible, local servers) through `crates/assist`.
+- **The chat can do everything** the app can: "Claude Code for PCBs" (founder, 16 November). It plans, makes parts, places, wires the schematic, routes, checks and exports, through the six verbs and the same catalog the person's own actions use. Nothing is out of its reach by design; what it may do without asking is the person's permissions (§6.4).
+- **Permissions per kind of action,** as a coding agent's harness asks: changing the design, files outside the project, publishing to a library, moving the view. Each kind is Ask every time, Ask once a session, Always allow or Deny; an ask offers **Allow once**, **Allow for this session**, **Always allow** and **Deny**. Publishing a part into the open project never asks; publishing to a library asks unless the person chose otherwise. The gate decides at the call, never the model's wording.
+- **No turn limits.** A message may run as long as the work takes: a whole board in one conversation. What keeps a long conversation inside the model's context is compaction (§6.5), not a cap. The person's optional run limits (§6.3) and a workflow's own budget are the only stops besides **Stop**.
 - **Plain chat** works on the board: the model reads `view.context` (what you see and have selected), uses the six verbs, and each of your messages is one undo step.
 - **Workflows** are the refined processes. The chat offers one when it fits (§3), the person confirms, and the workflow runs inside the conversation with its own controls (§4). A workflow run is one turn and one undo step.
 - **Every other entry point opens the chat.** The Component start page's "Create from datasheet…" button, the command palette and the `/` menu all open the chat with that workflow's card. Dropping a PDF on the chat offers it too.
@@ -81,7 +84,7 @@ library/assist/workflows/
 | `intents` | Three to six example requests, so the model can match ("make a part from this datasheet") |
 | `offer_when` | Structured signals that offer the card without a model (§3.3): an attachment type, a workspace. Never text matching |
 | `needs`, `reach` | Modules and versions it requires; its per-module ceiling |
-| `budget` | Requests, output tokens, total tokens, minutes. A run gets the smaller of this and the Settings limits |
+| `budget` | Requests, output tokens, total tokens, minutes. A run gets the smaller of this and the person's run limits, when set |
 | `inputs` | A typed schema: each input's type, title, help, bounds, default and control (§4) |
 | `steps` | The ordered steps (§2.3) |
 | `result` | What the result card shows and which `show` actions it offers |
@@ -230,7 +233,7 @@ Every call, the runner's included, is one `Surface::call` with the envelope's `t
 - **A message is a turn; a workflow run is one turn.** The chat opens it with `begin_group(label)`: "AI assistant: route the USB pair", "Datasheet → component: TLV75733PDBVR". It undoes as one step. A person's own edit in between splits it, as approved.
 - **Previews are dry runs.** An `impact` card is the dry-run reply (`dry_run: true`). Apply sends the same call at the preview's revision, and the plan digest (`confirm`) once the plan slice serves it. A moved revision gives a fresh preview, never a silent apply.
 - **Stop** ends the turn: the runner stops at the next step boundary, a long entry gets its cancel through `Progress`, and what completed stays as one undo step with **Undo run** on the card.
-- **Per-turn limits** (§6.3) count in the surface for both connection kinds.
+- **A turn groups undo and nothing else.** The surface does not count or cap a turn's calls or edits, on either connection kind.
 
 ### 5.3 The window
 
@@ -242,7 +245,7 @@ Every call, the runner's included, is one `Surface::call` with the envelope's `t
 
 | Slice | From | Needed for the first demo? | What for |
 |---|---|---|---|
-| S4a turns: `begin_group`/`end_group`, labels, per-turn limits | ABI plan | **Yes** | One undo step per message and per run |
+| S4a turns: `begin_group`/`end_group`, labels | ABI plan | **Yes** | One undo step per message and per run |
 | S4b jobs, `Progress`, events | ABI plan | Partly: `Progress` for Stop on a long entry; events can follow | Stop, "changed by hand" |
 | S5a `WindowHost`, `view.context`, `view.select`, `view.open` | ABI plan | **Yes** | "Talk to the board", Open in editor |
 | S5b camera, layers, screenshot, files through the window's prompts | ABI plan | No | Later |
@@ -266,7 +269,7 @@ The ABI plan's hours for S4–S6 are counted there, not again below. This plan s
 - **Streaming:** `agent_message_chunk`, `agent_thought_chunk` (folded), `tool_call` rows (folded into our own row for the same call), `plan`, `usage_update` for the meter.
 - **Cancel:** `session/cancel`, open permission requests answered `cancelled`, held Asks declined, the turn closed; **End agent** after 10 s.
 - **Approvals:** questions about our own tools are answered `allow_once` (our gate decides when the call arrives); questions about the agent's own tools show its options; our gate's Ask shows as a card.
-- **Workflows on an ACP agent.** Our runner drives the steps. A `model` step is one `session/prompt` with the step's goal, its `method.md` section and its inputs; the agent calls our verbs over its channel and ends with `assist.step_result`. `tool` steps and gates run in our runner as for an endpoint. So the controls, gates and limits are the same on both kinds (Q6).
+- **Workflows on an ACP agent.** Our runner drives the steps. A `model` step is one `session/prompt` with the step's goal, its `method.md` section and its inputs; the agent calls our verbs over its channel and ends with `assist.step_result`. `tool` steps and gates run in our runner as for an endpoint. So the controls, gates and budgets are the same on both kinds (Q6).
 
 ### 6.2 Endpoints
 
@@ -274,26 +277,44 @@ The ABI plan's hours for S4–S6 are counted there, not again below. This plan s
 - **Loop:** the datasheet runner's loop, generalised in S6 and given streaming (L1), so Stop acts between chunks rather than after a whole request.
 - **Profiles** per model (`library/assist/profiles/`, user copies in `<config>/assist-profiles/`): system additions, `omit_tools`, repeat limit, `workflow_choice`, per-workflow `method` additions. Edited in Settings › AI › Profiles as text, checked on save.
 - **No vision:** images refused with the reason; PDFs reach the model as text through `assist.document_text`, and page images only where vision is declared. **No tool calling:** the endpoint is refused for the chat, with the reason.
-- **Full context:** the turn stops with the reason and offers **New conversation from a summary** (approved Q7).
+- **Full context:** compaction (§6.5) condenses older turns before the context fills. Only a single request that cannot fit even after compaction stops, with the numbers.
 
-### 6.3 Limits
+### 6.3 Run limits
 
-Settings › AI, the same for every model. They are ceilings: a workflow's `budget` sets its run's limits within them, never above.
+Settings › AI, the same for every model, **off by default** so the chat can build a whole board. When the person turns them on they hold every model run, the chat's and the workflows'; a workflow's `budget` sets its run's limits, held within the person's when set.
 
-| Limit per turn | Default | Counted |
+| Limit per run | Starts at, when turned on | Counted |
 |---|---|---|
 | Model requests | 40 | Endpoint loop |
 | Output tokens | 200 000 | Endpoint loop, worst case checked before each request |
 | Prompt plus output tokens | 4 000 000 | Endpoint loop |
-| Time | 30 min (45 proposed, Q7) | Loop and chat |
-| Edits that run | 60 (below `MAX_UNDO`) | Surface, both kinds |
-| Calls of any kind | 400 | Surface, both kinds |
+| Time | 45 min | Loop and chat |
 
-An ACP agent's tokens are its own; the meter shows its `usage_update`, and the edit, call and time caps still hold. The product shows no prices (decision of 9 November).
+An ACP agent's tokens are its own; the meter shows its `usage_update`, and the time limit still holds. There is no cap on edits or calls. The product shows no prices (decision of 9 November).
 
 ### 6.4 Settings › AI
 
-One page, in the shared settings containers: **Connections** (agents and endpoints, keys masked), **Permissions** (the window mode, an optional override per agent, "Let the assistant move my view"), **Limits**, **Profiles**, and **Workflows** (read-only list: id, version, shipped or user, available or why not). Keys, endpoints, modes and grants are Never-class: no agent can read or set them.
+One page, in the shared settings containers: **Connections** (agents and endpoints, keys masked), **Permissions** (per kind of action, §1; an optional override per agent), **Run limits**, **Profiles**, and **Workflows** (read-only list: id, version, shipped or user, available or why not). Keys, endpoints, modes and grants are Never-class: no agent can read or set them.
+
+### 6.5 Context compaction
+
+No turn limits (founder, 16 November): instead, as a conversation approaches the model's context window, older turns are condensed so the chat can go on building.
+
+- **When.** At a turn boundary, when the estimated prompt passes 70 % of the context the connection declares (`context_tokens`; an ACP agent compacts its own and reports it). It condenses down to about 35 %, so it runs rarely and the prompt cache is rebuilt rarely. The person's latest turns stay word for word.
+- **What is kept.** The person's goals and decisions (including what they declined and why); what was built, with object ids, part and library ids and file paths; open issues; the current plan and its remaining steps; the last `view.context`.
+- **What is dropped.** Bulky tool output: query replies, listings, check reports, document pages. The design can be re-queried through the verbs at any time, so a dropped reply leaves a stub naming the call that made it (`query layout.nets {…}`, revision 41) and the model asks again if it needs it.
+- **Visible in the chat.** A divider row, "Condensed 14 earlier turns · 182 k → 61 k tokens", which unfolds to the kept record. The transcript the person sees is unchanged; only what the model is sent shrinks. **Undo** is untouched: compaction changes no document.
+- **Inside one long turn** (a whole board from one message) the turn's own older tool results are cleared the same way between requests; its record and plan stay.
+
+**Approaches.**
+
+| Approach | How | For | Against |
+|---|---|---|---|
+| A. Summarise history | One model request condenses older turns into prose | General; no schema | Costs a request; lossy where it matters most (ids, values); varies by model |
+| B. Structured state | A typed record: goals, decisions, built objects (ids, files), open issues, plan and steps. The host fills what it knows from the turn summaries (changes by collection and id, issues new and resolved, files written); the model fills goals, decisions and plan through one `assist` entry, checked against the record's schema | Ids and files exact; small; the same on every model | A schema to keep; the model must keep its part current |
+| C. Clear old tool results | Replace tool replies older than the kept turns with a stub naming the call | Deterministic, no model request, biggest saving (tool output is most of the prompt); loses nothing the verbs can't give back | Does not shrink the conversation's prose |
+
+**Recommendation:** C always, then B as the kept record, and A only for the conversation's remaining prose, written into the record's notes. C and B need no model request for their deterministic parts, which matters on small local models. Provider features (server-side context editing) may replace C on a connection that declares them; the result must read the same.
 
 ## 7. The chat UI (kept, with the new cards)
 
@@ -335,7 +356,7 @@ At most five agents at once. Each slice ships with its tests. Nothing runs the d
 | # | Slice | Delivers | Hours | Needs |
 |---|---|---|---|---|
 | **W0** | Contract | `workflow.json` format 1 as types with its load check; the control vocabulary; `assist.workflows`, `assist.offer`, `assist.step_result` signatures; the chat's event types | 2–3 | — |
-| S4a | Turns *(ABI plan)* | `begin_group`/`end_group`, labels, per-turn limits in the surface | *in ABI plan* | — |
+| S4a | Turns *(ABI plan)* | `begin_group`/`end_group`, labels | *in ABI plan* | — |
 | S5a | Window, first half *(ABI plan)* | `WindowHost`, `view.context`, `view.select`, `view.open`, busy in the surface | *in ABI plan* | — |
 | S6 | Built-in agent on the surface *(ABI plan)* | The loop on the six verbs; `assist.document_text`, `assist.document_page`, `assist.pinout_edit`; leniency in the verb reader; `assist::tools` deleted | *in ABI plan* | S3 (built) |
 | **L1** | Streaming loop | Streaming on both wire formats; Stop between chunks; loop events for the chat | 3–5 | — |
@@ -348,6 +369,7 @@ At most five agents at once. Each slice ships with its tests. Nothing runs the d
 | M1 | Forms for MCP clients | `input_required` from workflow inputs and `impact` gates (with MCP P5) | 4–6 | W1, P5 |
 | D1 | Small-model detection | Measure the index, `offer_when` and `classify` on Flash Next and `qwen3.8:27b`; set the profile defaults from the result | 3–4 | W2 |
 | E1 | Evidence | VM runs: plain chat editing the demo board and the datasheet workflow on a local endpoint; an ACP agent on a local model | 2–3 | W2, A1 |
+| K1 | Context compaction | §6.5: the kept record's schema and its `assist` entry; clearing old tool results with stubs; the summary of remaining prose; the trigger and the divider row; tests on recorded long conversations (ids and plan kept, dropped replies re-queried) | 6–9 | C1, L1 |
 | R1 | Review on a copy | Accept or reject a large run as a whole (`review-diff`) | 4–6 | C1 |
 
 ★ **First demo** after W2: a chat on a local model that answers about the open board, selects and edits through the verbs with one undo step per message, and runs Datasheet → component in the chat with its inputs, the generator choice, the pinout impact card and the result card.
@@ -359,14 +381,14 @@ At most five agents at once. Each slice ships with its tests. Nothing runs the d
 | 1 | W0, S4a, S5a, S6, L1 |
 | 2 | W1, C1, C2, C3 |
 | 3 | **W2 (demo)**, A1 |
-| 4 | D1, M1, E1, R1, and the ABI's S4b and S5b |
+| 4 | K1, D1, M1, E1, R1, and the ABI's S4b and S5b |
 
-**Hours.** This plan's own slices to the demo (W0, L1, W1, C1, C2, C3, W2): about **41–61 h**. After the demo (A1, M1, D1, E1, R1): about **19–28 h**. Total **60–89 h**, plus the ABI plan's S4a, S5a and S6. The critical path is S6 → W1 → W2. More workflows (fix issues, review a schematic) are data: about 2–4 h each, each with its own decision.
+**Hours.** This plan's own slices to the demo (W0, L1, W1, C1, C2, C3, W2): about **41–61 h**. After the demo (A1, K1, M1, D1, E1, R1): about **25–37 h**. Total **66–98 h**, plus the ABI plan's S4a, S5a and S6. The critical path is S6 → W1 → W2. More workflows (fix issues, review a schematic) are data: about 2–4 h each, each with its own decision.
 
 ### Testing without paid calls
 
 - **Replays.** `crates/assist` already records and replays model conversations. Every workflow test runs a recorded conversation against a headless session; the 16 Flash Next recordings and the TLV and WROOM-3 replays must grade as before (W1, W2).
-- **Scripted model in unit tests.** A model backend that answers from a script, for the runner's step logic, gates, Stop and limits. It is a test double for the endpoint, not a fake ACP agent (founder, 9 November).
+- **Scripted model in unit tests.** A model backend that answers from a script, for the runner's step logic, gates, Stop, budgets and compaction. It is a test double for the endpoint, not a fake ACP agent (founder, 9 November).
 - **Deterministic steps need no model.** The `tool` steps of the datasheet workflow run in tests with fixed `model` step outputs.
 - **Local models live:** Flash Next on vLLM and `qwen3.8:27b` on Ollama for the demo and D1. ACP evidence with a real agent on a local model (OpenCode with Ollama).
 - **UI:** the accessibility harness with a replayed backend; the VM for end-to-end runs.
@@ -385,11 +407,11 @@ At most five agents at once. Each slice ships with its tests. Nothing runs the d
 
 1. **Offer, then confirm.** Should the chat always show the workflow card and wait for **Use it**, or start a workflow directly when the model is sure? **Recommendation:** always the card. One click, and nothing long starts without the person.
 2. **Gates in the datasheet workflow.** **Recommendation:** the generator choice as a non-blocking card with **Change**; the pinout import as a blocking impact card; publishing never inside the workflow.
-3. **"Token/cost meter".** **Recommendation:** requests, tokens and minutes against the limits; no prices, as decided on 9 November.
+3. **"Token/cost meter".** **Recommendation:** requests, tokens and minutes, against the budget or the person's limits when set; no prices, as decided on 9 November.
 4. **One method text.** Move `skills/sparksmith-datasheet-part/SKILL.md` to `library/assist/workflows/datasheet-to-component/method.md` and point the skill and AGENTS.md there? **Recommendation:** yes.
 5. **Workflows a person writes.** Load them from `<config>/assist/workflows/`, like run profiles, from the first release, with no editor in the app? **Recommendation:** yes. They are data and can never widen a grant.
-6. **Workflows on an ACP agent.** Our runner drives the steps, or the agent gets the whole prompt as an external client would? **Recommendation:** our runner drives, so controls, gates and limits are the same on every connection.
-7. **Time limit.** The approved default is 30 minutes a turn. The WROOM-3 run took 32 minutes on Opus, and a local model is slower. **Recommendation:** raise the default to 45 minutes; the datasheet workflow's budget asks for 45 and 40 model requests (its deterministic steps need no model requests; Flash Next took 11–16 on small parts).
+6. **Workflows on an ACP agent.** Our runner drives the steps, or the agent gets the whole prompt as an external client would? **Recommendation:** our runner drives, so controls, gates and budgets are the same on every connection.
+7. **Time limit.** The person's optional time limit for a run. The WROOM-3 run took 32 minutes on Opus, and a local model is slower. **Recommendation:** raise the default to 45 minutes; the datasheet workflow's budget asks for 45 and 40 model requests (its deterministic steps need no model requests; Flash Next took 11–16 on small parts).
 8. **Signals without a model.** Should dropping a PDF always offer the datasheet workflow? **Recommendation:** yes. It is a card, not an action, and it works on any model.
 9. **The dialog's removal.** Delete "Create from datasheet…" in W2, before ACP agents arrive? **Recommendation:** yes, once Settings › AI holds the endpoint. An endpoint is enough for the demo.
 10. **Where the workflow writes.** As approved: the open project, as one turn. The CLI's `design-part` keeps writing a new project. **Recommendation:** unchanged.

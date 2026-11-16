@@ -18,7 +18,7 @@ pub mod view;
 pub mod workflow;
 
 pub use front::{Answer, Asker, Call, CallCx, Surface};
-pub use gate::{Caller, Decision, Grant, Limits, Mode, Principal, Question};
+pub use gate::{Caller, Decision, Grant, Mode, Principal, Question};
 pub use session::{Request, Session, part_files};
 pub use view::WindowHost;
 
