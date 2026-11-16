@@ -1,6 +1,6 @@
 //! The window's workflow entry points on the whole app: the palette's
 //! generated entry, a PDF dropped on the window and `assist.offer` through
-//! the window each put the workflow card in the chat.
+//! the window each put the workflow's compact confirmation in the chat.
 use crate::app::ax_harness::{Ax, Fallible};
 use crate::shell::Workspace;
 use egui::{Key, Role};
@@ -29,8 +29,8 @@ fn the_palette_offers_a_workflow_by_its_title() -> Fallible {
         // The chat opens with the card in its transcript.
         ax.settle();
         assert!(ax.app.assistant.open);
-        ax.find(Role::Label, "I can do this with a workflow")?;
-        ax.find(Role::Button, "Use it")?;
+        ax.find(Role::Label, "Datasheet → component")?;
+        ax.find(Role::Button, "Accept and continue")?;
     }
     Ok(())
 }
@@ -52,7 +52,8 @@ fn a_pdf_dropped_on_the_window_offers_the_datasheet_workflow() -> Fallible {
     assert_eq!(offers(&ax), 1);
     // Read off the UI thread for its pages, then shown on the card.
     ax.until("the dropped PDF is read", |ax| {
-        ax.find(Role::Label, "tlv757p.pdf (1 page · 1 KB)").is_ok()
+        ax.find(Role::Button, "tlv757p.pdf · 1 page · 1 KB ⌄")
+            .is_ok()
     })?;
     assert!(
         ax.texts.iter().any(|t| t == "No workflow takes notes.txt"),
@@ -116,6 +117,6 @@ fn the_slash_menu_in_the_composer_offers_a_workflow() -> Fallible {
         "{:?}",
         ax.app.assistant.composer
     );
-    ax.find(Role::Button, "Use it")?;
+    ax.find(Role::Button, "Accept and continue")?;
     Ok(())
 }

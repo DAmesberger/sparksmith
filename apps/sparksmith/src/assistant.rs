@@ -12,8 +12,15 @@
 //! context when it was sent, the reply in bounded Markdown, folded
 //! reasoning, one row per tool call, Ask cards, and a summary card at the
 //! end of each turn with what changed, Show and Undo turn.
+//!
+//! The composer completes `@` to a file the conversation knows
+//! ([`mentions`]): the files attached in this session, then the project
+//! folder's, fuzzily, with ↑↓ and Enter. The file goes with the message as
+//! a chip, as does a path typed or pasted; the chat attaches it, and a
+//! workflow's files input is filled from it.
 mod conversation;
 mod markdown;
+pub mod mentions;
 pub mod worker;
 
 pub use conversation::{
@@ -25,6 +32,7 @@ use egui::{Ui, vec2};
 use sparksmith_assist::chat::ChatLibrary;
 use sparksmith_assist::model::Message;
 use sparksmith_automation::Session;
+use sparksmith_ui::chat_cards;
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button, type_face};
 use std::collections::HashSet;
@@ -41,6 +49,8 @@ pub const STRIP_WIDTH: f32 = 30.0;
 const COMPOSER_ROWS: usize = 3;
 /// The longest message the composer sends, in bytes.
 pub const MAX_MESSAGE_BYTES: usize = 16 * 1024;
+/// The most files one message carries.
+pub const MAX_MESSAGE_FILES: usize = 16;
 
 /// The button of the chat's not-connected state.
 pub const CONNECT: &str = "Connect a model…";
@@ -110,6 +120,8 @@ pub struct Now {
     pub undo_label: Option<String>,
     /// What the window shows now, in the person's words.
     pub context: String,
+    /// The open project's folder, whose files `@` completes.
+    pub folder: Option<std::path::PathBuf>,
 }
 
 /// The chat: its column and its one conversation.
@@ -118,6 +130,11 @@ pub struct Assistant {
     pub folded: bool,
     pub dock: Dock,
     pub composer: String,
+    /// The files the message being written carries, as chips.
+    pub files: Vec<std::path::PathBuf>,
+    /// The `@` list's highlighted row, and its candidates while it shows.
+    mention: usize,
+    mention_list: Option<Vec<mentions::Candidate>>,
     pub conversation: Conversation,
     /// What the model has been sent and answered, for the next turn.
     pub history: Vec<Message>,
@@ -157,6 +174,9 @@ impl Default for Assistant {
             folded: false,
             dock: Dock::Right,
             composer: String::new(),
+            files: Vec::new(),
+            mention: 0,
+            mention_list: None,
             conversation: Conversation::default(),
             history: Vec::new(),
             job: None,
@@ -235,6 +255,7 @@ impl Assistant {
         self.conversation = Conversation::default();
         self.history.clear();
         self.expanded.clear();
+        self.files.clear();
     }
 
     /// The folded column: the state dot and the button that unfolds it.
@@ -265,7 +286,9 @@ impl Assistant {
         kit::rule(ui);
         // The composer keeps its room at the bottom; the transcript takes
         // the rest and follows the newest item.
-        let composer = composer_height(ui) + self.slash_height();
+        let composer = composer_height(ui, !self.files.is_empty())
+            + self.slash_height()
+            + self.mention_height();
         let transcript = (ui.available_height() - composer).max(t.control_height * 2.0);
         egui::ScrollArea::vertical()
             .id_salt("assistant-transcript")
@@ -285,6 +308,7 @@ impl Assistant {
             });
         kit::rule(ui);
         self.slash_menu(ui, cards, &mut actions);
+        self.mention_menu(ui, now, cards.attached());
         self.composer(ui, now, &mut actions);
         actions
     }
@@ -417,10 +441,15 @@ impl Assistant {
         cards: &mut crate::workflow_cards::WorkflowCards,
         actions: &mut Vec<Action>,
     ) {
-        let Some(query) = self.composer.strip_prefix('/') else {
+        if !self.slash() {
             return;
-        };
-        let query = query.trim().to_owned();
+        }
+        let query = self
+            .composer
+            .strip_prefix('/')
+            .unwrap_or_default()
+            .trim()
+            .to_owned();
         let focused = ui.memory(|m| m.has_focus(Self::composer_id()));
         let chosen = egui::ScrollArea::vertical()
             .id_salt("assistant-slash-menu")
@@ -434,13 +463,144 @@ impl Assistant {
         kit::rule(ui);
     }
 
+    /// Whether the `/` menu shows: the composer starts with `/` and a word
+    /// that is not a path.
+    fn slash(&self) -> bool {
+        self.composer.strip_prefix('/').is_some_and(|rest| {
+            !rest
+                .split_whitespace()
+                .next()
+                .is_some_and(|word| word.contains('/'))
+        })
+    }
+
     /// The room the `/` menu takes: four rows while it shows.
     fn slash_height(&self) -> f32 {
-        if !self.composer.starts_with('/') {
+        if !self.slash() {
             return 0.0;
         }
         let t = Tokens::get();
         4.0 * (t.control_height + t.font_small + t.space_4)
+    }
+
+    /// The room the `@` list takes: four rows while it shows.
+    fn mention_height(&self) -> f32 {
+        if self.mention_list.is_none() {
+            return 0.0;
+        }
+        let t = Tokens::get();
+        4.0 * (t.control_height + t.font_small + t.space_4)
+    }
+
+    /// The composer's cursor, as a character index (its end when unknown).
+    fn cursor(&self, ctx: &egui::Context) -> usize {
+        egui::TextEdit::load_state(ctx, Self::composer_id())
+            .and_then(|state| state.cursor.char_range())
+            .map_or_else(
+                || self.composer.chars().count(),
+                |range| range.primary.index.into(),
+            )
+    }
+
+    fn set_cursor(ctx: &egui::Context, at: usize) {
+        let id = Self::composer_id();
+        let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
+        state
+            .cursor
+            .set_char_range(Some(egui::text::CCursorRange::one(
+                egui::text::CCursor::new(at),
+            )));
+        state.store(ctx, id);
+    }
+
+    /// The `@` list while an `@` is typed before the cursor: the files that
+    /// match what follows it, best first; ↑↓ and Enter (or a click) put the
+    /// one chosen in the message as a chip. `known`: the files attached in
+    /// this session.
+    fn mention_menu(&mut self, ui: &mut Ui, now: &Now, known: &[std::path::PathBuf]) {
+        let ctx = ui.ctx().clone();
+        let focused = ctx.memory(|m| m.has_focus(Self::composer_id()));
+        let typed = mentions::active(&self.composer, self.cursor(&ctx));
+        let Some((start, query)) = typed.filter(|_| focused) else {
+            self.mention_list = None;
+            self.mention = 0;
+            return;
+        };
+        let list = self
+            .mention_list
+            .get_or_insert_with(|| mentions::candidates(known, now.folder.as_deref()));
+        let ranked: Vec<mentions::Candidate> =
+            mentions::rank(&query, list).into_iter().cloned().collect();
+        if ranked.is_empty() {
+            kit::note(ui, "No file matches");
+            kit::rule(ui);
+            return;
+        }
+        let rows: Vec<chat_cards::MenuRow<'_>> = ranked
+            .iter()
+            .map(|c| chat_cards::MenuRow {
+                title: &c.name,
+                summary: &c.detail,
+                enabled: true,
+            })
+            .collect();
+        let nav = chat_cards::MenuNav::take(ui);
+        let height = self.mention_height();
+        let highlighted = &mut self.mention;
+        let chosen = egui::ScrollArea::vertical()
+            .id_salt("assistant-mention-menu")
+            .max_height(height)
+            .show(ui, |ui| chat_cards::menu(ui, &rows, highlighted, Some(nav)))
+            .inner;
+        kit::rule(ui);
+        if let Some(candidate) = chosen.and_then(|i| ranked.get(i)) {
+            let end = start + 1 + query.len();
+            let name = format!("@{} ", candidate.name);
+            let at = self.composer.get(..start).map_or(0, |b| b.chars().count());
+            if end <= self.composer.len() && self.composer.len() + name.len() <= MAX_MESSAGE_BYTES {
+                self.composer.replace_range(start..end, &name);
+                Self::set_cursor(&ctx, at + name.chars().count());
+                self.add_file(candidate.path.clone());
+            }
+            self.mention_list = None;
+            self.mention = 0;
+        }
+    }
+
+    fn add_file(&mut self, path: std::path::PathBuf) {
+        if !self.files.contains(&path) && self.files.len() < MAX_MESSAGE_FILES {
+            self.files.push(path);
+        }
+    }
+
+    /// Paths typed in the composer that name a file become chips (`@` and
+    /// the file's name); with `all`, the one still being typed too. A chip
+    /// whose `@` name left the text goes.
+    pub fn chip_paths(&mut self, ctx: &egui::Context, all: bool) {
+        let found = mentions::typed_paths(&self.composer, all);
+        if !found.is_empty() {
+            let mut cursor = self.cursor(ctx);
+            for (range, path) in found.into_iter().rev() {
+                let name = format!("@{}", mentions::file_name(&path));
+                let Some(old) = self.composer.get(range.clone()) else {
+                    continue;
+                };
+                let removed = old.chars().count();
+                let at = self
+                    .composer
+                    .get(..range.start)
+                    .map_or(0, |b| b.chars().count());
+                self.composer.replace_range(range, &name);
+                if cursor > at {
+                    cursor = (cursor + name.chars().count()).saturating_sub(removed);
+                }
+                self.add_file(path);
+            }
+            Self::set_cursor(ctx, cursor);
+        }
+        let text = &self.composer;
+        self.files
+            .retain(|p| text.contains(&format!("@{}", mentions::file_name(p))));
     }
 
     fn composer(&mut self, ui: &mut Ui, now: &Now, actions: &mut Vec<Action>) {
@@ -454,8 +614,9 @@ impl Assistant {
         let can_send = !busy
             && !self.composer.trim().is_empty()
             && !matches!(self.conversation.state, State::NotSetUp(_));
-        // While the `/` menu shows, Enter is its own.
-        let slash = self.composer.starts_with('/');
+        // While the `/` menu shows, Enter is its own (the `@` list took
+        // its keys already).
+        let slash = self.slash();
         if focused
             && !slash
             && ui.input_mut(|i| {
@@ -465,13 +626,40 @@ impl Assistant {
         {
             actions.push(Action::Send);
         }
+        if !self.files.is_empty() {
+            let mut removed = None;
+            ui.horizontal_wrapped(|ui| {
+                for (index, path) in self.files.iter().enumerate() {
+                    if chat_cards::file_chip(ui, &mentions::file_name(path), true) {
+                        removed = Some(index);
+                    }
+                }
+            });
+            if let Some(index) = removed {
+                let path = self.files.remove(index);
+                let name = format!("@{}", mentions::file_name(&path));
+                if let Some(at) = self.composer.find(&name) {
+                    let mut end = at + name.len();
+                    if self
+                        .composer
+                        .get(end..)
+                        .is_some_and(|rest| rest.starts_with(' '))
+                    {
+                        end += 1;
+                    }
+                    self.composer.replace_range(at..end, "");
+                }
+            }
+        }
         let edit = egui::TextEdit::multiline(&mut self.composer)
             .id(id)
-            .hint_text("Ask about this design…")
+            .hint_text("Ask about this design… @ adds a file")
             .desired_rows(COMPOSER_ROWS)
             .desired_width(ui.available_width())
             .char_limit(MAX_MESSAGE_BYTES);
-        ui.add(edit);
+        if ui.add(edit).changed() {
+            self.chip_paths(ui.ctx(), false);
+        }
         ui.add_space(t.space_2);
         kit::actions(ui, |ui| {
             if busy {
@@ -489,11 +677,13 @@ impl Assistant {
     }
 }
 
-/// The height the composer and its context line take.
-fn composer_height(ui: &Ui) -> f32 {
+/// The height the composer, its chips and its context line take.
+fn composer_height(ui: &Ui, chips: bool) -> f32 {
     let t = Tokens::get();
     let line = ui.text_style_height(&egui::TextStyle::Body);
-    t.font_small * 1.6
+    let chips = if chips { t.control_height } else { 0.0 };
+    chips
+        + t.font_small * 1.6
         + line * COMPOSER_ROWS as f32
         + t.space_8 * 2.0
         + t.space_4
@@ -654,7 +844,7 @@ fn you(ui: &mut Ui, text: &str, context: &str, attachments: &[String]) {
             if !attachments.is_empty() {
                 ui.horizontal_wrapped(|ui| {
                     for name in attachments {
-                        kit::status_chip(ui, None, name);
+                        chat_cards::file_chip(ui, name, false);
                     }
                 });
             }
@@ -667,7 +857,7 @@ fn you(ui: &mut Ui, text: &str, context: &str, attachments: &[String]) {
 }
 
 /// A reply in bounded Markdown.
-fn markdown(ui: &mut Ui, text: &str) {
+pub(crate) fn markdown(ui: &mut Ui, text: &str) {
     use markdown::Block;
     let t = Tokens::get();
     let (blocks, cut) = markdown::parse(text);

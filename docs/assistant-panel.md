@@ -25,8 +25,8 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Jobs, events (ABI S4b); the window module's camera, layers and screenshot (S5b); elicitation (MCP P5) | Not built |
 | Chat panel (C1): the column (⇧⌘A, View › Assistant, the palette, the application bar), one conversation per open project, the transcript (messages with their context line, bounded Markdown replies, folded reasoning, tool rows, Ask cards, the turn summary card with Show and Undo turn), the states; each message one turn of the built-in agent on the window's engine (`sparksmith_assist::chat`, `apps/sparksmith/src/assistant.rs`, `app/assistant_host.rs`); the chat's prompt and reach are data (`library/assist/chat-prompt.md`, `reach/chat.json`) | Built. No per-turn caps (founder, 16 November). The model, limits and permissions are Settings › AI's (C3): a question follows its kind's rule (edits, files, publishing to a library, moving the view); an Ask card offers Allow once, Allow for this session, Always allow (written to Settings › AI) and Deny; publishing drafts into the project runs unasked (`unasked` in the reach profile). Replies stream through the loop's events (L1) and Stop acts between chunks. Workflow and control cards (C2) are further transcript items |
 | Settings › AI (C3): endpoints with keychain keys, agents as configuration, permissions per kind of action (ask every time, once a session, always allow, deny; publishing into the project never asks), optional limits on model runs, off by default so the chat can build a whole board, while a workflow brings its own budget, profiles (copy to edit, checked on save), workflows listed with why one can't run | Built. Stored in `<config>/assist/settings.json`, apart from the app's settings; starting values in `library/assist/settings.json`. A workflow run takes the assistant's endpoint from here and runs on the workflow's budget, within the person's limits when set. No agent is started yet (A1) |
-| Controls and cards (C2): the ten controls, the workflow card (Just chat, Use it), a run's block (steps, meter, Stop), the `/` menu's rows, in `crates/ui` (`sparksmith_ui::chat_cards`); the impact card answers a plan (Apply, Decline, rows left out) or a call that asks (Allow once, Allow for this session, Always allow, Deny); `assist.offer` (`assist` 1.2), checked against the lent workflows and shown through the window (`WindowHost::offer`); `offer_when` signals (`workflow::offer`); palette entries generated from workflows; PDF drop | Built. The adapter (`apps/sparksmith/src/workflow_cards.rs`) keeps the cards; each is a transcript item of the chat (`Item::Workflow`), and a new one opens the chat. The `/` menu shows above the composer while it starts with `/`. Open in editor and Choose… run in the window; Use it, Just chat, a run's answers, Stop and Undo run go through the cards' outbox to the run host (W2). The chat lends its session the workflows, so the model can call `assist.offer` |
-| Datasheet workflow in the chat (W2) | Built. Use it starts the run off the UI thread (`apps/sparksmith/src/app/assistant_run.rs`, `assistant/worker.rs`) on the one runner: its calls and its work on the chat's session go to the window through a `Desk` (`sparksmith_assist::desk`) and run between frames on the window's engine, through the chat's gate and Ask cards, in the run's one turn. The run waits on its input card, on the generator choice (Continue or Change) and on the pinout's impact card (Apply or Decline); Stop ends it at the next step boundary; the result card opens the drafts in the editor and undoes the whole run as one step. Just chat and the run's end and result are told to the model with the person's next message. Use it waits while a message's turn runs. The Component start page's Create from datasheet… opens the chat on the workflow card. `sparksmith design-part` runs the same workflow headless (Apply without asking, the model's generator stands); a recording that names no workflow (the reference conversations in `examples/`) replays as the conversation it holds. Ask cards use the impact card's ask mode |
+| Controls and cards (C2): the ten controls, the workflow card (a compact confirmation of its inputs: Just chat, Accept and continue), a run's block (steps, meter, Stop), the `/` menu's rows, in `crates/ui` (`sparksmith_ui::chat_cards`); the impact card answers a plan (Apply, Decline, rows left out) or a call that asks (Allow once, Allow for this session, Always allow, Deny); `assist.offer` (`assist` 1.2), checked against the lent workflows and shown through the window (`WindowHost::offer`); `offer_when` signals (`workflow::offer`); palette entries generated from workflows; PDF drop | Built. The adapter (`apps/sparksmith/src/workflow_cards.rs`) keeps the cards; each is a transcript item of the chat (`Item::Workflow`), and a new one opens the chat. The `/` menu shows above the composer while it starts with `/`. The `@` list shows above it while an `@` is typed. Open in editor and Change… run in the window; Accept and continue, Just chat, a run's answers, Stop and Undo run go through the cards' outbox to the run host (W2). The chat lends its session the workflows, so the model can call `assist.offer` |
+| Datasheet workflow in the chat (W2) | Built. Accept and continue starts the run off the UI thread (`apps/sparksmith/src/app/assistant_run.rs`, `assistant/worker.rs`) on the one runner: its calls and its work on the chat's session go to the window through a `Desk` (`sparksmith_assist::desk`) and run between frames on the window's engine, through the chat's gate and Ask cards, in the run's one turn. The run waits on the generator choice (Continue, or Choose another… and Change) and on the pinout's impact card (Apply or Decline); Stop ends it at the next step boundary; the result card opens the drafts in the editor and undoes the whole run as one step. Just chat and the run's end and result are told to the model with the person's next message. Accept and continue waits while a message's turn runs. The Component start page's Create from datasheet… opens the chat on the workflow card. `sparksmith design-part` runs the same workflow headless (Apply without asking, the model's generator stands); a recording that names no workflow (the reference conversations in `examples/`) replays as the conversation it holds. Ask cards use the impact card's ask mode |
 
 ## What this revision supersedes
 
@@ -119,11 +119,10 @@ A `tool` or `model` step may name `check`: a following tool step whose refusal s
  "inputs": {
    "datasheets": {"type": "files", "accept": ["application/pdf"], "min": 1, "max": 4, "control": "datasheet", "title": "Datasheets"},
    "part":       {"type": "text", "max": 64, "title": "Part name", "help": "The manufacturer part number"},
-   "pages":      {"type": "page_ranges", "optional": true, "title": "Pages to read first"},
    "notes":      {"type": "text", "optional": true, "multiline": true, "title": "Notes", "help": "Package variant, what to leave out"}},
  "steps": [
-   {"id": "ask",     "kind": "input",  "inputs": ["datasheets", "part", "pages", "notes"]},
-   {"id": "read",    "kind": "tool",   "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"path": "/item", "pages": "/inputs/pages"}},
+   {"id": "ask",     "kind": "input",  "inputs": ["datasheets", "part", "notes"]},
+   {"id": "read",    "kind": "tool",   "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title"}},
    {"id": "gens",    "kind": "tool",   "call": "library.generators", "params": {}},
    {"id": "plan",    "kind": "model",  "method": "method.md#find-a-generator", "output": "package_plan", "check": "make"},
    {"id": "pick",    "kind": "review", "gate": "notify", "control": "choice", "show": "/steps/plan/generator"},
@@ -149,24 +148,25 @@ An external client has its own loop and no runner. `prompts/get datasheet_to_com
 ### 3.1 The model chooses (default)
 
 - **The index is in context.** The chat's system text carries the workflow index: id, one-line summary and the intents, about 60 tokens a workflow, held under 1 KB by a test. Past that size the index is left out and the model calls `query assist.workflows {text}`, which ranks by the same fields.
-- **The model offers, the person decides.** When a request fits, the model calls `show assist.offer {workflow, inputs, why}` with whatever inputs it already has (an attached PDF, a part number from the message). The chat draws a card:
+- **The model offers, the person decides.** When a request fits, the model calls `show assist.offer {workflow, inputs, why}` with every input the conversation gives: the message's files and the values it states or a file name carries (a part number). Without a model, the chat fills each `files` input from the latest files the person attached (`@`, a typed path, a drop, a pick) whose type it takes (`Workflow::fill_files`). The chat draws one compact confirmation:
 
   ```
-  ┌ I can do this with a workflow ────────────────────────────┐
-  │ Datasheet → component  v1.0                               │
-  │ Drafts the part from the datasheet, every value cited.    │
-  │ Datasheet  tlv757p.pdf (38 pages)   Part  TLV75733PDBVR   │
-  │                          [Just chat]   [Use it]  (Enter)  │
-  └───────────────────────────────────────────────────────────┘
+  ┌ Datasheet → component ─────────────────────────────── v1.1 ┐
+  │ You asked for a part from its datasheet.                   │
+  │ Datasheets  [tlv757p.pdf · 38 pages · 2.5 MB ⌄]  [Change…] │
+  │ Part name   [TLV75733PDBVR                    ]            │
+  │                 [Just chat]  [Accept and continue]  (Enter)│
+  └────────────────────────────────────────────────────────────┘
   ```
 
-- **Use it** starts the run with those inputs (the `input` step shows only what is missing). **Just chat** returns to free conversation and tells the model so.
+  Each row is the workflow's start input (the inputs of the input steps before its first other step), changed in place: ⌄ lists the files attached in this session and the project folder's, Change… opens the picker, a dropped file joins the value. A required input nothing filled is an empty inline field, and the keyboard goes to it; an optional one nothing filled is left out. When the card appears it takes the keyboard from the composer, so Enter accepts. A later offer of the same workflow fills the waiting card instead of adding one, leaving what the person changed.
+- **Accept and continue** starts the run with those values; its input step asks nothing more. **Just chat** returns to free conversation and tells the model so.
 - `assist.offer` is a `show` entry: it changes no document and needs a window, so headless it answers `host.unavailable`.
 - No keyword matching in code. What the model reads is the workflow's own data.
 
 ### 3.2 Explicit entry
 
-- **`/` in the composer** lists the workflows (title and summary). Choosing one shows its card.
+- **`/` in the composer** lists the workflows (title and summary). Choosing one shows its card, filled from the conversation.
 - **Command palette:** one entry per available workflow, generated from its data ("Assistant: Datasheet → component").
 - **Component start page:** "Create from datasheet…" now opens the chat with that card.
 - **MCP clients:** `prompts/list` (Claude Code shows prompts as slash commands).
@@ -191,7 +191,7 @@ The widgets are code, built once in `crates/ui` from `ui_kit::Container` and the
 | `choice` | Single or multiple choice, titled options; options may come from a step's result (generators and presets from `library.generators`) | `enum`, `enum_from` |
 | `datasheet` | File picker and drop target; shows title, page count and size; copies the file into the conversation's folder, which is in the grant | `files` with `accept`, `min`, `max` |
 | `url` | A URL, fetched only through an Ask (network reach) | `url` |
-| `page_ranges` | `"1-5, 31, 32"` against the file's page count | `page_ranges` |
+| `page_ranges` | `"1-5, 31, 32"` against the file's page count (the datasheet workflow has none: its Package step finds the pages) | `page_ranges` |
 | `impact` | A plan's counts, findings and changed rows; a multi-select of rows to leave out; **Apply** / **Decline** | `review` steps with `gate: confirm` |
 | `progress` | Current step, done of total, **Stop** | every running step |
 | `meter` | Requests, tokens and minutes against the run's limits | always, for a running workflow |
@@ -199,7 +199,7 @@ The widgets are code, built once in `crates/ui` from `ui_kit::Container` and the
 
 ### 4.2 How a control reaches the person
 
-- **In the chat,** a control is a card in the conversation. Enter accepts, Esc declines; focus moves to the first field.
+- **In the chat,** an input step's controls are one compact confirmation in the conversation, as the offer's (§3.1). Enter accepts, Esc declines; the keyboard goes to the first input to fill in.
 - **Gates go through `Asker`.** A `review` step with `gate: confirm` calls `Asker::review(plan)`; the chat's `Asker` draws the `impact` card. The same trait answers Ask-class calls (an Allow/Deny card). So a workflow's gate and the surface's gate are one mechanism.
 - **Typing in the chat isn't "busy".** The busy rule refuses agent edits while the person types on the canvas or in a dialog; the composer and the chat's cards are excluded.
 
@@ -323,15 +323,15 @@ No turn limits (founder, 16 November): instead, as a conversation approaches the
 
 - **Placement:** its own docked column at the right edge, resizable 300–560 pt, can dock left, folds to a 30 pt strip with a state dot (approved Q1). Opened by `assistant.toggle` (⇧⌘A / Ctrl+Shift+A through the shortcut registry), View › Assistant, the palette and an AI button in the application bar.
 - **One conversation per open project,** in memory only (approved Q8).
-- **Items:** your message with its context line and attachment chips; reply text (bounded Markdown); folded reasoning; one row per tool call (entry, one-line summary, state; expands to input and compact reply); Ask cards; the **workflow card** (§3.1); **control cards** (§4); a **turn summary card** at the end of each turn (what changed by collection and name, issues new and resolved, requests and tokens, **Show**, **Undo turn**).
+- **Items:** your message with its context line and its files as `@` chips; reply text (bounded Markdown); folded reasoning; one row per tool call (entry, one-line summary, state; expands to input and compact reply); Ask cards; the **workflow card** (§3.1); **control cards** (§4); a **turn summary card** at the end of each turn (what changed by collection and name, issues new and resolved, requests and tokens, **Show**, **Undo turn**).
 - **A running workflow** is one block in the conversation: its title, a step list with the current step, the `meter`, **Stop**, and its cards in order.
 
 ```
 ┌ Datasheet → component · TLV75733PDBVR ──────────────── v1.0 ┐
-│ ✓ Inputs     tlv757p.pdf · pages 3, 31–32                   │
-│ ✓ Read       38 pages, drawings on 31, 32                   │
-│ ✓ Package    tabbed · tabbed-sot-23-5 · TI lands  [Change]  │
-│ ✓ Made       component, symbol, package, footprint, 3D      │
+│ ✓ Inputs     tlv757p.pdf · TLV75733PDBVR                    │
+│ ✓ Read       tlv757p.pdf · 38 pages                         │
+│ ✓ Package    SOT-23-5, TI land pattern on page 32           │
+│ ✓ Made       Added: components, symbols, packages, …        │
 │ ◌ Pinout     preview 2 of 3 · 1 blocking finding            │
 │ · Import  · Check  · Report                                 │
 │ 14 requests · 61 k tokens · 6 min of 45           [Stop]    │
@@ -350,7 +350,7 @@ No turn limits (founder, 16 November): instead, as a conversation approaches the
 ```
 
 - **States** as in the 9 November design: not set up, connecting, sign-in needed, ready, running, waiting for you, stopped or limit reached, agent ended, endpoint unreachable.
-- **Attachments:** drop, paperclip or paste. PDFs are copied into the conversation's folder; an ACP agent also gets them as `resource` or `resource_link`; images only where vision is declared. Documents are untrusted data, never instructions.
+- **Attachments:** `@` in the composer lists the files the session attached, then the project folder's and its subfolders', matched fuzzily; ↑↓ and Enter (or Tab, or a click) put the one chosen in the message as an `@name` chip. A path typed or pasted becomes a chip once a space follows it (or when sent), and a drop attaches too. The message carries its chips: the model is told each file's path after the text, and a workflow's files input is filled from them. PDFs are copied into the conversation's folder; an ACP agent also gets them as `resource` or `resource_link`; images only where vision is declared. Documents are untrusted data, never instructions.
 
 ## 8. Slices
 
@@ -408,7 +408,7 @@ At most five agents at once. Each slice ships with its tests. Nothing runs the d
 
 ## 9. Open questions for the founder
 
-1. **Offer, then confirm.** Should the chat always show the workflow card and wait for **Use it**, or start a workflow directly when the model is sure? **Recommendation:** always the card. One click, and nothing long starts without the person.
+1. **Offer, then confirm.** Should the chat always show the workflow card and wait for **Accept and continue**, or start a workflow directly when the model is sure? **Recommendation:** always the card. One click, and nothing long starts without the person.
 2. **Gates in the datasheet workflow.** **Recommendation:** the generator choice as a non-blocking card with **Change**; the pinout import as a blocking impact card; publishing never inside the workflow.
 3. **"Token/cost meter".** **Recommendation:** requests, tokens and minutes, against the budget or the person's limits when set; no prices, as decided on 9 November.
 4. **One method text.** Move `skills/sparksmith-datasheet-part/SKILL.md` to `library/assist/workflows/datasheet-to-component/method.md` and point the skill and AGENTS.md there? **Recommendation:** yes.

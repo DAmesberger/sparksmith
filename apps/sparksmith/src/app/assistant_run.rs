@@ -1,6 +1,6 @@
 //! A workflow run in the chat (`docs/assistant-panel.md` §3–§5, slice W2).
 //!
-//! Use it on a workflow card starts the run off the UI thread
+//! Accept and continue on a workflow card starts the run off the UI thread
 //! ([`crate::assistant::worker::start_run`]) on the one runner
 //! (`sparksmith_assist::workflow::runner`), on the model Settings › AI sets
 //! up, under the chat's grant held to the workflow's reach. The run's calls
@@ -70,7 +70,7 @@ fn cut(mut text: String) -> String {
 }
 
 impl App {
-    /// What the person chose on workflow cards: Use it starts a run once
+    /// What the person chose on workflow cards: Accept and continue starts a run once
     /// the chat is free (until then it waits in the outbox), Just chat is
     /// told to the model, a run's answers and Stop reach the run, and Undo
     /// run takes the run back.

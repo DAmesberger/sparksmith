@@ -20,7 +20,7 @@ library/assist/workflows/<id>/        shipped
 
 - **Listed per host** (`load::host`): the shipped library's folder and the person's `<config>/assist/workflows/`, against this program's catalog.
 
-The first instance is `library/assist/workflows/datasheet-to-component/`: `workflow.json` and `method.md`, moved there from `skills/sparksmith-datasheet-part/SKILL.md` in W1 (approved Q4); the skill and `AGENTS.md` point to it.
+The first instance is `library/assist/workflows/datasheet-to-component/`: `workflow.json` and `method.md`; the skill and `AGENTS.md` point to it. Its inputs are the datasheets, the part name and optional notes; no one gives it page numbers. Its Read step reads every page, its Package step finds the pages with the pin layout, the drawing and the land pattern and names them in `package_plan.pages`, and the result card lists them as Pages used.
 
 ## `workflow.json`, format 1
 
@@ -67,7 +67,7 @@ Every step has `id` (unique; `a–z`, `0–9`, `-`, `_`), `kind` and `title` (it
 
 | `kind` | Fields | Rule |
 |---|---|---|
-| `input` | `inputs` | Each input is asked for by exactly one input step, before any pointer reads it. The card shows only what the offer did not fill |
+| `input` | `inputs` | Each input is asked for by exactly one input step, before any pointer reads it. The inputs of the input steps before the first other step are the start inputs: the chat's one confirmation shows them filled from the conversation (below) |
 | `tool` | `call`, `params`?, `each`?, `check`?, `retries`? | One `Surface::call`, no model. `each` points at a list; the call repeats per item, read as `/item` |
 | `model` | `goal`, `method`, `output`, `requests`?, `check`?, `retries`? | `method` is `method.md#<heading anchor>`; `output` names an `outputs` entry; the step ends with `assist.step_result`. `requests` (≤ the budget) caps the step |
 | `review` | `gate: "confirm"`: `control` (`impact`), `plan`, `then: {call, params}` | Waits through `Asker::review`; Apply makes `then` |
@@ -102,7 +102,7 @@ Field types: `text`, `integer`, `number`, `boolean`, `object`, `list`, `any`. `a
 
 - **One turn.** Before its first step after the inputs, the run opens a turn (`project.turn_begin`) labelled with the title and its first text input ("Datasheet → component: TLV75733PDBVR"); every call, the runner's and the model's, carries it, so the run undoes as one step. The turn closes however the run ends; what completed stays.
 - **No rights of its own.** Every call is the caller's principal under the caller's grant held to the workflow's `reach` (`Grant::narrowed`), through `Surface::call`. An entry that takes a revision gets the session's current one.
-- **input** asks for the step's inputs the run was not given (a card for each, in the step's order); values are checked like a default; Decline and Stop end the run.
+- **input** goes on without asking when the run was given every required input of the step (the chat's confirmation gave them). Otherwise it asks once, with one card per input of the step in its order, the given values filled in, which the chat draws as one compact confirmation; values are checked like a default; Decline and Stop end the run.
 - **tool** fills its pointers and makes the call (`each`: once per item, the replies a list).
 - **model** is one conversation: the step's goal, its output's fields, the inputs, the earlier steps' results (each cut at 120,000 characters) and its section of `method.md` (`method_section`), with the six verbs. The session holds the step open (`Session::open_step`) and `assist.step_result` checks the answer; an accepted answer is the step's result. A `requests` cap holds the step to that many more requests.
 - **review**, `confirm`: an `impact` card from the plan (its `change_counts`, or the length of each list; its findings); Apply makes `then`, Decline ends the run. `notify`: a `choice` card; Change sends the run back to `change` with the person's choice. In the chat the card waits for Continue (the choice stands) or Change, so a change goes back before anything is made from the choice; headless, no answer goes on.
@@ -129,7 +129,7 @@ Markdown. Each model step reads one section, named by its heading's anchor (GitH
 | `text` | one line or multiline, with a byte limit | yes |
 | `number` | a number with its quantity (length, angle, number, integer) and bounds | yes |
 | `choice` | single or multiple choice among titled options | yes |
-| `datasheet` | file picker and drop target; title, page count and size of each file | yes |
+| `datasheet` | the files on one line (title, page count and size), ⌄ for the files attached in this session and the project folder's PDFs, Change… for the picker, and drops | yes |
 | `url` | a URL, fetched only through an Ask | yes |
 | `page_ranges` | pages against the file's page count | yes |
 | `impact` | a plan's counts, findings and rows to leave out; Apply, Decline | no |
@@ -146,6 +146,18 @@ Parameters and replies in `workflow::entries`. `assist.workflows` and `assist.st
 | `assist.workflows` | query, read | `{text?, limit?, unavailable?}` | `{workflows: [{id, version, title, summary, intents, source, inputs, why_not}]}`; the workflows the host lent the session (`Session::lend_workflows`), else `assist.no_workflows` |
 | `assist.offer` | show, show; headless `host.unavailable` | `{workflow, inputs?, why}` | `{card, missing}` |
 | `assist.step_result` | query, read; changes no document | `{step, result}` | `{accepted, problems: [{at, message}], example?}`; refused without an open step (`assist.no_step`) or for another step |
+
+## Filled from the conversation
+
+A workflow's inputs are filled before the person sees them, never asked one field at a time:
+
+- **Files, without a model.** `Workflow::fill_files` fills each `files` start input the offer lacks with the latest attached files (the message's `@` chips and typed paths, a drop, a pick) whose type it `accept`s, read from their first bytes, up to `max` and not below `min`.
+- **The rest, by the model.** Its `assist.offer` gives what the message states or a file name carries (a part number). The chat's prompt asks it to fill every input it can.
+- **One confirmation.** The chat shows the start inputs (`Workflow::start_inputs`) on one compact card: a filled input as its value, changed in place (a file by ⌄ or Change…, text inline); a required one nothing filled as an empty inline field; an optional one nothing filled left out. Enter is Accept and continue. A later offer of the same workflow fills the waiting card, keeping what the person changed.
+
+## Results in words
+
+The run block's step rows, the impact card and the result card never show JSON (`control::readable`): what a reply made by name and kind (its `drafts`), whether a check accepted, a model answer's `why`, findings counted with how many block, the documents read with their pages, counts with their nouns in number ("4 functions added"). The result card lists the findings of its items as rows and shows a report's Markdown under Show report; the impact card names the part the run made. A notify card shows the choice first, on one line with the `why` of the step a change goes back to, and the other options under Choose another….
 
 ## Signals
 

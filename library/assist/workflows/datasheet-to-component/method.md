@@ -16,7 +16,7 @@ This file is the method of the datasheet-to-component workflow (`workflow.json` 
 
 ## Procedure
 
-1. **Read.** Open the datasheets (in the app's assistant, `query` `assist.document_text` with a datasheet's title). In the module or package datasheet, read the pin layout, the pin definition table, the mechanical drawing and the recommended land pattern. In the chip datasheet, read the IO MUX, analog-function and strapping tables. Note each value's document, page and table or figure as you go.
+1. **Read.** Open the datasheets (in the app's assistant, `query` `assist.document_text` with a datasheet's title; its text marks each page `=== page N ===`, and where the text you were given is cut, read the rest with `{document, pages}`). Nobody gives you page numbers: find the pages yourself. In the module or package datasheet, find and read the pin layout, the pin definition table, the mechanical drawing and the recommended land pattern. In the chip datasheet, find and read the IO MUX, analog-function and strapping tables. Note each value's document, page and table or figure as you go, and say which pages you used (in the app's assistant, the package plan's `pages`: "tlv757p.pdf: pinout 3, drawing 31, land pattern 32").
 2. **Pinout document.** Call `query` `library.pinout_schema` once. Its `rule_api` is the complete pin-rule contract; don't probe the tools with test documents. Fill one pinout document (format 1):
    - the device and its reference: title, document revision and URL;
    - one variant per package, named after the package, with its terminal count, exposed pads included;

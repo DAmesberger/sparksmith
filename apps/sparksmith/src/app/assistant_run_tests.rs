@@ -1,7 +1,9 @@
 //! The datasheet workflow in the whole app's chat, driven through its
 //! accessibility tree on a scripted model (no network, no paid calls): a
-//! dropped PDF offers the workflow, Use it starts the run, the input card
-//! asks for the part name, the run block follows the steps with Stop, the
+//! message with an `@` file and the part number, or a dropped PDF, offers
+//! the workflow on one compact card filled from the conversation (an inline
+//! field only for the part name nothing gave), Accept and continue (Enter)
+//! starts the run, the run block follows the steps with Stop, the
 //! generator choice waits for Continue or Change, the pinout's impact card
 //! for Apply, and the result card opens the drafts in the editor and
 //! undoes the whole run as one step. Stop mid-run leaves the document as it
@@ -134,31 +136,39 @@ fn wait(ax: &mut Ax, what: &str, mut done: impl FnMut(&Ax) -> bool) -> Fallible 
     .into())
 }
 
-/// Drop EXR-22's datasheet on the window; the workflow card shows.
+/// Drop EXR-22's datasheet on the window; the workflow's compact card
+/// shows with the file read and an inline field for the part name only.
 fn drop_datasheet(ax: &mut Ax) -> Fallible {
     let pdf = ax.dir.path().join("exr22.pdf");
     fixtures::exr22_datasheet(&pdf)?;
     ax.drop_files(vec![Arc::new(Dropped(pdf))]);
-    wait(ax, "the workflow card", |ax| ax.has(Role::Button, "Use it"))?;
-    ax.find(Role::Label, "I can do this with a workflow")?;
+    wait(ax, "the workflow card", |ax| {
+        ax.has(Role::Button, "Accept and continue")
+            && !ax
+                .all_prefix(Role::Button, "exr22.pdf · 2 pages")
+                .is_empty()
+    })?;
+    ax.find(Role::Label, "Datasheet → component")?;
+    ax.find(Role::TextInput, "Part name")?;
+    assert!(!ax.has(Role::TextInput, "Notes"), "optional and empty");
     Ok(())
 }
 
-/// Use it, then the part name on the input card: the run reads the
+/// The part name in its inline field, then Enter: the run reads the
 /// datasheet and plans the package, and waits on the generator choice.
 fn start(ax: &mut Ax) -> Fallible {
-    ax.button("Use it")?;
-    wait(ax, "the input card", |ax| {
-        ax.has(Role::TextInput, "Part name")
-    })?;
     // The transcript scrolls the new card into view first.
     ax.settle();
     ax.click(Role::TextInput, "Part name")?;
     ax.type_text("EXR-22");
     ax.settle();
-    ax.button("Continue")?;
+    ax.key(egui::Key::Enter);
+    generator_choice(ax)
+}
+
+fn generator_choice(ax: &mut Ax) -> Fallible {
     wait(ax, "the generator choice", |ax| {
-        ax.has(Role::Button, "Change") && ax.has(Role::Button, "Continue")
+        ax.has(Role::Button, "Choose another…") && ax.has(Role::Button, "Continue")
     })?;
     ax.settle();
     Ok(())
@@ -179,7 +189,8 @@ fn a_dropped_datasheet_runs_in_the_chat_and_undoes_as_one_step() -> Fallible {
         let before = (drafts(&ax), undo_line(&ax));
         drop_datasheet(&mut ax)?;
         start(&mut ax)?;
-        // The run block: the workflow, its steps so far and Stop.
+        // The confirmation, answered, and the run block: the workflow, its
+        // steps so far and Stop.
         assert!(ax.all(Role::Label, "Datasheet → component").len() >= 2);
         assert!(ax.has(Role::Button, "Stop"));
         assert_eq!(ax.app.assistant.conversation.state, State::Waiting);
@@ -301,7 +312,7 @@ fn just_chat_goes_on_as_chat() -> Fallible {
     ax.button("Just chat")?;
     ax.settle();
     assert!(ax.app.assistant.run.is_none());
-    assert!(!ax.has(Role::Button, "Use it"));
+    assert!(!ax.has(Role::Button, "Accept and continue"));
     ax.ctx
         .memory_mut(|m| m.request_focus(crate::assistant::Assistant::composer_id()));
     ax.frame(vec![]);
@@ -340,12 +351,114 @@ fn create_from_datasheet_opens_the_chat_on_the_workflow_card() -> Fallible {
         ax.settle();
         assert!(ax.app.assistant.shown());
         assert_eq!(ax.app.workflow_cards.offers(), 1);
-        ax.find(Role::Label, "I can do this with a workflow")?;
-        ax.find(Role::Button, "Use it")?;
+        ax.find(Role::Label, "Datasheet → component")?;
+        ax.find(Role::Button, "Accept and continue")?;
         // Pressed again while the card waits, it offers no second card.
         ax.button("Create from datasheet…")?;
         ax.settle();
         assert_eq!(ax.app.workflow_cards.offers(), 1);
     }
+    Ok(())
+}
+
+/// The model's `assist.offer` for EXR-22 with the part number it read in
+/// the message; the datasheet it leaves to the message's `@` file.
+fn offer_reply() -> ModelReply {
+    reply(
+        vec![Part::ToolCall {
+            id: "offer".into(),
+            name: "show".into(),
+            input: json!({"name": "assist.offer", "params": {
+                "workflow": "datasheet-to-component",
+                "inputs": {"part": "EXR-22"},
+                "why": "You named the part and attached its datasheet."}}),
+            malformed: None,
+            replay: None,
+        }],
+        StopReason::ToolCalls,
+    )
+}
+
+/// `@` in the composer lists the project folder's files by a fuzzy match;
+/// Enter puts the one chosen in the message as a chip. The message "make a
+/// part from @exr22.pdf, it's the EXR-22" gets one compact card with both
+/// filled (the file from the chip, the part from the model's offer), and
+/// Enter on it runs the workflow.
+#[test]
+fn a_message_with_an_at_file_fills_one_card_and_enter_runs_it() -> Fallible {
+    for size in [SMALL, LARGE] {
+        let replies: Vec<ModelReply> = [offer_reply(), text("I offered the datasheet workflow.")]
+            .into_iter()
+            .chain(script(Vec::new()))
+            .collect();
+        let mut ax = app(size, replies)?;
+        let folder = ax.dir.path().join("datasheets");
+        std::fs::create_dir_all(&folder)?;
+        let pdf = folder.join("exr22.pdf");
+        fixtures::exr22_datasheet(&pdf)?;
+        ax.app.toggle_assistant(&ax.ctx.clone());
+        ax.settle();
+        ax.ctx
+            .memory_mut(|m| m.request_focus(crate::assistant::Assistant::composer_id()));
+        ax.frame(vec![]);
+        ax.type_text("make a part from @e2p");
+        ax.settle();
+        // The list: the project folder's file, where it is.
+        ax.find(Role::Button, "exr22.pdf")?;
+        ax.key(egui::Key::Enter);
+        assert_eq!(ax.app.assistant.composer, "make a part from @exr22.pdf ");
+        assert_eq!(ax.app.assistant.files, vec![pdf.clone()]);
+        ax.find(Role::Label, "@exr22.pdf")?;
+        ax.find(Role::Button, "Remove exr22.pdf")?;
+        ax.type_text("it's the EXR-22");
+        ax.key(egui::Key::Enter);
+        wait(&mut ax, "the filled card", |ax| {
+            ax.has(Role::Button, "Accept and continue")
+                && !ax
+                    .all_prefix(Role::Button, "exr22.pdf · 2 pages")
+                    .is_empty()
+                && ax.app.assistant.job.is_none()
+        })?;
+        ax.settle();
+        // One card, both filled, no field left to fill.
+        assert_eq!(ax.app.workflow_cards.offers(), 1);
+        ax.find(Role::TextInput, "Part name")?;
+        // The model was told the file and its path with the message.
+        let told = ax.app.assistant.history.iter().any(|m| {
+            m.role == Speaker::User
+                && m.content.iter().any(|p| {
+                    matches!(p, Part::Text { text, .. }
+                    if text.contains("@exr22.pdf: ") && text.contains("it's the EXR-22"))
+                })
+        });
+        assert!(told, "{:?}", ax.app.assistant.history);
+        ax.key(egui::Key::Enter);
+        generator_choice(&mut ax)?;
+        // The card gave the file from the chip and the part from the offer.
+        let given = ax.find_prefix(Role::Label, "Datasheets: exr22.pdf · 2 pages")?;
+        assert!(given.name.ends_with("Part name: EXR-22"), "{}", given.name);
+        assert!(ax.app.assistant.run.is_some(), "the run goes on");
+    }
+    Ok(())
+}
+
+/// A path typed into the composer becomes a chip once a space follows it.
+#[test]
+fn a_typed_path_becomes_a_chip() -> Fallible {
+    let mut ax = app(SMALL, Vec::new())?;
+    let pdf = ax.dir.path().join("exr22.pdf");
+    fixtures::exr22_datasheet(&pdf)?;
+    ax.app.toggle_assistant(&ax.ctx.clone());
+    ax.settle();
+    ax.ctx
+        .memory_mut(|m| m.request_focus(crate::assistant::Assistant::composer_id()));
+    ax.frame(vec![]);
+    ax.type_text(&format!("read {} please", pdf.display()));
+    ax.settle();
+    assert_eq!(ax.app.assistant.composer, "read @exr22.pdf please");
+    assert_eq!(ax.app.assistant.files, vec![pdf]);
+    ax.button("Remove exr22.pdf")?;
+    assert!(ax.app.assistant.files.is_empty());
+    assert_eq!(ax.app.assistant.composer, "read please");
     Ok(())
 }

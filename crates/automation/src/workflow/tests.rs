@@ -52,7 +52,7 @@ fn step_mut<'a>(value: &'a mut Value, id: &str) -> Option<&'a mut Value> {
 fn the_shipped_datasheet_workflow_passes_its_check() -> Fallible {
     let workflow = shipped()?;
     assert_eq!(workflow.id, DATASHEET);
-    assert_eq!(workflow.version(), Some((1, 0)));
+    assert_eq!(workflow.version(), Some((1, 1)));
     assert_eq!(
         workflow.offer_when,
         vec![Signal::Attachment("application/pdf".into())]
@@ -144,7 +144,7 @@ fn the_shipped_index_stays_under_one_kib() -> Fallible {
     let workflow = shipped()?;
     let index = index(&[&workflow]);
     assert!(index.len() < 1024, "{} bytes: {index}", index.len());
-    assert!(index.starts_with("datasheet-to-component v1.0: "));
+    assert!(index.starts_with("datasheet-to-component v1.1: "));
     Ok(())
 }
 
@@ -351,7 +351,13 @@ fn each_rule_names_its_field() -> Fallible {
             "/inputs/part/max: a text input states its most bytes",
         ),
         (
-            Box::new(|v| v["inputs"]["pages"]["of"] = json!("part")),
+            Box::new(|v| {
+                v["inputs"]["pages"] =
+                    json!({"type": "page_ranges", "title": "Pages", "of": "part"});
+                if let Some(s) = step_mut(v, "ask") {
+                    s["inputs"] = json!(["datasheets", "part", "pages", "notes"]);
+                }
+            }),
             "/inputs/pages/of: \"part\" is not a files input",
         ),
         (
@@ -461,7 +467,7 @@ fn each_rule_names_its_field() -> Fallible {
         (
             Box::new(|v| {
                 if let Some(s) = step_mut(v, "ask") {
-                    s["inputs"] = json!(["part", "part", "datasheets", "pages", "notes"]);
+                    s["inputs"] = json!(["part", "part", "datasheets", "notes"]);
                 }
             }),
             "/steps/0/inputs/1: part is asked for by an earlier step",
@@ -548,7 +554,9 @@ fn inputs_check_their_values() -> Fallible {
             .check_value(&json!(["1", "2", "3", "4", "5"]))
             .is_err()
     );
-    let pages = input("pages")?;
+    let pages: Input = serde_json::from_value(
+        json!({"type": "page_ranges", "title": "Pages", "of": "datasheets"}),
+    )?;
     assert!(pages.check_value(&json!("1-5, 31, 32")).is_ok());
     assert!(pages.check_value(&json!("5-1")).is_err());
     assert_eq!(parse_page_ranges("3, 31-32")?, vec![(3, 3), (31, 32)]);
@@ -569,7 +577,7 @@ fn a_step_answer_is_checked_against_its_output() -> Fallible {
         .get("package_plan")
         .ok_or("no package_plan")?;
     assert!(
-        plan.check_value(&json!({"generator": "tabbed", "params": {}, "why": "SOT-23-5"}))
+        plan.check_value(&json!({"generator": "tabbed", "params": {}, "why": "SOT-23-5", "pages": "ds.pdf: drawing 31"}))
             .is_ok()
     );
     let problems = plan
@@ -581,8 +589,9 @@ fn a_step_answer_is_checked_against_its_output() -> Fallible {
         text,
         [
             "/generator: give text",
+            "/pages: missing",
             "/why: missing",
-            "/colour: not a field of this answer; its fields: generator, params, preset, why",
+            "/colour: not a field of this answer; its fields: generator, pages, params, preset, why",
         ]
     );
     Ok(())
@@ -643,6 +652,103 @@ fn signals_offer_the_workflows_that_name_them() -> Fallible {
     Ok(())
 }
 
+/// Step results read as a person reads them, never as JSON.
+#[test]
+fn results_read_in_words() {
+    use control::readable;
+    let drafts = json!({"ids": [2, 3], "drafts": [
+        {"id": 2, "kind": "component", "name": "TLV75733PDBVR"},
+        {"id": 3, "kind": "symbol", "name": "TLV75733PDBVR"}]});
+    assert_eq!(readable(&drafts), "TLV75733PDBVR: component, symbol");
+    assert_eq!(
+        readable(&json!({"accepted": true, "markdown": "# R"})),
+        "Accepted"
+    );
+    assert_eq!(
+        readable(&json!({"report": {}, "result": {"findings": [
+            {"message": "a", "blocks": true}, {"message": "b", "blocks": false}]}})),
+        "2 findings, 1 blocking"
+    );
+    assert_eq!(
+        readable(
+            &json!([{"document": "tlv757p.pdf", "text": "=== page 1 ===\na\n=== page 2 ===\nb"}])
+        ),
+        "tlv757p.pdf · 2 pages"
+    );
+    assert_eq!(
+        readable(&json!({"generator": "tabbed", "why": "SOT-23-5, TI lands"})),
+        "SOT-23-5, TI lands"
+    );
+    assert_eq!(
+        readable(
+            &json!({"changes": {"added": {"library.components": [1], "library.symbols": [2]}}, "outcome": {}})
+        ),
+        "Added: components, symbols"
+    );
+    assert_eq!(
+        readable(&json!({"outcome": "drafts_created", "ids": [1, 2]})),
+        "Drafts created: 2"
+    );
+    assert_eq!(
+        control::counted_label(4, "function added"),
+        "4 functions added"
+    );
+    assert_eq!(
+        control::counted_label(1, "terminal changed"),
+        "1 terminal changed"
+    );
+    let findings = control::findings_of(
+        &json!({"result": {"findings": [{"message": "Pin 3 unreviewed", "blocking": true}]}}),
+    );
+    assert_eq!(findings.len(), 1);
+    assert!(findings[0].blocking);
+}
+
+/// A conversation's attachments fill the start inputs that take their
+/// type, in order and within the input's bounds, without a model; what was
+/// given stays.
+#[test]
+fn attachments_fill_the_files_inputs() -> Fallible {
+    let workflow = shipped()?;
+    assert_eq!(workflow.start_inputs(), ["datasheets", "part", "notes"]);
+    let attached = |names: &[&str]| -> Vec<(String, String)> {
+        names
+            .iter()
+            .map(|n| {
+                let media = if n.ends_with(".pdf") {
+                    "application/pdf"
+                } else {
+                    "image/png"
+                };
+                ((*n).to_owned(), media.to_owned())
+            })
+            .collect()
+    };
+    let mut inputs = serde_json::Map::new();
+    workflow.fill_files(&mut inputs, &attached(&["a.png", "a.pdf", "b.pdf"]));
+    assert_eq!(inputs["datasheets"], json!(["a.pdf", "b.pdf"]));
+    // At most `max` (4) are taken.
+    let mut inputs = serde_json::Map::new();
+    workflow.fill_files(
+        &mut inputs,
+        &attached(&["1.pdf", "2.pdf", "3.pdf", "4.pdf", "5.pdf"]),
+    );
+    assert_eq!(
+        inputs["datasheets"],
+        json!(["1.pdf", "2.pdf", "3.pdf", "4.pdf"])
+    );
+    // Nothing of a type it takes: it stays unfilled.
+    let mut inputs = serde_json::Map::new();
+    workflow.fill_files(&mut inputs, &attached(&["a.png"]));
+    assert!(inputs.is_empty());
+    // A given value stays.
+    let mut inputs = serde_json::Map::new();
+    inputs.insert("datasheets".into(), json!(["given.pdf"]));
+    workflow.fill_files(&mut inputs, &attached(&["a.pdf"]));
+    assert_eq!(inputs["datasheets"], json!(["given.pdf"]));
+    Ok(())
+}
+
 /// An offer is checked like a run's inputs: the card names what the run
 /// will still ask for, in the order its input steps ask.
 #[test]
@@ -654,7 +760,7 @@ fn an_offer_names_the_inputs_still_missing() -> Fallible {
     inputs.insert("datasheets".into(), json!(["tlv757p.pdf"]));
     let one = Offer::check(&listed, DATASHEET, inputs, "A PDF was dropped")?;
     assert_eq!(one.missing, ["part"]);
-    assert_eq!(one.version, "1.0");
+    assert_eq!(one.version, "1.1");
     let long = "x".repeat(401);
     let Err(why) = Offer::check(&listed, DATASHEET, serde_json::Map::new(), &long) else {
         return Err("a long why was taken".into());
