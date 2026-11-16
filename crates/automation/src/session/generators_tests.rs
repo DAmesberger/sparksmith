@@ -438,6 +438,9 @@ fn a_search_lists_the_generic_part_its_words_name_to_make_then_to_place() -> Tes
     let temp = tempfile::tempdir()?;
     let root = library(temp.path())?;
     let mut session = session(&root)?;
+    // A new project's standard fields, which carry the parts' values.
+    let fields = call(&mut session, "library.import_standard_fields", json!({}));
+    assert_eq!(fields["ok"], true, "{fields}");
     let search = |session: &mut Session| -> TestResult<Value> {
         let found = session.dispatch(json!({"command": "project.query", "params":
             {"query": "library.search", "params": {"query": "resistor 0603 10k"}}}));

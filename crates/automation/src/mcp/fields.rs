@@ -20,6 +20,8 @@ const MAX_DEPTH: usize = 6;
 const MAX_LISTED: usize = 16;
 /// The field the call's envelope fills.
 const REVISION: &str = "expected_revision";
+/// The reply flag every request takes beside its parameters.
+const VERBOSE: &str = "verbose";
 
 /// How the entry is sent, for the example: the verb and whether it is an
 /// operation (inside `apply`'s steps).
@@ -93,7 +95,7 @@ fn walk<'a>(
         .filter(|r| !given.contains_key(*r) && !(at.is_empty() && *r == REVISION))
         .collect();
     for (key, inner) in given {
-        if properties.contains_key(key) {
+        if properties.contains_key(key) || (at.is_empty() && key == VERBOSE) {
             continue;
         }
         let mut said = format!("has no field `{key}`");
