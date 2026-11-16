@@ -283,6 +283,11 @@ impl SettingsWindow {
                         require_waiver_reason,
                     );
                 });
+                if self.ai.wants_focus() {
+                    // Connect a model…: AI's Connection opens at the top.
+                    kit::open_section(ui, "settings-ai");
+                    ui.scroll_to_cursor(Some(egui::Align::TOP));
+                }
                 kit::section(ui, "settings-ai", "AI", true, None, |ui| {
                     self.ai.ui(ui);
                 });

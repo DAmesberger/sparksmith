@@ -52,6 +52,9 @@ pub const MAX_MESSAGE_BYTES: usize = 16 * 1024;
 /// The most files one message carries.
 pub const MAX_MESSAGE_FILES: usize = 16;
 
+/// The button of the chat's not-connected state.
+pub const CONNECT: &str = "Connect a model…";
+
 /// Which edge the column docks at.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Dock {
@@ -81,6 +84,8 @@ pub enum Action {
     Card(crate::workflow_cards::CardAction),
     /// The `/` menu chose a workflow; its card is in the transcript.
     Offered(String),
+    /// Connect a model…: Settings › AI › Connection.
+    ConnectModel,
 }
 
 /// The turn a message opened: its handle, its undo label, and the document
@@ -157,6 +162,9 @@ pub struct Assistant {
     /// Settings › AI's rules per kind of action, read when a message is
     /// sent; Always allow on a card changes them there.
     pub permissions: Option<sparksmith_assist::settings::Permissions>,
+    /// Whether the chat has looked, since it opened or Settings › AI
+    /// saved a connection, that a model is connected.
+    pub setup_checked: bool,
 }
 
 impl Default for Assistant {
@@ -183,6 +191,7 @@ impl Default for Assistant {
             expanded: HashSet::new(),
             allowed_session: HashSet::new(),
             permissions: None,
+            setup_checked: false,
         }
     }
 }
@@ -335,8 +344,23 @@ impl Assistant {
                 }
             });
         });
-        if let State::NotSetUp(why) | State::Error(why) = &self.conversation.state {
-            kit::refusal_wrapped(ui, why);
+        match &self.conversation.state {
+            State::NotSetUp(why) => {
+                // One way on: the button that opens where the key goes.
+                kit::note(ui, why);
+                kit::actions(ui, |ui| {
+                    if kit::primary(ui, CONNECT, true)
+                        .on_hover_text("Choose a model and paste its API key in Settings › AI")
+                        .clicked()
+                    {
+                        actions.push(Action::ConnectModel);
+                    }
+                });
+            }
+            State::Error(why) => {
+                kit::refusal_wrapped(ui, why);
+            }
+            _ => {}
         }
     }
 
