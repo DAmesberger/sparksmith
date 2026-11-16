@@ -1,4 +1,4 @@
-//! Run profiles in the loop: Claude's keeps today's prompt and tools, and a
+//! Run profiles in the loop: Claude's keeps the base prompt and the six verbs, and a
 //! call refused again and again is named to the model, then ends the run.
 use super::*;
 
@@ -8,13 +8,21 @@ fn a_repeated_refused_call_is_named_then_ends_the_run() -> Fallible {
     let config = local_config(131_072)?;
     // Applying with nothing previewed is refused; the model sends it
     // unchanged, as a local model once did 54 times.
-    let apply = || chat_call("a", "library_pinout_apply", r#"{"base": "12"}"#);
+    let apply = || {
+        chat_call(
+            "a",
+            "apply",
+            r#"{"expected_revision": 0, "operations": [{"op": "assist.pinout_apply", "params": {"base": "12"}}]}"#,
+        )
+    };
     let mut backend = openai(vec![apply(), apply(), apply(), apply()], &config);
     let mut session = profiled_session();
     let (outcome, log) = run_with(&config, &mut backend, text_datasheet(&dir)?, &mut session)?;
     assert_eq!(
         outcome.stop,
-        Stop::Repeated("the model sent the same refused library_pinout_apply call 3 times".into()),
+        Stop::Repeated(
+            "the model sent the same refused apply assist.pinout_apply call 3 times".into()
+        ),
         "{log:?}"
     );
     assert_eq!(outcome.facts.requests, 3);
@@ -39,8 +47,18 @@ fn a_call_that_succeeds_between_refusals_starts_the_count_again() -> Fallible {
     // that succeeds in between means something may have changed.
     let dir = tempfile::tempdir()?;
     let config = local_config(131_072)?;
-    let apply = || chat_call("a", "library_pinout_apply", r#"{"base": "12"}"#);
-    let edit = chat_call("e", "library_pinout_edit", r#"{"format": 1}"#);
+    let apply = || {
+        chat_call(
+            "a",
+            "apply",
+            r#"{"expected_revision": 0, "operations": [{"op": "assist.pinout_apply", "params": {"base": "12"}}]}"#,
+        )
+    };
+    let edit = chat_call(
+        "e",
+        "query",
+        r#"{"name": "assist.pinout_edit", "params": {"format": 1}}"#,
+    );
     let mut backend = openai(
         vec![apply(), edit, apply(), apply(), apply(), apply()],
         &config,
@@ -73,10 +91,6 @@ fn claude_runs_with_the_base_prompt_and_every_tool() -> Fallible {
         .iter()
         .filter_map(|t| t["name"].as_str())
         .collect();
-    let all = crate::tools::definitions();
-    assert_eq!(
-        names,
-        all.iter().map(|t| t.name.as_str()).collect::<Vec<_>>()
-    );
+    assert_eq!(names, crate::verbs::NAMES);
     Ok(())
 }

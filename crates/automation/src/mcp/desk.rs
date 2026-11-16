@@ -79,6 +79,45 @@ pub struct Desk {
     projects: Projects,
 }
 
+/// Where the verbs' calls run ([`super::tools::dispatch`]): the MCP
+/// server's desk, or one session in process for the built-in agent
+/// (`sparksmith-assist`). Each answers in the transport envelope
+/// (`{"ok", "result"}` or `{"ok": false, "error"}`).
+pub trait Calls {
+    /// Runs `call` on `project` (the only one when `None`).
+    fn call(&mut self, project: Option<&str>, call: Call) -> Value;
+    /// Runs a call about the catalog, which no project changes.
+    fn catalog(&mut self, call: Call) -> Value;
+    /// Runs `project.new` or `project.open`.
+    fn open(&mut self, call: Call) -> Value;
+    /// Whether the calls run in an open window.
+    fn is_live(&self) -> bool;
+    /// Whether this caller's grant can reach `entry` at all: `find` lists
+    /// only those. Every reachable entry by default; the gate decides each
+    /// call either way.
+    fn reaches(&self, _entry: &crate::session::metadata::EntryMeta) -> bool {
+        true
+    }
+}
+
+impl Calls for Desk {
+    fn call(&mut self, project: Option<&str>, call: Call) -> Value {
+        Desk::call(self, project, call)
+    }
+
+    fn catalog(&mut self, call: Call) -> Value {
+        Desk::catalog(self, call)
+    }
+
+    fn open(&mut self, call: Call) -> Value {
+        Desk::open(self, call)
+    }
+
+    fn is_live(&self) -> bool {
+        Desk::is_live(self)
+    }
+}
+
 impl Desk {
     /// Starts the thread that owns `session`, the first project, and the
     /// ones opened later from `new_session`, all gated under `policy`. It

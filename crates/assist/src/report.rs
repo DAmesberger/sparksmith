@@ -4,11 +4,40 @@
 //! tokens, drafts, findings), written as JSON and Markdown beside the
 //! project.
 use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 pub use sparksmith_automation::review::{
     Citation, Confidence, ExtractedValue, MAX_TEXT, MAX_VALUES, ReviewReport, SourceDocument,
 };
 use sparksmith_automation::review::{cell, report_markdown};
 use std::fmt::Write;
+
+/// Findings listed per draft.
+const MAX_FINDINGS: usize = 40;
+
+/// Each draft of a snapshot as id, kind, name, publishable and findings.
+pub fn drafts(snapshot: &Value) -> Vec<Value> {
+    snapshot["drafts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|d| {
+            let findings: Vec<Value> = d["check"]["result"]["findings"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .take(MAX_FINDINGS)
+                .map(|f| json!({"code": f["code"], "message": f["message"], "blocks": f["blocks"]}))
+                .collect();
+            json!({
+                "id": d["draft"]["id"],
+                "kind": d["draft"]["definition"]["kind"],
+                "name": d["draft"]["meta"]["name"],
+                "publishable": d["check"]["result"]["publishable"],
+                "findings": findings,
+            })
+        })
+        .collect()
+}
 
 /// What the runner adds to the model's report.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
@@ -110,7 +139,7 @@ pub(crate) fn finish_facts(
             _ => None,
         })
         .unwrap_or_default();
-    for d in crate::tools::drafts(&snapshot) {
+    for d in drafts(&snapshot) {
         let id = d["id"].as_u64().unwrap_or(0);
         facts.drafts.push((
             id,

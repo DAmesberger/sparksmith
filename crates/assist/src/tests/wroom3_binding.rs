@@ -1,7 +1,8 @@
 //! The second live run's binding fault, reproduced without network: the
 //! model imported the ESP32-S31-WROOM-3 pinout with the power, ground and
 //! NC rows first, so the import's package terminals were in that order;
-//! `library_package_from_template` then reused them by list order and
+//! `library_package_from_template` (now `library.package_from_generator`,
+//! which a replay of that run reaches) then reused them by list order and
 //! renumbered them from the module form (counter-clockwise rows 1–94,
 //! EPAD 95, corner pads 96–99), so pad 6 landed a GND row and the model
 //! had to re-key all 99 mappings with `library_edit`. The terminals now
@@ -69,45 +70,35 @@ struct Built {
 }
 
 /// Imports `document` and builds the module package with `terminals`
-/// (`None`: the request's default), through the assistant's tools.
+/// (`None`: the request's default), with the recorded tool calls as a
+/// replay runs them (through the verbs).
 fn build(document: &Value, terminals: Option<&str>) -> Fallible<Built> {
     let mut session = profiled_session();
-    let mut workspace = tools::Workspace::default();
     let preview =
         json!({"target": {"target": "new", "name": "ESP32-S31-WROOM-3"}, "document": document});
-    let plan = reply_json(execute_open(
+    let plan = legacy_call(&mut session, "library_pinout_preview", &preview)?;
+    legacy_call(
         &mut session,
-        &mut workspace,
-        "library_pinout_preview",
-        &preview,
-    ))?;
-    let applied = reply_json(execute_open(
-        &mut session,
-        &mut workspace,
         "library_pinout_apply",
         &json!({"base": plan["base"]}),
-    ))?;
-    let package = applied["drafts"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .find(|d| d["kind"] == "package")
-        .map(|d| d["id"].clone())
+    )?;
+    let package = session
+        .engine()
+        .drafts()
+        .items
+        .iter()
+        .find(|d| matches!(d.definition, Definition::Package(_)))
+        .map(|d| json!(d.id))
         .ok_or("a package draft")?;
     let mut request = reference_input("library_package_from_template")?;
     request["request"]["draft"] = package;
     if let Some(strategy) = terminals {
         request["request"]["terminals"] = json!(strategy);
     }
-    let outcome = reply_json(execute_open(
-        &mut session,
-        &mut workspace,
-        "library_package_from_template",
-        &request,
-    ))?;
+    let outcome = legacy_call(&mut session, "library_package_from_template", &request)?;
     Ok(Built {
         session,
-        plan: outcome["outcome"]["plan"].clone(),
+        plan: outcome["outcomes"][0]["plan"].clone(),
     })
 }
 
@@ -208,7 +199,7 @@ fn the_wroom3_module_binds_every_pad_by_number_whatever_the_row_order() -> Falli
     assert_eq!(name_of("95"), Some("GND"));
 
     // The drafts' own checks agree: no binding finding remains.
-    let drafts: Vec<Value> = tools::drafts(&session.snapshot());
+    let drafts: Vec<Value> = crate::report::drafts(&session.snapshot());
     for draft in &drafts {
         for finding in draft["findings"].as_array().into_iter().flatten() {
             let code = finding["code"].as_str().unwrap_or_default();

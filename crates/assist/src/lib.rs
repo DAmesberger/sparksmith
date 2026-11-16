@@ -1,12 +1,16 @@
 //! AI-assisted component design from datasheets, on any configured model.
 //!
-//! A run gives a model the datasheets and a goal with the Sparksmith tool set
-//! ([`tools`]) and executes every tool call in-process against an automation
-//! [`Session`]: the same typed requests and command engine the MCP server,
-//! CLI and desktop use. The run ends with drafts in the session and a
-//! [`report::ReviewReport`] (every value with its page and table, confidence
-//! and open questions). Nothing is published: the drafts carry the import
-//! review state and wait for a person.
+//! A run gives a model the datasheets and a goal with the six verbs MCP
+//! serves ([`verbs`]: `find`, `describe`, `query`, `apply`, `act`, `show`)
+//! and runs every call in process through the front door of an automation
+//! [`Session`] as the built-in agent, held to the run's reach profile
+//! ([`profile::ReachProfile`]): the same catalog, gate and engine the MCP
+//! server, CLI and desktop use. The run ends when the review check accepts
+//! the model's [`report::ReviewReport`] (every value with its page and
+//! table, confidence and open questions), with drafts in the session.
+//! Nothing is published: the drafts carry the import review state and wait
+//! for a person, and the reach profile keeps publishing, files and settings
+//! out of reach.
 //!
 //! The model layer ([`model`]) is provider-neutral: a conversation of
 //! messages, tool calls and results, images and documents; capabilities
@@ -24,13 +28,14 @@
 //! This crate sits above `sparksmith-automation` and below the apps
 //! (`cargo xtask layers`); the HTTP client stays out of the core.
 pub mod documents;
+pub mod legacy;
 pub mod model;
 pub mod pins;
 pub mod profile;
 pub mod report;
 mod run;
-pub mod tools;
 pub mod usage;
+pub mod verbs;
 pub mod workflow;
 
 use report::{ReviewReport, RunFacts};
@@ -40,7 +45,7 @@ use std::path::PathBuf;
 
 pub use documents::{MAX_DATASHEET_BYTES, TOKENS_PER_PAGE, pdf_pages};
 pub use profile::AssistLibrary;
-pub use run::{RunConfig, output_policy, run};
+pub use run::{MAX_RESULT_CHARS, RunConfig, run};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

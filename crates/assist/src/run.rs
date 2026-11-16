@@ -1,18 +1,23 @@
-//! The tool loop of a run, on any backend: a goal, a tool set, a budget,
-//! events and a recording. Every tool call goes through [`dispatch_tool_call`],
-//! the one place a permission gate belongs.
-use crate::documents::{self, PageStore, Prepared, VIEW_PAGE_TOOL};
+//! The tool loop of a run, on any backend: a goal, the six verbs, a budget,
+//! events and a recording. Every tool call goes through
+//! [`dispatch_tool_call`] into the verbs ([`crate::verbs`]), and so through
+//! the front door and its gate as the built-in agent.
+//!
+//! The run ends when the review check (`query library.review_check`)
+//! accepts the model's report: that report is the run's.
+use crate::documents::{self, Prepared};
 use crate::model::{
     Budget, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason,
     appended_chars,
 };
-use crate::profile::{AssistLibrary, RunProfile};
+use crate::profile::{AssistLibrary, ReachProfile, RunProfile};
 use crate::report::{self, RequestFacts, ReviewReport, RunFacts};
-use crate::tools::{self, ToolOutcome};
 use crate::usage::Tally;
-use crate::{Error, Event, Goal, Outcome, Result, Stop};
-use serde_json::Value;
-use sparksmith_automation::{Grant, Mode, Session};
+use crate::verbs::{self, Agent};
+use crate::{Error, Event, Goal, Outcome, Result, Stop, legacy};
+use serde_json::{Value, json};
+use sparksmith_automation::session::assist::Documents;
+use sparksmith_automation::{Grant, Session};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
@@ -25,6 +30,9 @@ const MAX_CUTS_IN_A_ROW: u32 = 3;
 /// Least room for output worth sending a request: a tool call took 806 tokens
 /// on a local model, reasoning included, and even that was a simple one.
 const MIN_OUTPUT_ROOM: u64 = 4_000;
+/// Characters of one tool result sent back; longer results are cut with a
+/// note (the model can ask for a narrower view).
+pub const MAX_RESULT_CHARS: usize = 120_000;
 /// Characters per token of what the conversation grows by, for the estimate.
 const CHARS_PER_TOKEN: u64 = 3;
 /// Added to the estimate of the next prompt.
@@ -40,9 +48,9 @@ pub struct RunConfig {
     /// ([`AssistLibrary::system`]).
     pub base_prompt: String,
     pub budget: Budget,
-    /// What the run's tool calls may do: every call goes through the gate
-    /// with it. The hosts give it the output folder as its only folder.
-    pub policy: Grant,
+    /// What the run may reach: the catalog filter whose modules are the
+    /// grant the gate holds every call to ([`ReachProfile`]).
+    pub reach: ReachProfile,
 }
 
 impl RunConfig {
@@ -62,7 +70,7 @@ impl RunConfig {
             run_profile,
             base_prompt: shipped.system.clone(),
             budget: Budget::default(),
-            policy: Grant::default(),
+            reach: shipped.reach.clone(),
         })
     }
 
@@ -77,73 +85,230 @@ impl RunConfig {
     }
 }
 
-/// The default policy of a run: edits run inside its turn, files and
-/// publishing are refused (there is no one to ask yet), and the folder the
-/// run writes its project to is the only folder a request may name.
-pub fn output_policy(out: &std::path::Path) -> Result<Grant> {
-    let folder = match out.parent() {
-        Some(p) if !p.as_os_str().is_empty() => p.to_path_buf(),
-        _ => std::path::PathBuf::from("."),
-    };
-    let folder = std::path::absolute(&folder)?;
-    Ok(Grant::new(Mode::AutoAllowEdits, [folder]))
+/// What a tool call produced.
+#[derive(Debug)]
+pub(crate) enum ToolOutcome {
+    /// Text for the model, whether it is an error, and a one-line step
+    /// for the run log when the call changed the document.
+    Reply {
+        text: String,
+        error: bool,
+        step: Option<String>,
+        /// Images that go with the text (a rendered datasheet page).
+        images: Vec<Image>,
+    },
+    /// The review check accepted the model's report: the run is complete.
+    Report(Box<ReviewReport>),
 }
 
 /// What tools act on during a run.
 struct ToolContext<'a> {
     session: &'a mut Session,
-    policy: &'a Grant,
-    workspace: tools::Workspace,
-    pages: PageStore,
+    grant: Grant,
+    reach: &'a ReachProfile,
+    /// The replies call the tools of before the verbs ([`legacy`]).
+    legacy: bool,
     /// Reported in the review: which document's pages the model looked at.
     facts: Vec<documents::DocumentFacts>,
 }
 
 /// One tool call, whatever the model asked: the one door between a model and
-/// the session. A call whose arguments could not be read never runs; its
-/// error goes back so the model can send it again.
+/// the session, answering with the label the run log gives the call. A call
+/// whose arguments could not be read never runs; its error goes back so the
+/// model can send it again.
 fn dispatch_tool_call(
     context: &mut ToolContext<'_>,
     name: &str,
     input: &Value,
     malformed: Option<&str>,
-) -> ToolOutcome {
+) -> (String, ToolOutcome) {
     if let Some(why) = malformed {
-        return ToolOutcome::Reply {
-            text: format!("This call was not run: {why}. Send it again with valid arguments."),
-            error: true,
-            step: None,
-            images: Vec::new(),
-        };
-    }
-    if name == VIEW_PAGE_TOOL && context.pages.available() {
-        return match context.pages.view(input) {
-            Ok(view) => {
-                if let Some(facts) = context.facts.get_mut(view.facts) {
-                    facts.pages_viewed.push(view.page);
-                }
-                ToolOutcome::Reply {
-                    text: view.text,
-                    error: false,
-                    step: None,
-                    images: vec![view.image],
-                }
-            }
-            Err(why) => ToolOutcome::Reply {
-                text: why,
+        return (
+            name.to_owned(),
+            ToolOutcome::Reply {
+                text: format!("This call was not run: {why}. Send it again with valid arguments."),
                 error: true,
                 step: None,
                 images: Vec::new(),
             },
-        };
+        );
     }
-    tools::execute(
-        context.session,
-        context.policy,
-        &mut context.workspace,
-        name,
-        input,
-    )
+    let (verb, arguments, label) = if verbs::NAMES.contains(&name) {
+        (name, input.clone(), label(name, input))
+    } else {
+        let translated = if context.legacy {
+            legacy::translate(context.session, name, input)
+        } else {
+            None
+        };
+        match translated {
+            Some(Ok((verb, arguments))) => (verb, arguments, name.to_owned()),
+            Some(Err(why)) => {
+                return (name.to_owned(), reply(json!({"refused": why}), true, None));
+            }
+            None => {
+                let refused = agent(context).verb(name, input.clone());
+                return (name.to_owned(), reply(refused["error"].clone(), true, None));
+            }
+        }
+    };
+    let before = context.session.engine().revision();
+    let answer = agent(context).verb(verb, arguments.clone());
+    let after = context.session.engine().revision();
+    if answer["ok"] != true {
+        return (label, reply(answer["error"].clone(), true, None));
+    }
+    let mut result = answer["result"].clone();
+    let entry = arguments["name"].as_str().unwrap_or_default();
+    if verb == verbs::QUERY && entry == "library.review_check" {
+        return (label, review(&arguments, result));
+    }
+    if verb == verbs::QUERY && entry == "assist.document_page" {
+        let mut images = Vec::new();
+        if let Some(image) = result.as_object_mut().and_then(|r| r.remove("image")) {
+            images.push(Image {
+                media_type: image["media_type"].as_str().unwrap_or_default().to_owned(),
+                data: image["data"].as_str().unwrap_or_default().to_owned(),
+            });
+        }
+        let viewed = context
+            .facts
+            .iter_mut()
+            .find(|f| result["document"].as_str() == Some(f.title.as_str()));
+        if let (Some(facts), Some(page)) = (viewed, result["page"].as_u64()) {
+            facts
+                .pages_viewed
+                .push(u32::try_from(page).unwrap_or(u32::MAX));
+        }
+        let text = result["text"].as_str().unwrap_or_default().to_owned();
+        return (
+            label,
+            ToolOutcome::Reply {
+                text,
+                error: false,
+                step: None,
+                images,
+            },
+        );
+    }
+    let step = (after != before).then(|| {
+        format!(
+            "{label}: revision {after} ({})",
+            summary(result.get("outcome").unwrap_or(&result["outcomes"][0]))
+        )
+    });
+    (label, reply(result, false, step))
+}
+
+fn agent<'a>(context: &'a mut ToolContext<'_>) -> Agent<'a> {
+    Agent {
+        session: context.session,
+        grant: &context.grant,
+        reach: context.reach,
+    }
+}
+
+/// How the run log names a verb call: the verb and the entries it names.
+fn label(verb: &str, input: &Value) -> String {
+    let names: Vec<&str> = if verb == verbs::APPLY {
+        input["operations"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|step| step["op"].as_str())
+            .collect()
+    } else {
+        input["name"].as_str().into_iter().collect()
+    };
+    if names.is_empty() {
+        verb.to_owned()
+    } else {
+        format!("{verb} {}", names.join(", "))
+    }
+}
+
+/// The review check's answer: the report when it was accepted, else the
+/// problems as a refusal the model reads.
+fn review(arguments: &Value, result: Value) -> ToolOutcome {
+    if result["accepted"] != true {
+        return reply(result, true, None);
+    }
+    let mut params = arguments["params"].clone();
+    if sparksmith_automation::mcp::lenient::read_params("library.review_check", &mut params)
+        .is_err()
+    {
+        return reply(result, true, None);
+    }
+    match serde_json::from_value::<ReviewReport>(params["report"].clone()) {
+        Ok(report) => ToolOutcome::Report(Box::new(report)),
+        Err(e) => reply(
+            json!({"refused": format!("not a review report: {e}")}),
+            true,
+            None,
+        ),
+    }
+}
+
+fn reply(mut value: Value, error: bool, step: Option<String>) -> ToolOutcome {
+    integers_as_text(&mut value);
+    let mut text = value.to_string();
+    if text.len() > MAX_RESULT_CHARS {
+        let mut end = MAX_RESULT_CHARS;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+        text.push_str("… [cut: the result exceeded the tool reply limit; ask for a narrower view]");
+    }
+    ToolOutcome::Reply {
+        text,
+        error,
+        step,
+        images: Vec::new(),
+    }
+}
+
+/// Largest integer a JSON reader that parses numbers as doubles keeps exact.
+const MAX_EXACT_INTEGER: u64 = 1 << 53;
+
+/// Integers beyond [`MAX_EXACT_INTEGER`] as text, so a model (or a server
+/// that parses JSON numbers as doubles) can't round them: a model once
+/// copied a preview's 19-digit base as a float and was refused 54 times.
+/// The verbs read such text back as the integer.
+fn integers_as_text(value: &mut Value) {
+    match value {
+        Value::Number(n) => {
+            let big = n.as_u64().is_some_and(|v| v > MAX_EXACT_INTEGER)
+                || n.as_i64()
+                    .is_some_and(|v| v.unsigned_abs() > MAX_EXACT_INTEGER);
+            if big {
+                *value = Value::String(n.to_string());
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(integers_as_text),
+        Value::Object(map) => map.values_mut().for_each(integers_as_text),
+        _ => {}
+    }
+}
+
+/// A short description of an outcome for the run log: its keys, and how
+/// a package replacement matched the terminals.
+fn summary(outcome: &Value) -> String {
+    match outcome {
+        Value::Object(map) => {
+            let keys = map.keys().take(4).cloned().collect::<Vec<_>>().join(", ");
+            match map
+                .get("plan")
+                .and_then(|p| p["terminals"]["summary"].as_str())
+            {
+                Some(terminals) => format!("{keys}; {terminals}"),
+                None => keys,
+            }
+        }
+        Value::String(s) => s.clone(),
+        Value::Null => "changed".into(),
+        other => other.to_string().chars().take(80).collect(),
+    }
 }
 
 /// The first request's message: datasheets, then the goal. `note` tells a
@@ -205,10 +370,7 @@ pub fn run(
             "the run has no system prompt: the shipped base prompt was not loaded".into(),
         ));
     }
-    let mut specs = tools::definitions();
-    if prepared.pages.available() {
-        specs.push(prepared.pages.tool());
-    }
+    let mut specs = verbs::tools();
     specs.retain(|t| !run_profile.omit_tools.contains(&t.name));
     let tool_chars = serde_json::to_string(&specs)?.len() as u64;
     // Without a count: the documents, the tools and the system prompt.
@@ -218,11 +380,14 @@ pub fn run(
         .saturating_add(ESTIMATE_MARGIN);
     preflight(config, &prepared, first_estimate)?;
     let mut messages = vec![first_message(goal, &prepared)];
+    session.ensure_generators();
+    let lent: Box<dyn Documents> = Box::new(std::mem::take(&mut prepared.pages));
+    let attached = session.attach_documents(Some(lent));
     let mut context = ToolContext {
         session,
-        policy: &config.policy,
-        workspace: tools::Workspace::default(),
-        pages: std::mem::take(&mut prepared.pages),
+        grant: config.reach.grant(),
+        reach: &config.reach,
+        legacy: backend.legacy_tools(),
         facts: std::mem::take(&mut prepared.facts),
     };
     let mut tally = Tally::default();
@@ -397,9 +562,9 @@ pub fn run(
             if was_cut || nudges < MAX_NUDGES {
                 nudges += 1;
                 let text = if was_cut {
-                    "Your reply was cut off at the output limit. Continue with smaller steps (pin rows in chunks of at most 40 with library_pinout_edit)."
+                    "Your reply was cut off at the output limit. Continue with smaller steps (pin rows in chunks of at most 40 with assist.pinout_edit)."
                 } else {
-                    "Continue with the tools; finish with submit_review."
+                    "Continue with the tools; finish with query library.review_check."
                 };
                 appended += text.len() as u64;
                 messages.push(Message {
@@ -425,19 +590,20 @@ pub fn run(
                 });
                 results.push(result(
                     id,
-                    "Cut off at the output limit before this call was complete; send it again in smaller pieces (pin rows in chunks of at most 40 with library_pinout_edit; preview and apply take no document).",
+                    "Cut off at the output limit before this call was complete; send it again in smaller pieces (pin rows in chunks of at most 40 with assist.pinout_edit; assist.pinout_preview and assist.pinout_apply take no document).",
                     true,
                     Vec::new(),
                 ));
                 continue;
             }
-            let outcome = dispatch_tool_call(&mut context, &name, &input, malformed.as_deref());
+            let (label, outcome) =
+                dispatch_tool_call(&mut context, &name, &input, malformed.as_deref());
             if let Some(r) = logged {
                 let failed = matches!(outcome, ToolOutcome::Reply { error: true, .. });
                 r.tools.push(if failed {
-                    format!("{name}!")
+                    format!("{label}!")
                 } else {
-                    name.clone()
+                    label.clone()
                 });
             }
             match outcome {
@@ -463,7 +629,7 @@ pub fn run(
                         refused.clear();
                     } else {
                         let seen = refused
-                            .entry((name.clone(), input.to_string()))
+                            .entry((label.clone(), input.to_string()))
                             .or_insert(0);
                         *seen += 1;
                         if *seen > 1 {
@@ -473,7 +639,7 @@ pub fn run(
                         }
                         if *seen >= run_profile.harness.repeat_limit && repeated.is_none() {
                             repeated = Some(format!(
-                                "the model sent the same refused {name} call {seen} times"
+                                "the model sent the same refused {label} call {seen} times"
                             ));
                         }
                     }
@@ -504,6 +670,7 @@ pub fn run(
     facts.elapsed_seconds = started.elapsed().as_secs_f64();
     facts.documents = std::mem::take(&mut context.facts);
     let session = context.session;
+    session.attach_documents(attached);
     report::finish_facts(&mut facts, &tally, &stop, session);
     Ok(Outcome {
         report,

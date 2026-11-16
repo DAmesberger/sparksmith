@@ -46,7 +46,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "library",
-        (3, 1),
+        (3, 2),
         "Library",
         "Component definitions, drafts, publishing, folders, updates and pinout import.",
     ),
@@ -70,6 +70,11 @@ pub const MODULES: &[ModuleDecl] = &[
         "model3d",
         "3D model",
         "The exact 3D export, the board interface, the assembly link and part files.",
+    ),
+    module(
+        "assist",
+        "Assistant",
+        "Documents attached to an assistant run and its working pinout documents.",
     ),
 ];
 

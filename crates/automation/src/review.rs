@@ -91,8 +91,8 @@ pub struct ReviewReport {
 
 impl ReviewReport {
     /// Bounds every report must meet: text sizes, listed sources, and a
-    /// listed document and a page for every value. The in-app assistant's
-    /// `submit_review` refuses a report with any of these.
+    /// listed document and a page for every value. `library.review_check`
+    /// refuses a report with any of these.
     pub fn problems(&self) -> Vec<String> {
         let mut out = Vec::new();
         let long = |s: &str| s.len() > MAX_TEXT;

@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "datasheet-part",
+  "about": "What the datasheet-to-component run may reach: reads of the project and its checks, edits of the library's drafts, generators and part files, and its own attached documents and working pinout documents. A module left out is out of reach, and so is every entry above its module's class here: publishing (an ask) is. No entry that touches files, settings, the network, the window or a plugin runtime is reached, because reach lists none.",
+  "modules": {
+    "project": "read",
+    "checks": "read",
+    "library": "edit",
+    "generators": "edit",
+    "model3d": "edit",
+    "assist": "read"
+  },
+  "reach": []
+}

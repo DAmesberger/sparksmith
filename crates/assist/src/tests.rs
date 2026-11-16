@@ -1,15 +1,16 @@
 //! The tool loop against recorded responses of both backends (no network): an original
-//! synthetic radio module, EXR-22, authored end to end through the tools,
-//! and the caps, cancellation and refusal paths.
+//! synthetic radio module, EXR-22, authored end to end through the six
+//! verbs, the run's reach profile, and the caps, cancellation and refusal
+//! paths.
 use super::*;
 use crate::documents::Delivery;
 use crate::model::anthropic::AnthropicBackend;
 use crate::model::openai::OpenAiBackend;
 use crate::model::wire::ScriptedWire;
 use crate::model::{ModelBackend, ModelProfile};
-use crate::tools::ToolOutcome;
+use crate::profile::ReachProfile;
+use crate::verbs::{self, Agent};
 use serde_json::Value;
-use sparksmith_automation::{Grant, Mode};
 use std::sync::atomic::AtomicBool;
 
 /// A session on a board with the test fixture fab profile: the estimated
@@ -91,23 +92,47 @@ fn tool_turn(id: &str, name: &str, input: Value) -> Value {
         "usage": {"input_tokens": 500, "output_tokens": 1_000, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 50_000}})
 }
 
-/// A tool call under the default policy (edits run, no folders).
-fn execute_open(
-    session: &mut Session,
-    workspace: &mut tools::Workspace,
-    name: &str,
-    input: &Value,
-) -> ToolOutcome {
-    tools::execute(session, &Grant::default(), workspace, name, input)
+/// The shipped datasheet run's reach profile.
+fn reach() -> Fallible<ReachProfile> {
+    Ok(crate::AssistLibrary::locate()?.reach)
 }
 
-fn reply_json(outcome: ToolOutcome) -> Fallible<Value> {
-    match outcome {
-        ToolOutcome::Reply {
-            text, error: false, ..
-        } => Ok(serde_json::from_str(&text)?),
-        other => Err(format!("unexpected tool outcome {other:?}").into()),
+/// The verb `name` with `input` on `session`, as a run under `reach` calls
+/// it: the transport envelope.
+fn verb_as(session: &mut Session, reach: &ReachProfile, name: &str, input: Value) -> Value {
+    let grant = reach.grant();
+    Agent {
+        session,
+        grant: &grant,
+        reach,
     }
+    .verb(name, input)
+}
+
+/// The verb's result under the shipped reach profile, or why it failed.
+fn verb(session: &mut Session, name: &str, input: Value) -> Fallible<Value> {
+    let reply = verb_as(session, &reach()?, name, input);
+    if reply["ok"] == true {
+        Ok(reply["result"].clone())
+    } else {
+        Err(format!("{name}: {reply}").into())
+    }
+}
+
+/// A recorded call of a tool of before the verbs, as a replay runs it: read
+/// as its verb call ([`crate::legacy`]), then through the verbs.
+fn legacy_call(session: &mut Session, tool: &str, input: &Value) -> Fallible<Value> {
+    let (name, arguments) =
+        crate::legacy::translate(session, tool, input).ok_or("an old tool")??;
+    verb(session, name, arguments)
+}
+
+fn query(entry: &str, params: Value) -> Value {
+    json!({"name": entry, "params": params})
+}
+
+fn apply(revision: u64, entry: &str, params: Value) -> Value {
+    json!({"expected_revision": revision, "operations": [{"op": entry, "params": params}]})
 }
 
 /// The recorded responses of a complete run on an empty project.
@@ -115,14 +140,18 @@ fn script() -> Fallible<Vec<Value>> {
     script_on(profiled_session())
 }
 
-/// The recorded responses of a complete run, made against a shadow
-/// session (a copy of the project the run will work on) so the inputs
-/// carry the real plan base and draft IDs.
+/// The recorded responses of a complete run through the verbs, made
+/// against a shadow session (a copy of the project the run will work on)
+/// so the inputs carry the real revisions, plan base and draft IDs: the
+/// method of the shipped prompt, the same as an MCP client's.
 fn script_on(mut shadow: Session) -> Fallible<Vec<Value>> {
-    let target = json!({"target": "new", "name": "EXR-22"});
+    shadow.ensure_generators();
     let doc = pinout();
-    let mut workspace = tools::Workspace::default();
-    let mut out = vec![tool_turn("t1", "library_pinout_schema", json!({}))];
+    let mut out = vec![tool_turn(
+        "t1",
+        "query",
+        query("library.pinout_schema", json!({})),
+    )];
     // The document in two chunks: header, peripherals and the first rows;
     // then the remaining rows and the rules.
     let pins = doc["pins"].as_array().ok_or("pins")?;
@@ -133,64 +162,84 @@ fn script_on(mut shadow: Session) -> Fallible<Vec<Value>> {
         json!({"pins": rest, "rules": doc["rules"]}),
     ];
     for (k, chunk) in chunks.into_iter().enumerate() {
-        reply_json(execute_open(
-            &mut shadow,
-            &mut workspace,
-            "library_pinout_edit",
-            &chunk,
-        ))?;
-        out.push(tool_turn(&format!("t2{k}"), "library_pinout_edit", chunk));
+        let input = query("assist.pinout_edit", chunk);
+        verb(&mut shadow, "query", input.clone())?;
+        out.push(tool_turn(&format!("t2{k}"), "query", input));
     }
-    let preview_input = json!({"target": target});
-    let plan = reply_json(execute_open(
-        &mut shadow,
-        &mut workspace,
-        "library_pinout_preview",
-        &preview_input,
-    ))?;
-    out.push(tool_turn("t2", "library_pinout_preview", preview_input));
-    let apply_input = json!({"base": plan["base"]});
-    let applied = reply_json(execute_open(
-        &mut shadow,
-        &mut workspace,
-        "library_pinout_apply",
-        &apply_input,
-    ))?;
-    out.push(tool_turn("t3", "library_pinout_apply", apply_input));
-    let id_of = |kind: &str| {
-        applied["drafts"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .find(|d| {
-                d["kind"] == kind && d["name"].as_str().is_some_and(|n| n.starts_with("EXR-22"))
-            })
-            .map(|d| d["id"].clone())
-            .ok_or_else(|| format!("no {kind} draft: {applied}"))
-    };
-    let package = id_of("package")?;
-    let component = id_of("component")?;
-    let request = json!({"request": {"draft": package, "row": {"source": "custom", "family": "module"}, "values": module_values()}});
-    reply_json(execute_open(
-        &mut shadow,
-        &mut workspace,
-        "library_package_plan",
-        &request,
-    ))?;
-    out.push(tool_turn("t4", "library_package_plan", request.clone()));
-    out.push(tool_turn("t5", "library_package_from_template", request));
+    // The module generator makes the part; its drafts are the working set.
+    let generate = apply(
+        shadow.engine().revision(),
+        "library.generate_part",
+        json!({"generator": "module", "scope": "component", "name": "EXR-22",
+            "params": crate::legacy::module_params(&module_values())}),
+    );
+    let made = verb(&mut shadow, "apply", generate.clone())?;
+    out.push(tool_turn("t3", "apply", generate));
+    let root = &made["outcome"]["report"]["root"];
+    let closure = apply(
+        shadow.engine().revision(),
+        "library.draft_closure",
+        json!({"component": {"id": root["id"], "revision": root["revision"]}}),
+    );
+    let before: Vec<_> = shadow
+        .engine()
+        .drafts()
+        .items
+        .iter()
+        .map(|d| d.id)
+        .collect();
+    verb(&mut shadow, "apply", closure.clone())?;
+    out.push(tool_turn("t4", "apply", closure));
+    let component = shadow
+        .engine()
+        .drafts()
+        .items
+        .iter()
+        .filter(|d| !before.contains(&d.id))
+        .find(|d| {
+            matches!(
+                d.definition,
+                sparksmith_core::library::Definition::Component(_)
+            )
+        })
+        .map(|d| json!(d.id))
+        .ok_or("a component draft")?;
+    let preview = query(
+        "assist.pinout_preview",
+        json!({"target": {"target": "draft", "id": component}}),
+    );
+    verb(&mut shadow, "query", preview.clone())?;
+    out.push(tool_turn("t5", "query", preview));
+    let import = apply(shadow.engine().revision(), "assist.pinout_apply", json!({}));
+    verb(&mut shadow, "apply", import.clone())?;
+    out.push(tool_turn("t6", "apply", import));
     out.push(tool_turn(
-        "t6",
-        "library_set_marking",
-        json!({"draft": component,
-        "marking": {"items": [{"item": "text", "template": "EXR-22"}]}}),
+        "t7",
+        "apply",
+        apply(
+            shadow.engine().revision(),
+            "library.set_marking",
+            json!({"draft": component,
+                "marking": {"items": [{"item": "text", "template": "EXR-22"}]}}),
+        ),
     ));
-    out.push(tool_turn("t7", "component_check_drafts", json!({})));
-    out.push(tool_turn("t8", "submit_review", json!({"report": {
+    out.push(tool_turn(
+        "t8",
+        "query",
+        query("component.check_drafts", json!({})),
+    ));
+    out.push(tool_turn(
+        "t9",
+        "query",
+        query(
+            "library.review_check",
+            json!({"report": {
         "part": "EXR-22", "summary": "Synthetic module.",
         "sources": [{"name": "DS", "title": "EXR-22 datasheet", "revision": "1"}],
         "values": [{"item": "pitch", "value": "1.27 mm", "source": {"document": "DS", "page": 9, "location": "Figure 4"}, "confidence": "high"}],
-        "open_questions": ["Ground array optional?"]}})));
+        "open_questions": ["Ground array optional?"]}}),
+        ),
+    ));
     Ok(out)
 }
 
@@ -249,7 +298,7 @@ fn run_with(
 }
 
 #[test]
-fn a_recorded_run_authors_the_module_and_submits_its_review() -> Fallible {
+fn a_recorded_run_authors_the_module_through_the_verbs_and_submits_its_review() -> Fallible {
     let dir = tempfile::tempdir()?;
     let mut backend = anthropic(script()?)?;
     let mut session = profiled_session();
@@ -274,13 +323,20 @@ fn a_recorded_run_authors_the_module_and_submits_its_review() -> Fallible {
     assert_eq!(outcome.facts.request_log.len(), 10);
     assert_eq!(
         outcome.facts.request_log[1].tools,
-        vec!["library_pinout_edit".to_owned()]
+        vec!["query assist.pinout_edit".to_owned()]
+    );
+    assert_eq!(
+        outcome.facts.request_log[6].tools,
+        vec!["apply assist.pinout_apply".to_owned()]
     );
     assert_eq!(outcome.facts.request_log[1].stop_reason, "tool_calls");
     assert_eq!(outcome.facts.documents[0].delivery, Delivery::NativePdf);
+    // Each change is a step of the run log.
+    assert_eq!(outcome.facts.steps.len(), 4, "{:?}", outcome.facts.steps);
     // The review lists every pin by package number and the rule's checks.
     assert_eq!(outcome.facts.pins.len(), 23);
     assert_eq!(outcome.facts.pins[0].number, "1");
+    assert_eq!(outcome.facts.pins[0].name, "GND1");
     assert_eq!(outcome.facts.rules.len(), 1);
     assert!(outcome.facts.rules[0].failures.is_empty());
 
@@ -326,13 +382,14 @@ fn a_recorded_run_authors_the_module_and_submits_its_review() -> Fallible {
             .is_some_and(|r| r.unreviewed.len() == 23),
         "every imported row waits for review"
     );
-    assert!(
-        session.engine().project().library.components.is_empty(),
-        "nothing published"
-    );
+    // Nothing the person reviews was published: the library holds only the
+    // generator's own revision, without the pinout or the marking.
+    let published = &session.engine().project().library.components;
+    assert_eq!(published.len(), 1);
+    assert!(published.iter().all(|c| c.definition.marking.is_none()));
 
-    // The first request: datasheet cached, untrusted, tools, adaptive
-    // thinking, fallback; no key anywhere in a request.
+    // The first request: datasheet cached, untrusted, the six verbs,
+    // adaptive thinking, fallback; no key anywhere in a request.
     let bodies = bodies(&backend);
     let first = bodies.first().ok_or("a request")?;
     let doc = &first["messages"][0]["content"][0];
@@ -346,10 +403,13 @@ fn a_recorded_run_authors_the_module_and_submits_its_review() -> Fallible {
     assert_eq!(first["thinking"]["type"], "adaptive");
     assert_eq!(first["fallbacks"], "default");
     assert_eq!(first["max_tokens"], 32_000);
-    assert_eq!(
-        first["tools"].as_array().map(Vec::len),
-        Some(tools::definitions().len())
-    );
+    let names: Vec<&str> = first["tools"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|t| t["name"].as_str())
+        .collect();
+    assert_eq!(names, verbs::NAMES);
     // Each later request carries the previous turn's assistant content
     // unchanged and one user message of tool results.
     let last = bodies.last().ok_or("a request")?;
@@ -367,13 +427,17 @@ fn a_recorded_run_authors_the_module_and_submits_its_review() -> Fallible {
         "assistant content goes back as it came"
     );
     // The model never sent the document again to apply it.
-    let apply = bodies
+    let import = bodies
         .iter()
         .flat_map(|r| r["messages"].as_array().cloned().unwrap_or_default())
         .flat_map(|m| m["content"].as_array().cloned().unwrap_or_default())
-        .find(|b| b["name"] == "library_pinout_apply")
+        .find(|b| b["input"]["operations"][0]["op"] == "assist.pinout_apply")
         .ok_or("the apply call")?;
-    assert!(apply["input"].get("document").is_none());
+    assert!(
+        import["input"]["operations"][0]["params"]
+            .get("document")
+            .is_none()
+    );
     Ok(())
 }
 
@@ -409,7 +473,11 @@ fn a_cancelled_run_sends_nothing_and_a_refusal_stops() -> Fallible {
 #[test]
 fn a_tool_call_cut_off_at_max_tokens_is_not_run() -> Fallible {
     let dir = tempfile::tempdir()?;
-    let mut cut = tool_turn("t1", "library_set_marking", json!({"draft": 1}));
+    let mut cut = tool_turn(
+        "t1",
+        "apply",
+        apply(0, "library.set_marking", json!({"draft": 1})),
+    );
     cut["stop_reason"] = json!("max_tokens");
     let mut backend = anthropic(vec![cut])?;
     let mut session = profiled_session();
@@ -453,73 +521,212 @@ fn pages_are_counted_for_the_estimate() -> Fallible {
     Ok(())
 }
 
-// The gate: every tool call's request passes it with the run's policy.
+// The surface: the run's tools are MCP's, and its reach profile holds.
 
 #[test]
-fn publishing_and_paths_outside_the_output_folder_are_refused_by_the_gate() -> Fallible {
-    let dir = tempfile::tempdir()?;
-    let policy = output_policy(&dir.path().join("part.sparksmith"))?;
-    let mut session = profiled_session();
-    let before = session.engine().revision();
-    // Publishing needs a person, and a run has no one to ask.
-    let reply = tools::send(
-        &mut session,
-        &policy,
-        json!({"command": "project.apply", "params": {"expected_revision": before,
-            "operation": {"editor": "Library", "operation": {
-                "command": "library.publish", "params": {"drafts": []}}}}}),
+fn the_run_s_tool_definitions_are_mcp_s_bytes() -> Fallible {
+    let served = sparksmith_automation::mcp::tools::tools();
+    let offered = verbs::tools();
+    assert_eq!(served.len(), offered.len());
+    for (served, offered) in served.iter().zip(&offered) {
+        // MCP's tools/list entry and the run's tool, each as its wire
+        // writes it: the same name, description and input schema bytes.
+        let mcp = serde_json::to_value(served)?;
+        assert_eq!(mcp["name"].as_str(), Some(offered.name.as_str()));
+        assert_eq!(
+            serde_json::to_string(&mcp["description"])?,
+            serde_json::to_string(&offered.description)?
+        );
+        assert_eq!(
+            serde_json::to_string(&mcp["inputSchema"])?,
+            serde_json::to_string(&offered.input_schema)?
+        );
+    }
+    // And the Messages body carries them unchanged.
+    let body = crate::model::anthropic::request_body(
+        &shipped_config()?.profile,
+        &crate::model::ModelRequest {
+            system: "s",
+            tools: &offered,
+            messages: &[],
+            max_output_tokens: 1,
+            timeout: std::time::Duration::from_secs(1),
+        },
     );
-    assert_eq!(reply["error"]["code"], "gate.needs_person", "{reply}");
-    // A file outside the run's folder is refused before anything is written.
-    let outside = tempfile::tempdir()?;
-    let target = outside.path().join("elsewhere.sparksmith");
-    let reply = tools::send(
-        &mut session,
-        &policy,
-        json!({"command": "project.save", "params": {"path": target.to_string_lossy()}}),
-    );
-    assert_eq!(reply["error"]["code"], "gate.path_outside", "{reply}");
-    assert!(!target.exists());
-    assert_eq!(session.engine().revision(), before);
-    // Queries run.
-    let reply = tools::send(
-        &mut session,
-        &policy,
-        json!({"command": "library.pinout_schema", "params": {}}),
-    );
-    assert_eq!(reply["ok"], true);
+    for (sent, served) in body["tools"].as_array().into_iter().flatten().zip(&served) {
+        let mcp = serde_json::to_value(served)?;
+        assert_eq!(
+            serde_json::to_string(&sent["input_schema"])?,
+            serde_json::to_string(&mcp["inputSchema"])?
+        );
+        assert_eq!(sent["description"], mcp["description"]);
+    }
     Ok(())
 }
 
 #[test]
-fn a_gated_tool_call_comes_back_as_a_tool_result_and_the_run_goes_on() -> Fallible {
-    // Under ask-every-time, applying the pinout is an edit that needs a
-    // person; with no one to ask it is refused, and the model reads why.
+fn the_datasheet_run_cannot_reach_publish_files_or_settings() -> Fallible {
+    use sparksmith_core::permission::Reach;
+    let reach = reach()?;
+    let grant = reach.grant();
+    // As data: no files module, no settings module, the library below Ask.
+    assert!(!grant.modules.contains_key("files"));
+    assert!(!grant.modules.contains_key("settings"));
+    assert!(
+        grant
+            .modules
+            .get("library")
+            .is_some_and(|c| *c < sparksmith_core::Class::Ask)
+    );
+    assert!(reach.reach.is_empty());
+    // As calls: each is refused, and nothing changes.
     let dir = tempfile::tempdir()?;
+    let target = dir.path().join("part.sparksmith");
+    let mut session = profiled_session();
+    let before = session.engine().revision();
+    for (tool, input, code) in [
+        (
+            "act",
+            json!({"name": "library.publish", "params": {"drafts": []}, "expected_revision": before}),
+            "gate.module",
+        ),
+        (
+            "act",
+            json!({"name": "project.save", "params": {"path": target.to_string_lossy()}}),
+            "gate.module",
+        ),
+        (
+            "act",
+            json!({"name": "project.open", "params": {"path": target.to_string_lossy()}}),
+            "gate.module",
+        ),
+        (
+            // A path makes any call Ask, above every module's ceiling here.
+            "act",
+            json!({"name": "library.check_part_file", "params": {"path": target.to_string_lossy()}}),
+            "gate.module",
+        ),
+        (
+            "act",
+            json!({"name": "library.publish_to_folder",
+                "params": {"library": 1, "root": {"kind": "component", "id": 1, "revision": 1}}}),
+            "profile.reach",
+        ),
+        (
+            "query",
+            query("library.sources", json!({})),
+            "profile.reach",
+        ),
+        ("query", query("library.rescan", json!({})), "profile.reach"),
+    ] {
+        let reply = verb_as(&mut session, &reach, tool, input.clone());
+        assert_eq!(reply["ok"], false, "{input}: {reply}");
+        let got = reply["error"]["code"].as_str().unwrap_or_default();
+        // A call the catalog refuses for its shape never reaches the gate;
+        // these are well formed, so the profile or the gate decides.
+        assert_eq!(got, code, "{input}: {reply}");
+    }
+    assert!(!target.exists());
+    assert_eq!(session.engine().revision(), before);
+    // Over the whole catalog: no entry that publishes or touches files or
+    // settings is reachable, and find lists none of them.
+    let catalog = sparksmith_automation::session::metadata::entries();
+    let mut reachable = 0;
+    for entry in catalog.iter().filter(|e| e.kind.is_some()) {
+        let declared = sparksmith_automation::session::metadata::declared_reach(&entry.name);
+        let outside = declared.contains(Reach::Files)
+            || declared.contains(Reach::Settings)
+            || entry.module == "files"
+            || entry.module == "settings"
+            || (entry.name.contains("publish") && entry.class >= sparksmith_core::Class::Ask);
+        if agent_reaches(&reach, &grant, entry) {
+            reachable += 1;
+            assert!(!outside, "{} is reachable", entry.name);
+        }
+    }
+    assert!(
+        reachable > 20,
+        "the run still reaches its work: {reachable}"
+    );
+    let found = verb_as(
+        &mut session,
+        &reach,
+        "find",
+        json!({"text": "publish save open folder settings", "limit": 50}),
+    );
+    let hits = found["result"]["hits"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for hit in &hits {
+        let name = hit["name"].as_str().unwrap_or_default();
+        let entry = sparksmith_automation::session::metadata::find(name).ok_or("an entry")?;
+        assert!(agent_reaches(&reach, &grant, entry), "{name}");
+        assert!(
+            name != "library.publish" && name != "project.save",
+            "{name}"
+        );
+    }
+    Ok(())
+}
+
+/// Whether a run under `reach` reaches `entry`, as `find` filters.
+fn agent_reaches(
+    reach: &ReachProfile,
+    grant: &sparksmith_automation::Grant,
+    entry: &sparksmith_automation::session::metadata::EntryMeta,
+) -> bool {
+    use sparksmith_automation::mcp::desk::Calls;
+    let mut session = Session::default();
+    Agent {
+        session: &mut session,
+        grant,
+        reach,
+    }
+    .reaches(entry)
+}
+
+#[test]
+fn a_gated_tool_call_comes_back_as_a_tool_result_and_the_run_goes_on() -> Fallible {
+    // Under a profile that only reads the library, applying the pinout is
+    // beyond it; the gate refuses, and the model reads why.
+    let dir = tempfile::tempdir()?;
+    let mut session = profiled_session();
+    let revision = session.engine().revision();
     // The whole document in one call: 23 rows, under the 40-row limit.
     let script = vec![
-        tool_turn("t1", "library_pinout_edit", pinout()),
+        tool_turn("t1", "query", query("assist.pinout_edit", pinout())),
         tool_turn(
             "t2",
-            "library_pinout_preview",
-            json!({"target": {"target": "new", "name": "EXR-22"}}),
+            "query",
+            query(
+                "assist.pinout_preview",
+                json!({"target": {"target": "new", "name": "EXR-22"}}),
+            ),
         ),
-        tool_turn("t3", "library_pinout_apply", json!({})),
+        tool_turn(
+            "t3",
+            "apply",
+            apply(revision, "assist.pinout_apply", json!({})),
+        ),
         tool_turn(
             "t4",
-            "submit_review",
-            json!({"report": {
+            "query",
+            query(
+                "library.review_check",
+                json!({"report": {
             "part": "EXR-22", "summary": "Not applied: the gate refused it.",
             "sources": [{"name": "DS", "title": "EXR-22 datasheet", "revision": "1"}],
             "values": [], "open_questions": ["Apply the pinout by hand."]}}),
+            ),
         ),
     ];
     let mut backend = anthropic(script)?;
-    let config = RunConfig {
-        policy: Grant::new(Mode::AskEveryTime, [dir.path().to_path_buf()]),
-        ..shipped_config()?
-    };
-    let mut session = profiled_session();
+    let mut config = shipped_config()?;
+    config
+        .reach
+        .modules
+        .insert("library".into(), sparksmith_core::Class::Read);
     let (outcome, log) = run_with(&config, &mut backend, datasheet(&dir)?, &mut session)?;
     // The run went on to its report, which the review check refuses: with
     // nothing applied there is no component draft. The script ends there.
@@ -530,9 +737,12 @@ fn a_gated_tool_call_comes_back_as_a_tool_result_and_the_run_goes_on() -> Fallib
     );
     assert_eq!(
         outcome.facts.request_log[2].tools,
-        vec!["library_pinout_apply!"]
+        vec!["apply assist.pinout_apply!"]
     );
-    assert_eq!(outcome.facts.request_log[3].tools, vec!["submit_review!"]);
+    assert_eq!(
+        outcome.facts.request_log[3].tools,
+        vec!["query library.review_check!"]
+    );
     assert!(
         session.engine().drafts().items.is_empty(),
         "nothing applied"
@@ -543,7 +753,7 @@ fn a_gated_tool_call_comes_back_as_a_tool_result_and_the_run_goes_on() -> Fallib
     assert_eq!(refused["is_error"], true);
     let text = refused["content"].as_str().unwrap_or_default();
     assert!(
-        text.contains("gate.needs_person") && text.contains("no way to ask"),
+        text.contains("gate.module") && text.contains("library module only up to read"),
         "{text}"
     );
     let report = &bodies[4]["messages"][8]["content"][0];
@@ -559,35 +769,32 @@ fn the_pinout_applies_without_a_base_or_with_it_as_text() -> Fallible {
     // The base is optional, text is read, and a float is named as the cause.
     for (base, applies) in [(None, true), (Some("text"), true), (Some("float"), false)] {
         let mut session = profiled_session();
-        let mut workspace = tools::Workspace::default();
-        reply_json(execute_open(
+        verb(&mut session, "query", query("assist.pinout_edit", pinout()))?;
+        let plan = verb(
             &mut session,
-            &mut workspace,
-            "library_pinout_edit",
-            &pinout(),
-        ))?;
-        let plan = reply_json(execute_open(
-            &mut session,
-            &mut workspace,
-            "library_pinout_preview",
-            &json!({"target": {"target": "new", "name": "EXR-22"}}),
-        ))?;
-        // The base reaches the model as text, which a double cannot round.
+            "query",
+            query(
+                "assist.pinout_preview",
+                json!({"target": {"target": "new", "name": "EXR-22"}}),
+            ),
+        )?;
+        // The base is written as text, which a double cannot round.
         let exact = plan["base"].as_str().ok_or("a base")?.parse::<u64>()?;
-        let input = match base {
+        let params = match base {
             None => json!({}),
             Some("text") => json!({"base": exact.to_string()}),
             _ => json!({"base": exact as f64}),
         };
-        let outcome = execute_open(&mut session, &mut workspace, "library_pinout_apply", &input);
-        match outcome {
-            ToolOutcome::Reply { error, text, .. } => {
-                assert_eq!(!error, applies, "{base:?}: {text}");
-                if !applies && exact > (1u64 << 53) {
-                    assert!(text.contains("Leave base out"), "{text}");
-                }
-            }
-            ToolOutcome::Report(_) => return Err("a reply".into()),
+        let revision = session.engine().revision();
+        let reply = verb_as(
+            &mut session,
+            &reach()?,
+            "apply",
+            apply(revision, "assist.pinout_apply", params),
+        );
+        assert_eq!(reply["ok"] == true, applies, "{base:?}: {reply}");
+        if !applies && exact > (1u64 << 53) {
+            assert!(reply.to_string().contains("Leave base out"), "{reply}");
         }
     }
     Ok(())
@@ -679,10 +886,10 @@ fn a_local_model_authors_the_module_from_text_and_a_page_view() -> Fallible {
         // model sends again.
         chat_call(
             "v1",
-            "datasheet_view_page",
-            r#"{"document": "exr22.pdf", "page": 2}"#,
+            "query",
+            r#"{"name": "assist.document_page", "params": {"document": "exr22.pdf", "page": 2}}"#,
         ),
-        chat_call("bad", "library_pinout_schema", r#"{"oops": "#),
+        chat_call("bad", "query", r#"{"oops": "#),
     ];
     replies.extend(chat_script(&script()?));
     let mut backend = openai(replies, &config);
@@ -692,7 +899,8 @@ fn a_local_model_authors_the_module_from_text_and_a_page_view() -> Fallible {
     assert_eq!(outcome.report.ok_or("a report")?.part, "EXR-22");
     let f = &outcome.facts;
     assert_eq!(f.requests, 12);
-    assert_eq!(f.request_log[1].tools, vec!["library_pinout_schema!"]);
+    assert_eq!(f.request_log[0].tools, vec!["query assist.document_page"]);
+    assert_eq!(f.request_log[1].tools, vec!["query!"]);
     assert_eq!(f.output_tokens, 12 * 800);
     assert_eq!(f.documents[0].delivery, Delivery::TextAndPageViews);
     assert_eq!(f.documents[0].pages_viewed, vec![2]);
@@ -716,13 +924,16 @@ fn a_local_model_authors_the_module_from_text_and_a_page_view() -> Fallible {
     assert!(datasheet_text.contains("=== page 1 ===") && datasheet_text.contains("PIN 2 VCC"));
     let instructions = opening[1]["text"].as_str().unwrap_or_default();
     assert!(
-        instructions.contains("datasheet_view_page"),
+        instructions.contains("assist.document_page"),
         "{instructions}"
     );
-    assert!(first["tools"].as_array().is_some_and(|t| {
-        t.iter()
-            .any(|t| t["function"]["name"] == "datasheet_view_page")
-    }));
+    let tools: Vec<&str> = first["tools"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|t| t["function"]["name"].as_str())
+        .collect();
+    assert_eq!(tools, verbs::NAMES);
     // The output limit is the model's, near what its context allows.
     assert_eq!(first["max_tokens"], 32_000);
     // The page went back as an image after its tool message.
@@ -769,7 +980,7 @@ fn cut_reply() -> Value {
     json!({"model": "local-27b", "choices": [{"finish_reason": "length", "message": {
         "role": "assistant", "content": "", "reasoning": "Thinking about pin 1...",
         "tool_calls": [{"id": "c", "type": "function",
-            "function": {"name": "library_pinout_edit", "arguments": "{\"pins\": [{\"row\""}}]}}],
+            "function": {"name": "query", "arguments": "{\"name\": \"assist.pinout_edit\", \"params\": {\"pins\": [{\"row\""}}]}}],
         "usage": {"prompt_tokens": 12_000, "completion_tokens": 8_192}})
 }
 
