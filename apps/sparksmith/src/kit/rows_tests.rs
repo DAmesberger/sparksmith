@@ -268,6 +268,26 @@ fn a_field_error_and_a_refusal_are_one_red_line() {
     }
 }
 
+/// E2E run 10, finding 6: a module's sentence under its field is read
+/// whole, wrapped in the column, with the field's red ring.
+#[test]
+fn a_wrapped_field_error_shows_the_whole_sentence() {
+    let mut ui = Harness::new(240.0, 300.0);
+    let long =
+        "The ground array is turned 30°; the module's part files turn it by a multiple of 45°.";
+    let painted = ui.frame(vec![], |ui| {
+        let field = ui.label("field");
+        field_error_wrapped(ui, &field, long, true);
+    });
+    let shown = find(&painted, long);
+    assert!(shown.is_some(), "{painted:?}");
+    let Some(shown) = shown else { return };
+    assert_eq!(shown.ink, Tokens::get().error);
+    assert!(!shown.elided, "the whole sentence shows");
+    assert!(shown.rows > 1, "wrapped: {shown:?}");
+    assert!(shown.rect.right() <= 240.0 + 0.5, "{shown:?}");
+}
+
 /// Demo run 3: a tool card's refusal is read in full in the card, wrapped
 /// over several lines, with no tooltip, and the hint line comes below it,
 /// clear of it.

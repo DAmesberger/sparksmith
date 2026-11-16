@@ -813,7 +813,7 @@ fn form_column(
             });
         }
         Some(why) => {
-            kit::refusal(ui, why);
+            kit::refusal_wrapped(ui, why);
         }
         None => {}
     }

@@ -584,6 +584,48 @@ pub fn field_error(ui: &mut Ui, field: &Response, message: &str, not_stored: boo
     text::hover(response, message, tip, cut)
 }
 
+/// [`field_error`] with the whole message wrapped under the field (up to
+/// the refusal's rows, then cut with the rest on hover): for a sentence a
+/// module or check words, which names values and must be read in full.
+pub fn field_error_wrapped(
+    ui: &mut Ui,
+    field: &Response,
+    message: &str,
+    not_stored: bool,
+) -> Response {
+    let t = Tokens::get();
+    ui.painter().rect_stroke(
+        field.rect,
+        t.radius_sm,
+        egui::Stroke::new(1.0, t.error),
+        egui::StrokeKind::Outside,
+    );
+    let font = FontId::proportional(t.font_small);
+    let size = t.font_small;
+    let left = field
+        .rect
+        .left()
+        .clamp(ui.max_rect().left(), ui.max_rect().right());
+    let indent = left - ui.max_rect().left() + size + t.space_4;
+    let width = (ui.available_width() - indent).max(1.0);
+    let galley = text::wrapped(ui, message, font.clone(), t.error, width, REFUSAL_MAX_ROWS);
+    let cut = galley.elided;
+    let (rect, response) = ui.allocate_exact_size(
+        vec2(ui.available_width().max(0.0), galley.size().y),
+        Sense::hover(),
+    );
+    severity_glyph(
+        ui.painter(),
+        pos2(left + size / 2.0, rect.top() + line_height(ui, &font) / 2.0),
+        size,
+        Level::Error,
+    );
+    ui.painter()
+        .galley(pos2(left + size + t.space_4, rect.top()), galley, t.error);
+    let tip = if not_stored { super::NOT_STORED } else { "" };
+    text::hover(response, message, tip, cut)
+}
+
 /// A refused commit of `field` whose field went back to the stored value:
 /// no red ring (what the field shows is valid), and the whole reason under
 /// it, wrapped, so a refusal that names parts and distances is read in
