@@ -6,8 +6,9 @@
     "project_rule_source",
     "pins_added_by_import",
     "net_disagreements",
-    "refused_import_tracks"
+    "refused_import_tracks",
+    "round_pad_thermal_angle"
   ],
-  "schema_sha256": "c426cd9faba92682d2a179d2c2311adcff6a431c33541c2fe6d65e708900ef6b",
+  "schema_sha256": "925de6ed4000e538b6b1ab55cb9a811f2dfacf56026382e95f105e7f8958cd06",
   "version": 5
 }

@@ -198,6 +198,21 @@ impl<'a> Ctx<'a> {
         fill.settings.thermal.unwrap_or(self.rules.fill.thermal)
     }
 
+    /// The relief of a round (`round`) or other pad or via when no part or
+    /// pad override states one: the fill's own setting (one angle for all
+    /// its pads), else the rule's, whose round-pad angle, when set, turns
+    /// the spokes of round pads and vias.
+    fn thermal_for(&self, fill: &Fill, round: bool) -> ThermalRelief {
+        let mut t = self.thermal(fill);
+        if fill.settings.thermal.is_none()
+            && round
+            && let Some(angle) = self.rules.fill.thermal_angle_round
+        {
+            t.angle_deg = angle;
+        }
+        t
+    }
+
     /// How a same-net pad (`Some(kind)`) or via (`None`) joins the fill.
     fn connection(&self, fill: &Fill, pad: Option<PadKind>) -> PadConnection {
         let c = &fill.settings.connections;
@@ -452,7 +467,6 @@ impl<'a> Ctx<'a> {
                 }
             }
         }
-        let thermal = self.thermal(fill);
         for &i in &rel.pads {
             let Some(pad) = self.pads.get(i) else {
                 continue;
@@ -465,7 +479,8 @@ impl<'a> Ctx<'a> {
             } else {
                 PadConnection::None
             };
-            let thermal = o.thermal(thermal);
+            let round = matches!(pad.pad.shape, crate::library::PadShape::Circle { .. });
+            let thermal = o.thermal(self.thermal_for(fill, round));
             let frame = pad.pad_transform();
             if on {
                 match connection {
@@ -518,6 +533,7 @@ impl<'a> Ctx<'a> {
                 rings.extend(grown_shape(&hole.shape, gap, tol));
             }
         }
+        let thermal = self.thermal_for(fill, true);
         for &i in &rel.vias {
             let Some(v) = p.vias.get(i) else {
                 continue;

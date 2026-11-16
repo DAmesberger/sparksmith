@@ -510,8 +510,12 @@
         "source": "Profile author's choice (a default, not a JLCPCB limit)."
       },
       "thermal_angle": {
+        "value": 0.0,
+        "source": "Profile author's choice (a default, not a JLCPCB limit): spokes along the pad's axes on every pad that is not round, so the spokes of a fine-pitch rectangular pad run into the pour, not a neighbour's clearance."
+      },
+      "thermal_angle_round": {
         "value": 45.0,
-        "source": "Profile author's choice (a default, not a JLCPCB limit)."
+        "source": "Profile author's choice (a default, not a JLCPCB limit): diagonal spokes on round pads and vias."
       },
       "thermal_gap": {
         "value": 0.25,

@@ -47,6 +47,7 @@ pub const FEATURES: &[&str] = &[
     PINS_ADDED_BY_IMPORT,
     NET_DISAGREEMENTS,
     REFUSED_IMPORT_TRACKS,
+    ROUND_PAD_THERMAL_ANGLE,
 ];
 /// A placed part or pad overrides how fills join it
 /// (`Placement::fill_override`, `pad_fill_overrides`).
@@ -65,6 +66,9 @@ pub const PINS_ADDED_BY_IMPORT: &str = "pins_added_by_import";
 pub const NET_DISAGREEMENTS: &str = "net_disagreements";
 /// Track pieces an import refused (`Project::refused_import_tracks`).
 pub const REFUSED_IMPORT_TRACKS: &str = "refused_import_tracks";
+/// The project's profile or an override sets the spoke angle of round
+/// pads and vias (`thermal_angle_round`).
+pub const ROUND_PAD_THERMAL_ANGLE: &str = "round_pad_thermal_angle";
 pub const EXTENSION: &str = "sparksmith";
 /// The extension before the rename from Pcbcraft (docs/rename-phase-b.md).
 /// Such a file holds this same format, so it opens through the same reader
@@ -167,6 +171,9 @@ pub fn features_used(file: &EditorFile) -> Vec<&'static str> {
     }
     if !project.refused_import_tracks.is_empty() {
         out.push(REFUSED_IMPORT_TRACKS);
+    }
+    if project.rules.sets_round_pad_thermal_angle() {
+        out.push(ROUND_PAD_THERMAL_ANGLE);
     }
     out
 }

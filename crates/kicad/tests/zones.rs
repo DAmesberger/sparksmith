@@ -201,11 +201,13 @@ fn a_zone_connecting_pads_in_full_joins_them_solidly() -> Fallible<()> {
 /// A board-wide GND pour over a SOT-23-5 land pattern (0.95 mm pitch,
 /// 0.6 × 1.0 mm lands of `shape`) whose middle pin of the three is GND,
 /// beside an 0603 capacitor, with 0.3 mm spokes across a 0.25 mm relief
-/// gap turned `angle`. The fill's copper, U1 pad 2's centre and its
-/// object reference.
+/// gap turned `angle`; with no angle, the fill states no relief of its own
+/// and the board takes the shipped JLCPCB 2-layer profile, whose spokes
+/// are 0.3 mm across 0.25 mm too. The fill's copper, U1 pad 2's centre and
+/// its object reference.
 fn sot_pour(
     shape: &'static str,
-    angle: f64,
+    angle: Option<f64>,
 ) -> Fallible<(
     sparksmith_core::model::fill::FilledCopper,
     [f64; 2],
@@ -275,13 +277,22 @@ fn sot_pour(
     };
     let centre = middle.pad_transform().apply([0.0, 0.0]);
     let mut fill = project.fills.first().ok_or("no fill")?.clone();
-    fill.settings.thermal = Some(ThermalRelief {
+    fill.settings.thermal = angle.map(|angle_deg| ThermalRelief {
         spoke_width: 0.3,
         spoke_count: 4,
         gap: 0.25,
-        angle_deg: angle,
+        angle_deg,
     });
     let id = fill.id;
+    if angle.is_none() {
+        engine.apply(
+            engine.revision(),
+            Operation::Rules(sparksmith_core::rules::RulesCommand::SetProfile {
+                profile: Box::new(sparksmith_core::rules::fixtures::jlcpcb_example()?),
+                keep_overrides: false,
+            }),
+        )?;
+    }
     engine.apply(
         engine.revision(),
         Operation::Fill(FillCommand::Edit {
@@ -329,7 +340,7 @@ fn spokes_removed(
 /// each spoke's centre line removed all four.
 #[test]
 fn a_spoke_narrowed_by_a_neighbours_clearance_still_joins_the_pour() -> Fallible<()> {
-    let (copper, centre, me) = sot_pour("roundrect", 45.0)?;
+    let (copper, centre, me) = sot_pour("roundrect", Some(45.0))?;
     assert_eq!(
         spokes_removed(&copper, me),
         None,
@@ -353,7 +364,7 @@ fn a_spoke_narrowed_by_a_neighbours_clearance_still_joins_the_pour() -> Fallible
 /// the neighbours' clearances with nothing beside them, and all four go.
 #[test]
 fn spokes_that_end_in_a_clearance_are_still_removed() -> Fallible<()> {
-    let (copper, centre, me) = sot_pour("roundrect", 0.0)?;
+    let (copper, centre, me) = sot_pour("roundrect", Some(0.0))?;
     assert_eq!(spokes_removed(&copper, me), Some(2));
     let pour = island_at(&copper, [2.0, 2.0]).ok_or("no pour")?;
     // Mid-gap: half the land's width (0.3) or length (0.5) plus half the
@@ -369,7 +380,41 @@ fn spokes_that_end_in_a_clearance_are_still_removed() -> Fallible<()> {
         let p = [centre[0] + r * a.cos(), centre[1] + r * a.sin()];
         assert_eq!(island_at(&copper, p) == Some(pour), kept, "spoke at {deg}°");
     }
-    let (copper, _, me) = sot_pour("rect", 45.0)?;
+    let (copper, _, me) = sot_pour("rect", Some(45.0))?;
     assert_eq!(spokes_removed(&copper, me), Some(4));
+    Ok(())
+}
+
+/// The founder's rule of 16 November 2026: the shipped profiles turn the
+/// spokes of pads that are not round along the pad's axes. On sharp SOT-23-5
+/// lands, where 45° spokes all end in the neighbours' clearances and the
+/// pin never joined the pour, the middle pin's spokes across the row now
+/// carry it into the pour; the two along the row still end in the
+/// neighbours' clearances and go.
+#[test]
+fn a_sot_23_5_middle_pin_joins_the_pour_with_spokes_along_its_axes() -> Fallible<()> {
+    let profile = sparksmith_core::rules::fixtures::jlcpcb_example()?;
+    assert_eq!(profile.rules().fill.thermal.angle_deg, 0.0);
+    assert_eq!(profile.rules().fill.thermal_angle_round, Some(45.0));
+    let (copper, centre, me) = sot_pour("rect", None)?;
+    assert_eq!(spokes_removed(&copper, me), Some(2));
+    let pour = island_at(&copper, [2.0, 2.0]).ok_or("no pour")?;
+    // Mid-gap: half the land's width (0.3) or length (0.5) plus half the
+    // 0.25 mm gap.
+    for (deg, kept) in [
+        (0.0_f64, false),
+        (90.0, true),
+        (180.0, false),
+        (270.0, true),
+    ] {
+        let a = deg.to_radians();
+        let r = if kept { 0.5 } else { 0.3 } + 0.125;
+        let p = [centre[0] + r * a.cos(), centre[1] + r * a.sin()];
+        assert_eq!(island_at(&copper, p) == Some(pour), kept, "spoke at {deg}°");
+    }
+    // Nothing at 45°: no diagonal spoke is drawn.
+    let a = 45.0_f64.to_radians();
+    let p = [centre[0] + 0.6 * a.cos(), centre[1] + 0.6 * a.sin()];
+    assert_ne!(island_at(&copper, p), Some(pour));
     Ok(())
 }

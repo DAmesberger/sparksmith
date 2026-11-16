@@ -11,7 +11,12 @@ fn j<E: std::fmt::Display>(e: E) -> Error {
 
 #[test]
 fn every_key_round_trips_through_get_set_and_its_name() -> Result<()> {
-    let base = fixtures::prototype()?.rules().clone();
+    let mut base = fixtures::prototype()?.rules().clone();
+    // The fixture leaves the optional round-pad angle out, which reads as
+    // the plain spoke angle; set, it round-trips as every other key.
+    assert!(!RuleKey::ThermalAngleRound.is_set(&base));
+    RuleKey::ThermalAngleRound.set(&mut base, RuleValue::Angle(30.0))?;
+    assert_eq!(base.fill.thermal_angle_round, Some(30.0));
     for key in RuleKey::all() {
         let mut rules = base.clone();
         key.set(&mut rules, key.get(&base))?;
@@ -21,8 +26,9 @@ fn every_key_round_trips_through_get_set_and_its_name() -> Result<()> {
     // 2 track widths, 36 clearance pairs, 25 contract scalars, the 5
     // appended silkscreen-edge and land keys, the 2 etch-hazard keys, the
     // board outline fit, the legend stroke share and the pair gap
-    // tolerance's minimum and share, and the NPTH pad annular ring.
-    assert_eq!(RuleKey::all().len(), 2 + 36 + 25 + 5 + 2 + 1 + 3 + 1);
+    // tolerance's minimum and share, the NPTH pad annular ring and the
+    // round-pad spoke angle.
+    assert_eq!(RuleKey::all().len(), 2 + 36 + 25 + 5 + 2 + 1 + 3 + 1 + 1);
     let names: std::collections::BTreeSet<_> = RuleKey::all().iter().map(|k| k.name()).collect();
     assert_eq!(names.len(), RuleKey::all().len(), "names are unique");
     assert_eq!(
@@ -71,6 +77,30 @@ fn a_profile_file_must_set_every_rule_with_a_source() -> Result<()> {
             .is_err_and(|e| e.contains("must name who published its numbers")),
         "{err:?}"
     );
+    Ok(())
+}
+
+/// The round-pad spoke angle is the one rule a profile may leave out:
+/// without it round pads take the plain spoke angle; with it, or with a
+/// project override of it, they take their own.
+#[test]
+fn a_profile_may_leave_out_the_round_pad_spoke_angle() -> Result<()> {
+    let value: serde_json::Value = serde_json::from_str(fixtures::PROTOTYPE_JSON).map_err(j)?;
+    let parse = |v: &serde_json::Value| serde_json::from_value::<ProfileFile>(v.clone());
+    let without = parse(&value).map_err(j)?.profile;
+    assert!(without.entry(RuleKey::ThermalAngleRound).is_none());
+    assert_eq!(without.rules().fill.thermal_angle_round, None);
+    let overridden = without.resolve_with(&[RuleOverride {
+        key: RuleKey::ThermalAngleRound,
+        value: RuleValue::Angle(30.0),
+    }])?;
+    assert_eq!(overridden.fill.thermal_angle_round, Some(30.0));
+    let mut with = value;
+    with["fab_profile"]["rules"]["thermal_angle"] = serde_json::json!({"value": 0.0});
+    with["fab_profile"]["rules"]["thermal_angle_round"] = serde_json::json!({"value": 45.0});
+    let with = parse(&with).map_err(j)?.profile;
+    assert_eq!(with.rules().fill.thermal.angle_deg, 0.0);
+    assert_eq!(with.rules().fill.thermal_angle_round, Some(45.0));
     Ok(())
 }
 

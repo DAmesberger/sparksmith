@@ -8,8 +8,9 @@
 //! [`PROFILE_FILE_FORMAT`]); a project embeds the same profile object as a
 //! snapshot (`ProjectRules::profile`), as library revisions are pinned, so
 //! a board reopens with exactly the rules it was checked against. A file
-//! must set every rule ([`RuleKey::all`]): a missing or unknown rule is
-//! refused, never filled in.
+//! must set every rule ([`RuleKey::all`]) but the optional ones
+//! ([`RuleKey::optional`]): a missing or unknown rule is refused, never
+//! filled in.
 //!
 //! A profile may also offer manufacturing options ([`FabOption`]): order
 //! choices the fabricator publishes different limits for (a mask colour,
@@ -265,7 +266,7 @@ impl RuleProfile {
             .collect();
         if let Some(missing) = RuleKey::all()
             .into_iter()
-            .find(|k| !entries.contains_key(k))
+            .find(|k| !k.optional() && !entries.contains_key(k))
         {
             return Err(Error::Invalid(format!(
                 "rules.fab_profile_incomplete: the profile does not set {}",
@@ -481,8 +482,8 @@ impl RuleProfile {
         Ok(())
     }
 
-    /// A profile of plain values: every rule of `rules`, each with
-    /// `value_source` as its source.
+    /// A profile of plain values: every rule `rules` sets
+    /// ([`RuleKey::is_set`]), each with `value_source` as its source.
     pub fn from_values(
         id: &str,
         name: &str,
@@ -493,6 +494,7 @@ impl RuleProfile {
     ) -> Result<Self> {
         let entries = RuleKey::all()
             .into_iter()
+            .filter(|k| k.is_set(rules))
             .map(|k| (k, RuleEntry::value(k.get(rules), value_source)))
             .collect();
         Self::new(id, name, source, drill_files, entries)
@@ -566,6 +568,12 @@ impl RuleProfile {
         }
         let mut rules = DesignRules::unset();
         let mut formulas = Vec::new();
+        // An override of an optional rule the profile leaves out.
+        for o in overrides {
+            if !self.entries.contains_key(&o.key.normalized()) {
+                o.key.set(&mut rules, o.value)?;
+            }
+        }
         for (key, entry) in &self.entries {
             if let Some(o) = overrides.iter().find(|o| o.key.normalized() == *key) {
                 key.set(&mut rules, o.value)?;
