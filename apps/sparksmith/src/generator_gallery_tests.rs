@@ -399,3 +399,45 @@ fn a_value_the_module_refuses_is_marked_before_create() -> TestResult {
     assert!(gallery.open.as_ref().is_some_and(|o| o.making.is_none()));
     Ok(())
 }
+
+/// E2E run 11, finding 3: a list of lengths reads in mm with its unit,
+/// like every single length (never the stored nanometres), and each
+/// section is captioned with the module's whole group name.
+#[test]
+fn list_lengths_read_in_mm_under_whole_group_captions() -> TestResult {
+    let ctx = context();
+    let engine = engine();
+    let shelf = test_shelf();
+    let offer = shelf.offer("module").ok_or("the module generator")?;
+    let mut gallery = GeneratorGallery::default();
+    gallery.set_shelf(&shelf);
+    let request = MakeRequest {
+        generator: "module".into(),
+        preset: None,
+        params: Default::default(),
+        name: None,
+        values: Vec::new(),
+    };
+    gallery.open_on(&request, String::new(), false);
+    frame_of(&ctx, &mut gallery, &engine, vec![], 6000.0);
+    let (texts, _) = frame_of(&ctx, &mut gallery, &engine, vec![], 6000.0);
+    for row in ["-8.4 mm, -5.715 mm, 8.4 mm", "5.5 mm, -11.9 mm, -11.01 mm"] {
+        assert!(texts.iter().any(|t| t == row), "{row}: {texts:?}");
+    }
+    assert!(
+        !texts.iter().any(|t| t.contains("8400000")),
+        "nanometres shown: {texts:?}"
+    );
+    let mut groups: Vec<&str> = offer
+        .summary
+        .params
+        .iter()
+        .filter_map(|p| p.group.as_deref())
+        .collect();
+    groups.dedup();
+    for group in groups {
+        let caption = group.to_uppercase();
+        assert!(texts.contains(&caption), "{caption}: {texts:?}");
+    }
+    Ok(())
+}
