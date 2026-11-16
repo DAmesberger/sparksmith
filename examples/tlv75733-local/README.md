@@ -5,7 +5,7 @@ The first datasheet-assistant run on a local model, 5 November 2026: `qwen3.8:27
 - `tlv757.recording.jsonl`: the 29 replies in the neutral recording format, replayed offline by the `sparksmith-assist` tests (`tests/local_run.rs`).
 - `tlv75733.review.md`: the review it produced.
 
-Replay it without the model (any PDF stands in, since only the replies are replayed; the page views then answer with errors, which the recorded run never saw):
+Replay it without the model (a recording that names no workflow replays as the conversation it holds; any PDF stands in, since only the replies are replayed; the page views then answer with errors, which the recorded run never saw):
 
 ```sh
 sparksmith design-part --replay examples/tlv75733-local/tlv757.recording.jsonl \

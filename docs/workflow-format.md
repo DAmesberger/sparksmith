@@ -1,6 +1,6 @@
 # Workflow format
 
-**Status:** contract (slice W0 of the [assistant panel](assistant-panel.md#8-slices)) and runner (W1), 16 November 2026. The types, the load check, the first instance with its method, the runner, the `assist.workflows`, `assist.step_result` and `assist.offer` entries, the MCP prompts and the controls' widgets (C2) are built; the chat (C1) is not. Code: the contract in `crates/automation/src/workflow/` (below the runner, since the catalog's entries and the MCP prompts are made from the same data; `sparksmith_assist::workflow` re-exports it), the runner in `crates/assist/src/workflow/runner.rs`.
+**Status:** contract (slice W0 of the [assistant panel](assistant-panel.md#8-slices)) and runner (W1), 16 November 2026. The types, the load check, the first instance with its method, the runner, the `assist.workflows`, `assist.step_result` and `assist.offer` entries, the MCP prompts, the controls' widgets (C2) and the runs in the chat and in `design-part` (W2) are built. Code: the contract in `crates/automation/src/workflow/` (below the runner, since the catalog's entries and the MCP prompts are made from the same data; `sparksmith_assist::workflow` re-exports it), the runner in `crates/assist/src/workflow/runner.rs`.
 
 A workflow is a refined process the chat finds, offers and runs, with typed controls inside the conversation. It is data, never code: the app has one generic runner and one closed set of ten controls, and a workflow only chooses among them.
 
@@ -98,14 +98,14 @@ Field types: `text`, `integer`, `number`, `boolean`, `object`, `list`, `any`. `a
 
 ## The runner (W1)
 
-`sparksmith_assist::workflow::runner::run_workflow` drives a workflow's steps in order on a session; its model steps run on any model backend, its cards and events reach the host through `Person`.
+`sparksmith_assist::workflow::runner::run_workflow` drives a workflow's steps in order on a session; its model steps run on any model backend, its cards and events reach the host through `Person`. The session is reached through a `Desk` (`sparksmith_assist::desk`): a headless host's own `Session` (the CLI's `design-part`), or the desktop window's, where each call and each piece of session work is sent from the run's thread to the window and runs between frames on its engine, with the window as the call's `WindowHost` and the chat's Ask cards for its gate.
 
 - **One turn.** Before its first step after the inputs, the run opens a turn (`project.turn_begin`) labelled with the title and its first text input ("Datasheet → component: TLV75733PDBVR"); every call, the runner's and the model's, carries it, so the run undoes as one step. The turn closes however the run ends; what completed stays.
 - **No rights of its own.** Every call is the caller's principal under the caller's grant held to the workflow's `reach` (`Grant::narrowed`), through `Surface::call`. An entry that takes a revision gets the session's current one.
 - **input** asks for the step's inputs the run was not given (a card for each, in the step's order); values are checked like a default; Decline and Stop end the run.
 - **tool** fills its pointers and makes the call (`each`: once per item, the replies a list).
 - **model** is one conversation: the step's goal, its output's fields, the inputs, the earlier steps' results (each cut at 120,000 characters) and its section of `method.md` (`method_section`), with the six verbs. The session holds the step open (`Session::open_step`) and `assist.step_result` checks the answer; an accepted answer is the step's result. A `requests` cap holds the step to that many more requests.
-- **review**, `confirm`: an `impact` card from the plan (its `change_counts`, or the length of each list; its findings); Apply makes `then`, Decline ends the run. `notify`: a `choice` card; Change sends the run back to `change` with the person's choice.
+- **review**, `confirm`: an `impact` card from the plan (its `change_counts`, or the length of each list; its findings); Apply makes `then`, Decline ends the run. `notify`: a `choice` card; Change sends the run back to `change` with the person's choice. In the chat the card waits for Continue (the choice stands) or Change, so a change goes back before anything is made from the choice; headless, no answer goes on.
 - **result**: the result card; a button whose entry the host lacks is left off.
 - **check and retries.** A tool step refuses when its call fails; one that a `check` names also refuses when its reply says `"accepted": false` or lists a finding that blocks (`blocks` or `blocking`). The run goes back to the checking step with the refusal's text in its brief, at most `retries` times, then fails.
 - **Budget.** The smaller of the workflow's `budget` and the configured limits, counted over all model steps; a `meter` event after each model step.

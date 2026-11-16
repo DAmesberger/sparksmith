@@ -1,16 +1,23 @@
 //! `design-part`: author a component from datasheets with a configured model
 //! (`sparksmith-assist`): Anthropic Messages or any OpenAI-compatible endpoint,
-//! hosted or on this computer. The model works through the Sparksmith tools in
-//! an in-process session; the result is saved as a new project of drafts
-//! (component, symbol, package, footprint, binding, generated 3D model),
-//! with the review report beside it as `.review.json` and `.review.md`.
-//! Nothing is published.
+//! hosted or on this computer. It runs the datasheet workflow
+//! (`library/assist/workflows/datasheet-to-component`) headless through the
+//! one runner the chat uses, in an in-process session: the pinout import is
+//! applied without asking and the model's generator choice stands. The
+//! result is saved as a new project of drafts (component, symbol, package,
+//! footprint, binding, generated 3D model), with the review report beside
+//! it as `.review.json` and `.review.md`. Nothing is published. `--record`
+//! writes a recording that names the workflow; `--replay` runs one against
+//! the same workflow version only; a recording that names no workflow (the
+//! reference conversations in `examples/`) replays as the conversation it
+//! holds.
 //!
 //! The model's capabilities are what the flags declare; nothing is detected.
 //! A key comes from a named environment variable or the system keychain, is
 //! never printed or written, and is refused over plain HTTP to another
 //! computer. `llm-key` stores one in the keychain for one endpoint.
 use super::Result;
+use serde_json::Value;
 use sparksmith_assist::model::profile::ANTHROPIC_BASE_URL;
 use sparksmith_assist::model::record::{Recording, Replay};
 use sparksmith_assist::model::{
@@ -18,7 +25,12 @@ use sparksmith_assist::model::{
     Provider, Secret, keys,
 };
 use sparksmith_assist::profile as run_profile;
-use sparksmith_assist::{AssistLibrary, CallState, Datasheet, Event, Goal, RunConfig};
+use sparksmith_assist::workflow::control::{ControlAnswer, ControlCard};
+use sparksmith_assist::workflow::event::WorkflowEvent;
+use sparksmith_assist::workflow::runner::{self, Person, WorkflowRun};
+use sparksmith_assist::workflow::{self, Loaded};
+use sparksmith_assist::{AssistLibrary, CallState, Datasheet, Event, Outcome, RunConfig};
+use sparksmith_automation::Session;
 use sparksmith_core::product::SHORT_NAME as CLI;
 use std::io::Read as _;
 use std::path::PathBuf;
@@ -31,12 +43,16 @@ pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --nam
               [--tools yes|no] [--effort LEVEL] [--request-timeout SECONDS]
               [--max-requests N] [--max-tokens N] [--max-seconds N]
               [--profile NAME] [--notes TEXT] [--record FILE.jsonl | --replay FILE.jsonl]
-                                   draft a part from datasheets with a configured model;
-                                   writes the project and its .review.md/.review.json, publishes nothing
+                                   draft a part from datasheets with a configured model (the
+                                   datasheet workflow, headless); writes the project and its
+                                   .review.md/.review.json, publishes nothing
   llm-key set|delete|status --base-url URL
                                    keep a model API key (read from stdin) in the system keychain,
                                    for that endpoint only
   llm-profile list | copy NAME     list run profiles, or copy a shipped one to the config folder to edit";
+
+/// The workflow `design-part` runs.
+const WORKFLOW: &str = "datasheet-to-component";
 
 struct Args {
     datasheets: Vec<Datasheet>,
@@ -280,6 +296,95 @@ fn print_event(event: Event) {
     }
 }
 
+/// The person of a headless run: the run's steps and cards as lines on
+/// standard error; the pinout import is applied (the drafts wait for review
+/// in the new project, and nothing is published); a choice the model made
+/// stands.
+struct Console;
+
+impl Person for Console {
+    fn event(&mut self, event: &WorkflowEvent) {
+        match event {
+            WorkflowEvent::Started { label, .. } => eprintln!("{label}"),
+            WorkflowEvent::Step {
+                step, done, total, ..
+            } => {
+                eprintln!("step {}/{total}: {step}", done + 1);
+            }
+            WorkflowEvent::StepDone { summary, .. } if !summary.is_empty() => {
+                eprintln!("  {summary}");
+            }
+            WorkflowEvent::Retry {
+                step,
+                attempt,
+                of,
+                why,
+                ..
+            } => {
+                let why: String = why.chars().take(200).collect();
+                eprintln!("  back to {step} ({attempt} of {of}): {why}");
+            }
+            WorkflowEvent::Card {
+                card: ControlCard::Choice { field, value, .. },
+                ..
+            } => eprintln!("  {}: {}", field.title, value.join(", ")),
+            WorkflowEvent::Ended { end, .. } => eprintln!("{end:?}"),
+            _ => {}
+        }
+    }
+
+    fn model_event(&mut self, event: &Event) {
+        print_event(event.clone());
+    }
+
+    fn answer(&mut self, _step: &str, cards: &[ControlCard]) -> Option<ControlAnswer> {
+        cards
+            .iter()
+            .any(|card| matches!(card, ControlCard::Impact { .. }))
+            .then(|| ControlAnswer::Apply {
+                leave_out: Vec::new(),
+            })
+    }
+}
+
+/// The datasheet workflow as this program lists it.
+fn datasheet_workflow() -> Result<Loaded> {
+    let listed = workflow::load::host();
+    let found = listed
+        .iter()
+        .find(|l| l.id == WORKFLOW)
+        .ok_or_else(|| format!("the workflow {WORKFLOW} is not installed"))?;
+    if !found.why_not.is_empty() {
+        return Err(format!("{WORKFLOW} cannot run: {}", found.why_not.join("; ")).into());
+    }
+    Ok(found
+        .loaded
+        .clone()
+        .ok_or_else(|| format!("{WORKFLOW} did not load"))?)
+}
+
+/// The workflow's inputs from the flags: the datasheets, the part name and
+/// the notes.
+fn inputs(args: &Args) -> serde_json::Map<String, Value> {
+    let mut inputs = serde_json::Map::new();
+    let sheets: Vec<Value> = args
+        .datasheets
+        .iter()
+        .map(|sheet| match sheet {
+            Datasheet::File(path) => Value::String(path.display().to_string()),
+            Datasheet::Url(url) => Value::String(url.clone()),
+        })
+        .collect();
+    inputs.insert("datasheets".into(), Value::Array(sheets));
+    inputs.insert("part".into(), Value::String(args.name.clone()));
+    if !args.notes.trim().is_empty() {
+        inputs.insert("notes".into(), Value::String(args.notes.clone()));
+    }
+    inputs
+}
+
+/// `design-part`: the datasheet workflow, run headless through the one
+/// runner the chat uses, on a new project saved at `--out` with its review.
 pub fn run(args: &[String]) -> Result<()> {
     let args = parse(args)?;
     for path in std::iter::once(args.out.clone()).chain(sparksmith_assist::review_paths(&args.out))
@@ -288,15 +393,41 @@ pub fn run(args: &[String]) -> Result<()> {
             return Err(format!("{} exists; choose a new output name", path.display()).into());
         }
     }
-    let mut backend: Box<dyn ModelBackend> = match (&args.replay, &args.record) {
-        (Some(path), _) => Box::new(Replay::from_file(path)?),
-        (None, Some(path)) => Box::new(Recording::new(
+    let replay = match args.replay.as_deref().map(Replay::from_file).transpose()? {
+        Some(replay) if replay.workflow.is_none() => return replay_conversation(&args, replay),
+        other => other,
+    };
+    let loaded = datasheet_workflow()?;
+    let mut backend: Box<dyn ModelBackend> = match (replay, &args.record) {
+        (Some(replay), _) => Box::new(replay),
+        (None, Some(path)) => Box::new(Recording::for_workflow(
             model::connect(&args.config.profile, &args.connection)?,
             path.clone(),
-        )),
+            runner::mark(&loaded),
+        )?),
         (None, None) => model::connect(&args.config.profile, &args.connection)?,
     };
-    let goal = Goal {
+    let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
+        &super::context()?,
+    )?);
+    let cancel = AtomicBool::new(false);
+    let run = WorkflowRun {
+        loaded: &loaded,
+        inputs: inputs(&args),
+        grant: args.config.reach.grant(),
+        config: &args.config,
+    };
+    let outcome = runner::run_workflow(run, backend.as_mut(), &mut session, &mut Console, &cancel)?;
+    let review = outcome.review(&session);
+    save(&mut session, &args, &review)
+}
+
+/// A recording that names no workflow: the reference conversations in
+/// `examples/` (one conversation with the tools, before the datasheet task
+/// was a workflow), replayed as recorded to the project and review they
+/// made. A model run never takes this path.
+fn replay_conversation(args: &Args, mut replay: Replay) -> Result<()> {
+    let goal = sparksmith_assist::Goal {
         name: args.name.clone(),
         datasheets: args.datasheets.clone(),
         notes: args.notes.clone(),
@@ -304,16 +435,21 @@ pub fn run(args: &[String]) -> Result<()> {
     let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
         &super::context()?,
     )?);
-    let cancel = AtomicBool::new(false);
     let outcome = sparksmith_assist::run(
         &goal,
         &args.config,
-        backend.as_mut(),
+        &mut replay,
         &mut session,
         &mut print_event,
-        &cancel,
+        &AtomicBool::new(false),
     )?;
-    let [_, review] = sparksmith_assist::write_outputs(&mut session, &args.out, &outcome)?;
+    save(&mut session, args, &outcome)
+}
+
+/// Save the drafts at `--out` and the review beside them; a run without an
+/// accepted review report is an error, after the files are written.
+fn save(session: &mut Session, args: &Args, outcome: &Outcome) -> Result<()> {
+    let [_, written] = sparksmith_assist::write_outputs(session, &args.out, outcome)?;
     let facts = &outcome.facts;
     eprintln!(
         "{}: {} requests, {} output tokens, {:.0} s; drafts saved to {} (review {})",
@@ -322,7 +458,7 @@ pub fn run(args: &[String]) -> Result<()> {
         facts.output_tokens,
         facts.elapsed_seconds,
         args.out.display(),
-        review.display()
+        written.display()
     );
     if outcome.report.is_none() {
         return Err(format!("no review report: {}", outcome.stop).into());

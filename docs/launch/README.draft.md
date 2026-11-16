@@ -37,8 +37,9 @@ is a typed operation on one transactional engine. The desktop app, the `sparksmi
 protocol and the MCP server send the *same* operations, share one undo history, and a refused
 operation leaves the document untouched. An agent cannot do anything a person could not undo.
 
-**Components from datasheets, with a Claude agent.** *Create from datasheet…* hands the PDFs to a
-Claude tool-use loop that drafts the component through the engine: pins and their multiplexed
+**Components from datasheets, with a Claude agent.** *Create from datasheet…* (or a PDF dropped on
+the window) offers the datasheet workflow in the assistant; a model drafts the component through
+the engine, step by step in the chat: pins and their multiplexed
 functions, Rhai pin rules, the package from a cited template, footprint, binding and markings. It
 only ever creates drafts and never publishes. Every value comes back in a review report with its
 datasheet page and a confidence level. The first live run drafted the ESP32-S31-WROOM-3 module
@@ -162,7 +163,8 @@ ANTHROPIC_API_KEY=… cargo run --locked --profile ci -p sparksmith-cli -- desig
   --datasheet PART.pdf --name PART --out part.sparksmith   # drafts + PART.review.md; publishes nothing
 ```
 
-The desktop has the same as **Create from datasheet…** on the Component start page.
+The desktop runs the same workflow in the assistant: **Create from datasheet…** on the Component
+start page, or a PDF dropped on the window.
 
 ## Architecture
 

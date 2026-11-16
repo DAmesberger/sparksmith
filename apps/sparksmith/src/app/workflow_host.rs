@@ -1,14 +1,15 @@
 //! Where the window offers workflows without a model (assistant slice C2,
 //! `docs/assistant-panel.md` §3.2, §3.3): a palette entry per workflow,
-//! generated from its data, and a dropped file whose type a workflow's
-//! `offer_when` names. Each puts the workflow card in the chat
-//! ([`crate::workflow_cards`]); nothing starts until the person chooses Use
-//! it there.
+//! generated from its data, a dropped file whose type a workflow's
+//! `offer_when` names, and the Component start page's Create from
+//! datasheet…, which offers the workflows that take a datasheet. Each puts
+//! the workflow card in the chat ([`crate::workflow_cards`]); nothing starts
+//! until the person chooses Use it there (`app/assistant_run.rs`).
 use super::App;
 use super::command_palette::PaletteRow;
 use crate::kit::severity::Level;
 use crate::workflow_cards::{self, CardAction, PALETTE_PREFIX};
-use sparksmith_assist::workflow::Listed;
+use sparksmith_assist::workflow::{Listed, Signal, offer};
 use sparksmith_automation::WindowHost as _;
 use sparksmith_automation::view::OpenParams;
 
@@ -56,6 +57,9 @@ impl App {
     /// frame join its transcript, and the chat opens for a new one.
     pub(super) fn workflow_frame(&mut self, ctx: &egui::Context) {
         self.dropped_files(ctx);
+        if std::mem::take(&mut self.part.datasheet_requested) {
+            self.offer_datasheet_workflows();
+        }
         self.workflow_cards.frame();
         if let Some((card, receiver)) = &self.workflow_pick
             && let Ok(paths) = receiver.try_recv()
@@ -75,8 +79,18 @@ impl App {
         }
     }
 
+    /// Create from datasheet…: the chat opens with the card of each
+    /// workflow a datasheet (a PDF) offers; one already waiting stays.
+    fn offer_datasheet_workflows(&mut self) {
+        self.workflow_cards
+            .signal(&Signal::Attachment(offer::PDF.to_owned()), "");
+        self.assistant.open = true;
+        self.assistant.folded = false;
+    }
+
     /// What the person chose on a workflow card: Open in editor runs in the
-    /// window, Choose… opens the picker; the rest is the run host's (W2).
+    /// window, Choose… opens the picker; the rest goes to the run host
+    /// (`app/assistant_run.rs`) through the cards' outbox.
     pub(super) fn workflow_card_action(&mut self, action: CardAction) {
         match action {
             CardAction::Show { call, params } if call == "view.open" => {

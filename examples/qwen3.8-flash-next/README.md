@@ -7,7 +7,7 @@
 
 The recordings hold the model's replies only. The `sparksmith-assist` tests (`tests/flash_next.rs`) replay them offline and check the pinout, the tabbed package form, every pad against TI's land pattern (DBV0005A: 0.6 × 1.1 mm, rows 2.6 mm apart; DBZ0003A: 0.6 × 1.3 mm, rows 2.1 mm apart), the 0.95 mm pitch and the report accepted on the first try.
 
-Replay one without the model (any PDF stands in; the recorded page views then answer with errors):
+Replay one without the model (a recording that names no workflow replays as the conversation it holds; any PDF stands in; the recorded page views then answer with errors):
 
 ```sh
 sparksmith design-part --replay examples/qwen3.8-flash-next/tlv757.recording.jsonl \

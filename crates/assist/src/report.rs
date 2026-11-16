@@ -126,6 +126,12 @@ pub(crate) fn finish_facts(
 ) {
     tally_facts(facts, tally);
     facts.stop = stop.to_string();
+    session_facts(facts, session);
+}
+
+/// What `session` holds after a run: its pins, its rules over their
+/// samples, its drafts and their findings.
+pub(crate) fn session_facts(facts: &mut RunFacts, session: &sparksmith_automation::Session) {
     let snapshot = session.snapshot();
     facts.pins = crate::pins::rows(&snapshot);
     facts.rules = session

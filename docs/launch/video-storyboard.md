@@ -33,7 +33,7 @@ from the same script. No voice-over is needed; captions carry the story.
 | # | Scene | What happens on screen | Duration | Caption | Feature it proves | Ready? |
 |---|---|---|---|---|---|---|
 | 0 | Cold open | Black, then the finished dev board in 3D, slowly orbiting under the studio light; the title fades in. | 4 s | **Sparksmith** · *one design, components to Gerbers* | Integrated photoreal 3D | Waits: dev board; better with Realistic mode |
-| 1 | Datasheet in | Component workspace start page → **Create from datasheet…**; drop the two WROOM-3 PDFs (file names only), part name, model; Start. Progress ticks up. | 8 s | *Give it the datasheets.* | AI-assisted component creation (`sparksmith-assist`) | Works today; see note A |
+| 1 | Datasheet in | Component workspace start page → **Create from datasheet…**: the assistant opens on the workflow card; drop the two WROOM-3 PDFs (file names only), Use it, part name; the run's steps tick through, the generator choice and the pinout's Apply. | 8 s | *Give it the datasheets.* | AI-assisted component creation (`sparksmith-assist`) | Works today; see note A |
 | 2 | Review | Time-cut to the finished run: the review report lists values with page, table and confidence; the Pins tab shows 99 pins with their IO MUX functions. | 6 s | *Every value cited to its page.* | Review flow; pin functions | Works today |
 | 3 | The part in 3D | Component 3D tab: the WROOM-3 part file with the laser-etched name on the can, the QR code and pin-1 mark; a slow orbit and a push-in onto the etching. | 10 s | *A parametric Solidcraft part, with real markings.* | Lean parts; markings D7 | Works today; Realistic mode and material graphs will lift it |
 | 4 | Publish | Publish → the identity bar turns to *r1 · published*. | 3 s | *Published as an exact revision.* | Revisioned library | Works today |
@@ -52,9 +52,9 @@ Total: 126 s.
 ### Notes
 
 - **A — the datasheet run on camera.** A live run takes minutes. Record it
-  once and time-cut (shot 1 → 2). For repeatable takes the desktop dialog would need the CLI's
-  `--replay` option (listed in the [polish list](polish-list.md)); until then shot 1 is a one-off
-  live recording or the CLI with `--replay examples/esp32-s31-wroom-3/wroom3.replay.jsonl`.
+  once and time-cut (shot 1 → 2). For repeatable takes the chat's run would need the CLI's
+  `--replay` option; until then shot 1 is a one-off live recording, or the CLI's
+  `design-part --replay` of a workflow recording.
 - **B — the agent shot.** The MCP server runs a headless session on a file; the desktop does not
   follow it live. The shot therefore ends on a reopen. A live link (the desktop serving or
   following the session) would make this the strongest shot; it is a polish-list item, not a

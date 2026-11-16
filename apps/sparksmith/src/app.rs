@@ -5,6 +5,7 @@
 //! path the CLI and MCP use. Long work (3D builds, file I/O, recovery) runs on
 //! background threads and reports back with the input it was made from.
 mod assistant_host;
+mod assistant_run;
 mod browser;
 mod browser_catalog;
 mod chrome;
@@ -1646,11 +1647,14 @@ impl eframe::App for App {
         // Assistants' requests, between the last frame and this one's
         // editors.
         self.serve_live(&ctx);
-        // The assistant chat's tool calls, likewise.
+        // The assistant chat's tool calls, likewise, and a workflow run's.
         self.serve_assistant(&ctx);
+        self.serve_run(&ctx);
         // A dropped PDF offers the datasheet workflow (`offer_when`); new
-        // workflow cards join the chat's transcript.
+        // workflow cards join the chat's transcript; what the person chose
+        // on them reaches the run.
         self.workflow_frame(&ctx);
+        self.serve_cards(&ctx);
         self.library_sources(&ctx);
         self.component_subject(&ctx);
         // A2: the Component workspace catalog's action and feed.

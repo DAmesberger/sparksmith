@@ -10,10 +10,6 @@
 //! millidegrees), and reports what the person chose as a [`CardAction`] for
 //! the host (the chat, the runner) to carry out. It holds no workflow
 //! logic: which inputs, cards and gates there are is the workflow's data.
-#![allow(
-    dead_code,
-    reason = "W2 runs what the cards start (`outbox`); until it lands some of the run's side is reached by the tests only"
-)]
 use serde_json::{Map, Value};
 use sparksmith_assist::workflow::control::{ControlAnswer, ControlCard, Quantity};
 use sparksmith_assist::workflow::event::{OfferedBy, RunEnd, WorkflowEvent};
@@ -123,7 +119,7 @@ enum Item {
         run: String,
         step: String,
         field: FieldEdit,
-        changed: bool,
+        state: State,
     },
     Result {
         run: String,
@@ -143,6 +139,9 @@ impl Item {
                 state: State::Waiting,
                 ..
             } | Self::Gate {
+                state: State::Waiting,
+                ..
+            } | Self::Notify {
                 state: State::Waiting,
                 ..
             }
@@ -570,7 +569,9 @@ impl WorkflowCards {
                 // What still waits on this run is answered by its end.
                 for item in &mut self.items {
                     match item {
-                        Item::Inputs { run: r, state, .. } | Item::Gate { run: r, state, .. }
+                        Item::Inputs { run: r, state, .. }
+                        | Item::Gate { run: r, state, .. }
+                        | Item::Notify { run: r, state, .. }
                             if r == run && matches!(state, State::Waiting) =>
                         {
                             *state = State::Answered("Ended");
@@ -656,7 +657,7 @@ impl WorkflowCards {
                     run: run.to_owned(),
                     step: step.to_owned(),
                     field: FieldEdit::new(card.clone()),
-                    changed: false,
+                    state: State::Waiting,
                 });
             }
             _ => {
@@ -883,7 +884,7 @@ impl WorkflowCards {
                 run,
                 step,
                 field,
-                changed,
+                state,
             } => {
                 let ControlCard::Choice {
                     field: f,
@@ -906,34 +907,56 @@ impl WorkflowCards {
                         title: &o.title,
                     })
                     .collect();
-                cards::card(ui, &f.title, if *changed { "Changed" } else { "" }, |ui| {
+                let aside = match state {
+                    State::Answered(how) => *how,
+                    State::Waiting => "",
+                };
+                let waiting = matches!(state, State::Waiting);
+                cards::card(ui, &f.title, aside, |ui| {
                     cards::field(ui, &heading, None, |ui| {
-                        cards::choice_input(
-                            ui,
-                            egui::Id::unique(("notify", card.as_str())),
-                            &options,
-                            &mut field.chosen,
-                            false,
-                        )
+                        ui.add_enabled_ui(waiting, |ui| {
+                            cards::choice_input(
+                                ui,
+                                egui::Id::unique(("notify", card.as_str())),
+                                &options,
+                                &mut field.chosen,
+                                false,
+                            )
+                        })
                     });
+                    if !waiting {
+                        return None;
+                    }
                     let differs = field.chosen != *shown;
                     let why = if differs || field.chosen.is_empty() {
                         ""
                     } else {
                         "Choose another option to change it"
                     };
-                    let pressed =
-                        cards::footer(ui, &[cards::FooterButton::new("Change").unless(why)]);
-                    let value = field.chosen.first().cloned()?;
-                    (pressed == Some(0)).then(|| {
-                        *changed = true;
-                        CardAction::Answer {
-                            run: run.clone(),
-                            step: step.clone(),
-                            answer: ControlAnswer::Change {
-                                value: Value::String(value),
-                            },
+                    // Continue keeps the model's choice; Change sends the run
+                    // back with the person's. Enter continues.
+                    let pressed = cards::footer(
+                        ui,
+                        &[
+                            cards::FooterButton::new("Change").unless(why),
+                            cards::FooterButton::primary("Continue"),
+                        ],
+                    );
+                    let key = cards::card_key(ui, active);
+                    let as_value =
+                        |v: Option<&String>| v.map_or(Value::Null, |v| Value::String(v.clone()));
+                    let (how, value) = match (pressed, key) {
+                        (Some(0), _) => ("Changed", as_value(field.chosen.first())),
+                        (Some(1), _) | (None, Some(cards::CardKey::Accept)) => {
+                            ("Kept", as_value(shown.first()))
                         }
+                        _ => return None,
+                    };
+                    *state = State::Answered(how);
+                    Some(CardAction::Answer {
+                        run: run.clone(),
+                        step: step.clone(),
+                        answer: ControlAnswer::Change { value },
                     })
                 })
             }

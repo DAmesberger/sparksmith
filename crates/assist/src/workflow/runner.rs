@@ -35,26 +35,26 @@ use super::{
     Catalog, DEFAULT_RETRIES, HostCatalog, InputType, Loaded, Pointer, Step, StepKind,
     method_section,
 };
+use crate::desk::{self, Desk};
 use crate::documents;
 use crate::model::record::WorkflowMark;
 use crate::model::{Budget, Message, ModelBackend, Part, Role};
 use crate::report::{self, RunFacts};
 use crate::run::{self, Conversation, Driver, Finish, Finished, RunConfig, ToolContext};
 use crate::usage::Tally;
-use crate::verbs::Agent;
 use crate::{Datasheet, Error, Event, Result, Stop};
 use serde_json::{Map, Value, json};
-use sparksmith_automation::front::Call;
+use sparksmith_automation::Grant;
 use sparksmith_automation::session::assist::{Documents, OpenStep};
-use sparksmith_automation::session::metadata;
-use sparksmith_automation::{Grant, Session};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 /// Characters of one earlier step's result a model step is given; longer
 /// results are cut with a note (the model can read more with the verbs).
 pub const MAX_EARLIER_CHARS: usize = run::MAX_RESULT_CHARS;
+/// Runs started in this process, so each run's id is its own.
+static RUNS: AtomicU64 = AtomicU64::new(0);
 /// How often an input step asks again for values that do not pass.
 const MAX_ASKS: u32 = 3;
 
@@ -101,6 +101,36 @@ pub struct WorkflowOutcome {
     pub facts: RunFacts,
 }
 
+impl WorkflowOutcome {
+    /// The run as a datasheet run's outcome, for the review written beside
+    /// a saved project: the review report a model step answered (once the
+    /// run is done, so the review check accepted it), and the drafts, pins
+    /// and findings in `session`.
+    pub fn review(&self, session: &sparksmith_automation::Session) -> crate::Outcome {
+        let report = match self.end {
+            RunEnd::Done => self.results.values().find_map(|value| {
+                serde_json::from_value::<report::ReviewReport>(value.get("report")?.clone()).ok()
+            }),
+            _ => None,
+        };
+        let stop = match &self.end {
+            RunEnd::Done if report.is_some() => crate::Stop::Submitted,
+            RunEnd::Done => crate::Stop::Ended,
+            RunEnd::Stopped => crate::Stop::Cancelled,
+            RunEnd::Limit { why } => crate::Stop::Budget(why.clone()),
+            other => crate::Stop::Failed(describe(other)),
+        };
+        let mut facts = self.facts.clone();
+        facts.stop = stop.to_string();
+        report::session_facts(&mut facts, session);
+        crate::Outcome {
+            report,
+            stop,
+            facts,
+        }
+    }
+}
+
 /// The mark a recording of a run of `loaded` carries.
 pub fn mark(loaded: &Loaded) -> WorkflowMark {
     WorkflowMark {
@@ -123,15 +153,16 @@ pub fn budget(workflow: &super::Budget, limits: &Budget) -> Budget {
     }
 }
 
-/// Run `run` on `session`: its model steps on `backend`, its cards and
-/// events through `person`, until the result step, a decline, Stop, a
-/// limit or a failure. Refused before anything runs: a workflow this host
+/// Run `run` on the session at `desk` (the run's own, or the window's):
+/// its model steps on `backend`, its cards and events through `person`,
+/// until the result step, a decline, Stop, a limit or a failure. Refused
+/// before anything runs: a workflow this host
 /// cannot run, a given input it does not have or that does not pass, and a
 /// replay recorded with another workflow or version.
 pub fn run_workflow(
     run: WorkflowRun<'_>,
     backend: &mut dyn ModelBackend,
-    session: &mut Session,
+    desk: &mut dyn Desk,
     person: &mut dyn Person,
     cancel: &AtomicBool,
 ) -> Result<WorkflowOutcome> {
@@ -167,9 +198,10 @@ pub fn run_workflow(
     config.profile.check()?;
     let system = run::system_prompt(&config)?;
     let specs = run::tool_specs(&config.run_profile);
-    session.ensure_generators();
-    let lent = session.attach_documents(None);
-    let opened = session.open_step(None);
+    let lent = desk::with(desk, |session| {
+        session.ensure_generators();
+        (session.attach_documents(None), session.open_step(None))
+    });
     let legacy = backend.legacy_tools();
     let mut facts = run::run_facts(&config, backend);
     let mut runner = Runner {
@@ -178,7 +210,7 @@ pub fn run_workflow(
         system,
         specs,
         context: ToolContext {
-            session,
+            desk,
             grant: run.grant.narrowed(&workflow.reach),
             turn: None,
             legacy,
@@ -190,7 +222,11 @@ pub fn run_workflow(
         results: Map::new(),
         tally: Tally::default(),
         started: Instant::now(),
-        run_id: format!("run_{}", ours.digest.get(7..19).unwrap_or("0")),
+        run_id: format!(
+            "run_{}_{}",
+            ours.digest.get(7..19).unwrap_or("0"),
+            RUNS.fetch_add(1, Ordering::Relaxed) + 1
+        ),
         label: workflow.title.clone(),
     };
     let end = runner.steps(backend, person, cancel, &mut facts);
@@ -205,9 +241,12 @@ pub fn run_workflow(
         run_id,
         ..
     } = runner;
-    let session = context.session;
-    session.open_step(opened);
-    session.attach_documents(lent);
+    if let Some((documents, opened)) = lent {
+        desk::with(context.desk, move |session| {
+            session.open_step(opened);
+            session.attach_documents(documents);
+        });
+    }
     let end = match (end, closed) {
         (RunEnd::Done, Err(why)) => RunEnd::Failed {
             step: "turn".into(),
@@ -369,6 +408,10 @@ impl Runner<'_, '_> {
                     notes.insert(to, why);
                     k = to;
                 }
+                // A call given up because the person stopped the run.
+                Next::End(RunEnd::Failed { .. }) if cancel.load(Ordering::Relaxed) => {
+                    return RunEnd::Stopped;
+                }
                 Next::End(end) => return end,
             }
         }
@@ -422,27 +465,12 @@ impl Runner<'_, '_> {
     /// One call through the front door as the run's principal, in its turn:
     /// the result, or the error as text.
     fn call(&mut self, entry: &str, params: Value) -> std::result::Result<Value, String> {
-        let expected_revision = metadata::find(entry)
-            .filter(|meta| meta.revision)
-            .map(|_| self.context.session.engine().revision());
-        let call = Call {
-            entry: entry.to_owned(),
+        let reply = self.context.desk.call(
+            &self.context.grant,
+            self.context.turn.as_deref(),
+            entry,
             params,
-            project: None,
-            expected_revision,
-            dry_run: false,
-            confirm: None,
-            turn: None,
-            job: false,
-        };
-        let reply = Agent {
-            session: self.context.session,
-            grant: &self.context.grant,
-            turn: self.context.turn.as_deref(),
-            window: None,
-            asker: &mut sparksmith_automation::front::NoOne,
-        }
-        .run(call);
+        );
         if reply["ok"] == true {
             Ok(reply["result"].clone())
         } else {
@@ -636,8 +664,10 @@ impl Runner<'_, '_> {
         }
         self.context.facts = std::mem::take(&mut prepared.facts);
         let store: Box<dyn Documents> = Box::new(std::mem::take(&mut prepared.pages));
-        self.context.session.attach_documents(Some(store));
-        Ok(())
+        desk::with(self.context.desk, move |session| {
+            session.attach_documents(Some(store));
+        })
+        .ok_or_else(|| "the documents could not be attached".to_owned())
     }
 
     /// The text of a refusal by a tool step's reply, when it refuses. A
@@ -820,10 +850,13 @@ impl Runner<'_, '_> {
                 .min(self.tally.requests.saturating_add(cap)),
             None => budget.max_requests,
         };
-        self.context.session.open_step(Some(OpenStep {
+        let open = OpenStep {
             step: step.id.clone(),
             output: output.clone(),
-        }));
+        };
+        desk::with(self.context.desk, move |session| {
+            session.open_step(Some(open));
+        });
         let estimate = run::first_estimate(&self.system, &self.specs, 0)
             .saturating_add((brief.len() as u64).div_ceil(3));
         let conversation = Conversation {
@@ -851,7 +884,9 @@ impl Runner<'_, '_> {
             },
             conversation,
         );
-        self.context.session.open_step(None);
+        desk::with(self.context.desk, |session| {
+            session.open_step(None);
+        });
         person.event(&self.meter());
         match (stop, finished) {
             (_, Some(Finished::Step(answer))) => {
