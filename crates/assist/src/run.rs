@@ -17,8 +17,8 @@ use crate::verbs::{self, Agent};
 use crate::workflow::control::Gauge;
 use crate::{CallState, Error, Event, Goal, Meter, Outcome, Result, Stop, legacy};
 use serde_json::{Value, json};
-use sparksmith_automation::session::assist::Documents;
 use sparksmith_automation::front::NoOne;
+use sparksmith_automation::session::assist::Documents;
 use sparksmith_automation::{Grant, Session};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -727,7 +727,7 @@ pub fn run(
 }
 
 /// The run's use against its budget, for the chat's meter.
-fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
+pub(crate) fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
     Meter {
         requests: Gauge {
             used: tally.requests.into(),

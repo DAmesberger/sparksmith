@@ -271,7 +271,10 @@ mod tests {
                 plain(" ends"),
             ]
         );
-        assert_eq!(spans("2 * 3 = 6 and snake_case"), [plain("2 * 3 = 6 and snake_case")]);
+        assert_eq!(
+            spans("2 * 3 = 6 and snake_case"),
+            [plain("2 * 3 = 6 and snake_case")]
+        );
     }
 
     #[test]

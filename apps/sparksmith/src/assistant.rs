@@ -16,7 +16,9 @@ mod conversation;
 mod markdown;
 pub mod worker;
 
-pub use conversation::{Allow, AskCard, Conversation, Item, RowState, State, TurnSummary, context_line};
+pub use conversation::{
+    Allow, AskCard, Conversation, Item, RowState, State, TurnSummary, context_line,
+};
 
 use crate::kit;
 use egui::{Ui, vec2};
@@ -303,6 +305,7 @@ impl Assistant {
                 }
                 Item::Call(row) => {
                     let (word, level) = match &row.state {
+                        RowState::Writing => ("writing".to_owned(), None),
                         RowState::Running => ("running".to_owned(), None),
                         RowState::Done => ("done".to_owned(), Some(kit::severity::Level::Ok)),
                         RowState::Refused => {
@@ -347,7 +350,9 @@ impl Assistant {
             && !self.composer.trim().is_empty()
             && !matches!(self.conversation.state, State::NotSetUp(_));
         if focused
-            && ui.input_mut(|i| !i.modifiers.any() && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter))
+            && ui.input_mut(|i| {
+                !i.modifiers.any() && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+            })
             && can_send
         {
             actions.push(Action::Send);
@@ -433,8 +438,10 @@ fn state_dot(ui: &mut Ui, state: &State) {
 /// A square icon button with its accessible name and tooltip.
 fn icon_button(ui: &mut Ui, icon: &str, label: &str) -> egui::Response {
     let t = Tokens::get();
-    let (rect, response) =
-        ui.allocate_exact_size(vec2(t.control_height, t.control_height), egui::Sense::click());
+    let (rect, response) = ui.allocate_exact_size(
+        vec2(t.control_height, t.control_height),
+        egui::Sense::click(),
+    );
     if response.hovered() || response.has_focus() {
         ui.painter().rect_filled(rect, t.radius_sm, t.hover);
     }
@@ -453,7 +460,8 @@ fn disclosure(
 ) -> egui::Response {
     let t = Tokens::get();
     let width = ui.available_width().max(0.0);
-    let (rect, response) = ui.allocate_exact_size(vec2(width, t.control_height), egui::Sense::click());
+    let (rect, response) =
+        ui.allocate_exact_size(vec2(width, t.control_height), egui::Sense::click());
     if response.hovered() || response.has_focus() {
         ui.painter()
             .rect_filled(rect.shrink2(vec2(0.0, 1.0)), t.radius_sm, t.hover);
@@ -558,7 +566,11 @@ fn markdown(ui: &mut Ui, text: &str) {
     for block in blocks {
         match block {
             Block::Heading(level, spans) => {
-                let size = if level <= 2 { t.font_heading } else { t.font_body };
+                let size = if level <= 2 {
+                    t.font_heading
+                } else {
+                    t.font_body
+                };
                 rich(ui, &spans, size, true, 0.0, None);
             }
             Block::Paragraph(spans) => rich(ui, &spans, t.font_body, false, 0.0, None),
@@ -614,7 +626,11 @@ fn rich(
         if span.code {
             format.background = t.input_fill();
         }
-        let leading = if marker.is_none() && i == 0 { indent } else { 0.0 };
+        let leading = if marker.is_none() && i == 0 {
+            indent
+        } else {
+            0.0
+        };
         job.append(&span.text, leading, format);
     }
     job.wrap.max_width = ui.available_width();
@@ -733,7 +749,10 @@ mod tests {
     #[test]
     fn the_usage_line_counts_requests_tokens_and_time() {
         assert_eq!(usage_line(1, 950, 4.2), "1 request · 950 tokens · 4 s");
-        assert_eq!(usage_line(3, 61_400, 360.0), "3 requests · 61 k tokens · 6 min");
+        assert_eq!(
+            usage_line(3, 61_400, 360.0),
+            "3 requests · 61 k tokens · 6 min"
+        );
     }
 
     #[test]

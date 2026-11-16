@@ -80,7 +80,9 @@ fn chat(window: egui::Vec2, replies: Vec<ModelReply>) -> Fallible<Ax> {
     let script = Arc::new(Mutex::new(VecDeque::from(replies)));
     ax.app.assistant.model = Some(ChatModel {
         profile: ModelProfile::openai_compatible("scripted", 32_768),
-        connect: Arc::new(move || Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)),
+        connect: Arc::new(move || {
+            Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)
+        }),
     });
     ax.settle();
     Ok(ax)
@@ -128,7 +130,11 @@ fn the_column_opens_by_key_and_button_folds_docks_and_leaves_the_canvas_room() -
     let send = ax.find(Role::Button, "Send")?;
     assert!(send.disabled, "nothing typed yet");
     let left = send.rect.left().min(close.rect.left());
-    assert!(SMALL.x - left <= crate::assistant::MAX_WIDTH, "{}", ax.dump());
+    assert!(
+        SMALL.x - left <= crate::assistant::MAX_WIDTH,
+        "{}",
+        ax.dump()
+    );
     // The canvas keeps the rest: the application bar and ribbon still show.
     ax.find_prefix(Role::Button, "Command palette")?;
     // Fold to the strip, and back.
@@ -141,7 +147,11 @@ fn the_column_opens_by_key_and_button_folds_docks_and_leaves_the_canvas_room() -
     ax.button("Dock the assistant left")?;
     ax.settle();
     let close = ax.find(Role::Button, "Close the assistant")?;
-    assert!(close.rect.right() < crate::assistant::MAX_WIDTH + 20.0, "{:?}", close.rect);
+    assert!(
+        close.rect.right() < crate::assistant::MAX_WIDTH + 20.0,
+        "{:?}",
+        close.rect
+    );
     ax.button("Close the assistant")?;
     assert!(!ax.has(Role::Button, "Send"));
     // The application bar's button opens it again; so does the key.
@@ -180,7 +190,12 @@ fn a_message_is_one_turn_whose_edits_undo_as_one_step_from_its_card() -> Fallibl
     ax.until("the turn's end", idle)?;
     ax.settle();
     let assistant = &ax.app.assistant;
-    assert_eq!(assistant.conversation.state, State::Idle, "{:?}", assistant.conversation.items);
+    assert_eq!(
+        assistant.conversation.state,
+        State::Idle,
+        "{:?}",
+        assistant.conversation.items
+    );
     let items = &assistant.conversation.items;
     assert!(matches!(&items[0], Item::You { text, context, .. }
         if text == "Add two vias" && context.starts_with("PCB · Layout")));
@@ -200,9 +215,21 @@ fn a_message_is_one_turn_whose_edits_undo_as_one_step_from_its_card() -> Fallibl
         ]
     );
     // The reply, the card and the rows show.
-    assert!(ax.texts.iter().any(|t| t.contains("two vias")), "{:?}", ax.texts);
-    assert!(ax.texts.iter().any(|t| t == "Done · 1 undo step"), "{:?}", ax.texts);
-    assert!(ax.texts.iter().any(|t| t == "Vias: 2 added"), "{:?}", ax.texts);
+    assert!(
+        ax.texts.iter().any(|t| t.contains("two vias")),
+        "{:?}",
+        ax.texts
+    );
+    assert!(
+        ax.texts.iter().any(|t| t == "Done · 1 undo step"),
+        "{:?}",
+        ax.texts
+    );
+    assert!(
+        ax.texts.iter().any(|t| t == "Vias: 2 added"),
+        "{:?}",
+        ax.texts
+    );
     assert_eq!(ax.app.engine.project().vias.len(), vias + 2);
     assert_eq!(
         ax.app.engine.undo_step().map(|s| s.line()).as_deref(),
@@ -263,7 +290,11 @@ fn stop_ends_a_turn_waiting_on_the_person_and_the_next_message_runs() -> Fallibl
     ax.button("Stop")?;
     ax.until("the turn's end", idle)?;
     assert_eq!(ax.app.assistant.conversation.state, State::Stopped);
-    assert!(ax.texts.iter().any(|t| t == "Stopped by you."), "{:?}", ax.texts);
+    assert!(
+        ax.texts.iter().any(|t| t == "Stopped by you."),
+        "{:?}",
+        ax.texts
+    );
     send(&mut ax, "Are you there?")?;
     ax.until("the second turn's end", idle)?;
     assert!(

@@ -46,6 +46,8 @@ impl State {
 /// How a tool-call row ended, or that it runs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RowState {
+    /// The model is writing it.
+    Writing,
     Running,
     Done,
     Refused,
@@ -150,8 +152,9 @@ pub struct Conversation {
     pub state: State,
     /// Use of the turn running so far.
     pub usage: Use,
-    /// The reply or reasoning item the deltas of this reply grow.
-    streaming: Option<usize>,
+    /// The reply and reasoning items the current request's deltas grow.
+    reply_at: Option<usize>,
+    reasoning_at: Option<usize>,
     next_id: u64,
 }
 
@@ -161,7 +164,8 @@ impl Default for Conversation {
             items: Vec::new(),
             state: State::Idle,
             usage: Use::default(),
-            streaming: None,
+            reply_at: None,
+            reasoning_at: None,
             next_id: 1,
         }
     }
@@ -180,7 +184,8 @@ impl Conversation {
         if self.items.len() > MAX_ITEMS {
             let drop = self.items.len() - MAX_ITEMS;
             self.items.drain(..drop);
-            self.streaming = self.streaming.and_then(|i| i.checked_sub(drop));
+            self.reply_at = self.reply_at.and_then(|i| i.checked_sub(drop));
+            self.reasoning_at = self.reasoning_at.and_then(|i| i.checked_sub(drop));
         }
     }
 
@@ -193,30 +198,53 @@ impl Conversation {
         });
         self.state = State::Running;
         self.usage = Use::default();
-        self.streaming = None;
+        self.reply_at = None;
+        self.reasoning_at = None;
     }
 
     /// Fold one of the loop's events into the transcript.
     pub fn apply(&mut self, event: Event) {
         match event {
-            Event::Request { .. } => self.streaming = None,
+            Event::Request { .. } => {
+                self.reply_at = None;
+                self.reasoning_at = None;
+            }
             Event::TextDelta(text) => self.grow(text, false),
             Event::ReasoningDelta(text) => self.grow(text, true),
-            Event::Text(text) => self.whole(text, false),
-            Event::Reasoning(text) => self.whole(text, true),
+            Event::Text(text) => match self.reply_at.and_then(|i| self.items.get_mut(i)) {
+                // The whole text replaces what its deltas showed.
+                Some(Item::Reply(shown)) => *shown = text,
+                _ => {
+                    self.push(Item::Reply(text));
+                    self.reply_at = Some(self.items.len() - 1);
+                }
+            },
             Event::Call {
                 request,
                 call,
                 name,
                 state,
             } => self.call(request, call, &name, state),
-            Event::Usage(usage) => self.usage = usage,
+            Event::Usage(meter) => {
+                self.usage = Use {
+                    requests: u32::try_from(meter.requests.used).unwrap_or(u32::MAX),
+                    output_tokens: meter.output_tokens.used,
+                    tokens: meter.tokens.used,
+                    seconds: meter.minutes.used as f64 * 60.0,
+                };
+            }
+            Event::Response { .. } | Event::Warning(_) => {}
         }
     }
 
-    /// A delta: the streaming item of its kind grows, or a new one starts.
+    /// A delta: this reply's item of its kind grows, or starts.
     fn grow(&mut self, text: String, reasoning: bool) {
-        match self.streaming.and_then(|i| self.items.get_mut(i)) {
+        let at = if reasoning {
+            self.reasoning_at
+        } else {
+            self.reply_at
+        };
+        match at.and_then(|i| self.items.get_mut(i)) {
             Some(Item::Reasoning(shown)) if reasoning => shown.push_str(&text),
             Some(Item::Reply(shown)) if !reasoning => shown.push_str(&text),
             _ => {
@@ -225,27 +253,17 @@ impl Conversation {
                 } else {
                     Item::Reply(text)
                 });
-                self.streaming = Some(self.items.len() - 1);
+                let at = Some(self.items.len() - 1);
+                if reasoning {
+                    self.reasoning_at = at;
+                } else {
+                    self.reply_at = at;
+                }
             }
         }
     }
 
-    /// A reply's whole text: it replaces what its deltas showed.
-    fn whole(&mut self, text: String, reasoning: bool) {
-        match self.streaming.and_then(|i| self.items.get_mut(i)) {
-            Some(Item::Reasoning(shown)) if reasoning => *shown = text,
-            Some(Item::Reply(shown)) if !reasoning => *shown = text,
-            _ => self.push(if reasoning {
-                Item::Reasoning(text)
-            } else {
-                Item::Reply(text)
-            }),
-        }
-        self.streaming = None;
-    }
-
     fn call(&mut self, request: u32, call: u32, name: &str, state: CallState) {
-        self.streaming = None;
         // Rows are named within their turn: since the person's last message.
         let turn = self
             .items
@@ -276,12 +294,13 @@ impl Conversation {
             return;
         };
         match state {
+            CallState::Writing => row.state = RowState::Writing,
             CallState::Running { input } => {
                 row.line = call_line(name, &input);
                 row.input = detail(&serde_json::to_string_pretty(&input).unwrap_or_default());
                 row.state = RowState::Running;
             }
-            CallState::Done { reply } => {
+            CallState::Done { reply, .. } => {
                 row.reply = detail(&reply);
                 row.state = RowState::Done;
             }
@@ -311,7 +330,6 @@ impl Conversation {
 
     /// A turn ended: its card, and the state its end leaves.
     pub fn ended(&mut self, summary: TurnSummary, end: &chat::End) {
-        self.streaming = None;
         self.state = match end {
             chat::End::Answered => State::Idle,
             chat::End::Stopped => State::Stopped,
@@ -385,7 +403,10 @@ pub fn context_line(context: &Value) -> String {
             None => format!(
                 "{} {}",
                 s["kind"].as_str().unwrap_or("object"),
-                s["id"].as_u64().map(|id| id.to_string()).unwrap_or_default()
+                s["id"]
+                    .as_u64()
+                    .map(|id| id.to_string())
+                    .unwrap_or_default()
             )
             .trim()
             .to_owned(),
@@ -408,17 +429,27 @@ mod tests {
     fn deltas_grow_one_item_and_the_whole_text_replaces_them() {
         let mut c = Conversation::default();
         c.sent("Hi".into(), "PCB".into(), vec![]);
-        c.apply(Event::Request { n: 1 });
+        c.apply(Event::Request {
+            n: 1,
+            prompt_tokens: 0,
+        });
         c.apply(Event::ReasoningDelta("Let me ".into()));
         c.apply(Event::ReasoningDelta("think".into()));
-        c.apply(Event::Reasoning("Let me think.".into()));
         c.apply(Event::TextDelta("Two ".into()));
         c.apply(Event::TextDelta("vias".into()));
+        // A call the model starts writing does not split the reply.
+        c.apply(Event::Call {
+            request: 1,
+            call: 0,
+            name: "query".into(),
+            state: CallState::Writing,
+        });
         c.apply(Event::Text("Two vias.".into()));
+        assert_eq!(c.items.len(), 4, "{:?}", c.items);
         assert_eq!(
-            c.items[1..],
+            c.items[1..3],
             [
-                Item::Reasoning("Let me think.".into()),
+                Item::Reasoning("Let me think".into()),
                 Item::Reply("Two vias.".into())
             ]
         );
@@ -459,7 +490,8 @@ mod tests {
         let pcb = json!({"revision": 4, "workspace": "pcb", "view": "layout",
             "selection": [{"kind": "instance", "id": 7, "name": "U1"}, {"kind": "track", "id": 9}]});
         assert_eq!(context_line(&pcb), "PCB · Layout · U1, track 9");
-        let sheet = json!({"workspace": "schematic", "sheet": {"id": 1, "name": "Power"}, "selection": []});
+        let sheet =
+            json!({"workspace": "schematic", "sheet": {"id": 1, "name": "Power"}, "selection": []});
         assert_eq!(context_line(&sheet), "Schematic · Power · nothing selected");
         let many: Vec<Value> = (0..6)
             .map(|i| json!({"kind": "instance", "id": i, "name": format!("R{i}")}))

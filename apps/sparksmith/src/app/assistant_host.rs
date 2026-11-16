@@ -125,8 +125,7 @@ impl App {
         Ok(ChatModel {
             profile,
             connect: Arc::new(move || {
-                sparksmith_assist::model::connect(&declared, &connection)
-                    .map_err(|e| e.to_string())
+                sparksmith_assist::model::connect(&declared, &connection).map_err(|e| e.to_string())
             }),
         })
     }
@@ -152,9 +151,7 @@ impl App {
                 .edge("assistant-strip", edge)
                 .resizable(false)
                 .exact_size(assistant::STRIP_WIDTH);
-            let frame = host
-                .edge_frame(t.panel)
-                .inner_margin(egui::Margin::same(0));
+            let frame = host.edge_frame(t.panel).inner_margin(egui::Margin::same(0));
             host.show_edge(ui, panel, frame, |ui| self.assistant.strip(ui))
                 .inner
         } else {
@@ -286,7 +283,11 @@ impl App {
         );
         self.assistant.composer.clear();
         let message = vec![Part::text(format!("The window shows: {context}\n\n{text}"))];
-        let config = ChatConfig::new(&library, model.profile.clone(), sparksmith_assist::chat::unbounded());
+        let config = ChatConfig::new(
+            &library,
+            model.profile.clone(),
+            sparksmith_assist::chat::unbounded(),
+        );
         let history = std::mem::take(&mut self.assistant.history);
         let wake = ctx.clone();
         match worker::start(
@@ -348,9 +349,9 @@ impl App {
         let (grant, reach) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {
-                let _ = request
-                    .reply
-                    .send(json!({"ok": false, "error": {"code": "chat.unavailable", "message": why}}));
+                let _ = request.reply.send(
+                    json!({"ok": false, "error": {"code": "chat.unavailable", "message": why}}),
+                );
                 return;
             }
         };
@@ -520,12 +521,12 @@ fn summary_card(
                 .iter()
                 .filter_map(|id| names[id.to_string()].as_str())
                 .collect();
-            let what = if !named.is_empty() && named.len() == ids.len() && ids.len() <= NAMED_OBJECTS
-            {
-                named.join(", ")
-            } else {
-                ids.len().to_string()
-            };
+            let what =
+                if !named.is_empty() && named.len() == ids.len() && ids.len() <= NAMED_OBJECTS {
+                    named.join(", ")
+                } else {
+                    ids.len().to_string()
+                };
             lines.push(format!("{}: {what} {word}", collection(path)));
             if kind != "removed" {
                 show.extend(ids.iter().filter_map(Value::as_u64).filter(|id| {
@@ -541,9 +542,9 @@ fn summary_card(
     let findings = &difference["findings"];
     let new: Vec<&Value> = findings["new"].as_array().into_iter().flatten().collect();
     let issues_new = new.len() + findings["omitted"].as_u64().unwrap_or(0) as usize;
-    let issues_resolved = findings["resolved"]
-        .as_object()
-        .map_or(0, |r| r.values().filter_map(Value::as_u64).sum::<u64>() as usize);
+    let issues_resolved = findings["resolved"].as_object().map_or(0, |r| {
+        r.values().filter_map(Value::as_u64).sum::<u64>() as usize
+    });
     let end = match &outcome.end {
         End::Answered => None,
         End::Stopped => Some("Stopped by you.".to_owned()),
@@ -593,7 +594,10 @@ mod tests {
 
     #[test]
     fn a_turn_is_labelled_by_its_message() {
-        assert_eq!(turn_label("Add two vias\nnear U1"), "AI assistant: Add two vias");
+        assert_eq!(
+            turn_label("Add two vias\nnear U1"),
+            "AI assistant: Add two vias"
+        );
         let long = "x".repeat(LABEL_CHARS + 5);
         assert_eq!(
             turn_label(&long),

@@ -4,6 +4,7 @@
 //! an [`Operation`], which [`App::apply`] sends through the engine, the same
 //! path the CLI and MCP use. Long work (3D builds, file I/O, recovery) runs on
 //! background threads and reports back with the input it was made from.
+mod assistant_host;
 mod browser;
 mod browser_catalog;
 mod chrome;
@@ -13,7 +14,6 @@ mod import_report;
 mod key_reveal;
 mod list_prefs;
 mod live_mcp;
-mod assistant_host;
 mod open_timing;
 mod settings_window;
 mod shortcut_sheet;

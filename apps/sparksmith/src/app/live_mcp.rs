@@ -195,8 +195,7 @@ impl App {
     /// Typing in the assistant's composer is not working in the window
     /// (`docs/assistant-panel.md` §4.2).
     pub(super) fn live_busy(&mut self, ctx: &egui::Context) -> Option<String> {
-        let composing =
-            ctx.memory(|m| m.has_focus(crate::assistant::Assistant::composer_id()));
+        let composing = ctx.memory(|m| m.has_focus(crate::assistant::Assistant::composer_id()));
         let reviewing = self.part.review_mut().is_open()
             || self.schematic.review_mut().is_open()
             || self.pcb.review_mut().is_open();

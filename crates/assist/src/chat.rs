@@ -14,7 +14,8 @@
 //! tool call's row from `Running` to how it ended, and [`Event::Usage`]
 //! against the turn's [`Budget`].
 use crate::model::{
-    Budget, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason, ToolSpec,
+    Budget, Delta, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason,
+    ToolSpec,
 };
 use crate::usage::Tally;
 use crate::{Error, Result};
@@ -146,20 +147,11 @@ pub trait Tools {
     fn call(&mut self, verb: &str, input: &Value) -> Value;
 }
 
-/// Where a tool call is.
-#[derive(Clone, Debug, PartialEq)]
-pub enum CallState {
-    /// It runs, with this input.
-    Running { input: Value },
-    /// It ran: the reply the model reads.
-    Done { reply: String },
-    /// It was refused or failed; the model reads why.
-    Refused { reply: String },
-    /// It never ran, and why: cut off at the output limit, or stopped.
-    NotRun { why: String },
-}
+/// What a turn's events are: the loop's own (`crate::Event`), the same the
+/// datasheet run sends, so the chat draws both alike.
+pub use crate::{CallState, Event, Meter};
 
-/// Use against the turn's budget.
+/// A turn's use.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Use {
     pub requests: u32,
@@ -167,31 +159,6 @@ pub struct Use {
     /// Prompt plus output tokens, every request counted.
     pub tokens: u64,
     pub seconds: f64,
-}
-
-/// One thing that happened in a turn, for the chat to draw.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Event {
-    /// Request `n` of the turn is about to go out.
-    Request { n: u32 },
-    /// Answer text as it arrives (a streaming backend).
-    TextDelta(String),
-    /// Reasoning as it arrives; the chat folds it.
-    ReasoningDelta(String),
-    /// What the model reasoned in this reply, whole.
-    Reasoning(String),
-    /// The reply's answer text, whole: it replaces what the deltas showed.
-    Text(String),
-    /// A tool-call row. `call` counts request `request`'s calls from 0, so
-    /// the two name the row; each new state replaces the last.
-    Call {
-        request: u32,
-        call: u32,
-        name: String,
-        state: CallState,
-    },
-    /// Use so far, after each response.
-    Usage(Use),
 }
 
 /// How a turn ended. What its calls changed stays, as one undo step.
@@ -250,7 +217,10 @@ pub fn turn(
     let usage = |tally: &Tally| Use {
         requests: tally.requests,
         output_tokens: tally.usage.output_tokens,
-        tokens: tally.usage.prompt().saturating_add(tally.usage.output_tokens),
+        tokens: tally
+            .usage
+            .prompt()
+            .saturating_add(tally.usage.output_tokens),
         seconds: started.elapsed().as_secs_f64(),
     };
     if let Err(error) = config.check() {
@@ -261,8 +231,8 @@ pub fn turn(
     }
     let budget = &config.budget;
     let profile = &config.profile;
-    let fixed = (config.system.len() + serde_json::to_string(&config.tools).map_or(0, |t| t.len()))
-        as u64;
+    let fixed =
+        (config.system.len() + serde_json::to_string(&config.tools).map_or(0, |t| t.len())) as u64;
     let end = loop {
         if cancel.load(Ordering::Relaxed) {
             break End::Stopped;
@@ -308,27 +278,49 @@ pub fn turn(
             timeout: profile.request_timeout.min(left),
         };
         let n = tally.requests.saturating_add(1);
-        events(Event::Request { n });
-        let reply = match backend.send(&request) {
+        events(Event::Request {
+            n,
+            prompt_tokens: prompt,
+        });
+        let sent = Instant::now();
+        let mut delta = |delta: Delta| {
+            events(match delta {
+                Delta::Text(text) => Event::TextDelta(text),
+                Delta::Reasoning(text) => Event::ReasoningDelta(text),
+                Delta::ToolCall { index, name } => Event::Call {
+                    request: n,
+                    call: index,
+                    name,
+                    state: CallState::Writing,
+                },
+            });
+        };
+        let reply = match backend.stream(&request, &mut delta, cancel) {
             Ok(reply) => reply,
             Err(error) => break End::Failed(error.to_string()),
         };
         tally.book(&reply.usage);
-        events(Event::Usage(usage(&tally)));
-        if cancel.load(Ordering::Relaxed) {
+        events(Event::Response {
+            n,
+            stop_reason: reply.stop.label(),
+            output_tokens: reply.usage.output_tokens,
+            seconds: sent.elapsed().as_secs_f64(),
+        });
+        events(Event::Usage(crate::run::meter(&tally, budget, started)));
+        if reply.stop == StopReason::Stopped || cancel.load(Ordering::Relaxed) {
             // Stopped while the reply arrived: it is never used.
             break End::Stopped;
         }
-        for part in &reply.content {
-            match part {
-                Part::Reasoning { text, .. } if !text.trim().is_empty() => {
-                    events(Event::Reasoning(text.clone()));
-                }
-                Part::Text { text, .. } if !text.trim().is_empty() => {
-                    events(Event::Text(text.clone()));
-                }
-                _ => {}
-            }
+        let text: Vec<&str> = reply
+            .content
+            .iter()
+            .filter_map(|part| match part {
+                Part::Text { text, .. } if !text.trim().is_empty() => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        if !text.is_empty() {
+            events(Event::Text(text.join("\n\n")));
         }
         if let StopReason::Refusal { category } = &reply.stop {
             break End::Declined(category.clone());
@@ -408,6 +400,7 @@ pub fn turn(
             events(row(if ok {
                 CallState::Done {
                     reply: text.clone(),
+                    step: None,
                 }
             } else {
                 CallState::Refused {

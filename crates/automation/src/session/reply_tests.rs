@@ -455,11 +455,16 @@ fn the_difference_between_two_documents_names_what_changed() -> TestResult {
     let via = reply["outcome"]["via"].clone();
     let after = session.engine().document().clone();
     let summary = difference(&before, &after, &settings)?;
-    assert_eq!(summary["changes"]["added"]["vias"], json!([via]), "{summary}");
+    assert_eq!(
+        summary["changes"]["added"]["vias"],
+        json!([via]),
+        "{summary}"
+    );
     assert!(summary["findings"]["open"].is_u64(), "{summary}");
     let mut names = serde_json::Map::new();
     let root = json!({"layout": {"parts": [{"id": 7, "designator": "U1"}, {"id": 8}]}});
-    let listed = std::collections::BTreeMap::from([("layout.parts".to_owned(), vec![json!(7), json!(8)])]);
+    let listed =
+        std::collections::BTreeMap::from([("layout.parts".to_owned(), vec![json!(7), json!(8)])]);
     super::reply::tests_support::name_listed(&root, &listed, &mut names);
     assert_eq!(Value::Object(names), json!({"7": "U1"}));
     Ok(())

@@ -146,7 +146,7 @@ fn an_answer_without_tools_ends_the_turn_and_the_history_keeps_both_sides() -> F
     assert_eq!(outcome.usage.tokens, 110);
     assert_eq!(history.len(), 2);
     assert!(tools.calls.is_empty());
-    assert_eq!(events.first(), Some(&Event::Request { n: 1 }));
+    assert!(matches!(events.first(), Some(Event::Request { n: 1, .. })));
     assert!(events.contains(&Event::Text("The board has 4 layers.".into())));
     Ok(())
 }
@@ -190,6 +190,7 @@ fn tool_calls_run_in_order_and_their_rows_end_done_or_refused() -> Fallible {
             Event::Call { call, state, .. } => Some((
                 *call,
                 match state {
+                    CallState::Writing => "writing",
                     CallState::Running { .. } => "running",
                     CallState::Done { .. } => "done",
                     CallState::Refused { .. } => "refused",
@@ -201,7 +202,14 @@ fn tool_calls_run_in_order_and_their_rows_end_done_or_refused() -> Fallible {
         .collect();
     assert_eq!(
         states,
-        [(0, "running"), (0, "done"), (1, "running"), (1, "refused")]
+        [
+            (0, "writing"),
+            (1, "writing"),
+            (0, "running"),
+            (0, "done"),
+            (1, "running"),
+            (1, "refused")
+        ]
     );
     // User, assistant (calls), user (two results), assistant (answer).
     assert_eq!(history.len(), 4);

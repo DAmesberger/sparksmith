@@ -627,9 +627,7 @@ pub fn difference(
 /// `root` holds and that has one.
 fn name_listed(root: &Value, lists: &BTreeMap<String, Vec<Value>>, names: &mut Map<String, Value>) {
     for (path, ids) in lists {
-        let Some(Value::Array(items)) = path
-            .split('.')
-            .try_fold(root, |value, key| value.get(key))
+        let Some(Value::Array(items)) = path.split('.').try_fold(root, |value, key| value.get(key))
         else {
             continue;
         };
