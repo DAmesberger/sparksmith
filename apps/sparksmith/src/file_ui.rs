@@ -18,6 +18,28 @@ use std::{
 
 type Outcome<T> = Result<T, String>;
 
+/// Seconds a save or import may take before the app bar says what the
+/// system may be holding it for.
+const HELD_ACCESS: f64 = 3.0;
+
+/// `work` ("Saving…") after `elapsed` seconds on `path`, and when the text
+/// next changes: past [`HELD_ACCESS`] it names the folder the system may
+/// be asking permission for.
+fn activity_text(work: &str, path: &Path, elapsed: f64) -> (String, Option<Duration>) {
+    if elapsed < HELD_ACCESS {
+        let wake = Duration::try_from_secs_f64(HELD_ACCESS - elapsed.max(0.0)).ok();
+        return (work.to_owned(), wake);
+    }
+    let folder = path
+        .parent()
+        .and_then(Path::file_name)
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "the folder".to_owned());
+    let text =
+        format!("{work} waiting for access to {folder}: check for a system permission prompt");
+    (text, None)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Stamp {
     epoch: u64,
@@ -417,6 +439,9 @@ pub struct FileUi {
     /// The KiCad import running (not while its file panel is open), for
     /// [`FileUi::importing`].
     importing: Option<u64>,
+    /// When the running save or import sent its file to the worker, and
+    /// the file, for [`FileUi::activity`].
+    access: (f64, PathBuf),
     /// The window is closing with the user's answer (or nothing unsaved):
     /// the exit keeps no recovery copy.
     closed: bool,
@@ -477,6 +502,7 @@ impl FileUi {
             close_pending: false,
             writing: None,
             importing: None,
+            access: (0.0, PathBuf::new()),
             closed: false,
             model_export: crate::model_export::ModelExport::new(ctx),
         }
@@ -524,6 +550,14 @@ impl FileUi {
     pub fn path(&self) -> Option<&Path> {
         self.controller.path.as_deref()
     }
+    /// The file a project without a path of its own was imported or
+    /// restored from: its first save proposes, and gives an Untitled
+    /// project, this file's name.
+    pub fn unsaved_origin(&self) -> Option<&Path> {
+        self.restored_origin
+            .as_deref()
+            .filter(|_| self.controller.path.is_none())
+    }
     pub fn busy(&self) -> bool {
         self.controller.flight.is_some() || self.recovery_choice_pending
     }
@@ -542,6 +576,20 @@ impl FileUi {
             .flight
             .as_ref()
             .is_some_and(|f| f.kind == Kind::Import && Some(f.ticket.id) == self.importing)
+    }
+    /// The app bar's text for a running save or import, and when it next
+    /// changes. One the system holds past [`HELD_ACCESS`] (a permission
+    /// prompt behind the window, a slow disk) says what it waits for.
+    pub fn activity(&self) -> Option<(String, Option<Duration>)> {
+        let work = if self.saving() {
+            "Saving\u{2026}"
+        } else if self.importing() {
+            "Importing KiCad project\u{2026}"
+        } else {
+            return None;
+        };
+        let (since, path) = &self.access;
+        Some(activity_text(work, path, self.now - since))
     }
     /// Whether the startup listing of earlier sessions has arrived, so
     /// [`FileUi::prompting`] says whether one is offered.
@@ -613,11 +661,13 @@ impl FileUi {
         self.controller.recovered.as_ref() == Some(&self.controller.current)
     }
     fn send(&mut self, job: Job) {
-        if let Job::Write(ticket, ..) = &job {
+        if let Job::Write(ticket, path, _) = &job {
             self.writing = Some(ticket.id);
+            self.access = (self.now, path.clone());
         }
-        if let Job::Import(ticket, ..) = &job {
+        if let Job::Import(ticket, path) = &job {
             self.importing = Some(ticket.id);
+            self.access = (self.now, path.clone());
         }
         if let Err(error) = self.sender.send(job) {
             self.controller.flight = None;
@@ -750,10 +800,7 @@ impl FileUi {
     /// own file's, else (a restored session) the file it was restored
     /// from, else the project's name in the last folder used.
     fn save_proposal(&self) -> (&Path, String) {
-        let origin = self
-            .restored_origin
-            .as_deref()
-            .filter(|_| self.controller.path.is_none());
+        let origin = self.unsaved_origin();
         let folder = origin.and_then(Path::parent).unwrap_or(&self.folder);
         let name = proposed_file_name(
             self.controller.path.as_deref().or(origin),

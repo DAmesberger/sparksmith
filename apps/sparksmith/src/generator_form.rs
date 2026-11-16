@@ -357,11 +357,12 @@ pub fn rows(ui: &mut Ui, offer: &Offer, values: &mut Values, problems: &[ParamPr
                             .map(|p| p.message.clone())
                     });
                     match (&response, &problem) {
+                        // The module's sentence names values: read whole.
                         (Some(response), Some(message)) => {
-                            kit::field_error(ui, response, message, true);
+                            kit::field_error_wrapped(ui, response, message, true);
                         }
                         (None, Some(message)) => {
-                            kit::refusal(ui, message);
+                            kit::refusal_wrapped(ui, message);
                         }
                         _ => {}
                     }

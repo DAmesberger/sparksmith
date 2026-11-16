@@ -26,7 +26,7 @@ The audit found these problems, most harmful first:
 | D3 | The card commits live, per field. Paired values commit together. Apply exists only in dialogs. |
 | D4 | Component-level data moves to a new **Details** tab, first among the Component tabs. |
 | D5 | Tool settings show in a tool card in the subject slot. |
-| D6 | Unrouted connections, unplaced instances and unresolved purchasing have severity **To do**. Publish blockers are always Error. |
+| D6 | Unrouted connections, unplaced instances and unresolved purchasing have severity **To do**. Publish blockers are always Error, except a package terminal no mapping carries yet (`binding.mapping_missing`, as a package change leaves new terminals), which is a To do that still blocks publishing (E2E run 10). |
 | D7 | Solidcraft kit internals are ported locally with attribution. The pinned Solidcraft fork is not changed. |
 | D8 | Core owns issue titles and details through `project.issues` (`Query::Issues`), so CLI and MCP show the same words. |
 | D9 | Impact reviews are docked in the subject slot, with the canvas preview visible. |
@@ -143,10 +143,10 @@ A review shows a summary line first, then blockers with their acknowledgements, 
 
 - **Error** when it blocks a stage (`Publish`, `BoardPlaceable`, `ElectricallyResolved`, or the draft publish check), and for manufacturing rules (clearance, courtyard, outline) and ERC conflicts. `Finding.blocks` alone is not a reliable source, because footprint, layout and ERC findings are built with `Finding::new`.
 - **Warning** for lint and purchasing or rating mismatches.
-- **To do** for unrouted connections, unplaced instances and unresolved purchasing.
+- **To do** for unrouted connections, unplaced instances, unresolved purchasing and package terminals not mapped yet (these still block publishing; a package terminal mapped twice, `binding.mapping_duplicate`, is an Error).
 - **Info** otherwise.
 
-Anything that blocks publishing is always Error and always counted.
+Anything that blocks publishing is always counted, and Error except an unmapped package terminal.
 
 **Merging.** Core emits one finding with both `ObjectRef`s for a same-cause pair: pad ↔ package terminal, binding ↔ package terminal, and per-instance copies of one shared Part. A side with no counterpart keeps its own finding. The app never merges by matching text.
 

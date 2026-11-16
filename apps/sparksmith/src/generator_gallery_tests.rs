@@ -64,6 +64,42 @@ fn frame_of(
     (texts, sent)
 }
 
+/// One frame `width` x `height` points: each text with whether it was cut
+/// short, and whether it painted a refusal's error fill.
+fn painted(
+    ctx: &egui::Context,
+    gallery: &mut GeneratorGallery,
+    engine: &Engine,
+    width: f32,
+    height: f32,
+) -> (Vec<(String, bool)>, bool) {
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(width, height))),
+            ..Default::default()
+        },
+        |ui| {
+            gallery.show(ui.ctx(), engine);
+        },
+    );
+    output.textures_delta.clear();
+    fn walk(shape: &egui::Shape, texts: &mut Vec<(String, bool)>, fill: &mut bool) {
+        match shape {
+            egui::Shape::Text(text) => {
+                texts.push((text.galley.job.text.clone(), text.galley.elided));
+            }
+            egui::Shape::Rect(rect) => *fill |= rect.fill == Tokens::get().form_error_fill,
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|s| walk(s, texts, fill)),
+            _ => {}
+        }
+    }
+    let (mut texts, mut fill) = (Vec::new(), false);
+    for shape in &output.shapes {
+        walk(&shape.shape, &mut texts, &mut fill);
+    }
+    (texts, fill)
+}
+
 fn enter() -> egui::Event {
     egui::Event::Key {
         key: egui::Key::Enter,
@@ -284,6 +320,14 @@ fn create_makes_the_part_and_hands_it_over() -> TestResult {
         operation,
         Operation::Library(LibraryCommand::Generate(_))
     ));
+    // E2E run 10, finding 5: while the part is made and applied the form
+    // is busy, not refused: a neutral row, never the red refusal box.
+    let (texts, error_fill) = painted(&ctx, &mut gallery, &engine, 1400.0, 900.0);
+    assert!(
+        texts.iter().any(|(t, _)| t == "Waiting for the engine…"),
+        "{texts:?}"
+    );
+    assert!(!error_fill, "a busy form paints no refusal");
     apply(&mut engine, operation)?;
     frame(&ctx, &mut gallery, &engine, vec![]);
     let created = gallery.take_created().ok_or("handed over")?;
@@ -337,6 +381,16 @@ fn a_value_the_module_refuses_is_marked_before_create() -> TestResult {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     assert!(marked, "the module's refusal is marked before Create");
+    // E2E run 10, finding 6: at 1024 x 560 the sentence is read whole,
+    // under the field and in the banner, not cut.
+    painted(&ctx, &mut gallery, &engine, 1024.0, 560.0);
+    let (texts, _) = painted(&ctx, &mut gallery, &engine, 1024.0, 560.0);
+    let shown: Vec<bool> = texts
+        .iter()
+        .filter(|(t, _)| t == message)
+        .map(|(_, cut)| *cut)
+        .collect();
+    assert_eq!(shown, [false, false], "{texts:?}");
     frame(&ctx, &mut gallery, &engine, vec![enter()]);
     for _ in 0..5 {
         let (_, sent) = frame(&ctx, &mut gallery, &engine, vec![]);

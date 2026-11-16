@@ -482,6 +482,10 @@ pub struct PcbEditor {
     /// published by default, and what relative linked design paths are read
     /// against. `None` for a project never saved.
     pub project_path: Option<std::path::PathBuf>,
+    /// The file a project never saved was imported or restored from, set
+    /// by the app each frame: an Untitled project's production files take
+    /// its name, as its first save would.
+    pub project_origin: Option<std::path::PathBuf>,
     /// Board bounds a Locate asked the next Layout frame to frame.
     frame_request: Option<[Point; 2]>,
     /// Bounds the next Layout frame shows whole, zooming out past the
@@ -621,6 +625,7 @@ impl Default for PcbEditor {
             chosen_production_folder: None,
             interface: Default::default(),
             project_path: None,
+            project_origin: None,
             frame_request: None,
             overview_request: None,
             show_in_schematic: None,

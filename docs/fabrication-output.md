@@ -45,7 +45,7 @@ The check reports every project issue under the chosen fabrication profile. Over
 
 ## Files
 
-`STEM` is the base name (the project file's stem in the CLI).
+`STEM` is the base name (the project file's stem in the CLI). In the desktop it is the project's name, which an Untitled project takes from its file on the first save. Until then an Untitled project's files take the name that save would give it: the KiCad board it was imported from (or the file a recovered session came from). A new project that is neither saved nor named has no name to give its files: Export is disabled with "Save or name the project first: the files take its name", rather than writing `Untitled-…` files.
 
 | File | Content |
 | --- | --- |

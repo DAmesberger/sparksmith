@@ -41,12 +41,14 @@ pub const MAX_TITLE: usize = crate::diagnostics::MAX_LINE;
 pub enum Severity {
     /// Blocks a stage (publish, board placement, electrical resolution) or
     /// breaks a manufacturing or electrical rule. The only red severity.
-    /// Anything that blocks publishing is always an error.
+    /// Anything that blocks publishing is an error, except a package
+    /// terminal not mapped yet, a to-do that still blocks publishing.
     Error,
     /// Lint, and purchasing or rating mismatches.
     Warning,
     /// Work that is expected to remain while designing: unrouted
-    /// connections, unplaced instances, unresolved purchasing.
+    /// connections, unplaced instances, unresolved purchasing, package
+    /// terminals not mapped yet.
     ToDo,
     /// Information that needs no action.
     Info,

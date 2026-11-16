@@ -43,6 +43,27 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
+/// Why Export waits for a new project's name.
+pub(super) const UNNAMED: &str = "Save or name the project first: the files take its name";
+
+/// The production files' base name: the options' own, else the project's.
+/// An Untitled project takes the name its first save gives it: its own
+/// file's (one saved as Untitled), else the KiCad or recovery file it came
+/// from. A new project neither saved nor named has none (`None`): Export
+/// waits for a name rather than writing "Untitled" files.
+pub(super) fn files_stem(
+    project: &sparksmith_core::Project,
+    options: &FabricationOptions,
+    file: Option<&std::path::Path>,
+    origin: Option<&std::path::Path>,
+) -> Option<String> {
+    if options.base_name.is_some() || project.name != sparksmith_core::UNTITLED {
+        return Some(fabrication::base_name(project, options).unwrap_or_else(|_| "board".into()));
+    }
+    let stem = file.or(origin)?.file_stem()?.to_str()?;
+    Some(fabrication::stem_of(stem))
+}
+
 /// Rows a group of findings shows before "Show all".
 const LIST_ROWS: usize = kit::LIST_MAX_ROWS;
 
@@ -313,12 +334,14 @@ impl ProductionDialog {
     }
 
     /// Write the set from `document` off the UI thread.
+    /// The files are named `stem`, the name [`files_stem`] gave.
     pub(super) fn start_export(
         &mut self,
         ctx: &egui::Context,
         document: Document,
         checks: sparksmith_core::layout::CheckSettings,
         output: PathBuf,
+        stem: String,
     ) {
         if self.exporting.is_some() {
             return;
@@ -327,7 +350,10 @@ impl ProductionDialog {
             output,
             zip: self.format == Format::Zip,
             profile: self.profile(),
-            options: self.options.clone(),
+            options: FabricationOptions {
+                base_name: Some(stem),
+                ..self.options.clone()
+            },
         };
         let (sender, receiver) = std::sync::mpsc::channel();
         let repaint = ctx.clone();
@@ -458,6 +484,7 @@ pub fn report_summary(report: &PreflightReport) -> String {
 pub(super) fn export_blocked(
     dialog: &ProductionDialog,
     report: Option<&Result<PreflightReport, String>>,
+    named: bool,
     output: Option<&PathBuf>,
 ) -> Option<String> {
     if dialog.busy() {
@@ -473,6 +500,9 @@ pub(super) fn export_blocked(
             return Some(format!("Fix or waive the {} errors first", report.blocking));
         }
         Some(Ok(_)) => {}
+    }
+    if !named {
+        return Some(UNNAMED.into());
     }
     if output.is_none() {
         return Some("Choose where to save the files".into());
@@ -546,11 +576,15 @@ impl PcbEditor {
             self.chosen_production_folder = Some(folder);
         }
         dialog.poll_export(&ctx);
-        let stem = fabrication::base_name(engine.project(), &dialog.options)
-            .unwrap_or_else(|_| "board".into());
-        let output = dialog.output(&stem);
+        let stem = files_stem(
+            engine.project(),
+            &dialog.options,
+            self.project_path.as_deref(),
+            self.project_origin.as_deref(),
+        );
+        let output = stem.as_deref().and_then(|s| dialog.output(s));
         let report = dialog.current(engine).cloned();
-        let blocked = export_blocked(&dialog, report.as_ref(), output.as_ref());
+        let blocked = export_blocked(&dialog, report.as_ref(), stem.is_some(), output.as_ref());
         let status = dialog
             .progress
             .as_ref()
@@ -574,19 +608,20 @@ impl PcbEditor {
                 engine,
                 report.as_ref(),
                 output.as_ref(),
-                &stem,
+                stem.as_deref(),
             );
         });
         let mut close = false;
         match action {
             Some(DialogAction::Cancel) => close = true,
             Some(DialogAction::Primary) => {
-                if let Some(output) = output {
+                if let (Some(output), Some(stem)) = (output, stem) {
                     dialog.start_export(
                         &ctx,
                         engine.document().clone(),
                         *engine.check_settings(),
                         output,
+                        stem,
                     );
                 }
             }
@@ -609,7 +644,7 @@ fn body(
     engine: &Engine,
     report: Option<&Result<PreflightReport, String>>,
     output: Option<&PathBuf>,
-    stem: &str,
+    stem: Option<&str>,
 ) -> Option<Operation> {
     let mut op = None;
     kit::section(
@@ -655,7 +690,10 @@ fn body(
         kit::row(ui, "Save to", |ui| {
             choose = kit::summary_row(ui, &shown, Some("Choose…"));
         });
-        if output.is_none() {
+        if stem.is_none() {
+            // A new project's files would be "Untitled": say how to name them.
+            kit::hint(ui, UNNAMED, "");
+        } else if output.is_none() {
             // Why Export is grey, without hovering it.
             let what = match dialog.format {
                 Format::Folder => "a folder",
@@ -664,7 +702,7 @@ fn body(
             kit::hint(ui, &format!("Choose {what} to save to, then Export"), "");
         }
         if choose {
-            dialog.start_pick(ui.ctx(), stem);
+            dialog.start_pick(ui.ctx(), stem.unwrap_or(sparksmith_core::UNTITLED));
         }
     });
     kit::section(ui, "pcb-production-files", "Files", false, None, |ui| {

@@ -1566,6 +1566,12 @@ impl App {
         if self.pcb.project_path.as_deref() != self.files.path() {
             self.pcb.project_path = self.files.path().map(std::path::Path::to_path_buf);
         }
+        if self.pcb.project_origin.as_deref() != self.files.unsaved_origin() {
+            self.pcb.project_origin = self
+                .files
+                .unsaved_origin()
+                .map(std::path::Path::to_path_buf);
+        }
         let Some(project) = self.files.path() else {
             self.pcb.production_folder = None;
             return;

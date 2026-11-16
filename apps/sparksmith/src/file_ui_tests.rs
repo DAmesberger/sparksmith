@@ -554,7 +554,25 @@ fn a_save_says_it_runs_until_it_is_written() -> Fallible {
     h.edit("Saving")?;
     h.files.request(Action::Save);
     assert!(h.files.saving());
+    // E2E run 10, finding 4: a save the system holds past a few seconds
+    // says what it may wait for. The worker's answer is not read yet, so
+    // the save is still running at these times.
+    let (text, wake) = h.files.activity().ok_or("no activity while saving")?;
+    assert_eq!(text, "Saving\u{2026}");
+    assert!(wake.is_some_and(|w| w <= Duration::from_secs(3)));
+    let folder = h.dir.path().file_name().ok_or("no folder name")?;
+    h.files.observe(&h.engine, 3.5);
+    let (text, wake) = h.files.activity().ok_or("no activity while saving")?;
+    assert_eq!(
+        text,
+        format!(
+            "Saving\u{2026} waiting for access to {}: check for a system permission prompt",
+            folder.to_string_lossy()
+        )
+    );
+    assert_eq!(wake, None);
     h.until("the write", |h| !h.files.saving())?;
+    assert_eq!(h.files.activity(), None);
     assert!(!h.files.dirty());
     assert_eq!(sparksmith_io::read_project(&path)?.project.name, "Saving");
     Ok(())

@@ -149,6 +149,26 @@ impl FabricationSet {
     }
 }
 
+/// `name` as a file name stem: letters, digits, `-` and `_` (others become
+/// `_`), at most 64, or "board" when nothing is left.
+pub fn stem_of(name: &str) -> String {
+    let stem: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .take(64)
+        .collect();
+    if stem.trim_matches('_').is_empty() {
+        return "board".into();
+    }
+    stem
+}
+
 /// The file name stem for `project` under `options`.
 pub fn base_name(project: &Project, options: &FabricationOptions) -> Result<String> {
     let valid = |s: &str| {
@@ -162,24 +182,7 @@ pub fn base_name(project: &Project, options: &FabricationOptions) -> Result<Stri
         Some(_) => Err(Error::Invalid(
             "fabrication.base_name: use letters, digits, - and _ (at most 64)".into(),
         )),
-        None => {
-            let mut stem: String = project
-                .name
-                .chars()
-                .map(|c| {
-                    if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-                        c
-                    } else {
-                        '_'
-                    }
-                })
-                .take(64)
-                .collect();
-            if stem.trim_matches('_').is_empty() {
-                stem = "board".into();
-            }
-            Ok(stem)
-        }
+        None => Ok(stem_of(&project.name)),
     }
 }
 
