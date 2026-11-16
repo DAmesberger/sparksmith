@@ -9,7 +9,7 @@
 use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::copper::check_reach;
 use super::grid::BoundsGrid;
-use super::limits::{BoardRules, mm};
+use super::limits::{BoardRules, mm, mm_against};
 use super::{
     BoardCopper, CopperRing, EPS, Error, Result, RouteEditSet, RouteRequest, WorldPad,
     check_pair_budget, distance, invalid,
@@ -387,7 +387,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 "board.edge_clearance",
                 format!(
                     "A via on {name}: drill is {} mm from {}; {}",
-                    mm(gap),
+                    mm_against(gap, need.mm),
                     near.describe(),
                     need.text()
                 ),
@@ -413,7 +413,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                     "board.via_drill_clearance",
                     format!(
                         "A via on {name}: drill is {} mm from a {} on {}; {}",
-                        mm(drill.gap(ring, need.mm + 1.0)),
+                        mm_against(drill.gap(ring, need.mm + 1.0), need.mm),
                         kind.label(),
                         project.net_name(*net),
                         need.text()
@@ -438,7 +438,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                     format!(
                         "Vias on {name} and {}: drills are {} mm apart; {}",
                         project.net_name(other.net),
-                        mm(drill.gap(other_drill, need.mm + 1.0)),
+                        mm_against(drill.gap(other_drill, need.mm + 1.0), need.mm),
                         need.text()
                     ),
                     vec![me, ObjectRef::Via { id: other.id }],
@@ -459,7 +459,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 "board.edge_clearance",
                 format!(
                     "A mounting hole is {} mm from {}; {}",
-                    mm(gap),
+                    mm_against(gap, need.mm),
                     near.describe(),
                     need.text()
                 ),
@@ -484,7 +484,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 let how = if gap <= EPS {
                     format!("overlaps {what}")
                 } else {
-                    format!("is {} mm from {what}", mm(gap))
+                    format!("is {} mm from {what}", mm_against(gap, need.mm))
                 };
                 issues.push(Finding::new(
                     "board.hole_clearance",
@@ -509,7 +509,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                     format!(
                         "A mounting hole and a via on {}: drills are {} mm apart; {}",
                         project.net_name(via.net),
-                        mm(ring.gap(drill, need.mm + 1.0)),
+                        mm_against(ring.gap(drill, need.mm + 1.0), need.mm),
                         need.text()
                     ),
                     vec![ObjectRef::Board, ObjectRef::Via { id: via.id }],

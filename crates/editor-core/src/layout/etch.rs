@@ -22,7 +22,7 @@ use super::connectivity::CopperGraph;
 use super::copper::CopperRing;
 use super::fill::{self, FILL_CHORD_MM, RegionIndex};
 use super::grid::BoundsGrid;
-use super::limits::{cite, mm};
+use super::limits::{cite, mm, mm_against};
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, distance, polygon_contains, segments_cross};
 use crate::ids::Id;
@@ -443,7 +443,7 @@ fn slivers(project: &Project, graph: &CopperGraph, min: f64, out: &mut Vec<Findi
                         "board.copper_sliver",
                         format!(
                             "Unfilled gap {} mm < {} mm: {} / {} in {} at {} ({rule})",
-                            mm(gap),
+                            mm_against(gap, min),
                             mm(min),
                             describe(project, &labels, &a.object),
                             describe(project, &labels, &other),

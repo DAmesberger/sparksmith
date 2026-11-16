@@ -755,3 +755,44 @@ fn a_board_past_the_former_caps_opens_checks_and_edits() -> Result<()> {
     assert!(engine.project().tracks.is_empty() && engine.project().vias.is_empty());
     Ok(())
 }
+
+/// Run 10, finding 3: two vias whose drills are exactly the via hole
+/// spacing apart (JLCPCB's 0.2 mm: 0.3 mm drills 0.5 mm apart) meet the
+/// rule; drills are circles, measured exactly, not judged by their
+/// flattened outlines. Drills just under it are reported with enough
+/// decimals to read as under it.
+#[test]
+fn drills_exactly_at_the_hole_spacing_pass_and_closer_ones_read_as_closer() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    engine.apply(
+        engine.revision(),
+        crate::Operation::Rules(crate::rules::RulesCommand::SetProfile {
+            profile: Box::new(crate::rules::fixtures::jlcpcb_example()?),
+            keep_overrides: false,
+        }),
+    )?;
+    let net = shared(&engine)?;
+    let mut add = |position: Point| {
+        layout(
+            &mut engine,
+            LayoutCommand::AddVia {
+                via: ViaRequest::fixture(net, position),
+            },
+        )
+    };
+    add([40.0, 30.0])?;
+    add([40.5, 30.0])?;
+    add([45.0, 30.0])?;
+    add([45.4996, 30.0])?;
+    let spacing: Vec<String> = crate::layout::checks(engine.project(), engine.check_settings())
+        .into_iter()
+        .filter(|f| f.code == "board.via_hole_spacing")
+        .map(|f| f.message)
+        .collect();
+    assert_eq!(spacing.len(), 1, "{spacing:?}");
+    assert!(
+        spacing[0].contains("drills are 0.1996 mm apart; needs 0.2 mm"),
+        "{spacing:?}"
+    );
+    Ok(())
+}

@@ -698,7 +698,7 @@ fn check_pair(
             format!(
                 "{}: halves {} mm apart on {}; needs a {} mm pair gap",
                 pair.name,
-                mm(edge),
+                super::limits::mm_against(edge, gap),
                 layer.name(),
                 mm(gap)
             ),
