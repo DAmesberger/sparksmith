@@ -22,6 +22,11 @@ const WALL_MARGIN_MM: f64 = 1e-4;
 const SLIVER_MM: f64 = WALL_MARGIN_MM / 10.0;
 /// Edges whose directions differ by less than this sine are parallel.
 const PARALLEL: f64 = 1e-9;
+/// An edge ending this close to a wall piece still splits it: fill
+/// outlines come rounded to about 1e-8 mm, so a fill edge meant to end on
+/// a land's side can stop just short of it. Split there, the piece's part
+/// along the fill's own edge matches that edge's piece and stands once.
+const TOUCH_MM: f64 = 1e-7;
 
 #[derive(Debug)]
 pub struct Region {
@@ -130,8 +135,11 @@ pub fn slab(region: &Region, z0: f64, z1: f64, tile: f64) -> Mesh {
         if b[0] < lo[0] || b[1] < lo[1] || a[0] > hi[0] || a[1] > hi[1] {
             continue;
         }
-        for ty in tile_of(a[1], 1, ny)..=tile_of(b[1], 1, ny) {
-            for tx in tile_of(a[0], 0, nx)..=tile_of(b[0], 0, nx) {
+        // A loop reaching within the wall margin of a tile is that tile's
+        // too: its walls are classified, and split, that far past the tile.
+        let m = WALL_MARGIN_MM;
+        for ty in tile_of(a[1] - m, 1, ny)..=tile_of(b[1] + m, 1, ny) {
+            for tx in tile_of(a[0] - m, 0, nx)..=tile_of(b[0] + m, 0, nx) {
                 buckets[ty * nx + tx].push(index);
             }
         }
@@ -190,6 +198,14 @@ pub fn slab(region: &Region, z0: f64, z1: f64, tile: f64) -> Mesh {
             }
         }
     }
+    // Loops sharing an edge the same way round (two round ends on one
+    // centre) stand one wall there, not two, even where rounding puts the
+    // two copies in neighbouring tiles.
+    let mut stood: std::collections::HashSet<[i64; 4]> = Default::default();
+    let key = |p: Point, q: Point| {
+        let k = |v: f64| (v * 1e7).round() as i64;
+        [k(p[0]), k(p[1]), k(q[0]), k(q[1])]
+    };
     for ty in 0..ny {
         for tx in 0..nx {
             let index = ty * nx + tx;
@@ -221,13 +237,6 @@ pub fn slab(region: &Region, z0: f64, z1: f64, tile: f64) -> Mesh {
                 })
                 .collect();
             let edges = edges_of(&around);
-            // Loops sharing an edge the same way round (two round ends on
-            // one centre) stand one wall there, not two.
-            let mut stood: std::collections::HashSet<[i64; 4]> = Default::default();
-            let key = |p: Point, q: Point| {
-                let k = |v: f64| (v * 1e7).round() as i64;
-                [k(p[0]), k(p[1]), k(q[0]), k(q[1])]
-            };
             for &(p, q) in &walls[index] {
                 // A piece another loop crosses is inside on one part and
                 // outside on the other: classify each part on its own.
@@ -264,7 +273,8 @@ fn split(p: Point, q: Point, loops: &[(Vec<Point>, bool)]) -> Vec<(Point, Point)
             let w = [lo[0] - p[0], lo[1] - p[1]];
             let t = (w[0] * s[1] - w[1] * s[0]) / d;
             let u = (w[0] * r[1] - w[1] * r[0]) / d;
-            if t > EPS && t < 1.0 - EPS && (0.0..=1.0).contains(&u) {
+            let reach = TOUCH_MM / s[0].hypot(s[1]);
+            if t > EPS && t < 1.0 - EPS && (-reach..=1.0 + reach).contains(&u) {
                 ts.push(t);
             }
         }
@@ -593,6 +603,36 @@ mod tests {
         for tile in [100.0, 1.1] {
             let mesh = slab(&region, 0.0, 0.1, tile);
             near(face_area(&mesh, 0), 60.0 - (2.0 - 0.5 * 0.8));
+        }
+    }
+
+    /// A cut sharing part of another cut's edge (a pour's spoke along a
+    /// pad's side, either way round) stands one wall there: the slab stays
+    /// closed and exact on any tiling.
+    #[test]
+    fn cuts_sharing_part_of_an_edge_stand_one_wall() {
+        let rect =
+            |x0: f64, y0: f64, x1: f64, y1: f64| vec![[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+        let opening = rect(0.0, 0.0, 2.0, 2.0);
+        let pad = rect(0.5, 0.5, 1.5, 1.5);
+        // Inside the pad, its top edge along the pad's: the same way round,
+        // exactly or short of it by a fill outline's rounding.
+        let within = rect(0.8, 1.0, 1.2, 1.5);
+        let short = rect(0.8, 1.0, 1.2, 1.5 - 1.2e-8);
+        // Above the pad, its bottom edge along the pad's: the other way.
+        let above = rect(0.8, 1.5, 1.2, 1.8);
+        for (cut, area) in [(within, 3.0), (short, 3.0), (above, 3.0 - 0.12)] {
+            let region = Region {
+                fills: vec![opening.clone()],
+                cuts: vec![pad.clone(), cut],
+            };
+            for tile in [100.0, 1.0, 0.3] {
+                for by in [[0.0, 0.0], [29.0, 57.0]] {
+                    let mesh = slab(&region.shifted(by), 0.0, 0.1, tile);
+                    near(mesh.measure().volume, area * 0.1);
+                    near(face_area(&mesh, 0), area);
+                }
+            }
         }
     }
 
