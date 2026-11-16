@@ -13,7 +13,17 @@ os.makedirs(out, exist_ok=True)
 s = Session(record=out + "/replay.jsonl")
 s.raw("project.open", {"expected_revision": 0, "path": MODULE})
 s.rev = None
-stages = ["lib", "sch", "pcb", "route", "fab"]
+# Fabrication profile: the shipped PCBWay 4-layer file, previewed, then its
+# minimum values ("PCBWay values: Minimum"), which admit the GCT USB4105
+# land pattern as drawn. Set first, so every later stage is checked by it.
+pcbway = json.load(open("library/profiles/pcbway-4-layer.json"))["fab_profile"]
+s.rev = s.revision()
+s.query("rules.preview_fab_profile", {"profile": pcbway})
+s.op("rules.set_fab_profile", {"profile": pcbway}, "profile PCBWay 4-layer")
+s.query("rules.preview_fab_options", {"options": {"limits": "minimum"}})
+s.op("rules.set_fab_options", {"options": {"limits": "minimum"}}, "PCBWay values: Minimum")
+s.rev = None
+stages =["lib", "sch", "pcb", "route", "fab"]
 state = {}
 try:
     L = build_lib.build(s)

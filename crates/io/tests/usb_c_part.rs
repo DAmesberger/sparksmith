@@ -121,49 +121,24 @@ fn pcbway_admits_the_usb4105_footprint_under_its_minimum_values() -> Fallible {
     Ok(())
 }
 
-/// The 4-layer example board under PCBWay 4-layer at its minimum values,
-/// with no waivers, passes the production check with nothing found. Its
-/// USB pair was routed at JLCPCB's multilayer spacing (0.09 mm, below
-/// PCBWay's), so it is routed again with the example's own
-/// `layout.route_pair` request, which takes its width and gap from the
-/// profile.
+/// The 4-layer example board is designed under PCBWay 4-layer at its
+/// minimum values (the replay sets the profile, chooses `limits: minimum`
+/// and routes the USB pair with `layout.route_pair`, which takes its width
+/// and gap from the profile). It holds no waiver, and its production check
+/// finds nothing.
 #[test]
 fn the_example_board_passes_pcbway_4_layer_without_waivers() -> Fallible {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
-    let mut file = sparksmith_io::read_project(&path)?;
-    file.project.rules.profile = Some(pcbway("pcbway-4-layer", true)?);
-    file.project.production.waivers.clear();
-    let net = |name: &str| {
-        file.project
-            .nets
-            .iter()
-            .find(|n| n.name == name)
-            .map(|n| n.id)
-            .ok_or(format!("net {name}"))
-    };
-    let halves = [net("USB_DP")?, net("USB_DN")?];
-    // The coupled run between the ESD diodes and the module: the pair's
-    // derived width, which the other USB tracks do not have.
-    let coupled = |t: &sparksmith_core::Track| {
-        halves.contains(&t.net) && (t.width - 0.210_833_561_224_790_13).abs() < 1e-9
-    };
-    let before = file.project.tracks.len();
-    file.project.tracks.retain(|t| !coupled(t));
-    assert_eq!(before - file.project.tracks.len(), 14);
+    let file = sparksmith_io::read_project(&path)?;
+    assert_eq!(
+        file.project.rules.profile,
+        Some(pcbway("pcbway-4-layer", true)?),
+        "the board pins the shipped PCBWay 4-layer profile at its minimum values"
+    );
+    assert!(file.project.production.waivers.is_empty());
     let mut engine = sparksmith_core::Engine::from_file(file)?;
-    // The replay's request (esp32-s31-devboard.replay.jsonl).
-    let route: sparksmith_core::Operation = serde_json::from_value(serde_json::json!({
-        "editor": "Layout",
-        "operation": {"command": "layout.route_pair", "params": {"request": {
-            "pair": 0,
-            "start": [[20.95, 13.55], [19.05, 13.55]],
-            "legs": [{"layer": "Top", "points": [[20.0, 14.8], [20.0, 27.0], [25.1, 32.1], [25.1, 33.0]]}],
-            "end": [[25.525, 34.7], [24.675, 34.7]]
-        }}}
-    }))?;
-    let revision = engine.revision();
-    engine.apply(revision, route)?;
+    // A file holds no fill copper; fill it as opening does.
     engine.refill_stale()?;
     let preflight = match engine.query(sparksmith_core::Query::Preflight { profile: None })? {
         sparksmith_core::QueryResult::Preflight(report) => report,
@@ -175,6 +150,7 @@ fn the_example_board_passes_pcbway_4_layer_without_waivers() -> Fallible {
         .map(|i| format!("{}: {}", i.code, i.title))
         .collect();
     assert_eq!(preflight.blocking, 0, "{found:#?}");
+    assert_eq!(preflight.waived, 0, "{found:#?}");
     assert!(found.is_empty(), "{found:#?}");
     Ok(())
 }

@@ -393,13 +393,9 @@ fn opening_a_file_refills_its_fills_before_answering() -> Fallible<()> {
         .flatten()
         .filter_map(|i| i["code"].as_str())
         .collect();
-    assert!(!codes.is_empty());
-    assert!(
-        !codes
-            .iter()
-            .any(|c| *c == "fabrication.fill_unfilled" || *c == "fill.stale"),
-        "{codes:?}"
-    );
+    // The example is clean once filled: an unfilled or stale fill would
+    // show here as `fabrication.fill_unfilled` or `fill.stale`.
+    assert!(codes.is_empty(), "{codes:?}");
     Ok(())
 }
 

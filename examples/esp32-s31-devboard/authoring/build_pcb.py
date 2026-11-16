@@ -63,15 +63,11 @@ def build(s, L, S):
          "mounting holes inset from the edges")
     out["holes"] = pts
 
-    # Fabrication profile: the built-in "Standard 6/6" (a generic estimate,
-    # not a fabricator's data), previewed first.
-    profiles = s.query("rules.profiles", {})["result"]
-    profiles = profiles if isinstance(profiles, list) else profiles.get("profiles", [])
-    std = next(p.get("profile", p) for p in profiles if p.get("profile", p).get("id") == "std-6-6")
-    out["profile_preview"] = s.query("rules.preview_profile", {"profile": std})
-    s.op("rules.set_profile", {"profile": std}, "profile Standard 6/6")
-    # Manufacturing rules the default profile leaves at 0 (not checked):
-    # copper and legend clearance to the board edge.
+    # The fab profile (PCBWay 4-layer, Minimum) was set before the parts
+    # (build.py); list the profiles to read it back.
+    out["profiles"] = s.query("rules.fab_profiles", {})
+    # Overrides: copper to the board edge 0.3 mm (PCBWay's own value,
+    # pinned) and legend to the edge 0.2 mm (PCBWay publishes no limit).
     for a in ("track", "fill", "pad", "via"):
         s.op("rules.set_override", {"key": {"rule": "clearance", "a": a, "b": "board_edge"},
                                     "value": {"kind": "length", "value": 0.3}}, f"{a} to edge 0.3 mm")
