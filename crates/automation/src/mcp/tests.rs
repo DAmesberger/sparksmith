@@ -564,6 +564,8 @@ fn the_datasheet_prompt_serves_the_method() -> Fallible<()> {
             && !name.starts_with("pinout.")
             && !name.starts_with("binding.")
             && !name.starts_with("package.")
+            && !name.ends_with(".json")
+            && !name.ends_with(".md")
         {
             assert!(catalog::entry(name).is_some(), "the skill names {name}");
             named += 1;

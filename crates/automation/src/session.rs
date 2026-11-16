@@ -492,6 +492,15 @@ pub enum Request {
     /// A workflow model step's answer, checked against its output.
     #[serde(rename = "assist.step_result")]
     StepResult(crate::workflow::entries::StepResultParams),
+    /// What the window shows: workspace, view, sheet and selection.
+    #[serde(rename = "view.context")]
+    ViewContext(crate::view::ContextParams),
+    /// Select and frame objects in the window.
+    #[serde(rename = "view.select")]
+    ViewSelect(crate::view::SelectParams),
+    /// Show a workspace, a sheet, the PCB in 2D or 3D, or a draft.
+    #[serde(rename = "view.open")]
+    ViewOpen(crate::view::OpenParams),
     /// Turns: open one; its handle goes in the envelope's `turn`.
     #[serde(rename = "project.turn_begin")]
     TurnBegin(turns::TurnBeginParams),
@@ -560,6 +569,9 @@ sparksmith_core::declare_entries!(Request in project {
     WorkingApply "assist.pinout_apply" Edit "Apply a working pinout document" [in library, review, since(3, 2)],
     Workflows "assist.workflows" Read "List workflows" [in assist, effect(World), since(1, 1)],
     StepResult "assist.step_result" Read "Answer a workflow step" [in assist, effect(World), since(1, 1)],
+    ViewContext "view.context" Read "What the window shows" [in view, reach(Window), needs(Window), since(1, 0)],
+    ViewSelect "view.select" Show "Select in the window" [in view, reach(Window), needs(Window), since(1, 0)],
+    ViewOpen "view.open" Show "Open a workspace or view" [in view, reach(Window), needs(Window), since(1, 0)],
     TurnBegin "project.turn_begin" Read "Begin a turn" [since(6, 2)],
     TurnEnd "project.turn_end" Read "End a turn" [since(6, 2)],
 });
@@ -918,6 +930,21 @@ impl Request {
                 "Link the linked design, or update or relink the board from it as previewed.",
                 "Read the SolidCraft assembly at path whose component links design (interface.publish's path). None linked: link it. Else apply it at expect_hash, relinking if path moved; one undo step.",
             ),
+            info::<crate::view::ContextParams>(
+                "view.context",
+                "What the window shows: workspace, PCB view, sheet and the selection with ids.",
+                "What the open window shows now: the workspace (component, schematic or pcb), the PCB's view (layout or 3d), the schematic sheet, and the selection as objects with ids and their designators or net names, with the revision. Needs the window (mcp --live); a host without one answers host.unavailable.",
+            ),
+            info::<crate::view::SelectParams>(
+                "view.select",
+                "Select and frame objects in the window by id; never the document, no undo step.",
+                "Replace the window's selection with the objects named (ids: parts, tracks, vias, fills, keepouts, wires; objects: any finding's object, such as a net, pad or sheet) and frame them, in the shown workspace when it shows them, else in one that does. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
+            ),
+            info::<crate::view::OpenParams>(
+                "view.open",
+                "Show a workspace: the PCB in layout or 3d, a schematic sheet, or a component draft.",
+                "Show workspace component, schematic or pcb; view layout or 3d for the PCB, sheet for the schematic, definition (a draft's lineage) for the Component editor. Answers what the window then shows, as view.context. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
+            ),
             info::<models::ModelFileParams>(
                 "library.inspect_model_file",
                 "Read a STEP, GLB or .solidcraft model file and report its bodies, materials and bounds.",
@@ -1102,6 +1129,7 @@ impl Session {
             who: crate::gate::Principal::Operator,
             asker: &mut NoOne,
             verbose: true,
+            window: None,
         };
         self.call(cx, call).map_err(Error::refused)
     }
@@ -1432,6 +1460,12 @@ impl Session {
             Request::WorkingApply(params) => return self.working_apply(params),
             Request::Workflows(params) => return self.workflows(&params),
             Request::StepResult(params) => return self.step_result(params),
+            // The front door runs these in the window; here is none.
+            request @ (Request::ViewContext(_) | Request::ViewSelect(_) | Request::ViewOpen(_)) => {
+                return Err(crate::Error::refused(crate::view::unavailable(
+                    request.command(),
+                )));
+            }
             Request::TurnBegin(params) => return self.turns.begin(params).map_err(Error::refused),
             Request::TurnEnd(params) => return self.turns.end(&params).map_err(Error::refused),
         }
@@ -1638,6 +1672,7 @@ impl Session {
                 who: crate::gate::Principal::Operator,
                 asker: &mut NoOne,
                 verbose: true,
+                window: None,
             };
             self.call(cx, call)
         });

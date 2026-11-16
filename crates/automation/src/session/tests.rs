@@ -192,7 +192,7 @@ fn an_unfit_export_is_reported_as_export_unfit() {
 #[test]
 fn catalog_matches_the_request_type() -> TestResult {
     let catalog = Request::catalog();
-    assert_eq!(catalog.len(), 56);
+    assert_eq!(catalog.len(), 61);
     let schema = serde_json::to_string(&schemas())?;
     for command in &catalog {
         assert!(
@@ -874,8 +874,8 @@ fn history_and_replacing_requests_at_a_stale_revision_change_nothing() -> TestRe
 }
 
 /// Every request that can change the document requires the revision it
-/// expects: all but reads and the requests that only write files or the
-/// user's library settings, named here.
+/// expects: all but reads, the window's show entries and the requests that
+/// only write files or the user's library settings, named here.
 #[test]
 fn every_document_changing_request_requires_an_expected_revision() {
     let no_document_change = [
@@ -895,7 +895,8 @@ fn every_document_changing_request_requires_an_expected_revision() {
         let required = info.params["required"]
             .as_array()
             .is_some_and(|names| names.iter().any(|n| n == "expected_revision"));
-        let changes = info.class != Class::Read && !no_document_change.contains(&info.id);
+        let changes = !matches!(info.class, Class::Read | Class::Show)
+            && !no_document_change.contains(&info.id);
         assert_eq!(required, changes, "{}", info.id);
     }
 }

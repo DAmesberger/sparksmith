@@ -516,40 +516,6 @@ impl App {
         self.issue_request(ctx, request);
     }
 
-    /// The active editor's selection as issue objects, for the Selection
-    /// scope.
-    fn selection(&self) -> Vec<sparksmith_core::ObjectRef> {
-        match self.workspace {
-            Workspace::Part => issues::selection(
-                self.workspace,
-                self.part.lineage(),
-                None,
-                None,
-                None,
-                None,
-                vec![],
-            ),
-            Workspace::Schematic => issues::selection(
-                self.workspace,
-                None,
-                self.schematic.selected_instance(),
-                None,
-                None,
-                self.schematic.selected_net(&self.engine),
-                self.schematic.selected_item_refs(self.engine.project()),
-            ),
-            Workspace::Pcb => issues::selection(
-                self.workspace,
-                None,
-                self.pcb.selected_instance(),
-                self.pcb.selected_track(),
-                self.pcb.selected_via(),
-                self.pcb.highlighted_net(),
-                vec![],
-            ),
-        }
-    }
-
     /// What the Issues surface asked for: locate an issue's objects in the
     /// workspace that shows them, or run its Fix.
     fn issue_request(&mut self, ctx: &egui::Context, request: Option<issues::Request>) {
@@ -709,8 +675,8 @@ impl App {
                 self.pcb.set_selection(None, None, None);
             }
             Pick::Sheet(sheet) => {
-                self.workspace = Workspace::Schematic;
-                self.schematic.show_sheet(sheet, self.engine.project());
+                let (mut window, engine) = self.window_and_engine();
+                window.show_sheet(engine, sheet);
             }
             Pick::Remove(id) => {
                 self.workspace = Workspace::Schematic;

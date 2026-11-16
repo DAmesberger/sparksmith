@@ -77,6 +77,11 @@ pub const MODULES: &[ModuleDecl] = &[
         "Assistant",
         "Documents attached to an assistant run, its working pinout documents and its workflows.",
     ),
+    module(
+        "view",
+        "View",
+        "What the window shows: workspace, sheet, 2D or 3D, and the selection.",
+    ),
 ];
 
 /// The version every module started at with the MCP cut-over (decision 12).

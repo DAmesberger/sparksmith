@@ -287,5 +287,10 @@
   {"name":"assist.pinout_preview","class":"read","schema":"fa1f64e041f99fab","fields":[["document","cb7e544b2d5ab491"],["handle","40bd5b57f4261fe2"],["target","d40a6de66404f735"]],"required":["target"]},
   {"name":"assist.step_result","class":"read","schema":"62d1f9b0c9d2a315","fields":[["result","3239974ff60fabf0"],["step","f186891b5656c9ae"]],"required":["result","step"]},
   {"name":"assist.workflows","class":"read","schema":"d2a6eaec77fd86c3","fields":[["limit","178b2cc08ce4e9d4"],["text","428293de17850c2e"],["unavailable","90c3f0cfcf6ff8f0"]],"required":[]}
+ ]},
+ {"id": "view", "version": "1.0", "digest": "sha256:c56e11bc2528b4ca63d74d362ad80d8fffb921c426c11e0971c17d9b1ef18f16", "entries": [
+  {"name":"view.context","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
+  {"name":"view.open","class":"show","schema":"f138f09bd022744a","fields":[["definition","6fcbdbe3a9c678cf"],["sheet","3b67158582ea34e4"],["view","c6274c58684e265b"],["workspace","145314089e5b05c0"]],"required":["workspace"]},
+  {"name":"view.select","class":"show","schema":"75502843f2eacf1e","fields":[["ids","6eed743aac2b3e81"],["objects","d7e0b48e4872f569"]],"required":[]}
  ]}
 ]}

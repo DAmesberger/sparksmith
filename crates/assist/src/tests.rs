@@ -609,7 +609,7 @@ fn the_datasheet_run_cannot_reach_publish_files_or_settings() -> Fallible {
         (
             "act",
             json!({"name": "library.publish_to_folder",
-                "params": {"library": 1, "root": {"kind": "component", "id": 1, "revision": 1}}}),
+                "params": {"library": "0123456789abcdef0123456789abcdef", "root": {"kind": "component", "id": 1, "revision": 1}}, "expected_revision": before}),
             "gate.reach",
         ),
         ("query", query("library.sources", json!({})), "gate.reach"),

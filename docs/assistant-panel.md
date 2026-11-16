@@ -13,7 +13,7 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Piece | State |
 |---|---|
 | Surface: one catalog, `Surface::call`, principals, grants with module ceilings, `Asker`, one error (ABI S0–S2b) | Built |
-| MCP on `2026-07-28`: six verbs (`find`, `describe`, `query`, `apply`, `act`, `show`), headless and live (ABI S3) | Built. `show` has no entries yet |
+| MCP on `2026-07-28`: six verbs (`find`, `describe`, `query`, `apply`, `act`, `show`), headless and live (ABI S3) | Built. `show` serves `view.select` and `view.open` (S5a) |
 | MCP prompt `datasheet_to_component` | Built. Generated from the workflow's data since W1: serves its `method.md`; title, description and arguments from `workflow.json` (`crates/automation/src/mcp/prompts.rs`) |
 | Three Claude Code runs of that prompt | Done: footprints 0 nm against the sources, every pin right, about 17.5 USD ([run notes](datasheet-assistant-run-mcp-1.md)). Tooling defects T1–T11 found |
 | In-app datasheet runner (`crates/assist`): model layer, Anthropic and OpenAI-compatible backends, keychain keys, limits, recording and replay, profiles, PDF text and page images | Built. Since S6 its tools are the six verbs, called through `Surface::call` as the local agent under a reach profile; it still runs in a headless session of its own, not on the open project |
@@ -22,7 +22,7 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Workflow runner (W1): loader for shipped and user workflows, the step runner with `each`, `check`, `retries` and budgets, one turn per run, recordings naming the workflow's digest, `assist.workflows` and `assist.step_result` (`assist` 1.1), the datasheet workflow's `method.md`, MCP prompts from workflow data; the reach filter in the gate's `Grant` (`gate.reach`) | Built ([workflow format](workflow-format.md#the-runner-w1)). No host runs it yet (W2) |
 | Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn, per-turn limits in the surface (ABI S4a) | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
 | The built-in agent on the surface (S6): the six verbs, `assist.document_text`, `assist.document_page`, `assist.pinout_edit` (with `assist.pinout_preview` and `assist.pinout_apply`), reach profiles as data, leniency in the verb reader | Built |
-| Jobs, events (ABI S4b); the window module `view.*` (S5); elicitation (MCP P5) | Not built |
+| Jobs, events (ABI S4b); the window module's camera, layers and screenshot (S5b); elicitation (MCP P5) | Not built |
 | Assistant panel, Settings › AI | Not built |
 
 ## What this revision supersedes

@@ -136,14 +136,15 @@ impl Grant {
     }
 
     /// The built-in agent's default: auto-allow-edits, the document's
-    /// modules up to Edit, and files, fabrication output and the 3D model
-    /// up to Ask.
+    /// modules up to Edit, the window up to Show, and files, fabrication
+    /// output and the 3D model up to Ask.
     pub fn local_agent(folders: impl IntoIterator<Item = PathBuf>) -> Self {
         let modules = MODULES
             .iter()
             .map(|module| {
                 let ceiling = match module.id {
                     "files" | "fab" | "model3d" => Class::Ask,
+                    "view" => Class::Show,
                     _ => Class::Edit,
                 };
                 (module.id.to_owned(), ceiling)
@@ -382,7 +383,8 @@ pub fn decide_entries(
         return Decision::Refuse(outside(command, path, grant));
     }
     let needs_person = |class: Class| match grant.mode {
-        Mode::AskEveryTime => class != Class::Read,
+        // A show entry changes only the window: no person approves it.
+        Mode::AskEveryTime => class > Class::Show,
         Mode::AutoAllowEdits => class == Class::Ask,
         Mode::AllowAll => false,
     };
