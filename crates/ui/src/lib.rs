@@ -25,6 +25,7 @@
 #![allow(dead_code, reason = "vendored: pruned to what Sparksmith reaches; see the crate documentation")]
 
 mod box_select;
+pub mod chat_cards;
 mod chrome;
 mod dim_label;
 mod font_setup;

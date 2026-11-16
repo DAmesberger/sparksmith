@@ -166,6 +166,13 @@ pub trait WindowHost {
     fn select(&mut self, engine: &Engine, objects: &[ObjectRef]) -> Result<Selection, Box<Error>>;
     /// Show what `params` names, already checked against `engine`.
     fn open(&mut self, engine: &Engine, params: &OpenParams) -> Result<Context, Box<Error>>;
+    /// Show a workflow's card in the chat (`assist.offer`), already checked
+    /// against the workflows lent to the session; answer the card's id. A
+    /// window without a chat answers `host.unavailable`.
+    fn offer(&mut self, offer: &crate::workflow::Offer) -> Result<String, Box<Error>> {
+        let _ = offer;
+        Err(unavailable("assist.offer"))
+    }
 }
 
 /// A `view` request, as the front door runs it.
@@ -174,6 +181,7 @@ pub enum Request {
     Context,
     Select(SelectParams),
     Open(OpenParams),
+    Offer(crate::workflow::entries::OfferParams),
 }
 
 impl Request {
@@ -183,15 +191,19 @@ impl Request {
             crate::Request::ViewContext(_) => Some(Self::Context),
             crate::Request::ViewSelect(params) => Some(Self::Select(params.clone())),
             crate::Request::ViewOpen(params) => Some(Self::Open(params.clone())),
+            crate::Request::Offer(params) => Some(Self::Offer(params.clone())),
             _ => None,
         }
     }
 }
 
 /// Run `request` in `window`, or answer `host.unavailable` without one.
+/// `workflows` are those lent to the session, which `assist.offer` checks
+/// its workflow and inputs against.
 pub fn run(
     window: Option<&mut dyn WindowHost>,
     engine: &Engine,
+    workflows: Option<&[crate::workflow::Listed]>,
     entry: &str,
     request: Request,
 ) -> Result<serde_json::Value, Box<Error>> {
@@ -206,8 +218,40 @@ pub fn run(
             check_open(engine, &params)?;
             serde_json::to_value(window.open(engine, &params)?)
         }
+        Request::Offer(params) => {
+            let offer = check_offer(workflows, &params)?;
+            let card = window.offer(&offer)?;
+            serde_json::to_value(crate::workflow::entries::OfferReply {
+                card,
+                missing: offer.missing,
+            })
+        }
     };
     value.map_err(|e| refused("malformed_request", entry, &e.to_string(), "Report it."))
+}
+
+/// `assist.offer`'s card, checked against the lent workflows.
+fn check_offer(
+    workflows: Option<&[crate::workflow::Listed]>,
+    params: &crate::workflow::entries::OfferParams,
+) -> Result<crate::workflow::Offer, Box<Error>> {
+    const ENTRY: &str = "assist.offer";
+    let listed = workflows.ok_or_else(|| {
+        refused(
+            "assist.no_workflows",
+            ENTRY,
+            "this host lent no workflows to this session. Nothing was shown.",
+            "Carry on in the conversation.",
+        )
+    })?;
+    crate::workflow::Offer::from_params(listed, params).map_err(|why| {
+        refused(
+            "assist.offer",
+            ENTRY,
+            &format!("{why}. Nothing was shown."),
+            "List the workflows with query assist.workflows and offer one by its id, with inputs it has.",
+        )
+    })
 }
 
 /// `view.*` without a window.
@@ -368,6 +412,8 @@ pub(crate) struct Fake {
     pub view: Option<PcbView>,
     pub sheet: Option<SheetId>,
     pub selection: Vec<ObjectRef>,
+    /// The workflow cards shown, oldest first.
+    pub offers: Vec<crate::workflow::Offer>,
 }
 
 #[cfg(test)]
@@ -380,6 +426,7 @@ impl Fake {
             view: Some(PcbView::Layout),
             sheet: None,
             selection: Vec::new(),
+            offers: Vec::new(),
         }
     }
     /// Held by the person for `reason`, or idle.
@@ -411,6 +458,10 @@ impl WindowHost for Fake {
             selected: objects.len(),
             workspace: self.workspace,
         })
+    }
+    fn offer(&mut self, offer: &crate::workflow::Offer) -> Result<String, Box<Error>> {
+        self.offers.push(offer.clone());
+        Ok(format!("card-{}", self.offers.len()))
     }
     fn open(&mut self, engine: &Engine, params: &OpenParams) -> Result<Context, Box<Error>> {
         self.workspace = params.workspace;

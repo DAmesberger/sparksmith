@@ -67,6 +67,10 @@ pub enum Action {
     Fold(bool),
     Dock(Dock),
     Close,
+    /// What the person chose on a workflow card (C2).
+    Card(crate::workflow_cards::CardAction),
+    /// The `/` menu chose a workflow; its card is in the transcript.
+    Offered(String),
 }
 
 /// The turn a message opened: its handle, its undo label, and the document
@@ -215,14 +219,19 @@ impl Assistant {
     }
 
     /// The column: header, transcript and composer.
-    pub fn column(&mut self, ui: &mut Ui, now: &Now) -> Vec<Action> {
+    pub fn column(
+        &mut self,
+        ui: &mut Ui,
+        now: &Now,
+        cards: &mut crate::workflow_cards::WorkflowCards,
+    ) -> Vec<Action> {
         let t = Tokens::get();
         let mut actions = Vec::new();
         self.header(ui, &mut actions);
         kit::rule(ui);
         // The composer keeps its room at the bottom; the transcript takes
         // the rest and follows the newest item.
-        let composer = composer_height(ui);
+        let composer = composer_height(ui) + self.slash_height();
         let transcript = (ui.available_height() - composer).max(t.control_height * 2.0);
         egui::ScrollArea::vertical()
             .id_salt("assistant-transcript")
@@ -238,9 +247,10 @@ impl Assistant {
                         "Ask about the open design or ask for a change. Each message is one undo step.",
                     );
                 }
-                self.transcript(ui, now, &mut actions);
+                self.transcript(ui, now, cards, &mut actions);
             });
         kit::rule(ui);
+        self.slash_menu(ui, cards, &mut actions);
         self.composer(ui, now, &mut actions);
         actions
     }
@@ -281,7 +291,13 @@ impl Assistant {
         }
     }
 
-    fn transcript(&mut self, ui: &mut Ui, now: &Now, actions: &mut Vec<Action>) {
+    fn transcript(
+        &mut self,
+        ui: &mut Ui,
+        now: &Now,
+        cards: &mut crate::workflow_cards::WorkflowCards,
+        actions: &mut Vec<Action>,
+    ) {
         let t = Tokens::get();
         let mut toggled = None;
         for (index, item) in self.conversation.items.iter().enumerate() {
@@ -329,6 +345,11 @@ impl Assistant {
                 }
                 Item::Ask(card) => ask(ui, card, actions),
                 Item::Summary(card) => summary(ui, card, now, actions),
+                Item::Workflow(key) => {
+                    if let Some(action) = cards.show_key(ui, *key) {
+                        actions.push(Action::Card(action));
+                    }
+                }
             });
         }
         if let Some(index) = toggled
@@ -336,6 +357,41 @@ impl Assistant {
         {
             self.expanded.insert(index);
         }
+    }
+
+    /// The `/` menu while the composer starts with `/`: the workflows by
+    /// the words after it; choosing one shows its card and clears the
+    /// composer.
+    fn slash_menu(
+        &mut self,
+        ui: &mut Ui,
+        cards: &mut crate::workflow_cards::WorkflowCards,
+        actions: &mut Vec<Action>,
+    ) {
+        let Some(query) = self.composer.strip_prefix('/') else {
+            return;
+        };
+        let query = query.trim().to_owned();
+        let focused = ui.memory(|m| m.has_focus(Self::composer_id()));
+        let chosen = egui::ScrollArea::vertical()
+            .id_salt("assistant-slash-menu")
+            .max_height(self.slash_height())
+            .show(ui, |ui| cards.slash_menu(ui, &query, focused))
+            .inner;
+        if let Some(id) = chosen {
+            self.composer.clear();
+            actions.push(Action::Offered(id));
+        }
+        kit::rule(ui);
+    }
+
+    /// The room the `/` menu takes: four rows while it shows.
+    fn slash_height(&self) -> f32 {
+        if !self.composer.starts_with('/') {
+            return 0.0;
+        }
+        let t = Tokens::get();
+        4.0 * (t.control_height + t.font_small + t.space_4)
     }
 
     fn composer(&mut self, ui: &mut Ui, now: &Now, actions: &mut Vec<Action>) {
@@ -349,7 +405,10 @@ impl Assistant {
         let can_send = !busy
             && !self.composer.trim().is_empty()
             && !matches!(self.conversation.state, State::NotSetUp(_));
+        // While the `/` menu shows, Enter is its own.
+        let slash = self.composer.starts_with('/');
         if focused
+            && !slash
             && ui.input_mut(|i| {
                 !i.modifiers.any() && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
             })

@@ -1,6 +1,7 @@
 //! The window as the front door reaches it (`docs/extension-surface.md`,
 //! slice S5a): the `view` entries an assistant sends over live MCP
-//! (`view.context`, `view.select`, `view.open`) and the busy rule.
+//! (`view.context`, `view.select`, `view.open`), `assist.offer`'s workflow
+//! card in the chat (C2) and the busy rule.
 //!
 //! The person's own view commands run the same functions: Workspace, the
 //! PCB's 2D/3D switch and the 3D commands that open it, and a Browser
@@ -27,6 +28,8 @@ pub(super) struct Window<'a> {
     pub schematic: &'a mut SchematicEditor,
     pub pcb: &'a mut PcbEditor,
     pub toasts: &'a mut Toasts,
+    /// The chat's workflow cards, where `assist.offer` shows its card.
+    pub cards: &'a mut crate::workflow_cards::WorkflowCards,
     /// Why the person holds the window now, for the busy rule.
     pub busy: Option<String>,
 }
@@ -45,6 +48,7 @@ impl App {
             schematic: &mut self.schematic,
             pcb: &mut self.pcb,
             toasts: &mut self.toasts,
+            cards: &mut self.workflow_cards,
             busy: None,
         };
         (window, &self.engine)
@@ -62,6 +66,7 @@ impl App {
             schematic: &mut self.schematic,
             pcb: &mut self.pcb,
             toasts: &mut self.toasts,
+            cards: &mut self.workflow_cards,
             busy,
         };
         (window, &mut self.engine, &mut self.live)
@@ -79,6 +84,7 @@ impl App {
             schematic: &mut self.schematic,
             pcb: &mut self.pcb,
             toasts: &mut self.toasts,
+            cards: &mut self.workflow_cards,
             busy,
         };
         (window, &mut self.engine, &mut self.assistant)
@@ -229,5 +235,12 @@ impl WindowHost for Window<'_> {
             }
         }
         Ok(self.context(engine))
+    }
+
+    fn offer(
+        &mut self,
+        offer: &sparksmith_automation::workflow::Offer,
+    ) -> Result<String, Box<Error>> {
+        Ok(self.cards.show_offer(offer.clone()))
     }
 }

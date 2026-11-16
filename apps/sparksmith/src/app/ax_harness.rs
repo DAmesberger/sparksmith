@@ -56,6 +56,8 @@ pub(crate) struct Ax {
     pub seen: Vec<(String, egui::Rect)>,
     /// Every text a frame handed to the platform's clipboard, oldest first.
     pub copied: Vec<String>,
+    /// Files the next frame drops on the window.
+    dropped: Vec<egui::DroppedFileHandle>,
 }
 
 impl Ax {
@@ -113,6 +115,12 @@ impl Ax {
         app.workspace = workspace;
         // Settings › AI reads and writes here, never the person's config.
         app.settings_window.ai = settings_ai::AiPage::at(dir.path().join("config"));
+        // The shipped workflows only, never the person's own; documents are
+        // copied into the test's folder.
+        app.workflow_cards = crate::workflow_cards::WorkflowCards::with(
+            crate::workflow_cards::tests::shipped(),
+            Some(dir.path().join("conversation")),
+        );
         crate::keys::publish(&ctx, &app.registry);
         let mut ax = Self {
             app,
@@ -125,6 +133,7 @@ impl Ax {
             texts: Vec::new(),
             seen: Vec::new(),
             copied: Vec::new(),
+            dropped: Vec::new(),
         };
         ax.settle();
         Ok(ax)
@@ -144,6 +153,7 @@ impl Ax {
             screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.window)),
             time: Some(self.time),
             events,
+            dropped_files: std::mem::take(&mut self.dropped),
             ..Default::default()
         };
         let Self {
@@ -166,6 +176,12 @@ impl Ax {
         if let Some(update) = out.platform_output.accesskit_update.take() {
             self.nodes = nodes(&update);
         }
+    }
+
+    /// Drop `files` on the window in one frame.
+    pub(crate) fn drop_files(&mut self, files: Vec<egui::DroppedFileHandle>) {
+        self.dropped = files;
+        self.frame(vec![]);
     }
 
     /// Frames until animations and deferred work have had their turn.

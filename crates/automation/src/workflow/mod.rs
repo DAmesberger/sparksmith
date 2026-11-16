@@ -22,9 +22,11 @@ pub mod control;
 pub mod entries;
 pub mod event;
 pub mod load;
+pub mod offer;
 
 pub use control::{Control, ControlCard};
 pub use load::{Catalog, HostCatalog, Listed, Loaded, Source};
+pub use offer::Offer;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Number, Value};

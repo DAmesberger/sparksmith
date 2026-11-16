@@ -198,3 +198,72 @@ fn unknown_objects_and_misplaced_fields_change_nothing() -> Fallible {
     assert_eq!(window.workspace, Workspace::Pcb);
     Ok(())
 }
+
+/// `assist.offer` shows the workflow card in the window's chat with the
+/// inputs the model has, naming those the run will still ask for; it
+/// changes no revision. Headless, and for a workflow or input the host does
+/// not have, nothing is shown.
+#[test]
+fn an_offer_shows_the_workflow_card_in_the_window() -> Fallible {
+    let mut session = Session::new(Engine::demo()?);
+    let revision = session.engine().revision();
+    let offer = json!({"workflow": "datasheet-to-component",
+        "inputs": {"part": "TLV75733PDBVR"}, "why": "You attached a datasheet."});
+
+    let Err(error) = run(&mut session, None, call("assist.offer", offer.clone())) else {
+        return Err("assist.offer ran without a window".into());
+    };
+    assert_eq!(error.code, "host.unavailable", "{error:?}");
+
+    let mut window = Fake::idle();
+    let Err(error) = run(
+        &mut session,
+        Some(&mut window),
+        call("assist.offer", offer.clone()),
+    ) else {
+        return Err("assist.offer ran without workflows".into());
+    };
+    assert_eq!(error.code, "assist.no_workflows", "{error:?}");
+
+    let shipped =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library/assist/workflows");
+    session.lend_workflows(Some(crate::workflow::load::list(
+        Some(&shipped),
+        None,
+        &crate::workflow::HostCatalog,
+    )));
+    let shown = run(&mut session, Some(&mut window), call("assist.offer", offer))
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(shown, json!({"card": "card-1", "missing": ["datasheets"]}));
+    let [card] = window.offers.as_slice() else {
+        return Err(format!("{:?}", window.offers).into());
+    };
+    assert_eq!(card.title, "Datasheet → component");
+    assert_eq!(card.why, "You attached a datasheet.");
+    assert_eq!(card.inputs["part"], "TLV75733PDBVR");
+
+    for (params, says) in [
+        (json!({"workflow": "make-coffee", "why": ""}), "no workflow"),
+        (
+            json!({"workflow": "datasheet-to-component", "inputs": {"colour": "red"}, "why": ""}),
+            "not an input",
+        ),
+        (
+            json!({"workflow": "datasheet-to-component", "inputs": {"part": 7}, "why": ""}),
+            "inputs/part",
+        ),
+    ] {
+        let Err(error) = run(
+            &mut session,
+            Some(&mut window),
+            call("assist.offer", params.clone()),
+        ) else {
+            return Err(format!("{params} was shown").into());
+        };
+        assert_eq!(error.code, "assist.offer", "{params}: {error:?}");
+        assert!(error.message.contains(says), "{params}: {error:?}");
+    }
+    assert_eq!(window.offers.len(), 1);
+    assert_eq!(session.engine().revision(), revision);
+    Ok(())
+}

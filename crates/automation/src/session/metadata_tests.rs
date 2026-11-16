@@ -17,7 +17,7 @@ fn names(family: &str) -> Vec<&'static str> {
 }
 
 #[test]
-fn the_catalog_has_its_270_entries() {
+fn the_catalog_has_its_271_entries() {
     assert_eq!(names("command").len(), Request::ENTRIES.len());
     assert_eq!(names("operation").len(), Operation::entries().count());
     assert_eq!(names("query").len(), Query::ENTRIES.len());
@@ -30,8 +30,8 @@ fn the_catalog_has_its_270_entries() {
     // then the nine template entries went (part-generation D2); then the two
     // turn entries joined (S4a); then the five assist entries (S6); then
     // the window's view.context, view.select and view.open (S5a); then
-    // assist.workflows and assist.step_result (W1).
-    assert_eq!(metadata::entries().len(), 270);
+    // assist.workflows and assist.step_result (W1); then assist.offer (C2).
+    assert_eq!(metadata::entries().len(), 271);
 }
 
 /// A title is short, says more than the wire name, and is unique within its
