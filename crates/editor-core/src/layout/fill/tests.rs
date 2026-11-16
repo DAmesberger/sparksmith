@@ -1800,3 +1800,147 @@ fn the_fill_follows_a_via_clearance_to_the_chord_tolerance() -> Fallible<()> {
     assert!(gap <= rule + FILL_CHORD_MM / 2.0, "gap {gap}");
     Ok(())
 }
+
+/// Which of a pad's four spoke directions from `first` (in the pad frame)
+/// carry fill copper halfway across the relief gap `gap`, and whether
+/// copper lies halfway between two of them.
+fn pad_spokes(f: &Fill, pad: &layout::PlacedPad, gap: f64, first: f64) -> (usize, bool) {
+    let frame = pad.pad_transform();
+    let centre = frame.apply([0.0, 0.0]);
+    let outline = pad.outline().flatten(0.001);
+    let reach = pad.pad.shape.extent();
+    let edge = |deg: f64| {
+        let (s, c) = deg.to_radians().sin_cos();
+        let mut d = 0.0;
+        while d < reach[0].hypot(reach[1])
+            && crate::geometry::polygon_contains(&outline, [centre[0] + c * d, centre[1] + s * d])
+        {
+            d += 0.001;
+        }
+        d
+    };
+    let at = |deg: f64| copper_towards(f, centre, edge(deg) + gap / 2.0, deg);
+    let spoke = |k: u32| frame.rotation_deg + first + 90.0 * f64::from(k);
+    let spokes = (0..4).filter(|k| at(spoke(*k))).count();
+    let between = (0..4).any(|k| at(spoke(k) + 45.0));
+    (spokes, between)
+}
+
+/// The founder's rule of 16 November 2026, as data: with the shipped
+/// profiles' split (spokes at 0° on pads that are not round, 45° on round
+/// pads and vias), round pads and vias turn their spokes by the round-pad
+/// angle and every other pad keeps the plain angle. A fill's own relief
+/// states one angle for all its pads, and a pad's override still wins.
+#[test]
+fn round_pads_and_vias_take_the_round_pad_spoke_angle() -> Fallible<()> {
+    use crate::library::PadShape;
+    use crate::model::fill::PadFillOverride;
+    let (mut engine, id, gnd) = showcase_with(CopperLayer::Top)?;
+    for (key, deg) in [
+        (RuleKey::ThermalAngle, 0.0),
+        (RuleKey::ThermalAngleRound, 45.0),
+    ] {
+        engine.apply(
+            engine.revision(),
+            Operation::Rules(RulesCommand::SetOverride {
+                key,
+                value: RuleValue::Angle(deg),
+            }),
+        )?;
+    }
+    refill(&mut engine)?;
+    let p = engine.project();
+    let rules = p.rules.effective();
+    assert_eq!(rules.fill.thermal_angle_round, Some(45.0));
+    let t = rules.fill.thermal;
+    let f = fill(p, id)?;
+    let joined = joined_to(p, id);
+    let thermal = |pad: &&layout::PlacedPad| {
+        pad.net == Some(gnd)
+            && pad.on_copper(CopperLayer::Top)
+            && joined.contains(&ObjectRef::Pad {
+                instance: pad.instance,
+                pad: pad.pad.id,
+            })
+    };
+    let pads = placed_pads(p);
+    let round = pads
+        .iter()
+        .filter(thermal)
+        .find(|pad| matches!(pad.pad.shape, PadShape::Circle { .. }))
+        .ok_or("no round ground pad")?;
+    let square = pads
+        .iter()
+        .filter(thermal)
+        .find(|pad| !matches!(pad.pad.shape, PadShape::Circle { .. }))
+        .ok_or("no ground pad that is not round")?;
+    // The round pad: spokes at 45°, nothing along its axes.
+    let (spokes, between) = pad_spokes(f, round, t.gap, 45.0);
+    assert!(spokes >= 1 && !between, "round pad: {spokes} spokes");
+    // The pad that is not round: spokes along its axes, nothing at 45°.
+    let (spokes, between) = pad_spokes(f, square, t.gap, 0.0);
+    assert!(spokes >= 1 && !between, "other pad: {spokes} spokes");
+    // Vias are round: their spokes run at 45°.
+    let diagonal = crate::rules::ThermalRelief {
+        angle_deg: 45.0,
+        ..t
+    };
+    let gnd_vias: Vec<_> = p.vias.iter().filter(|v| v.net == gnd).cloned().collect();
+    let reliefs: Vec<(usize, bool)> = gnd_vias
+        .iter()
+        .map(|v| via_relief(f, v, diagonal))
+        .collect();
+    assert!(reliefs.iter().any(|(s, _)| *s == 4), "{reliefs:?}");
+    assert!(reliefs.iter().all(|(_, gaps)| *gaps), "{reliefs:?}");
+    let (round_instance, round_pad) = (round.instance, round.pad.id);
+
+    // A pad's own override wins: the round pad's spokes along its axes.
+    let along = PadFillOverride {
+        spoke_angle: Some(crate::units::Angle::from_degrees_f64_rounded(0.0)?),
+        ..Default::default()
+    };
+    set_override(&mut engine, round_instance, Some(round_pad), along)?;
+    let p = engine.project();
+    let round = placed_pads(p)
+        .into_iter()
+        .find(|pad| pad.instance == round_instance && pad.pad.id == round_pad)
+        .ok_or("round pad")?;
+    let (spokes, between) = pad_spokes(fill(p, id)?, &round, t.gap, 0.0);
+    assert!(spokes >= 1 && !between, "overridden pad: {spokes} spokes");
+
+    // A fill's own relief states one angle for every pad and via.
+    let mut edited = fill(engine.project(), id)?.clone();
+    edited.settings.thermal = Some(t);
+    edit(&mut engine, edited)?;
+    let p = engine.project();
+    let f = fill(p, id)?;
+    let reliefs: Vec<(usize, bool)> = gnd_vias.iter().map(|v| via_relief(f, v, t)).collect();
+    assert!(reliefs.iter().any(|(s, _)| *s == 4), "{reliefs:?}");
+    assert!(reliefs.iter().all(|(_, gaps)| *gaps), "{reliefs:?}");
+    Ok(())
+}
+
+/// Without the round-pad angle (profiles written before it), every pad
+/// and via keeps the one spoke angle, as before.
+#[test]
+fn without_a_round_pad_angle_every_pad_keeps_the_one_spoke_angle() -> Fallible<()> {
+    let (engine, id, gnd) = showcase_with(CopperLayer::Bottom)?;
+    let p = engine.project();
+    let rules = p.rules.effective();
+    assert_eq!(rules.fill.thermal_angle_round, None);
+    assert_eq!(
+        RuleKey::ThermalAngleRound.get(&rules),
+        RuleValue::Angle(rules.fill.thermal.angle_deg)
+    );
+    let t = rules.fill.thermal;
+    let f = fill(p, id)?;
+    let reliefs: Vec<(usize, bool)> = p
+        .vias
+        .iter()
+        .filter(|v| v.net == gnd)
+        .map(|v| via_relief(f, v, t))
+        .collect();
+    assert!(reliefs.iter().any(|(s, _)| *s == 4), "{reliefs:?}");
+    assert!(reliefs.iter().all(|(_, gaps)| *gaps), "{reliefs:?}");
+    Ok(())
+}

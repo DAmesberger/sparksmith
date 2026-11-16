@@ -315,6 +315,12 @@ pub struct FillRules {
     pub connection: PadConnection,
     /// Islands smaller than this many mm² are removed (0: keep all).
     pub island_area_min: f64,
+    /// First spoke's angle, degrees, for round pads and vias, where
+    /// `thermal.angle_deg` then applies to every other pad shape; none:
+    /// `thermal.angle_deg` for every pad. A fill's own thermal setting
+    /// states one angle for all its pads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thermal_angle_round: Option<f64>,
 }
 
 /// Etch-hazard checks (`board.acute_copper`, `board.copper_sliver`). No
@@ -438,6 +444,7 @@ impl DesignRules {
                 },
                 connection: PadConnection::Thermal,
                 island_area_min: 0.0,
+                thermal_angle_round: None,
             },
             land: LandRules {
                 gull_wing_width_extra: 0.0,
@@ -505,6 +512,7 @@ impl Default for DesignRules {
                 },
                 connection: PadConnection::Thermal,
                 island_area_min: 0.0,
+                thermal_angle_round: None,
             },
             land: LandRules {
                 gull_wing_width_extra: 0.2,
@@ -592,6 +600,7 @@ pub enum RuleKey {
     PairGapTolerance,
     PairGapToleranceShare,
     NpthAnnularRingMin,
+    ThermalAngleRound,
 }
 
 /// A rule's value.
@@ -645,6 +654,7 @@ impl RuleKey {
             Self::ThermalSpokeCount,
             Self::ThermalGap,
             Self::ThermalAngle,
+            Self::ThermalAngleRound,
             Self::FillConnection,
             Self::IslandAreaMin,
             Self::GullWingWidthExtra,
@@ -681,6 +691,23 @@ impl RuleKey {
     /// The key [`Self::name`] gives `name`.
     pub fn from_name(name: &str) -> Option<Self> {
         Self::all().into_iter().find(|k| k.name() == name)
+    }
+
+    /// Whether a profile may leave this key out. Only
+    /// [`Self::ThermalAngleRound`] may: without it, round pads and vias
+    /// take [`Self::ThermalAngle`] as every other pad does, as profiles
+    /// written before it was added say.
+    pub fn optional(self) -> bool {
+        self == Self::ThermalAngleRound
+    }
+
+    /// Whether `rules` sets this key: every key but an optional one left
+    /// unset.
+    pub fn is_set(self, rules: &DesignRules) -> bool {
+        match self {
+            Self::ThermalAngleRound => rules.fill.thermal_angle_round.is_some(),
+            _ => true,
+        }
     }
 
     /// The kind of value this key takes (its value in [`DesignRules::unset`]).
@@ -731,6 +758,7 @@ impl RuleKey {
             | Self::ThermalSpokeCount
             | Self::ThermalGap
             | Self::ThermalAngle
+            | Self::ThermalAngleRound
             | Self::FillConnection
             | Self::IslandAreaMin
             | Self::SliverWidthMin => RuleGroup::Fills,
@@ -772,6 +800,7 @@ impl RuleKey {
                 Self::ThermalSpokeCount => "thermal spoke count",
                 Self::ThermalGap => "thermal gap",
                 Self::ThermalAngle => "thermal spoke angle",
+                Self::ThermalAngleRound => "round pad thermal spoke angle",
                 Self::FillConnection => "fill pad connection",
                 Self::IslandAreaMin => "min island area",
                 Self::GullWingWidthExtra => "gull-wing land extra width",
@@ -822,6 +851,12 @@ impl RuleKey {
             Self::ThermalSpokeCount => Count(rules.fill.thermal.spoke_count),
             Self::ThermalGap => Length(rules.fill.thermal.gap),
             Self::ThermalAngle => Angle(rules.fill.thermal.angle_deg),
+            Self::ThermalAngleRound => Angle(
+                rules
+                    .fill
+                    .thermal_angle_round
+                    .unwrap_or(rules.fill.thermal.angle_deg),
+            ),
             Self::FillConnection => Connection(rules.fill.connection),
             Self::IslandAreaMin => Area(rules.fill.island_area_min),
             Self::GullWingWidthExtra => Length(rules.land.gull_wing_width_extra),
@@ -899,6 +934,11 @@ impl RuleKey {
             Self::ThermalAngle => {
                 let Angle(deg) = value else { return wrong() };
                 rules.fill.thermal.angle_deg = deg;
+                return Ok(());
+            }
+            Self::ThermalAngleRound => {
+                let Angle(deg) = value else { return wrong() };
+                rules.fill.thermal_angle_round = Some(deg);
                 return Ok(());
             }
             Self::FillConnection => {
@@ -1201,6 +1241,16 @@ impl ProjectRules {
             }
         }
         std::borrow::Cow::Owned(rules)
+    }
+
+    /// Whether the profile or an override sets the spoke angle of round
+    /// pads and vias (the file feature `round_pad_thermal_angle`).
+    pub fn sets_round_pad_thermal_angle(&self) -> bool {
+        let key = RuleKey::ThermalAngleRound;
+        self.profile
+            .as_ref()
+            .is_some_and(|p| p.entry(key).is_some())
+            || self.override_of(key).is_some()
     }
 
     pub fn override_of(&self, key: RuleKey) -> Option<&RuleOverride> {
