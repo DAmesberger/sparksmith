@@ -16,7 +16,9 @@
 //!    like another net).
 //! 3. Copper narrower than the minimum width is removed (an opening: erode
 //!    then grow by half the width). A spoke must cross its relief gap to
-//!    copper of the net: past the gap it has to meet the fill's copper
+//!    copper of the net: past the gap its copper (what stays connected to
+//!    its pad anywhere across its width, so a spoke a neighbour's
+//!    clearance narrows still counts) has to meet the fill's copper
 //!    beyond its end or beside it (along at least half its width), or
 //!    another joined pad. A spoke that meets none (its gap opens onto a
 //!    clearance, the fill's edge or copper too narrow to keep) joins
@@ -767,19 +769,25 @@ fn relief(ring: &Ring, spokes: &[Spoke]) -> Vec<Region> {
     geom::difference_rings(&[vec![ring.clone()]], &bars)
 }
 
-/// Samples along a spoke's centre line, per spoke width.
+/// Samples along a spoke, per spoke width.
 const SPOKE_SAMPLES_PER_WIDTH: f64 = 4.0;
 /// Most samples along one spoke.
 const MAX_SPOKE_SAMPLES: usize = 1024;
+/// Sample lanes across a spoke's width: a neighbour's clearance may cut a
+/// spoke down to part of its width, and the rest still carries copper.
+const SPOKE_LANES: usize = 5;
 /// Samples along which copper must lie beside a spoke for it to join
 /// (half a spoke width): a spoke that only grazes a corner joins nothing.
 const SPOKE_CONTACT_SAMPLES: usize = 2;
 
 /// The spokes (less their own pad) that cross their relief gap to no
-/// copper of the fill's net. Past its ring, a spoke must meet the fill's
-/// copper beyond its end or beside it (along at least half its width), or
-/// another joined pad, before anything cuts it. A spoke whose gap opens
-/// onto a clearance, the fill's edge or copper removed as too narrow joins
+/// copper of the fill's net. A spoke's own copper is the copper within its
+/// bar that stays connected to its pad, sampled along the spoke and in
+/// lanes across its width, so a spoke that a neighbour's clearance narrows
+/// keeps the copper beside the cut. Past its ring, that copper must meet
+/// the fill's copper beyond the spoke's end or beside it (along at least
+/// half its width), or another joined pad. A spoke whose gap opens onto a
+/// clearance, the fill's edge or copper removed as too narrow joins
 /// nothing and is dropped. Also returns how many spokes each pad or via
 /// lost.
 fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> (Vec<Region>, Vec<RemovedSpokes>) {
@@ -808,68 +816,18 @@ fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> (Vec<Region>, Vec<Remo
                 })
                 .filter_map(|(_, (r, _))| r.pad.as_ref())
                 .collect();
-            let meets = |p: Point| {
-                !inside(p, &relief.ring)
-                    && (index.region_at(p).is_some() || near.iter().any(|pad| inside(p, pad)))
-            };
             let len = crate::geometry::distance(spoke.from, spoke.to);
             if len <= 0.0 {
                 continue;
             }
+            let SpokeReach::Loose { reach: end } = spoke_reach(&index, relief, spoke, &near, len)
+            else {
+                continue;
+            };
             let dir = [
                 (spoke.to[0] - spoke.from[0]) / len,
                 (spoke.to[1] - spoke.from[1]) / len,
             ];
-            let side = spoke.width / 2.0 + (spoke.width / 8.0).max(0.005);
-            let normal = [-dir[1] * side, dir[0] * side];
-            let tip = [spoke.to[0] + dir[0] * side, spoke.to[1] + dir[1] * side];
-            let n = ((len / spoke.width * SPOKE_SAMPLES_PER_WIDTH).ceil() as usize)
-                .clamp(1, MAX_SPOKE_SAMPLES);
-            // Walk out from the ring while the spoke's own copper lasts:
-            // copper beyond a cut belongs to something the spoke never
-            // reaches.
-            let mut joined = false;
-            let mut whole = true;
-            let mut out = 0usize;
-            let mut beside = 0usize;
-            // How far the spoke's copper runs, from the pad's centre.
-            let mut reach = 0.0;
-            for i in 1..=n {
-                let t = len * i as f64 / n as f64;
-                let c = [spoke.from[0] + dir[0] * t, spoke.from[1] + dir[1] * t];
-                if inside(c, &relief.ring) {
-                    reach = t;
-                    continue;
-                }
-                out += 1;
-                if near.iter().any(|pad| inside(c, pad)) {
-                    joined = true;
-                    break;
-                }
-                if index.region_at(c).is_none() {
-                    // The first sample may sit on the ring's own edge.
-                    if out > 1 {
-                        whole = false;
-                        break;
-                    }
-                    continue;
-                }
-                reach = t;
-                if meets([c[0] + normal[0], c[1] + normal[1]])
-                    || meets([c[0] - normal[0], c[1] - normal[1]])
-                {
-                    beside += 1;
-                    if beside >= SPOKE_CONTACT_SAMPLES {
-                        joined = true;
-                        break;
-                    }
-                }
-            }
-            // A spoke that never leaves its ring crosses no gap to judge.
-            if out == 0 || joined || (whole && meets(tip)) {
-                continue;
-            }
-            let end = (reach + len / n as f64).min(len);
             let Some(bar) = geom::bar(
                 spoke.from,
                 [spoke.from[0] + dir[0] * end, spoke.from[1] + dir[1] * end],
@@ -892,6 +850,171 @@ fn loose_spokes(copper: &[Region], reliefs: &[Relief]) -> (Vec<Region>, Vec<Remo
         }
     }
     (loose, removed)
+}
+
+/// Whether one spoke joins the net's copper, or how far from its pad's
+/// centre its loose copper runs.
+enum SpokeReach {
+    Joins,
+    Loose { reach: f64 },
+}
+
+/// [`loose_spokes`] for one spoke of length `len`: samples along the spoke
+/// and across its width, flooded from the pad through the samples that
+/// hold copper. Copper the flood never reaches (beyond a cut) belongs to
+/// something the spoke does not reach.
+fn spoke_reach(
+    index: &RegionIndex,
+    relief: &Relief,
+    spoke: &Spoke,
+    near: &[&Ring],
+    len: f64,
+) -> SpokeReach {
+    let dir = [
+        (spoke.to[0] - spoke.from[0]) / len,
+        (spoke.to[1] - spoke.from[1]) / len,
+    ];
+    let across = [-dir[1], dir[0]];
+    let side = spoke.width / 2.0 + (spoke.width / 8.0).max(0.005);
+    let n =
+        ((len / spoke.width * SPOKE_SAMPLES_PER_WIDTH).ceil() as usize).clamp(1, MAX_SPOKE_SAMPLES);
+    let step = len / n as f64;
+    // A point `t` along the spoke and `o` across it.
+    let at = |t: f64, o: f64| {
+        [
+            spoke.from[0] + dir[0] * t + across[0] * o,
+            spoke.from[1] + dir[1] * t + across[1] * o,
+        ]
+    };
+    // Lane `j`'s offset across the spoke, within its bar.
+    let lane = |j: usize| ((j as f64 + 0.5) / SPOKE_LANES as f64 - 0.5) * spoke.width;
+    let in_near = |p: Point| near.iter().any(|pad| inside(p, pad));
+    let own = |p: Point| relief.pad.as_ref().is_some_and(|pad| inside(p, pad));
+    let meets = |p: Point| !inside(p, &relief.ring) && (index.region_at(p).is_some() || in_near(p));
+    let ringed: Vec<bool> = (0..=n)
+        .map(|i| inside(at(step * i as f64, 0.0), &relief.ring))
+        .collect();
+    // A spoke that never leaves its ring crosses no gap to judge.
+    if ringed.iter().skip(1).all(|r| *r) {
+        return SpokeReach::Joins;
+    }
+    // Most spokes join along their centre line: walk out from the ring
+    // while its copper lasts. Only a spoke cut there is flooded across its
+    // width.
+    let mut beside = 0usize;
+    let mut out = 0usize;
+    for i in 1..=n {
+        if ringed.get(i).copied().unwrap_or(true) {
+            continue;
+        }
+        let t = step * i as f64;
+        let c = at(t, 0.0);
+        out += 1;
+        if in_near(c) {
+            return SpokeReach::Joins;
+        }
+        if index.region_at(c).is_none() {
+            // The first sample may sit on the ring's own edge.
+            if out > 1 {
+                break;
+            }
+            continue;
+        }
+        if meets(at(t, side)) || meets(at(t, -side)) {
+            beside += 1;
+            if beside >= SPOKE_CONTACT_SAMPLES {
+                return SpokeReach::Joins;
+            }
+        }
+        if i == n && meets(at(len + side, 0.0)) {
+            return SpokeReach::Joins;
+        }
+    }
+    // How far the spoke runs, from the pad's centre: its ring, then the
+    // copper the flood reaches.
+    let mut reach = (1..=n)
+        .filter(|i| ringed.get(*i).copied().unwrap_or(false))
+        .map(|i| step * i as f64)
+        .fold(0.0, f64::max);
+    let cell = |i: usize, j: usize| i * SPOKE_LANES + j;
+    let mut holds: Vec<Option<bool>> = vec![None; (n + 1) * SPOKE_LANES];
+    let mut seen = vec![false; (n + 1) * SPOKE_LANES];
+    let mut copper_at = |i: usize, j: usize| -> bool {
+        let Some(slot) = holds.get_mut(cell(i, j)) else {
+            return false;
+        };
+        *slot.get_or_insert_with(|| {
+            let p = at(step * i as f64, lane(j));
+            own(p) || index.region_at(p).is_some() || in_near(p)
+        })
+    };
+    // Start in the pad (its centre); a via's disc or a pad without an
+    // outline starts at the first samples.
+    let first = usize::from(relief.pad.is_none());
+    let mut stack = Vec::new();
+    for j in 0..SPOKE_LANES {
+        if copper_at(first, j)
+            && let Some(s) = seen.get_mut(cell(first, j))
+        {
+            *s = true;
+            stack.push((first, j));
+        }
+    }
+    let mut beside = 0usize;
+    while let Some((i, j)) = stack.pop() {
+        let t = step * i as f64;
+        let p = at(t, lane(j));
+        if !inside(p, &relief.ring) && !own(p) {
+            reach = reach.max(t);
+            if in_near(p) {
+                return SpokeReach::Joins;
+            }
+            // Copper beside the spoke's outer lanes, or beyond its end.
+            let mut probes = Vec::new();
+            if j == 0 {
+                probes.push(at(t, -side));
+            }
+            if j + 1 == SPOKE_LANES {
+                probes.push(at(t, side));
+            }
+            for probe in probes {
+                if meets(probe) {
+                    beside += 1;
+                    if beside >= SPOKE_CONTACT_SAMPLES {
+                        return SpokeReach::Joins;
+                    }
+                }
+            }
+            if i == n && meets(at(len + side, lane(j))) {
+                return SpokeReach::Joins;
+            }
+        }
+        let mut next = Vec::with_capacity(4);
+        if i < n {
+            next.push((i + 1, j));
+        }
+        if i > 0 {
+            next.push((i - 1, j));
+        }
+        if j + 1 < SPOKE_LANES {
+            next.push((i, j + 1));
+        }
+        if j > 0 {
+            next.push((i, j - 1));
+        }
+        for (a, b) in next {
+            if seen.get(cell(a, b)).copied().unwrap_or(true) || !copper_at(a, b) {
+                continue;
+            }
+            if let Some(s) = seen.get_mut(cell(a, b)) {
+                *s = true;
+            }
+            stack.push((a, b));
+        }
+    }
+    SpokeReach::Loose {
+        reach: (reach + step).min(len),
+    }
 }
 
 /// A hatched fill: a border of the hatch width and a grid of lines.

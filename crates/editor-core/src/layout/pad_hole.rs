@@ -22,7 +22,7 @@
 use super::connectivity::CopperGraph;
 use super::copper::{check_reach, limit_finding};
 use super::grid::BoundsGrid;
-use super::limits::{BoardRules, mm};
+use super::limits::{BoardRules, mm, mm_against};
 use super::{BoardCopper, CopperRing, EPS, PlacedPad, check_pair_budget, pad_labels, placed_pads};
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::Shape;
@@ -99,7 +99,7 @@ pub(super) fn findings(
     for (k, pad) in placed.iter().enumerate() {
         for hole in pad.holes() {
             holes.push(Hole {
-                ring: CopperRing::of_shape(&hole.shape, true),
+                ring: CopperRing::of_hole(&hole.shape),
                 kind: CopperObject::hole(hole.plated),
                 pad: Some(k),
                 object: ObjectRef::Pad {
@@ -171,7 +171,7 @@ pub(super) fn findings(
             let how = if gap <= EPS {
                 format!("overlaps {what}")
             } else {
-                format!("is {} mm from {what}", mm(gap))
+                format!("is {} mm from {what}", mm_against(gap, need.mm))
             };
             issues.push(Finding::new(
                 "board.pad_hole_clearance",
@@ -199,7 +199,7 @@ pub(super) fn findings(
             let how = if gap <= EPS {
                 "overlap".to_owned()
             } else {
-                format!("are {} mm apart", mm(gap))
+                format!("are {} mm apart", mm_against(gap, need.mm))
             };
             issues.push(Finding::new(
                 "board.pad_hole_spacing",
@@ -230,7 +230,19 @@ fn rings(
     let mut issues = Vec::new();
     let least =
         |need: &super::limits::Need| format!("needs at least {} mm ({})", mm(need.mm), need.cite());
-    let text = |ring: f64| format!("annular ring {} mm; {}", mm(ring), least(&need));
+    // A recommended limit the fabricator relaxes under another choice
+    // says so, naming the choice.
+    let text = |ring: f64| {
+        let looser =
+            super::limits::looser_choice(limits.project(), RuleKey::PthAnnularRingMin, ring)
+                .map(|c| format!("; {c}"))
+                .unwrap_or_default();
+        format!(
+            "annular ring {} mm; {}{looser}",
+            mm_against(ring, need.mm),
+            least(&need)
+        )
+    };
     for pad in placed {
         if pad.pad.kind.copper() == PadCopper::None {
             continue;
@@ -263,7 +275,7 @@ fn rings(
                 format!(
                     "{}: annular ring {} mm round the unplated hole; {}",
                     name(pad),
-                    mm(ring),
+                    mm_against(ring, npth_need.mm),
                     least(&npth_need)
                 ),
                 vec![object],

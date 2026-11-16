@@ -10,7 +10,7 @@
 //! also reports courtyards closer than it (`board.courtyard_clearance`).
 use super::check_pair_budget;
 use super::grid::BoundsGrid;
-use super::limits::{mm, need};
+use super::limits::{mm_against, need};
 use super::placed::{BoardDrawing, PlacedItem, placed_graphics};
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance};
@@ -163,7 +163,7 @@ fn bounded_findings(project: &Project, budget: Option<usize>) -> Vec<Finding> {
                         "Courtyards of {} and {} are {} mm apart on the {side} side; {}",
                         name(a.instance),
                         name(b.instance),
-                        mm(gap),
+                        mm_against(gap, clearance.mm),
                         clearance.text()
                     ),
                 )

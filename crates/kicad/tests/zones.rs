@@ -197,3 +197,179 @@ fn a_zone_connecting_pads_in_full_joins_them_solidly() -> Fallible<()> {
     }
     Ok(())
 }
+
+/// A board-wide GND pour over a SOT-23-5 land pattern (0.95 mm pitch,
+/// 0.6 × 1.0 mm lands of `shape`) whose middle pin of the three is GND,
+/// beside an 0603 capacitor, with 0.3 mm spokes across a 0.25 mm relief
+/// gap turned `angle`. The fill's copper, U1 pad 2's centre and its
+/// object reference.
+fn sot_pour(
+    shape: &'static str,
+    angle: f64,
+) -> Fallible<(
+    sparksmith_core::model::fill::FilledCopper,
+    [f64; 2],
+    sparksmith_core::diagnostics::ObjectRef,
+)> {
+    use sparksmith_core::Operation;
+    use sparksmith_core::layout::fill::{FillCommand, RefillTarget};
+    use sparksmith_core::rules::ThermalRelief;
+    let pad = |n: &'static str, x: f64, y: f64, size: [f64; 2], net: &str| {
+        Pad::smd(n, shape, [x, y, 0.0], size).with(&format!("(roundrect_rratio 0.25) {net}"))
+    };
+    let (gnd, vin, out, en, nc) = (
+        "(net 1 \"GND\")",
+        "(net 2 \"VIN\")",
+        "(net 3 \"OUT\")",
+        "(net 4 \"EN\")",
+        "(net 5 \"NC\")",
+    );
+    let lead = [0.6, 1.0];
+    let u1 = Footprint::new(
+        "U1",
+        [12.0, 12.0, 0.0],
+        false,
+        vec![
+            pad("1", -0.95, 1.1, lead, vin),
+            pad("2", 0.0, 1.1, lead, gnd),
+            pad("3", 0.95, 1.1, lead, en),
+            pad("4", 0.95, -1.1, lead, nc),
+            pad("5", -0.95, -1.1, lead, out),
+        ],
+    );
+    let c1 = Footprint::new(
+        "C1",
+        [20.0, 12.0, 0.0],
+        false,
+        vec![
+            pad("1", -0.8, 0.0, [0.9, 1.0], vin),
+            pad("2", 0.8, 0.0, [0.9, 1.0], gnd),
+        ],
+    );
+    let board = Board {
+        copper: 2,
+        origin: None,
+        setup: "(pad_to_mask_clearance 0)".into(),
+        footprints: vec![u1, c1],
+        items: "
+  (net 1 \"GND\") (net 2 \"VIN\") (net 3 \"OUT\") (net 4 \"EN\") (net 5 \"NC\")
+  (gr_rect (start 0 0) (end 35 28) (stroke (width 0.1) (type default)) (layer \"Edge.Cuts\"))
+  (zone (net 1) (net_name \"GND\") (layer \"F.Cu\") (hatch edge 0.5)
+    (connect_pads (clearance 0.2)) (min_thickness 0.1) (filled_areas_thickness no)
+    (fill yes (thermal_gap 0.25) (thermal_bridge_width 0.3) (island_removal_mode 0))
+    (polygon (pts (xy 0 0) (xy 35 0) (xy 35 28) (xy 0 28))))
+"
+        .into(),
+    };
+    let mut imported = import(board.text().as_bytes())?;
+    let engine = &mut imported.engine;
+    let project = engine.project();
+    let u1 = project.instance_by_designator("U1").ok_or("U1")?.id;
+    let middle = sparksmith_core::layout::placed_pads(project)
+        .into_iter()
+        .find(|p| p.instance == u1 && p.pad.number == "2")
+        .ok_or("U1 pad 2")?;
+    let me = sparksmith_core::diagnostics::ObjectRef::Pad {
+        instance: u1,
+        pad: middle.pad.id,
+    };
+    let centre = middle.pad_transform().apply([0.0, 0.0]);
+    let mut fill = project.fills.first().ok_or("no fill")?.clone();
+    fill.settings.thermal = Some(ThermalRelief {
+        spoke_width: 0.3,
+        spoke_count: 4,
+        gap: 0.25,
+        angle_deg: angle,
+    });
+    let id = fill.id;
+    engine.apply(
+        engine.revision(),
+        Operation::Fill(FillCommand::Edit {
+            fill: Box::new(fill),
+        }),
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Fill(FillCommand::Refill {
+            target: RefillTarget::All,
+        }),
+    )?;
+    let copper = engine
+        .project()
+        .fill(id)
+        .and_then(|f| f.computed.clone())
+        .ok_or("not filled")?;
+    Ok((copper, centre, me))
+}
+
+/// The fill island holding `p`, by index.
+fn island_at(copper: &sparksmith_core::model::fill::FilledCopper, p: [f64; 2]) -> Option<usize> {
+    use sparksmith_core::geometry::polygon_contains;
+    copper.regions.iter().position(|r| {
+        polygon_contains(&r.outer, p) && !r.holes.iter().any(|h| polygon_contains(h, p))
+    })
+}
+
+/// How many thermal spokes of `object` the fill removed.
+fn spokes_removed(
+    copper: &sparksmith_core::model::fill::FilledCopper,
+    object: sparksmith_core::diagnostics::ObjectRef,
+) -> Option<u32> {
+    copper
+        .removed_spokes
+        .iter()
+        .find(|r| r.object == object)
+        .map(|r| r.spokes)
+}
+
+/// Run 10, finding 1: on rounded lands, a neighbour's clearance cuts each
+/// 45° spoke of the middle pin down to part of its width just past the
+/// relief, and the rest of its width runs on into the pour. The spokes
+/// join, so all four stay and carry the pad into the pour; judging only
+/// each spoke's centre line removed all four.
+#[test]
+fn a_spoke_narrowed_by_a_neighbours_clearance_still_joins_the_pour() -> Fallible<()> {
+    let (copper, centre, me) = sot_pour("roundrect", 45.0)?;
+    assert_eq!(
+        spokes_removed(&copper, me),
+        None,
+        "{:?}",
+        copper.removed_spokes
+    );
+    let pour = island_at(&copper, [2.0, 2.0]).ok_or("no pour")?;
+    // Each spoke crosses the gap (the land's corner lies 0.42 mm out
+    // along it, the gap's far side 0.77 mm) as copper of the pour itself.
+    for k in 0..4 {
+        let a = (45.0 + 90.0 * f64::from(k)).to_radians();
+        let p = [centre[0] + 0.6 * a.cos(), centre[1] + 0.6 * a.sin()];
+        assert_eq!(island_at(&copper, p), Some(pour), "spoke {k}");
+    }
+    Ok(())
+}
+
+/// True dead ends are still removed: on the same rounded lands turned to
+/// 0°, the two spokes along the row end in the neighbours' clearances and
+/// go, and the two across it join; on sharp lands the 45° spokes end in
+/// the neighbours' clearances with nothing beside them, and all four go.
+#[test]
+fn spokes_that_end_in_a_clearance_are_still_removed() -> Fallible<()> {
+    let (copper, centre, me) = sot_pour("roundrect", 0.0)?;
+    assert_eq!(spokes_removed(&copper, me), Some(2));
+    let pour = island_at(&copper, [2.0, 2.0]).ok_or("no pour")?;
+    // Mid-gap: half the land's width (0.3) or length (0.5) plus half the
+    // 0.25 mm gap.
+    for (deg, kept) in [
+        (0.0_f64, false),
+        (90.0, true),
+        (180.0, false),
+        (270.0, true),
+    ] {
+        let a = deg.to_radians();
+        let r = if kept { 0.5 } else { 0.3 } + 0.125;
+        let p = [centre[0] + r * a.cos(), centre[1] + r * a.sin()];
+        assert_eq!(island_at(&copper, p) == Some(pour), kept, "spoke at {deg}°");
+    }
+    let (copper, _, me) = sot_pour("rect", 45.0)?;
+    assert_eq!(spokes_removed(&copper, me), Some(4));
+    Ok(())
+}

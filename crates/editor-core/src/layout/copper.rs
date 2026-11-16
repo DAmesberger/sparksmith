@@ -14,7 +14,7 @@
 use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::connectivity::CopperGraph;
 use super::grid::BoundsGrid;
-use super::limits::{BoardRules, mm};
+use super::limits::{BoardRules, mm, mm_against};
 use super::{CLEARANCE_MM, EPS, WorldPad, check_pair_budget, courtyard, pad_labels, sync_preview};
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{
@@ -96,15 +96,26 @@ impl CopperRing {
         Self::of_circle(via.position, via.drill)
     }
 
-    /// A circle of `diameter` at `center` (a drilled hole).
+    /// A circle of `diameter` at `center` (a drilled hole, a via's pad).
+    /// Its gaps are exact, measured from the centre less the radius (a
+    /// disc is a track of no length), so two drills exactly at their rule
+    /// pass.
     pub fn of_circle(center: Point, diameter: f64) -> Self {
-        Self::of_shape(
-            &Shape::Circle {
-                center,
-                radius: diameter / 2.0,
-            },
-            true,
-        )
+        let radius = diameter / 2.0;
+        Self {
+            slack: 0.0,
+            spine: Some((center, center, radius)),
+            ..Self::of_shape(&Shape::Circle { center, radius }, true)
+        }
+    }
+
+    /// A drilled hole's outline: a round hole exactly ([`Self::of_circle`]),
+    /// a slot flattened.
+    pub fn of_hole(shape: &Shape) -> Self {
+        match *shape {
+            Shape::Circle { center, radius } => Self::of_circle(center, 2.0 * radius),
+            _ => Self::of_shape(shape, true),
+        }
     }
 
     /// A track's stadium, round end caps included. Its gaps are exact:
@@ -381,7 +392,7 @@ impl BoardCopper {
                         format!(
                             "{} is {} mm from {}; {}",
                             crate::library::names::capitalised(&label(a)),
-                            mm(gap),
+                            mm_against(gap, need.mm),
                             near.describe(),
                             need.text()
                         ),

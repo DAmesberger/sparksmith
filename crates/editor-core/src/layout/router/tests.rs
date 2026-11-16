@@ -1004,3 +1004,54 @@ fn a_limit_below_one_or_malformed_is_refused() -> Fallible {
     assert!(serde_json::from_value::<RouteStepRequest>(bad).is_err());
     Ok(())
 }
+
+/// Run 10, finding 2: a via the router places keeps its drill's clearance
+/// as well as its copper's. A 0.36 mm via with a 0.3 mm drill beside
+/// another net's 0.3 mm track: its copper clears the track (0.54 mm from
+/// the centre line against 0.15 + 0.2 + 0.18 = 0.53), its drill does not
+/// (0.24 mm from the track's edge, against the test profile's 0.25 mm
+/// track to via hole clearance). Whatever the step does there (shoves the
+/// track out of the drill's way or stops short of the via), it leaves no
+/// drill too close; with the via 0.56 mm out, the drill clears and the
+/// via goes in with nothing moved.
+#[test]
+fn a_placed_via_keeps_its_drill_clearance() -> Fallible {
+    let mut p = board()?;
+    track(&mut p, B, [10.0, 20.0], [30.0, 20.0])?;
+    let step = |y: f64| {
+        let mut via = ViaRequest::fixture(A, [20.0, y]);
+        via.diameter = 0.36;
+        RouteStepRequest {
+            via: Some(via),
+            via_layer: Some(CopperLayer::Bottom),
+            ..request(A, [20.0, 25.0], [25.0, y], RouteMode::Shove)
+        }
+    };
+    let drills = |q: &Project| {
+        layout::checks(q, &Default::default())
+            .into_iter()
+            .filter(|f| f.code == "board.via_drill_clearance")
+            .count()
+    };
+    let close = run(&p, &step(20.54));
+    let mut after = p.clone();
+    apply(
+        &mut after,
+        LayoutCommand::ApplyRoute {
+            edits: close.edits.clone(),
+        },
+    )?;
+    assert_eq!(drills(&after), 0);
+    let clear = run(&p, &step(20.56));
+    assert_eq!(clear.edits.vias.len(), 1);
+    assert!(clear.edits.replace.is_empty(), "{:?}", clear.edits.replace);
+    let mut after = p.clone();
+    apply(
+        &mut after,
+        LayoutCommand::ApplyRoute {
+            edits: clear.edits.clone(),
+        },
+    )?;
+    assert_eq!(drills(&after), 0);
+    Ok(())
+}

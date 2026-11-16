@@ -260,3 +260,56 @@ fn a_route_through_a_grid_corner_enters_the_pin_cleanly() -> Fallible {
     assert!(moved > 0, "no corner was moved back");
     Ok(())
 }
+
+/// Run 10, finding 2: the router keeps J1's holes clear. Steps into the
+/// CC pins from all round the receptacle pass its plated shell slots and
+/// unplated locating holes; no step it lays down leaves a track or via
+/// closer to a hole than the rules allow (track to plated hole, track to
+/// unplated hole, via drill to copper), which the board checks report.
+#[test]
+fn a_step_past_the_usb_c_holes_keeps_their_clearance() -> Fallible {
+    let (p, jobs) = board()?;
+    let index = RouteIndex::of(&p);
+    let holes = |q: &Project| -> Vec<String> {
+        layout::checks(q, &Default::default())
+            .into_iter()
+            .filter(|f| {
+                matches!(
+                    f.code.as_str(),
+                    "board.pad_hole_clearance" | "board.via_drill_clearance"
+                )
+            })
+            .map(|f| f.message)
+            .collect()
+    };
+    let before = holes(&p);
+    let (mut steps, mut bad) = (0, Vec::new());
+    for (net, pin, _) in &jobs {
+        for k in 0..24 {
+            let a = f64::from(k * 15).to_radians();
+            for r in [2.5, 4.0] {
+                let head = [pin[0] + r * a.cos(), pin[1] + r * a.sin()];
+                for (posture, flipped) in [ELBOWS[0], ELBOWS[2]] {
+                    let plan =
+                        router::plan(&p, &index, &request(*net, head, *pin, posture, flipped));
+                    if plan.edits.add.is_empty() {
+                        continue;
+                    }
+                    steps += 1;
+                    let mut after = p.clone();
+                    apply(&mut after, &plan)?;
+                    bad.extend(holes(&after).into_iter().filter(|m| !before.contains(m)));
+                }
+            }
+        }
+    }
+    println!("{steps} steps");
+    assert!(steps > 50, "{steps}");
+    assert!(
+        bad.is_empty(),
+        "{} new: {:?}",
+        bad.len(),
+        &bad[..bad.len().min(5)]
+    );
+    Ok(())
+}
