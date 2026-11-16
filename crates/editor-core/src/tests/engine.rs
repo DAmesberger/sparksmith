@@ -352,6 +352,77 @@ fn a_joined_step_undoes_with_the_one_before() -> Result<()> {
     Ok(())
 }
 
+/// An undo group gathers its steps, over several openings of the same
+/// group, into one undo step named by its label; a step made while it is
+/// closed (a person's edit) splits it, and the rest of the group makes a new
+/// step under the same label.
+#[test]
+fn a_group_undoes_as_one_step_named_by_its_label() -> Result<()> {
+    let mut engine = Engine::demo()?;
+    let occurrence = engine.project().occurrences[0].id;
+    let moved = |x: f64| {
+        Operation::Schematic(SchematicCommand::MoveUnit {
+            occurrence,
+            position: pt([x, 0.0]),
+        })
+    };
+    apply(&mut engine, moved(1.0))?;
+    let before = engine.project().clone();
+    let depth = |engine: &Engine| {
+        let mut fork = engine.fork();
+        let mut steps = 0;
+        while fork.undo().is_ok() {
+            steps += 1;
+        }
+        steps
+    };
+    let start = depth(&engine);
+    assert!(engine.begin_group("  ").is_err(), "a label is needed");
+    engine.begin_group("AI assistant: tidy")?;
+    assert!(engine.begin_group("again").is_err(), "one group at a time");
+    apply(&mut engine, moved(2.0))?;
+    let mut mark = engine
+        .end_group()
+        .ok_or_else(|| Error::History("the group made no step".into()))?;
+    for x in [3.0, 4.0, 5.0, 6.0] {
+        engine.continue_group("AI assistant: tidy", mark)?;
+        apply(&mut engine, moved(x))?;
+        mark = engine
+            .end_group()
+            .ok_or_else(|| Error::History("the group made no step".into()))?;
+    }
+    assert_eq!(depth(&engine), start + 1, "five applies, one step");
+    let step = engine
+        .undo_step()
+        .ok_or_else(|| Error::History("no step".into()))?;
+    assert_eq!(step.line(), "AI assistant: tidy");
+    // A person's edit between two of the group's splits it.
+    let instance = engine.project().instances[0].id;
+    apply(&mut engine, designator_edit(instance, "Q9"))?;
+    engine.continue_group("AI assistant: tidy", mark)?;
+    apply(&mut engine, moved(7.0))?;
+    apply(&mut engine, moved(8.0))?;
+    engine.end_group();
+    assert_eq!(depth(&engine), start + 3, "group, person, group");
+    assert_eq!(
+        engine.undo_step().map(|s| s.line()).as_deref(),
+        Some("AI assistant: tidy")
+    );
+    engine.undo()?;
+    assert_ne!(
+        engine.undo_step().map(|s| s.line()).as_deref(),
+        Some("AI assistant: tidy")
+    );
+    engine.undo()?;
+    engine.undo()?;
+    assert_eq!(
+        *engine.project(),
+        before,
+        "the first part of the group went"
+    );
+    Ok(())
+}
+
 /// A batch is one revision and one undo step; a failing member, wherever
 /// it is, leaves document, revision and history as they were, and names
 /// itself.
@@ -430,6 +501,7 @@ fn undo_steps_carry_their_title_and_area() -> Result<()> {
         title: "Move a symbol unit",
         area: Area::Schematic,
         subject: None,
+        label: None,
     };
     apply(&mut engine, moved(1.0))?;
     assert_eq!(engine.undo_step(), Some(unit.clone()));
@@ -446,6 +518,7 @@ fn undo_steps_carry_their_title_and_area() -> Result<()> {
         title: "Move a placed part",
         area: Area::Pcb,
         subject: Some("R1".into()),
+        label: None,
     };
     assert_eq!(engine.undo_step(), Some(part.clone()));
     assert_eq!(part.line(), "Move R1", "named by its part");
@@ -466,6 +539,7 @@ fn undo_steps_carry_their_title_and_area() -> Result<()> {
         title: Step::MIXED,
         area: Area::Schematic,
         subject: None,
+        label: None,
     };
     assert_eq!(engine.undo_step(), Some(several), "a mix");
 
@@ -476,6 +550,7 @@ fn undo_steps_carry_their_title_and_area() -> Result<()> {
         title: "Set a designator",
         area: Area::Schematic,
         subject: Some("R9".into()),
+        label: None,
     };
     assert_eq!(engine.undo_step(), Some(designator.clone()), "joined");
     engine.undo()?;
