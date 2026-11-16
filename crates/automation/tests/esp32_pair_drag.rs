@@ -16,7 +16,6 @@ use sparksmith_core::layout::router::drag::{PairDrag, TrackDragRequest, drag_pla
 use sparksmith_core::layout::router::{RouteIndex, RouteMode};
 use sparksmith_core::layout::{self, LayoutCommand, length};
 use sparksmith_core::model::Track;
-use sparksmith_core::model::production::waiver_key;
 use sparksmith_core::{Engine, Operation};
 use std::path::Path;
 
@@ -118,16 +117,8 @@ fn track(engine: &Engine, id: Id) -> Fallible<Track> {
 fn issues(engine: &mut Engine) -> Fallible<Vec<String>> {
     let fresh = compute_stale(engine.project(), &mut FillCache::default())?;
     engine.store_fills(engine.revision(), fresh)?;
-    // Findings the board waives for production (the J1 locating pegs)
-    // are accepted, not issues.
-    let production = &engine.project().production;
     Ok(layout::checks(engine.project(), engine.check_settings())
         .into_iter()
-        .filter(|f| {
-            production
-                .waiver(&waiver_key(&f.code, &f.objects))
-                .is_none()
-        })
         .filter(|f| {
             f.blocks.is_some()
                 || f.code.starts_with("pair.")

@@ -27,7 +27,7 @@ use crate::kit::severity::Level;
 use serde_json::{Value, json};
 use sparksmith_assist::chat::{self, ChatConfig, End, Outcome, ReachProfile};
 use sparksmith_assist::desk::{self, Called};
-use sparksmith_assist::model::{Budget, Connection, KeySource, Message, Part, Provider, keys};
+use sparksmith_assist::model::{Budget, Connection, KeySource, Message, Part, Provider};
 use sparksmith_assist::settings::{self as ai, AssistSettings, Permissions, Rule, Shipped};
 use sparksmith_automation::front::{self, Answer, Asker, Call, CallCx, NoOne, Surface};
 use sparksmith_automation::{Grant, Principal, Question, WindowHost};
@@ -128,11 +128,13 @@ impl Asker for ChatAsker {
     }
 }
 
-/// Settings › AI as the person keeps it, the shipped starting values and
-/// its file.
-fn ai_settings() -> Result<(AssistSettings, Shipped, std::path::PathBuf), String> {
-    let dirs = sparksmith_io::settings::UserDirs::from_env().map_err(|e| e.to_string())?;
-    let path = ai::user_file(&dirs.config);
+/// Settings › AI as the person keeps it in `config`, the shipped starting
+/// values and its file.
+fn ai_settings(
+    config: Option<std::path::PathBuf>,
+) -> Result<(AssistSettings, Shipped, std::path::PathBuf), String> {
+    let config = config.ok_or("No config folder: set SPARKSMITH_CONFIG_DIR or a home folder")?;
+    let path = ai::user_file(&config);
     let settings = ai::read(&path).map_err(|e| e.to_string())?;
     let shipped = Shipped::locate().map_err(|e| e.to_string())?;
     Ok((settings, shipped, path))
@@ -184,21 +186,28 @@ impl App {
     /// Settings › AI's endpoint for the assistant, its limits when the
     /// person set any (none by default: no per-turn caps), and its rules
     /// per kind of action. A key comes from the keychain for the endpoint,
-    /// else for Anthropic `ANTHROPIC_API_KEY`.
+    /// else for Anthropic `ANTHROPIC_API_KEY` when it is set; a hosted
+    /// model without either is not connected
+    /// ([`super::settings_ai::readiness`]).
     pub(super) fn chat_model(&mut self) -> Result<(ChatModel, Budget, Permissions), String> {
         if let Some(model) = &self.assistant.model {
             let shipped = Shipped::locate().map_err(|e| e.to_string())?;
             return Ok((model.clone(), chat::unbounded(), shipped.permissions));
         }
-        let (settings, shipped, _) = ai_settings()?;
+        let page = &self.settings_window.ai;
+        let keyring = page.keyring();
+        let (settings, shipped, _) = ai_settings(page.config_dir())?;
+        super::settings_ai::readiness(&settings, keyring)?;
         let setting = settings
             .run_endpoint()
             .cloned()
-            .ok_or_else(|| "No model endpoint: add one in Settings › AI".to_owned())?;
+            .ok_or(super::settings_ai::NOT_CONNECTED)?;
         let profile = setting.model_profile().map_err(|e| e.to_string())?;
         let endpoint = setting.endpoint().map_err(|e| e.to_string())?;
-        let key = if endpoint.check_key_allowed().is_ok() && keys::keychain_has(&endpoint) {
+        let key = if endpoint.check_key_allowed().is_ok() && keyring.has(&endpoint) {
             KeySource::Keychain
+        } else if endpoint.is_loopback() {
+            KeySource::None
         } else {
             match profile.provider {
                 Provider::Anthropic => KeySource::Env("ANTHROPIC_API_KEY".into()),
@@ -231,12 +240,14 @@ impl App {
             // A test's model: no settings file is touched.
             return;
         }
-        let kept = ai_settings().and_then(|(mut settings, shipped, path)| {
-            let mut permissions = settings.permissions_or(&shipped);
-            kind.set(&mut permissions, Rule::Always);
-            settings.permissions = Some(permissions);
-            ai::write(&path, &settings).map_err(|e| e.to_string())
-        });
+        let kept = ai_settings(self.settings_window.ai.config_dir()).and_then(
+            |(mut settings, shipped, path)| {
+                let mut permissions = settings.permissions_or(&shipped);
+                kind.set(&mut permissions, Rule::Always);
+                settings.permissions = Some(permissions);
+                ai::write(&path, &settings).map_err(|e| e.to_string())
+            },
+        );
         if let Err(why) = kept {
             self.say(
                 Level::Warning,
@@ -251,6 +262,7 @@ impl App {
         if !self.assistant.open {
             return;
         }
+        self.check_setup();
         let ctx = ui.ctx().clone();
         let t = Tokens::get();
         let host = Container::new(&ctx, Host::Panel);
@@ -293,10 +305,36 @@ impl App {
         }
     }
 
+    /// Whether a model is connected, looked at once when the chat opens and
+    /// again when Settings › AI saves a connection: the chat says "No model
+    /// connected" with Connect a model… before a message is typed, and is
+    /// ready again once one is saved.
+    fn check_setup(&mut self) {
+        if self.settings_window.ai.take_connected() {
+            self.assistant.setup_checked = false;
+        }
+        if self.assistant.setup_checked || self.assistant.model.is_some() {
+            return;
+        }
+        self.assistant.setup_checked = true;
+        let state = &mut self.assistant.conversation.state;
+        if !matches!(state, State::Idle | State::NotSetUp(_)) {
+            return;
+        }
+        let page = &self.settings_window.ai;
+        let ready = ai_settings(page.config_dir())
+            .and_then(|(settings, ..)| super::settings_ai::readiness(&settings, page.keyring()));
+        *state = match ready {
+            Ok(()) => State::Idle,
+            Err(why) => State::NotSetUp(why),
+        };
+    }
+
     /// ⇧⌘A, View › Assistant, the palette and the application bar's button.
     pub(super) fn toggle_assistant(&mut self, ctx: &egui::Context) {
         self.assistant.toggle();
         if self.assistant.shown() {
+            self.assistant.setup_checked = false;
             ctx.memory_mut(|m| m.request_focus(assistant::Assistant::composer_id()));
         }
     }
@@ -324,6 +362,12 @@ impl App {
             Action::Card(action) => self.workflow_card_action(action),
             // The card is in the cards already; the next frame shows it.
             Action::Offered(_) => {}
+            Action::ConnectModel => {
+                self.settings_window.ai.focus_connection();
+                if !self.settings_window.is_open() {
+                    self.settings_window.toggle();
+                }
+            }
         }
     }
 

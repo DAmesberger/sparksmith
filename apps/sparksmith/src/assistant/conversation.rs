@@ -29,7 +29,7 @@ impl State {
     /// The header's words for it.
     pub fn label(&self) -> &str {
         match self {
-            Self::NotSetUp(_) => "Not set up",
+            Self::NotSetUp(_) => "Not connected",
             Self::Idle => "Ready",
             Self::Running => "Working…",
             Self::Waiting => "Waiting for you",

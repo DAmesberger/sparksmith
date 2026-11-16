@@ -1,21 +1,27 @@
-//! Settings › AI (`docs/assistant-panel.md` §6.4): the connections (model
-//! endpoints and ACP agents), the permissions per kind of action, a model
-//! run's limits, the run profiles and the workflows, on one page of the
-//! Settings window. There are no per-turn caps on edits or calls.
+//! Settings › AI (`docs/assistant-panel.md` §6.4). First, **Connection**:
+//! where the chat's model comes from (Anthropic, OpenAI, a model server on
+//! this computer, or an agent installed on this computer), and for a
+//! hosted model one API key field, the model and Test connection. Then,
+//! folded: **Advanced** (every connection, with server addresses,
+//! timeouts, declared capabilities and agent commands), the permissions per
+//! kind of action, a model run's limits, the run profiles and the
+//! workflows. There are no per-turn caps on edits or calls.
 //!
 //! What is set here is the person's `<config>/assist/settings.json`
 //! (`sparksmith_assist::settings`), written at once and checked first; the
-//! values it starts with ship in the library. A key is typed into a masked
-//! field, goes to the system keychain for the endpoint's base URL when the
-//! endpoint is saved, and is never shown again, written to a file or kept
-//! in the form; a key for plain HTTP to another computer is refused before
-//! it is stored. An agent is configuration only: nothing here starts it.
-//! Profiles are files: a built-in one is copied to edit, and the text is
-//! checked when it is saved. Workflows are listed read-only, with why one
-//! can't run.
+//! values it starts with, and Connection's choices, ship in the library. A
+//! key is typed or pasted into a masked field (shown only while typing,
+//! when asked), goes to the system keychain for the connection's base URL
+//! when it is saved, and is never shown again, written to a file or kept in
+//! the form; a key for plain HTTP to another computer is refused before it
+//! is stored. Test connection sends one short request off the UI thread
+//! (`sparksmith_assist::model::check_connection`). An agent is
+//! configuration only: nothing here starts it. Profiles are files: a
+//! built-in one is copied to edit, and the text is checked when it is
+//! saved. Workflows are listed read-only, with why one can't run.
 use crate::kit;
 use sparksmith_assist::AssistLibrary;
-use sparksmith_assist::model::{Endpoint, Secret, keys};
+use sparksmith_assist::model::{Endpoint, KeySource, Secret, keys};
 use sparksmith_assist::profile as run_profile;
 use sparksmith_assist::settings::{
     self as stored, AgentSetting, AssistSettings, CONTEXT_RANGE, EndpointSetting, OUTPUT_RANGE,
@@ -45,6 +51,11 @@ fn system_delete(endpoint: &Endpoint) -> Result<bool, String> {
 }
 
 impl Keyring {
+    /// Whether it holds a key for `endpoint`.
+    pub(crate) fn has(&self, endpoint: &Endpoint) -> bool {
+        (self.has)(endpoint)
+    }
+
     #[cfg_attr(test, allow(dead_code))]
     const SYSTEM: Self = Self {
         has: keys::keychain_has,
@@ -78,6 +89,212 @@ pub(crate) mod test_keyring {
     }
 
     pub(crate) const MEMORY: Keyring = Keyring { has, store, delete };
+
+    /// Test connection without a network: the model answers when a key
+    /// came with the request or the server is on this computer.
+    pub(crate) fn check(setting: &EndpointSetting, key: Option<Secret>) -> Result<String, String> {
+        let local = setting.endpoint().is_ok_and(|e| e.is_loopback());
+        if key.is_some() || local {
+            Ok(setting.model.trim().to_owned())
+        } else {
+            Err("401: invalid x-api-key".into())
+        }
+    }
+}
+
+/// Test connection's one request, run off the UI thread: the setting, and
+/// the key typed (none: the keychain's, when there is one). The model that
+/// answered, or why not.
+pub(crate) type Checker = fn(&EndpointSetting, Option<Secret>) -> Result<String, String>;
+
+#[cfg_attr(test, allow(dead_code))]
+fn system_check(setting: &EndpointSetting, typed: Option<Secret>) -> Result<String, String> {
+    let profile = setting.model_profile().map_err(|e| e.to_string())?;
+    let endpoint = setting.endpoint().map_err(|e| e.to_string())?;
+    let key = match typed {
+        Some(key) => Some(key),
+        None if endpoint.check_key_allowed().is_ok() => {
+            KeySource::Keychain.resolve(&endpoint).ok().flatten()
+        }
+        None => None,
+    };
+    sparksmith_assist::model::check_connection(&profile, endpoint, key).map_err(|e| e.to_string())
+}
+
+/// Whether the chat can use what is set up: a model connection with its
+/// key (in the keychain, or for Anthropic in `ANTHROPIC_API_KEY`), or a
+/// server on this computer. Why not, in the person's words.
+pub(crate) fn readiness(settings: &AssistSettings, keyring: Keyring) -> Result<(), String> {
+    let Some(setting) = settings.run_endpoint() else {
+        return Err(NOT_CONNECTED.into());
+    };
+    setting
+        .model_profile()
+        .map_err(|_| NOT_CONNECTED.to_owned())?;
+    let endpoint = setting.endpoint().map_err(|_| NOT_CONNECTED.to_owned())?;
+    let env = setting.provider == Wire::Anthropic
+        && cfg!(not(test))
+        && std::env::var("ANTHROPIC_API_KEY").is_ok_and(|v| !v.trim().is_empty());
+    if endpoint.is_loopback() || has_key(keyring, setting) || env {
+        Ok(())
+    } else {
+        Err(NOT_CONNECTED.into())
+    }
+}
+
+/// What the chat says when no model is connected.
+pub(crate) const NOT_CONNECTED: &str = "No model connected";
+
+/// What Connection uses: a shipped choice of model, an agent, or one of
+/// the person's own model connections that no choice matches (set up
+/// under Advanced).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Choice {
+    Model(usize),
+    Agent(usize),
+    Saved(usize),
+}
+
+/// Test connection's state.
+enum Check {
+    Idle,
+    Running(std::sync::mpsc::Receiver<Result<String, String>>),
+    Passed(String),
+    Failed(String),
+}
+
+/// Connection's form: the model connection being set up, its key as typed
+/// (never stored here past Save) and the test's state.
+struct Quick {
+    choice: Choice,
+    /// The connection's place among the saved ones; none: a new one.
+    at: Option<usize>,
+    draft: EndpointSetting,
+    key: String,
+    /// The typed key shows (while typing only).
+    show: bool,
+    /// The keychain holds a key for the draft's URL.
+    stored: bool,
+    /// Replace was chosen: the key field shows over a stored key.
+    replacing: bool,
+    check: Check,
+}
+
+/// Whether the shipped choice `preset` is the saved connection `e`: the
+/// same kind of server at the same address, or both on this computer.
+fn same_server(preset: &EndpointSetting, e: &EndpointSetting) -> bool {
+    let (Ok(a), Ok(b)) = (preset.endpoint(), e.endpoint()) else {
+        return false;
+    };
+    preset.provider == e.provider && (a.base() == b.base() || (a.is_loopback() && b.is_loopback()))
+}
+
+impl Quick {
+    /// The form for what the chat uses now; the first choice when nothing
+    /// is set up.
+    fn read(state: &State, settings: &AssistSettings, shipped: &Shipped, keyring: Keyring) -> Self {
+        let agent = settings
+            .connection
+            .as_deref()
+            .and_then(|name| settings.agents.iter().find(|a| a.name == name))
+            .and_then(|a| {
+                shipped
+                    .agent_presets
+                    .iter()
+                    .position(|p| p.agent.command == a.command)
+            });
+        if let Some(index) = agent {
+            return Self::open(Choice::Agent(index), state, settings, shipped, keyring);
+        }
+        let saved = settings.run_endpoint().and_then(|e| {
+            let at = settings.endpoints.iter().position(|s| s == e)?;
+            Some(
+                match shipped
+                    .endpoint_presets
+                    .iter()
+                    .position(|p| same_server(&p.endpoint, e))
+                {
+                    Some(preset) => Choice::Model(preset),
+                    None => Choice::Saved(at),
+                },
+            )
+        });
+        Self::open(
+            saved.unwrap_or(Choice::Model(0)),
+            state,
+            settings,
+            shipped,
+            keyring,
+        )
+    }
+
+    /// The form for `choice`: a saved connection it matches, else a new
+    /// one from the shipped choice with its default model.
+    fn open(
+        choice: Choice,
+        state: &State,
+        settings: &AssistSettings,
+        shipped: &Shipped,
+        keyring: Keyring,
+    ) -> Self {
+        let preset = match choice {
+            Choice::Model(i) => shipped.endpoint_presets.get(i).map(|p| &p.endpoint),
+            _ => None,
+        };
+        let (at, draft) = match (choice, preset) {
+            (Choice::Saved(i), _) => (Some(i), settings.endpoints.get(i).cloned()),
+            (_, Some(preset)) => {
+                // The connection the chat uses first, then any other.
+                let active = settings.run_endpoint();
+                let found = active
+                    .filter(|e| same_server(preset, e))
+                    .or_else(|| settings.endpoints.iter().find(|e| same_server(preset, e)));
+                match found {
+                    Some(e) => (
+                        settings.endpoints.iter().position(|s| s == e),
+                        Some(e.clone()),
+                    ),
+                    None => {
+                        let mut draft = preset.clone();
+                        draft.name = settings.free_name(&draft.name);
+                        if draft.model.trim().is_empty()
+                            && draft.provider == Wire::Anthropic
+                            && let Ok(library) = &state.library
+                        {
+                            draft.model = library.default_model.clone();
+                        }
+                        (None, Some(draft))
+                    }
+                }
+            }
+            _ => (None, None),
+        };
+        let draft = draft
+            .or_else(|| shipped.endpoint_presets.first().map(|p| p.endpoint.clone()))
+            .unwrap_or_else(|| EndpointSetting {
+                name: String::new(),
+                provider: Wire::Anthropic,
+                base_url: String::new(),
+                model: String::new(),
+                timeout_minutes: *TIMEOUT_RANGE.start(),
+                capabilities: None,
+            });
+        Self {
+            choice,
+            at,
+            stored: has_key(keyring, &draft),
+            draft,
+            key: String::new(),
+            show: false,
+            replacing: false,
+            check: Check::Idle,
+        }
+    }
+
+    /// The draft's server is on this computer.
+    fn local(&self) -> bool {
+        self.draft.endpoint().is_ok_and(|e| e.is_loopback())
+    }
 }
 
 /// The choices for one kind of action. An ask itself offers Allow once,
@@ -124,6 +341,8 @@ struct State {
     library: Result<AssistLibrary, String>,
     profiles: Vec<ProfileEntry>,
     workflows: Vec<Listed>,
+    /// Connection's form; read again after Advanced changes a connection.
+    quick: Option<Quick>,
     editing: Option<Editing>,
     /// The user profile being edited: its name and text.
     profile: Option<(String, String)>,
@@ -155,6 +374,7 @@ impl State {
             workflows,
             library,
             config,
+            quick: None,
             editing: None,
             profile: None,
             refusal: None,
@@ -184,6 +404,14 @@ impl State {
         };
         match stored::write(&stored::user_file(config), &next) {
             Ok(()) => {
+                // Connections may have changed: Connection reads them again.
+                if self.settings.as_ref().ok().is_none_or(|s| {
+                    s.endpoints != next.endpoints
+                        || s.agents != next.agents
+                        || s.connection != next.connection
+                }) {
+                    self.quick = None;
+                }
                 self.settings = Ok(next);
                 self.refusal = None;
                 true
@@ -201,7 +429,13 @@ pub(crate) struct AiPage {
     /// The config folder; none: the user's, found when the page is read.
     config: Option<PathBuf>,
     keyring: Keyring,
+    checker: Checker,
     state: Option<State>,
+    /// Connection is to show, opened and in view, with the key field
+    /// focused (the chat's Connect a model…).
+    focus: u8,
+    /// Connection saved what the chat uses since the app last asked.
+    connected: bool,
 }
 
 impl Default for AiPage {
@@ -212,7 +446,13 @@ impl Default for AiPage {
             keyring: Keyring::SYSTEM,
             #[cfg(test)]
             keyring: test_keyring::MEMORY,
+            #[cfg(not(test))]
+            checker: system_check,
+            #[cfg(test)]
+            checker: test_keyring::check,
             state: None,
+            focus: 0,
+            connected: false,
         }
     }
 }
@@ -233,20 +473,47 @@ impl AiPage {
         self.state = None;
     }
 
-    fn state(&mut self) -> &mut State {
-        let config = self.config.clone();
-        self.state.get_or_insert_with(|| {
-            State::read(config.or_else(|| {
-                sparksmith_io::settings::UserDirs::from_env()
-                    .ok()
-                    .map(|d| d.config)
-            }))
+    /// The config folder Settings › AI reads and writes: the page's own
+    /// (tests), else the user's.
+    pub fn config_dir(&self) -> Option<PathBuf> {
+        self.config.clone().or_else(|| {
+            sparksmith_io::settings::UserDirs::from_env()
+                .ok()
+                .map(|d| d.config)
         })
+    }
+
+    pub fn keyring(&self) -> Keyring {
+        self.keyring
+    }
+
+    /// Show Connection next: opened, in view, the key field focused.
+    pub fn focus_connection(&mut self) {
+        self.focus = FOCUS_FRAMES;
+    }
+
+    /// Whether Connection is to be brought into view this frame.
+    pub fn wants_focus(&self) -> bool {
+        self.focus > 0
+    }
+
+    /// Whether Connection saved what the chat uses since the last ask.
+    pub fn take_connected(&mut self) -> bool {
+        std::mem::take(&mut self.connected)
+    }
+
+    fn state(&mut self) -> &mut State {
+        let config = self.config_dir();
+        self.state.get_or_insert_with(|| State::read(config))
     }
 
     /// The page, in the Settings window's AI section.
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         let keyring = self.keyring;
+        let checker = self.checker;
+        let focus = self.focus > 0;
+        self.focus = self.focus.saturating_sub(1);
+        let mut connected = false;
         let state = self.state();
         if let Some(why) = &state.refusal {
             kit::refusal_wrapped(ui, why);
@@ -271,12 +538,19 @@ impl AiPage {
                 return;
             }
         };
+        if focus {
+            kit::open_section(ui, CONNECTION);
+        }
+        kit::section(ui, CONNECTION, "Connection", true, None, |ui| {
+            connected = connection(ui, state, &settings, &shipped, keyring, checker, focus);
+        });
+        // Everything else is folded until the person opens it.
         let count = settings.endpoints.len() + settings.agents.len();
         kit::section(
             ui,
             "settings-ai-connections",
-            "Connections",
-            true,
+            "Advanced",
+            false,
             Some(count),
             |ui| connections(ui, state, &settings, &shipped, keyring),
         );
@@ -284,7 +558,7 @@ impl AiPage {
             ui,
             "settings-ai-permissions",
             "Permissions",
-            true,
+            false,
             None,
             |ui| permissions(ui, state, &settings, &shipped),
         );
@@ -292,7 +566,7 @@ impl AiPage {
             ui,
             "settings-ai-run-limits",
             "Run limits",
-            true,
+            false,
             None,
             |ui| limits(ui, state, &settings, &shipped),
         );
@@ -301,11 +575,396 @@ impl AiPage {
             ui,
             "settings-ai-profiles",
             "Profiles",
-            true,
+            false,
             Some(profile_count),
             |ui| profiles(ui, state),
         );
         workflows(ui, state);
+        self.connected |= connected;
+    }
+}
+
+/// Frames Connect a model… keeps Connection in view and the key field
+/// focused: a window that just opened lays itself out first.
+const FOCUS_FRAMES: u8 = 3;
+
+/// Connection's section id.
+const CONNECTION: &str = "settings-ai-connection";
+
+/// What Connection says of a key in the keychain.
+const STORED: &str = "Key stored in the system keychain";
+
+/// The key field's id, for Paste and Connect a model….
+fn key_field_id() -> egui::Id {
+    egui::Id::unique("settings-ai-key")
+}
+
+/// Connection: what the chat uses, in as few fields as it takes. Whether
+/// it saved what the chat uses.
+fn connection(
+    ui: &mut egui::Ui,
+    state: &mut State,
+    settings: &AssistSettings,
+    shipped: &Shipped,
+    keyring: Keyring,
+    checker: Checker,
+    focus: bool,
+) -> bool {
+    let mut quick = match state.quick.take() {
+        Some(quick) => quick,
+        None => Quick::read(state, settings, shipped, keyring),
+    };
+    // The choices: the shipped models, then the agents, then a connection
+    // of the person's own that none of them is.
+    let mut options: Vec<(Choice, String)> = shipped
+        .endpoint_presets
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (Choice::Model(i), p.title.clone()))
+        .chain(
+            shipped
+                .agent_presets
+                .iter()
+                .enumerate()
+                .map(|(i, p)| (Choice::Agent(i), format!("{} on this computer", p.title))),
+        )
+        .collect();
+    if let Choice::Saved(i) = quick.choice
+        && let Some(e) = settings.endpoints.get(i)
+    {
+        options.push((quick.choice, format!("{} (from Advanced)", e.name)));
+    }
+    let mut choice = quick.choice;
+    if kit::choice_row(ui, "Use", &mut choice, &options) {
+        quick = Quick::open(choice, state, settings, shipped, keyring);
+    }
+    let saved = match quick.choice {
+        Choice::Agent(index) => agent_choice(ui, state, settings, shipped, index),
+        Choice::Model(_) | Choice::Saved(_) => model_choice(
+            ui, state, settings, shipped, keyring, checker, &mut quick, focus,
+        ),
+    };
+    if saved {
+        // Read again from what was saved; the test's outcome stays.
+        let check = std::mem::replace(&mut quick.check, Check::Idle);
+        if let Ok(now) = state.settings.clone() {
+            quick = Quick::read(state, &now, shipped, keyring);
+        }
+        quick.check = check;
+    }
+    state.quick = Some(quick);
+    saved
+}
+
+/// An agent as the connection: one click, no form. Whether it was saved.
+fn agent_choice(
+    ui: &mut egui::Ui,
+    state: &mut State,
+    settings: &AssistSettings,
+    shipped: &Shipped,
+    index: usize,
+) -> bool {
+    let Some(preset) = shipped.agent_presets.get(index) else {
+        return false;
+    };
+    let title = &preset.title;
+    let saved = settings
+        .agents
+        .iter()
+        .position(|a| a.command == preset.agent.command);
+    let active = saved
+        .and_then(|i| settings.agents.get(i))
+        .is_some_and(|a| settings.connection.as_deref() == Some(a.name.as_str()));
+    kit::hint(
+        ui,
+        &format!("Uses {title} as installed on this computer; it signs in itself"),
+        "Nothing to paste here: the agent keeps its own sign-in, and its key never comes to this app. Its command is under Advanced.",
+    );
+    kit::hint(
+        ui,
+        "The chat can't start agents yet; it uses a model until then",
+        "Agents in the chat come in a later version. Choose a model above to chat today.",
+    );
+    let mut clicked = false;
+    kit::actions(ui, |ui| {
+        clicked = kit::primary(ui, &format!("Use {title}"), !active).clicked();
+    });
+    if active {
+        kit::note(ui, &format!("Set: {title} is the connection."));
+    }
+    if !clicked {
+        return false;
+    }
+    let mut next = settings.clone();
+    let name = match saved.and_then(|i| next.agents.get(i)) {
+        Some(a) => a.name.clone(),
+        None => {
+            let mut agent = preset.agent.clone();
+            agent.name = settings.free_name(&agent.name);
+            let name = agent.name.clone();
+            next.agents.push(agent);
+            name
+        }
+    };
+    next.connection = Some(name);
+    state.commit(next)
+}
+
+/// A model as the connection: the server's address only for a server on
+/// this computer, one API key field for a hosted one, the model, Test
+/// connection and Save. Whether it was saved.
+#[allow(clippy::too_many_arguments)]
+fn model_choice(
+    ui: &mut egui::Ui,
+    state: &mut State,
+    settings: &AssistSettings,
+    shipped: &Shipped,
+    keyring: Keyring,
+    checker: Checker,
+    quick: &mut Quick,
+    focus: bool,
+) -> bool {
+    let preset_local = match quick.choice {
+        Choice::Model(i) => shipped
+            .endpoint_presets
+            .get(i)
+            .is_some_and(|p| p.endpoint.endpoint().is_ok_and(|e| e.is_loopback())),
+        _ => true,
+    };
+    if preset_local {
+        let parsed = quick.draft.endpoint();
+        let field = kit::checked_text_row(
+            ui,
+            "Server address",
+            &mut quick.draft.base_url,
+            "http://localhost:11434/v1",
+            parsed.is_err(),
+        )
+        .on_hover_text("The server's base URL, as its documentation gives it");
+        if let Err(why) = &parsed {
+            kit::field_error(ui, &field, &why.to_string(), false);
+        }
+    }
+    let local = quick.local();
+    let mut focus_key = focus;
+    let mut changed = false;
+    if !local {
+        if quick.stored && !quick.replacing {
+            let mut replace = false;
+            let mut remove = false;
+            // The key's state, then its two actions under it: one line is
+            // too narrow in a small window.
+            kit::value_row(ui, "API key", STORED);
+            kit::row(ui, "", |ui| {
+                ui.horizontal(|ui| {
+                    replace = ui_kit::button(ui, "Replace", Button::Small)
+                        .on_hover_text("Paste a new key in its place")
+                        .clicked();
+                    remove = ui_kit::button(ui, "Remove", Button::Small)
+                        .on_hover_text("Remove the key from the system keychain")
+                        .clicked();
+                });
+            });
+            if replace {
+                quick.replacing = true;
+                focus_key = true;
+            }
+            if remove {
+                match quick.draft.endpoint().map_err(|e| e.to_string()) {
+                    Ok(e) => match (keyring.delete)(&e) {
+                        Ok(_) => {
+                            quick.stored = false;
+                            changed = true;
+                            quick.check = Check::Idle;
+                            state.refusal = None;
+                        }
+                        Err(why) => state.refusal = Some(why),
+                    },
+                    Err(why) => state.refusal = Some(why),
+                }
+            }
+        }
+        if !quick.stored || quick.replacing {
+            key_row(ui, quick, focus_key);
+        }
+    }
+    kit::checked_text_row(
+        ui,
+        "Model",
+        &mut quick.draft.model,
+        "The model's name, as your provider lists it",
+        false,
+    )
+    .on_hover_text("The model's id, exactly as the provider or server names it");
+    // What Test and Save need, and why not.
+    let needs_key = !local && !quick.stored && quick.key.trim().is_empty();
+    let missing = if quick.draft.model.trim().is_empty() {
+        Some("Type the model's name first")
+    } else if needs_key {
+        Some("Paste your API key first")
+    } else if quick.draft.endpoint().is_err() {
+        Some("Correct the server address first")
+    } else {
+        None
+    };
+    // Saved as it is and what the chat uses: nothing to save.
+    let active = quick.key.trim().is_empty()
+        && quick
+            .at
+            .and_then(|at| settings.endpoints.get(at))
+            .is_some_and(|e| *e == quick.draft)
+        && settings.run_endpoint().map(|r| &r.name) == Some(&quick.draft.name)
+        && settings
+            .connection
+            .as_deref()
+            .is_none_or(|c| c == quick.draft.name);
+    let running = matches!(quick.check, Check::Running(_));
+    let mut save = false;
+    let mut test = false;
+    let mut keep = false;
+    kit::actions(ui, |ui| {
+        let response = kit::primary(ui, "Save", missing.is_none() && !active);
+        save = response.clicked();
+        if let Some(why) = missing {
+            response.on_disabled_hover_text(why);
+        }
+        let response = ui_kit::button(
+            ui,
+            "Test connection",
+            Button::Enabled(missing.is_none() && !running),
+        )
+        .on_hover_text(TEST_TIP);
+        test = response.clicked();
+        if quick.replacing && ui_kit::button(ui, "Keep the stored key", Button::Normal).clicked() {
+            keep = true;
+        }
+    });
+    kit::hint(
+        ui,
+        "Test sends one short message to check the key and model",
+        TEST_TIP,
+    );
+    if keep {
+        quick.replacing = false;
+        quick.key.clear();
+        quick.show = false;
+    }
+    if test {
+        quick.check = start_check(ui.ctx(), checker, &quick.draft, &quick.key);
+    }
+    if let Check::Running(rx) = &quick.check {
+        match rx.try_recv() {
+            Ok(Ok(model)) => quick.check = Check::Passed(model),
+            Ok(Err(why)) => quick.check = Check::Failed(why),
+            Err(std::sync::mpsc::TryRecvError::Empty) => ui.ctx().request_repaint(),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                quick.check = Check::Failed("The test ended without an answer".into());
+            }
+        }
+    }
+    match &quick.check {
+        Check::Idle => {}
+        Check::Running(_) => {
+            kit::note(ui, "Testing…");
+        }
+        Check::Passed(model) => {
+            kit::status(
+                ui,
+                &format!("Connected: {model} answered."),
+                kit::Tone::Note,
+            );
+        }
+        Check::Failed(why) => {
+            kit::refusal_wrapped(ui, &format!("Test failed: {why}"));
+        }
+    }
+    if active && (local || quick.stored) {
+        kit::note(
+            ui,
+            &format!("Set: the chat uses {}.", quick.draft.model.trim()),
+        );
+    }
+    if !save {
+        return changed;
+    }
+    let mut edit = EndpointEdit {
+        at: quick.at,
+        draft: quick.draft.clone(),
+        key: std::mem::take(&mut quick.key),
+        stored: quick.stored,
+    };
+    quick.show = false;
+    let saved = save_endpoint(state, settings, keyring, &mut edit, true);
+    if saved {
+        quick.stored = edit.stored;
+        quick.replacing = false;
+    }
+    saved
+}
+
+const TEST_TIP: &str = "One request of a few tokens (at most 16 in reply), with no tools and no reasoning, so it costs next to nothing. A model on this computer costs nothing.";
+
+/// The masked API key field with Paste and Show (the typed key only).
+fn key_row(ui: &mut egui::Ui, quick: &mut Quick, focus: bool) {
+    let id = key_field_id();
+    let mut paste = false;
+    kit::row(ui, "API key", |ui| {
+        ui.horizontal(|ui| {
+            let t = sparksmith_ui::theme::Tokens::get();
+            let shown = if quick.show { "Hide" } else { "Show" };
+            // Room for the two buttons after the field.
+            let buttons = 2.0 * (t.control_height * 2.2) + t.space_8;
+            let response = ui.add(
+                egui::TextEdit::singleline(&mut quick.key)
+                    .id(id)
+                    .password(!quick.show)
+                    .hint_text("Paste your API key")
+                    .desired_width((ui.available_width() - buttons).max(t.control_height)),
+            );
+            let response = kit::named_by_row(ui, response);
+            if focus {
+                response.request_focus();
+            }
+            paste = ui_kit::button(ui, "Paste", Button::Small)
+                .on_hover_text("Paste the key from the clipboard")
+                .clicked();
+            if ui_kit::button(ui, shown, Button::Small)
+                .on_hover_text(
+                    "Show or hide the key while you type it; it is never shown once saved",
+                )
+                .clicked()
+            {
+                quick.show = !quick.show;
+            }
+        });
+    });
+    if paste {
+        // The clipboard's text comes as a paste into the focused field.
+        ui.memory_mut(|m| m.request_focus(id));
+        ui.ctx()
+            .send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+    }
+    kit::hint(
+        ui,
+        "Kept in the system keychain when you save; never in a file",
+        "From your provider's account page. It is sent only to this provider, over HTTPS, and is never shown again once saved.",
+    );
+}
+
+/// Start Test connection off the UI thread.
+fn start_check(ctx: &egui::Context, checker: Checker, draft: &EndpointSetting, key: &str) -> Check {
+    let (tx, rx) = std::sync::mpsc::channel();
+    let setting = draft.clone();
+    let key = Secret::new(key);
+    let wake = ctx.clone();
+    match std::thread::Builder::new()
+        .name("settings-ai-check".into())
+        .spawn(move || {
+            let _ = tx.send(checker(&setting, key));
+            wake.request_repaint();
+        }) {
+        Ok(_) => Check::Running(rx),
+        Err(why) => Check::Failed(why.to_string()),
     }
 }
 
@@ -343,7 +1002,10 @@ fn connections(
         )
         .collect();
     if rows.is_empty() {
-        kit::note(ui, "No connection yet. Add a model endpoint or an agent.");
+        kit::note(
+            ui,
+            "No connection yet. Choose one under Connection, or add one here.",
+        );
     }
     let max = if state.show_all.contains("connections") {
         rows.len()
@@ -383,14 +1045,14 @@ fn connections(
     let options: Vec<(Option<String>, String)> = std::iter::once((None, "None".to_owned()))
         .chain(settings.names().map(|n| (Some(n.to_owned()), n.to_owned())))
         .collect();
-    if kit::choice_row(ui, "Assistant uses", &mut choice, &options) {
+    if kit::choice_row(ui, "The chat uses", &mut choice, &options) {
         let mut next = settings.clone();
         next.connection = choice;
         state.commit(next);
     }
     let mut add_endpoint = None;
-    kit::row(ui, "Add endpoint", |ui| {
-        kit::dropdown_menu(ui, "settings-ai-add-endpoint", "Choose a preset…", |ui| {
+    kit::row(ui, "Add a model", |ui| {
+        kit::dropdown_menu(ui, "settings-ai-add-endpoint", "Choose…", |ui| {
             for (index, preset) in shipped.endpoint_presets.iter().enumerate() {
                 if ui.selectable_label(false, &preset.title).clicked() {
                     add_endpoint = Some(index);
@@ -399,8 +1061,8 @@ fn connections(
         })
     });
     let mut add_agent = None;
-    kit::row(ui, "Add agent", |ui| {
-        kit::dropdown_menu(ui, "settings-ai-add-agent", "Choose a preset…", |ui| {
+    kit::row(ui, "Add an agent", |ui| {
+        kit::dropdown_menu(ui, "settings-ai-add-agent", "Choose…", |ui| {
             for (index, preset) in shipped.agent_presets.iter().enumerate() {
                 if ui.selectable_label(false, &preset.title).clicked() {
                     add_agent = Some(index);
@@ -410,7 +1072,7 @@ fn connections(
     });
     kit::hint(
         ui,
-        "Presets are templates you edit; nothing is detected",
+        "Each starts from a Connection choice you then edit; nothing is detected",
         "An endpoint's key is kept in the system keychain. An agent signs in itself and is started by the chat, not here.",
     );
     if let Some(preset) = add_endpoint.and_then(|i| shipped.endpoint_presets.get(i)) {
@@ -495,9 +1157,9 @@ fn endpoint_form(
     kit::form_heading(
         ui,
         if edit.at.is_some() {
-            "Endpoint"
+            "Model connection"
         } else {
-            "New endpoint"
+            "New model connection"
         },
     );
     let d = &mut edit.draft;
@@ -508,8 +1170,8 @@ fn endpoint_form(
         "Provider",
         &mut d.provider,
         &[
-            (Wire::Anthropic, "Anthropic Messages".to_owned()),
-            (Wire::Openai, "OpenAI-compatible".to_owned()),
+            (Wire::Anthropic, "Anthropic".to_owned()),
+            (Wire::Openai, "OpenAI or compatible".to_owned()),
         ],
     );
     if d.provider != before {
@@ -527,7 +1189,7 @@ fn endpoint_form(
     let parsed = d.endpoint();
     let url = kit::checked_text_row(
         ui,
-        "Base URL",
+        "Server address",
         &mut d.base_url,
         "https://…",
         parsed.is_err(),
@@ -547,7 +1209,7 @@ fn endpoint_form(
     kit::text_row(ui, "Model", &mut d.model).on_hover_text("The model id as the server knows it");
     number_u32(
         ui,
-        "Timeout",
+        "Wait for a reply",
         &mut d.timeout_minutes,
         "min",
         (*TIMEOUT_RANGE.start(), *TIMEOUT_RANGE.end()),
@@ -555,13 +1217,13 @@ fn endpoint_form(
     if let Some(c) = &mut d.capabilities {
         number_u64(
             ui,
-            "Context",
+            "Context size",
             &mut c.context_tokens,
             "tokens",
             (*CONTEXT_RANGE.start(), *CONTEXT_RANGE.end()),
         );
-        kit::check_row(ui, "Calls tools", &mut c.tool_calling);
-        kit::check_row(ui, "Takes images (vision)", &mut c.vision);
+        kit::check_row(ui, "Can use tools", &mut c.tool_calling);
+        kit::check_row(ui, "Reads images", &mut c.vision);
         kit::check_row(ui, "Reads PDFs itself", &mut c.native_pdf);
         let mut own = c.output_tokens.is_some();
         if kit::check_row(ui, "Set the output limit", &mut own) {
@@ -587,8 +1249,8 @@ fn endpoint_form(
     } else {
         "None stored"
     };
-    kit::value_row(ui, "Key", key_state);
-    kit::row(ui, "New key", |ui| {
+    kit::value_row(ui, "API key", key_state);
+    kit::row(ui, "New API key", |ui| {
         ui.add(
             egui::TextEdit::singleline(&mut edit.key)
                 .password(true)
@@ -602,7 +1264,7 @@ fn endpoint_form(
     let mut close = false;
     kit::actions(ui, |ui| {
         if kit::primary(ui, "Save", true).clicked() {
-            close = save_endpoint(state, settings, keyring, edit);
+            close = save_endpoint(state, settings, keyring, edit, false);
         }
         if ui_kit::button(ui, "Cancel", Button::Normal).clicked() {
             close = true;
@@ -623,7 +1285,7 @@ fn endpoint_form(
         if let Some(at) = edit.at
             && ui_kit::button(ui, "Remove", Button::Normal)
                 .on_hover_text(
-                    "Remove this endpoint; its key goes when no other endpoint uses the URL",
+                    "Remove this connection; its key goes when no other connection uses the address",
                 )
                 .clicked()
         {
@@ -636,13 +1298,15 @@ fn endpoint_form(
     close
 }
 
-/// Save the endpoint and then its key; whether it was saved. The typed
-/// key leaves the form whatever happens.
+/// Save the endpoint and then its key, and with `use_it` make it what the
+/// chat uses; whether it was saved. The typed key leaves the form whatever
+/// happens.
 fn save_endpoint(
     state: &mut State,
     settings: &AssistSettings,
     keyring: Keyring,
     edit: &mut EndpointEdit,
+    use_it: bool,
 ) -> bool {
     let key = Secret::new(&std::mem::take(&mut edit.key));
     let mut next = settings.clone();
@@ -655,6 +1319,9 @@ fn save_endpoint(
             }
         }
         None => next.endpoints.push(edit.draft.clone()),
+    }
+    if use_it {
+        next.connection = Some(edit.draft.name.clone());
     }
     if let Err(why) = next.check() {
         state.refusal = Some(why);
@@ -986,7 +1653,7 @@ fn workflows(ui: &mut egui::Ui, state: &mut State) {
         ui,
         "settings-ai-workflows",
         "Workflows",
-        true,
+        false,
         Some(count),
         |ui| {
             if count == 0 {

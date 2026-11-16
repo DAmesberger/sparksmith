@@ -8,9 +8,8 @@
 //!
 //! After each edit the stale fills are refilled as the desktop's fill
 //! worker does (`compute_stale`, stored without an undo step); then the
-//! production check (`fabrication.preflight`) has no unwaived error, no
-//! warning and only the board's two waivers (the J1 locating-peg holes by
-//! the GCT USB4105 recommended layout), and one undo restores the board
+//! production check (`fabrication.preflight`) has no error, no warning and
+//! no waiver (the board holds none), and one undo restores the board
 //! exactly.
 use sparksmith_automation::session::hosted;
 use sparksmith_core::format::EditorFile;
@@ -36,8 +35,8 @@ fn example() -> Fallible<Engine> {
     Ok(engine)
 }
 
-/// No unwaived error, no warning, and the two J1 locating-peg waivers.
-const CLEAN: (usize, usize, usize) = (0, 0, 2);
+/// No unwaived error, no warning and nothing waived.
+const CLEAN: (usize, usize, usize) = (0, 0, 0);
 
 /// The production check's unwaived errors, warnings and waived findings,
 /// listed.
