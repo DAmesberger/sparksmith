@@ -660,14 +660,19 @@ fn results_read_in_words() {
         {"id": 2, "kind": "component", "name": "TLV75733PDBVR"},
         {"id": 3, "kind": "symbol", "name": "TLV75733PDBVR"}]});
     assert_eq!(readable(&drafts), "TLV75733PDBVR: component, symbol");
-    assert_eq!(readable(&json!({"accepted": true, "markdown": "# R"})), "Accepted");
+    assert_eq!(
+        readable(&json!({"accepted": true, "markdown": "# R"})),
+        "Accepted"
+    );
     assert_eq!(
         readable(&json!({"report": {}, "result": {"findings": [
             {"message": "a", "blocks": true}, {"message": "b", "blocks": false}]}})),
         "2 findings, 1 blocking"
     );
     assert_eq!(
-        readable(&json!([{"document": "tlv757p.pdf", "text": "=== page 1 ===\na\n=== page 2 ===\nb"}])),
+        readable(
+            &json!([{"document": "tlv757p.pdf", "text": "=== page 1 ===\na\n=== page 2 ===\nb"}])
+        ),
         "tlv757p.pdf · 2 pages"
     );
     assert_eq!(
@@ -675,13 +680,26 @@ fn results_read_in_words() {
         "SOT-23-5, TI lands"
     );
     assert_eq!(
-        readable(&json!({"changes": {"added": {"library.components": [1], "library.symbols": [2]}}, "outcome": {}})),
+        readable(
+            &json!({"changes": {"added": {"library.components": [1], "library.symbols": [2]}}, "outcome": {}})
+        ),
         "Added: components, symbols"
     );
-    assert_eq!(readable(&json!({"outcome": "drafts_created", "ids": [1, 2]})), "Drafts created: 2");
-    assert_eq!(control::counted_label(4, "function added"), "4 functions added");
-    assert_eq!(control::counted_label(1, "terminal changed"), "1 terminal changed");
-    let findings = control::findings_of(&json!({"result": {"findings": [{"message": "Pin 3 unreviewed", "blocking": true}]}}));
+    assert_eq!(
+        readable(&json!({"outcome": "drafts_created", "ids": [1, 2]})),
+        "Drafts created: 2"
+    );
+    assert_eq!(
+        control::counted_label(4, "function added"),
+        "4 functions added"
+    );
+    assert_eq!(
+        control::counted_label(1, "terminal changed"),
+        "1 terminal changed"
+    );
+    let findings = control::findings_of(
+        &json!({"result": {"findings": [{"message": "Pin 3 unreviewed", "blocking": true}]}}),
+    );
     assert_eq!(findings.len(), 1);
     assert!(findings[0].blocking);
 }

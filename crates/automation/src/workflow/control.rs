@@ -459,11 +459,18 @@ fn readable_list(list: &[Value]) -> String {
 }
 
 fn readable_object(map: &serde_json::Map<String, Value>) -> String {
-    if let Some(made) = map.get("drafts").and_then(Value::as_array).filter(|d| !d.is_empty()) {
+    if let Some(made) = map
+        .get("drafts")
+        .and_then(Value::as_array)
+        .filter(|d| !d.is_empty())
+    {
         return made_line(made);
     }
     if let Some(accepted) = map.get("accepted").and_then(Value::as_bool) {
-        let problems = map.get("problems").and_then(Value::as_array).map_or(0, Vec::len);
+        let problems = map
+            .get("problems")
+            .and_then(Value::as_array)
+            .map_or(0, Vec::len);
         return match (accepted, problems) {
             (true, _) => "Accepted".into(),
             (false, 0) => "Not accepted".into(),
@@ -496,7 +503,11 @@ fn readable_object(map: &serde_json::Map<String, Value>) -> String {
             Some(Value::String(word)) => {
                 let ids = map.get("ids").and_then(Value::as_array).map_or(0, Vec::len);
                 let word = sentence(word);
-                return if ids > 0 { format!("{word}: {ids}") } else { word };
+                return if ids > 0 {
+                    format!("{word}: {ids}")
+                } else {
+                    word
+                };
             }
             _ => {}
         }
@@ -522,20 +533,34 @@ fn readable_object(map: &serde_json::Map<String, Value>) -> String {
 fn made_line(drafts: &[Value]) -> String {
     let mut names: Vec<(String, Vec<String>)> = Vec::new();
     for draft in drafts {
-        let name = draft.get("name").and_then(Value::as_str).unwrap_or("Unnamed");
-        let kind = draft.get("kind").and_then(Value::as_str).unwrap_or("draft").replace('_', " ");
+        let name = draft
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("Unnamed");
+        let kind = draft
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("draft")
+            .replace('_', " ");
         match names.iter_mut().find(|(n, _)| n == name) {
             Some((_, kinds)) if !kinds.contains(&kind) => kinds.push(kind),
             Some(_) => {}
             None => names.push((name.to_owned(), vec![kind])),
         }
     }
-    names.iter().map(|(name, kinds)| format!("{name}: {}", kinds.join(", "))).collect::<Vec<_>>().join("; ")
+    names
+        .iter()
+        .map(|(name, kinds)| format!("{name}: {}", kinds.join(", ")))
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 /// "No findings", "3 findings, 1 blocking".
 fn findings_line(findings: &[Value]) -> String {
-    let blocking = findings.iter().filter(|f| f["blocks"] == true || f["blocking"] == true).count();
+    let blocking = findings
+        .iter()
+        .filter(|f| f["blocks"] == true || f["blocking"] == true)
+        .count();
     match (findings.len(), blocking) {
         (0, _) => "No findings".into(),
         (n, 0) => counted(n as u64, "finding"),
@@ -565,26 +590,47 @@ pub fn findings_of(value: &Value) -> Vec<Finding> {
 fn sentence(word: &str) -> String {
     let words = word.replace('_', " ");
     let mut chars = words.chars();
-    chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
+    chars
+        .next()
+        .map(|c| c.to_uppercase().chain(chars).collect())
+        .unwrap_or_default()
 }
 
 /// "1 page", "38 pages".
 pub fn counted(n: u64, noun: &str) -> String {
-    format!("{n} {}", if n == 1 { noun.to_owned() } else { plural(noun) })
+    format!(
+        "{n} {}",
+        if n == 1 {
+            noun.to_owned()
+        } else {
+            plural(noun)
+        }
+    )
 }
 
 /// A count's label with its first word in the number it takes:
 /// "1 function added", "4 functions added".
 pub fn counted_label(n: u64, label: &str) -> String {
     let (noun, rest) = label.split_once(' ').unwrap_or((label, ""));
-    let noun = if n == 1 { noun.to_owned() } else { plural(noun) };
-    if rest.is_empty() { format!("{n} {noun}") } else { format!("{n} {noun} {rest}") }
+    let noun = if n == 1 {
+        noun.to_owned()
+    } else {
+        plural(noun)
+    };
+    if rest.is_empty() {
+        format!("{n} {noun}")
+    } else {
+        format!("{n} {noun} {rest}")
+    }
 }
 
 fn plural(noun: &str) -> String {
     if noun.ends_with('s') || noun.ends_with('x') || noun.ends_with("ch") || noun.ends_with("sh") {
         format!("{noun}es")
-    } else if let Some(stem) = noun.strip_suffix('y').filter(|s| !s.ends_with(['a', 'e', 'i', 'o', 'u'])) {
+    } else if let Some(stem) = noun
+        .strip_suffix('y')
+        .filter(|s| !s.ends_with(['a', 'e', 'i', 'o', 'u']))
+    {
         format!("{stem}ies")
     } else {
         format!("{noun}s")

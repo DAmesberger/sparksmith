@@ -344,9 +344,7 @@ fn a_missing_input_is_asked_for_and_a_bad_one_refused() -> Fallible {
     let fields: Vec<(&str, bool)> = cards
         .iter()
         .filter_map(|c| match c {
-            ControlCard::Text { field, value, .. } => {
-                Some((field.input.as_str(), value.is_some()))
-            }
+            ControlCard::Text { field, value, .. } => Some((field.input.as_str(), value.is_some())),
             ControlCard::Datasheet { field, files, .. } => {
                 Some((field.input.as_str(), !files.is_empty()))
             }

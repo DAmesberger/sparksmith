@@ -112,14 +112,17 @@ pub fn rank<'a>(query: &str, candidates: &'a [Candidate]) -> Vec<&'a Candidate> 
         .enumerate()
         .filter_map(|(i, c)| {
             let by_name = fuzzy(query, &c.name);
-            let score = by_name.or_else(|| {
-                fuzzy(query, &format!("{}/{}", c.detail, c.name)).map(|s| s - 20)
-            })?;
+            let score = by_name
+                .or_else(|| fuzzy(query, &format!("{}/{}", c.detail, c.name)).map(|s| s - 20))?;
             Some((score + if c.known { 25 } else { 0 }, i, c))
         })
         .collect();
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
-    scored.into_iter().take(MAX_ROWS).map(|(_, _, c)| c).collect()
+    scored
+        .into_iter()
+        .take(MAX_ROWS)
+        .map(|(_, _, c)| c)
+        .collect()
 }
 
 /// How well `query` matches `text`: its characters in order, case aside;
@@ -173,7 +176,10 @@ pub fn active(text: &str, cursor: usize) -> Option<(usize, String)> {
 pub fn typed_paths(text: &str, all: bool) -> Vec<(Range<usize>, PathBuf)> {
     let mut out = Vec::new();
     let mut start = None;
-    for (i, c) in text.char_indices().chain(std::iter::once((text.len(), ' '))) {
+    for (i, c) in text
+        .char_indices()
+        .chain(std::iter::once((text.len(), ' ')))
+    {
         match (c.is_whitespace(), start) {
             (false, None) => start = Some(i),
             (true, Some(s)) => {
@@ -256,7 +262,10 @@ mod tests {
         }
         let elsewhere = PathBuf::from("/elsewhere/tlv757-errata.pdf");
         let all = candidates(std::slice::from_ref(&elsewhere), Some(dir.path()));
-        assert!(!all.iter().any(|c| c.path.starts_with(dir.path().join(".git"))));
+        assert!(
+            !all.iter()
+                .any(|c| c.path.starts_with(dir.path().join(".git")))
+        );
         let ranked = rank("tlv757", &all);
         assert_eq!(ranked[0].path, elsewhere);
         assert_eq!(ranked[1].name, "tlv757p.pdf");

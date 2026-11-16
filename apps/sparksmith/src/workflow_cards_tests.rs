@@ -282,7 +282,10 @@ fn a_dropped_pdf_offers_the_datasheet_workflow() -> Fallible {
         );
         chat.find(Role::Button, "Change…")?;
         chat.find(Role::TextInput, "Part name")?;
-        assert!(chat.find(Role::TextInput, "Notes").is_err(), "optional and empty");
+        assert!(
+            chat.find(Role::TextInput, "Notes").is_err(),
+            "optional and empty"
+        );
         chat.click(Role::Button, "Accept and continue")?;
         assert!(chat.actions.is_empty(), "the part name is required");
         assert!(chat.has("required"), "{:?}", chat.names());
@@ -324,9 +327,7 @@ fn the_conversation_fills_one_card() -> Fallible {
     let pdf = chat.pdf("tlv757p.pdf")?;
     chat.cards.attach(std::slice::from_ref(&pdf));
     chat.read()?;
-    let card = chat
-        .cards
-        .offer("datasheet-to-component", Map::new(), "")?;
+    let card = chat.cards.offer("datasheet-to-component", Map::new(), "")?;
     let mut part = Map::new();
     part.insert("part".into(), json!("TLV75733PDBVR"));
     let again = chat
@@ -354,9 +355,7 @@ fn a_file_read_before_is_ready_when_chosen_again() -> Fallible {
     let pdf = chat.pdf("tlv757p.pdf")?;
     chat.cards.attach(std::slice::from_ref(&pdf));
     chat.read()?;
-    let card = chat
-        .cards
-        .offer("datasheet-to-component", Map::new(), "")?;
+    let card = chat.cards.offer("datasheet-to-component", Map::new(), "")?;
     // The attached file filled it already; a pick of the same file keeps it.
     chat.cards.picked(&card, vec![pdf]);
     chat.settle();
@@ -688,7 +687,13 @@ fn impact_and_result_cards_answer_the_run() -> Fallible {
         assert!(chat.has("component, symbol"), "{:?}", chat.names());
         assert!(chat.has("Review of TLV75733PDBVR"), "{:?}", chat.names());
         chat.click(Role::Button, "Show review")?;
-        assert!(chat.has("pitch 0.95 mm, page 31"), "{:?}", chat.names());
+        assert!(
+            chat.names()
+                .iter()
+                .any(|n| n.contains("pitch 0.95 mm, page 31")),
+            "{:?}",
+            chat.names()
+        );
         chat.click(Role::Button, "Open in editor")?;
         chat.click(Role::Button, "Undo run")?;
         assert_eq!(
@@ -783,7 +788,11 @@ fn a_notify_card_changes_the_choice() -> Fallible {
     );
     chat.settle();
     // The choice first, on one line; the others once asked for.
-    assert!(chat.has("SOT-23 · SOT-23-5, TI lands"), "{:?}", chat.names());
+    assert!(
+        chat.has("SOT-23 · SOT-23-5, TI lands"),
+        "{:?}",
+        chat.names()
+    );
     assert!(chat.find(Role::CheckBox, "QFN").is_err());
     chat.click(Role::Button, "Choose another…")?;
     assert!(chat.find(Role::Button, "Change")?.disabled);

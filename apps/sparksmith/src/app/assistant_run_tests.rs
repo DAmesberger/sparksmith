@@ -144,7 +144,9 @@ fn drop_datasheet(ax: &mut Ax) -> Fallible {
     ax.drop_files(vec![Arc::new(Dropped(pdf))]);
     wait(ax, "the workflow card", |ax| {
         ax.has(Role::Button, "Accept and continue")
-            && !ax.all_prefix(Role::Button, "exr22.pdf · 2 pages").is_empty()
+            && !ax
+                .all_prefix(Role::Button, "exr22.pdf · 2 pages")
+                .is_empty()
     })?;
     ax.find(Role::Label, "Datasheet → component")?;
     ax.find(Role::TextInput, "Part name")?;
@@ -187,8 +189,9 @@ fn a_dropped_datasheet_runs_in_the_chat_and_undoes_as_one_step() -> Fallible {
         let before = (drafts(&ax), undo_line(&ax));
         drop_datasheet(&mut ax)?;
         start(&mut ax)?;
-        // The run block: the workflow, its steps so far and Stop.
-        ax.find(Role::Label, "Datasheet → component: EXR-22")?;
+        // The confirmation, answered, and the run block: the workflow, its
+        // steps so far and Stop.
+        assert!(ax.all(Role::Label, "Datasheet → component").len() >= 2);
         assert!(ax.has(Role::Button, "Stop"));
         assert_eq!(ax.app.assistant.conversation.state, State::Waiting);
         // Nothing is made before the person lets the plan go on.
@@ -411,7 +414,9 @@ fn a_message_with_an_at_file_fills_one_card_and_enter_runs_it() -> Fallible {
         ax.key(egui::Key::Enter);
         wait(&mut ax, "the filled card", |ax| {
             ax.has(Role::Button, "Accept and continue")
-                && !ax.all_prefix(Role::Button, "exr22.pdf · 2 pages").is_empty()
+                && !ax
+                    .all_prefix(Role::Button, "exr22.pdf · 2 pages")
+                    .is_empty()
                 && ax.app.assistant.job.is_none()
         })?;
         ax.settle();
@@ -421,14 +426,17 @@ fn a_message_with_an_at_file_fills_one_card_and_enter_runs_it() -> Fallible {
         // The model was told the file and its path with the message.
         let told = ax.app.assistant.history.iter().any(|m| {
             m.role == Speaker::User
-                && m.content.iter().any(|p| matches!(p, Part::Text { text, .. }
-                    if text.contains("@exr22.pdf: ") && text.contains("it's the EXR-22")))
+                && m.content.iter().any(|p| {
+                    matches!(p, Part::Text { text, .. }
+                    if text.contains("@exr22.pdf: ") && text.contains("it's the EXR-22"))
+                })
         });
         assert!(told, "{:?}", ax.app.assistant.history);
         ax.key(egui::Key::Enter);
         generator_choice(&mut ax)?;
-        // The run is labelled with the part the model filled in.
-        ax.find(Role::Label, "Datasheet → component: EXR-22")?;
+        // The card gave the file from the chip and the part from the offer.
+        let given = ax.find_prefix(Role::Label, "Datasheets: exr22.pdf · 2 pages")?;
+        assert!(given.name.ends_with("Part name: EXR-22"), "{}", given.name);
         assert!(ax.app.assistant.run.is_some(), "the run goes on");
     }
     Ok(())

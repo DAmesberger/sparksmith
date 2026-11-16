@@ -496,7 +496,10 @@ impl Assistant {
     fn cursor(&self, ctx: &egui::Context) -> usize {
         egui::TextEdit::load_state(ctx, Self::composer_id())
             .and_then(|state| state.cursor.char_range())
-            .map_or_else(|| self.composer.chars().count(), |range| range.primary.index.into())
+            .map_or_else(
+                || self.composer.chars().count(),
+                |range| range.primary.index.into(),
+            )
     }
 
     fn set_cursor(ctx: &egui::Context, at: usize) {
@@ -504,7 +507,9 @@ impl Assistant {
         let mut state = egui::TextEdit::load_state(ctx, id).unwrap_or_default();
         state
             .cursor
-            .set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(at))));
+            .set_char_range(Some(egui::text::CCursorRange::one(
+                egui::text::CCursor::new(at),
+            )));
         state.store(ctx, id);
     }
 
@@ -552,8 +557,7 @@ impl Assistant {
             let end = start + 1 + query.len();
             let name = format!("@{} ", candidate.name);
             let at = self.composer.get(..start).map_or(0, |b| b.chars().count());
-            if end <= self.composer.len() && self.composer.len() + name.len() <= MAX_MESSAGE_BYTES
-            {
+            if end <= self.composer.len() && self.composer.len() + name.len() <= MAX_MESSAGE_BYTES {
                 self.composer.replace_range(start..end, &name);
                 Self::set_cursor(&ctx, at + name.chars().count());
                 self.add_file(candidate.path.clone());
@@ -636,7 +640,11 @@ impl Assistant {
                 let name = format!("@{}", mentions::file_name(&path));
                 if let Some(at) = self.composer.find(&name) {
                     let mut end = at + name.len();
-                    if self.composer.get(end..).is_some_and(|rest| rest.starts_with(' ')) {
+                    if self
+                        .composer
+                        .get(end..)
+                        .is_some_and(|rest| rest.starts_with(' '))
+                    {
                         end += 1;
                     }
                     self.composer.replace_range(at..end, "");

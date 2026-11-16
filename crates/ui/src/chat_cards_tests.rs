@@ -153,7 +153,8 @@ fn draw_confirm<'a>(
     move |ui: &mut Ui| {
         let view = Confirm { title: "Datasheet → component", version: "1.1", why: "You asked for a part.", decline: "Just chat" };
         let choice = confirm(ui, &view, active, |ui| {
-            if let Some(e) = compact_row(ui, "Datasheets", None, |ui| file_value(ui, egui::Id::unique("files"), "tlv757p.pdf · 38 pages", &OPTIONS)) {
+            if let Some(e) = compact_row(ui, "Datasheets", None, |ui| file_value(ui, egui::Id::unique("files"), "tlv757p.pdf · 38 pages", &OPTIONS))
+            {
                 file.set(Some(e));
             }
             let response = compact_row(ui, "Part name", None, |ui| text_input(ui, egui::Id::unique("part"), part, false, 64, false));

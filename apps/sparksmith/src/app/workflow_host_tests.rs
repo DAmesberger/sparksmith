@@ -52,7 +52,8 @@ fn a_pdf_dropped_on_the_window_offers_the_datasheet_workflow() -> Fallible {
     assert_eq!(offers(&ax), 1);
     // Read off the UI thread for its pages, then shown on the card.
     ax.until("the dropped PDF is read", |ax| {
-        ax.find(Role::Button, "tlv757p.pdf · 1 page · 1 KB ⌄").is_ok()
+        ax.find(Role::Button, "tlv757p.pdf · 1 page · 1 KB ⌄")
+            .is_ok()
     })?;
     assert!(
         ax.texts.iter().any(|t| t == "No workflow takes notes.txt"),

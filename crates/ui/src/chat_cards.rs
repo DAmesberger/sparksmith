@@ -705,7 +705,8 @@ pub fn file_value(ui: &mut Ui, id: egui::Id, shown: &str, options: &[FileOption<
                     ui.push_id(id, |ui| {
                         for (index, option) in options.iter().enumerate() {
                             let mut on = option.chosen;
-                            let name = if option.detail.is_empty() { option.title.to_owned() } else { format!("{} · {}", option.title, option.detail) };
+                            let name =
+                                if option.detail.is_empty() { option.title.to_owned() } else { format!("{} · {}", option.title, option.detail) };
                             if checkbox(ui, &name, &mut on).changed() {
                                 event = Some(FileChoice::Toggle(index));
                                 ui.close();
@@ -723,10 +724,8 @@ pub fn file_value(ui: &mut Ui, id: egui::Id, shown: &str, options: &[FileOption<
 /// was pressed.
 pub fn file_chip(ui: &mut Ui, name: &str, removable: bool) -> bool {
     let t = Tokens::get();
-    let frame = egui::Frame::NONE
-        .fill(t.selected_bg)
-        .corner_radius(t.radius_lg)
-        .inner_margin(egui::Margin::symmetric(t.space_6 as i8, t.space_2 as i8));
+    let frame =
+        egui::Frame::NONE.fill(t.selected_bg).corner_radius(t.radius_lg).inner_margin(egui::Margin::symmetric(t.space_6 as i8, t.space_2 as i8));
     let mut removed = false;
     Container::show_backing(ui, frame, |ui| {
         ui.horizontal(|ui| {
