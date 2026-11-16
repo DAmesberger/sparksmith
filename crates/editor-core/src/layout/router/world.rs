@@ -10,10 +10,11 @@ use crate::ids::Id;
 use crate::layout::CopperGraph;
 use crate::layout::board_edge::{BoardEdges, EdgeLoopKind, EdgeVerdict};
 use crate::layout::connectivity::keeps_joint;
+use crate::layout::grid::BoundsGrid;
 use crate::layout::limits::BoardRules;
 use crate::layout::obstacles::{ObstacleKind, Obstacles};
 use crate::layout::posture::Posture;
-use crate::layout::{CURVE_SLACK_MM, CopperRing, placed_keepouts};
+use crate::layout::{CURVE_SLACK_MM, CopperRing, placed_keepouts, placed_pads};
 use crate::model::{BoardShape, CopperLayer, Keepout, Project, Track, Via};
 use crate::rules::CopperObject;
 use crate::rules::signal::{DiffPair, DiffPairId};
@@ -28,6 +29,10 @@ pub(super) const MARGIN: f64 = 1e-4 + 2.0 * CURVE_SLACK_MM;
 /// (the desktop caches it; a command builds it once).
 pub struct RouteIndex {
     pub(super) obstacles: Obstacles,
+    /// Drilled holes of pads and mounting holes: they pass through every
+    /// copper layer and keep their own clearances (plated, unplated).
+    holes: Vec<Hole>,
+    hole_grid: BoundsGrid,
     keepouts: Vec<(Keepout, CopperRing)>,
     cutouts: Vec<CopperRing>,
     edges: BoardEdges,
@@ -77,13 +82,71 @@ impl RouteIndex {
                 .filter(|r| r.ring.len() >= 3)
                 .collect(),
         };
+        let holes = Hole::all(project);
+        let hole_grid = BoundsGrid::new(
+            holes.iter().map(|h| h.ring.bounds),
+            BoardRules::of(project).max_clearance(),
+        );
         Self {
             obstacles: Obstacles::of(project),
+            holes,
+            hole_grid,
             keepouts,
             cutouts,
             edges: BoardEdges::of(project),
             graph: OnceLock::new(),
         }
+    }
+}
+
+/// A drilled hole the router keeps clear: a pad's hole (a slot included)
+/// or a mounting hole.
+struct Hole {
+    ring: CopperRing,
+    /// `PthHole` or `NpthHole`.
+    kind: CopperObject,
+    /// The net a plated pad hole joins; copper of that net may meet it.
+    net: Option<Id>,
+    /// How a refusal names it ("J1 pad 17").
+    name: String,
+    object: ObjectRef,
+}
+
+impl Hole {
+    fn all(project: &Project) -> Vec<Self> {
+        let labels = crate::layout::pad_labels(project);
+        let mut out = Vec::new();
+        for pad in placed_pads(project) {
+            let number = labels
+                .get(&(pad.instance, pad.pad.id))
+                .cloned()
+                .unwrap_or_else(|| pad.pad.number.clone());
+            let designator = project
+                .instance(pad.instance)
+                .map_or("a part", |i| i.designator.as_str());
+            for hole in pad.holes() {
+                out.push(Self {
+                    ring: CopperRing::of_shape(&hole.shape, true),
+                    kind: CopperObject::hole(hole.plated),
+                    net: pad.net.filter(|_| hole.plated),
+                    name: format!("{designator} pad {number}"),
+                    object: ObjectRef::Pad {
+                        instance: pad.instance,
+                        pad: pad.pad.id,
+                    },
+                });
+            }
+        }
+        for mount in &project.board().holes {
+            out.push(Self {
+                ring: CopperRing::of_circle(mount.at, mount.drill),
+                kind: CopperObject::hole(mount.plated),
+                net: None,
+                name: "a mounting hole".into(),
+                object: ObjectRef::Board,
+            });
+        }
+        out
     }
 }
 
@@ -104,6 +167,8 @@ pub(super) struct Piece {
     pub layers: Vec<CopperLayer>,
     pub core: Core,
     pub ring: CopperRing,
+    /// A via's drilled hole, which keeps the via hole clearances.
+    pub drill: Option<CopperRing>,
 }
 
 impl Piece {
@@ -130,6 +195,7 @@ impl Piece {
                 slack: 0.0,
                 spine: Some((a, b, half)),
             },
+            drill: None,
         }
     }
 
@@ -148,6 +214,7 @@ impl Piece {
                 half: via.diameter / 2.0,
             },
             ring: CopperRing::of_via(via),
+            drill: Some(CopperRing::of_drill(via)),
         }
     }
 }
@@ -219,6 +286,9 @@ pub(super) enum Target {
     Fixed(usize),
     Keepout(usize),
     Cutout(usize),
+    /// A pad's drilled hole or a mounting hole, by index into the
+    /// index's holes.
+    Hole(usize),
     /// The outer board edge (not hugged: it is the outside).
     Edge,
 }
@@ -348,19 +418,55 @@ impl<'a> Ctx<'a> {
         let mut near = Vec::new();
         self.index.obstacles.near(&bounds, &mut near);
         let items = self.index.obstacles.items();
-        for k in near {
+        for k in near.drain(..) {
             let Some(o) = items.get(k) else {
                 continue;
             };
             if state.hidden.contains(&k) || !foreign(o.net) || !shares(&probe.layers, &o.layers) {
                 continue;
             }
-            let need = self.clearance(probe.object, probe.net, o.object(), Some(o.net));
-            if probe.ring.closer_than(&o.ring, need)
+            let drill = self.base_via(k).map(CopperRing::of_drill);
+            if self.too_close(probe, &o.ring, drill.as_ref(), o.object(), o.net)
                 && push(
                     Hit {
                         target: Target::Base(k),
                         net: Some(o.net),
+                    },
+                    out,
+                )
+            {
+                return;
+            }
+        }
+        // Holes pass through every layer. A plated hole of a routed net's
+        // pad is that pad's own; any other keeps its hole clearance.
+        self.index
+            .hole_grid
+            .near(&bounds, self.rules.max_clearance(), &mut near);
+        for i in near.iter().copied() {
+            let Some(hole) = self.index.holes.get(i) else {
+                continue;
+            };
+            if hole.net.is_some_and(|n| !foreign(n)) {
+                continue;
+            }
+            let need = self
+                .rules
+                .clearance(probe.object, Some(probe.net), hole.kind, hole.net);
+            let drilled = probe.drill.as_ref().is_some_and(|d| {
+                let spacing = self.rules.clearance(
+                    CopperObject::ViaHole,
+                    Some(probe.net),
+                    hole.kind,
+                    hole.net,
+                );
+                d.closer_than(&hole.ring, spacing)
+            });
+            if (drilled || probe.ring.closer_than(&hole.ring, need))
+                && push(
+                    Hit {
+                        target: Target::Hole(i),
+                        net: hole.net,
                     },
                     out,
                 )
@@ -438,10 +544,34 @@ impl<'a> Ctx<'a> {
 
     fn collides(&self, probe: &Piece, other: &Piece) -> bool {
         shares(&probe.layers, &other.layers)
-            && probe.ring.closer_than(
+            && self.too_close(
+                probe,
                 &other.ring,
-                self.clearance(probe.object, probe.net, other.object, Some(other.net)),
+                other.drill.as_ref(),
+                other.object,
+                other.net,
             )
+    }
+
+    /// Whether `probe` comes closer than the rules allow to copper `ring`
+    /// (an `object` of `net`, drilled by `drill` when it is a via): copper
+    /// to copper, and each via drill to the other's copper and drill.
+    fn too_close(
+        &self,
+        probe: &Piece,
+        ring: &CopperRing,
+        drill: Option<&CopperRing>,
+        object: CopperObject,
+        net: Id,
+    ) -> bool {
+        let hole = CopperObject::ViaHole;
+        let gap = |a: CopperObject, b: CopperObject| self.clearance(a, probe.net, b, Some(net));
+        probe.ring.closer_than(ring, gap(probe.object, object))
+            || drill.is_some_and(|d| probe.ring.closer_than(d, gap(probe.object, hole)))
+            || probe.drill.as_ref().is_some_and(|own| {
+                own.closer_than(ring, gap(hole, object))
+                    || drill.is_some_and(|d| own.closer_than(d, gap(hole, hole)))
+            })
     }
 
     /// The hull a probe of `net` (a `object` whose copper reaches `grow`
@@ -456,10 +586,19 @@ impl<'a> Ctx<'a> {
         grow: f64,
         facets: Facets,
     ) -> Option<Hull> {
-        let segment = |core: Core, other: CopperObject, other_net: Option<Id>| {
-            let need = self.clearance(object, net, other, other_net);
-            Hull::of_segment(core.a, core.b, core.half + need + grow + MARGIN, facets)
+        // A via keeps its drill's clearance too, from the drill's edge.
+        let drilled = |drill: Option<&CopperRing>, other_net: Option<Id>| {
+            drill.and_then(|d| d.bounds).map_or(0.0, |b| {
+                (b.max[0] - b.min[0]) / 2.0
+                    + self.clearance(object, net, CopperObject::ViaHole, other_net)
+            })
         };
+        let segment =
+            |core: Core, other: CopperObject, other_net: Option<Id>, drill: Option<&CopperRing>| {
+                let need = self.clearance(object, net, other, other_net);
+                let reach = (core.half + need).max(drilled(drill, other_net));
+                Hull::of_segment(core.a, core.b, reach + grow + MARGIN, facets)
+            };
         match target {
             Target::Base(k) => {
                 let o = self.index.obstacles.items().get(k)?;
@@ -472,6 +611,7 @@ impl<'a> Ctx<'a> {
                         },
                         CopperObject::Track,
                         Some(t.net),
+                        None,
                     );
                 }
                 if let Some(v) = self.base_via(k) {
@@ -483,6 +623,7 @@ impl<'a> Ctx<'a> {
                         },
                         CopperObject::Via,
                         Some(v.net),
+                        Some(&CopperRing::of_drill(v)),
                     );
                 }
                 let need = self.clearance(object, net, o.object(), Some(o.net));
@@ -490,15 +631,25 @@ impl<'a> Ctx<'a> {
             }
             Target::Line(l, s) => {
                 let piece = state.lines.get(l)?.piece(s)?;
-                segment(piece.core, piece.object, Some(piece.net))
+                segment(piece.core, piece.object, Some(piece.net), None)
             }
             Target::Via(m) => {
                 let piece = Piece::via(&state.vias.get(m)?.via, &self.stack);
-                segment(piece.core, piece.object, Some(piece.net))
+                segment(
+                    piece.core,
+                    piece.object,
+                    Some(piece.net),
+                    piece.drill.as_ref(),
+                )
             }
             Target::Fixed(f) => {
                 let piece = state.fixed.get(f)?;
-                segment(piece.core, piece.object, Some(piece.net))
+                segment(
+                    piece.core,
+                    piece.object,
+                    Some(piece.net),
+                    piece.drill.as_ref(),
+                )
             }
             Target::Keepout(i) => {
                 let (_, ring) = self.index.keepouts.get(i)?;
@@ -510,6 +661,15 @@ impl<'a> Ctx<'a> {
                     .rules
                     .clearance(object, Some(net), CopperObject::BoardEdge, None);
                 Hull::of_points(&ring.ring, ring.slack + limit + grow + MARGIN, facets)
+            }
+            Target::Hole(i) => {
+                let hole = self.index.holes.get(i)?;
+                let need = self.rules.clearance(object, Some(net), hole.kind, hole.net);
+                Hull::of_points(
+                    &hole.ring.ring,
+                    hole.ring.slack + need + grow + MARGIN,
+                    facets,
+                )
             }
             Target::Edge => None,
         }
@@ -572,6 +732,7 @@ impl<'a> Ctx<'a> {
     pub fn object(&self, hit: &Hit) -> Option<ObjectRef> {
         match hit.target {
             Target::Base(k) => self.index.obstacles.object(k),
+            Target::Hole(i) => self.index.holes.get(i).map(|h| h.object),
             _ => None,
         }
     }
@@ -593,6 +754,10 @@ impl<'a> Ctx<'a> {
                 }
             }
             Target::Cutout(_) => "Blocked by a cutout".into(),
+            Target::Hole(i) => match self.index.holes.get(i) {
+                Some(h) => format!("Blocked by the hole of {}", h.name),
+                None => "Blocked by a hole".into(),
+            },
             Target::Edge => "Blocked by the board edge".into(),
             _ => match hit.net {
                 Some(net) => format!("Blocked by copper on {}", self.project.net_name(net)),

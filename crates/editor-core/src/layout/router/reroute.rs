@@ -201,9 +201,12 @@ fn offending(
     let state = State::default();
     // The router's `hits`, which the engine's checks agree with.
     let collides = |piece: &Piece| {
-        ctx.hits(&state, piece, &[piece.net])
-            .iter()
-            .any(|h| matches!(h.target, Target::Base(_) | Target::Keepout(_)))
+        ctx.hits(&state, piece, &[piece.net]).iter().any(|h| {
+            matches!(
+                h.target,
+                Target::Base(_) | Target::Keepout(_) | Target::Hole(_)
+            )
+        })
     };
     let had = pads_joined(before.0, before.1);
     let has = pads_joined(project, ctx.graph());
@@ -560,9 +563,12 @@ pub(crate) fn dragged(
         let (ctx, was) = (Ctx::new(project, &index), Ctx::new(before, &then));
         let state = State::default();
         let offends = |ctx: &Ctx<'_>, piece: &Piece| {
-            ctx.hits(&state, piece, &[piece.net])
-                .iter()
-                .any(|h| matches!(h.target, Target::Base(_) | Target::Keepout(_)))
+            ctx.hits(&state, piece, &[piece.net]).iter().any(|h| {
+                matches!(
+                    h.target,
+                    Target::Base(_) | Target::Keepout(_) | Target::Hole(_)
+                )
+            })
         };
         let old: BTreeMap<Id, &crate::model::Track> =
             before.tracks.iter().map(|t| (t.id, t)).collect();

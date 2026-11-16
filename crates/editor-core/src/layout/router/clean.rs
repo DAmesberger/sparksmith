@@ -89,8 +89,9 @@ pub(super) fn turns_back(points: &[Point], along: Point) -> bool {
         .any(|w| unit(w[0], w[1]).is_some_and(|d| dot(d, along) < -1e-6))
 }
 
-/// Drop legs shorter than [`MIN_SEGMENT_MM`], merge collinear legs and
-/// cut loops; the ends stay.
+/// Drop legs shorter than [`MIN_SEGMENT_MM`], merge collinear legs (a
+/// spike that runs back along its own leg included) and cut loops; the
+/// ends stay.
 pub(super) fn simplify(points: &[Point]) -> Vec<Point> {
     let mut pts = drop_short(points);
     for _ in 0..8 {
@@ -131,8 +132,9 @@ fn merge_collinear(points: &[Point]) -> Vec<Point> {
             && let (Some(a), Some(b)) = (out.get(out.len() - 2), out.last())
             && let (Some(d1), Some(d2)) = (unit(*a, *b), unit(*b, *p))
             && cross(d1, d2).abs() < 1e-9
-            && dot(d1, d2) > 0.0
         {
+            // On one line: straight on, or a spike that runs back over its
+            // own leg (whose copper the shorter leg lies within).
             out.pop();
         }
         out.push(*p);
