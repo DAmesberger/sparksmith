@@ -70,17 +70,20 @@ fn main() -> eframe::Result {
     // Files opened from Finder arrive as AppKit events, not arguments.
     #[cfg(target_os = "macos")]
     open_documents::install();
+    let viewport = egui::ViewportBuilder::default()
+        .with_inner_size(if compact {
+            [900.0, 680.0]
+        } else {
+            [1380.0, 900.0]
+        })
+        .with_min_inner_size([760.0, 560.0])
+        .with_title_shown(false)
+        .with_titlebar_shown(false)
+        .with_fullsize_content_view(true);
+    // As the window was left: full screen, maximized or its frame.
+    let kept = (!compact).then(app::window_state::kept).flatten();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size(if compact {
-                [900.0, 680.0]
-            } else {
-                [1380.0, 900.0]
-            })
-            .with_min_inner_size([760.0, 560.0])
-            .with_title_shown(false)
-            .with_titlebar_shown(false)
-            .with_fullsize_content_view(true),
+        viewport: app::window_state::restore(viewport, kept),
         renderer: eframe::Renderer::Wgpu,
         ..Default::default()
     };

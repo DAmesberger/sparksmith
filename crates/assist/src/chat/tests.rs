@@ -117,8 +117,8 @@ fn the_shipped_chat_data_loads_and_its_reach_steers_the_window() -> Fallible {
         Some(&sparksmith_core::Class::Edit)
     );
     use sparksmith_core::permission::{Reach, Reaches};
-    assert!(library.reach.allows(Reaches::NONE.with(Reach::Window)));
-    assert!(!library.reach.allows(Reaches::NONE.with(Reach::Settings)));
+    assert!(grant.reaches(Reaches::NONE.with(Reach::Window)));
+    assert!(!grant.reaches(Reaches::NONE.with(Reach::Settings)));
     Ok(())
 }
 
@@ -385,7 +385,6 @@ fn the_verbs_of_one_message_join_its_turn_and_undo_as_one_step() -> Fallible {
     struct Verbs<'a> {
         session: &'a mut Session,
         grant: &'a sparksmith_automation::Grant,
-        reach: &'a ReachProfile,
         turn: &'a str,
     }
     impl Tools for Verbs<'_> {
@@ -393,7 +392,6 @@ fn the_verbs_of_one_message_join_its_turn_and_undo_as_one_step() -> Fallible {
             Agent {
                 session: self.session,
                 grant: self.grant,
-                reach: self.reach,
                 window: None,
                 turn: Some(self.turn),
                 asker: &mut NoOne,
@@ -404,7 +402,6 @@ fn the_verbs_of_one_message_join_its_turn_and_undo_as_one_step() -> Fallible {
     let mut tools = Verbs {
         session: &mut session,
         grant: &grant,
-        reach: &library.reach,
         turn: &turn_id,
     };
     let mut events = Vec::new();

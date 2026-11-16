@@ -76,11 +76,14 @@ enum Case {
     WithoutModule,
     /// A remote agent in allow-all whose grant reads the entry's module only.
     ReadOnlyModule,
+    /// A remote agent in allow-all whose grant reaches nothing outside the
+    /// document.
+    NoReach,
 }
 
 /// What the table expects for an entry of `class` (raised to Ask when the
 /// call names a path) in `module`, the path inside the folders or not.
-fn expected(case: &Case, class: Class, module: &str, outside: bool) -> &'static str {
+fn expected(case: &Case, class: Class, module: &str, reaches: bool, outside: bool) -> &'static str {
     let local_ceiling = match module {
         "files" | "fab" | "model3d" => Class::Ask,
         "view" => Class::Show,
@@ -89,12 +92,13 @@ fn expected(case: &Case, class: Class, module: &str, outside: bool) -> &'static 
     match (case, class) {
         (Case::Person | Case::Operator, _) => "run",
         (_, Class::Never) => "gate.never",
+        (Case::NoReach, _) if reaches => "gate.reach",
         (Case::WithoutModule, _) => "gate.module",
         (Case::ReadOnlyModule, Class::Show | Class::Edit | Class::Ask) => "gate.module",
         (Case::Local, class) if class > local_ceiling => "gate.module",
         (_, _) if outside => "gate.path_outside",
         (Case::ReadOnlyModule, Class::Read) => "run",
-        (Case::Remote(Mode::AllowAll), _) => "run",
+        (Case::Remote(Mode::AllowAll) | Case::NoReach, _) => "run",
         (Case::Remote(Mode::AutoAllowEdits) | Case::Local, Class::Ask) => "ask",
         (Case::Remote(Mode::AutoAllowEdits) | Case::Local, _) => "run",
         // A show entry changes only the window: no one approves it.
@@ -131,6 +135,10 @@ fn one_decision_over_every_entry_and_every_principal() {
         let all = Grant::new(Mode::AllowAll, folders.clone());
         let without = all.clone().without_module(entry.module);
         let read_only = all.clone().with_module(entry.module, Class::Read);
+        let no_reach = Grant {
+            reach: Some(Vec::new()),
+            ..all.clone()
+        };
         let local = Grant::local_agent(folders.clone());
         let remote: Vec<Grant> = modes
             .iter()
@@ -154,6 +162,13 @@ fn one_decision_over_every_entry_and_every_principal() {
                     client: "table",
                 },
             ),
+            (
+                Case::NoReach,
+                Principal::RemoteAgent {
+                    grant: &no_reach,
+                    client: "table",
+                },
+            ),
         ];
         for (mode, grant) in modes.iter().zip(&remote) {
             cases.push((
@@ -168,6 +183,7 @@ fn one_decision_over_every_entry_and_every_principal() {
             name: &entry.name,
             module: entry.module,
             class: entry.class,
+            reach: metadata::declared_reach(&entry.name),
         };
         let mut paths: Vec<(Vec<String>, bool)> = vec![(Vec::new(), false)];
         if entry.takes_path {
@@ -184,7 +200,13 @@ fn one_decision_over_every_entry_and_every_principal() {
                 let got = decide_entries(who, &[subject], named, &inside);
                 assert_eq!(
                     verdict(&got),
-                    expected(case, class, entry.module, *outside),
+                    expected(
+                        case,
+                        class,
+                        entry.module,
+                        !subject.reach.is_empty(),
+                        *outside
+                    ),
                     "{} as {who:?} naming {named:?}",
                     entry.name
                 );

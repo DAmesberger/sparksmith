@@ -280,11 +280,13 @@
   {"name":"library.use_part_file","class":"edit","schema":"0c9c07c7bf83b70d","fields":[["builtin","428293de17850c2e"],["expected_revision","9295ea67127970c6"],["licence","428293de17850c2e"],["name","428293de17850c2e"],["package","dd016f7f1c3e2ab4"],["path","428293de17850c2e"],["redistribution","f8cdd37b92f07225"],["values","2905ffaa50c97ef9"]],"required":["expected_revision","package"]},
   {"name":"project.export_native","class":"ask","schema":"ee897275b361b97f","fields":[["path","f186891b5656c9ae"],["tier","f68f07ffbe12713d"],["write_anyway","e3ce44acd037492c"]],"required":["path"]}
  ]},
- {"id": "assist", "version": "1.0", "digest": "sha256:43ed79896e32ec361132ded3b8445b97dea09600369712a4be7d664da04db42c", "entries": [
+ {"id": "assist", "version": "1.1", "digest": "sha256:72e948635428a01438b8d83163265ff48276b70fb294d7f1e276780c49a57106", "entries": [
   {"name":"assist.document_page","class":"read","schema":"f4a74bbffa04b3c9","fields":[["document","40bd5b57f4261fe2"],["page","bb9a2e7fd64c1bc0"]],"required":["page"]},
   {"name":"assist.document_text","class":"read","schema":"d251b1b31aa39dae","fields":[["document","40bd5b57f4261fe2"],["pages","40bd5b57f4261fe2"]],"required":[]},
   {"name":"assist.pinout_edit","class":"read","schema":"3943579687fc2dbb","fields":[["clear","e3ce44acd037492c"],["device","cb7e544b2d5ab491"],["format","9cbf9d9d6ca5231c"],["handle","40bd5b57f4261fe2"],["new","e3ce44acd037492c"],["peripherals","c2e69b224693b920"],["pins","c2e69b224693b920"],["remove_pins","3f6ee292fd1c8a11"],["remove_rules","3f6ee292fd1c8a11"],["rules","c2e69b224693b920"],["variants","9f497374c819d207"]],"required":[]},
-  {"name":"assist.pinout_preview","class":"read","schema":"fa1f64e041f99fab","fields":[["document","cb7e544b2d5ab491"],["handle","40bd5b57f4261fe2"],["target","d40a6de66404f735"]],"required":["target"]}
+  {"name":"assist.pinout_preview","class":"read","schema":"fa1f64e041f99fab","fields":[["document","cb7e544b2d5ab491"],["handle","40bd5b57f4261fe2"],["target","d40a6de66404f735"]],"required":["target"]},
+  {"name":"assist.step_result","class":"read","schema":"62d1f9b0c9d2a315","fields":[["result","3239974ff60fabf0"],["step","f186891b5656c9ae"]],"required":["result","step"]},
+  {"name":"assist.workflows","class":"read","schema":"d2a6eaec77fd86c3","fields":[["limit","178b2cc08ce4e9d4"],["text","428293de17850c2e"],["unavailable","90c3f0cfcf6ff8f0"]],"required":[]}
  ]},
  {"id": "view", "version": "1.0", "digest": "sha256:c56e11bc2528b4ca63d74d362ad80d8fffb921c426c11e0971c17d9b1ef18f16", "entries": [
   {"name":"view.context","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},

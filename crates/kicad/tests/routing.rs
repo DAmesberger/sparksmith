@@ -140,6 +140,28 @@ fn a_track_the_checks_refuse_is_listed_and_the_rest_imported() -> Fallible<()> {
     let imported = import(board.text().as_bytes())?;
     assert_eq!(imported.report.count(Case::TrackRefused), 1);
     assert!(imported.report.counts.tracks > 2);
+    // E2E run 11, finding 4: the report names each refused piece, where it
+    // ran (KiCad's (18, 16) is (18, 20 − 16) here) and the check's own
+    // sentence: what it came too close to.
+    let refused: Vec<String> = imported
+        .report
+        .refused_copper_of(Case::TrackRefused)
+        .map(|r| r.line())
+        .collect();
+    assert_eq!(refused.len(), 1, "{refused:?}");
+    assert!(
+        refused[0]
+            .starts_with("Track on SIG (Top) from (18, 4) to (22, 4) mm: Too close to R3 pad"),
+        "{refused:?}"
+    );
+    assert!(
+        imported
+            .report
+            .summary_named()
+            .contains(&format!("    {}\n", refused[0])),
+        "{}",
+        imported.report.summary_named()
+    );
     Ok(())
 }
 

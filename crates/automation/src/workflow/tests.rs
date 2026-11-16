@@ -22,9 +22,9 @@ fn shipped_text() -> Result<String, std::io::Error> {
     std::fs::read_to_string(shipped_folder().join(DATASHEET).join(WORKFLOW_FILE))
 }
 
-/// The method text until W1 moves it beside the workflow: today's skill.
+/// The shipped workflow's method text.
 fn method_text() -> Result<String, std::io::Error> {
-    std::fs::read_to_string(repo().join("skills/sparksmith-datasheet-part/SKILL.md"))
+    std::fs::read_to_string(shipped_folder().join(DATASHEET).join(METHOD_FILE))
 }
 
 fn shipped() -> Result<Workflow, Box<dyn std::error::Error>> {
@@ -79,21 +79,63 @@ fn the_shipped_datasheet_workflow_passes_its_check() -> Fallible {
 }
 
 #[test]
-fn the_shipped_workflow_waits_only_for_the_assist_module() -> Fallible {
-    // Until S6 declares the assist module and its document entries, the
-    // host lists the workflow as unavailable, naming exactly those. The
-    // result card's view.open is left off a host without it, not a reason.
-    let why = shipped()?.availability(&HostCatalog);
-    let assist = HostCatalog.module_version("assist").is_some();
-    let expected: Vec<String> = if assist {
-        Vec::new()
-    } else {
-        vec![
-            "needs assist 1.0; this host has no assist module".into(),
-            "assist.document_text is not an entry of this host".into(),
-        ]
-    };
-    assert_eq!(why, expected);
+fn the_shipped_workflow_is_available_here() -> Fallible {
+    // Its folder loads (its method beside it) and this host meets its
+    // needs. The result card's view.open is left off a host without it,
+    // not a reason.
+    let listed = load::list(Some(&shipped_folder()), None, &HostCatalog);
+    let ours = listed
+        .iter()
+        .find(|l| l.id == DATASHEET)
+        .ok_or("the shipped workflow is listed")?;
+    assert_eq!(ours.why_not, Vec::<String>::new());
+    assert!(ours.available());
+    Ok(())
+}
+
+/// The first occurrence of each of `names` in `text`, in order: `None` when
+/// one is missing or comes before the one listed before it.
+fn in_order(text: &str, names: &[&str]) -> Result<(), String> {
+    let mut last = 0;
+    for name in names {
+        let quoted = format!("`{name}`");
+        let Some(at) = text.find(&quoted) else {
+            return Err(format!("{name} is not in the procedure"));
+        };
+        if at < last {
+            return Err(format!("{name} comes before the step listed before it"));
+        }
+        last = at;
+    }
+    Ok(())
+}
+
+/// The method an external client follows and the steps the runner makes
+/// cannot drift apart silently: every entry a tool step or a confirm gate
+/// calls appears in method.md's procedure, in the same order.
+#[test]
+fn the_steps_entries_appear_in_the_method_in_the_same_order() -> Fallible {
+    let workflow = shipped()?;
+    let mut calls: Vec<&str> = Vec::new();
+    for step in &workflow.steps {
+        let call = match step.kind {
+            StepKind::Tool => step.call.as_deref(),
+            StepKind::Review => step.then.as_ref().map(|t| t.call.as_str()),
+            _ => None,
+        };
+        if let Some(call) = call
+            && !calls.contains(&call)
+        {
+            calls.push(call);
+        }
+    }
+    assert!(calls.len() >= 7, "{calls:?}");
+    let method = method_text()?;
+    let procedure = method_section(&method, "procedure").ok_or("a procedure section")?;
+    in_order(procedure, &calls)?;
+    // The test notices a step moved.
+    calls.swap(1, 2);
+    assert!(in_order(procedure, &calls).is_err());
     Ok(())
 }
 

@@ -53,7 +53,7 @@ impl Catalog for HostCatalog {
     }
 
     fn entry(&self, name: &str) -> Option<(String, Class)> {
-        sparksmith_automation::session::metadata::find(name).map(|e| (e.module.to_owned(), e.class))
+        crate::session::metadata::find(name).map(|e| (e.module.to_owned(), e.class))
     }
 }
 
@@ -96,6 +96,26 @@ pub fn shipped_folder(shipped: &ShippedLibrary) -> PathBuf {
 /// The user's workflows' folder under their config folder.
 pub fn user_folder(config: &Path) -> PathBuf {
     config.join("assist").join(FOLDER)
+}
+
+/// Every workflow of this host: the shipped library's and the person's own
+/// in their config folder, checked against this program's catalog. Without
+/// a shipped library or a config folder, that side lists none.
+pub fn host() -> Vec<Listed> {
+    let shipped = ShippedLibrary::locate().ok().map(|s| shipped_folder(&s));
+    let user = sparksmith_io::settings::UserDirs::from_env()
+        .ok()
+        .map(|dirs| user_folder(&dirs.config));
+    list(shipped.as_deref(), user.as_deref(), &HostCatalog)
+}
+
+/// The workflows of `listed` that can run here.
+pub fn available(listed: &[Listed]) -> Vec<Loaded> {
+    listed
+        .iter()
+        .filter(|l| l.available())
+        .filter_map(|l| l.loaded.clone())
+        .collect()
 }
 
 /// Read and check the workflow in `folder`: `workflow.json` by the format's

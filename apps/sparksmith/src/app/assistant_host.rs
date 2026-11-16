@@ -370,7 +370,6 @@ impl App {
             Agent {
                 session,
                 grant: &grant,
-                reach: &reach,
                 window: Some(&mut window),
                 turn: Some(&turn),
                 asker: &mut asker,

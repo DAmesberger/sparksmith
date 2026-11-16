@@ -589,6 +589,53 @@ pub struct RefusedPattern {
     pub reason: &'static str,
 }
 
+/// A track piece or via the engine's checks refused
+/// ([`Case::TrackRefused`], [`Case::ViaRefused`]): where it ran, in our
+/// board frame, and the check's own sentence (what it came too close to
+/// and the clearance needed, or which other check).
+#[derive(Clone, Debug, Serialize, PartialEq)]
+pub struct RefusedCopper {
+    /// [`Case::TrackRefused`] or [`Case::ViaRefused`].
+    pub case: Case,
+    /// "Track on VIN (Top) from (4, 16.8) to (10, 16.8) mm".
+    pub what: String,
+    /// "Too close to C1 pad 2 (GND): needs 0.1 mm (JLCPCB 2-layer)".
+    pub check: String,
+}
+
+impl RefusedCopper {
+    /// A refused track piece of `net` on `layer` from `start` to `end` (mm).
+    pub fn track(net: &str, layer: &str, start: [f64; 2], end: [f64; 2], check: &str) -> Self {
+        Self {
+            case: Case::TrackRefused,
+            what: format!(
+                "Track on {net} ({layer}) from {} to {} mm",
+                point_text(start),
+                point_text(end)
+            ),
+            check: check.to_owned(),
+        }
+    }
+
+    /// A refused via of `net` at `at` (mm).
+    pub fn via(net: &str, at: [f64; 2], check: &str) -> Self {
+        Self {
+            case: Case::ViaRefused,
+            what: format!("Via on {net} at {} mm", point_text(at)),
+            check: check.to_owned(),
+        }
+    }
+
+    /// "Track on VIN (Top) from (4, 16.8) to (10, 16.8) mm: Too close to …".
+    pub fn line(&self) -> String {
+        format!("{}: {}", self.what, self.check)
+    }
+}
+
+fn point_text(p: [f64; 2]) -> String {
+    format!("({}, {})", mm_text(p[0]), mm_text(p[1]))
+}
+
 impl RefusedPattern {
     /// "+5*: its class was not imported".
     pub fn line(&self) -> String {
@@ -657,6 +704,7 @@ pub struct Report {
     details: Vec<Detail>,
     looser: Vec<LooserRule>,
     patterns: Vec<RefusedPattern>,
+    refused: Vec<RefusedCopper>,
 }
 
 impl Report {
@@ -702,6 +750,21 @@ impl Report {
                 reason,
             });
         }
+    }
+
+    /// A track piece or via the engine refused, counted under its case and
+    /// named with the check that refused it.
+    pub fn refused_copper(&mut self, refused: RefusedCopper) {
+        self.add_detail(refused.case, "", "", &refused.check);
+        if self.refused.len() < MAX_DETAILS {
+            self.refused.push(refused);
+        }
+    }
+
+    /// The refused track pieces and vias of `case`, each with its check, in
+    /// the order they were tried.
+    pub fn refused_copper_of(&self, case: Case) -> impl Iterator<Item = &RefusedCopper> {
+        self.refused.iter().filter(move |r| r.case == case)
     }
 
     /// The net class patterns not taken, in the project file's order.
@@ -815,6 +878,13 @@ impl Report {
                     out.push_str(&format!("    {}\n", pattern.line()));
                 }
             }
+            for case in [Case::TrackRefused, Case::ViaRefused] {
+                if line.ends_with(case.describe().2) {
+                    for item in self.refused_copper_of(case) {
+                        out.push_str(&format!("    {}\n", item.line()));
+                    }
+                }
+            }
         }
         out
     }
@@ -827,6 +897,7 @@ impl Report {
             "rows": self.rows(),
             "looser_rules": self.looser,
             "refused_patterns": self.patterns,
+            "refused_copper": self.refused,
             "details": self.details,
         })
     }

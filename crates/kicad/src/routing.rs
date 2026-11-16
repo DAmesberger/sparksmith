@@ -18,7 +18,7 @@
 use crate::board::{Board, Nm, PointNm};
 use crate::import::{ImportError, Session};
 use crate::items::KTrack;
-use crate::report::{Case, Report};
+use crate::report::{Case, RefusedCopper, Report};
 use crate::translate::board_point;
 use sparksmith_core::geometry::{Point, distance};
 use sparksmith_core::layout::posture::MIN_SEGMENT_MM;
@@ -547,10 +547,25 @@ fn add(
             Ok(_) => added += n,
             Err(ImportError::Refused { reason, .. }) if n == 1 => {
                 let kind = reason_kind(&reason);
+                let project = session.engine.project();
                 match tracks.first() {
-                    None => report.add_detail(Case::ViaRefused, "", "", kind.words()),
+                    None => {
+                        if let Some(via) = vias.first() {
+                            report.refused_copper(RefusedCopper::via(
+                                project.net_name(via.net),
+                                via.position,
+                                &reason,
+                            ));
+                        }
+                    }
                     Some(track) => {
-                        report.add_detail(Case::TrackRefused, "", "", kind.words());
+                        report.refused_copper(RefusedCopper::track(
+                            project.net_name(track.net),
+                            &track.layer.name(),
+                            track.start,
+                            track.end,
+                            &reason,
+                        ));
                         if refused.len() < MAX_REFUSED_TRACKS
                             && let (Ok(start), Ok(end)) = (
                                 sparksmith_core::units::PointNm::from_mm_f64_rounded(track.start),
