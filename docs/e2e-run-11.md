@@ -5,7 +5,7 @@ On 16 November 2026 the lead agent recorded Sparksmith's desktop app in the macO
 - a KiCad project written for this run, imported and exported;
 - the run 10 fixes.
 
-The AI scene ("Create from datasheet…") was not part of this pass; it waits for an API key that only the founder enters.
+The AI scene ("Create from datasheet…") is deferred by the founder's decision: the datasheet flow will be recorded once it runs inside the new chat (assistant slice W2), reusing this run's recording helpers ([Recording helpers](#recording-helpers-for-the-next-run)).
 
 **Setup.** The build was `main` at 4a8248e8, built with the `ci` profile and run as `Sparksmith.app` in the guest VM (Guest VM app). The bundle had `library/` in `Contents/Resources/library`, the bundle's `Info.plist`, and nix `libiconv`/`libcharset` in `Contents/Frameworks`. The guest display was 1920 × 1080 at scale 1.0, and the app ran in full screen for every take.
 
@@ -38,7 +38,7 @@ The board is 30 × 20 mm with a B.Cu GND zone, F.Cu tracks, two GND vias and a s
 
 | | Result |
 |---|---|
-| Time | About 55 minutes of app time for scenes 1–6, including retakes. |
+| Time | About 55 minutes of app time for scenes 1–6, including retakes. The AI scene is deferred until after W2. |
 | Named parts | **Possible, but only through the Component workspace** (finding 1). U1 and U2 carry real part numbers and pin names in the schematic, the board and the BOM. |
 | Unrouted count after the GND pour | **Fixed.** After the Top GND fill, the status line read "0 airwires" and Issues listed no unrouted connection. The production check had no connectivity error. |
 | Router and USB-C holes | **Fixed as far as seen.** CC1, CC2 and VBUS were routed between and beside J1's holes in several takes, and no hole-clearance error appeared. |
@@ -197,14 +197,38 @@ Under `/Users/amd/dev/sparksmith-media/run11/` (not in the repository):
 
 Each clip has a `.webp` preview (960 wide, 12 fps). `shove-routing`, `3d-orbit`, `generator-form`, `kicad-import-report` and `fab-export` also have a `.gif` (800 wide, 10 fps). The edited scene takes are in `raw-videos/` (`scene1-schematic.mp4` 5:41, `scene2-pcb-routing.mp4` 3:12, `scene3-3d.mp4`, `scene4-production.mp4`, `scene5-kicad-import.mp4`, `scene6-save-reopen.mp4`), with 11 stills in `stills/`. The recorder, input and cutting tools are in `tools/`, and the KiCad project in `kicad/`.
 
+## Recording helpers for the next run
+
+The helpers stay installed in the guest with their grants, so the deferred AI recording can reuse them as they are. Their sources and scripts are in `/Users/amd/dev/sparksmith-media/run11/tools/`.
+
+**Recorder** (`screenrec.swift`, `~/Applications/ScreenRec.app`, bundle id `dev.local.screenrec`, `LSUIElement`):
+- It is a ScreenCaptureKit stream of the main display at 30 fps, with the cursor shown.
+- It writes `fNNNNNN.jpg` frames and a `frames.txt` of host-clock timestamps into the folder named in `~/Movies/rec/target.txt`.
+- SIGTERM stops it and writes `status.txt`.
+- `rec.sh` wraps this: `zsh rec.sh start NAME` and `zsh rec.sh stop NAME`. Stop also copies the folder to the shared `results/run11/raw/`, so change that path for a new run.
+- At 1920 × 1080 the frames take about 2.5 GB for 6 minutes. Delete them in the guest after copying.
+
+**Input** (`puppet.swift`, `~/Applications/Puppet.app`, bundle id `dev.local.puppet`):
+- It watches `~/Movies/puppet/in/*.cmd` and runs each file's lines with real HID events.
+- Commands: `move X Y MS`, `click X Y MS [mods]`, `dclick`, `rclick`, `drag X1 Y1 X2 Y2 MS [left|right|middle]`, `down`/`up`, `scroll X Y DY STEPS`, `key NAME [cmd shift alt ctrl]`, `type CPS TEXT` and `wait MS`.
+- Coordinates are screen points; at scale 1.0 these are screenshot pixels.
+- Each file's start and end times go to `~/Movies/puppet/windows.log` (same clock as the frames), and the file moves to `done/` with a `.result`.
+- `gv.py p TAG 'cmd | cmd …'` sends one action list and waits for it.
+- A tag containing `-skip` marks a take to leave out; `-hN` holds N seconds after it.
+
+**Cutting** (`assemble.py`): `assemble.py FRAMES_DIR WINDOWS_FILE OUT.mp4 [--pre 0.4] [--post 1.0]` keeps the frames inside the logged action windows (plus pre-roll and hold) at their real timing and encodes H.264 1920 × 1080 30 fps with nix `ffmpeg-headless`. `clips.sh` shows how clips, WebP and GIF previews were cut from given time windows.
+
+**Grants.** Both apps were granted in the guest's System Settings › Privacy & Security, with the guest account's password from the VM config:
+- ScreenRec: Screen & System Audio Recording;
+- Puppet: Accessibility.
+
+A grant is tied to the ad-hoc signature, so **rebuilding either app voids it**. After a rebuild, remove the app's entry with "−", launch the app once so it is listed again, switch it on and authenticate. Toggling the existing entry is not enough. While the guest's driver is used for clicks, the prompts are answered with foreground desktop clicks; the password field takes the driver's `press_key` per character to the frontmost app.
+
 ## Clean-up
 
-The cleanup is partial: the AI scene is still to come.
-- **Left in place for the AI scene:**
-  - the app running in the guest with `usb-sense` open;
-  - `~/Documents/e2e11` in the guest (the project, both production folders and the KiCad copy);
-  - the frame folders in the shared `results/run11/raw/` (about 15 GB), kept for possible re-cuts;
-  - the helper apps `~/Applications/ScreenRec.app` and `~/Applications/Puppet.app` in the guest, with their Screen Recording and Accessibility grants.
-- **Deleted:** the guest's local frame folders (`~/Movies/rec/scene1`–`scene6`).
+- **Guest:** Sparksmith quit normally, and its Recovery folder is empty. `~/Documents/e2e11` (the project, both production folders and the KiCad copy) and the test frame folders were deleted.
+- **Helper apps kept:** `~/Applications/ScreenRec.app` and `~/Applications/Puppet.app` stay in the guest with their Screen Recording and Accessibility grants, for the AI recording after W2. Puppet is still running; `~/Movies/puppet` and `~/Movies/rec/target.txt` remain.
+- **Shared folder:** the 15 GB of frames in `results/run11/raw/` were deleted after every video was checked. All 6 scene takes, 9 clips, 9 WebP and 5 GIF previews decode without errors with ffmpeg. `results/run11/` keeps the edited videos, the stills, the KiCad project, `issues-after-reopen.txt` and `_rec.sh` (about 40 MB).
+- **Media:** everything is in `/Users/amd/dev/sparksmith-media/run11/`, outside the repository.
 - **Display:** left as found (1920 × 1080 at 1.0).
 - **Pasteboard:** the guest pasteboard holds the last Issues report.
