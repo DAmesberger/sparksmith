@@ -1,5 +1,5 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "6.1", "digest": "sha256:46d582399a15395bbd0326f47c2c01f9c5acc06dfef062b0868c7794ed9f840f", "entries": [
+ {"id": "project", "version": "6.2", "digest": "sha256:674d6b37e5a6608c06bb0f946534143a9cadd0d198292830e1f8f8766e610009", "entries": [
   {"name":"project.apply","class":"edit","schema":"d00a56b3e89a59d3","fields":[["expected_revision","9295ea67127970c6"],["operation","576566e6314efdfb"]],"required":["expected_revision","operation"]},
   {"name":"project.apply_all","class":"edit","schema":"ccec9ff2be794052","fields":[["expected_revision","9295ea67127970c6"],["operations","2dff30b04127065a"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
@@ -9,6 +9,8 @@
   {"name":"project.rename","class":"edit","schema":"92c2e30151865925","fields":[["name","f186891b5656c9ae"]],"required":["name"]},
   {"name":"project.schema","class":"read","schema":"7e398ef3b2cf4d96","fields":[["def","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"]],"required":[]},
   {"name":"project.set_properties","class":"edit","schema":"9d0064f23473ac9e","fields":[["properties","23e63cfc65c28b64"]],"required":["properties"]},
+  {"name":"project.turn_begin","class":"read","schema":"d0091a9dce358945","fields":[["calls","178b2cc08ce4e9d4"],["changes","178b2cc08ce4e9d4"],["label","f186891b5656c9ae"]],"required":["label"]},
+  {"name":"project.turn_end","class":"read","schema":"8ba67b5506a8d9ac","fields":[["turn","f186891b5656c9ae"]],"required":["turn"]},
   {"name":"project.undo","class":"edit","schema":"5d360ab06dd84fb0","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]}
  ]},
  {"id": "files", "version": "1.0", "digest": "sha256:512b8454e2413148193a8eb8f50b2346f5e85a6f7515278db279b1f072527dc9", "entries": [

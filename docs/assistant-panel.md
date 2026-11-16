@@ -18,8 +18,9 @@ In one line: **one chat; refined processes ("workflows") are data the chat finds
 | Three Claude Code runs of that prompt | Done: footprints 0 nm against the sources, every pin right, about 17.5 USD ([run notes](datasheet-assistant-run-mcp-1.md)). Tooling defects T1–T11 found |
 | In-app datasheet runner (`crates/assist`): model layer, Anthropic and OpenAI-compatible backends, keychain keys, limits, recording and replay, profiles, PDF text and page images | Built. Has its own hand-written tool list (`assist::tools::definitions`) and runs in a headless session of its own, not on the open project |
 | "Create from datasheet…" dialog on the Component start page | Built (`apps/sparksmith/src/part_editor/datasheet_assist.rs`): its own model, endpoint and key fields, its own progress log. **Removed by this plan** |
-| Turns (`begin_group`), jobs, events (ABI S4); the window module's camera, layers and screenshot (S5b); the built-in agent on the surface (S6); elicitation (MCP P5) | Not built |
 | Workflow contract (W0): `workflow.json` format 1 with its load check, the ten controls, the `assist.*` signatures, the run's events; the datasheet workflow's `workflow.json` | Built ([workflow format](workflow-format.md)). No runner, no entries in the catalog yet |
+| Turns: `project.turn_begin`/`turn_end`, the envelope's `turn`, one labelled undo step per turn, per-turn limits in the surface (ABI S4a) | Built ([turns](extension-surface.md#turns-s4a)). MCP's verbs do not carry `turn` yet |
+| Jobs, events (ABI S4b); the window module's camera, layers and screenshot (S5b); the built-in agent on the surface (S6); elicitation (MCP P5) | Not built |
 | Assistant panel, Settings › AI | Not built |
 
 ## What this revision supersedes

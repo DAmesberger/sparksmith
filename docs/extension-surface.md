@@ -1,6 +1,6 @@
 # The capability surface
 
-The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2, S2b, S3 and S5a) and how to change it.
+The contract every caller of Sparksmith reaches: the UI, the CLI, MCP, the built-in agent and, later, plugins. It is built in slices from [the extension ABI design](design/extension-abi-design.md); [the founder's decisions](design/decisions-2026-11-14.md) win where the two differ. This page says what exists now (slices S0, S1, S2, S2b, S3, S4a and S5a) and how to change it.
 
 ## Entries and modules
 
@@ -142,7 +142,7 @@ MCP behaviour, the tool lists and their annotations are unchanged.
 
 Every call reaches the engine through one function, `Surface::call` (`crates/automation/src/front.rs`), implemented by `Session` (S2). `Session::respond`, `dispatch`, `execute` and `rehearse` are calls through it; the MCP server (headless and live), the live channel, the CLI and the built-in assistant all reach it that way.
 
-- **The envelope.** A `Call` names any entry by its own name: an operation (`layout.add_via`), a query (`project.bom`) or a request (`project.save`), with its `params`. `expected_revision` is the envelope's. An entry takes it when it is an operation or its parameters name one (`EntryMeta::revision`, from the schema); such a call without one is refused (`malformed_request`), and one given in the parameters too must agree. The session checks it once, before any file is read or written, and the engine again. `dry_run: true` runs an edit on a fork and keeps nothing. `confirm`, `turn` and `job` are refused (`host.unsupported`) until S4 and the plan slices serve them; `project` is for a transport holding several sessions.
+- **The envelope.** A `Call` names any entry by its own name: an operation (`layout.add_via`), a query (`project.bom`) or a request (`project.save`), with its `params`. `expected_revision` is the envelope's. An entry takes it when it is an operation or its parameters name one (`EntryMeta::revision`, from the schema); such a call without one is refused (`malformed_request`), and one given in the parameters too must agree. The session checks it once, before any file is read or written, and the engine again. `dry_run: true` runs an edit on a fork and keeps nothing. `turn` names an open turn ([turns](#turns-s4a)). `confirm` and `job` are refused (`host.unsupported`) until S4b and the plan slices serve them; `project` is for a transport holding several sessions.
 - **The wrappers.** `project.apply`, `project.apply_all` and `project.query` stay in the catalog as the shapes the JSON-lines transport sends; MCP sends calls by entry name, and its `apply` verb sends a batch as `project.apply_all`. The front door reads `{"command", "params"}` as a call (`front::from_request`), moving the revision to the envelope, and the gate weighs the operations and queries inside a wrapper, each in its own module, never the wrapper. `project.schema` is the catalog lookup the `describe` verb reads.
 - **Who calls.** `Principal`: `Person` (the UI), `Operator` (the person's own script), `LocalAgent` (the built-in agent) and `RemoteAgent` (MCP and other model-facing transports). The person and the operator run everything. `Plugin` comes with S8. Transports still name a `Caller` (`Operator`, `Model`, `Allowed`), which maps to a principal and whether a person already allowed the request.
 - **Grants.** `Grant` (formerly `Policy`): the mode, the folders and a ceiling class per module. A module absent from the grant is out of reach. `Grant::new(mode, folders)`, what the CLI and MCP flags give, has every module up to Ask; `Grant::local_agent` has the document's modules up to Edit and `files`, `fab` and `model3d` up to Ask.
@@ -175,6 +175,17 @@ The `datasheet_to_component` prompt serves `skills/sparksmith-datasheet-part/SKI
 - `live_tools` and `live::WINDOW_ONLY`: the window's grant leaves out the `files` module.
 - The live channel's `engine.execute` `{command, params}`: it carries a `Call`.
 - `CommandInfo::permission_note` and the per-command tool schemas in `discovery`.
+
+## Turns (S4a)
+
+A **turn** is a labelled group of calls whose edits undo as one step: one message of the built-in agent, one workflow run, or a group a remote agent opens.
+
+- **Open and close.** `project.turn_begin {label, changes?, calls?}` answers `{turn: "t_…", label, calls, changes}`; `project.turn_end {turn}` closes it and answers what it did. Both are reads of the `project` module (6.2): they change no document. A session holds at most 16 open turns; opening another closes the oldest.
+- **A call in a turn** names it in the envelope's `turn`. An unknown or ended turn is refused (`turn.unknown`) and nothing runs.
+- **One undo step.** The front door opens the engine's undo group around each of the turn's calls (`Engine::begin_group(label)`, then `continue_group(label, mark)` for the next call, `end_group()` after it). Every step the turn makes joins its one step, which keeps the document from before the turn as its undo target and reads the label (`Step::label`, shown by `Step::line`). A step anyone else makes in between (the person's own edit, an undo or redo) splits it: the turn's next edit makes a new step under the same label, so undo order stays what happened. A dry run keeps nothing and joins nothing.
+- **Limits.** `Grant::limits` (`Limits {changes, calls}`, default 60 and 400 as in Settings › AI) bound every turn of a principal with a grant; `turn_begin`'s `changes` and `calls` can only lower them. Every call carrying the turn counts as a call, gate refusals included; a call that takes `expected_revision` is a change when it moves the revision. A call past either limit stops with `gate.turn_limit`, changing nothing. The person and the operator have no grant and no limits, but their turns group the same way. A call without a turn is not counted.
+
+Not yet (S4b): jobs, `Progress` and events. MCP's verbs do not carry `turn` yet; the live channel's `surface.call` does, since it sends the envelope whole.
 
 ## The window (S5a)
 

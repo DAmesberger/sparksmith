@@ -402,6 +402,13 @@ fn stale_malformed_and_outside_folder_calls_change_nothing() -> Fallible {
                 turn: Some("t_1".into()),
                 ..call("layout.add_via", params.clone(), Some(revision))
             },
+            "turn.unknown",
+        ),
+        (
+            Call {
+                job: true,
+                ..call("layout.add_via", params.clone(), Some(revision))
+            },
             "host.unsupported",
         ),
         // Outside the folders: a save and an open.
@@ -570,5 +577,186 @@ fn a_request_reads_as_a_call() -> Fallible {
         return Err("an unknown key was read".into());
     };
     assert_eq!(error.code, "malformed_request");
+    Ok(())
+}
+
+/// A via of the demo's first net at `x`, as parameters.
+fn via_at(session: &Session, x: f64) -> Value {
+    let mut params = via_params(session);
+    params["via"]["position"] = json!([x, 1.0]);
+    params
+}
+
+/// `call` in turn `turn`.
+fn in_turn(turn: &str, call: Call) -> Call {
+    Call {
+        turn: Some(turn.to_owned()),
+        ..call
+    }
+}
+
+/// Opens a turn as `who` and returns its handle.
+fn begin(session: &mut Session, who: Principal<'_>, params: Value) -> Fallible<String> {
+    let reply = run(session, who, call("project.turn_begin", params, None)).map_err(failed)?;
+    reply["turn"]
+        .as_str()
+        .map(str::to_owned)
+        .ok_or_else(|| format!("no handle: {reply}").into())
+}
+
+/// Undo steps the session's engine can take back.
+fn depth(session: &Session) -> usize {
+    let mut fork = session.engine().fork();
+    let mut steps = 0;
+    while fork.undo().is_ok() {
+        steps += 1;
+    }
+    steps
+}
+
+/// An edit of turn `turn`: a via at `x`.
+fn turn_via(session: &mut Session, who: Principal<'_>, turn: &str, x: f64) -> Fallible<Value> {
+    let revision = session.engine().revision();
+    let params = via_at(session, x);
+    run(
+        session,
+        who,
+        in_turn(turn, call("layout.add_via", params, Some(revision))),
+    )
+    .map_err(failed)
+}
+
+/// S4a's acceptance: five applies in a turn undo as one step that reads
+/// the turn's label, and a person's edit in between splits it.
+#[test]
+fn a_turn_undoes_as_one_step_with_its_label() -> Fallible {
+    let mut session = Session::new(Engine::demo()?);
+    let grant = Grant::local_agent([]);
+    let agent = Principal::LocalAgent { grant: &grant };
+    let start = depth(&session);
+    let before = session.engine().to_file();
+    let label = "AI assistant: stitch the ground";
+    let turn = begin(&mut session, agent, json!({"label": label}))?;
+    for x in 0..5 {
+        turn_via(&mut session, agent, &turn, 1.0 + f64::from(x))?;
+    }
+    assert_eq!(depth(&session), start + 1, "five applies, one step");
+    let step = session.engine().undo_step().ok_or("a step")?;
+    assert_eq!(step.line(), label);
+    let revision = session.engine().revision();
+    let undone = run(
+        &mut session,
+        agent,
+        call("project.undo", json!({}), Some(revision)),
+    )
+    .map_err(failed)?;
+    assert_eq!(undone["step"]["label"], label, "{undone}");
+    assert_eq!(session.engine().to_file(), before, "one undo took all five");
+
+    // A person's edit between two of the turn's splits it.
+    let revision = session.engine().revision();
+    run(
+        &mut session,
+        Principal::Person,
+        call("project.redo", json!({}), Some(revision)),
+    )
+    .map_err(failed)?;
+    let revision = session.engine().revision();
+    let params = via_at(&session, 9.0);
+    run(
+        &mut session,
+        Principal::Person,
+        call("layout.add_via", params, Some(revision)),
+    )
+    .map_err(failed)?;
+    turn_via(&mut session, agent, &turn, 10.0)?;
+    turn_via(&mut session, agent, &turn, 11.0)?;
+    assert_eq!(depth(&session), start + 3, "turn, person, turn");
+    let mut fork = session.engine().fork();
+    let mut lines = Vec::new();
+    while let Some(step) = fork.undo_step() {
+        lines.push(step.line());
+        fork.undo()?;
+    }
+    assert_eq!(lines.first().map(String::as_str), Some(label));
+    assert_ne!(
+        lines.get(1).map(String::as_str),
+        Some(label),
+        "the person's"
+    );
+    assert_eq!(lines.get(2).map(String::as_str), Some(label));
+
+    let ended = run(
+        &mut session,
+        agent,
+        call("project.turn_end", json!({"turn": turn}), None),
+    )
+    .map_err(failed)?;
+    assert_eq!(ended["changes"], 7, "{ended}");
+    let revision = session.engine().revision();
+    let Err(error) = turn_via(&mut session, agent, &turn, 12.0) else {
+        return Err("an ended turn ran".into());
+    };
+    assert!(format!("{error}").contains("turn.unknown"), "{error}");
+    assert_eq!(session.engine().revision(), revision);
+    Ok(())
+}
+
+/// A turn past its change or call limit stops with `gate.turn_limit` and
+/// changes nothing; the limit is the lower of the turn's and the grant's.
+#[test]
+fn a_turn_past_its_limit_stops() -> Fallible {
+    let mut session = Session::new(Engine::demo()?);
+    let grant = Grant::local_agent([]);
+    let agent = Principal::LocalAgent { grant: &grant };
+    let turn = begin(
+        &mut session,
+        agent,
+        json!({"label": "Two edits", "changes": 2}),
+    )?;
+    turn_via(&mut session, agent, &turn, 1.0)?;
+    turn_via(&mut session, agent, &turn, 2.0)?;
+    let revision = session.engine().revision();
+    let before = session.engine().to_file();
+    let Err(error) = turn_via(&mut session, agent, &turn, 3.0) else {
+        return Err("a third edit ran".into());
+    };
+    assert!(format!("{error}").contains("gate.turn_limit"), "{error}");
+    assert_eq!(session.engine().to_file(), before);
+    assert_eq!(session.engine().revision(), revision);
+    // Reads still run, within the call limit.
+    run(
+        &mut session,
+        agent,
+        in_turn(&turn, call("project.inspect", json!({}), None)),
+    )
+    .map_err(failed)?;
+
+    // The grant's call limit holds whatever the turn asks.
+    let mut tight = Grant::local_agent([]);
+    tight.limits.calls = 2;
+    let agent = Principal::LocalAgent { grant: &tight };
+    let turn = begin(
+        &mut session,
+        agent,
+        json!({"label": "Three calls", "calls": 100}),
+    )?;
+    for _ in 0..2 {
+        run(
+            &mut session,
+            agent,
+            in_turn(&turn, call("project.inspect", json!({}), None)),
+        )
+        .map_err(failed)?;
+    }
+    let Err(error) = run(
+        &mut session,
+        agent,
+        in_turn(&turn, call("project.inspect", json!({}), None)),
+    ) else {
+        return Err("a third call ran".into());
+    };
+    assert_eq!(error.code, "gate.turn_limit", "{error:?}");
+    assert!(error.instead.is_some(), "{error:?}");
     Ok(())
 }

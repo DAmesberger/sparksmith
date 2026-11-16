@@ -480,6 +480,12 @@ pub enum Request {
     /// Show a workspace, a sheet, the PCB in 2D or 3D, or a draft.
     #[serde(rename = "view.open")]
     ViewOpen(crate::view::OpenParams),
+    /// Turns: open one; its handle goes in the envelope's `turn`.
+    #[serde(rename = "project.turn_begin")]
+    TurnBegin(turns::TurnBeginParams),
+    /// Turns: close one, with what it did.
+    #[serde(rename = "project.turn_end")]
+    TurnEnd(turns::TurnEndParams),
 }
 
 // A new request chooses its permission class here. `project.apply` and
@@ -538,6 +544,8 @@ sparksmith_core::declare_entries!(Request in project {
     ViewContext "view.context" Read "What the window shows" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewSelect "view.select" Show "Select in the window" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewOpen "view.open" Show "Open a workspace or view" [in view, reach(Window), needs(Window), since(1, 0)],
+    TurnBegin "project.turn_begin" Read "Begin a turn" [since(6, 2)],
+    TurnEnd "project.turn_end" Read "End a turn" [since(6, 2)],
 });
 
 impl Request {
@@ -913,6 +921,16 @@ impl Request {
                 "Read a STEP, GLB or .solidcraft model file and report its bodies, materials and bounds.",
                 "Read a STEP AP214/242, GLB or .solidcraft model file and report its bodies (keys, source colours, glTF materials), bounds and whether it has textures, for the import wizard's explicit mapping. Not a document change.",
             ),
+            info::<turns::TurnBeginParams>(
+                "project.turn_begin",
+                "Open a turn: calls naming its handle in turn undo as one step under label, within its limits.",
+                "Open a turn and return its handle. Every call whose envelope names it in turn joins one undo step that reads label; an edit by anyone else in between splits it. changes and calls lower the caller's per-turn limits; a call past either is refused with gate.turn_limit. Not a document change.",
+            ),
+            info::<turns::TurnEndParams>(
+                "project.turn_end",
+                "Close a turn and report its calls and changes.",
+                "Close the turn turn and report its label and how many calls and changes it made. Not a document change.",
+            ),
         ]
     }
 }
@@ -967,6 +985,8 @@ pub struct Session {
     baseline: Option<reply::Baseline>,
     /// The shipped library, when the host gives it (else located).
     shipped: Option<sparksmith_io::shipped::ShippedLibrary>,
+    /// The turns open in this session.
+    pub(crate) turns: turns::Turns,
 }
 
 /// A test fixture, never in the product: a session on the core's fixture
@@ -992,6 +1012,7 @@ impl Session {
             compact: false,
             baseline: None,
             shipped: None,
+            turns: turns::Turns::default(),
         }
     }
     /// A session without a project of its own, for a host that only lends
@@ -1005,6 +1026,10 @@ impl Session {
     }
     pub fn engine(&self) -> &Engine {
         &self.engine
+    }
+    /// The engine, for the front door's undo groups.
+    pub(crate) fn engine_mut(&mut self) -> &mut Engine {
+        &mut self.engine
     }
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
@@ -1367,6 +1392,8 @@ impl Session {
                     request.command(),
                 )));
             }
+            Request::TurnBegin(params) => return self.turns.begin(params).map_err(Error::refused),
+            Request::TurnEnd(params) => return self.turns.end(&params).map_err(Error::refused),
         }
         Ok(self.document_reply())
     }
@@ -1688,6 +1715,7 @@ mod preview;
 mod reply;
 pub mod shipped_parts;
 pub mod surface;
+pub mod turns;
 pub(crate) use reply::take_verbose;
 pub mod sources;
 

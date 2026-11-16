@@ -725,6 +725,8 @@
  "project.save": {"additionalProperties":false,"properties":{"path":{"default":null,"type":["string","null"]}},"type":"object"},
  "project.schema": {"additionalProperties":false,"properties":{"def":{"default":null,"type":["string","null"]},"name":{"default":null,"type":["string","null"]}},"type":"object"},
  "project.set_properties": {"additionalProperties":false,"properties":{"properties":{"$ref":"#/$defs/ProjectProperties"}},"required":["properties"],"type":"object"},
+ "project.turn_begin": {"additionalProperties":false,"properties":{"calls":{"format":"uint32","minimum":0,"type":["integer","null"]},"changes":{"format":"uint32","minimum":0,"type":["integer","null"]},"label":{"type":"string"}},"required":["label"],"type":"object"},
+ "project.turn_end": {"additionalProperties":false,"properties":{"turn":{"type":"string"}},"required":["turn"],"type":"object"},
  "project.undo": {"additionalProperties":false,"properties":{"expected_revision":{"format":"uint64","minimum":0,"type":"integer"}},"required":["expected_revision"],"type":"object"},
  "rules.clear_override": {"additionalProperties":false,"properties":{"key":{"$ref":"#/$defs/RuleKey"}},"required":["key"],"type":"object"},
  "rules.effective": {"additionalProperties":false,"type":"object"},
