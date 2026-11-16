@@ -266,13 +266,18 @@ fn a_removed_module_fails() {
 }
 
 fn schemas_of(zone: Value, required: Value) -> Schemas {
-    Schemas::from([(
-        "layout.a".to_owned(),
-        json!({"schema": {"type": "object",
-                "properties": {"at": {"type": "integer"}, "zone": {"$ref": "#/$defs/0"}},
-                "required": ["at"]},
-            "defs": [{"type": "object", "properties": zone, "required": required}]}),
-    )])
+    Schemas {
+        defs: BTreeMap::from([(
+            "Zone".to_owned(),
+            json!({"type": "object", "properties": zone, "required": required}),
+        )]),
+        entries: BTreeMap::from([(
+            "layout.a".to_owned(),
+            json!({"type": "object",
+                "properties": {"at": {"type": "integer"}, "zone": {"$ref": "#/$defs/Zone"}},
+                "required": ["at"]}),
+        )]),
+    }
 }
 
 fn zone_entries(zone_digest: &str) -> Vec<LockedEntry> {
@@ -324,6 +329,48 @@ fn recorded_schemas_decide_a_changed_parameter() {
         ratchet(&old_lock, &major, &[], both(&old, &required)),
         Vec::<String>::new()
     );
+}
+
+/// Every reference in the recorded schemas names a recorded definition,
+/// every definition is reached, and the catalog compared with itself is
+/// unchanged.
+#[test]
+fn the_recorded_schemas_are_whole() {
+    let now = schemas();
+    let mut reached = BTreeSet::new();
+    let all = now.entries.values().chain(now.defs.values());
+    for schema in all {
+        let mut names = Vec::new();
+        named(schema, &mut names);
+        for name in names {
+            assert!(now.defs.contains_key(name), "{name} is not recorded");
+            reached.insert(name.to_owned());
+        }
+    }
+    let unreached: Vec<&String> = now.defs.keys().filter(|k| !reached.contains(*k)).collect();
+    assert!(unreached.is_empty(), "nothing names {unreached:?}");
+    let both = Compared {
+        old: Some(&now),
+        new: Some(&now),
+    };
+    for name in now.entries.keys() {
+        assert_eq!(
+            both.classify(name).map(|o| o.change),
+            Some(compat::Change::Same),
+            "{name}"
+        );
+    }
+}
+
+/// Two definitions of one name are recorded apart only when they differ.
+#[test]
+fn a_definition_is_shared_only_when_it_is_the_same() {
+    let a = json!({"$defs": {"P": {"type": "integer", "description": "one"}}});
+    let b = json!({"$defs": {"P": {"type": "integer"}}});
+    let c = json!({"$defs": {"P": {"type": "string"}}});
+    let p = json!({"$ref": "#/$defs/P"});
+    assert!(same(&p, &a, &p, &b, &mut BTreeSet::new()));
+    assert!(!same(&p, &a, &p, &c, &mut BTreeSet::new()));
 }
 
 #[test]

@@ -1,15 +1,15 @@
 //! How a parameter schema changed, compared structurally
 //! (`docs/extension-surface.md#what-a-change-needs`).
 //!
-//! Both sides are canonical forms (`{"schema", "defs"}`, references
-//! `#/$defs/N` into `defs`). A parameter schema is what a caller sends, so
+//! Each side is a schema with its definitions by key (references
+//! `#/$defs/<key>`). A parameter schema is what a caller sends, so
 //! a change is compatible when every value the old schema accepted is
 //! still accepted with the same meaning: a new optional property, a new
 //! union variant or enum value, a looser bound, a parameter no longer
 //! required. Anything else, and any keyword this does not know, is a
 //! break.
 use serde_json::{Map, Value};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// What a change needs, in order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -91,15 +91,19 @@ const HANDLED: &[&str] = &[
 ];
 const DEFS: &str = "#/$defs/";
 
-/// How the parameters changed from `old` to `new`, both canonical forms.
-pub fn classify(old: &Value, new: &Value) -> Outcome {
+/// The definitions a schema's references name, by key.
+pub type Defs = BTreeMap<String, Value>;
+
+/// How the parameters changed from `old` to `new`, each with the
+/// definitions its references (`#/$defs/<key>`) name.
+pub fn classify(old: &Value, old_defs: &Defs, new: &Value, new_defs: &Defs) -> Outcome {
     let mut walk = Walk {
-        old_defs: defs(old),
-        new_defs: defs(new),
+        old_defs,
+        new_defs,
         open: HashSet::new(),
         done: HashMap::new(),
     };
-    let mut outcome = walk.compare(&old["schema"], &new["schema"], "");
+    let mut outcome = walk.compare(old, new, "");
     // A definition met twice reports its break once.
     let mut seen = HashSet::new();
     outcome.reasons.retain(|why| seen.insert(why.clone()));
@@ -113,26 +117,17 @@ fn label(value: &Value) -> String {
         .map_or_else(|| value.to_string(), str::to_owned)
 }
 
-fn defs(form: &Value) -> &[Value] {
-    form["defs"].as_array().map_or(&[], Vec::as_slice)
-}
-
 struct Walk<'a> {
-    old_defs: &'a [Value],
-    new_defs: &'a [Value],
+    old_defs: &'a Defs,
+    new_defs: &'a Defs,
     /// Reference pairs being compared: met again, they are taken as the
     /// same (a recursive type).
-    open: HashSet<(usize, usize)>,
-    done: HashMap<(usize, usize), Outcome>,
+    open: HashSet<(String, String)>,
+    done: HashMap<(String, String), Outcome>,
 }
 
-fn reference(schema: &Value) -> Option<usize> {
-    schema
-        .get("$ref")?
-        .as_str()?
-        .strip_prefix(DEFS)?
-        .parse()
-        .ok()
+fn reference(schema: &Value) -> Option<&str> {
+    schema.get("$ref")?.as_str()?.strip_prefix(DEFS)
 }
 
 /// The variants of a schema that is only a union.
@@ -182,7 +177,7 @@ fn types(schema: &Map<String, Value>) -> Option<BTreeSet<&str>> {
 impl Walk<'_> {
     fn compare(&mut self, old: &Value, new: &Value, path: &str) -> Outcome {
         match (reference(old), reference(new)) {
-            (Some(a), Some(b)) => return self.pair(a, b, path),
+            (Some(a), Some(b)) => return self.pair(a.to_owned(), b.to_owned(), path),
             (Some(a), None) => {
                 let resolved = self.old_defs.get(a).cloned().unwrap_or(Value::Null);
                 return self.compare(&resolved, new, path);
@@ -210,18 +205,19 @@ impl Walk<'_> {
         }
     }
 
-    fn pair(&mut self, a: usize, b: usize, path: &str) -> Outcome {
-        if let Some(known) = self.done.get(&(a, b)) {
+    fn pair(&mut self, a: String, b: String, path: &str) -> Outcome {
+        let key = (a, b);
+        if let Some(known) = self.done.get(&key) {
             return known.clone();
         }
-        if !self.open.insert((a, b)) {
+        if !self.open.insert(key.clone()) {
             return Outcome::same();
         }
-        let old = self.old_defs.get(a).cloned().unwrap_or(Value::Null);
-        let new = self.new_defs.get(b).cloned().unwrap_or(Value::Null);
+        let old = self.old_defs.get(&key.0).cloned().unwrap_or(Value::Null);
+        let new = self.new_defs.get(&key.1).cloned().unwrap_or(Value::Null);
         let outcome = self.compare(&old, &new, path);
-        self.open.remove(&(a, b));
-        self.done.insert((a, b), outcome.clone());
+        self.open.remove(&key);
+        self.done.insert(key, outcome.clone());
         outcome
     }
 

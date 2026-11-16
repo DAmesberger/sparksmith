@@ -1,6 +1,21 @@
 use super::*;
 use serde_json::json;
 
+/// [`super::classify`] over `{"schema", "defs": [..]}` forms, the
+/// definitions keyed by their index.
+fn classify(old: &Value, new: &Value) -> Outcome {
+    let defs = |form: &Value| -> Defs {
+        form["defs"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .enumerate()
+            .map(|(i, def)| (i.to_string(), def.clone()))
+            .collect()
+    };
+    super::classify(&old["schema"], &defs(old), &new["schema"], &defs(new))
+}
+
 fn form(schema: Value) -> Value {
     json!({"schema": schema, "defs": []})
 }

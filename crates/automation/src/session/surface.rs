@@ -6,8 +6,8 @@
 //! parameters. The lock records per module its version and digest, and per
 //! entry its class, a schema digest, a digest per parameter and the
 //! required parameters. Beside it, `surface.schemas` keeps each entry's
-//! canonical parameter schema, so [`ratchet`] compares old and new
-//! structurally ([`compat`]) and tells a compatible change (a new entry, a
+//! parameter schema and each type it reaches once ([`Schemas`]), so
+//! [`ratchet`] compares old and new structurally ([`compat`]) and tells a compatible change (a new entry, a
 //! new optional field at any depth, a wider type: a minor bump) from a
 //! breaking one (a removed entry or field, a narrowed type, a new required
 //! field, a stricter class: a major bump). `cargo xtask surface --check`
@@ -24,14 +24,22 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The lock's place in the repository, beside this crate's manifest.
 pub const LOCK_FILE: &str = "surface.lock";
-/// Each entry's canonical parameter schema, beside the lock.
+/// Each entry's parameter schema and the types it reaches, beside the lock.
 pub const SCHEMAS_FILE: &str = "surface.schemas";
 /// The format of [`SCHEMAS_FILE`].
 const SCHEMAS_FORMAT: u64 = 1;
 
-/// Each entry's canonical parameter schema by name, as [`SCHEMAS_FILE`]
-/// records it.
-pub type Schemas = BTreeMap<String, Value>;
+/// What [`SCHEMAS_FILE`] records: each entry's parameter schema, without
+/// the keywords that change no call, and every definition they reach,
+/// once. A definition's key is its type's name (`Name~2` for a second,
+/// different definition of that name), and references read
+/// `#/$defs/<key>`, so a shared type is one line and a change to it one
+/// changed line.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Schemas {
+    pub defs: compat::Defs,
+    pub entries: BTreeMap<String, Value>,
+}
 
 /// Schema keywords that change no call: doc comments and type names.
 const IGNORED: &[&str] = &["description", "title", "$comment", "examples", "$schema"];
@@ -199,25 +207,203 @@ pub fn current() -> Lock {
     }
 }
 
-/// Every entry's canonical parameter schema, by name.
-pub fn schemas() -> Schemas {
-    discovery::entries()
-        .iter()
-        .map(|entry| (entry.name.clone(), canonical(input(entry), entry.root)))
-        .collect()
+/// The name a `$ref` into `$defs` names.
+fn def_name(schema: &Value) -> Option<&str> {
+    schema.get("$ref")?.as_str()?.strip_prefix(DEFS)
 }
 
-/// [`SCHEMAS_FILE`]'s text: one line per entry.
-pub fn schemas_text(schemas: &Schemas) -> Result<String, serde_json::Error> {
-    let mut out = format!("{{\"format\": {SCHEMAS_FORMAT}, \"entries\": {{\n");
-    for (i, (name, form)) in schemas.iter().enumerate() {
+/// The definitions `schema` names, at any depth.
+fn named<'a>(schema: &'a Value, out: &mut Vec<&'a str>) {
+    match schema {
+        Value::Object(object) => {
+            if let Some(name) = def_name(schema) {
+                out.push(name);
+            }
+            for (key, inner) in object {
+                if key != "$defs" {
+                    named(inner, out);
+                }
+            }
+        }
+        Value::Array(items) => items.iter().for_each(|i| named(i, out)),
+        _ => {}
+    }
+}
+
+/// Whether `a` in root `ra` and `b` in root `rb` describe the same values,
+/// the keywords that change no call left out. `assumed` holds the
+/// definition pairs being compared (a recursive type).
+fn same(
+    a: &Value,
+    ra: &Value,
+    b: &Value,
+    rb: &Value,
+    assumed: &mut BTreeSet<(String, String)>,
+) -> bool {
+    if let (Some(x), Some(y)) = (def_name(a), def_name(b)) {
+        if !assumed.insert((x.to_owned(), y.to_owned())) {
+            return true;
+        }
+        return same(&ra["$defs"][x], ra, &rb["$defs"][y], rb, assumed);
+    }
+    match (a, b) {
+        (Value::Object(x), Value::Object(y)) => {
+            let kept = |o: &Map<String, Value>| -> BTreeSet<String> {
+                o.keys()
+                    .filter(|k| !IGNORED.contains(&k.as_str()) && *k != "$defs")
+                    .cloned()
+                    .collect()
+            };
+            let keys = kept(x);
+            keys == kept(y)
+                && keys
+                    .iter()
+                    .all(|k| same(&x[k.as_str()], ra, &y[k.as_str()], rb, assumed))
+        }
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(p, q)| same(p, ra, q, rb, assumed))
+        }
+        _ => a == b,
+    }
+}
+
+/// `value` without the keywords that change no call, its references
+/// renamed by `key`.
+fn keyed(value: &Value, key: &dyn Fn(&str) -> String) -> Value {
+    match value {
+        Value::Object(object) => {
+            let mut out = Map::new();
+            for (name, inner) in object {
+                if IGNORED.contains(&name.as_str()) || name == "$defs" {
+                    continue;
+                }
+                match def_name(value) {
+                    Some(target) if name == "$ref" => {
+                        out.insert(name.clone(), json!(format!("{DEFS}{}", key(target))));
+                    }
+                    _ => {
+                        out.insert(name.clone(), keyed(inner, key));
+                    }
+                }
+            }
+            Value::Object(out)
+        }
+        Value::Array(items) => Value::Array(items.iter().map(|i| keyed(i, key)).collect()),
+        other => other.clone(),
+    }
+}
+
+/// A definition's key: its name, or `name~n` for the n-th different
+/// definition of that name.
+fn def_key(name: &str, index: usize) -> String {
+    if index == 0 {
+        name.to_owned()
+    } else {
+        format!("{name}~{}", index + 1)
+    }
+}
+
+/// Every entry's parameter schema and the definitions they reach, each
+/// distinct definition once ([`Schemas`]).
+pub fn schemas() -> Schemas {
+    let mut entries: Vec<&Entry> = discovery::entries().iter().collect();
+    entries.sort_by(|a, b| a.name.cmp(&b.name));
+    // The catalog's roots; a definition is a root's index and its name.
+    let mut roots: Vec<&'static Value> = Vec::new();
+    let mut reached: Vec<(usize, String)> = Vec::new();
+    let mut seen: BTreeSet<(usize, String)> = BTreeSet::new();
+    let mut entry_roots = Vec::new();
+    for entry in &entries {
+        let r = match roots.iter().position(|r| std::ptr::eq(*r, entry.root)) {
+            Some(i) => i,
+            None => {
+                roots.push(entry.root);
+                roots.len() - 1
+            }
+        };
+        entry_roots.push(r);
+        let mut queue = Vec::new();
+        named(input(entry), &mut queue);
+        while let Some(name) = queue.pop() {
+            if seen.insert((r, name.to_owned())) {
+                reached.push((r, name.to_owned()));
+                named(&entry.root["$defs"][name], &mut queue);
+            }
+        }
+    }
+    // Each distinct definition of a name once, in the order first reached.
+    let mut keys: HashMap<(usize, String), String> = HashMap::new();
+    let mut classes: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+    for (r, name) in &reached {
+        let reps = classes.entry(name.clone()).or_default();
+        let found = reps.iter().position(|rep| {
+            let (Some(a), Some(b)) = (roots.get(*rep), roots.get(*r)) else {
+                return false;
+            };
+            let (x, y) = (&a["$defs"][name.as_str()], &b["$defs"][name.as_str()]);
+            same(x, a, y, b, &mut BTreeSet::new())
+        });
+        let index = found.unwrap_or_else(|| {
+            reps.push(*r);
+            reps.len() - 1
+        });
+        keys.insert((*r, name.clone()), def_key(name, index));
+    }
+    let key_in = |r: usize| {
+        let keys = &keys;
+        move |name: &str| {
+            keys.get(&(r, name.to_owned()))
+                .cloned()
+                .unwrap_or_else(|| name.to_owned())
+        }
+    };
+    let mut defs = compat::Defs::new();
+    for (name, reps) in &classes {
+        for (index, r) in reps.iter().enumerate() {
+            let Some(root) = roots.get(*r) else { continue };
+            let def = keyed(&root["$defs"][name.as_str()], &key_in(*r));
+            defs.insert(def_key(name, index), def);
+        }
+    }
+    let mut out = Schemas::default();
+    for (entry, r) in entries.iter().zip(entry_roots) {
+        out.entries
+            .insert(entry.name.clone(), keyed(input(entry), &key_in(r)));
+    }
+    // A shared definition is recorded from one root, so another root's
+    // copy of a type it names may be named by nothing: keep only what the
+    // entries reach.
+    let mut queue = Vec::new();
+    out.entries.values().for_each(|e| named(e, &mut queue));
+    while let Some(key) = queue.pop() {
+        if !out.defs.contains_key(key)
+            && let Some(def) = defs.get(key)
+        {
+            out.defs.insert(key.to_owned(), def.clone());
+            named(def, &mut queue);
+        }
+    }
+    out
+}
+
+fn lines(out: &mut String, map: &BTreeMap<String, Value>) -> Result<(), serde_json::Error> {
+    for (i, (name, schema)) in map.iter().enumerate() {
         out.push_str(&format!(
             " {}: {}{}\n",
             serde_json::to_string(name)?,
-            serde_json::to_string(form)?,
-            if i + 1 < schemas.len() { "," } else { "" }
+            serde_json::to_string(schema)?,
+            if i + 1 < map.len() { "," } else { "" }
         ));
     }
+    Ok(())
+}
+
+/// [`SCHEMAS_FILE`]'s text: one line per definition and per entry.
+pub fn schemas_text(schemas: &Schemas) -> Result<String, serde_json::Error> {
+    let mut out = format!("{{\"format\": {SCHEMAS_FORMAT},\n\"defs\": {{\n");
+    lines(&mut out, &schemas.defs)?;
+    out.push_str("},\n\"entries\": {\n");
+    lines(&mut out, &schemas.entries)?;
     out.push_str("}}\n");
     Ok(out)
 }
@@ -232,13 +418,17 @@ pub fn read_schemas(text: &str) -> Result<Schemas, String> {
             value["format"]
         ));
     }
-    match value.get("entries") {
-        Some(Value::Object(entries)) => Ok(entries
+    let table = |key: &str| match value.get(key) {
+        Some(Value::Object(map)) => Ok(map
             .iter()
-            .map(|(name, form)| (name.clone(), form.clone()))
+            .map(|(name, schema)| (name.clone(), schema.clone()))
             .collect()),
-        _ => Err(format!("{SCHEMAS_FILE} has no entries")),
-    }
+        _ => Err(format!("{SCHEMAS_FILE} has no {key}")),
+    };
+    Ok(Schemas {
+        defs: table("defs")?,
+        entries: table("entries")?,
+    })
 }
 
 /// The schemas a ratchet compares: the recorded ones, when there are, and
@@ -252,9 +442,13 @@ pub struct Compared<'a> {
 impl Compared<'_> {
     /// How `name`'s parameters changed, when both sides are recorded.
     fn classify(&self, name: &str) -> Option<compat::Outcome> {
-        let old = self.old?.get(name)?;
-        let new = self.new?.get(name)?;
-        Some(compat::classify(old, new))
+        let (old, new) = (self.old?, self.new?);
+        Some(compat::classify(
+            old.entries.get(name)?,
+            &old.defs,
+            new.entries.get(name)?,
+            &new.defs,
+        ))
     }
 }
 
