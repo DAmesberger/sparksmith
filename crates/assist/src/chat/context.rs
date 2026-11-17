@@ -20,7 +20,7 @@
 //!   boundary, if the prompt is still above [`Policy::target`], the earlier
 //!   turns' prose is summarised by the model into that record
 //!   ([`summarise`]).
-use crate::model::{Message, ModelBackend, ModelRequest, Part, Role};
+use crate::model::{Message, ModelReply, ModelRequest, Part, Role, StopReason};
 use serde_json::{Map, Value};
 use std::time::Duration;
 
@@ -556,10 +556,10 @@ fn latest_turn(history: &[Message]) -> Option<usize> {
 /// history is then unchanged).
 pub fn summarise(
     history: &mut Vec<Message>,
-    backend: &mut dyn ModelBackend,
     prompt: &str,
     max_output_tokens: u32,
     timeout: Duration,
+    send: impl FnOnce(&ModelRequest<'_>) -> Option<ModelReply>,
 ) -> Option<(usize, String)> {
     let cut = latest_turn(history).filter(|cut| *cut > 0)?;
     let record = record(&history[..cut]);
@@ -603,7 +603,10 @@ pub fn summarise(
         max_output_tokens,
         timeout,
     };
-    let reply = backend.send(&request).ok()?;
+    let reply = send(&request)?;
+    if reply.stop != StopReason::EndTurn {
+        return None;
+    }
     let summary: String = reply
         .content
         .iter()

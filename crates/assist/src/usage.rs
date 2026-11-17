@@ -36,19 +36,12 @@ impl Usage {
     }
 }
 
-/// Requests and tokens so far, which the run's caps are checked against.
+/// Attempted requests and reported tokens so far. The shared request driver
+/// counts an attempt before sending; failed attempts may have no token report.
 #[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
 pub struct Tally {
     pub usage: Usage,
     pub requests: u32,
-}
-
-impl Tally {
-    /// Count one response.
-    pub fn book(&mut self, usage: &Usage) {
-        self.usage.add(usage);
-        self.requests = self.requests.saturating_add(1);
-    }
 }
 
 #[cfg(test)]
@@ -56,18 +49,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_tally_counts_requests_and_all_four_token_kinds() {
+    fn usage_adds_all_four_reported_token_kinds() {
         let usage = Usage {
             input_tokens: 1_000,
             output_tokens: 2_000,
             cache_write_tokens: 100_000,
             cache_read_tokens: 1_000_000,
         };
-        let mut tally = Tally::default();
-        tally.book(&usage);
-        tally.book(&usage);
-        assert_eq!(tally.requests, 2);
-        assert_eq!(tally.usage.prompt(), 2 * 1_101_000);
-        assert_eq!(tally.usage.output_tokens, 4_000);
+        let mut total = Usage::default();
+        total.add(&usage);
+        total.add(&usage);
+        assert_eq!(total.prompt(), 2 * 1_101_000);
+        assert_eq!(total.output_tokens, 4_000);
     }
 }

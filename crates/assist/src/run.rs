@@ -11,15 +11,14 @@
 use crate::desk::{self, Called, Desk};
 use crate::documents::{self, Prepared};
 use crate::model::{
-    Budget, Delta, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role,
-    StopReason, ToolSpec, appended_chars,
+    Budget, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason,
+    ToolSpec, appended_chars,
 };
 use crate::profile::{AssistLibrary, ReachProfile, RunProfile};
 use crate::report::{self, RequestFacts, ReviewReport, RunFacts};
 use crate::usage::Tally;
 use crate::verbs;
-use crate::workflow::control::Gauge;
-use crate::{CallState, Error, Event, Goal, Meter, Outcome, Result, Stop, legacy};
+use crate::{CallState, Error, Event, Goal, Outcome, Result, Stop, legacy};
 use serde_json::{Value, json};
 use sparksmith_automation::session::assist::Documents;
 use sparksmith_automation::{Grant, Session};
@@ -550,6 +549,10 @@ pub(crate) fn converse(
         document_tokens,
         max_requests,
     } = conversation;
+    let request_budget = Budget {
+        max_requests,
+        ..*budget
+    };
     let finish = driver.context.finish;
     let started = driver.started;
     let cancel = driver.cancel;
@@ -569,23 +572,20 @@ pub(crate) fn converse(
     let stop = loop {
         let tally = &mut *driver.tally;
         let facts = &mut *driver.facts;
-        if cancel.load(Ordering::Relaxed) {
-            break Stop::Cancelled;
-        }
-        if tally.requests >= max_requests {
-            break Stop::Budget(format!("{max_requests} requests"));
-        }
-        let left = budget.max_duration.saturating_sub(started.elapsed());
-        if left.is_zero() {
-            break Stop::Budget(format!(
-                "{} seconds of run time",
-                budget.max_duration.as_secs()
-            ));
-        }
-        let output_left = budget
-            .max_output_tokens
-            .saturating_sub(tally.usage.output_tokens);
-        if output_left < u64::from(limit) {
+        let allowance = match (crate::request::Driver {
+            backend,
+            budget: &request_budget,
+            started,
+            tally,
+            cancel,
+            events,
+        })
+        .allowance()
+        {
+            Ok(allowance) => allowance,
+            Err(stop) => break stop.into(),
+        };
+        if allowance.output < u64::from(limit) {
             break Stop::Budget(format!("{} output tokens", budget.max_output_tokens));
         }
         let mut request = ModelRequest {
@@ -593,7 +593,7 @@ pub(crate) fn converse(
             tools: specs,
             messages: &messages,
             max_output_tokens: limit,
-            timeout: profile.request_timeout.min(left),
+            timeout: profile.request_timeout.min(allowance.duration),
         };
         let prompt_tokens = if first {
             // Count exactly when the backend can; otherwise the estimate.
@@ -617,52 +617,23 @@ pub(crate) fn converse(
         }
         request.max_output_tokens = u32::try_from(room.min(u64::from(limit))).unwrap_or(limit);
         let requested = u64::from(request.max_output_tokens);
-        let used = tally
-            .usage
-            .prompt()
-            .saturating_add(tally.usage.output_tokens);
-        if used.saturating_add(prompt_tokens).saturating_add(requested) > budget.max_total_tokens {
-            break Stop::Budget(format!(
-                "{} tokens: {used} used, and the next request could take {}",
-                budget.max_total_tokens,
-                prompt_tokens + requested
-            ));
-        }
-        let n = tally.requests + 1;
-        events(Event::Request { n, prompt_tokens });
-        let sent = Instant::now();
-        let mut delta = |delta: Delta| {
-            events(match delta {
-                Delta::Text(text) => Event::TextDelta(text),
-                Delta::Reasoning(text) => Event::ReasoningDelta(text),
-                Delta::ToolCall { index, name } => Event::Call {
-                    request: n,
-                    call: index,
-                    name,
-                    state: CallState::Writing,
-                },
-            });
+        let received = match (crate::request::Driver {
+            backend,
+            budget: &request_budget,
+            started,
+            tally,
+            cancel,
+            events,
+        })
+        .send(&request, prompt_tokens, true)
+        {
+            Ok(received) => received,
+            Err(stop) => break stop.into(),
         };
-        let reply = match backend.stream(&request, &mut delta, cancel) {
-            Ok(r) => r,
-            Err(e) => {
-                let over = budget
-                    .max_duration
-                    .saturating_sub(started.elapsed())
-                    .is_zero();
-                break if over {
-                    Stop::Budget(format!(
-                        "{} seconds of run time, during request {n}",
-                        budget.max_duration.as_secs()
-                    ))
-                } else {
-                    Stop::Failed(e.to_string())
-                };
-            }
-        };
+        let n = received.n;
+        let seconds = received.seconds;
+        let reply = received.reply;
         first = false;
-        let seconds = sent.elapsed().as_secs_f64();
-        tally.book(&reply.usage);
         facts.usage_estimated |= reply.usage_estimated;
         if let Some(warning) = check_prompt(&reply, n, last_prompt, document_tokens) {
             events(Event::Warning(warning.clone()));
@@ -688,13 +659,9 @@ pub(crate) fn converse(
             seconds,
             tools: Vec::new(),
         });
-        events(Event::Response {
-            n,
-            stop_reason: stop_label,
-            output_tokens: reply.usage.output_tokens,
-            seconds,
-        });
-        events(Event::Usage(meter(tally, budget, started)));
+        if let Some(stop) = received.terminal {
+            break stop.into();
+        }
         if reply.stop == StopReason::Stopped {
             // Stopped between chunks: the incomplete reply is never used.
             break Stop::Cancelled;
@@ -888,31 +855,6 @@ pub(crate) fn converse(
         }
     };
     (stop, finished)
-}
-
-/// The run's use against its budget, for the chat's meter.
-pub(crate) fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
-    Meter {
-        requests: Gauge {
-            used: tally.requests.into(),
-            limit: budget.max_requests.into(),
-        },
-        output_tokens: Gauge {
-            used: tally.usage.output_tokens,
-            limit: budget.max_output_tokens,
-        },
-        tokens: Gauge {
-            used: tally
-                .usage
-                .prompt()
-                .saturating_add(tally.usage.output_tokens),
-            limit: budget.max_total_tokens,
-        },
-        minutes: Gauge {
-            used: started.elapsed().as_secs() / 60,
-            limit: budget.max_duration.as_secs().div_ceil(60),
-        },
-    }
 }
 
 fn result(id: String, text: &str, error: bool, images: Vec<Image>) -> Part {

@@ -1,8 +1,8 @@
 //! The HTTP seam under the backends: one JSON POST in, one JSON value out,
-//! or a stream of server-sent events. [`HttpWire`] is the only code that
-//! holds a key at request time. It follows no redirects (a redirect could
-//! carry the key elsewhere), bounds the response, and removes the key from
-//! everything it returns.
+//! or a stream of server-sent events. [`HttpWire`] owns the connection key
+//! and lends an opaque per-stream redactor to the backend. It follows no
+//! redirects, bounds responses, and cleans both decoded observer deltas
+//! and final replies (including decoded tool arguments).
 use super::stream::{self, SseEvent, Streamed};
 use super::{Endpoint, Secret};
 use crate::{Error, Result};
@@ -48,6 +48,14 @@ pub trait Wire {
     /// a key split across two of them is whole again here.
     fn clean_value(&self, value: Value) -> Value {
         value
+    }
+    /// Filter decoded content before it reaches a streaming observer.
+    fn redactor(&self) -> super::redact::Redactor {
+        super::redact::Redactor::default()
+    }
+    /// Clean the neutral reply too, after tool arguments have been decoded.
+    fn clean_reply(&self, reply: super::ModelReply) -> Result<super::ModelReply> {
+        Ok(reply)
     }
 }
 
@@ -109,7 +117,7 @@ impl Wire for HttpWire {
     ) -> Result<Value> {
         let mut response = self.send(path, headers, body, timeout)?;
         let text = self.read_text(&mut response)?;
-        reply_value(&text)
+        reply_value(&text).map(|value| self.clean_value(value))
     }
 
     fn post_stream(
@@ -130,10 +138,11 @@ impl Wire for HttpWire {
             // Not a stream: one reply, or events under another type.
             let text = self.read_text(&mut response)?;
             return match serde_json::from_str::<Value>(&text) {
-                Ok(value) => Ok(Streamed::Whole(value)),
+                Ok(value) => Ok(Streamed::Whole(self.clean_value(value))),
                 Err(_) => {
                     let stopped =
-                        stream::read_sse(&mut text.as_bytes(), &|line| line.to_owned(), on)?;
+                        stream::read_sse(&mut text.as_bytes(), &|line| line.to_owned(), on)
+                            .map_err(|e| Error::Http(self.clean(&e.to_string())))?;
                     Ok(if stopped {
                         Streamed::Stopped
                     } else {
@@ -159,16 +168,61 @@ impl Wire for HttpWire {
         })
     }
 
-    fn clean_value(&self, value: Value) -> Value {
+    fn clean_value(&self, mut value: Value) -> Value {
         let Some(key) = &self.key else {
             return value;
         };
-        let text = value.to_string();
-        let cleaned = key.redact(&text);
-        if cleaned == text {
-            return value;
+        fn clean(value: &mut Value, key: &Secret) {
+            match value {
+                Value::String(text) => *text = key.redact(text),
+                Value::Array(items) => items.iter_mut().for_each(|v| clean(v, key)),
+                Value::Object(fields) => {
+                    *fields = std::mem::take(fields)
+                        .into_iter()
+                        .map(|(name, mut v)| {
+                            clean(&mut v, key);
+                            (key.redact(&name), v)
+                        })
+                        .collect();
+                }
+                _ => {}
+            }
         }
-        serde_json::from_str(&cleaned).unwrap_or(value)
+        clean(&mut value, key);
+        value
+    }
+
+    fn redactor(&self) -> super::redact::Redactor {
+        super::redact::Redactor::new(self.key.clone())
+    }
+
+    fn clean_reply(&self, reply: super::ModelReply) -> Result<super::ModelReply> {
+        let Some(key) = &self.key else {
+            return Ok(reply);
+        };
+        let reply: super::ModelReply =
+            serde_json::from_value(self.clean_value(serde_json::to_value(reply)?))?;
+        // Separate content blocks can reconstruct a credential even though
+        // every individual JSON string is clean. Refuse the final reply:
+        // rewriting block boundaries or signed replay would change its meaning.
+        // HTTP response size already bounds these temporary channel buffers.
+        for reasoning in [false, true] {
+            let channel: String = reply
+                .content
+                .iter()
+                .filter_map(|part| match part {
+                    super::Part::Text { text, .. } if !reasoning => Some(text.as_str()),
+                    super::Part::Reasoning { text, .. } if reasoning => Some(text.as_str()),
+                    _ => None,
+                })
+                .collect();
+            if channel.contains(key.expose()) {
+                return Err(Error::Protocol(
+                    "the model response contained a credential across content blocks".into(),
+                ));
+            }
+        }
+        Ok(reply)
     }
 }
 
@@ -215,7 +269,7 @@ impl HttpWire {
             let value = serde_json::from_str::<Value>(&text);
             return Err(Error::Api {
                 status,
-                message: error_message(value.as_ref().ok(), &text),
+                message: self.clean(&error_message(value.as_ref().ok(), &text)),
             });
         }
         Ok(response)
@@ -390,6 +444,319 @@ mod tests {
     }
 
     const LONG: Duration = Duration::from_secs(20);
+
+    #[test]
+    fn streamed_key_split_at_every_boundary_is_hidden_before_observers() -> Result<()> {
+        use crate::model::{Delta, ModelBackend, ModelProfile, ModelRequest};
+        use std::sync::atomic::AtomicBool;
+        let key = "sk-dummy-review-key";
+        for split in 0..=key.len() {
+            let events = [
+                json!({"choices": [{"delta": {"content": format!("Before {}", &key[..split])}}]}),
+                json!({"choices": [{"delta": {"content": format!("{} after", &key[split..])}, "finish_reason": "stop"}]}),
+            ];
+            let body = format!(
+                "data: {}\n\ndata: {}\n\ndata: [DONE]\n\n",
+                events[0], events[1]
+            );
+            let (base, handle) = server(format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            ))?;
+            let wire = HttpWire::new(Endpoint::parse(&base)?, Secret::new(key), AuthStyle::Bearer)?;
+            let mut backend = crate::model::openai::OpenAiBackend::new(
+                ModelProfile::openai_compatible("test", 32_768),
+                wire,
+            );
+            let request = ModelRequest {
+                system: "",
+                tools: &[],
+                messages: &[],
+                max_output_tokens: 100,
+                timeout: LONG,
+            };
+            let mut shown = String::new();
+            let reply = backend.stream(
+                &request,
+                &mut |d| {
+                    if let Delta::Text(t) = d {
+                        shown.push_str(&t);
+                    }
+                },
+                &AtomicBool::new(false),
+            )?;
+            let _ = handle.join();
+            assert_eq!(shown, "Before [redacted] after", "split {split}");
+            assert!(!format!("{reply:?}").contains(key));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn anthropic_text_and_thinking_redact_split_keys_before_observers() -> Result<()> {
+        use crate::model::{Delta, ModelBackend, ModelProfile, ModelRequest};
+        use std::sync::atomic::AtomicBool;
+        let key = "sk-dummy-review-key";
+        for field in ["text", "thinking"] {
+            for split in 0..=key.len() {
+                let mut events = vec![
+                    json!({"type": "message_start", "message": {"model": "test", "usage": {"input_tokens": 1}}}),
+                    json!({"type": "content_block_start", "index": 0, "content_block": {"type": field, (field): ""}}),
+                ];
+                for text in [
+                    format!("Before {}", &key[..split]),
+                    format!("{} after", &key[split..]),
+                ] {
+                    events.push(json!({"type": "content_block_delta", "index": 0, "delta": {"type": format!("{field}_delta"), (field): text}}));
+                }
+                events.extend([
+                    json!({"type": "content_block_stop", "index": 0}),
+                    json!({"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 1}}),
+                    json!({"type": "message_stop"}),
+                ]);
+                let body: String = events
+                    .iter()
+                    .map(|v| {
+                        format!(
+                            "event: {}\ndata: {v}\n\n",
+                            v["type"].as_str().unwrap_or_default()
+                        )
+                    })
+                    .collect();
+                let (base, handle) = server(format!(
+                    "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    body.len()
+                ))?;
+                let wire = HttpWire::new(
+                    Endpoint::parse(&base)?,
+                    Secret::new(key),
+                    AuthStyle::ApiKeyHeader,
+                )?;
+                let mut backend = crate::model::anthropic::AnthropicBackend::new(
+                    ModelProfile::anthropic("test"),
+                    wire,
+                );
+                let request = ModelRequest {
+                    system: "",
+                    tools: &[],
+                    messages: &[],
+                    max_output_tokens: 100,
+                    timeout: LONG,
+                };
+                let mut shown = String::new();
+                let reply = backend.stream(
+                    &request,
+                    &mut |d| match d {
+                        Delta::Text(t) | Delta::Reasoning(t) => shown.push_str(&t),
+                        _ => {}
+                    },
+                    &AtomicBool::new(false),
+                )?;
+                let _ = handle.join();
+                assert_eq!(shown, "Before [redacted] after", "{field} split {split}");
+                assert!(!format!("{reply:?}").contains(key));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn escaped_json_strings_and_decoded_tool_arguments_are_cleaned() -> Result<()> {
+        let key = "sk-quote\"key";
+        let (base, handle) = server(http("200 OK", &json!({"value": key}).to_string()))?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, Secret::new(key), AuthStyle::Bearer)?;
+        let value = wire.post("/test", &[], &json!({}), LONG)?;
+        let _ = handle.join();
+        assert_eq!(value["value"], "[redacted]");
+        let reply = super::super::ModelReply {
+            model: "script".into(),
+            content: vec![super::super::Part::ToolCall {
+                id: "call".into(),
+                name: "query".into(),
+                input: json!({"value": key}),
+                malformed: None,
+                replay: None,
+            }],
+            stop: super::super::StopReason::ToolCalls,
+            usage: Default::default(),
+            usage_estimated: false,
+        };
+        let cleaned = wire.clean_reply(reply)?;
+        assert!(!format!("{cleaned:?}").contains(key));
+        assert!(serde_json::to_string(&cleaned)?.contains("[redacted]"));
+        Ok(())
+    }
+
+    #[test]
+    fn keys_split_across_final_blocks_are_refused_without_rewriting_replay() -> Result<()> {
+        use crate::model::{ModelBackend, ModelProfile, ModelRequest};
+        use std::sync::atomic::AtomicBool;
+        let key = "sk-dummy-review-key";
+        for field in ["text", "thinking"] {
+            for streamed in [false, true] {
+                let body = json!({
+                    "model": "test", "stop_reason": "end_turn",
+                    "usage": {"input_tokens": 1, "output_tokens": 1},
+                    "content": [
+                        {"type": field, (field): format!("Before {}", &key[..6]), "signature": "signed-a"},
+                        {"type": "tool_use", "id": "call", "name": "query", "input": {}},
+                        {"type": field, (field): format!("{} after", &key[6..]), "signature": "signed-b"}
+                    ]
+                });
+                let (base, handle) = server(http("200 OK", &body.to_string()))?;
+                let wire = HttpWire::new(
+                    Endpoint::parse(&base)?,
+                    Secret::new(key),
+                    AuthStyle::ApiKeyHeader,
+                )?;
+                let mut backend = crate::model::anthropic::AnthropicBackend::new(
+                    ModelProfile::anthropic("test"),
+                    wire,
+                );
+                let request = ModelRequest {
+                    system: "",
+                    tools: &[],
+                    messages: &[],
+                    max_output_tokens: 100,
+                    timeout: LONG,
+                };
+                let mut deltas = Vec::new();
+                let result = if streamed {
+                    backend.stream(
+                        &request,
+                        &mut |delta| deltas.push(delta),
+                        &AtomicBool::new(false),
+                    )
+                } else {
+                    backend.send(&request)
+                };
+                let _ = handle.join();
+                assert!(
+                    matches!(result, Err(Error::Protocol(ref why)) if why == "the model response contained a credential across content blocks"),
+                    "{field}: {result:?}"
+                );
+                assert!(
+                    deltas.is_empty(),
+                    "whole responses are checked before observers"
+                );
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn decoded_http_errors_never_echo_a_json_escaped_key() -> Result<()> {
+        let key = "sk-dummy-review-key";
+        let body = json!({"error": {"type": key, "message": format!("Invalid {key}")}})
+            .to_string()
+            .replace("dummy", "\\u0064ummy");
+        let (base, handle) = server(http("400 Bad Request", &body))?;
+        let mut wire = HttpWire::new(Endpoint::parse(&base)?, Secret::new(key), AuthStyle::Bearer)?;
+        let error = wire
+            .post("/test", &[], &json!({}), LONG)
+            .err()
+            .ok_or_else(|| Error::Protocol("expected API error".into()))?;
+        let _ = handle.join();
+        assert!(!error.to_string().contains(key));
+        assert!(error.to_string().contains("[redacted]"));
+        Ok(())
+    }
+
+    #[test]
+    fn decoded_errors_in_mislabeled_event_streams_are_redacted() -> Result<()> {
+        use crate::model::{ModelBackend, ModelProfile, ModelRequest};
+        let key = "sk-dummy-review-key";
+        let event = json!({"type": "error", "error": {"type": "api_error", "message": key}})
+            .to_string()
+            .replace("dummy", "\\u0064ummy");
+        let body = format!("event: error\ndata: {event}\n\n");
+        // JSON content-type, but an SSE body: this takes the fallback reader.
+        let (base, handle) = server(http("200 OK", &body))?;
+        let wire = HttpWire::new(
+            Endpoint::parse(&base)?,
+            Secret::new(key),
+            AuthStyle::ApiKeyHeader,
+        )?;
+        let mut backend =
+            crate::model::anthropic::AnthropicBackend::new(ModelProfile::anthropic("test"), wire);
+        let request = ModelRequest {
+            system: "",
+            tools: &[],
+            messages: &[],
+            max_output_tokens: 100,
+            timeout: LONG,
+        };
+        let error = backend
+            .stream(
+                &request,
+                &mut |_| {},
+                &std::sync::atomic::AtomicBool::new(false),
+            )
+            .err()
+            .ok_or_else(|| Error::Protocol("expected stream error".into()))?;
+        let _ = handle.join();
+        assert!(!error.to_string().contains(key));
+        assert!(error.to_string().contains("[redacted]"));
+        Ok(())
+    }
+
+    #[test]
+    fn interleaved_streams_redact_each_observer_channel() -> Result<()> {
+        use crate::model::{Delta, ModelBackend, ModelProfile, ModelRequest};
+        let key = "sk-dummy-review-key";
+        for (field, other) in [
+            ("content", "reasoning_content"),
+            ("reasoning_content", "content"),
+        ] {
+            let events = [
+                json!({"choices": [{"delta": {(field): "sk-dummy-"}}]}),
+                json!({"choices": [{"delta": {(other): "unrelated middle"}}]}),
+                json!({"choices": [{"delta": {(field): "review-key"}, "finish_reason": "stop"}]}),
+            ];
+            let body = format!(
+                "{}data: [DONE]\n\n",
+                events
+                    .iter()
+                    .map(|e| format!("data: {e}\n\n"))
+                    .collect::<String>()
+            );
+            let (base, handle) = server(format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            ))?;
+            let wire = HttpWire::new(Endpoint::parse(&base)?, Secret::new(key), AuthStyle::Bearer)?;
+            let mut backend = crate::model::openai::OpenAiBackend::new(
+                ModelProfile::openai_compatible("test", 32_768),
+                wire,
+            );
+            let request = ModelRequest {
+                system: "",
+                tools: &[],
+                messages: &[],
+                max_output_tokens: 100,
+                timeout: LONG,
+            };
+            let (mut text, mut thinking) = (String::new(), String::new());
+            backend.stream(
+                &request,
+                &mut |d| match d {
+                    Delta::Text(t) => text.push_str(&t),
+                    Delta::Reasoning(t) => thinking.push_str(&t),
+                    _ => {}
+                },
+                &std::sync::atomic::AtomicBool::new(false),
+            )?;
+            let _ = handle.join();
+            let (protected, unchanged) = if field == "content" {
+                (&text, &thinking)
+            } else {
+                (&thinking, &text)
+            };
+            assert_eq!(protected, "[redacted]");
+            assert_eq!(unchanged, "unrelated middle");
+        }
+        Ok(())
+    }
 
     #[test]
     fn a_real_post_carries_the_key_only_in_its_header_and_hides_an_echoed_key() -> Result<()> {

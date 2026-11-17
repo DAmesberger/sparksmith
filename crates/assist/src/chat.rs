@@ -14,8 +14,7 @@
 //! tool call's row from `Running` to how it ended, and [`Event::Usage`]
 //! against the turn's [`Budget`].
 use crate::model::{
-    Budget, Delta, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason,
-    ToolSpec,
+    Budget, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason, ToolSpec,
 };
 use crate::usage::Tally;
 use crate::{Error, Result};
@@ -203,6 +202,16 @@ pub enum End {
     Failed(String),
 }
 
+impl From<crate::request::Stopped> for End {
+    fn from(stop: crate::request::Stopped) -> Self {
+        match stop {
+            crate::request::Stopped::Cancelled => Self::Stopped,
+            crate::request::Stopped::Limit(why) => Self::Limit(why),
+            crate::request::Stopped::Failed(why) => Self::Failed(why),
+        }
+    }
+}
+
 impl std::fmt::Display for End {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -277,10 +286,30 @@ pub fn turn(
         && share(history) > policy.target
         && let Some((turns, record)) = context::summarise(
             history,
-            backend,
             &config.condense,
-            profile.output.per_request,
+            u32::try_from(u64::from(profile.output.per_request).min(budget.max_output_tokens))
+                .unwrap_or(profile.output.per_request),
             profile.request_timeout,
+            |request| {
+                let prompt = request
+                    .messages
+                    .iter()
+                    .map(|message| crate::model::appended_chars(&message.content))
+                    .fold(request.system.len() as u64, u64::saturating_add)
+                    .div_ceil(CHARS_PER_TOKEN);
+                crate::request::Driver {
+                    backend,
+                    budget,
+                    started,
+                    tally: &mut tally,
+                    cancel,
+                    events,
+                }
+                .send(request, prompt, false)
+                .ok()
+                .filter(|received| received.terminal.is_none())
+                .map(|received| received.reply)
+            },
         )
     {
         let shown = condensed.get_or_insert(Condensed {
@@ -298,26 +327,20 @@ pub fn turn(
         events(Event::Condensed(condensed));
     }
     let end = loop {
-        if cancel.load(Ordering::Relaxed) {
-            break End::Stopped;
-        }
-        if tally.requests >= budget.max_requests {
-            break End::Limit(format!("{} requests", budget.max_requests));
-        }
-        let left = budget.max_duration.saturating_sub(started.elapsed());
-        if left.is_zero() {
-            break End::Limit(format!(
-                "{} minutes",
-                budget.max_duration.as_secs().div_ceil(60)
-            ));
-        }
-        let output_left = budget
-            .max_output_tokens
-            .saturating_sub(tally.usage.output_tokens);
-        let limit = u64::from(profile.output.per_request).min(output_left);
-        if limit == 0 {
-            break End::Limit(format!("{} output tokens", budget.max_output_tokens));
-        }
+        let allowance = match (crate::request::Driver {
+            backend,
+            budget,
+            started,
+            tally: &mut tally,
+            cancel,
+            events,
+        })
+        .allowance()
+        {
+            Ok(allowance) => allowance,
+            Err(stop) => break stop.into(),
+        };
+        let limit = u64::from(profile.output.per_request).min(allowance.output);
         // Between requests: replies read and moved past go, together.
         let before = estimate(history);
         let cleared = context::clear_settled(history, policy);
@@ -337,54 +360,31 @@ pub fn turn(
             }));
         }
         let prompt = estimate(history);
-        let used = tally
-            .usage
-            .prompt()
-            .saturating_add(tally.usage.output_tokens);
-        if used.saturating_add(prompt).saturating_add(limit) > budget.max_total_tokens {
-            break End::Limit(format!(
-                "{} tokens: {used} used, and the next request could take {}",
-                budget.max_total_tokens,
-                prompt + limit
-            ));
-        }
         let request = ModelRequest {
             system: &config.system,
             tools: &config.tools,
             messages: history,
             max_output_tokens: u32::try_from(limit).unwrap_or(profile.output.per_request),
-            timeout: profile.request_timeout.min(left),
+            timeout: profile.request_timeout.min(allowance.duration),
         };
-        let n = tally.requests.saturating_add(1);
-        events(Event::Request {
-            n,
-            prompt_tokens: prompt,
-        });
-        let sent = Instant::now();
-        let mut delta = |delta: Delta| {
-            events(match delta {
-                Delta::Text(text) => Event::TextDelta(text),
-                Delta::Reasoning(text) => Event::ReasoningDelta(text),
-                Delta::ToolCall { index, name } => Event::Call {
-                    request: n,
-                    call: index,
-                    name,
-                    state: CallState::Writing,
-                },
-            });
+        let received = match (crate::request::Driver {
+            backend,
+            budget,
+            started,
+            tally: &mut tally,
+            cancel,
+            events,
+        })
+        .send(&request, prompt, true)
+        {
+            Ok(received) => received,
+            Err(stop) => break stop.into(),
         };
-        let reply = match backend.stream(&request, &mut delta, cancel) {
-            Ok(reply) => reply,
-            Err(error) => break End::Failed(error.to_string()),
-        };
-        tally.book(&reply.usage);
-        events(Event::Response {
-            n,
-            stop_reason: reply.stop.label(),
-            output_tokens: reply.usage.output_tokens,
-            seconds: sent.elapsed().as_secs_f64(),
-        });
-        events(Event::Usage(crate::run::meter(&tally, budget, started)));
+        if let Some(stop) = received.terminal {
+            break stop.into();
+        }
+        let n = received.n;
+        let reply = received.reply;
         if reply.stop == StopReason::Stopped || cancel.load(Ordering::Relaxed) {
             // Stopped while the reply arrived: it is never used.
             break End::Stopped;

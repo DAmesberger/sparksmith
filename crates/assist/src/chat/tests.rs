@@ -85,6 +85,189 @@ fn config() -> Fallible<ChatConfig> {
     ))
 }
 
+fn summary_history() -> Vec<Message> {
+    vec![
+        Message {
+            role: Role::User,
+            content: vec![Part::text("a".repeat(8_000))],
+        },
+        Message {
+            role: Role::Assistant,
+            content: vec![Part::text("b".repeat(8_000))],
+        },
+    ]
+}
+
+#[test]
+fn summary_requests_share_the_turn_budget_and_usage() -> Fallible {
+    let mut config = config()?;
+    config.policy.trigger = 0.10;
+    config.policy.target = 0.05;
+    config.budget.max_requests = 1;
+    let mut model = Script::new([text("Summary."), text("Answer.")]);
+    let mut history = summary_history();
+    let mut tools = Recorder {
+        calls: vec![],
+        answer: |_, _| Value::Null,
+    };
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text("Next")],
+        &mut tools,
+        &mut |_| {},
+        &AtomicBool::new(false),
+    );
+    assert_eq!(model.sent.len(), 1, "the summary consumes the one request");
+    assert_eq!(outcome.usage.requests, 1);
+    assert_eq!(outcome.usage.tokens, 110);
+    assert!(matches!(outcome.end, End::Limit(_)), "{outcome:?}");
+    Ok(())
+}
+
+#[test]
+fn cancelled_turn_never_starts_a_summary() -> Fallible {
+    let mut config = config()?;
+    config.policy.trigger = 0.10;
+    config.policy.target = 0.05;
+    let mut model = Script::new([text("Summary.")]);
+    let mut history = summary_history();
+    let mut tools = Recorder {
+        calls: vec![],
+        answer: |_, _| Value::Null,
+    };
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text("Next")],
+        &mut tools,
+        &mut |_| {},
+        &AtomicBool::new(true),
+    );
+    assert!(model.sent.is_empty());
+    assert_eq!(outcome.usage.requests, 0);
+    assert_eq!(outcome.end, End::Stopped);
+    Ok(())
+}
+
+#[test]
+fn summary_output_uses_the_same_remaining_token_budget() -> Fallible {
+    let mut config = config()?;
+    config.policy.trigger = 0.10;
+    config.policy.target = 0.05;
+    config.budget.max_output_tokens = 10;
+    let mut model = Script::new([text("Summary."), text("Answer.")]);
+    let mut history = summary_history();
+    let mut tools = Recorder {
+        calls: vec![],
+        answer: |_, _| Value::Null,
+    };
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text("Next")],
+        &mut tools,
+        &mut |_| {},
+        &AtomicBool::new(false),
+    );
+    assert_eq!(model.sent.len(), 1);
+    assert_eq!(outcome.usage.output_tokens, 10);
+    assert!(matches!(outcome.end, End::Limit(_)), "{outcome:?}");
+    Ok(())
+}
+
+#[test]
+fn cancelled_summary_counts_usage_but_does_not_replace_history() -> Fallible {
+    struct Cancels<'a>(&'a AtomicBool);
+    impl ModelBackend for Cancels<'_> {
+        fn label(&self) -> String {
+            "cancels".into()
+        }
+        fn send(&mut self, _: &ModelRequest<'_>) -> Result<ModelReply> {
+            self.0.store(true, Ordering::Relaxed);
+            Ok(text("This cancelled summary must not be kept."))
+        }
+        fn count_prompt_tokens(&mut self, _: &ModelRequest<'_>) -> Result<Option<u64>> {
+            Ok(None)
+        }
+    }
+    let mut config = config()?;
+    config.policy.trigger = 0.10;
+    config.policy.target = 0.05;
+    let cancel = AtomicBool::new(false);
+    let mut model = Cancels(&cancel);
+    let mut history = summary_history();
+    let mut tools = Recorder {
+        calls: vec![],
+        answer: |_, _| Value::Null,
+    };
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text("Next")],
+        &mut tools,
+        &mut |_| {},
+        &cancel,
+    );
+    assert_eq!(outcome.end, End::Stopped);
+    assert_eq!(outcome.usage.requests, 1);
+    assert_eq!(outcome.usage.tokens, 110);
+    let kept = serde_json::to_string(&history)?;
+    assert!(!kept.contains("This cancelled summary"));
+    assert!(kept.contains(&"a".repeat(8_000)));
+    Ok(())
+}
+
+#[test]
+fn late_replies_are_counted_without_using_answers_or_summaries() -> Fallible {
+    for summary in [false, true] {
+        let mut config = config()?;
+        config.budget.max_duration = std::time::Duration::from_secs(2);
+        if summary {
+            config.policy.trigger = 0.10;
+            config.policy.target = 0.05;
+        }
+        let mut history = if summary {
+            summary_history()
+        } else {
+            Vec::new()
+        };
+        let original = history.clone();
+        let mut model = Script::new([text("Late content must not enter the conversation.")]);
+        let mut tools = Recorder {
+            calls: vec![],
+            answer: |_, _| Value::Null,
+        };
+        let mut events = Vec::new();
+        let outcome = turn(
+            &config,
+            &mut model,
+            &mut history,
+            vec![Part::text("Next")],
+            &mut tools,
+            &mut |event| {
+                if matches!(event, Event::Response { .. }) {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                }
+                events.push(event);
+            },
+            &AtomicBool::new(false),
+        );
+        assert!(matches!(outcome.end, End::Limit(_)), "{outcome:?}");
+        assert_eq!(outcome.usage.requests, 1);
+        assert_eq!(outcome.usage.tokens, 110);
+        assert_eq!(&history[..original.len()], original.as_slice());
+        assert!(!serde_json::to_string(&history)?.contains("Late content"));
+        assert!(tools.calls.is_empty());
+        assert!(!events.iter().any(|event| matches!(event, Event::Text(_))));
+    }
+    Ok(())
+}
+
 /// Tools that answer from a closure and record each call.
 struct Recorder<F: FnMut(&str, &Value) -> Value> {
     calls: Vec<String>,

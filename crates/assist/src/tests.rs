@@ -1102,3 +1102,93 @@ mod run1;
 mod streaming;
 mod workflow_run;
 mod wroom3_binding;
+
+#[test]
+fn a_late_completed_reply_keeps_estimated_accounting_without_running_tools() -> Fallible {
+    use crate::model::{ModelReply, ModelRequest, Part, StopReason};
+    use std::time::Duration;
+
+    struct Estimated(ModelReply);
+    impl ModelBackend for Estimated {
+        fn label(&self) -> String {
+            "estimated fixture".into()
+        }
+        fn count_prompt_tokens(&mut self, _: &ModelRequest<'_>) -> Result<Option<u64>> {
+            Ok(Some(100))
+        }
+        fn send(&mut self, _: &ModelRequest<'_>) -> Result<ModelReply> {
+            Ok(self.0.clone())
+        }
+    }
+    let dir = tempfile::tempdir()?;
+    let mut session = profiled_session();
+    let revision = session.engine().revision();
+    let before = session.engine().project().clone();
+    let mut backend = Estimated(ModelReply {
+        model: "fixture".into(),
+        content: vec![Part::ToolCall {
+            id: "late".into(),
+            name: "apply".into(),
+            input: apply(
+                revision,
+                "library.generate_part",
+                json!({
+                    "generator": "module", "scope": "component", "name": "EXR-22",
+                    "params": crate::legacy::module_params(&module_values())
+                }),
+            ),
+            malformed: None,
+            replay: None,
+        }],
+        stop: StopReason::ToolCalls,
+        usage: crate::usage::Usage {
+            input_tokens: 100,
+            output_tokens: 20,
+            ..Default::default()
+        },
+        usage_estimated: true,
+    });
+    let mut config = local_config(131_072)?;
+    config.budget.max_duration = Duration::from_secs(5);
+    let mut log = Vec::new();
+    let outcome = run(
+        &goal(text_datasheet(&dir)?),
+        &config,
+        &mut backend,
+        &mut session,
+        &mut |event| {
+            if matches!(event, Event::Response { .. }) {
+                // Expire only once the reply has arrived, independent of prompt setup time.
+                std::thread::sleep(Duration::from_secs(5));
+            }
+            log.push(event);
+        },
+        &AtomicBool::new(false),
+    )?;
+    assert!(
+        matches!(outcome.stop, Stop::Budget(_)),
+        "{:?}",
+        outcome.stop
+    );
+    assert_eq!(outcome.facts.requests, 1);
+    assert_eq!(outcome.facts.input_tokens, 100);
+    assert_eq!(outcome.facts.output_tokens, 20);
+    assert!(outcome.facts.usage_estimated);
+    assert_eq!(outcome.facts.request_log.len(), 1);
+    assert!(outcome.facts.request_log[0].tools.is_empty());
+    assert!(
+        report::markdown(outcome.report.as_ref(), &outcome.facts)
+            .contains("Estimated from the characters")
+    );
+    assert_eq!(session.engine().revision(), revision);
+    assert_eq!(session.engine().project(), &before);
+    assert!(!log.iter().any(|event| matches!(
+        event,
+        Event::Text(_)
+            | Event::Call {
+                state: CallState::Running { .. } | CallState::Done { .. },
+                ..
+            }
+    )));
+    Ok(())
+}

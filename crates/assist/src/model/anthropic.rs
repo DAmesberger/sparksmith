@@ -467,7 +467,8 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
             &body,
             request.timeout,
         )?;
-        parse_reply(&response, &self.profile.model)
+        self.wire
+            .clean_reply(parse_reply(&response, &self.profile.model)?)
     }
 
     fn stream(
@@ -476,6 +477,8 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
         deltas: &mut dyn FnMut(Delta),
         cancel: &AtomicBool,
     ) -> Result<ModelReply> {
+        let mut redactor = self.wire.redactor();
+        let mut emit = |delta| redactor.push(delta, deltas);
         let mut body = request_body(&self.profile, request);
         if let Some(fields) = body.as_object_mut() {
             fields.insert("stream".into(), Value::Bool(true));
@@ -487,14 +490,17 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
             &body,
             request.timeout,
             &mut |event| {
-                assembly.event(&event, deltas)?;
+                assembly.event(&event, &mut emit)?;
                 Ok(!cancel.load(Ordering::Relaxed))
             },
         )?;
         let stopped = match streamed {
             Streamed::Whole(response) => {
-                let reply = parse_reply(&response, &self.profile.model)?;
-                stream::deltas_of(&reply, deltas);
+                let reply = self
+                    .wire
+                    .clean_reply(parse_reply(&response, &self.profile.model)?)?;
+                stream::deltas_of(&reply, &mut emit);
+                redactor.finish(true, deltas);
                 return Ok(reply);
             }
             Streamed::Stopped => true,
@@ -510,7 +516,8 @@ impl<W: Wire> ModelBackend for AnthropicBackend<W> {
         if stopped {
             reply.stop = StopReason::Stopped;
         }
-        Ok(reply)
+        redactor.finish(!stopped, deltas);
+        self.wire.clean_reply(reply)
     }
 
     fn count_prompt_tokens(&mut self, request: &ModelRequest<'_>) -> Result<Option<u64>> {

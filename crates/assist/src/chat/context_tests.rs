@@ -1,6 +1,6 @@
 //! Shortening, clearing and condensing on recorded conversation shapes.
 use super::*;
-use crate::model::{ModelReply, StopReason};
+use crate::model::{ModelBackend, ModelReply, StopReason};
 use crate::usage::Usage;
 use serde_json::json;
 
@@ -225,10 +225,10 @@ fn a_summary_replaces_the_earlier_turns_with_the_record_and_keeps_the_latest() -
     let mut model = Summariser(None);
     let done = summarise(
         &mut history,
-        &mut model,
         "Condense.",
         1_000,
         Duration::from_secs(5),
+        |request| model.send(request).ok(),
     );
     let (turns, kept) = done.ok_or("no summary")?;
     assert_eq!(turns, 1);
@@ -247,10 +247,10 @@ fn a_summary_replaces_the_earlier_turns_with_the_record_and_keeps_the_latest() -
     history.push(user("Check it."));
     let again = summarise(
         &mut history,
-        &mut Summariser(None),
         "Condense.",
         1_000,
         Duration::from_secs(5),
+        |request| Summariser(None).send(request).ok(),
     );
     assert!(again.is_some_and(
         |(_, kept)| kept.contains("instance 12") && kept.contains("Build a 3.3 V supply.")

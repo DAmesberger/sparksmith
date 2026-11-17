@@ -87,7 +87,10 @@ fn the_first_live_run_replays_with_its_recorded_usage() -> Fallible {
     );
     let f = &outcome.facts;
     assert_eq!(f.request_log[12].tools, vec!["submit_review!"]);
-    assert_eq!(f.requests, 13);
+    // Thirteen recorded responses plus the failed fourteenth attempt,
+    // independently visible in the transport's kept requests below.
+    assert_eq!(f.requests, 14);
+    assert_eq!(f.request_log.len(), 13);
     assert_eq!(
         (
             f.input_tokens,
