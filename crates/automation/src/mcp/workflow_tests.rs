@@ -381,6 +381,11 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
         "{plan}"
     );
     assert!(plan.get("changes").is_none(), "{plan}");
+    // The part as the import card names it: its pins and the preset that
+    // made its package.
+    assert_eq!(plan["part"]["name"], "EXM-48", "{plan}");
+    assert_eq!(plan["part"]["pins"], 49, "{plan}");
+    assert_eq!(plan["part"]["package"], preset["name"], "{plan}");
     // The review items by reason, with every row: the uncertain one.
     let uncertain = plan["review_groups"]
         .as_array()

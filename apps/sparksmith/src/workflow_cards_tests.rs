@@ -628,7 +628,7 @@ fn impact_and_result_cards_answer_the_run() -> Fallible {
             &mut chat,
             "import",
             ControlCard::Impact {
-                title: "Import pinout into the drafts?".into(),
+                title: "New part: 5 pins, SOT-23-5".into(),
                 counts: vec![Count {
                     label: "pins".into(),
                     n: 5,
@@ -644,6 +644,8 @@ fn impact_and_result_cards_answer_the_run() -> Fallible {
             },
         );
         chat.settle();
+        // The card says what the import makes, as the run titles it.
+        assert!(chat.has("New part: 5 pins, SOT-23-5"), "{:?}", chat.names());
         chat.click(Role::Button, "Leave out rows…")?;
         chat.click(Role::CheckBox, "Pin 4 NC")?;
         chat.click(Role::Button, "Apply")?;

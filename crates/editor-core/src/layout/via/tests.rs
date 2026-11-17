@@ -766,10 +766,10 @@ fn drills_exactly_at_the_hole_spacing_pass_and_closer_ones_read_as_closer() -> R
     let mut engine = Engine::demo()?;
     engine.apply(
         engine.revision(),
-        crate::Operation::Rules(crate::rules::RulesCommand::SetProfile {
-            profile: Box::new(crate::rules::fixtures::jlcpcb_example()?),
-            keep_overrides: false,
-        }),
+        crate::Operation::Rules(crate::rules::RulesCommand::set_profile(
+            crate::rules::fixtures::jlcpcb_example()?,
+            false,
+        )),
     )?;
     let net = shared(&engine)?;
     let mut add = |position: Point| {

@@ -1086,10 +1086,10 @@ fn the_route_card_via_size_follows_a_profile_set_later() -> TestResult {
     assert!(shown.iter().any(|t| t == error), "{shown:?}");
     engine.apply(
         engine.revision(),
-        Operation::Rules(RulesCommand::SetProfile {
-            profile: Box::new(sparksmith_core::rules::fixtures::jlcpcb_example()?),
-            keep_overrides: false,
-        }),
+        Operation::Rules(RulesCommand::set_profile(
+            sparksmith_core::rules::fixtures::jlcpcb_example()?,
+            false,
+        )),
     )?;
     card(&mut editor, &engine);
     let shown = card(&mut editor, &engine);

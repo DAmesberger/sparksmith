@@ -40,8 +40,8 @@ use crate::refusal::{self, Origin};
 use crate::shell::Header;
 use egui::{Align, RichText, Ui};
 use sparksmith_core::rules::{
-    self, CopperObject, MAX_RULE_MM, PadConnection, ProfileImpact, ProfileSource, ProjectRules,
-    RuleEntry, RuleGroup, RuleKey, RuleProfile, RuleRow, RuleValue, RulesCommand,
+    self, CopperObject, MAX_RULE_MM, PadConnection, ProfileChoice, ProfileImpact, ProfileSource,
+    ProjectRules, RuleEntry, RuleGroup, RuleKey, RuleProfile, RuleRow, RuleValue, RulesCommand,
 };
 use sparksmith_core::{Engine, Operation, Query, QueryResult};
 use sparksmith_io::rule_profiles::{self, Listing, ProfileLibrary};
@@ -309,7 +309,8 @@ impl RulesPanel {
     /// The impact of switching to `profile`, computed now.
     fn preview(&mut self, engine: &Engine, profile: RuleProfile, keep_overrides: bool) {
         let impact = match engine.query(Query::PreviewProfile {
-            profile: Box::new(profile.clone()),
+            profile: ProfileChoice::Profile(Box::new(profile.clone())),
+            options: Default::default(),
             keep_overrides,
         }) {
             Ok(QueryResult::ProfileImpact(impact)) => Ok(*impact),
@@ -1057,10 +1058,7 @@ fn body(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> (Option<Operati
                     && let Some(profile) = &rules.profile
                 {
                     op = Some((
-                        RulesCommand::SetProfile {
-                            profile: Box::new(profile.clone()),
-                            keep_overrides: false,
-                        },
+                        RulesCommand::set_profile(profile.clone(), false),
                         Origin::Command,
                     ));
                 }
@@ -1636,10 +1634,7 @@ fn preview_slot(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> Option<
                 Some(change) => RulesCommand::SetOptions {
                     options: change.choices,
                 },
-                None => RulesCommand::SetProfile {
-                    profile: Box::new(profile),
-                    keep_overrides: keep,
-                },
+                None => RulesCommand::set_profile(profile, keep),
             }))
         }
         ReviewAction::Acknowledge(_) | ReviewAction::Locate(_) | ReviewAction::LocateAfter(_) => {
@@ -1712,10 +1707,7 @@ fn save_slot(panel: &mut RulesPanel, ui: &mut Ui, engine: &Engine) -> Option<Ope
                     panel.mode = Mode::Table;
                     use_it.then(|| {
                         refusal::mark(ui.ctx(), Origin::Dialog(save_id()));
-                        Operation::Rules(RulesCommand::SetProfile {
-                            profile: Box::new(stored),
-                            keep_overrides: false,
-                        })
+                        Operation::Rules(RulesCommand::set_profile(stored, false))
                     })
                 }
                 Err(error) => {
@@ -1772,10 +1764,7 @@ fn choose_slot(panel: &mut RulesPanel, ui: &mut Ui, close: &mut bool) -> Option<
             *refusal = None;
             *sent = Some(panel.revision.unwrap_or_default());
             refusal::mark(ui.ctx(), Origin::Dialog(choose_id()));
-            Some(Operation::Rules(RulesCommand::SetProfile {
-                profile: Box::new(profile),
-                keep_overrides: false,
-            }))
+            Some(Operation::Rules(RulesCommand::set_profile(profile, false)))
         }
     }
 }

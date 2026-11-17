@@ -1190,22 +1190,24 @@ impl Session {
         }
         match request {
             Request::Apply(params) => {
-                let outcome = self.engine.apply_hosted(
-                    params.expected_revision,
-                    params.operation,
-                    hosted(),
-                )?;
+                let operation = self.hosted_operation(params.operation)?;
+                let outcome =
+                    self.engine
+                        .apply_hosted(params.expected_revision, operation, hosted())?;
                 let mut reply = self.document_reply();
                 reply["outcome"] = serde_json::to_value(outcome)?;
                 self.add_rerouted(&mut reply)?;
                 return Ok(reply);
             }
             Request::ApplyAll(params) => {
-                let outcomes = self.engine.apply_all_hosted(
-                    params.expected_revision,
-                    params.operations,
-                    hosted(),
-                )?;
+                let operations = params
+                    .operations
+                    .into_iter()
+                    .map(|o| self.hosted_operation(o))
+                    .collect::<Result<Vec<_>>>()?;
+                let outcomes =
+                    self.engine
+                        .apply_all_hosted(params.expected_revision, operations, hosted())?;
                 let mut reply = self.document_reply();
                 reply["outcomes"] = serde_json::to_value(outcomes)?;
                 self.add_rerouted(&mut reply)?;
@@ -1214,35 +1216,29 @@ impl Session {
             Request::Inspect(params) => return self.inspect(params),
             Request::Schema(params) => return discovery::schema_reply(params),
             Request::Query(query) => {
-                // A profile id reads as it does for an export: one of the
-                // user's library or a built-in.
-                if let Query::RuleProfiles {} = query {
-                    let mut profiles: Vec<_> = self
-                        .engine
-                        .project()
-                        .rules
-                        .profile
-                        .iter()
-                        .cloned()
-                        .collect();
-                    let dirs = sparksmith_io::settings::UserDirs::from_env()?;
-                    let listing =
-                        sparksmith_io::rule_profiles::ProfileLibrary::from_dirs(&dirs)?.list()?;
-                    let library: Vec<_> = listing
-                        .profiles
-                        .into_iter()
-                        .chain(listing.builtins)
-                        .collect();
-                    let pinned: Vec<String> = profiles.iter().map(|q| q.id.clone()).collect();
-                    for p in library {
-                        if !pinned.contains(&p.id) {
-                            profiles.push(p);
-                        }
-                    }
-                    return Ok(serde_json::to_value(
-                        sparksmith_core::QueryResult::RuleProfiles(profiles),
-                    )?);
+                // A profile id reads as it does for an export: the board's
+                // own, else one of the user's library or a shipped one.
+                if let Query::RuleProfiles { id } = query {
+                    return Ok(serde_json::to_value(match id {
+                        Some(id) => QueryResult::RuleProfile(Box::new(
+                            self.hosted_profile(ProfileChoice::Id(id))?
+                                .resolve(&self.engine.project().rules)?,
+                        )),
+                        None => QueryResult::RuleProfiles(self.profile_list()?),
+                    })?);
                 }
+                let query = match query {
+                    Query::PreviewProfile {
+                        profile,
+                        options,
+                        keep_overrides,
+                    } => Query::PreviewProfile {
+                        profile: self.hosted_profile(profile)?,
+                        options,
+                        keep_overrides,
+                    },
+                    other => other,
+                };
                 let query = match query {
                     Query::Preflight {
                         profile: Some(ProfileChoice::Id(id)),
@@ -1288,10 +1284,7 @@ impl Session {
                 let mut project = Project::new(&sparksmith_io::new_project::shipped()?.board);
                 sparksmith_core::rules::apply(
                     &mut project.rules,
-                    sparksmith_core::rules::RulesCommand::SetProfile {
-                        profile: Box::new(profile),
-                        keep_overrides: false,
-                    },
+                    sparksmith_core::rules::RulesCommand::set_profile(profile, false),
                 )?;
                 self.engine.replace_document(EditorFile {
                     version: sparksmith_core::format::FILE_VERSION,
@@ -1512,6 +1505,73 @@ impl Session {
             Request::TurnEnd(params) => return self.turns.end(&params).map_err(Error::refused),
         }
         Ok(self.document_reply())
+    }
+
+    /// `choice` with a profile id the board's own profile does not have
+    /// read from the user's profile library or the shipped profiles: what
+    /// `rules.set_fab_profile`, `rules.preview_fab_profile` and
+    /// `rules.fab_profiles {id}` take. The board's own id is left for the
+    /// engine, which reads it as the board's snapshot.
+    fn hosted_profile(&self, choice: ProfileChoice) -> Result<ProfileChoice> {
+        let ProfileChoice::Id(id) = choice else {
+            return Ok(choice);
+        };
+        if let Some(board) = &self.engine.project().rules.profile
+            && board.id == id
+        {
+            return Ok(ProfileChoice::Id(id));
+        }
+        match sparksmith_io::fabrication::resolve_profile(&id) {
+            Ok(profile) => Ok(ProfileChoice::Profile(Box::new(profile))),
+            Err(error) if error.code() == "not_found" => {
+                let known: Vec<String> = self.profile_list()?.into_iter().map(|p| p.id).collect();
+                Err(sparksmith_core::Error::NotFound(format!(
+                    "rules.fab_profile_unknown: no fab profile {id}; the profiles are {}",
+                    known.join(", ")
+                ))
+                .into())
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// `operation` with a fab profile it names by id read by
+    /// [`Self::hosted_profile`].
+    fn hosted_operation(&self, operation: Operation) -> Result<Operation> {
+        use sparksmith_core::rules::RulesCommand;
+        Ok(match operation {
+            Operation::Rules(RulesCommand::SetProfile {
+                profile,
+                options,
+                keep_overrides,
+            }) => Operation::Rules(RulesCommand::SetProfile {
+                profile: self.hosted_profile(profile)?,
+                options,
+                keep_overrides,
+            }),
+            other => other,
+        })
+    }
+
+    /// `rules.fab_profiles`: the board's own profile first, then the user's
+    /// library and the shipped profiles whose ids it does not have.
+    fn profile_list(&self) -> Result<Vec<sparksmith_core::rules::ProfileBrief>> {
+        use sparksmith_core::rules::ProfileBrief;
+        let board = self.engine.project().rules.profile.as_ref();
+        let dirs = sparksmith_io::settings::UserDirs::from_env()?;
+        let listing = sparksmith_io::rule_profiles::ProfileLibrary::from_dirs(&dirs)?.list()?;
+        Ok(board
+            .map(|p| ProfileBrief::of(p, true))
+            .into_iter()
+            .chain(
+                listing
+                    .profiles
+                    .iter()
+                    .chain(&listing.builtins)
+                    .filter(|p| board.is_none_or(|b| b.id != p.id))
+                    .map(|p| ProfileBrief::of(p, false)),
+            )
+            .collect())
     }
 
     /// Apply one operation and return the document state with its outcome.

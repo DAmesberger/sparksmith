@@ -30,6 +30,9 @@ pub(super) struct Entry {
     /// The catalog schema whose `$defs` the variant refers to.
     pub(super) root: &'static Value,
     pub(super) schema: Value,
+    /// What its `params` take ([`params_of`]): the one schema `describe`
+    /// serves and `apply`, `query` and `act` check parameters against.
+    pub(super) params: Value,
     /// How to send it, with `<params>` where the schema's value goes.
     pub(super) send: Option<Value>,
     /// Its permission class. A missing one reads as Never and fails the
@@ -69,6 +72,7 @@ fn build_entries() -> Vec<Entry> {
             title: info.title,
             editor: None,
             root: &info.params,
+            params: schema.clone(),
             schema,
             send: None,
             class: info.class,
@@ -105,6 +109,7 @@ fn operation_entries(root: &'static Value, entries: &mut Vec<Entry>) {
                         title: decl.map_or("", |d| d.title),
                         editor: Some(editor.to_owned()),
                         root,
+                        params: params_of(schema),
                         schema: schema.clone(),
                         class: decl.map_or(Class::Never, |d| d.class),
                         takes_path: false,
@@ -126,6 +131,7 @@ fn operation_entries(root: &'static Value, entries: &mut Vec<Entry>) {
                     title: decl.map_or("", |d| d.title),
                     editor: Some(editor.to_owned()),
                     root,
+                    params: content.clone(),
                     schema: content.clone(),
                     class: decl.map_or(Class::Never, |d| d.class),
                     takes_path: false,
@@ -148,6 +154,7 @@ fn query_entries(root: &'static Value, entries: &mut Vec<Entry>) {
             title: decl.map_or("", |d| d.title),
             editor: None,
             root,
+            params: params_of(schema),
             schema: schema.clone(),
             send: Some(json!({"query": query, "params": "<params>"})),
             class: decl.map_or(Class::Never, |d| d.class),
@@ -155,6 +162,37 @@ fn query_entries(root: &'static Value, entries: &mut Vec<Entry>) {
             decl,
         });
     }
+}
+
+/// What a tagged variant's `params` take: its `params` schema without the
+/// tag that names it, with the variant's own description; an operation
+/// without parameters (`layout.sync`) takes `{}`.
+fn params_of(variant: &Value) -> Value {
+    let mut params = match variant["properties"].get("params") {
+        Some(params) => params.clone(),
+        None => json!({"type": "object", "additionalProperties": false}),
+    };
+    if let (Some(text), Some(object)) = (variant.get("description"), params.as_object_mut()) {
+        object.insert("description".into(), text.clone());
+    }
+    params
+}
+
+/// The examples of its `params` an entry's description gives: each text in
+/// backticks that reads as a JSON object. `describe` lists them, and a test
+/// sends each through `apply`'s and `query`'s parser.
+pub(crate) fn examples(name: &str) -> Vec<Value> {
+    let Some(entry) = entries().iter().find(|e| e.name == name) else {
+        return Vec::new();
+    };
+    let text = entry.params["description"].as_str().unwrap_or_default();
+    text.split('`')
+        .skip(1)
+        .step_by(2)
+        .filter(|span| span.trim_start().starts_with('{'))
+        .filter_map(|span| serde_json::from_str::<Value>(span).ok())
+        .filter(Value::is_object)
+        .collect()
 }
 
 /// How catalog entry `name` is sent, filled with `params`, from the same
@@ -236,8 +274,12 @@ fn describe(entry: &Entry) -> Value {
         "kind": entry.kind,
         "name": entry.name,
         "class": entry.class,
-        "schema": entry.schema,
+        "schema": entry.params,
     });
+    let examples = examples(&entry.name);
+    if !examples.is_empty() {
+        out["examples"] = json!(examples);
+    }
     if entry.takes_path {
         out["asks_with_path"] = json!(true);
     }
@@ -247,7 +289,7 @@ fn describe(entry: &Entry) -> Value {
     if let Some(send) = &entry.send {
         out["send"] = send.clone();
     }
-    add_defs(&mut out, &entry.schema, entry.root);
+    add_defs(&mut out, &entry.params, entry.root);
     out
 }
 
@@ -426,9 +468,5 @@ fn not_found(text: String) -> Error {
 /// its references name, for a reader that walks a call's parameters.
 pub fn params_schema(name: &str) -> Option<(&'static Value, &'static Value)> {
     let entry = entries().iter().find(|e| e.name == name)?;
-    let schema = match entry.kind {
-        "operation" | "query" => &entry.schema["properties"]["params"],
-        _ => &entry.schema,
-    };
-    Some((schema, entry.root))
+    Some((&entry.params, entry.root))
 }

@@ -395,6 +395,9 @@ pub struct GeneratedFrom {
     pub result: ContentHash,
     /// The generation keys and the local ids they were given (slice B1).
     pub ids: expand::KeyIds,
+    /// The name of the preset the parameters started from (`SOT-23-5`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
 }
 
 /// A part's key: the generator's id and the params hash. Equal keys ask

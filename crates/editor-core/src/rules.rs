@@ -40,6 +40,43 @@ pub use netclass::{
     glob_matches,
 };
 
+/// A fab profile as a request names it: by id, or the whole profile.
+/// `fabrication.preflight` checks under one, `rules.set_fab_profile` and
+/// `rules.preview_fab_profile` switch to one.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(
+    untagged,
+    expecting = "a fab profile id from the profile library, or a whole fab profile"
+)]
+pub enum ProfileChoice {
+    /// A profile id. The engine reads only the board's own; a host with a
+    /// profile library resolves any other to its profile before it asks.
+    Id(String),
+    Profile(Box<RuleProfile>),
+}
+
+impl ProfileChoice {
+    /// The profile chosen. An id the host did not resolve is not found.
+    pub fn into_profile(self) -> Result<RuleProfile> {
+        match self {
+            Self::Id(id) => Err(Error::NotFound(format!(
+                "rules.fab_profile_unknown: no fab profile {id} here; pass the profile file's \
+                 profile, or its id where a profile library is open"
+            ))),
+            Self::Profile(profile) => Ok(*profile),
+        }
+    }
+
+    /// The profile chosen, an id naming the board's own profile reading
+    /// as its snapshot ([`Self::into_profile`] otherwise).
+    pub fn resolve(self, rules: &ProjectRules) -> Result<RuleProfile> {
+        match (self, &rules.profile) {
+            (Self::Id(id), Some(board)) if board.id == id => Ok(board.clone()),
+            (choice, _) => choice.into_profile(),
+        }
+    }
+}
+
 /// Largest length rule, in mm.
 pub const MAX_RULE_MM: f64 = 25.0;
 /// The range `board.outline_fit` takes, mm: finer fits need more arcs than
@@ -1425,28 +1462,29 @@ impl ProjectRules {
 /// nothing (the same profile again, an override to its current value) is
 /// no undo step.
 ///
-/// JSON examples (the `params` of `Operation::Rules`):
-/// `{"command":"rules.set_fab_profile","params":{"profile":{...},"keep_overrides":true}}`
-/// with a profile from `rules.fab_profiles`;
-/// `{"command":"rules.set_override","params":{"key":{"rule":"clearance","a":"track","b":"via"},"value":{"kind":"length","value":0.15}}}`;
-/// `{"command":"rules.clear_override","params":{"key":{"rule":"mask_web_min"}}}`;
-/// `{"command":"rules.set_fab_options","params":{"options":{"mask_colour":"black_white"}}}`.
+/// Each command's documentation gives an example of its `params`.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "command", content = "params", deny_unknown_fields)]
 pub enum RulesCommand {
-    /// Replace the project's profile snapshot (or choose the first). The
-    /// profile is a whole profile file's `profile` object with its source.
-    /// `keep_overrides` keeps the project overrides, which must still give
-    /// valid rules on the new profile (`rules.override_conflict`
-    /// otherwise); without it they are dropped. The board's manufacturing
-    /// choices carry over where the new profile offers the same option and
-    /// choice ids; its other options take its own choice (a file's
-    /// defaults); set them after with `rules.set_fab_options`. When a
-    /// choice orders outer copper, the stackup's outer foils follow it in
-    /// the same step. Preview with `rules.preview_fab_profile`.
+    /// Replace the project's profile snapshot (or choose the first).
+    /// `profile` is a profile id from `rules.fab_profiles` (the user's
+    /// library, a shipped one or the board's own), or a whole profile
+    /// file's `profile` object with its source. `options` chooses its
+    /// manufacturing options (option id → choice id, as `rules.fab_profiles`
+    /// lists them) in the same step. `keep_overrides` keeps the project
+    /// overrides, which must still give valid rules on the new profile
+    /// (`rules.override_conflict` otherwise); without it they are dropped.
+    /// The board's manufacturing choices carry over where the new profile
+    /// offers the same option and choice ids and `options` does not name
+    /// it; its other options take its own choice (a file's defaults). When
+    /// a choice orders outer copper, the stackup's outer foils follow it
+    /// in the same step. Preview with `rules.preview_fab_profile`. Example:
+    /// `{"profile":"pcbway-4-layer","options":{"limits":"minimum"}}`.
     #[serde(rename = "rules.set_fab_profile")]
     SetProfile {
-        profile: Box<RuleProfile>,
+        profile: ProfileChoice,
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        options: std::collections::BTreeMap<String, String>,
         #[serde(default)]
         keep_overrides: bool,
     },
@@ -1456,7 +1494,8 @@ pub enum RulesCommand {
     /// choices; overrides are kept and must stay valid
     /// (`rules.override_conflict`). A copper weight choice also sets the
     /// stackup's outer foils, in the same undo step. Preview with
-    /// `rules.preview_fab_options`.
+    /// `rules.preview_fab_options`. Example:
+    /// `{"options":{"mask_colour":"black_white"}}`.
     #[serde(rename = "rules.set_fab_options")]
     SetOptions {
         options: std::collections::BTreeMap<String, String>,
@@ -1466,17 +1505,18 @@ pub enum RulesCommand {
     /// must stay valid (`rules.bounds`). An override equal to the profile
     /// value is kept: it pins the value across profile switches. An
     /// override of a formula's rule replaces the formula; formulas that
-    /// name the rule follow the override.
+    /// name the rule follow the override. Example:
+    /// `{"key":{"rule":"clearance","a":"track","b":"via"},"value":{"kind":"length","value":0.15}}`.
     #[serde(rename = "rules.set_override")]
     SetOverride { key: RuleKey, value: RuleValue },
     /// Drop the project override of one rule (back to the profile value).
+    /// Example: `{"key":{"rule":"mask_web_min"}}`.
     #[serde(rename = "rules.clear_override")]
     ClearOverride { key: RuleKey },
     /// Say where the project's own rule set comes from.
     ///
     /// `None` means set in this project; at most 256 bytes:
-    /// `{"command":"rules.set_project_source",
-    /// "params":{"source":"From the KiCad project"}}`.
+    /// `{"source":"From the KiCad project"}`.
     #[serde(rename = "rules.set_project_source")]
     SetProjectSource {
         #[serde(default)]
@@ -1529,6 +1569,17 @@ pub enum RulesCommand {
     /// Delete a length group.
     #[serde(rename = "length_group.delete")]
     DeleteLengthGroup { group: signal::LengthGroupId },
+}
+
+impl RulesCommand {
+    /// `rules.set_fab_profile` to the whole `profile`, choosing no options.
+    pub fn set_profile(profile: RuleProfile, keep_overrides: bool) -> Self {
+        Self::SetProfile {
+            profile: ProfileChoice::Profile(Box::new(profile)),
+            options: std::collections::BTreeMap::new(),
+            keep_overrides,
+        }
+    }
 }
 
 // A new command chooses its permission class here.
@@ -1587,9 +1638,11 @@ fn apply_to(rules: &mut ProjectRules, command: RulesCommand) -> Result<Option<si
         | RulesCommand::DeleteLengthGroup { .. }) => added = signal::apply(rules, command)?,
         RulesCommand::SetProfile {
             profile,
+            options,
             keep_overrides,
         } => {
-            let (profile, _) = carry_choices(rules, *profile)?;
+            let profile = profile.resolve(rules)?;
+            let (profile, _) = carry_choices(rules, profile, &options)?;
             set_profile(rules, profile, keep_overrides)?;
             return Ok(None);
         }
@@ -1663,29 +1716,37 @@ pub struct ChoiceCarry {
     /// The new profile's other options, at its own choice (a file's
     /// default).
     pub reset: Vec<ChoiceNote>,
+    /// The choices the switch names (`options`).
+    pub chosen: Vec<ChoiceNote>,
 }
 
-/// `profile` (switched to by `rules.set_fab_profile`) with the board's
-/// current choices carried over where it offers the same option and
-/// choice ids; its other options keep the profile's own choice (from a
-/// file, its defaults). Without a profile on the board nothing is
-/// carried or listed.
+/// `profile` (switched to by `rules.set_fab_profile`) with `options`
+/// chosen and the board's current choices carried over where it offers
+/// the same option and choice ids and `options` does not name it; its
+/// other options keep the profile's own choice (from a file, its
+/// defaults). An option or choice `options` names that the profile does
+/// not offer is refused (`rules.fab_option`). Without a profile on the
+/// board nothing is carried, and only the named choices are listed.
 pub fn carry_choices(
     rules: &ProjectRules,
     profile: RuleProfile,
+    options: &std::collections::BTreeMap<String, String>,
 ) -> Result<(RuleProfile, ChoiceCarry)> {
-    let Some(current) = &rules.profile else {
-        return Ok((profile, ChoiceCarry::default()));
+    let carried: std::collections::BTreeMap<String, String> = match &rules.profile {
+        Some(current) => profile
+            .options()
+            .iter()
+            .filter(|o| !options.contains_key(&o.id))
+            .filter_map(|o| {
+                let choice = current.chosen().get(&o.id)?;
+                o.choice(choice).map(|_| (o.id.clone(), choice.clone()))
+            })
+            .collect(),
+        None => std::collections::BTreeMap::new(),
     };
-    let carried: std::collections::BTreeMap<String, String> = profile
-        .options()
-        .iter()
-        .filter_map(|o| {
-            let choice = current.chosen().get(&o.id)?;
-            o.choice(choice).map(|_| (o.id.clone(), choice.clone()))
-        })
-        .collect();
-    let profile = profile.with_choices(&carried)?;
+    let mut chosen = carried.clone();
+    chosen.extend(options.iter().map(|(o, c)| (o.clone(), c.clone())));
+    let profile = profile.with_choices(&chosen)?;
     let mut carry = ChoiceCarry::default();
     for o in profile.options() {
         let note = ChoiceNote {
@@ -1693,9 +1754,11 @@ pub fn carry_choices(
             choice: profile.chosen().get(&o.id).cloned().unwrap_or_default(),
             label: format!("{}: {}", o.name, profile.choice_name(&o.id)),
         };
-        if carried.contains_key(&o.id) {
+        if options.contains_key(&o.id) {
+            carry.chosen.push(note);
+        } else if carried.contains_key(&o.id) {
             carry.kept.push(note);
-        } else {
+        } else if rules.profile.is_some() {
             carry.reset.push(note);
         }
     }
@@ -1758,6 +1821,58 @@ pub struct RulesReport {
     pub assignments: Vec<NetClassAssignment>,
     pub patterns: Vec<NetClassPattern>,
     pub class_clearances: Vec<ClassClearance>,
+}
+
+/// One fab profile as `rules.fab_profiles` lists it: what choosing it with
+/// `rules.set_fab_profile` takes, without its rules or sources.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ProfileBrief {
+    pub id: String,
+    pub name: String,
+    /// The board's own profile (its snapshot), listed first.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub board: bool,
+    /// Its manufacturing options with their choices and defaults.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<OptionBrief>,
+    /// The board's choice of each option; listed for the board's profile.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub chosen: std::collections::BTreeMap<String, String>,
+}
+
+/// A manufacturing option without its source.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct OptionBrief {
+    pub id: String,
+    pub name: String,
+    pub default: String,
+    pub choices: Vec<FabChoice>,
+}
+
+impl ProfileBrief {
+    /// `profile` listed; `board` when it is the board's own.
+    pub fn of(profile: &RuleProfile, board: bool) -> Self {
+        Self {
+            id: profile.id.clone(),
+            name: profile.name.clone(),
+            board,
+            options: profile
+                .options()
+                .iter()
+                .map(|o| OptionBrief {
+                    id: o.id.clone(),
+                    name: o.name.clone(),
+                    default: o.default.clone(),
+                    choices: o.choices.clone(),
+                })
+                .collect(),
+            chosen: if board {
+                profile.chosen().clone()
+            } else {
+                std::collections::BTreeMap::new()
+            },
+        }
+    }
 }
 
 /// A profile's identity, source and manufacturing options, without its
@@ -1853,6 +1968,9 @@ pub struct ProfileImpact {
     pub kept_choices: Vec<ChoiceNote>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reset_choices: Vec<ChoiceNote>,
+    /// The choices the switch names (`options`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub chosen_choices: Vec<ChoiceNote>,
     /// The outer copper foil change the choices order (µm, top foil
     /// before → after): the stackup follows the copper weight.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1935,6 +2053,7 @@ pub fn rule_changes(rules: &ProjectRules, candidate: &ProjectRules) -> ProfileIm
         resolved_issues: Vec::new(),
         kept_choices: Vec::new(),
         reset_choices: Vec::new(),
+        chosen_choices: Vec::new(),
         outer_copper_um: None,
         refusal: None,
     }

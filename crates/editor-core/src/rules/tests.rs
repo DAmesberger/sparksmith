@@ -377,10 +377,7 @@ fn refusal<T>(result: Result<T>) -> (String, String) {
 }
 
 fn set_profile_cmd(profile: RuleProfile, keep_overrides: bool) -> RulesCommand {
-    RulesCommand::SetProfile {
-        profile: Box::new(profile),
-        keep_overrides,
-    }
+    RulesCommand::set_profile(profile, keep_overrides)
 }
 
 #[test]
@@ -679,7 +676,8 @@ fn engine_skips_no_op_rules_commands_and_previews_refusals() -> Result<()> {
     )?;
     let rev = engine.revision();
     let QueryResult::ProfileImpact(impact) = engine.query(Query::PreviewProfile {
-        profile: Box::new(fixtures::fine()?),
+        profile: crate::rules::ProfileChoice::Profile(Box::new(fixtures::fine()?)),
+        options: Default::default(),
         keep_overrides: true,
     })?
     else {
@@ -698,7 +696,8 @@ fn engine_skips_no_op_rules_commands_and_previews_refusals() -> Result<()> {
     );
     assert_eq!(engine.revision(), rev);
     let QueryResult::ProfileImpact(impact) = engine.query(Query::PreviewProfile {
-        profile: Box::new(fixtures::fine()?),
+        profile: crate::rules::ProfileChoice::Profile(Box::new(fixtures::fine()?)),
+        options: Default::default(),
         keep_overrides: false,
     })?
     else {
@@ -713,11 +712,92 @@ fn engine_skips_no_op_rules_commands_and_previews_refusals() -> Result<()> {
             .any(|c| c.key == RuleKey::TrackWidthMin)
     );
     assert_eq!(engine.revision(), rev, "a preview changes nothing");
-    let QueryResult::RuleProfiles(profiles) = engine.query(Query::RuleProfiles {})? else {
+    let QueryResult::RuleProfiles(profiles) = engine.query(Query::RuleProfiles { id: None })?
+    else {
         return Err(Error::Invalid("not profiles".into()));
     };
     let names: Vec<_> = profiles.iter().map(|p| p.name.as_str()).collect();
     assert_eq!(names, ["Test prototype"], "only the project's own");
+    assert!(profiles[0].board, "the board's own is marked");
+    Ok(())
+}
+
+/// A profile by id with options, one step: the engine reads the board's own
+/// id (a host reads its library's); the listing is compact and the id
+/// query gives the whole profile.
+#[test]
+fn a_profile_is_set_by_id_with_options_and_listed_compactly() -> Result<()> {
+    use crate::{Engine, Operation, Query, QueryResult};
+    let mut engine = Engine::demo()?;
+    engine.apply(
+        engine.revision(),
+        Operation::Rules(set_profile_cmd(fixtures::jlcpcb_example()?, false)),
+    )?;
+    let id = fixtures::jlcpcb_example()?.id;
+    let QueryResult::RuleProfiles(listed) = engine.query(Query::RuleProfiles { id: None })? else {
+        return Err(Error::Invalid("not profiles".into()));
+    };
+    let brief = serde_json::to_value(&listed).map_err(j)?;
+    assert!(brief[0].get("rules").is_none(), "{brief}");
+    assert_eq!(brief[0]["options"][0]["id"], "limits", "{brief}");
+    assert_eq!(brief[0]["options"][0]["default"], "recommended", "{brief}");
+    let QueryResult::RuleProfile(full) = engine.query(Query::RuleProfiles {
+        id: Some(id.clone()),
+    })?
+    else {
+        return Err(Error::Invalid("not a profile".into()));
+    };
+    assert_eq!(*full, fixtures::jlcpcb_example()?);
+    let unknown = engine.query(Query::RuleProfiles {
+        id: Some("no-such".into()),
+    });
+    assert!(
+        unknown
+            .err()
+            .is_some_and(|e| e.rule() == Some("rules.fab_profile_unknown"))
+    );
+    let named = choices(&[("limits", "minimum")]);
+    let QueryResult::ProfileImpact(impact) = engine.query(Query::PreviewProfile {
+        profile: ProfileChoice::Id(id.clone()),
+        options: named.clone(),
+        keep_overrides: false,
+    })?
+    else {
+        return Err(Error::Invalid("not an impact".into()));
+    };
+    assert_eq!(impact.refusal, None);
+    let chosen: Vec<_> = impact
+        .chosen_choices
+        .iter()
+        .map(|c| c.option.as_str())
+        .collect();
+    assert_eq!(chosen, ["limits"]);
+    assert!(impact.kept_choices.iter().all(|c| c.option != "limits"));
+    let rev = engine.revision();
+    let set = |options| {
+        Operation::Rules(RulesCommand::SetProfile {
+            profile: ProfileChoice::Id(id.clone()),
+            options,
+            keep_overrides: false,
+        })
+    };
+    assert!(
+        engine
+            .apply(rev, set(choices(&[("limits", "loose")])))
+            .is_err()
+    );
+    assert_eq!(engine.revision(), rev, "a refused choice changes nothing");
+    engine.apply(rev, set(named))?;
+    let board = engine
+        .project()
+        .rules
+        .profile
+        .as_ref()
+        .ok_or(Error::Invalid("no profile".into()))?;
+    assert_eq!(
+        board.chosen().get("limits").map(String::as_str),
+        Some("minimum")
+    );
     Ok(())
 }
 
@@ -1081,7 +1161,8 @@ fn the_copper_weight_and_the_stackup_stay_together() -> Result<()> {
         }),
     )?;
     let QueryResult::ProfileImpact(impact) = engine.query(Query::PreviewProfile {
-        profile: Box::new(four.clone()),
+        profile: crate::rules::ProfileChoice::Profile(Box::new(four.clone())),
+        options: Default::default(),
         keep_overrides: false,
     })?
     else {

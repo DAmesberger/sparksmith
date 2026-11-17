@@ -783,3 +783,65 @@ fn show_needs_the_window() -> Fallible<()> {
     assert_eq!(tools.revision(), before);
     Ok(())
 }
+
+/// `describe` serves exactly what the verb's `params` take: no operation or
+/// query schema wraps it in its tag (`{command, params}`), and every
+/// example a description gives (its `call` included) is accepted by the
+/// parser `apply` and `query` run, field check and typed read.
+#[test]
+fn every_describe_example_is_what_apply_and_query_accept() -> Fallible<()> {
+    let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
+    let mut examples = 0;
+    for entry in super::catalog::reachable() {
+        let sent = match entry.kind {
+            Some(crate::session::metadata::Kind::Operation) => super::fields::Sent::Apply,
+            Some(crate::session::metadata::Kind::Query) => super::fields::Sent::Query,
+            _ => continue,
+        };
+        let name = entry.name.as_str();
+        let described = tools.ok(DESCRIBE, json!({"name": name}))?;
+        let properties = &described["schema"]["properties"];
+        for tag in ["command", "query", "editor"] {
+            assert!(
+                properties[tag]["const"].as_str().is_none(),
+                "{name}: describe wraps the params in `{tag}`: {described}"
+            );
+        }
+        let given = described["examples"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let sends = if sent == super::fields::Sent::Apply {
+            &described["call"]["arguments"]["operations"][0]["params"]
+        } else {
+            &described["call"]["arguments"]["params"]
+        };
+        if let Some(first) = given.first() {
+            assert_eq!(sends, first, "{name}: the call sends the first example");
+        }
+        for example in given {
+            examples += 1;
+            let mut params = example.clone();
+            super::lenient::read_params(name, &mut params)
+                .map_err(|why| format!("{name} {example}: {why}"))?;
+            super::fields::check(name, &params, sent)
+                .map_err(|why| format!("{name} {example}: {why}"))?;
+            let call = crate::front::Call {
+                entry: name.to_owned(),
+                params,
+                project: None,
+                expected_revision: Some(0),
+                dry_run: false,
+                confirm: None,
+                turn: None,
+                job: false,
+            };
+            crate::front::read(&call).map_err(|why| format!("{name} {example}: {why:?}"))?;
+        }
+    }
+    assert!(
+        examples >= 6,
+        "the rules and fill examples are found: {examples}"
+    );
+    Ok(())
+}
