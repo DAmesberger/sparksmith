@@ -238,6 +238,13 @@ impl Provider for Models {
     ) -> Result<Selection, String> {
         self.check_time()?;
         let refs: Vec<_> = models.iter().filter(|r| !r.hidden).collect();
+        if !models.is_empty() && refs.is_empty() {
+            return Ok(Selection {
+                choice: None,
+                case: Case::NoModel,
+                reason: "All source model references are hidden; no generated replacement. The import retains its labelled placeholder because invisible package models are not supported.".into(),
+            });
+        }
         let library = refs.iter().any(|r| library_reference(&r.path));
         let reason = match self.vendor(engine, &refs) {
             Ok(Some(choice)) => {
@@ -396,6 +403,21 @@ mod tests {
             hidden: false,
         }
     }
+    #[test]
+    fn all_hidden_references_do_not_read_files_or_generate_replacement_bodies() -> Fallible {
+        let dir = tempfile::tempdir()?;
+        let mut models = Models::new(dir.path())?;
+        let mut reference = reference("${KICAD9_3DMODEL_DIR}/never-read.step");
+        reference.hidden = true;
+        let mut engine = Engine::demo()?;
+        let selected = models.prepare(&mut engine, &[], "R", &[reference])?;
+        assert!(selected.choice.is_none());
+        assert_eq!(selected.case, Case::NoModel);
+        assert!(selected.reason.contains("hidden"));
+        assert!(models.read.is_empty() && models.models.is_empty());
+        Ok(())
+    }
+
     #[test]
     fn expired_import_refuses_without_publishing_any_model() -> Fallible {
         let dir = tempfile::tempdir()?;
