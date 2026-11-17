@@ -13,6 +13,7 @@
 
 mod compare;
 mod expected;
+mod preflight;
 mod units;
 
 use sparksmith_fabcheck::excellon as excellon_reader;
