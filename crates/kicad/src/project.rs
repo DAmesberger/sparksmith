@@ -77,17 +77,61 @@ fn class(c: &serde_json::Value) -> KClass {
     }
 }
 
-/// Read a project file; `None` when it is not one (too large, not JSON).
-pub fn read(bytes: &[u8]) -> Option<ProjectRules> {
-    if bytes.len() > MAX_PROJECT {
-        return None;
+/// Why project rules cannot be read. Limits refuse the import rather than
+/// treating an incomplete rule set as a valid project.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReadError {
+    Invalid,
+    Limit { section: &'static str, limit: usize },
+}
+
+impl std::fmt::Display for ReadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Invalid => write!(f, "the project file is not valid JSON"),
+            Self::Limit { section, limit } => {
+                write!(f, "the project file exceeds {limit} {section}")
+            }
+        }
     }
-    let json: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+}
+impl std::error::Error for ReadError {}
+
+/// Read project rules, refusing oversized files and collections explicitly.
+pub fn read(bytes: &[u8]) -> Result<ProjectRules, ReadError> {
+    if bytes.len() > MAX_PROJECT {
+        return Err(ReadError::Limit {
+            section: "bytes",
+            limit: MAX_PROJECT,
+        });
+    }
+    let json: serde_json::Value = serde_json::from_slice(bytes).map_err(|_| ReadError::Invalid)?;
     let rules = &json["board"]["design_settings"]["rules"];
     let net = &json["net_settings"];
+    for (section, len) in [
+        ("rules", rules.as_object().map_or(0, |values| values.len())),
+        ("classes", net["classes"].as_array().map_or(0, Vec::len)),
+        (
+            "patterns",
+            net["netclass_patterns"].as_array().map_or(0, Vec::len),
+        ),
+        (
+            "assignments",
+            net["netclass_assignments"]
+                .as_object()
+                .map_or(0, |values| values.len()),
+        ),
+    ] {
+        if len > MAX_ENTRIES {
+            return Err(ReadError::Limit {
+                section,
+                limit: MAX_ENTRIES,
+            });
+        }
+    }
     let mut classes: Vec<KClass> = net["classes"]
         .as_array()
-        .map(|c| c.iter().take(MAX_ENTRIES).map(class).collect())
+        .map(|c| c.iter().map(class).collect())
         .unwrap_or_default();
     let default = classes
         .iter()
@@ -98,7 +142,6 @@ pub fn read(bytes: &[u8]) -> Option<ProjectRules> {
         .as_array()
         .map(|a| {
             a.iter()
-                .take(MAX_ENTRIES)
                 .filter_map(|p| {
                     Some((
                         p["pattern"].as_str()?.to_owned(),
@@ -113,7 +156,6 @@ pub fn read(bytes: &[u8]) -> Option<ProjectRules> {
         .as_object()
         .map(|o| {
             o.iter()
-                .take(MAX_ENTRIES)
                 .filter_map(|(net, class)| {
                     let class = match class {
                         serde_json::Value::String(s) => Some(s.as_str()),
@@ -125,7 +167,7 @@ pub fn read(bytes: &[u8]) -> Option<ProjectRules> {
                 .collect()
         })
         .unwrap_or_default();
-    Some(ProjectRules {
+    Ok(ProjectRules {
         default,
         classes,
         patterns,
@@ -264,7 +306,7 @@ mod tests {
         assert_eq!(rules.patterns, vec![("V*".to_owned(), "Power".to_owned())]);
         assert_eq!(rules.assignments.len(), 2);
         assert_eq!(rules.board.track_width_min, None);
-        assert_eq!(read(b"not json"), None);
+        assert_eq!(read(b"not json"), Err(ReadError::Invalid));
 
         // Over a profile with 0.25 mm hole clearance and a 0.3 mm least
         // drill: the KiCad drill minimum (0.2) is looser and not taken.

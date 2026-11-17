@@ -8,6 +8,7 @@ use super::{Result, execute, open, print};
 use serde_json::{Value, json};
 use sparksmith_automation::Session;
 use sparksmith_core::product::SHORT_NAME as CLI;
+use std::io::Read;
 
 /// The usage lines.
 pub const USAGE: &str = "pinout preview FILE.json --project P.sparksmith [--draft ID | --name NAME]
@@ -77,7 +78,15 @@ fn read_document(path: &str) -> Result<Value> {
     if file.metadata()?.len() > MAX_DOCUMENT {
         return Err(format!("{path} is larger than 8 MiB").into());
     }
-    Ok(serde_json::from_reader(std::io::BufReader::new(file))?)
+    // Metadata is an early refusal only: streams may report zero and a
+    // regular file can grow after that check. Bound the actual read before
+    // parsing so oversized whitespace cannot evade the input limit.
+    let mut bytes = Vec::new();
+    file.take(MAX_DOCUMENT + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_DOCUMENT {
+        return Err(format!("{path} is larger than 8 MiB").into());
+    }
+    Ok(serde_json::from_slice(&bytes)?)
 }
 
 fn preview(session: &mut Session, target: &Value, document: &Value) -> Result<Value> {

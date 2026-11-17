@@ -130,6 +130,25 @@ pub struct Setup<'a> {
 /// Import a KiCad board file into a new project.
 pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> {
     let mut report = Report::default();
+    // Check limits before building any part of the imported project, even
+    // when no fabrication profile is available to apply the rules to.
+    let project_rules = match setup.project_file.map(crate::project::read) {
+        Some(Ok(rules)) => Some(rules),
+        Some(Err(crate::project::ReadError::Invalid)) => {
+            report.add(Case::ProjectUnreadable);
+            None
+        }
+        Some(Err(error)) => {
+            return Err(ImportError::Refused {
+                step: "project rules",
+                reason: error.to_string(),
+            });
+        }
+        None => {
+            report.add(Case::NoProject);
+            None
+        }
+    };
     let board = board::read(bytes, &mut report)?;
     report.format_version = board.version;
     report.counts.copper_layers = board.copper.len();
@@ -492,7 +511,7 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         &mut report,
     )?;
     crate::routing::copper(&mut session, &board, &nets, &mut report)?;
-    session.project_rules(setup.project_file, &board, &nets, &mut report)?;
+    session.project_rules(project_rules.as_ref(), &board, &nets, &mut report)?;
     crate::zones::fills(&mut session, &board, &nets, &mut report)?;
     report.counts.pads = board.footprints.iter().map(|f| f.pads.len()).sum();
     report.counts.pads_imported = records.len();
@@ -697,7 +716,7 @@ impl Session<'_> {
     /// the fills, which they shape.
     pub(crate) fn project_rules(
         &mut self,
-        project_file: Option<&[u8]>,
+        rules: Option<&crate::project::ProjectRules>,
         board: &Board,
         nets: &BTreeMap<u32, Id>,
         report: &mut Report,
@@ -705,20 +724,12 @@ impl Session<'_> {
         if self.engine.project().rules.require().is_err() {
             return Ok(());
         }
-        let rules = match project_file.map(crate::project::read) {
-            Some(Some(rules)) => rules,
-            Some(None) => {
-                report.add(Case::ProjectUnreadable);
-                return Ok(());
-            }
-            None => {
-                report.add(Case::NoProject);
-                return Ok(());
-            }
+        let Some(rules) = rules else {
+            return Ok(());
         };
         report.add(Case::ProjectRules);
         let profile = self.engine.project().rules.effective();
-        self.set_overrides(crate::project::overrides(&rules, &profile, report), report);
+        self.set_overrides(crate::project::overrides(rules, &profile, report), report);
         // Every other class, by name.
         let mut classes: BTreeMap<String, NetClassId> = BTreeMap::new();
         for class in &rules.classes {
