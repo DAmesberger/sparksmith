@@ -82,7 +82,8 @@ impl Harness {
 
     /// Frames until `done` holds, waiting for the worker between them.
     fn until(&mut self, what: &str, mut done: impl FnMut(&Self) -> bool) -> Fallible {
-        for _ in 0..500 {
+        let deadline = std::time::Instant::now() + crate::app::ax_harness::PATIENCE;
+        while std::time::Instant::now() < deadline {
             if done(self) {
                 return Ok(());
             }
