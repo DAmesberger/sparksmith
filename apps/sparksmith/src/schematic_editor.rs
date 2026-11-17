@@ -3799,7 +3799,7 @@ mod tests {
         assert!(sent.is_none(), "Esc sends nothing");
         assert_eq!(editor.draft_fields[0].text, "10 kΩ");
 
-        type_into(&mut editor, &engine, &ctx, "10 kΩ", "4.7k")?;
+        type_into(&mut editor, &engine, &ctx, "10 kΩ", "4k7")?;
         let (_, sent) = frame(
             &mut editor,
             &engine,
@@ -3816,7 +3816,7 @@ mod tests {
             edits,
             &[sparksmith_core::fields::PropertyEdit {
                 field: editor.draft_fields[0].field,
-                input: PropertyInput::Text("4.7k".into()),
+                input: PropertyInput::Text("4k7".into()),
             }],
             "one field, parsed in core"
         );

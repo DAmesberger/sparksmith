@@ -15,7 +15,7 @@ fn unit(symbol: &str, aliases: &[&str], scale: f64, si_prefixes: bool) -> UnitOf
 fn resistance() -> UnitSet {
     UnitSet {
         dimension: RESISTANCE,
-        units: vec![unit("Ω", &["ohm"], 1.0, true)],
+        units: vec![unit("Ω", &["ohm", "R"], 1.0, true)],
     }
 }
 
@@ -57,7 +57,7 @@ fn suffix_precedence_follows_the_four_rules() {
 fn other_suffixes_and_out_of_range_results_are_rejected() {
     let r = resistance();
     for text in [
-        "10 µF", "10 kin", "4k7", "k", "", "nan", "inf", "10 Ω Ω", "1e",
+        "10 µF", "10 kin", "4k7k", "k", "", "nan", "inf", "10 Ω Ω", "1e",
     ] {
         let error = parse(text, &r, "Ω").unwrap_err();
         assert_eq!(error.code(), "invalid_input", "{text}");
@@ -227,4 +227,83 @@ fn arithmetic_is_checked() {
     );
     assert!(a.checked_div(Quantity::new(0.0, LENGTH).unwrap()).is_err());
     assert!(Quantity::new(f64::NAN, LENGTH).is_err());
+}
+
+#[test]
+fn rkm_and_decimal_notation_share_exact_values_and_units() {
+    let ohms = resistance();
+    for (text, expected) in [
+        ("4k7", "4700"),
+        ("4.7k", "4700"),
+        ("4K7", "4700"),
+        ("1R0", "1"),
+        ("2M2", "2200000"),
+        ("0R1", "0.1"),
+        ("R47", "0.47"),
+        ("4K7Ω", "4700"),
+        ("4.7Kohm", "4700"),
+        ("1R0 Ω", "1"),
+        ("1R0ohm", "1"),
+        ("0R1Ω", "0.1"),
+        ("-4k7", "-4700"),
+        ("−4K7", "-4700"),
+        ("+1R0", "1"),
+        ("-R47", "-0.47"),
+        ("1e3Ω", "1000"),
+    ] {
+        let parsed = parse(text, &ohms, "Ω").unwrap();
+        assert_eq!(parsed.si, expected.parse::<Decimal>().unwrap(), "{text}");
+        let shown = format_decimal(parsed.si, &ohms, "Ω", parsed.unit.as_deref());
+        assert_eq!(parse(&shown, &ohms, "Ω").unwrap().si, parsed.si, "{text}");
+    }
+    for (text, expected) in [
+        ("100n", "1e-7"),
+        ("100nF", "1e-7"),
+        ("1u0", "1e-6"),
+        ("1u0F", "1e-6"),
+        ("4n7", "4.7e-9"),
+        ("4n7 F", "4.7e-9"),
+        ("1µ0F", "1e-6"),
+        ("1μ0F", "1e-6"),
+    ] {
+        assert_eq!(
+            parse(text, &farads(), "F").unwrap().si,
+            expected.parse::<Decimal>().unwrap(),
+            "{text}"
+        );
+    }
+    for text in [
+        "4k7k", "4k7.2", "1R0F", "1R0kΩ", "1R0ΩΩ", "k47", "--4k7", "4k7K",
+    ] {
+        assert!(parse(text, &ohms, "Ω").is_err(), "{text}");
+    }
+    for text in ["1R0", "R47", "4k7kF"] {
+        assert!(parse(text, &farads(), "F").is_err(), "{text}");
+    }
+}
+
+#[test]
+fn uppercase_kilo_does_not_rewrite_declared_units_or_aliases() {
+    let kelvin = UnitSet {
+        dimension: [0, 0, 0, 0, 1, 0, 0],
+        units: vec![unit("K", &["Kelvin"], 1.0, true)],
+    };
+    for (text, expected) in [
+        ("4K7", 4.7),
+        ("4.7K", 4.7),
+        ("10K", 10.0),
+        ("4K7Kelvin", 4.7),
+        ("4.7Kelvin", 4.7),
+        ("1kK", 1000.0),
+    ] {
+        assert_eq!(si(text, &kelvin, "K"), expected, "{text}");
+    }
+    let custom = UnitSet {
+        dimension: LENGTH,
+        units: vec![unit("m", &["KiloMetre", "K7"], 1.0, true)],
+    };
+    assert_eq!(si("4K7", &custom, "m"), 4.0);
+    assert_eq!(si("4K8", &custom, "m"), 4800.0);
+    assert_eq!(si("4KiloMetre", &custom, "m"), 4.0);
+    assert!(parse("4KiloMetre", &resistance(), "Ω").is_err());
 }

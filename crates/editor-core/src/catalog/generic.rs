@@ -12,7 +12,6 @@
 //! whatever the PCB's display units, unless spelled `1608M` or `metric 1608`.
 //! Matching is bounded: at most [`MAX_WORDS`] words over patterns of at most
 //! [`MAX_STEPS`] steps, each trying at most two spans.
-use super::rkm;
 use crate::diagnostics::{Error, Result};
 use crate::library::standards::{GenericGrammar, Standards};
 use crate::quantity::{self, Decimal};
@@ -203,24 +202,15 @@ fn read_value(standards: &Standards, text: &str, kind: usize) -> Option<Bound> {
     let kind = standards.generic.value_slots.get(kind)?;
     let units = standards.fields.units(&kind.field)?;
     let symbol = units.units.first()?.symbol.clone();
-    let spelled = text
-        .replace('K', "k")
-        .replace("Ohm", "ohm")
-        .replace("OHM", "ohm");
-    let spelled = rkm(&spelled, units).unwrap_or(spelled);
-    if !spelled.starts_with(|c: char| c.is_ascii_digit() || c == '.') {
-        return None;
-    }
-    let suffix = spelled
-        .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.')
-        .trim();
+    let text = text.replace("Ohm", "ohm").replace("OHM", "ohm");
+    let parsed = quantity::parse(&text, units, &symbol).ok()?;
+    let suffix = &parsed.suffix;
     let bare = units.resolve(suffix).is_none();
     // "0603" alone is a size code, not 603 Ω.
-    let code_like = suffix.is_empty() && spelled.starts_with('0') && !spelled.contains('.');
+    let code_like = suffix.is_empty() && text.starts_with('0') && !text.contains('.');
     if code_like || (bare && !kind.bare.iter().any(|b| b == suffix)) {
         return None;
     }
-    let parsed = quantity::parse(&spelled, units, &symbol).ok()?;
     if parsed.si.is_zero() || parsed.si.is_negative() {
         return None;
     }

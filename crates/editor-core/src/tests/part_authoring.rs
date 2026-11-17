@@ -501,7 +501,12 @@ fn the_standard_fields_import_in_one_step_and_read_their_units() -> Result<()> {
         fields::FieldValue::Quantity { si, .. } => Some(si),
         _ => None,
     };
-    assert_eq!(si(read("Resistance", "4.7k")?), Some(dec(4700.0)));
+    for text in ["4k7", "4.7k", "4K7", "4k7Ω"] {
+        assert_eq!(si(read("Resistance", text)?), Some(dec(4700.0)), "{text}");
+    }
+    assert_eq!(si(read("Resistance", "1R0Ω")?), Some(dec(1.0)));
+    assert_eq!(si(read("Capacitance", "1u0")?), Some(dec(1e-6)));
+    assert!(read("Resistance", "4k7k").is_err());
     assert_eq!(si(read("Capacitance", "100nF")?), Some(dec(100e-9)));
     assert_eq!(si(read("Inductance", "10uH")?), Some(dec(10e-6)));
     assert_eq!(si(read("Rated voltage", "16V")?), Some(dec(16.0)));
