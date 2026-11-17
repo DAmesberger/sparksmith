@@ -68,7 +68,9 @@ fn sidecar(engine: &Engine, tier: Tier) -> Fallible<Sidecar> {
 fn publish(engine: &mut Engine, tier: Tier, path: &std::path::Path) -> Fallible<Sidecar> {
     let exported = build(engine.project(), sidecar(engine, tier)?)?;
     let _ = std::fs::remove_file(path);
-    exported.save_new(path.to_str().ok_or("path")?)?;
+    exported.save_new(crate::native::files::test_file(
+        path.to_str().ok_or("path")?,
+    ))?;
     let record = record(engine.project(), &exported.sidecar)?;
     let revision = engine.revision();
     engine.apply(

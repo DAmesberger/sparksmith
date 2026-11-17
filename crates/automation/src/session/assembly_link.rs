@@ -340,7 +340,7 @@ impl Session {
         let exported = sparksmith_solidcraft::interface::build(&project, candidate)?;
         let built = opened.copy.scratch().join("candidate.solidcraft");
         let built_text = built.to_string_lossy().into_owned();
-        exported.save_new(&built_text)?;
+        exported.save_new(crate::native_files::new_file(&built_text))?;
         let effects = opened.linked_design.dry_run(
             &opened.board,
             &built_text,

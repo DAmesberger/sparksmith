@@ -36,7 +36,7 @@ pub(super) fn save_linked_design(
     let (mut assembly_link, _) = linked_design(design, opening)?;
     assembly_link.solid_box("Far wall", [-5.0, far_y, -2.0], [50.0, 2.0, 12.0])?;
     let _ = std::fs::remove_file(path);
-    assembly_link.save(&path.display().to_string())?;
+    assembly_link.save(crate::native_files::new_file(&path.display().to_string()))?;
     Ok(())
 }
 

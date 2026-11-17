@@ -424,8 +424,8 @@ impl LinkedDesign {
     }
 
     /// Save this design as a new file (test fixtures).
-    pub fn save(&self, path: &str) -> Result<()> {
-        self.native.save_new(path)
+    pub fn save(&self, output: crate::native::files::NewFile<'_>) -> Result<()> {
+        self.native.save_new(output)
     }
 
     /// The component that links `design` (the board's published design),

@@ -33,7 +33,7 @@ fn esp32_export_tiers_are_checked_against_the_plan() {
         let report = export::board(
             &project,
             tier,
-            path.to_str().unwrap(),
+            sparksmith_automation::native_files::new_file(path.to_str().unwrap()),
             &watch,
             export::Unfit::Refuse,
         )

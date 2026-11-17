@@ -227,7 +227,7 @@ fn stackup_parameters_drive_the_saved_board_after_reopening() -> Result<()> {
         .join("four.solidcraft")
         .to_string_lossy()
         .into_owned();
-    original.save(&path)?;
+    original.save(crate::native::files::test_file(&path))?;
     let reopened = Native::open(&path)?;
     let mut before = finish(reopened, original.sources.clone())?;
     assert!(before.geometry.iter().all(|g| !g.kind.is_appearance()));

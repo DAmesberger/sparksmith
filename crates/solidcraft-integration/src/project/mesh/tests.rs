@@ -338,7 +338,7 @@ fn a_meshed_model_is_never_saved() -> Result<()> {
     let live = build_flat(&shaped()?, &SourceCache::default(), None, Flat::Meshed)?;
     let dir = tempfile::tempdir().map_err(|e| Error::Verification(e.to_string()))?;
     let path = dir.path().join("live.solidcraft");
-    let refused = live.save(&path.to_string_lossy());
+    let refused = live.save(crate::native::files::test_file(&path.to_string_lossy()));
     assert!(matches!(refused, Err(Error::Invalid(_))), "{refused:?}");
     assert!(!path.exists());
     Ok(())

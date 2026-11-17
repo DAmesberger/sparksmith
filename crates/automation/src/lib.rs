@@ -11,6 +11,7 @@ pub mod kicad_import;
 pub mod lines;
 pub mod live;
 pub mod mcp;
+pub mod native_files;
 pub mod review;
 pub mod session;
 pub mod view;

@@ -345,7 +345,7 @@ fn native_reopen_retains_sources_and_parameter_driven_board_parts_and_copper() -
         .join("project.solidcraft")
         .to_string_lossy()
         .into_owned();
-    original.save(&path)?;
+    original.save(crate::native::files::test_file(&path))?;
     let reopened = Native::open(&path)?;
     let retained = saved_sources(&reopened)?;
     assert_eq!(
@@ -1658,7 +1658,7 @@ fn shaped_copper_survives_reopening_and_follows_the_board_thickness() -> Result<
         .join("shaped.solidcraft")
         .to_string_lossy()
         .into_owned();
-    original.save(&path)?;
+    original.save(crate::native::files::test_file(&path))?;
     let reopened = Native::open(&path)?;
     let before = finish(reopened, original.sources.clone())?;
     assert_eq!(before.geometry.len(), native(&original).count());
@@ -1860,7 +1860,7 @@ fn many_vias_are_placements_of_one_definition_and_survive_reopening() -> Result<
         .join("vias.solidcraft")
         .to_string_lossy()
         .into_owned();
-    model.save(&path)?;
+    model.save(crate::native::files::test_file(&path))?;
     let reopened = Native::open(&path)?;
     let saved = saved_sources(&reopened)?;
     let key = |s: &&Source| (s.via, s.net, s.component, s.occurrence);
@@ -1954,7 +1954,7 @@ fn ten_thousand_vias_and_many_tracks_survive_reopening() -> Result<()> {
         .join("large.solidcraft")
         .to_string_lossy()
         .into_owned();
-    model.save(&path)?;
+    model.save(crate::native::files::test_file(&path))?;
     let reopened = Native::open(&path)?;
     let metadata = serde_json::to_string(&reopened.session().doc.metadata)?;
     eprintln!("metadata {} bytes", metadata.len());
