@@ -253,3 +253,112 @@ fn only_a_sync_the_system_does_not_offer_is_quiet() {
         assert!(!super::sync_not_offered(&IoError::from(kind)), "{kind:?}");
     }
 }
+
+#[test]
+fn a_competing_creator_wins_after_the_temporary_file_is_written() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("output.bin");
+    let result = atomic_create_with(&path, |file| {
+        file.write_all(b"losing content")?;
+        std::fs::write(&path, b"competing content")?;
+        Ok(())
+    });
+    assert!(matches!(result, Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::AlreadyExists));
+    assert_eq!(std::fs::read(&path)?, b"competing content");
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
+
+#[test]
+fn two_concurrent_creators_publish_exactly_one_complete_file() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("output.bin");
+    let ready = std::sync::Barrier::new(2);
+    let results = std::thread::scope(|scope| {
+        let create = |bytes: &'static [u8]| {
+            let path = &path;
+            let ready = &ready;
+            scope.spawn(move || {
+                atomic_create_with(path, |file| {
+                    file.write_all(bytes)?;
+                    ready.wait();
+                    Ok(())
+                })
+            })
+        };
+        let a = create(b"first complete file");
+        let b = create(b"second complete file");
+        (a.join(), b.join())
+    });
+    let (a, b) = (
+        results
+            .0
+            .map_err(|_| Error::Invalid("creator panicked".into()))?,
+        results
+            .1
+            .map_err(|_| Error::Invalid("creator panicked".into()))?,
+    );
+    assert_eq!(usize::from(a.is_ok()) + usize::from(b.is_ok()), 1);
+    let loser = if a.is_err() { a } else { b };
+    assert!(matches!(loser, Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::AlreadyExists));
+    let bytes = std::fs::read(&path)?;
+    assert!(bytes == b"first complete file" || bytes == b"second complete file");
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
+
+#[test]
+fn staged_path_writers_publish_the_replaced_file_and_clean_up() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("output.solidcraft");
+    let staged = StagedNew::new(&path)?;
+    assert_eq!(staged.path().extension(), path.extension());
+    assert!(!path.exists());
+    assert!(!staged.path().exists(), "Save As must see a new path");
+    std::fs::write(staged.path(), b"initial external output")?;
+    atomic_write(staged.path(), b"external writer replaced the stage")?;
+    staged.persist()?;
+    assert_eq!(std::fs::read(&path)?, b"external writer replaced the stage");
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    assert!(
+        matches!(StagedNew::new(&path), Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::AlreadyExists)
+    );
+    let abandoned = dir.path().join("abandoned.solidcraft");
+    let stage = StagedNew::new(&abandoned)?;
+    std::fs::write(stage.path(), b"partial")?;
+    drop(stage);
+    assert!(!abandoned.exists());
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
+
+#[test]
+fn staged_path_writers_refuse_a_target_created_before_publication() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("output.solidcraft");
+    let staged = StagedNew::new(&path)?;
+    atomic_write(staged.path(), b"native content")?;
+    std::fs::write(&path, b"competing content")?;
+    assert!(
+        matches!(staged.persist(), Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::AlreadyExists)
+    );
+    assert_eq!(std::fs::read(&path)?, b"competing content");
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
+
+#[test]
+fn creating_a_project_never_replaces_an_existing_container() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("board.sparksmith");
+    let file = Engine::demo()?.to_file();
+    create_project(&path, &file)?;
+    assert_eq!(read_project(&path)?, file);
+    let bytes = std::fs::read(&path)?;
+    assert!(
+        matches!(create_project(&path, &Engine::profiled()?.to_file()), Err(Error::Io(e)) if e.kind() == std::io::ErrorKind::AlreadyExists)
+    );
+    assert_eq!(std::fs::read(&path)?, bytes);
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
