@@ -11,7 +11,7 @@ use crate::ids::DefinitionId;
 use crate::library::drafts;
 use crate::library::pinout::{
     self, PinoutAccept, PinoutApplied, PinoutApply, PinoutDocument, PinoutPlan, PinoutTarget,
-    StagedImport,
+    PlanPart, StagedImport,
 };
 use crate::model::Document;
 use std::sync::Arc;
@@ -108,8 +108,24 @@ pub(crate) fn preview(
             .entry(format!("{} {}", change.object, change.kind.name()))
             .or_default() += 1;
     }
+    let part = staged.drafts.iter().find_map(|d| match &d.definition {
+        crate::library::Definition::Component(c) => Some(PlanPart {
+            name: d.meta.name.clone(),
+            pins: c.terminals.len(),
+            package: document
+                .project
+                .library
+                .generated
+                .iter()
+                .filter(|g| g.root.id == d.id)
+                .max_by_key(|g| g.root.revision)
+                .and_then(|g| g.from.preset.clone()),
+        }),
+        _ => None,
+    });
     let plan = PinoutPlan {
         base,
+        part,
         change_counts,
         changes: staged.changes,
         findings,

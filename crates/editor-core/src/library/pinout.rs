@@ -281,6 +281,9 @@ pub struct PinoutPlan {
     /// The draft revision token the plan was made against; `pinout_apply`
     /// refuses when it no longer matches.
     pub base: PlanBase,
+    /// The component the import writes, as a review card names it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub part: Option<PlanPart>,
     /// How many changes of each object and kind (`terminal changed`).
     #[serde(default)]
     pub change_counts: BTreeMap<String, usize>,
@@ -311,6 +314,20 @@ pub struct PinoutPlan {
     /// Whether changes, findings and review items are listed one by one.
     #[serde(default)]
     pub detail: bool,
+}
+
+/// The component a pinout import writes: its name, how many pins it has
+/// after the import and, for a generated part, its package.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PlanPart {
+    pub name: String,
+    /// Its terminals after the import.
+    pub pins: usize,
+    /// The generator preset the part was made from (`SOT-23-5`); none for a
+    /// part no preset made.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
 }
 
 /// The messages a compact plan quotes per group.

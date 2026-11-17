@@ -84,8 +84,7 @@ pub enum FillCommand {
     /// The whole part's (`pad` omitted) or one pad's, which wins over the
     /// part's field by field. Empty `settings` removes the override. Fill
     /// copper near the part goes stale. Example:
-    /// `{"command":"fill.set_pad_override","params":{"instance":7,"pad":1,
-    /// "settings":{"connection":"solid"}}}`.
+    /// `{"instance":7,"pad":1,"settings":{"connection":"solid"}}`.
     #[serde(rename = "fill.set_pad_override")]
     SetPadOverride {
         instance: Id,

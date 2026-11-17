@@ -892,10 +892,7 @@ fn a_fill_keeps_the_plated_hole_clearance_from_a_plated_hole() -> Fallible<()> {
         let mut p = engine.project().clone();
         crate::rules::apply(
             &mut p.rules,
-            RulesCommand::SetProfile {
-                profile: Box::new(crate::rules::fixtures::jlcpcb_example()?),
-                keep_overrides: false,
-            },
+            RulesCommand::set_profile(crate::rules::fixtures::jlcpcb_example()?, false),
         )?;
         if let Some(b) = set {
             p.rules.overrides.push(crate::rules::RuleOverride {
@@ -955,10 +952,7 @@ fn the_fill_keeps_the_profile_edge() -> Fallible<()> {
         let [w, h] = p.board_size;
         crate::rules::apply(
             &mut p.rules,
-            crate::rules::RulesCommand::SetProfile {
-                profile: Box::new(profile.clone()),
-                keep_overrides: false,
-            },
+            crate::rules::RulesCommand::set_profile(profile.clone(), false),
         )?;
         let c = super::compute(&p, id)?;
         let mut f = fill(&p, id)?.clone();

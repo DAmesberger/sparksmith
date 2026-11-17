@@ -124,30 +124,7 @@ pub fn apply(
 }
 
 /// The profile a `fabrication.preflight` query checks under.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(
-    untagged,
-    expecting = "a fab profile id from the profile library, or a whole fab profile"
-)]
-pub enum ProfileChoice {
-    /// A profile id. Sparksmith has no built-in profiles: a host with a
-    /// profile library resolves an id to its profile before it asks.
-    Id(String),
-    Profile(Box<RuleProfile>),
-}
-
-impl ProfileChoice {
-    /// The profile chosen. An id the host did not resolve is not found.
-    pub fn into_profile(self) -> Result<RuleProfile> {
-        match self {
-            Self::Id(id) => Err(Error::NotFound(format!(
-                "rules.fab_profile_unknown: no fab profile {id} here; pass the profile file's \
-                 profile, or its id where a profile library is open"
-            ))),
-            Self::Profile(profile) => Ok(*profile),
-        }
-    }
-}
+pub use crate::rules::ProfileChoice;
 
 /// One pre-flight finding.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -267,10 +244,7 @@ pub fn report(
             let mut candidate = project.clone();
             match rules::apply(
                 &mut candidate.rules,
-                RulesCommand::SetProfile {
-                    profile: Box::new(p.clone()),
-                    keep_overrides: true,
-                },
+                RulesCommand::set_profile(p.clone(), true),
             ) {
                 Ok(_) => Cow::Owned(candidate),
                 Err(e) => {

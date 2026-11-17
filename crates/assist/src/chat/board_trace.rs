@@ -1,6 +1,6 @@
 //! A small generic board built through the six verbs only, as the chat
 //! calls them (no model): a 2-pin header powers an LED through a 0603
-//! resistor. Parts are made with the shipped generators, placed on the
+//! resistor. The fab profile is chosen by id with an option. Parts are made with the shipped generators, placed on the
 //! schematic inside the sheet frame, wired, synced to the board, placed,
 //! routed and given a GND fill on the bottom, and the check passes.
 //!
@@ -183,6 +183,36 @@ fn net_of(t: &mut Trace, instance: u64, terminal: u64) -> Fallible<u64> {
 #[test]
 fn a_small_board_is_built_routed_and_checked_through_the_verbs() -> Fallible {
     let mut t = Trace::new()?;
+    // The fab profile: the compact listing gives each profile's id and its
+    // options with their choices; one step sets one by id with a choice.
+    let listed = t.call("query", json!({"name": "rules.fab_profiles", "params": {}}))?;
+    let profiles = listed["result"].as_array().cloned().unwrap_or_default();
+    let pcbway = profiles
+        .iter()
+        .find(|p| p["id"] == "pcbway-2-layer")
+        .ok_or_else(|| format!("no pcbway-2-layer in {listed}"))?;
+    assert!(
+        pcbway["options"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|o| o["id"] == "limits" && o["default"] == "normal"),
+        "{pcbway}"
+    );
+    assert!(pcbway.get("rules").is_none(), "{pcbway}");
+    // Its reply names the snapshot as one changed field.
+    let set = t.apply(
+        "rules.set_fab_profile",
+        json!({"profile": "pcbway-2-layer", "options": {"limits": "minimum"}}),
+    )?;
+    assert_eq!(set["changes"]["fields"], json!(["rules.profile"]), "{set}");
+    let rules = &t.session.engine().project().rules;
+    let board = rules.profile.as_ref().ok_or("no profile")?;
+    assert_eq!(board.id, "pcbway-2-layer");
+    assert_eq!(
+        board.chosen().get("limits").map(String::as_str),
+        Some("minimum")
+    );
     // Parts: a 1×2 header (power in), a 0603 LED and a 0603 resistor, each
     // made by a shipped generator preset (`library.generators {text}` lists
     // the keys) and placed on Sheet 1.
@@ -326,6 +356,10 @@ fn a_small_board_is_built_routed_and_checked_through_the_verbs() -> Fallible {
         ("query", json!({"name": "library.generators", "params": {}})),
         ("query", json!({"name": "library.rescan", "params": {}})),
         ("query", json!({"name": "rules.fab_profiles", "params": {}})),
+        (
+            "query",
+            json!({"name": "rules.fab_profiles", "params": {"id": "pcbway-2-layer"}}),
+        ),
         (
             "query",
             json!({"name": "project.issues", "params": {"scope": {"kind": "all"}}}),

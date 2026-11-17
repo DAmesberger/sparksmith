@@ -285,6 +285,7 @@ impl Session {
     )> {
         let module = self.module_bytes(params.generator.as_deref(), params.module)?;
         let mut values = GeneratorParams::new();
+        let mut preset_name = None;
         if let Some(preset) = &params.preset {
             let description = self.describe(&module.bytes)?;
             let found = description
@@ -303,6 +304,7 @@ impl Session {
                         keys.join(", ")
                     ))
                 })?;
+            preset_name = Some(found.name.clone());
             values.extend(
                 found
                     .params
@@ -323,6 +325,7 @@ impl Session {
             replaces: params.replaces,
             model: None,
             bundle: module.bundle.as_ref().map(|b| b.hash),
+            preset: preset_name,
         };
         // The model comes first (GP2): the module's part file, evaluated
         // at the values of the request the engine will run.

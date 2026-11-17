@@ -1045,17 +1045,27 @@ impl Runner<'_, '_> {
                 message: f["message"].as_str().unwrap_or_default().to_owned(),
             })
             .collect();
-        // What the plan is about: the part this run made, by name.
+        // What the plan is about: a part this run made is new, said by its
+        // pins and package as the plan gives them ("New part: 5 pins,
+        // SOT-23-5").
         let made = self
             .results
             .values()
             .filter_map(|r| r.get("drafts").and_then(Value::as_array))
             .flatten()
-            .find_map(|d| d.get("name").and_then(Value::as_str));
+            .any(|d| d.get("name").and_then(Value::as_str).is_some());
+        let part = &plan["part"];
+        let what: Vec<String> = part["pins"]
+            .as_u64()
+            .map(|n| super::control::counted_label(n, "pin"))
+            .into_iter()
+            .chain(part["package"].as_str().map(str::to_owned))
+            .collect();
         let card = ControlCard::Impact {
-            title: match made {
-                Some(name) => format!("{} into the new part {name}", step.title),
-                None => step.title.clone(),
+            title: match (made, what.is_empty()) {
+                (true, false) => format!("New part: {}", what.join(", ")),
+                (true, true) => "New part".to_owned(),
+                (false, _) => step.title.clone(),
             },
             counts,
             findings,

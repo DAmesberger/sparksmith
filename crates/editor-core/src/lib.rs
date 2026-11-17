@@ -337,16 +337,23 @@ pub enum Query {
     /// and the net classes.
     #[serde(rename = "rules.effective")]
     RulesEffective {},
-    /// The project's own profile snapshot, if any; hosts with a profile
-    /// library (desktop, CLI, MCP) append its profiles and the built-in
-    /// ones.
+    /// The fab profiles by id, with their options, choices and defaults.
+    /// `rules.set_fab_profile` takes the id. The board's own comes first
+    /// (with its choices); hosts with a profile library (desktop, CLI, MCP)
+    /// add the user's profiles and the shipped ones. With `id`, that one
+    /// profile in full, with its rules and sources.
     #[serde(rename = "rules.fab_profiles")]
-    RuleProfiles {},
+    RuleProfiles {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+    },
     /// What `rules.set_fab_profile` with these arguments would change: rules
     /// and the board issues that would appear or go.
     #[serde(rename = "rules.preview_fab_profile")]
     PreviewProfile {
-        profile: Box<rules::RuleProfile>,
+        profile: rules::ProfileChoice,
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        options: std::collections::BTreeMap<String, String>,
         #[serde(default)]
         keep_overrides: bool,
     },
@@ -539,7 +546,8 @@ pub enum QueryResult {
     PinConfig(Box<firmware::PinConfigReport>),
     Marking(Option<library::marking::MarkingLayout>),
     Rules(Box<rules::RulesReport>),
-    RuleProfiles(Vec<rules::RuleProfile>),
+    RuleProfiles(Vec<rules::ProfileBrief>),
+    RuleProfile(Box<rules::RuleProfile>),
     ProfileImpact(Box<rules::ProfileImpact>),
     NetClasses(Box<rules::netclass::NetClassReport>),
     NetClassChanges(Vec<rules::netclass::ClassChange>),
@@ -957,10 +965,7 @@ impl Engine {
         engine.set_context(Arc::clone(&context));
         engine.apply(
             engine.revision,
-            Operation::Rules(rules::RulesCommand::SetProfile {
-                profile: Box::new(profile),
-                keep_overrides: false,
-            }),
+            Operation::Rules(rules::RulesCommand::set_profile(profile, false)),
         )?;
         engine.apply(
             engine.revision,
@@ -1972,6 +1977,7 @@ impl Engine {
         let mut impact = rules::rule_changes(&current.rules, &next);
         impact.kept_choices = carry.kept;
         impact.reset_choices = carry.reset;
+        impact.chosen_choices = carry.chosen;
         if let Some(reason) = refusal {
             impact.refusal = Some(reason);
             return Ok(QueryResult::ProfileImpact(Box::new(impact)));
@@ -2104,25 +2110,30 @@ impl Engine {
             Query::RulesEffective {} => Ok(QueryResult::Rules(Box::new(rules::report(
                 &self.document.project.rules,
             )))),
-            Query::RuleProfiles {} => Ok(QueryResult::RuleProfiles(
+            Query::RuleProfiles { id: None } => Ok(QueryResult::RuleProfiles(
                 self.document
                     .project
                     .rules
                     .profile
                     .iter()
-                    .cloned()
+                    .map(|p| rules::ProfileBrief::of(p, true))
                     .collect(),
             )),
+            Query::RuleProfiles { id: Some(id) } => Ok(QueryResult::RuleProfile(Box::new(
+                rules::ProfileChoice::Id(id).resolve(&self.document.project.rules)?,
+            ))),
             Query::PreviewOptions { options } => {
                 let profile = rules::with_options(&self.document.project.rules, &options)?;
                 self.preview_profile(profile, true, rules::ChoiceCarry::default())
             }
             Query::PreviewProfile {
                 profile,
+                options,
                 keep_overrides,
             } => {
+                let current = &self.document.project.rules;
                 let (profile, carry) =
-                    rules::carry_choices(&self.document.project.rules, *profile)?;
+                    rules::carry_choices(current, profile.resolve(current)?, &options)?;
                 self.preview_profile(profile, keep_overrides, carry)
             }
             Query::NetClasses {} => {
