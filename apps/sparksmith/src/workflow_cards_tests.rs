@@ -160,7 +160,8 @@ impl Chat {
 
     /// Frames until the documents dropped have been read.
     fn read(&mut self) -> Fallible {
-        for _ in 0..400 {
+        let deadline = std::time::Instant::now() + crate::app::ax_harness::PATIENCE;
+        while std::time::Instant::now() < deadline {
             self.frame(vec![]);
             if self.cards.probes.is_empty() {
                 self.frame(vec![]);

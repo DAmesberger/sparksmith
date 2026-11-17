@@ -21,6 +21,13 @@ pub(crate) const WINDOW: egui::Vec2 = egui::vec2(1380.0, 900.0);
 /// egui's click time, and separate clicks are never a double-click.
 const FRAME_SECONDS: f64 = 0.25;
 
+/// How long [`Ax::until`] waits, in real time, for work off the UI thread:
+/// generous, as a loaded CI machine runs many such tests at once.
+pub(crate) const PATIENCE: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// Frames [`Ax::click`] follows a widget that is still moving.
+const MOVES: usize = 8;
+
 /// One node of the last frame's accessibility tree.
 #[derive(Clone, Debug)]
 pub(crate) struct Node {
@@ -263,6 +270,17 @@ impl Ax {
         modifiers: egui::Modifiers,
     ) {
         self.hover(at);
+        self.press_release(at, button, modifiers);
+    }
+
+    /// The press and release of [`Ax::click_at_with`], the pointer already
+    /// at `at`.
+    fn press_release(
+        &mut self,
+        at: egui::Pos2,
+        button: egui::PointerButton,
+        modifiers: egui::Modifiers,
+    ) {
         for pressed in [true, false] {
             self.frame(vec![egui::Event::PointerButton {
                 pos: at,
@@ -284,13 +302,29 @@ impl Ax {
         self.click_at_with(at, egui::PointerButton::Secondary, egui::Modifiers::NONE);
     }
 
-    /// Click the one enabled node of `role` named `name`.
+    /// Click the one enabled node of `role` named `name`, where it is when
+    /// the press goes in: content that just arrived can still move it (a
+    /// list kept at its bottom scrolls a frame after it grows), so the
+    /// pointer follows it until it stays put.
     pub(crate) fn click(&mut self, role: Role, name: &str) -> Fallible {
-        let node = self.find(role, name)?;
+        let mut node = self.find(role, name)?;
+        for _ in 0..MOVES {
+            self.hover(node.center());
+            let now = self.find(role, name)?;
+            let still = now.rect == node.rect;
+            node = now;
+            if still {
+                break;
+            }
+        }
         if node.disabled {
             return Err(format!("{role:?} {name:?} is disabled").into());
         }
-        self.click_at(node.center());
+        self.press_release(
+            node.center(),
+            egui::PointerButton::Primary,
+            egui::Modifiers::NONE,
+        );
         Ok(())
     }
 
@@ -326,16 +360,21 @@ impl Ax {
         self.frame(vec![egui::Event::Text(text.into())]);
     }
 
-    /// Frames until `done`, or an error naming `what`.
+    /// Frames until `done`, or an error naming `what` after [`PATIENCE`]
+    /// of real time: background work (a model thread, a reader) runs at the
+    /// machine's pace, not the frames'.
     pub(crate) fn until(&mut self, what: &str, mut done: impl FnMut(&Self) -> bool) -> Fallible {
-        for _ in 0..500 {
+        let deadline = std::time::Instant::now() + PATIENCE;
+        loop {
             self.frame(vec![]);
             if done(self) {
                 return Ok(());
             }
+            if std::time::Instant::now() > deadline {
+                return Err(format!("{what} did not happen").into());
+            }
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
-        Err(format!("{what} did not happen").into())
     }
 }
 
