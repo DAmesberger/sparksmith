@@ -129,6 +129,15 @@ pub struct Setup<'a> {
 
 /// Import a KiCad board file into a new project.
 pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> {
+    import_with_models(bytes, setup, None)
+}
+
+/// Import with a host that resolves and evaluates 3D models off the UI thread.
+pub fn import_with_models(
+    bytes: &[u8],
+    setup: &Setup<'_>,
+    mut models: Option<&mut dyn crate::models::Provider>,
+) -> Result<Imported, ImportError> {
     let mut report = Report::default();
     // Check limits before building any part of the imported project, even
     // when no fabrication profile is available to apply the rules to.
@@ -262,6 +271,7 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         if let Some(symbol) = &symbol {
             key.push_str(&format!("{symbol:?}"));
         }
+        key.push_str(&format!("{:?}\0{}", fp.models, prefix_of(&fp.reference)));
         let next = definitions.len();
         let index = *by_key.entry(key).or_insert(next);
         if index == next {
@@ -270,7 +280,9 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         uses.push(index);
         report.add_n(Case::FootprintFabGraphics, fp.fab_graphics);
         report.add_n(Case::FootprintDrawings, fp.drawings);
-        report.add_n(Case::Models, fp.models);
+        if models.is_none() {
+            report.add_n(Case::Models, fp.models.len());
+        }
         if fp.net_tie {
             report.add(Case::NetTie);
         }
@@ -303,12 +315,31 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
             k,
             &mut names_taken,
         );
+        let selection = match (models.as_deref_mut(), first) {
+            (Some(provider), Some(fp)) => Some(
+                provider
+                    .prepare(&mut session.engine, &pads, &prefix, &fp.models)
+                    .map_err(|reason| ImportError::Refused {
+                        step: "3D model",
+                        reason,
+                    })?,
+            ),
+            _ => None,
+        };
+        if let Some(selection) = &selection {
+            for (fp, used) in board.footprints.iter().zip(&uses) {
+                if *used == k {
+                    report.add_detail(selection.case, &fp.reference, "", &selection.reason);
+                }
+            }
+        }
         sets.push(session.component_set(
             &name,
             pads,
             &prefix,
             symbol.as_ref(),
             value_field,
+            selection.as_ref().and_then(|s| s.choice.as_ref()),
             &mut report,
         )?);
     }
@@ -996,6 +1027,7 @@ impl Session<'_> {
         prefix: &str,
         kicad_symbol: Option<&crate::schematic::LibSymbol>,
         value_field: Option<FieldRef>,
+        model: Option<&crate::models::Choice>,
         report: &mut Report,
     ) -> Result<Set, ImportError> {
         let kinds = [
@@ -1033,7 +1065,7 @@ impl Session<'_> {
             });
         };
         let mut unpinned = 0;
-        let edits = drafts(
+        let mut edits = drafts(
             name,
             pads,
             prefix,
@@ -1046,6 +1078,18 @@ impl Session<'_> {
             step: "library.edit",
             reason: e.to_string(),
         })?;
+        if let Some(model) = model {
+            for edit in &mut edits {
+                if let Definition::Package(package) = &mut edit.definition {
+                    package.model = model.model.clone();
+                    package.placement = model.placement;
+                    package.envelope_nm = model.envelope_nm;
+                    edit.meta
+                        .provenance
+                        .push_str(&format!("\n{}", model.provenance));
+                }
+            }
+        }
         report.add_n(Case::TerminalWithoutPin, unpinned);
         self.batches(
             "library.publish",

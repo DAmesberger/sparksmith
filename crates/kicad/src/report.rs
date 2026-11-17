@@ -86,6 +86,10 @@ pub enum Case {
     BoardObjects,
     /// G12: 3D model references.
     Models,
+    VendorModel,
+    GeneratedModel,
+    LibraryModelGenerated,
+    NoModel,
     /// A pad whose size, place or margins are beyond the coordinate bound.
     PadOutOfRange,
     /// No fab profile was given: no rules, so no outline, tracks or fills.
@@ -321,7 +325,27 @@ impl Case {
                 Report,
                 "board-level drawings, texts and dimensions, not imported (slice K7)",
             ),
-            Self::Models => ("G12", Report, "3D model references, ignored"),
+            Self::Models => (
+                "G12",
+                Report,
+                "3D model references (host resolution unavailable)",
+            ),
+            Self::VendorModel => ("G12V", Exact, "footprint instances with vendor STEP models"),
+            Self::GeneratedModel => (
+                "G12G",
+                Approximate,
+                "footprint instances with matched generated models",
+            ),
+            Self::LibraryModelGenerated => (
+                "G12K",
+                Approximate,
+                "footprint instances using generated models instead of KiCad library references",
+            ),
+            Self::NoModel => (
+                "G12N",
+                Report,
+                "footprint instances without a model (placeholder; reason in details)",
+            ),
             Self::PadOutOfRange => (
                 "-",
                 Refused,

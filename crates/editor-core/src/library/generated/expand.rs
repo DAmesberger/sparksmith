@@ -265,6 +265,23 @@ pub fn definitions(
     Ok((out, used))
 }
 
+/// Expand a generation's mechanical land pattern without evaluating its part
+/// file. Uses the same ids and geometry conversion as full definition expansion;
+/// callers may compare it before paying for native model evaluation.
+pub fn footprint_geometry(generation: &v1::Generation) -> Result<FootprintDefinition> {
+    let mut terminals = Ids::new(&BTreeMap::new());
+    for key in &generation.package.terminals {
+        terminals.id(format!("t:{key}"))?;
+    }
+    let mut pads = Ids::new(&BTreeMap::new());
+    footprint(
+        generation,
+        PackageRef::new(DefinitionId(1), crate::ids::Revision::FIRST),
+        &terminals,
+        &mut pads,
+    )
+}
+
 fn direction(d: v1::Direction) -> Direction {
     match d {
         v1::Direction::Input => Direction::Input,

@@ -918,6 +918,15 @@ impl Native {
         Ok(())
     }
 
+    /// Export named bodies through Solidcraft's STEP writer, with their native
+    /// body colours. Interchange import composition and synthetic fixtures use
+    /// the same reader/writer as ordinary exports.
+    pub fn step_bytes(&self, bodies: &[String], name: &str) -> Result<Vec<u8>> {
+        let state = self.session.doc.painted(&self.session.model.state());
+        solidcraft_engine::io::export(&state, bodies, solidcraft_engine::io::Format::Step, name)
+            .map_err(|error| Error::Invalid(error.to_string()))
+    }
+
     /// Assign a physical look to bodies, in chunks the command accepts. The
     /// look is stored in the native file, so Solidcraft shows the same
     /// material Sparksmith does.

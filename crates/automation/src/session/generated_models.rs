@@ -93,7 +93,7 @@ fn find(
 
 /// The model of `generation` for `library.generate`: its part file
 /// evaluated at its values and checked against the generation.
-pub(super) fn generated_model(
+pub(crate) fn generated_model(
     engine: &Engine,
     generation: &v1::Generation,
     bundle: Option<&GeneratorBundle>,
