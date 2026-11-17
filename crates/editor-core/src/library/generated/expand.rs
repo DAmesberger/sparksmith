@@ -316,11 +316,13 @@ fn component_definition(
         representations: vec![symbol],
         implementations: vec![binding],
         // Standard field keys stay in the generation (and its result hash);
-        // GP1 selects no fields (docs/generator-plugins.md).
+        // the host selects a generic family's fields afterwards
+        // (`generated::family_fields`).
         fields: Vec::new(),
         pin_rules: Vec::new(),
         marking: None,
         review: None,
+        value_template: None,
         generic: None,
     })
 }

@@ -17,6 +17,7 @@ use super::marking::codes::MarkingCodes;
 use super::standard_fields::StandardFields;
 use super::symbol_style::SymbolDrawings;
 use crate::diagnostics::{Error, Result};
+use crate::ids::DefinitionId;
 use crate::materials::MaterialLibrary;
 use crate::quantity::{self, Decimal, UnitOfMeasure, UnitSet};
 use schemars::JsonSchema;
@@ -62,6 +63,33 @@ impl Standards {
                     "the generic-part grammar's {} slot names {}, which is not a standard quantity field",
                     slot.slot, slot.field
                 )));
+            }
+        }
+        for family in &generic.families {
+            if family.fields.len() > crate::fields::MAX_FIELDS {
+                return Err(Error::Limit(format!(
+                    "the generic family ‘{}’ selects more than {} fields",
+                    family.label,
+                    crate::fields::MAX_FIELDS
+                )));
+            }
+            if let Some(name) = family.fields.iter().find(|f| fields.lineage(f).is_none()) {
+                return Err(Error::Invalid(format!(
+                    "the generic family ‘{}’ selects {name}, which is not a standard field",
+                    family.label
+                )));
+            }
+            if !family.value_template.is_empty() {
+                crate::fields::ValueTemplate::parse(&family.value_template, |name| {
+                    family
+                        .fields
+                        .iter()
+                        .position(|f| f == name)
+                        .map(|i| DefinitionId(u64::try_from(i).unwrap_or(u64::MAX)))
+                })
+                .map_err(|e| {
+                    Error::Invalid(format!("the generic family ‘{}’: {e}", family.label))
+                })?;
             }
         }
         if fields.choices(&generic.colour_field).is_none() {
@@ -401,6 +429,16 @@ pub struct FamilyPatterns {
     pub body: Vec<String>,
     pub patterns: Vec<String>,
     pub examples: Vec<String>,
+    /// The standard fields, by name, a part of the family selects: each
+    /// placed part holds its own values of them (the chat's and the Place
+    /// palette's "4.7k").
+    #[serde(default)]
+    pub fields: Vec<String>,
+    /// What a placed part shows as its value: alternatives over `fields`
+    /// (`{Capacitance} {Rated voltage}`, then `{Capacitance}`), the first
+    /// filled one winning.
+    #[serde(default)]
+    pub value_template: Vec<String>,
 }
 
 /// A value slot type (`{value:ohm}`): the standard field it fills, and the
@@ -523,6 +561,23 @@ impl GenericGrammar {
             ));
         }
         self.length_unit_set().check()
+    }
+
+    /// The family a part `generator` made from the complete `params`
+    /// belongs to: its generator's, with every parameter of its presets
+    /// (with its own params on top) equal.
+    pub fn family_of(
+        &self,
+        generator: &str,
+        params: &crate::library::generated::GeneratorParams,
+    ) -> Option<&FamilyPatterns> {
+        self.families.iter().find(|family| {
+            let mut wanted = family.presets.clone();
+            wanted.extend(family.params.clone());
+            family.generator == generator
+                && !wanted.is_empty()
+                && wanted.iter().all(|(k, v)| params.get(k) == Some(v))
+        })
     }
 
     /// The units a length slot reads, the first being the unit a bare

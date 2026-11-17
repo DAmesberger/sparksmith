@@ -1149,6 +1149,7 @@ fn drafts(
                 pin_rules: Vec::new(),
                 marking: None,
                 review: None,
+                value_template: None,
                 generic: None,
                 next_local: 2 * count + 1,
                 designator_prefix: prefix.into(),

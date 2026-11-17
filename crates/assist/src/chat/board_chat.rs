@@ -134,7 +134,7 @@ impl Tools for Verbs<'_> {
 /// The parts: search words, designator.
 const PARTS: [(&str, &str); 3] = [
     ("header 1x2", "J1"),
-    ("resistor 0603 1k", "R1"),
+    ("resistor 0603 4.7k", "R1"),
     ("led 0603 red", "D1"),
 ];
 
@@ -393,7 +393,7 @@ fn build(policy: Policy) -> Fallible<Built> {
         &mut model,
         &mut Vec::new(),
         vec![Part::text(
-            "The window shows: {\"workspace\": \"schematic\"}\n\nBuild a small board: a 2-pin header powers a red 0603 LED through a 1k 0603 resistor. Put them on the schematic, update the PCB, place them close together, route every net, pour GND on the bottom and check it.",
+            "The window shows: {\"workspace\": \"schematic\"}\n\nBuild a small board: a 2-pin header powers a red 0603 LED through a 4.7k 0603 resistor. Put them on the schematic, update the PCB, place them close together, route every net, pour GND on the bottom and check it.",
         )],
         &mut tools,
         &mut |e| {
@@ -441,6 +441,23 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
         rows.iter()
             .all(|r| r["finding"]["code"] == "purchasing.no_part"),
         "{report}"
+    );
+    // The values the search gave went onto the placed parts: the BOM reads
+    // them.
+    let bom = sparksmith_core::completeness::bom(project)?;
+    let value_of = |designator: &str| {
+        bom.lines
+            .iter()
+            .find(|l| l.designators.iter().any(|d| d == designator))
+            .map(|l| l.values.iter().map(|v| v.text.as_str()).collect::<Vec<_>>())
+    };
+    assert_eq!(value_of("R1"), Some(vec!["4.7 kΩ"]), "{bom:?}");
+    assert_eq!(value_of("D1"), Some(vec!["Red"]), "{bom:?}");
+    let csv = sparksmith_core::fabrication::assembly::bom_csv(project)?;
+    assert!(
+        csv.lines()
+            .any(|l| l.contains("R1") && l.contains("4.7 kΩ")),
+        "{csv}"
     );
     let (before, sent_before, _, _) = build(Policy::KEEP_ALL)?;
     println!("request  estimated prompt tokens: K1 policy | kept whole (before)");

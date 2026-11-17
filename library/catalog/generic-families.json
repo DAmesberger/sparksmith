@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "about": "The words that ask the part catalog for a generic part, made by a generator. Each family names its generator (the description's id) and declares its patterns with typed slots: {name} a count; {name:length} a length (mm unless it says); {name:code} a size code; {name:ohm}, {name:farad}, {name:henry}, {name:volt} a quantity of a value slot below; {colour:list} a colour of the colour field; {package:list} a preset of the generator named by its first word or an alias. A trailing ? makes a step optional. Patterns match the whole text, word by word, with no reordering. A size code or a listed package chooses a preset among those whose parameters include `presets`; count and length slots fill the parameters `slots` names (else the parameter of the slot's name), starting from a preset that has them all, else one with the same lengths; `params` are given on top. `label` names the part, `body` the two lengths its badge shows. Examples must each build a part through the family's generator.",
+  "about": "The words that ask the part catalog for a generic part, made by a generator. Each family names its generator (the description's id) and declares its patterns with typed slots: {name} a count; {name:length} a length (mm unless it says); {name:code} a size code; {name:ohm}, {name:farad}, {name:henry}, {name:volt} a quantity of a value slot below; {colour:list} a colour of the colour field; {package:list} a preset of the generator named by its first word or an alias. A trailing ? makes a step optional. Patterns match the whole text, word by word, with no reordering. A size code or a listed package chooses a preset among those whose parameters include `presets`; count and length slots fill the parameters `slots` names (else the parameter of the slot's name), starting from a preset that has them all, else one with the same lengths; `params` are given on top. `label` names the part, `body` the two lengths its badge shows. `fields` are the standard fields a part of the family selects, each placed part holding its own values; `value_template` is what a placed part shows as its value, alternatives over those fields with {Field} placeholders, the first filled one winning. Examples must each build a part through the family's generator.",
   "families": [
     {
       "family": "header",
@@ -20,7 +20,9 @@
       "label": "Chip resistor {size}",
       "body": ["length", "width"],
       "patterns": ["resistor {size:code} {value:ohm}?", "{value:ohm} {size:code}"],
-      "examples": ["resistor 0603", "resistor 0402 4k7", "10k 0603", "10 kΩ 0805"]
+      "examples": ["resistor 0603", "resistor 0402 4k7", "10k 0603", "10 kΩ 0805"],
+      "fields": ["Resistance", "Tolerance", "Rated power"],
+      "value_template": ["{Resistance}"]
     },
     {
       "family": "capacitor",
@@ -32,7 +34,9 @@
         "capacitor {size:code} {value:farad}? {voltage:volt}?",
         "{value:farad} {size:code} {voltage:volt}?"
       ],
-      "examples": ["capacitor 0603", "100nF 0402", "100n 0603 16V"]
+      "examples": ["capacitor 0603", "100nF 0402", "100n 0603 16V"],
+      "fields": ["Capacitance", "Rated voltage", "Tolerance"],
+      "value_template": ["{Capacitance} {Rated voltage}", "{Capacitance}"]
     },
     {
       "family": "inductor",
@@ -42,7 +46,9 @@
       "label": "Chip inductor {size}",
       "body": ["length", "width"],
       "patterns": ["inductor {size:code} {value:henry}?", "{value:henry} {size:code}"],
-      "examples": ["inductor 0603", "4.7uH 0805"]
+      "examples": ["inductor 0603", "4.7uH 0805"],
+      "fields": ["Inductance", "Rated current", "Tolerance"],
+      "value_template": ["{Inductance}"]
     },
     {
       "family": "led",
@@ -51,7 +57,9 @@
       "label": "Chip LED {size}",
       "body": ["length", "width"],
       "patterns": ["led {size:code} {colour:list}?"],
-      "examples": ["led 0603", "led 0805 red"]
+      "examples": ["led 0603", "led 0805 red"],
+      "fields": ["Colour", "Forward voltage"],
+      "value_template": ["{Colour}"]
     },
     {
       "family": "diode",

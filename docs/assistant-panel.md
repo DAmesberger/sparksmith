@@ -342,7 +342,7 @@ No turn limits (founder, 16 November): instead, as a conversation approaches the
   - `component.place` needs only the component. Without a position, the part lands in a free spot on the sheet; an agent's position outside the frame is refused, naming the frame.
   - `view.select` takes the occurrence the place call returned, or designators.
   - The playbook (`library/assist/chat-playbook.md`) is appended to the chat prompt.
-  - Generated parts carry no value field yet (GP1), so a value stays in the answer, not on the instance.
+  - A generic part (a chip resistor, capacitor, inductor or LED) selects its family's value fields when it is made, so the search hit's `properties` put the value on the placed instance, and `instance.set_properties` changes it later; the schematic and the BOM show it through the family's value template.
 
 ## 7. The chat UI (kept, with the new cards)
 

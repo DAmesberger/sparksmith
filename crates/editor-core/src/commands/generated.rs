@@ -446,6 +446,24 @@ pub(crate) fn generate(
     let made = runtime
         .generate(&bytes, &wire)
         .map_err(|f| generated::failure(&f))?;
+    // A part of a generic family selects its family's standard fields, so
+    // each placed part holds its own value ("4.7 kΩ").
+    let complete: GeneratorParams = wire
+        .params
+        .iter()
+        .map(|(k, v)| (k.clone(), ParamValue::from_wire(v)))
+        .collect();
+    let selects_fields = scope == GeneratorScope::Component
+        && crate::library::standards::get()?
+            .generic
+            .family_of(&description.id, &complete)
+            .is_some_and(|f| !f.fields.is_empty());
+    let host_fields = if selects_fields {
+        super::library::import_bundle(document, &crate::library::standard_fields::bundle()?)?;
+        generated::family_fields(&document.project.library, &description.id, &complete)?
+    } else {
+        None
+    };
     let result = ContentHash(made.result_hash);
     let (asset, part_values) = expand::part_file(&made.generation)?;
     let supplied = request.model.as_ref().ok_or_else(|| {
@@ -584,13 +602,16 @@ pub(crate) fn generate(
         .as_ref()
         .map(|(_, _, _, ids)| ids.clone())
         .unwrap_or_default();
-    let (definitions, key_ids) = generated::expand_at(
+    let (mut definitions, key_ids) = generated::expand_at(
         &made.generation,
         refs,
         &expansion,
         package_model,
         &previous_ids,
     )?;
+    if let Some((fields, template)) = &host_fields {
+        generated::select_fields(&mut definitions, fields, template.as_ref());
+    }
     let base_name = request
         .name
         .clone()

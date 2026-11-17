@@ -14,7 +14,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod spec;
+mod template;
 pub use spec::{MAX_RATED_SPECS, RatedSpec, Requirement, SpecMeaning, satisfies};
+pub use template::{MAX_ALTERNATIVE_BYTES, MAX_ALTERNATIVES, TemplatePiece, ValueTemplate};
 
 /// Fields one component revision selects; overrides one instance holds.
 pub const MAX_FIELDS: usize = 64;

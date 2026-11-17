@@ -459,14 +459,27 @@ pub fn effective_fields(
         .collect()
 }
 
-/// An instance's value text: the effective text of every typed field its
-/// component selects that has a value, in selection order and
-/// space-separated, as the instance shows them ("10 µF 16 V", "22 kΩ ±1%").
-/// The one value source of the schematic and the BOM, so a BOM keeps every
-/// rating the part was specified with. `None` when no field has a value;
-/// never the component name.
+/// An instance's value text: its component's value template filled from
+/// the instance's effective fields (`{Resistance}` → "4.7 kΩ"), else the
+/// effective text of every typed field its component selects that has a
+/// value, in selection order and space-separated, as the instance shows
+/// them ("10 µF 16 V", "22 kΩ ±1%"). The one value source of the
+/// schematic, the BOM and the placement file. `None` when nothing is
+/// filled; never the component name.
 pub fn value_text(library: &Library, instance: &ComponentInstance) -> Result<Option<String>> {
-    let texts: Vec<String> = effective_fields(library, instance)?
+    let effective = effective_fields(library, instance)?;
+    if let Some(template) = library
+        .component(instance.component)
+        .and_then(|c| c.definition.value_template.as_ref())
+    {
+        return Ok(template.render(|lineage| {
+            effective
+                .iter()
+                .find(|f| f.field.id == lineage)
+                .and_then(|f| f.text.clone())
+        }));
+    }
+    let texts: Vec<String> = effective
         .into_iter()
         .filter_map(|f| f.text)
         .map(|t| t.trim().to_owned())

@@ -8,10 +8,10 @@
 //! Each candidate says where it stands. One the project holds carries its
 //! `component`, the `physical` choice the Place palette gives it and the
 //! `properties` that set its values on a placed instance, ready for
-//! `component.place` (a generated part selects no value field yet, GP1:
-//! then its `values` with a note); one not yet made carries the
-//! `make` operation (`library.generate_part`) that makes it, after which
-//! the same search lists it as held.
+//! `component.place` (a generic family's part selects its family's fields
+//! when it is made); one not yet made carries the `make` operation
+//! (`library.generate_part`) that makes it, after which the same search
+//! lists it as held.
 use super::Session;
 use super::generators::v1::Description;
 use serde_json::{Value, json};
@@ -56,12 +56,6 @@ impl Session {
                     let properties = generic::properties(library, component, &candidate.values);
                     if !properties.is_empty() {
                         hint["properties"] = json!(properties);
-                    } else if !candidate.values.is_empty() {
-                        // Generated parts select no fields yet (GP1).
-                        hint["values"] = json!(candidate.values);
-                        hint["note"] = json!(
-                            "this part has no value field yet: name the values in your answer so the person can set them"
-                        );
                     }
                 } else {
                     hint["make"] = json!({"op": "library.generate_part", "params": {

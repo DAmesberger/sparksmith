@@ -32,6 +32,7 @@ use super::bundle::PackedAsset;
 use super::model3d::ModelFormat;
 use super::{Definition, Library, PackageModel};
 use crate::diagnostics::{Error, Result};
+use crate::fields::{FieldSelection, ValueTemplate};
 use crate::ids::{
     BindingRef, ContentHash, DefinitionKind, DefinitionRef, FootprintRef, PackageRef, SymbolRef,
 };
@@ -615,6 +616,73 @@ pub fn validate(library: &Library) -> Result<()> {
     Ok(())
 }
 
+/// The field selections and value template the host gives a component
+/// made from `params` by `generator`: its generic family's (the shipped
+/// catalog's `fields` and `value_template`), as the project's copies of
+/// the standard fields, each shown on the symbol. `None` when the part
+/// belongs to no family that selects fields. They are host data outside
+/// the generation and its result hash, so [`compare`] keeps the stored
+/// ones; `NotFound` when the standard fields are not imported.
+pub fn family_fields(
+    library: &Library,
+    generator: &str,
+    params: &GeneratorParams,
+) -> Result<Option<(Vec<FieldSelection>, Option<ValueTemplate>)>> {
+    let standards = super::standards::get()?;
+    let Some(family) = standards
+        .generic
+        .family_of(generator, params)
+        .filter(|f| !f.fields.is_empty())
+    else {
+        return Ok(None);
+    };
+    let fields = family
+        .fields
+        .iter()
+        .map(|name| {
+            standards
+                .fields
+                .local(library, name)
+                .map(|field| FieldSelection {
+                    field,
+                    default: None,
+                    show_on_symbol: true,
+                })
+                .ok_or_else(|| {
+                    Error::NotFound(format!("the standard field {name} is not imported"))
+                })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let template = if family.value_template.is_empty() {
+        None
+    } else {
+        Some(ValueTemplate::parse(&family.value_template, |name| {
+            family
+                .fields
+                .iter()
+                .position(|f| f == name)
+                .and_then(|i| fields.get(i))
+                .map(|s| s.field.id)
+        })?)
+    };
+    Ok(Some((fields, template)))
+}
+
+/// Give the component of `definitions` the host's `fields` and value
+/// `template`.
+pub fn select_fields(
+    definitions: &mut [(DefinitionRef, Definition)],
+    fields: &[FieldSelection],
+    template: Option<&ValueTemplate>,
+) {
+    for (_, definition) in definitions {
+        if let Definition::Component(component) = definition {
+            component.fields = fields.to_vec();
+            component.value_template = template.cloned();
+        }
+    }
+}
+
 /// The part's name in messages: its root's name and revision.
 pub fn describe(library: &Library, part: &GeneratedPart) -> String {
     let name = library
@@ -760,6 +828,19 @@ pub fn compare(library: &Library, check: &Check<'_>, generated: &Generated) -> R
         .iter()
         .filter_map(|r| library.definition(*r).map(|(_, d)| (*r, d)))
         .collect();
+    // The fields the host selected are outside the generation
+    // ([`family_fields`]): the stored ones stand.
+    let mut expected = expected;
+    if let Some(component) = stored.iter().find_map(|(_, d)| match d {
+        Definition::Component(c) => Some(c),
+        _ => None,
+    }) {
+        select_fields(
+            &mut expected,
+            &component.fields,
+            component.value_template.as_ref(),
+        );
+    }
     if stored != expected {
         return Err(Error::Invalid(format!(
             "generated.expansion_changed: {name} stored in this project differs from what its generator makes from the recorded parameters: the stored part hashes to sha256 {}, the generator's expansion to sha256 {}. The project was not opened.",

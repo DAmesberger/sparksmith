@@ -110,6 +110,9 @@ The lettering and marks on a package top (top mark, value code, polarity mark, c
 **Value code**:
 A marking item that encodes a field value with a cited scheme (3- or 4-digit resistor code, EIA-96, capacitor pF code, tantalum voltage letter, IEC 60062 colour bands); a value the scheme cannot hold exactly gives no code, never a rounded one.
 
+**Value template**:
+What a placed part shows as its value on the schematic, in the BOM and in the placement file: alternatives of text with `{Field}` placeholders over the fields its component selects, the first whose fields all have a value winning (`{Capacitance} {Rated voltage}`, then `{Capacitance}`). A generic family's parts take theirs from the family's data; stored by field lineage.
+
 **Marking decal**:
 The display-only mesh of an instance's laid-out marking, 5 µm above the package's marked face, drawn with the finish's look and shown with the Markings layer toggle.
 
