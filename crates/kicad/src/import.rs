@@ -334,12 +334,14 @@ pub fn import_with_models(
             }
         }
         sets.push(session.component_set(
-            &name,
-            pads,
-            &prefix,
-            symbol.as_ref(),
-            value_field,
-            selection.as_ref().and_then(|s| s.choice.as_ref()),
+            ComponentSource {
+                name: &name,
+                pads,
+                prefix: &prefix,
+                kicad_symbol: symbol.as_ref(),
+                value_field,
+                model: selection.as_ref().and_then(|s| s.choice.as_ref()),
+            },
             &mut report,
         )?);
     }
@@ -677,6 +679,16 @@ fn value_text(value: &str) -> Option<String> {
     }
     let out = out.trim().to_owned();
     (!out.is_empty() && out != "~").then_some(out)
+}
+
+/// Parsed electrical data and the optional mechanical model for one definition.
+struct ComponentSource<'a> {
+    name: &'a str,
+    pads: Vec<Pad>,
+    prefix: &'a str,
+    kicad_symbol: Option<&'a crate::schematic::LibSymbol>,
+    value_field: Option<FieldRef>,
+    model: Option<&'a crate::models::Choice>,
 }
 
 /// The drafts of one imported footprint, published.
@@ -1022,14 +1034,17 @@ impl Session<'_> {
 
     fn component_set(
         &mut self,
-        name: &str,
-        pads: Vec<Pad>,
-        prefix: &str,
-        kicad_symbol: Option<&crate::schematic::LibSymbol>,
-        value_field: Option<FieldRef>,
-        model: Option<&crate::models::Choice>,
+        source: ComponentSource<'_>,
         report: &mut Report,
     ) -> Result<Set, ImportError> {
+        let ComponentSource {
+            name,
+            pads,
+            prefix,
+            kicad_symbol,
+            value_field,
+            model,
+        } = source;
         let kinds = [
             DefinitionKind::Component,
             DefinitionKind::Symbol,

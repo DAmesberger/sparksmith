@@ -268,18 +268,12 @@ pub fn definitions(
 /// Expand a generation's mechanical land pattern without evaluating its part
 /// file. Uses the same ids and geometry conversion as full definition expansion;
 /// callers may compare it before paying for native model evaluation.
-pub fn footprint_geometry(generation: &v1::Generation) -> Result<FootprintDefinition> {
+pub fn land_pattern(generation: &v1::Generation) -> Result<Vec<Pad>> {
     let mut terminals = Ids::new(&BTreeMap::new());
     for key in &generation.package.terminals {
         terminals.id(format!("t:{key}"))?;
     }
-    let mut pads = Ids::new(&BTreeMap::new());
-    footprint(
-        generation,
-        PackageRef::new(DefinitionId(1), crate::ids::Revision::FIRST),
-        &terminals,
-        &mut pads,
-    )
+    footprint_pads(generation, &terminals, &mut Ids::new(&BTreeMap::new()))
 }
 
 fn direction(d: v1::Direction) -> Direction {
@@ -650,12 +644,7 @@ fn hole(hole: &v1::Hole) -> Result<Hole> {
     })
 }
 
-fn footprint(
-    generation: &v1::Generation,
-    package: PackageRef,
-    terminals: &Ids,
-    ids: &mut Ids,
-) -> Result<FootprintDefinition> {
+fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -> Result<Vec<Pad>> {
     let source = &generation.footprint;
     let mut pads = Vec::with_capacity(source.pads.len());
     for pad in &source.pads {
@@ -695,6 +684,17 @@ fn footprint(
             vias: Vec::new(),
         });
     }
+    Ok(pads)
+}
+
+fn footprint(
+    generation: &v1::Generation,
+    package: PackageRef,
+    terminals: &Ids,
+    ids: &mut Ids,
+) -> Result<FootprintDefinition> {
+    let source = &generation.footprint;
+    let pads = footprint_pads(generation, terminals, ids)?;
     let mut graphics = Vec::new();
     let mut push = |key: String, layer: DrawingLayer, item: Item| {
         graphics.push(FootprintGraphic {

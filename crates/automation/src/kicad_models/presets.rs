@@ -11,7 +11,11 @@ use sparksmith_io::generator_bundle::GeneratorBundle;
 use sparksmith_io::shipped::ShippedLibrary;
 use std::sync::Arc;
 
-const TOLERANCE: f64 = 0.05;
+const TOLERANCE_NM: u64 = 50_000;
+fn within(a: f64, b: f64) -> bool {
+    sparksmith_core::units::Nm::from_mm_f64_rounded(a - b)
+        .is_ok_and(|delta| delta.get().unsigned_abs() <= TOLERANCE_NM)
+}
 const MAX_PRESETS: usize = 512;
 struct Candidate {
     bundle: Arc<GeneratorBundle>,
@@ -27,17 +31,25 @@ pub(super) struct Presets {
     matches: BTreeMap<ContentHash, Option<(usize, ModelPlacement)>>,
 }
 impl Presets {
-    fn load(&mut self, deadline: std::time::Instant) -> Result<(), String> {
+    fn load(
+        &mut self,
+        runtime: &dyn GeneratorRuntime,
+        deadline: std::time::Instant,
+    ) -> Result<(), String> {
         if let Some(failure) = &self.failure {
             return Err(failure.clone());
         }
-        let result = self.build(deadline);
+        let result = self.build(runtime, deadline);
         if let Err(failure) = &result {
             self.failure = Some(failure.clone());
         }
         result
     }
-    fn build(&mut self, deadline: std::time::Instant) -> Result<(), String> {
+    fn build(
+        &mut self,
+        runtime: &dyn GeneratorRuntime,
+        deadline: std::time::Instant,
+    ) -> Result<(), String> {
         if self.candidates.is_some() {
             return Ok(());
         }
@@ -47,14 +59,16 @@ impl Presets {
         if names.len() > 64 {
             return Err("3D preset search exceeds 64 generators".into());
         }
-        let runtime = sparksmith_generators::worker::Worker::default();
         let mut candidates = Vec::new();
         let mut count = 0;
         for name in names {
+            super::check_time(deadline)?;
             let bundle = Arc::new(library.generator(&name).map_err(|e| e.to_string())?);
+            super::check_time(deadline)?;
             let description = runtime
                 .describe(&bundle.module)
                 .map_err(|e| e.to_string())?;
+            super::check_time(deadline)?;
             if !description.scopes().contains(&v1::Scope::Package) {
                 continue;
             }
@@ -71,13 +85,13 @@ impl Presets {
                 };
                 let request = generated::complete(&description, scope, &preset.params)
                     .map_err(|e| e.to_string())?;
+                super::check_time(deadline)?;
                 let generation = runtime
                     .generate(&bundle.module, &request)
                     .map_err(|e| e.to_string())?
                     .generation;
-                let pads = expand::footprint_geometry(&generation)
-                    .map_err(|e| e.to_string())?
-                    .pads;
+                super::check_time(deadline)?;
+                let pads = expand::land_pattern(&generation).map_err(|e| e.to_string())?;
                 candidates.push(Candidate {
                     bundle: bundle.clone(),
                     generation,
@@ -102,7 +116,11 @@ impl Presets {
         if pads.is_empty() {
             return Ok(None);
         }
-        self.load(deadline)?;
+        let runtime = engine
+            .generator_runtime()
+            .cloned()
+            .unwrap_or_else(crate::session::generators::runtime);
+        self.load(runtime.as_ref(), deadline)?;
         let Some(candidates) = &self.candidates else {
             return Ok(None);
         };
@@ -243,7 +261,8 @@ fn matches(imported: &[Pad], candidate: &[Pad]) -> Option<ModelPlacement> {
         pairs.push((pad, *other));
     }
     pairs.sort_by(|a, b| a.0.number.cmp(&b.0.number));
-    for angle in [0.0, 90.0, 180.0, 270.0] {
+    for quarter_turn in 0..4 {
+        let angle = f64::from(quarter_turn * 90);
         let (c, s) = sparksmith_core::geometry::cos_sin(angle);
         let rotate = |p: [f64; 2]| [c * p[0] - s * p[1], s * p[0] + c * p[1]];
         let (first, other) = pairs.first()?;
@@ -255,15 +274,15 @@ fn matches(imported: &[Pad], candidate: &[Pad]) -> Option<ModelPlacement> {
             let bb = rotate(b.position.to_mm_f64());
             let ae = a.shape.extent();
             let be = b.shape.extent();
-            let turn =
-                (a.rotation_mdeg.to_degrees_f64() - b.rotation_mdeg.to_degrees_f64() - angle)
-                    .rem_euclid(180.0);
-            let same = turn.min(180.0 - turn) <= 0.1
-                && ae.iter().zip(be).all(|(x, y)| (x - y).abs() <= TOLERANCE);
-            let quarter = (turn - 90.0).abs() <= 0.1
-                && (ae[0] - be[1]).abs() <= TOLERANCE
-                && (ae[1] - be[0]).abs() <= TOLERANCE;
-            (same || quarter) && (0..2).all(|i| (aa[i] - bb[i] - offset[i]).abs() <= TOLERANCE)
+            let turn = (a.rotation_mdeg.millidegrees()
+                - b.rotation_mdeg.millidegrees()
+                - quarter_turn * 90_000)
+                .rem_euclid(180_000);
+            let same =
+                turn.min(180_000 - turn) <= 100 && ae.iter().zip(be).all(|(x, y)| within(*x, y));
+            let quarter =
+                (turn - 90_000).abs() <= 100 && within(ae[0], be[1]) && within(ae[1], be[0]);
+            (same || quarter) && (0..2).all(|i| within(aa[i] - bb[i], offset[i]))
         });
         if valid {
             return ModelPlacement::from_mm([offset[0], offset[1], 0.0], [0.0, 0.0, angle]).ok();
@@ -306,8 +325,29 @@ mod tests {
         assert_eq!(pose.translation(), [3.0, 4.0, 0.0]);
         assert_eq!(pose.rotation_deg(), [0.0, 0.0, 90.0]);
         let [x, y] = moved[1].position.to_mm_f64();
+        moved[1].position = PointNm::from_mm_f64_rounded([x + 0.05, y])?;
+        assert!(
+            matches(&moved, &source).is_some(),
+            "inclusive 50 micron limit"
+        );
+        moved[1].position = PointNm::from_mm_f64_rounded([x + 0.050001, y])?;
+        assert!(
+            matches(&moved, &source).is_none(),
+            "one nanometre beyond limit"
+        );
         moved[1].position = PointNm::from_mm_f64_rounded([x + 0.051, y])?;
         assert!(matches(&moved, &source).is_none());
+        moved[1].position = PointNm::from_mm_f64_rounded([x, y])?;
+        moved[1].rotation_mdeg = sparksmith_core::units::Angle::from_degrees_f64_rounded(90.1)?;
+        assert!(
+            matches(&moved, &source).is_some(),
+            "inclusive 0.1 degree limit"
+        );
+        moved[1].rotation_mdeg = sparksmith_core::units::Angle::from_degrees_f64_rounded(90.101)?;
+        assert!(
+            matches(&moved, &source).is_none(),
+            "one millidegree beyond limit"
+        );
         let mut duplicate = source.clone();
         duplicate[1].number = "1".into();
         assert!(matches(&duplicate, &source).is_none());
@@ -318,7 +358,8 @@ mod tests {
     {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         let mut presets = Presets::default();
-        presets.load(deadline)?;
+        let runtime = crate::session::generators::fixture_runtime();
+        presets.load(runtime.as_ref(), deadline)?;
         let candidates = presets.candidates.as_ref().ok_or("No presets")?;
         let fixtures: Vec<_> = [
             "chip/resistor-0603",
@@ -344,6 +385,7 @@ mod tests {
         })
         .collect::<Result<_, String>>()?;
         let mut engine = Engine::demo()?;
+        engine.set_generators(runtime);
         let mut models = BTreeMap::new();
         let chip = &fixtures[0];
         assert!(
@@ -383,7 +425,40 @@ mod tests {
                 "51 micron near miss was accepted for {name}"
             );
         }
-        assert_eq!(engine.project().library.models.len(), 4);
+        // The same land geometry must not inherit the first component's appearance.
+        let chip_pads = presets
+            .candidates
+            .as_ref()
+            .ok_or("No candidates")?
+            .iter()
+            .find(|c| c.name == "chip/resistor-0603")
+            .ok_or("No chip")?
+            .pads
+            .clone();
+        let capacitor = presets
+            .match_model(&mut engine, &chip_pads, "C", &mut models, deadline)?
+            .ok_or_else(|| {
+                format!(
+                    "capacitor model missing; geometry candidates: {:?}",
+                    presets.candidates.as_ref().map(|all| all
+                        .iter()
+                        .filter(|c| matches(&chip_pads, &c.pads).is_some())
+                        .map(|c| (&c.name, c.generation.component.as_ref().map(|c| &c.prefix)))
+                        .collect::<Vec<_>>())
+                )
+            })?;
+        assert!(capacitor.provenance.contains("chip/capacitor-0603"));
+        let resistor = presets
+            .match_model(&mut engine, &chip_pads, "R", &mut models, deadline)?
+            .ok_or("resistor model missing")?;
+        assert!(resistor.provenance.contains("chip/resistor-0603"));
+        assert_ne!(capacitor.model, resistor.model);
+        assert!(
+            presets
+                .match_model(&mut engine, &chip_pads, "?", &mut models, deadline)?
+                .is_none()
+        );
+        assert_eq!(engine.project().library.models.len(), 5);
         assert!(
             engine
                 .project()
@@ -394,6 +469,65 @@ mod tests {
         );
         Ok(())
     }
+    #[test]
+    fn injected_busy_runtime_refuses_without_caching_partial_candidates_or_publishing() -> Fallible
+    {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct Busy {
+            runtime: Arc<dyn GeneratorRuntime + Send + Sync>,
+            generations: AtomicUsize,
+        }
+        impl GeneratorRuntime for Busy {
+            fn describe(
+                &self,
+                module: &[u8],
+            ) -> Result<v1::Description, sparksmith_generators::abi::Failure> {
+                self.runtime.describe(module)
+            }
+            fn generate(
+                &self,
+                module: &[u8],
+                request: &v1::Request,
+            ) -> Result<sparksmith_generators::abi::Generated, sparksmith_generators::abi::Failure>
+            {
+                if self.generations.fetch_add(1, Ordering::Relaxed) == 0 {
+                    self.runtime.generate(module, request)
+                } else {
+                    Err(sparksmith_generators::abi::Failure::one(
+                        "generator.busy",
+                        "Synthetic generator busy after one successful preset; retry later".into(),
+                    ))
+                }
+            }
+        }
+        let mut presets = Presets::default();
+        let mut engine = Engine::demo()?;
+        let runtime = Arc::new(Busy {
+            runtime: crate::session::generators::fixture_runtime(),
+            generations: AtomicUsize::new(0),
+        });
+        engine.set_generators(runtime.clone());
+        let revision = engine.revision();
+        let mut models = BTreeMap::new();
+        let error = presets
+            .match_model(
+                &mut engine,
+                &lands()?,
+                "R",
+                &mut models,
+                std::time::Instant::now() + std::time::Duration::from_secs(120),
+            )
+            .err()
+            .ok_or("busy runtime was converted into a placeholder")?;
+        assert!(error.contains("busy"), "{error}");
+        assert_eq!(runtime.generations.load(Ordering::Relaxed), 2);
+        assert!(presets.candidates.is_none());
+        assert!(presets.matches.is_empty() && presets.chosen.is_empty() && models.is_empty());
+        assert_eq!(engine.revision(), revision);
+        assert!(engine.project().library.models.is_empty());
+        Ok(())
+    }
+
     /// Original fixture for a human/VM visual check; writes only when explicitly run.
     #[test]
     #[ignore = "creates the original visual fixture in SPARKSMITH_MODELS_FIXTURE_DIR"]
@@ -452,7 +586,11 @@ mod tests {
             )?,
         )?;
         let mut presets = Presets::default();
-        presets.load(std::time::Instant::now() + std::time::Duration::from_secs(120))?;
+        let runtime = crate::session::generators::fixture_runtime();
+        presets.load(
+            runtime.as_ref(),
+            std::time::Instant::now() + std::time::Duration::from_secs(120),
+        )?;
         let candidates = presets.candidates.as_ref().ok_or("No candidates")?;
         let mut board = String::from(
             r#"(kicad_pcb (version 20240108) (generator "original synthetic model check")

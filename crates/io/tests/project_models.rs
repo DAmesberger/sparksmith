@@ -65,7 +65,8 @@ fn filename_ambiguity_refuses_but_an_exact_project_path_stays_unambiguous() -> F
     );
     let error = models
         .resolve("old/body.step")
-        .expect_err("ambiguous basename must refuse");
+        .err()
+        .ok_or("ambiguous basename must refuse")?;
     assert!(error.to_string().contains("ambiguous"), "{error}");
     Ok(())
 }
@@ -332,7 +333,8 @@ fn archive_scans_share_one_entry_budget_across_the_whole_project() -> Fallible {
     }
     let error = ProjectModels::new(dir.path())?
         .resolve("absent.step")
-        .expect_err("five individually valid ZIPs exceed the shared entry budget");
+        .err()
+        .ok_or("five individually valid ZIPs exceed the shared entry budget")?;
     assert!(error.to_string().contains("20000"), "{error}");
     Ok(())
 }
