@@ -969,7 +969,16 @@ impl Native {
     /// Save a copy as a native container. Saving is an external effect, never
     /// an edit of this design, and refuses to overwrite an existing file.
     pub fn save_new(&self, output: files::NewFile<'_>) -> Result<()> {
+        self.stage_new(output, output.path())
+    }
+
+    /// Write a new physical file for a later publication at `logical_destination`.
+    /// Only `output` is written, through its create-only host. The upstream
+    /// serializer uses the logical path for the saved name and relative links;
+    /// an existing logical destination is neither opened nor replaced here.
+    pub fn stage_new(&self, output: files::NewFile<'_>, logical_destination: &str) -> Result<()> {
         validate_path(output.path())?;
+        validate_path(logical_destination)?;
         if Path::new(output.path()).try_exists()? {
             return Err(Error::Invalid(
                 "output exists; choose a new .solidcraft filename".into(),
@@ -981,7 +990,7 @@ impl Native {
                 command: "file.save_as".into(),
                 message: error,
             };
-            solidcraft_engine::io::vfs::check(output.path())
+            solidcraft_engine::io::vfs::check(logical_destination)
                 .map_err(|error| save_error(error.to_string()))?;
             // Resolve links against the source before the copy takes its final
             // location. Upstream owns both Save As naming and native encoding;
@@ -993,7 +1002,7 @@ impl Native {
                 build_validation(),
             );
             copy.path = Some(staged.to_owned());
-            copy.follow_file_rename(staged, output.path());
+            copy.follow_file_rename(staged, logical_destination);
             let bytes = copy
                 .design_container(solidcraft_engine::io::DesignCompression::Fast, false, false)
                 .map_err(|error| save_error(error.to_string()))?;

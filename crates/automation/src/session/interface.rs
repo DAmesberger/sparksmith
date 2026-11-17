@@ -2,7 +2,7 @@
 //! interface's host requests (docs/architecture/board-interface.md,
 //! "Commands"; slice B3): the preview reads the document and the published
 //! sidecar; the publish builds the design from the core's candidate sidecar
-//! with Solidcraft, puts the design and its sidecar in place atomically and
+//! with Solidcraft, commits the design and sidecar through a recoverable journal and
 //! records the publish with `interface.record_publish`, which, like a save,
 //! is no undo step. A broken reference between the board and the linked
 //! design blocks the publish, writing nothing.
@@ -57,29 +57,35 @@ impl Session {
     /// The diff publishing would make, against the sidecar beside `path`
     /// when it is there, else the recorded publish. Reads only.
     pub(super) fn interface_preview(&mut self, params: PublishPreviewParams) -> Result<Value> {
-        let previous = match params.path.as_deref() {
+        let baseline = match params.path.as_deref() {
             Some(path) => {
                 let path = Path::new(path);
                 files::check_design_path(path)?;
-                files::read_sidecar(path)?
+                Some(files::Publication::open(path)?.baseline()?)
             }
             None => None,
         };
+        #[cfg(test)]
+        if let Some(after_read) = self.after_interface_read.take() {
+            after_read()?;
+        }
+        let previous = baseline.as_ref().and_then(|b| b.sidecar.as_ref());
         let mut preview = publish::preview(
             self.engine.project(),
             params.tier,
-            previous.as_ref(),
+            previous,
             self.engine.revision(),
         )?;
         // With the linked design named, the dry run on a scratch copy.
         let project = self.engine.project_arc().clone();
-        if let (Some(linked_design), Some(design), Some(source_id)) = (
+        if let (Some(linked_design), Some(design), Some(source_id), Some(baseline)) = (
             params.assembly_path.as_deref(),
             params.path.as_deref(),
             project.interface.source_id,
+            baseline.as_ref(),
         ) {
             let candidate = publish::candidate(&project, preview.tier, source_id)?;
-            preview.dry_run = self.dry_run(linked_design, design, candidate)?;
+            preview.dry_run = self.dry_run(linked_design, design, candidate, baseline)?;
         }
         Ok(serde_json::to_value(preview)?)
     }
@@ -98,7 +104,7 @@ impl Session {
 
     /// The files of `interface.publish`, without recording it: build the
     /// design from the document's candidate sidecar, put it and the sidecar
-    /// in place atomically, and return `interface.record_publish` with what
+    /// in place as a recoverable pair, and return `interface.record_publish` with what
     /// was written (no undo step, like a save) and the reply's `published`
     /// summary. The desktop runs this off the UI thread, on a session over
     /// a fork of the window's engine, and applies the record on its own
@@ -113,9 +119,10 @@ impl Session {
         if !blockers.is_empty() {
             return Err(sparksmith_core::interface::findings::publish_blocked(&blockers).into());
         }
-        let previous = files::read_sidecar(design)?;
+        let baseline = files::Publication::open(design)?.baseline()?;
+        let previous = baseline.sidecar.as_ref();
         let recorded = project.interface.source_id;
-        let source_id = match (recorded, &previous) {
+        let source_id = match (recorded, previous) {
             (Some(own), Some(there)) if there.source_id != own => None,
             (Some(own), _) => Some(own),
             (None, Some(_)) => None,
@@ -128,25 +135,31 @@ impl Session {
                     .into(),
             )
         })?;
+        if let (Some(there), Some(record)) = (previous, project.interface.published.as_ref())
+            && (there.revision > record.revision
+                || (there.revision == record.revision && there.hash != record.hash))
+        {
+            return Err(sparksmith_io::Error::Invalid(
+                "interface.changed: a newer or different revision is already published; reopen the current board before publishing".into(),
+            ).into());
+        }
         let sidecar = publish::candidate(&project, params.tier, source_id)?;
         let exported = sparksmith_solidcraft::interface::build(&project, sidecar)?;
-        let temporary = files::temporary_design(design)?;
-        let temporary_text = temporary.to_string_lossy().into_owned();
-        if let Err(error) = exported.save_new(crate::native_files::new_file(&temporary_text)) {
-            let _ = std::fs::remove_file(&temporary);
-            return Err(error.into());
-        }
         let text = exported.sidecar.text()?;
-        // The hash SolidCraft keeps on a linked design's link to the file: the
-        // older-board check compares the two (slice B5).
-        let written = match std::fs::read(&temporary) {
-            Ok(bytes) => sparksmith_core::interface::assembly_link::file_hash(&bytes),
-            Err(error) => {
-                let _ = std::fs::remove_file(&temporary);
-                return Err(sparksmith_io::Error::from(error).into());
-            }
-        };
-        files::put_in_place(design, &temporary, &text)?;
+        let temporary =
+            sparksmith_io::persistence::StagedNew::new(&files::temporary_design(design)?)?;
+        let temporary_text = temporary.path().to_string_lossy().into_owned();
+        exported.stage_new(crate::native_files::new_file(&temporary_text), &params.path)
+            .map_err(|error| -> crate::Error {
+                match error {
+                    sparksmith_solidcraft::Error::Unsynced(message) => sparksmith_io::Error::Io(
+                        std::io::Error::other(format!("The interface publication was not committed; native staging could not be synchronized: {message}")),
+                    ).into(),
+                    other => other.into(),
+                }
+            })?;
+        // The hash SolidCraft keeps on a linked design's link to the file.
+        let written = files::design_hash(temporary.path())?;
         let mut record = publish::record(&project, &exported.sidecar)?;
         record.design_sha256 = Some(written);
         // Where it was written, kept with the project as the next
@@ -172,6 +185,7 @@ impl Session {
             let checked = super::export_reply(&project, &report, json!({}));
             published["check"] = checked["check"].clone();
         }
+        files::put_in_place(design, temporary.path(), &text, &baseline)?;
         Ok((
             Operation::Interface(InterfaceCommand::RecordPublish { source_id, record }),
             published,

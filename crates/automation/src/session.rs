@@ -1075,6 +1075,9 @@ pub struct CommandInfo {
 /// A headless editing session: one engine, the current file path and the
 /// library sources.
 pub struct Session {
+    /// One-shot boundary hook owned only by the test's session.
+    #[cfg(test)]
+    after_interface_read: Option<Box<dyn FnOnce() -> crate::Result<()> + Send>>,
     engine: Engine,
     path: Option<PathBuf>,
     sources: sources::Sources,
@@ -1110,6 +1113,8 @@ impl Session {
     /// [`sources::Sources::from_env`].
     pub fn with_sources(engine: Engine, sources: sources::Sources) -> Self {
         Self {
+            #[cfg(test)]
+            after_interface_read: None,
             engine,
             path: None,
             sources,

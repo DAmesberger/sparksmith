@@ -510,3 +510,61 @@ fn b4_a_missing_linked_design_keeps_the_snapshot() -> TestResult {
     assert!(!changed(&mut session, &moved, &design)?);
     Ok(())
 }
+
+#[test]
+fn a_publish_between_preview_reads_refuses_mixed_generations() -> TestResult {
+    use std::time::Duration;
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let assembly = dir.path().join("assembly.solidcraft");
+    let mut session = open(dir.path())?;
+    let opening = format!("i{}.opening", instance(&session, "J1")?);
+    publish(&mut session, &design, "interface")?;
+    save_linked_design(&design, &opening, FAR_WALL_Y, &assembly)?;
+    link(&mut session, &assembly, &design)?;
+    let mut publisher = Session::new(session.engine().fork());
+    super::interface_publish_tests::move_j1(&mut publisher, 2.0)?;
+    let (start, started) = std::sync::mpsc::channel();
+    let (finish, finished) = std::sync::mpsc::channel();
+    let destination = design.clone();
+    let worker = std::thread::spawn(sparksmith_core::library::standards::carried(move || {
+        let result = started
+            .recv_timeout(Duration::from_secs(10))
+            .map_err(|e| e.to_string())
+            .and_then(|()| {
+                publish(&mut publisher, &destination, "interface")
+                    .map(|_| ())
+                    .map_err(|e| e.to_string())
+            });
+        let _ = finish.send(result);
+    }));
+    session.after_interface_read = Some(Box::new(move || {
+        let failed =
+            |message: String| -> crate::Error { sparksmith_io::Error::Invalid(message).into() };
+        start.send(()).map_err(|e| failed(e.to_string()))?;
+        finished
+            .recv_timeout(Duration::from_secs(10))
+            .map_err(|e| failed(e.to_string()))?
+            .map_err(failed)
+    }));
+    let before = session.engine().to_file();
+    let revision = session.engine().revision();
+    let reply = session.dispatch(json!({"command": "interface.publish_preview", "params": {
+        "path": design.display().to_string(), "tier": "interface",
+        "assembly_path": assembly.display().to_string()
+    }}));
+    worker.join().map_err(|_| "publisher panicked")?;
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(reply.to_string().contains("interface.changed"), "{reply}");
+    assert_eq!(session.engine().to_file(), before);
+    assert_eq!(session.engine().revision(), revision);
+    // A fresh preview against the new pair succeeds; refusal is retryable.
+    ok(
+        &mut session,
+        json!({"command": "interface.publish_preview", "params": {
+            "path": design.display().to_string(), "tier": "interface",
+            "assembly_path": assembly.display().to_string()
+        }}),
+    )?;
+    Ok(())
+}

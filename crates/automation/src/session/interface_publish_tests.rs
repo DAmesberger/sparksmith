@@ -708,3 +708,89 @@ fn the_project_keeps_where_it_published() -> TestResult {
     assert_eq!(hint(&reopened), Some(kept));
     Ok(())
 }
+
+/// Two sessions of the same source may have valid document revisions while
+/// only one has the newest external publication. The older session must not
+/// roll the files back, even though its front-door revision is current locally.
+#[test]
+fn an_older_same_source_session_cannot_replace_a_newer_publication() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let mut current = open(dir.path())?;
+    publish(&mut current, &design, "interface")?;
+    let mut older = Session::new(current.engine().fork());
+    move_j1(&mut current, 2.0)?;
+    publish(&mut current, &design, "interface")?;
+    let native = std::fs::read(&design)?;
+    let sidecar = std::fs::read(sparksmith_io::interface::sidecar_path(&design))?;
+    let project = older.engine().project().clone();
+    let revision = older.engine().revision();
+    let reply = older.dispatch(json!({"command": "interface.publish", "params": {
+        "path": design.display().to_string(), "tier": "interface", "expected_revision": revision
+    }}));
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(reply.to_string().contains("interface.changed"), "{reply}");
+    assert_eq!(older.engine().revision(), revision);
+    assert_eq!(older.engine().project(), &project);
+    assert_eq!(std::fs::read(&design)?, native);
+    assert_eq!(
+        std::fs::read(sparksmith_io::interface::sidecar_path(&design))?,
+        sidecar
+    );
+    Ok(())
+}
+
+#[test]
+fn publishing_cannot_replace_an_unowned_native_design() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("existing.solidcraft");
+    std::fs::write(&design, b"unrelated native design")?;
+    let mut session = open(dir.path())?;
+    let project = session.engine().project().clone();
+    let revision = session.engine().revision();
+    let reply = session.dispatch(json!({"command": "interface.publish", "params": {
+        "path": design.display().to_string(), "tier": "interface", "expected_revision": revision
+    }}));
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(
+        reply.to_string().contains("incomplete or unowned"),
+        "{reply}"
+    );
+    assert_eq!(session.engine().revision(), revision);
+    assert_eq!(session.engine().project(), &project);
+    assert_eq!(std::fs::read(&design)?, b"unrelated native design");
+    assert!(!sparksmith_io::interface::sidecar_path(&design).exists());
+    Ok(())
+}
+
+#[test]
+fn first_and_repeat_publications_keep_the_final_name_without_scratch_files() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let mut session = open(dir.path())?;
+    for publish_number in 0..2 {
+        if publish_number > 0 {
+            move_j1(&mut session, 2.0)?;
+        }
+        publish(&mut session, &design, "interface")?;
+        let native = sparksmith_solidcraft::native::Native::open(design.to_str().ok_or("path")?)?;
+        assert_eq!(native.session().doc.name, "board");
+        let publication = sparksmith_io::interface::Publication::open(&design)?;
+        assert!(publication.sidecar()?.is_some());
+        assert!(!publication.design_bytes()?.is_empty());
+        let mut files = std::fs::read_dir(dir.path())?
+            .map(|entry| entry.map(|entry| entry.file_name().to_string_lossy().into_owned()))
+            .collect::<std::io::Result<Vec<_>>>()?;
+        files.sort();
+        assert_eq!(
+            files,
+            [
+                ".board.interface.json.publish-lock",
+                "board.interface.json",
+                "board.solidcraft",
+                "board.sparksmith"
+            ]
+        );
+    }
+    Ok(())
+}

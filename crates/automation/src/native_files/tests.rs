@@ -140,3 +140,63 @@ fn native_save_rebases_links_against_the_final_directory() -> Fallible {
     assert_eq!(files(&destination)?, vec!["copy.solidcraft"]);
     Ok(())
 }
+
+#[test]
+fn staging_uses_the_logical_name_and_link_base_without_replacing_it() -> Fallible {
+    use sparksmith_solidcraft::linked_design::LinkedDesign;
+    let dir = tempfile::tempdir()?;
+    let source = dir.path().join("source");
+    let destination = dir.path().join("destination");
+    let scratch = dir.path().join("scratch/deep/physical");
+    for folder in [&source, &destination, &scratch] {
+        std::fs::create_dir_all(folder)?;
+    }
+    let part = source.join("part.solidcraft");
+    let original = source.join("assembly.solidcraft");
+    let final_path = destination.join("published.solidcraft");
+    let output = scratch.join("random-scratch.solidcraft");
+    let part_text = part.to_str().ok_or("path")?;
+    let original_text = original.to_str().ok_or("path")?;
+    let final_text = final_path.to_str().ok_or("path")?;
+    let output_text = output.to_str().ok_or("path")?;
+    let mut model = LinkedDesign::new("Part")?;
+    model.solid_box("Body", [0.0; 3], [2.0; 3])?;
+    model.save(new_file(part_text))?;
+    let mut assembly = LinkedDesign::new("Assembly")?;
+    assembly.link(part_text, "Part")?;
+    assembly.save(new_file(original_text))?;
+    std::fs::write(&final_path, b"previous publication")?;
+    let native = Native::open(original_text)?;
+    native.stage_new(new_file(output_text), final_text)?;
+    assert_eq!(std::fs::read(&final_path)?, b"previous publication");
+    let staged = Native::open(output_text)?;
+    assert_eq!(staged.session().doc.name, "published");
+    assert_eq!(files(&scratch)?, ["random-scratch.solidcraft"]);
+    assert_eq!(files(&destination)?, ["published.solidcraft"]);
+    let bytes = std::fs::read(&output)?;
+    assert!(native.stage_new(new_file(output_text), final_text).is_err());
+    assert_eq!(std::fs::read(&output)?, bytes);
+    assert_eq!(std::fs::read(&final_path)?, b"previous publication");
+    // Consume the original staged bytes at their intended logical location.
+    // Opening scratch alone could resolve links relative to the wrong folder,
+    // and inspecting an already opened link may show an absolute path.
+    std::fs::copy(&output, &final_path)?;
+    let (mut consumer, newer) = LinkedDesign::open(final_text)?;
+    assert!(!newer);
+    let update = consumer.update_links()?;
+    assert!(update.failed.is_empty(), "{update:?}");
+    let consumed = Native::open(final_text)?;
+    assert_eq!(consumed.session().doc.name, "published");
+    let link = consumed
+        .session()
+        .doc
+        .links
+        .values()
+        .next()
+        .ok_or("consumed link")?;
+    assert_eq!(
+        destination.join(&link.path).canonicalize()?,
+        part.canonicalize()?
+    );
+    Ok(())
+}

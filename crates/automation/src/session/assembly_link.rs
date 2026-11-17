@@ -32,6 +32,7 @@ use std::path::{Path, PathBuf};
 /// A linked design read from a scratch copy.
 struct Opened {
     copy: LinkedDesignCopy,
+    _publication: sparksmith_io::interface::Publication,
     linked_design: LinkedDesign,
     board: BoardLink,
     /// The sidecar beside the published design the assembly links.
@@ -67,6 +68,8 @@ impl Session {
                 file.display()
             )));
         }
+        let design = self.assembly_path(design);
+        let publication = sparksmith_io::interface::Publication::open(&design)?;
         let copy = copy(&file)?;
         let (linked_design, newer) = LinkedDesign::open(&copy.path.to_string_lossy())?;
         if newer {
@@ -76,11 +79,11 @@ impl Session {
                     .into(),
             ));
         }
-        let design = self.assembly_path(design);
         let board = linked_design.board_link(&copy.folder, &design)?;
-        let published = sparksmith_io::interface::read_sidecar(&design)?;
+        let published = publication.sidecar()?;
         Ok(Opened {
             copy,
+            _publication: publication,
             linked_design,
             board,
             published,
@@ -329,10 +332,19 @@ impl Session {
         linked_design: &str,
         design: &str,
         candidate: Sidecar,
+        expected: &sparksmith_io::interface::Baseline,
     ) -> Result<Option<DryRun>> {
         let link = self.linked()?;
         self.same_files(&link, Some(linked_design), design)?;
         let mut opened = self.open_linked_design(linked_design, design)?;
+        // Compare the exact pair actually held for this dry run, not a later
+        // unlocked reread that could miss a publish-and-restore between reads.
+        if opened._publication.baseline()? != *expected {
+            return Err(refused(
+                "interface.changed: the published files changed during preview; preview again"
+                    .into(),
+            ));
+        }
         let Some(published) = opened.published.take() else {
             return Ok(None);
         };

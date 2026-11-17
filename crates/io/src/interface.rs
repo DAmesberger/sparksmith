@@ -1,8 +1,8 @@
 //! The published board interface's files (docs/architecture/
 //! board-interface.md, "The export format"): the `.solidcraft` design an
 //! assembly links and its sidecar `<name>.interface.json` beside it. Both
-//! are replaced atomically, so a linked design never reads half a publish.
-use crate::persistence::{atomic_write, read_bytes, sync_directory};
+//! form one recoverable publication. Participating readers hold a lock while
+//! consuming the pair; raw filesystem readers must coordinate externally.
 use crate::{Error, Result};
 use sparksmith_core::ids::InterfaceSourceId;
 use sparksmith_core::interface::Sidecar;
@@ -50,48 +50,19 @@ pub fn new_source_id() -> Result<InterfaceSourceId> {
 /// One that is there but unreadable, or of a format this build does not
 /// read, is refused.
 pub fn read_sidecar(design: &Path) -> Result<Option<Sidecar>> {
-    let path = sidecar_path(design);
-    if !path.try_exists()? {
-        return Ok(None);
-    }
-    let bytes = read_bytes(&path)?;
-    let text = String::from_utf8(bytes)
-        .map_err(|_| Error::Invalid("interface.format: the sidecar is not UTF-8 text".into()))?;
-    Ok(Some(Sidecar::read(&text)?))
+    Publication::open(design)?.sidecar()
 }
 
-/// A sibling temporary path for writing `design` before it replaces the
-/// published one: hidden, in the same folder, so the rename is atomic.
+mod transaction;
+pub use transaction::{Baseline, Publication, design_hash, put_in_place};
+
+/// A fresh sibling name for unpublished native output. StagedNew owns the
+/// actual scratch file; this name is never committed to the public destination.
 pub fn temporary_design(design: &Path) -> Result<PathBuf> {
     check_design_path(design)?;
-    let mut bytes = [0u8; 8];
+    let mut bytes = [0u8; 16];
     getrandom::fill(&mut bytes)
         .map_err(|e| Error::Invalid(format!("the system random source failed: {e}")))?;
     let tag: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    let stem = design
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    Ok(design.with_file_name(format!(".{stem}.publishing-{tag}.solidcraft")))
-}
-
-/// Put a publish in place: the sidecar `text` replaces the one beside
-/// `design` (written through its own temporary file), then the finished
-/// design at `temporary` replaces `design`. Each replacement is atomic.
-/// When writing the sidecar fails, the temporary design is removed and
-/// nothing published changes.
-pub fn put_in_place(design: &Path, temporary: &Path, text: &str) -> Result<()> {
-    if let Err(error) = atomic_write(&sidecar_path(design), text.as_bytes()) {
-        let _ = std::fs::remove_file(temporary);
-        return Err(error);
-    }
-    if let Err(error) = std::fs::rename(temporary, design) {
-        let _ = std::fs::remove_file(temporary);
-        return Err(error.into());
-    }
-    let parent = design
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    sync_directory(parent)
+    Ok(design.with_file_name(format!(".interface-native-{tag}.solidcraft")))
 }

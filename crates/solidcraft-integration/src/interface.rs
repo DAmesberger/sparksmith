@@ -95,6 +95,16 @@ impl Exported {
     pub fn save_new(&self, output: crate::native::files::NewFile<'_>) -> Result<()> {
         self.native().save_new(output)
     }
+
+    /// Stage native bytes for a paired publication, retaining the final
+    /// destination's native name and link base without writing that destination.
+    pub fn stage_new(
+        &self,
+        output: crate::native::files::NewFile<'_>,
+        logical_destination: &str,
+    ) -> Result<()> {
+        self.native().stage_new(output, logical_destination)
+    }
 }
 
 /// What carries one slot's datum.

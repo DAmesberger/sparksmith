@@ -34,8 +34,9 @@ pub enum Error {
     Invalid(String),
     #[error("{0}")]
     TooLarge(String),
-    /// The file was written and is in place, but synchronizing its folder
-    /// failed, so it may not survive a power loss.
+    /// A file or publication commit was written, but completion or synchronization
+    /// failed. A committed publication may need recovery; power-loss durability
+    /// may be unconfirmed. This does not promise that existing files are unchanged.
     #[error("{0}")]
     Unsynced(String),
     #[error(transparent)]
