@@ -243,6 +243,79 @@ fn a_second_distance_that_only_a_turn_would_satisfy_is_refused() -> TestResult {
 fn an_edge_dimension_moves_the_part_to_the_value_shown() -> TestResult {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     let mut session = open()?;
+    let connected = |session: &Session| -> TestResult {
+        // Refill a fork so checking the actual post-fill copper does not add
+        // an undo step to the dimension operation being tested.
+        let mut fork = Session::new(session.engine().fork());
+        let refill = apply(
+            &mut fork,
+            serde_json::to_value(sparksmith_core::Operation::Fill(
+                sparksmith_core::layout::fill::FillCommand::Refill {
+                    target: sparksmith_core::layout::fill::RefillTarget::All,
+                },
+            ))?,
+        );
+        assert_eq!(refill["ok"], true, "{refill}");
+        let gaps: Vec<_> =
+            sparksmith_core::layout::checks(fork.engine().project(), &Default::default())
+                .into_iter()
+                .filter(|f| {
+                    matches!(
+                        f.code.as_str(),
+                        "board.unrouted" | "board.track_dangling" | "board.via_dangling"
+                    )
+                })
+                .collect();
+        assert!(gaps.is_empty(), "{gaps:?}");
+        Ok(())
+    };
+    connected(&session)?;
+    // The old fixture's VBUS transition sat under CC2 after its 0.5 mm
+    // slide. Its via was silently removed, breaking VBUS. Leave room for
+    // that slide by moving the transition and both attached ends together.
+    let project = session.engine().project();
+    let via = project
+        .vias
+        .iter()
+        .find(|v| project.net_name(v.net) == "VBUS" && close(v.position, [22.4, 9.6]))
+        .ok_or("VBUS transition")?
+        .clone();
+    let next = [22.4, 8.8];
+    let replace: Vec<_> = project
+        .tracks
+        .iter()
+        .filter(|t| {
+            t.net == via.net && (close(t.start, via.position) || close(t.end, via.position))
+        })
+        .map(|t| {
+            let mut track = t.clone();
+            if close(track.start, via.position) {
+                track.start = next;
+            }
+            if close(track.end, via.position) {
+                track.end = next;
+            }
+            track
+        })
+        .collect();
+    assert_eq!(replace.len(), 2);
+    let prepared = apply(
+        &mut session,
+        serde_json::to_value(sparksmith_core::Operation::Layout(
+            sparksmith_core::layout::LayoutCommand::ApplyRoute {
+                edits: sparksmith_core::layout::RouteEditSet {
+                    replace,
+                    move_vias: vec![sparksmith_core::layout::ViaMove {
+                        id: via.id,
+                        position: next,
+                    }],
+                    ..Default::default()
+                },
+            },
+        ))?,
+    );
+    assert_eq!(prepared["ok"], true, "{prepared}");
+    connected(&session)?;
     let r5 = session
         .engine()
         .project()
@@ -276,6 +349,7 @@ fn an_edge_dimension_moves_the_part_to_the_value_shown() -> TestResult {
     let (edge, now) = pick_to_bottom(&session, "R5", [24.4, 11.5, 0.2])?;
     assert!((now - 11.5).abs() < 1e-9, "{now}");
     let refs = json!([edge, bottom_edge(&session)?]);
+    let before_dimension = session.engine().to_file();
     let added = add_distance(&mut session, refs, 11.0);
     assert_eq!(added["ok"], true, "{added}");
     let project = session.engine().project();
@@ -289,5 +363,18 @@ fn an_edge_dimension_moves_the_part_to_the_value_shown() -> TestResult {
     assert_eq!(placed.rotation_deg, 90.0);
     let (_, shown) = pick_to_bottom(&session, "R5", [24.4, 11.0, 0.2])?;
     assert!((shown - 11.0).abs() < 1e-9, "{shown}");
+    connected(&session)?;
+    let after_dimension = session.engine().to_file();
+    for (command, expected) in [
+        ("project.undo", &before_dimension),
+        ("project.redo", &after_dimension),
+    ] {
+        let reply = session.dispatch(json!({"command": command, "params": {
+            "expected_revision": session.engine().revision(),
+        }}));
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(&session.engine().to_file(), expected);
+        connected(&session)?;
+    }
     Ok(())
 }

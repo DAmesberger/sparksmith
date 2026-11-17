@@ -195,7 +195,45 @@ fn a_move_that_cannot_land_is_refused_in_held_words() -> Fallible<()> {
 #[test]
 fn an_expression_value_evaluates_over_board_parameters() -> Fallible<()> {
     let mut engine = sketched()?;
-    let (part, _) = parts(&engine)?;
+    let (part, other) = parts(&engine)?;
+    // At x15 the first resistor used to overlap the one at x16: their
+    // pads touched without a track, then separated at x20. Keep the fixed
+    // resistor clear and join the net with copper that can stretch.
+    move_to(&mut engine, other, [30.0, 8.0])??;
+    let pads = sparksmith_core::layout::pads(engine.project());
+    let from = pads
+        .iter()
+        .find(|p| p.instance == part && p.pad.0 == 2)
+        .ok_or("R1 pad 2")?;
+    let to = pads
+        .iter()
+        .find(|p| p.instance == other && p.net == from.net)
+        .ok_or("R2 connected pad")?;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::Route {
+            request: sparksmith_core::layout::RouteRequest {
+                net: from.net,
+                start: from.position,
+                end: to.position,
+                width: 0.25,
+                layer: CopperLayer::Top,
+            },
+        }),
+    )?;
+    let connected = |engine: &Engine| {
+        let gaps: Vec<_> = sparksmith_core::layout::checks(engine.project(), &Default::default())
+            .into_iter()
+            .filter(|f| {
+                matches!(
+                    f.code.as_str(),
+                    "board.unrouted" | "board.track_dangling" | "board.via_dangling"
+                )
+            })
+            .collect();
+        assert!(gaps.is_empty(), "{gaps:?}");
+    };
+    connected(&engine);
     let left = edge(&engine, "left")?;
     add(
         &mut engine,
@@ -205,8 +243,18 @@ fn an_expression_value_evaluates_over_board_parameters() -> Fallible<()> {
         ),
     )?;
     assert!((pose(&engine, part)?.0[0] - 15.0).abs() < 1e-6);
+    connected(&engine);
+    let before_width = engine.to_file();
     edit(&mut engine, vec![set("width", "80 mm")])?;
     assert!((pose(&engine, part)?.0[0] - 20.0).abs() < 1e-6);
+    connected(&engine);
+    let after_width = engine.to_file();
+    engine.undo()?;
+    assert_eq!(engine.to_file(), before_width);
+    connected(&engine);
+    engine.redo()?;
+    assert_eq!(engine.to_file(), after_width);
+    connected(&engine);
     Ok(())
 }
 

@@ -722,3 +722,83 @@ fn move_tracks(
     }
     Ok(dragged)
 }
+
+/// Board/dimension edits promise to carry existing connections. Unlike an
+/// interactive move, they must not accept the router's partial success.
+/// Compare explicit copper on both sides: stale pours are not evidence of
+/// either a lost connection or a successful carry, and their recomputation
+/// remains the fill worker's responsibility.
+pub(crate) fn protect_connections(
+    before: &Project,
+    project: &Project,
+    rerouted: &Rerouted,
+) -> Result<()> {
+    use crate::diagnostics::{Error, ObjectRef};
+    let refuse = |names: String| {
+        Error::Conflict(format!(
+            "board.carry: cannot keep connected copper on {names}; change the routing or release the part dimensions before editing the board"
+        ))
+    };
+    if !rerouted.unrouted.is_empty() {
+        let names: BTreeSet<_> = rerouted.unrouted.iter().map(String::as_str).collect();
+        return Err(refuse(names.into_iter().collect::<Vec<_>>().join(", ")));
+    }
+    let bare = |p: &Project| {
+        let mut p = p.clone();
+        p.fills.clear();
+        p
+    };
+    let old = bare(before);
+    let new = bare(project);
+    let (a, b) = (CopperGraph::of(&old), CopperGraph::of(&new));
+    if !a.complete() || !b.complete() {
+        return Err(refuse("this board (connectivity check limit)".into()));
+    }
+    // Each old island's pads must still be in one island. Compare identities,
+    // never geometric proximity or net names; the graph alone decides joins.
+    let now: BTreeMap<_, _> = b
+        .pads()
+        .iter()
+        .enumerate()
+        .map(|(i, p)| ((p.instance, p.pad), b.pad_island(i)))
+        .collect();
+    let mut islands = BTreeMap::new();
+    let mut lost = BTreeSet::new();
+    for (i, pad) in a.pads().iter().enumerate() {
+        let next = now.get(&(pad.instance, pad.pad)).copied().flatten();
+        if next.is_none() {
+            lost.insert(pad.net);
+        } else if let Some(old_island) = a.pad_island(i)
+            && let Some(previous) = islands.insert(old_island, next)
+            && previous != next
+        {
+            lost.insert(pad.net);
+        }
+    }
+    let dangling = |code: &str| matches!(code, "board.track_dangling" | "board.via_dangling");
+    let prior: std::collections::HashSet<_> = a
+        .findings(&old)
+        .into_iter()
+        .filter(|f| dangling(&f.code))
+        .map(|f| (f.code, f.objects))
+        .collect();
+    for finding in b.findings(&new).into_iter().filter(|f| dangling(&f.code)) {
+        let existed = prior.contains(&(finding.code.clone(), finding.objects.clone()));
+        if !existed {
+            lost.extend(finding.objects.iter().filter_map(|object| match object {
+                ObjectRef::Net { id } => Some(*id),
+                _ => None,
+            }));
+        }
+    }
+    if lost.is_empty() {
+        Ok(())
+    } else {
+        Err(refuse(
+            lost.into_iter()
+                .map(|id| project.net_name(id))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ))
+    }
+}
