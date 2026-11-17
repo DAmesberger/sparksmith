@@ -324,6 +324,10 @@ pub struct Parsed {
     pub si: Decimal,
     /// The unit written, in canonical spelling; `None` without a suffix.
     pub unit: Option<String>,
+    /// Unscaled number and normalized suffix, for catalog interpretation
+    /// rules (plain size codes and explicit-unit predicates).
+    pub(crate) number: Decimal,
+    pub(crate) suffix: String,
 }
 
 /// Split `number [whitespace] [suffix]`. The number is a decimal with
@@ -363,21 +367,98 @@ fn split_number(text: &str) -> Option<(&str, &str)> {
     Some((&text[..end], text[end..].trim_start()))
 }
 
+/// Read letter-as-decimal notation using only this set's units and SI
+/// prefixes. A unit letter may be followed by the same unit spelled out
+/// (`1R0Ω`); a multiplier may be followed by a unit (`4k7Ω`).
+fn rkm(text: &str, units: &UnitSet) -> Option<String> {
+    // A declared unit/alias containing digits must keep its exact meaning.
+    if split_number(text).is_some_and(|(_, suffix)| units.resolve(suffix).is_some()) {
+        return None;
+    }
+    let (sign, text) = if text.starts_with(['+', '-']) {
+        text.split_at(1)
+    } else {
+        ("", text)
+    };
+    let end = text.bytes().take_while(u8::is_ascii_digit).count();
+    let (whole, rest) = text.split_at(end);
+    let letter = rest.chars().next()?;
+    if matches!(letter, 'e' | 'E') {
+        return None;
+    }
+    let marker = letter.to_string();
+    let unit = units.unit(&marker);
+    let marker = if letter == 'K' && unit.is_none() {
+        "k"
+    } else {
+        &marker
+    };
+    let prefix = SI_PREFIXES.iter().any(|(p, _)| *p == marker);
+    if unit.is_none() && (!prefix || whole.is_empty()) {
+        return None;
+    }
+    let tail = rest.get(letter.len_utf8()..)?;
+    let end = tail.bytes().take_while(u8::is_ascii_digit).count();
+    if end == 0 {
+        return None;
+    }
+    let (fraction, after) = tail.split_at(end);
+    let after = after.trim_start();
+    let suffix = if let Some(unit) = unit {
+        if !after.is_empty() && units.unit(after) != Some(unit) {
+            return None;
+        }
+        unit.symbol.clone()
+    } else {
+        format!("{marker}{after}")
+    };
+    let whole = if whole.is_empty() { "0" } else { whole };
+    Some(format!("{sign}{whole}.{fraction}{suffix}"))
+}
+
 /// Parse quantity text against a unit set. The suffix resolves, first match
 /// winning: (1) a unit symbol or alias; (2) an SI prefix and a
 /// prefix-accepting unit; (3) a bare SI prefix applied to `default_unit`;
-/// (4) no suffix, so `default_unit` applies.
+/// (4) no suffix, so `default_unit` applies. RKM notation (`4k7`, `1R0`)
+/// and uppercase kilo (`4K7`, `4.7K`) follow the same rules. A declared
+/// unit `K` retains its meaning; other unit text is never case-folded.
 pub fn parse(text: &str, units: &UnitSet, default_unit: &str) -> Result<Parsed> {
+    parse_in_unit(text, units, default_unit, None)
+}
+
+/// The same parser with a unit for suffix-free input, such as the `kV`
+/// key in a catalog predicate. Scale directly in that unit: conversion
+/// through the kind's default could overflow even when the result fits.
+/// Bare multipliers retain their ordinary default-unit interpretation.
+pub(crate) fn parse_in_unit(
+    text: &str,
+    units: &UnitSet,
+    default_unit: &str,
+    plain_unit: Option<&str>,
+) -> Result<Parsed> {
     if text.len() > MAX_TEXT {
         return Err(Error::Limit("quantity text exceeds 128 bytes".into()));
     }
     let normalized = text.trim().replacen('\u{2212}', "-", 1);
+    let normalized = rkm(&normalized, units).unwrap_or(normalized);
     let (number, suffix) = split_number(&normalized).ok_or_else(|| {
         Error::Invalid(format!(
             "‘{}’ is not a number with an optional unit",
             text.trim()
         ))
     })?;
+    // Only a leading kilo marker is normalized, never letters inside a
+    // unit name, and an exact unit/alias always wins.
+    let kilo;
+    let suffix = if units.resolve(suffix).is_none()
+        && units.unit("K").is_none()
+        && let Some(rest) = suffix.strip_prefix('K')
+    {
+        kilo = format!("k{rest}");
+        kilo.as_str()
+    } else {
+        suffix
+    };
     let number: Decimal = number.parse()?;
     let default = units.unit(default_unit).ok_or_else(|| {
         Error::Invalid(format!(
@@ -385,14 +466,10 @@ pub fn parse(text: &str, units: &UnitSet, default_unit: &str) -> Result<Parsed> 
         ))
     })?;
     let (resolved, unit) = if suffix.is_empty() {
-        (
-            ResolvedUnit {
-                factor: default.scale,
-                exact: Decimal::from_f64(default.scale)?,
-                canonical: default.symbol.clone(),
-            },
-            None,
-        )
+        let resolved = units
+            .resolve(plain_unit.unwrap_or(default_unit))
+            .ok_or_else(|| Error::Invalid("the plain-number unit is not in the unit set".into()))?;
+        (resolved, None)
     } else if let Some(resolved) = units.resolve(suffix) {
         let canonical = resolved.canonical.clone();
         (resolved, Some(canonical))
@@ -420,7 +497,13 @@ pub fn parse(text: &str, units: &UnitSet, default_unit: &str) -> Result<Parsed> 
     };
     let si = number.checked_mul(resolved.exact)?;
     let quantity = Quantity::new(si.to_f64(), units.dimension)?;
-    Ok(Parsed { quantity, si, unit })
+    Ok(Parsed {
+        quantity,
+        si,
+        unit,
+        number,
+        suffix: suffix.to_owned(),
+    })
 }
 
 /// A number rounded to 12 significant digits, in plain or exponent notation.

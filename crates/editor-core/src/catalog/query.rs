@@ -5,13 +5,12 @@
 //! definitions in the indexed library and against the unit texts of their
 //! quantity kinds; the code has no field names, units or categories of its
 //! own. Values are read by [`quantity::parse`] and [`fields::parse_value`],
-//! after an RKM pre-pass ([`rkm`]) whose letters come from the field's own
-//! unit set.
+//! including RKM notation whose letters come from the field's own unit set.
 use crate::diagnostics::{Error, Result};
 use crate::fields::{self, FieldValue, QuantityKind, ValueType};
 use crate::ids::{ChoiceId, DefinitionId, Revision};
 use crate::library::Library;
-use crate::quantity::{self, SI_PREFIXES, UnitSet};
+use crate::quantity;
 use crate::units::{LengthUnit, parse_length};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -890,37 +889,27 @@ fn quantity_value(
     unit_key: Option<&str>,
 ) -> std::result::Result<f64, String> {
     let units = &kind.quantity.units;
-    let text = rkm(text, units).unwrap_or_else(|| text.to_owned());
     let kind_name = if kind.name.trim().is_empty() {
         "this quantity kind".to_owned()
     } else {
         fold(kind.name.trim())
     };
-    let Some(key) = unit_key else {
-        return quantity::parse(&text, units, &kind.quantity.default_unit)
-            .map(|p| p.quantity.value())
-            .map_err(|e| e.to_string());
-    };
-    let (number, suffix) = split_number(&text)
-        .ok_or_else(|| format!("‘{text}’ is not a number with an optional unit"))?;
-    let unit = if suffix.is_empty() { key } else { suffix };
-    if units.resolve(unit).is_none() {
-        return Err(if SI_PREFIXES.iter().any(|(p, _)| *p == suffix) {
-            format!(
-                "{} {suffix} has no unit of {kind_name}",
-                quantity::format_number(number)
-            )
-        } else {
-            format!(
-                "‘{suffix}’ is not a unit of {kind_name} (units: {})",
-                units.texts().collect::<Vec<_>>().join(", ")
-            )
-        });
+    let parsed = quantity::parse_in_unit(text, units, &kind.quantity.default_unit, unit_key)
+        .map_err(|e| {
+            let message = e.to_string();
+            if unit_key.is_some() {
+                message.replace("this quantity kind", &kind_name)
+            } else {
+                message
+            }
+        })?;
+    if unit_key.is_some() && !parsed.suffix.is_empty() && units.resolve(&parsed.suffix).is_none() {
+        return Err(format!(
+            "{} {} has no unit of {kind_name}",
+            parsed.number, parsed.suffix
+        ));
     }
-    units
-        .to_si(number, unit)
-        .map(|q| q.value())
-        .map_err(|e| e.to_string())
+    Ok(parsed.quantity.value())
 }
 
 /// `12` or `12/3`: a component lineage, or one exact revision of it. Ids
@@ -969,88 +958,14 @@ fn body_mm(text: &str) -> Option<Vec<f64>> {
         .collect()
 }
 
-/// `number [whitespace] suffix`, with the number grammar of
-/// [`quantity::parse`]: optional sign, digits with `.` and an exponent.
-fn split_number(text: &str) -> Option<(f64, &str)> {
-    let bytes = text.as_bytes();
-    let digits = |from: usize| {
-        bytes
-            .get(from..)
-            .map_or(0, |b| b.iter().take_while(|b| b.is_ascii_digit()).count())
-    };
-    let mut end = usize::from(matches!(bytes.first(), Some(b'+' | b'-')));
-    let integer = digits(end);
-    end += integer;
-    let mut fraction = 0;
-    if bytes.get(end) == Some(&b'.') {
-        fraction = digits(end + 1);
-        end += 1 + fraction;
-    }
-    if integer + fraction == 0 {
-        return None;
-    }
-    if matches!(bytes.get(end), Some(b'e' | b'E')) {
-        let mut at = end + 1;
-        if matches!(bytes.get(at), Some(b'+' | b'-')) {
-            at += 1;
-        }
-        let exponent = digits(at);
-        if exponent > 0 {
-            end = at + exponent;
-        }
-    }
-    let number = text.get(..end)?.parse::<f64>().ok()?;
-    Some((number, text.get(end..)?.trim_start()))
-}
-
-/// The RKM pre-pass: a letter written as the decimal point becomes a
-/// decimal number followed by that letter (`4k7` → `4.7k`, `2u2` → `2.2u`,
-/// `4R7` → `4.7R`, `R47` → `0.47R`). Multiplier letters are the one-letter
-/// SI prefixes; unit letters are the one-letter symbols and aliases of
-/// `units`, so `R` reads as a decimal point only where the unit set itself
-/// declares `R`. A leading letter needs to be a unit letter. Returns `None`
-/// when the text is not in this form.
-pub fn rkm(text: &str, units: &UnitSet) -> Option<String> {
-    let unit_letter = |c: char| {
-        c.is_ascii_alphabetic()
-            && !matches!(c, 'e' | 'E')
-            && units.texts().any(|t| t.chars().eq(std::iter::once(c)))
-    };
-    let prefix_letter = |c: char| {
-        SI_PREFIXES
-            .iter()
-            .any(|(p, _)| p.chars().eq(std::iter::once(c)))
-    };
-    let text = text.trim();
-    let lead: String = text.chars().take_while(char::is_ascii_digit).collect();
-    let mut rest = text.get(lead.len()..)?.chars();
-    let letter = rest.next()?;
-    let unit = unit_letter(letter);
-    if !(unit || (prefix_letter(letter) && !lead.is_empty())) {
-        return None;
-    }
-    let tail = rest.as_str();
-    let fraction: String = tail.chars().take_while(char::is_ascii_digit).collect();
-    if fraction.is_empty() {
-        return None;
-    }
-    let after = tail.get(fraction.len()..)?;
-    if after.starts_with(|c: char| c.is_ascii_digit() || c == '.') {
-        return None;
-    }
-    let whole = if lead.is_empty() { "0" } else { lead.as_str() };
-    Some(format!("{whole}.{fraction}{letter}{after}"))
-}
-
 /// A token without an operator: always text, and also a value of every
 /// quantity field it reads as when it carries a letter (`10k`, `4k7`,
 /// `100nF`). Plain numbers such as `0603` stay text.
 fn bare(token: &str, vocabulary: &Vocabulary) -> Term {
     let text = fold(token);
-    let starts = token
-        .chars()
-        .next()
-        .is_some_and(|c| c.is_ascii_digit() || c == '.' || c.is_ascii_alphabetic());
+    let starts = token.chars().next().is_some_and(|c| {
+        c.is_ascii_digit() || matches!(c, '.' | '+' | '-' | '−') || c.is_alphabetic()
+    });
     let lettered = token
         .chars()
         .any(|c| c.is_alphabetic() || c == 'Ω' || c == 'µ');
@@ -1060,11 +975,6 @@ fn bare(token: &str, vocabulary: &Vocabulary) -> Term {
             let (ValueType::Quantity { .. }, Some(kind)) = (&field.value_type, &field.kind) else {
                 continue;
             };
-            let numeric = token.starts_with(|c: char| c.is_ascii_digit() || c == '.')
-                || rkm(token, &kind.quantity.units).is_some();
-            if !numeric {
-                continue;
-            }
             if let Ok(si) = quantity_value(token, kind, None) {
                 readings.push(FieldTest {
                     field: field.field,

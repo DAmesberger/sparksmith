@@ -97,39 +97,6 @@ fn synthetic_project_is_a_valid_document() -> TestResult {
 }
 
 #[test]
-fn rkm_takes_multiplier_letters_and_only_the_units_own_letters() -> TestResult {
-    let index = index(6)?;
-    let units = |name: &str| -> Result<UnitSet> {
-        let field = index
-            .vocabulary()
-            .fields
-            .iter()
-            .find(|f| f.name == name)
-            .and_then(|f| f.kind.clone())
-            .ok_or_else(|| Error::NotFound(name.into()))?;
-        Ok(field.quantity.units)
-    };
-    let ohms = units("Resistance")?;
-    let farads = units("Capacitance")?;
-    assert_eq!(rkm("4k7", &ohms).as_deref(), Some("4.7k"));
-    assert_eq!(rkm("4R7", &ohms).as_deref(), Some("4.7R"));
-    assert_eq!(rkm("R47", &ohms).as_deref(), Some("0.47R"));
-    assert_eq!(rkm("2u2", &farads).as_deref(), Some("2.2u"));
-    assert_eq!(rkm("4n7F", &farads).as_deref(), Some("4.7nF"));
-    // `R` is a decimal point only where the unit set declares it.
-    assert_eq!(rkm("R47", &farads), None);
-    assert_eq!(rkm("4R7", &farads), None);
-    // A leading multiplier, plain decimals and exponents are not RKM.
-    assert_eq!(rkm("k47", &ohms), None);
-    assert_eq!(rkm("4.7k", &ohms), None);
-    assert_eq!(rkm("1e3", &ohms), None);
-    assert_eq!(rkm("10k", &ohms), None);
-    Ok(())
-}
-
-use crate::quantity::UnitSet;
-
-#[test]
 fn bare_values_read_rkm_and_si_text_through_the_fields_own_units() -> TestResult {
     let index = index(24)?;
     let resistance = field_id(&index, "Resistance")?;
@@ -139,7 +106,24 @@ fn bare_values_read_rkm_and_si_text_through_the_fields_own_units() -> TestResult
         Ok(query.terms.pop().ok_or("no term")?)
     };
     let close = |a: Option<f64>, b: f64| a.is_some_and(|a| (a - b).abs() <= 1e-12 * b.abs());
-    assert!(close(reading(&one("4k7")?, resistance), 4700.0));
+    for (text, expected) in [
+        ("4k7", 4700.0),
+        ("4.7k", 4700.0),
+        ("4K7", 4700.0),
+        ("1R0", 1.0),
+        ("2M2", 2.2e6),
+        ("0R1", 0.1),
+        ("1R0Ω", 1.0),
+        ("-4k7", -4700.0),
+        ("+4K7Ω", 4700.0),
+    ] {
+        assert!(close(reading(&one(text)?, resistance), expected), "{text}");
+    }
+    for (text, expected) in [("100n", 1e-7), ("1u0", 1e-6), ("4n7", 4.7e-9)] {
+        assert!(close(reading(&one(text)?, capacitance), expected), "{text}");
+    }
+    assert_eq!(reading(&one("4k7k")?, resistance), None);
+    assert!(index.parse("res:4k7k").is_err());
     assert!(close(reading(&one("4.7k")?, resistance), 4700.0));
     assert!(close(reading(&one("R47")?, resistance), 0.47));
     assert!(close(reading(&one("4R7")?, resistance), 4.7));
@@ -330,6 +314,44 @@ fn unit_keys_do_not_depend_on_which_other_fields_exist() -> TestResult {
             .contains("matches several fields: Rated power, Resistance"),
         "{error}"
     );
+    Ok(())
+}
+
+#[test]
+fn explicit_unit_keys_scale_directly_without_a_default_unit_intermediate() -> TestResult {
+    let index = index(6)?;
+    let resistance = field_id(&index, "Resistance")?;
+    let mut vocabulary = index.vocabulary().clone();
+    let kind = vocabulary
+        .fields
+        .iter_mut()
+        .find(|f| f.field == resistance)
+        .and_then(|f| f.kind.as_mut())
+        .ok_or("no resistance quantity kind")?;
+    kind.quantity.units.units = [("X", 1e20), ("Y", 1.0)]
+        .into_iter()
+        .map(|(symbol, scale)| crate::quantity::UnitOfMeasure {
+            symbol: symbol.into(),
+            aliases: vec![],
+            scale,
+            si_prefixes: true,
+        })
+        .collect();
+    kind.quantity.default_unit = "X".into();
+    kind.quantity.units.check()?;
+    // 1e90 Y is in range; evaluating it first as X would make 1e110 SI.
+    for text in ["Y>=1e90", "Y>=1e90Y", "kY>=1e87", "Y>=1Y0"] {
+        let expected = if text == "Y>=1Y0" { 1.0 } else { 1e90 };
+        let query = parse_query(text, &vocabulary)?;
+        assert_eq!(
+            reading(&query.terms[0], resistance),
+            Some(expected),
+            "{text}"
+        );
+    }
+    for text in ["X>=1e90", "Y>=1e90X", "Y>=10k"] {
+        assert!(parse_query(text, &vocabulary).is_err(), "{text}");
+    }
     Ok(())
 }
 

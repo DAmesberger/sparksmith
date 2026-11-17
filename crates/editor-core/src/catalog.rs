@@ -17,7 +17,7 @@ pub mod synthetic;
 pub use query::{
     BODY_TOLERANCE_MM, Badge, CatalogQuery, FieldTest, MAX_QUERY, MAX_TERMS, Op,
     PITCH_TOLERANCE_MM, QueryError, RESERVED, SizeSystem, Term, Test, Vocabulary, VocabularyField,
-    VocabularyKind, fold, parse, parse_query, rkm, term_spans,
+    VocabularyKind, fold, parse, parse_query, term_spans,
 };
 mod shape;
 pub use shape::PackageShape;

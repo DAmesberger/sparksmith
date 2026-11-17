@@ -856,8 +856,8 @@ fn a_pointer_click_on_change_package_opens_the_gallery_at_a_small_window() -> Fa
     Ok(())
 }
 
-/// At 1024 × 640: "4.7k 0603" in the Place palette makes the generic chip
-/// resistor and places it holding 4.7 kΩ; its Properties field edits the
+/// At 1024 × 640: "10k 0603" in the Place palette makes the generic chip
+/// resistor and places it holding 10 kΩ; its Properties field edits the
 /// value inline (one `instance.set_properties`, one undo step).
 #[test]
 fn a_generic_resistors_value_is_placed_and_edited_in_properties_at_a_small_window() -> Fallible {
@@ -875,7 +875,7 @@ fn a_generic_resistors_value_is_placed_and_edited_in_properties_at_a_small_windo
     let components = ax.app.engine.project().library.components.len();
     ax.button("Place")?;
     ax.settle();
-    ax.type_text("4.7k 0603");
+    ax.type_text("10k 0603");
     for _ in 0..400 {
         ax.settle();
         if ax.find(Role::Button, "Chip resistor 0603").is_ok() {
@@ -923,7 +923,7 @@ fn a_generic_resistors_value_is_placed_and_edited_in_properties_at_a_small_windo
             instance,
         )?)
     };
-    assert_eq!(value(&ax)?.as_deref(), Some("4.7 kΩ"));
+    assert_eq!(value(&ax)?.as_deref(), Some("10 kΩ"));
     ax.key(Key::Escape);
     ax.settle();
     let project = ax.app.engine.project().clone();
@@ -932,12 +932,12 @@ fn a_generic_resistors_value_is_placed_and_edited_in_properties_at_a_small_windo
     ax.click(Role::TextInput, "Resistance")?;
     assert!(ax.ctx.text_edit_focused(), "the field has the keyboard");
     ax.key_with(Key::A, Modifiers::COMMAND);
-    ax.type_text("10k");
+    ax.type_text("4k7");
     ax.key(Key::Enter);
     ax.settle();
-    assert_eq!(value(&ax)?.as_deref(), Some("10 kΩ"), "{}", ax.dump());
+    assert_eq!(value(&ax)?.as_deref(), Some("4.7 kΩ"), "{}", ax.dump());
     ax.command_key(Key::Z);
     ax.settle();
-    assert_eq!(value(&ax)?.as_deref(), Some("4.7 kΩ"), "one undo step");
+    assert_eq!(value(&ax)?.as_deref(), Some("10 kΩ"), "one undo step");
     Ok(())
 }
