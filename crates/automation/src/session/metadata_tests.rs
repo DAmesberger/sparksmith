@@ -31,8 +31,8 @@ fn the_catalog_has_its_272_entries() {
     // turn entries joined (S4a); then the five assist entries (S6); then
     // the window's view.context, view.select and view.open (S5a); then
     // assist.workflows and assist.step_result (W1); then assist.offer (C2);
-    // then layout.pads.
-    assert_eq!(metadata::entries().len(), 272);
+    // then layout.pads; then assist.ask.
+    assert_eq!(metadata::entries().len(), 273);
 }
 
 /// A title is short, says more than the wire name, and is unique within its
