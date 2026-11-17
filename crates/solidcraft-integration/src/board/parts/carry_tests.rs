@@ -197,3 +197,129 @@ fn a_turned_part_carries_its_via_and_track_ends_rigidly() -> Fallible<()> {
     ));
     Ok(())
 }
+
+/// A locked routed segment cannot follow its dimensioned pad. The board
+/// edit must refuse, including when the router reports no failed route
+/// because the locked copper was not eligible for rerouting.
+#[test]
+fn a_board_edit_that_detaches_locked_copper_is_atomic() -> Fallible<()> {
+    let (mut engine, _) = held_and_routed()?;
+    let track = engine.project().tracks.last().ok_or("track")?.id;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetTrackLock {
+            id: track,
+            locked: true,
+        }),
+    )?;
+    let before = engine.to_file();
+    let revision = engine.revision();
+    let error = edit(&mut engine, vec![set("width", "80 mm")])
+        .err()
+        .ok_or("lost connection committed")?;
+    assert!(
+        error
+            .to_string()
+            .to_lowercase()
+            .contains("cannot keep connected copper"),
+        "{error}"
+    );
+    assert_eq!(engine.to_file(), before);
+    assert_eq!(engine.revision(), revision);
+    // The refused edit left the previous lock operation at the top of undo.
+    engine.undo()?;
+    assert!(
+        !engine
+            .project()
+            .tracks
+            .iter()
+            .find(|t| t.id == track)
+            .ok_or("track")?
+            .locked
+    );
+    engine.redo()?;
+    assert_eq!(engine.to_file(), before);
+    Ok(())
+}
+
+#[test]
+fn a_board_edit_carries_a_via_or_refuses_when_it_is_locked() -> Fallible<()> {
+    let (mut engine, r2) = held_and_routed()?;
+    let old_pad = pad(engine.project(), r2, 0)?;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::AddVia {
+            via: layout::ViaRequest::fixture(old_pad.net, old_pad.position),
+        }),
+    )?;
+    let via = engine.project().vias.last().ok_or("via")?.id;
+    let before = engine.to_file();
+    edit(&mut engine, vec![set("width", "80 mm")])?;
+    assert!(close(
+        engine.project().via(via).ok_or("via")?.position,
+        pad(engine.project(), r2, 0)?.position
+    ));
+    assert_eq!(unrouted(engine.project()), 0);
+    engine.undo()?;
+    assert_eq!(engine.to_file(), before);
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetViaLock {
+            id: via,
+            locked: true,
+        }),
+    )?;
+    let before = engine.to_file();
+    let revision = engine.revision();
+    let error = edit(&mut engine, vec![set("width", "80 mm")])
+        .err()
+        .ok_or("detached locked via committed")?;
+    assert!(
+        error
+            .to_string()
+            .to_lowercase()
+            .contains("cannot keep connected copper"),
+        "{error}"
+    );
+    assert_eq!(engine.to_file(), before);
+    assert_eq!(engine.revision(), revision);
+    Ok(())
+}
+
+#[test]
+fn the_layout_board_size_alias_also_refuses_lost_copper() -> Fallible<()> {
+    let (mut engine, _) = held_and_routed()?;
+    let size = engine.project().board_size;
+    apply(
+        &mut engine,
+        Operation::Board(sparksmith_core::layout::outline::BoardCommand::SetRectangle { size }),
+    )?;
+    let track = engine.project().tracks.last().ok_or("track")?.id;
+    apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetTrackLock {
+            id: track,
+            locked: true,
+        }),
+    )?;
+    let before = engine.to_file();
+    let revision = engine.revision();
+    let error = apply(
+        &mut engine,
+        Operation::Layout(LayoutCommand::SetBoardSize {
+            size: [80.0, size[1]],
+        }),
+    )
+    .err()
+    .ok_or("lost connection committed by layout.set_board_size")?;
+    assert!(
+        error
+            .to_string()
+            .to_lowercase()
+            .contains("cannot keep connected copper"),
+        "{error}"
+    );
+    assert_eq!(engine.to_file(), before);
+    assert_eq!(engine.revision(), revision);
+    Ok(())
+}

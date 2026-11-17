@@ -1610,6 +1610,12 @@ impl Engine {
         // Only the assembly link's own commands move the board-sketch
         // geometry its references own.
         let assembly_command = matches!(operation, Operation::Assembly(_));
+        let preserve_copper = matches!(
+            operation,
+            Operation::Board(_)
+                | Operation::Dimension(_)
+                | Operation::Layout(layout::LayoutCommand::SetBoardSize { .. })
+        );
         // Recording a publish is no undo step, like a save: the files it
         // records stay written (docs/architecture/board-interface.md).
         let unrecorded = matches!(
@@ -1911,6 +1917,13 @@ impl Engine {
                     &placed,
                     loose.as_ref(),
                 )?;
+                if preserve_copper {
+                    layout::dimensions::protect_connections(
+                        &self.document.project,
+                        project,
+                        &rerouted,
+                    )?;
+                }
             }
             // Board-following fills take the (possibly changed) outline.
             layout::fill::follow_board(project)?;

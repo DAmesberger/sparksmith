@@ -44,6 +44,7 @@ pub mod model;
 pub mod view;
 
 pub use carry::carry;
+pub(crate) use carry::protect_connections;
 
 /// Finding code: a reference whose source is gone (a deleted part, pad,
 /// anchor, board curve or model face). It keeps its last geometry and
