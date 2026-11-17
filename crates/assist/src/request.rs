@@ -41,6 +41,8 @@ pub(crate) struct Received {
     pub reply: ModelReply,
     pub n: u32,
     pub seconds: f64,
+    /// Preserve completed accounting, but do not use a reply received after a limit.
+    pub terminal: Option<Stopped>,
 }
 
 impl Driver<'_> {
@@ -163,15 +165,23 @@ impl Driver<'_> {
             seconds,
         });
         (self.events)(Event::Usage(meter(self.tally, self.budget, self.started)));
-        if self.cancel.load(Ordering::Relaxed) {
+        let terminal = if self.cancel.load(Ordering::Relaxed) {
             reply.stop = StopReason::Stopped;
+            None
         } else if self.started.elapsed() >= self.budget.max_duration {
-            return Err(Stopped::Limit(format!(
+            Some(Stopped::Limit(format!(
                 "{} seconds of run time, during request {n}",
                 self.budget.max_duration.as_secs()
-            )));
-        }
-        Ok(Received { reply, n, seconds })
+            )))
+        } else {
+            None
+        };
+        Ok(Received {
+            reply,
+            n,
+            seconds,
+            terminal,
+        })
     }
 }
 

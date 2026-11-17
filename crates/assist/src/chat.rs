@@ -307,6 +307,7 @@ pub fn turn(
                 }
                 .send(request, prompt, false)
                 .ok()
+                .filter(|received| received.terminal.is_none())
                 .map(|received| received.reply)
             },
         )
@@ -379,6 +380,9 @@ pub fn turn(
             Ok(received) => received,
             Err(stop) => break stop.into(),
         };
+        if let Some(stop) = received.terminal {
+            break stop.into();
+        }
         let n = received.n;
         let reply = received.reply;
         if reply.stop == StopReason::Stopped || cancel.load(Ordering::Relaxed) {

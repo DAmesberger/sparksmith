@@ -659,6 +659,9 @@ pub(crate) fn converse(
             seconds,
             tools: Vec::new(),
         });
+        if let Some(stop) = received.terminal {
+            break stop.into();
+        }
         if reply.stop == StopReason::Stopped {
             // Stopped between chunks: the incomplete reply is never used.
             break Stop::Cancelled;

@@ -222,6 +222,52 @@ fn cancelled_summary_counts_usage_but_does_not_replace_history() -> Fallible {
     Ok(())
 }
 
+#[test]
+fn late_replies_are_counted_without_using_answers_or_summaries() -> Fallible {
+    for summary in [false, true] {
+        let mut config = config()?;
+        config.budget.max_duration = std::time::Duration::from_secs(2);
+        if summary {
+            config.policy.trigger = 0.10;
+            config.policy.target = 0.05;
+        }
+        let mut history = if summary {
+            summary_history()
+        } else {
+            Vec::new()
+        };
+        let original = history.clone();
+        let mut model = Script::new([text("Late content must not enter the conversation.")]);
+        let mut tools = Recorder {
+            calls: vec![],
+            answer: |_, _| Value::Null,
+        };
+        let mut events = Vec::new();
+        let outcome = turn(
+            &config,
+            &mut model,
+            &mut history,
+            vec![Part::text("Next")],
+            &mut tools,
+            &mut |event| {
+                if matches!(event, Event::Response { .. }) {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                }
+                events.push(event);
+            },
+            &AtomicBool::new(false),
+        );
+        assert!(matches!(outcome.end, End::Limit(_)), "{outcome:?}");
+        assert_eq!(outcome.usage.requests, 1);
+        assert_eq!(outcome.usage.tokens, 110);
+        assert_eq!(&history[..original.len()], original.as_slice());
+        assert!(!serde_json::to_string(&history)?.contains("Late content"));
+        assert!(tools.calls.is_empty());
+        assert!(!events.iter().any(|event| matches!(event, Event::Text(_))));
+    }
+    Ok(())
+}
+
 /// Tools that answer from a closure and record each call.
 struct Recorder<F: FnMut(&str, &Value) -> Value> {
     calls: Vec<String>,
