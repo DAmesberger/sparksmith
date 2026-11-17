@@ -115,6 +115,129 @@ fn save_and_open_are_file_effects_outside_undo_history() -> TestResult {
 }
 
 #[test]
+fn refused_open_preserves_document_history_and_save_path() -> TestResult {
+    // Defaults are cached process-wide. A child exercises their real load
+    // failure without changing the environment of parallel tests.
+    const CHILD: &str = "SPARKSMITH_TEST_OPEN_MISSING_LIBRARY";
+    if std::env::var_os(CHILD).is_none() {
+        let dir = tempfile::tempdir()?;
+        let output = std::process::Command::new(std::env::current_exe()?)
+            .args([
+                "--exact",
+                "session::tests::refused_open_preserves_document_history_and_save_path",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .env(sparksmith_io::shipped::ENV, dir.path())
+            .output()?;
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Ok(());
+    }
+
+    let dir = tempfile::tempdir()?;
+    let original = dir.path().join("original.sparksmith");
+    let incoming = dir.path().join("incoming.sparksmith");
+    let mut session = Session::new(Engine::demo()?);
+    let revision = session.engine().revision();
+    assert_eq!(
+        session.dispatch(edit(&session, "R10", revision))["ok"],
+        true
+    );
+    let revision = session.engine().revision();
+    assert_eq!(
+        session.dispatch(edit(&session, "R11", revision))["ok"],
+        true
+    );
+    assert_eq!(
+        session.dispatch(json!({"command": "project.undo", "params": {
+            "expected_revision": session.engine().revision()
+        }}))["ok"],
+        true
+    );
+    assert_eq!(
+        session.dispatch(json!({"command": "project.save", "params": {"path": original}}))["ok"],
+        true
+    );
+    let mut other = Session::new(Engine::demo()?);
+    assert_eq!(
+        other.dispatch(json!({"command": "project.save", "params": {"path": incoming}}))["ok"],
+        true
+    );
+    let before = session.engine().to_file();
+    let revision = session.engine().revision();
+    let refused = session.dispatch(json!({"command": "project.open", "params": {
+        "path": incoming, "expected_revision": revision
+    }}));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert!(
+        refused.to_string().contains(sparksmith_io::shipped::ENV),
+        "{refused}"
+    );
+    assert_eq!(session.engine().to_file(), before);
+    assert_eq!(session.engine().revision(), revision);
+    assert_eq!(session.path(), Some(original.as_path()));
+    assert!(session.engine().can_undo());
+    assert!(session.engine().can_redo());
+    assert_eq!(
+        session.dispatch(json!({"command": "project.save", "params": {}}))["ok"],
+        true
+    );
+    assert_eq!(sparksmith_io::read_project(&original)?, before);
+    assert_eq!(
+        session.dispatch(
+            json!({"command": "project.undo", "params": {"expected_revision": revision}})
+        )["ok"],
+        true
+    );
+    assert_eq!(session.engine().to_file(), other.engine().to_file());
+    Ok(())
+}
+
+#[test]
+fn refused_pinout_edits_do_not_allocate_working_documents() {
+    let mut session = Session::default();
+    for _ in 0..assist::MAX_WORKING * 2 {
+        let reply = session.dispatch(json!({"command": "assist.pinout_edit", "params": {
+            "new": true, "pins": [{}]
+        }}));
+        assert_eq!(reply["error"]["code"], "assist.pinout_edit", "{reply}");
+        let preview = session.dispatch(json!({"command": "assist.pinout_preview", "params": {
+            "document": {}, "target": {"target": "new", "name": "Empty"}
+        }}));
+        assert_eq!(preview["error"]["code"], "assist.pinout_empty", "{preview}");
+    }
+    // Failed implicit allocation must not leave an ambiguous or empty slot either.
+    let failed =
+        session.dispatch(json!({"command": "assist.pinout_edit", "params": {"pins": [{}]}}));
+    assert_eq!(failed["error"]["code"], "assist.pinout_edit", "{failed}");
+    for index in 1..=assist::MAX_WORKING {
+        let reply =
+            session.dispatch(json!({"command": "assist.pinout_edit", "params": {"new": true}}));
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(reply["result"]["handle"], format!("pin_{index}"));
+    }
+    let full = session.dispatch(json!({"command": "assist.pinout_edit", "params": {"new": true}}));
+    assert_eq!(full["error"]["code"], "assist.limit", "{full}");
+
+    let valid = session.dispatch(json!({"command": "assist.pinout_edit", "params": {
+        "handle": "pin_1", "pins": [{"row": "supply"}]
+    }}));
+    assert_eq!(valid["result"]["document"]["pins"], 1, "{valid}");
+    let failed = session.dispatch(json!({"command": "assist.pinout_edit", "params": {
+        "handle": "pin_1", "clear": true, "pins": [{}]
+    }}));
+    assert_eq!(failed["error"]["code"], "assist.pinout_edit", "{failed}");
+    let unchanged =
+        session.dispatch(json!({"command": "assist.pinout_edit", "params": {"handle": "pin_1"}}));
+    assert_eq!(unchanged["result"]["document"], valid["result"]["document"]);
+}
+
+#[test]
 fn native_export_writes_a_new_solidcraft_file_only() -> TestResult {
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("board.solidcraft").display().to_string();

@@ -77,7 +77,6 @@ pub struct PageImage {
 pub(crate) struct Assist {
     documents: Option<Box<dyn Documents>>,
     working: BTreeMap<String, Working>,
-    made: u32,
     workflows: Option<Vec<Listed>>,
     step: Option<OpenStep>,
 }
@@ -357,9 +356,9 @@ impl Session {
         }))
     }
 
-    /// The handle `asked` names, a new one with `new`, or the only one
-    /// (made when there is none and `make`).
-    fn working_handle(&mut self, asked: Option<&str>, new: bool, make: bool) -> Result<String> {
+    /// Resolve a handle without allocating a slot. A new handle becomes
+    /// live only when the caller inserts its completed working document.
+    fn working_handle(&self, asked: Option<&str>, new: bool, make: bool) -> Result<String> {
         let asked = bounded(asked)?;
         if let Some(handle) = asked {
             if new {
@@ -411,12 +410,9 @@ impl Session {
                 ),
             ));
         }
-        self.assist.made = self.assist.made.saturating_add(1);
-        let handle = format!("{HANDLE_PREFIX}{}", self.assist.made);
-        self.assist
-            .working
-            .insert(handle.clone(), Working::default());
-        Ok(handle)
+        // Working documents live for the whole session and are never removed.
+        // The capacity check above bounds both this addition and the handle.
+        Ok(format!("{HANDLE_PREFIX}{}", self.assist.working.len() + 1))
     }
 
     fn open_handles(&self) -> String {
@@ -439,7 +435,7 @@ impl Session {
             ));
         }
         let handle = self.working_handle(params.handle.as_deref(), params.new, true)?;
-        let working = self
+        let mut working = self
             .assist
             .working
             .get(&handle)
@@ -448,7 +444,7 @@ impl Session {
         let mut doc = if params.clear {
             Map::new()
         } else {
-            working.pinout
+            std::mem::take(&mut working.pinout)
         };
         let changes = edit(&mut doc, params).map_err(|why| {
             refused(
@@ -457,9 +453,8 @@ impl Session {
             )
         })?;
         let summary = document_summary(&doc);
-        if let Some(slot) = self.assist.working.get_mut(&handle) {
-            slot.pinout = doc;
-        }
+        working.pinout = doc;
+        self.assist.working.insert(handle.clone(), working);
         Ok(json!({"handle": handle, "changed": changes, "document": summary}))
     }
 
