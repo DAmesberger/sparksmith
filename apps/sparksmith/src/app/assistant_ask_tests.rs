@@ -5,8 +5,9 @@
 //! recommended answers chosen; the keys answer it (↑↓, Enter goes on and
 //! sends after the last) and the answers are the call's reply; typing in
 //! the composer answers it in the person's own words; an answered card is a
-//! one-line summary; an engineer's specific request goes straight on
-//! without a card, with the asking guidance in the prompt the model got.
+//! one-line summary; an explicit no-stops request can run without a card.
+//! These scripts verify runtime behavior and delivered prompt data, not
+//! model adherence.
 use super::super::ax_harness::{Ax, Fallible};
 use crate::assistant::questions::Answered;
 use crate::assistant::worker::ChatModel;
@@ -281,13 +282,13 @@ fn esc_skips_the_card_and_leaves_the_choice_to_the_model() -> Fallible {
 }
 
 #[test]
-fn an_engineers_specific_request_goes_on_without_a_card() -> Fallible {
+fn a_scripted_explicit_no_stops_request_can_finish_without_a_card() -> Fallible {
     for size in [SMALL, LARGE] {
         let plan = "Plan: R1 10k 0603 pull-up, C1 100n 0402, board 20 × 15 mm. Building it now.";
         let (mut ax, sent) = chat(size, vec![text(plan)])?;
         send(
             &mut ax,
-            "Add a 10k 0603 pull-up and a 100n 0402 decoupling cap, board 20x15 mm",
+            "Add a 10k 0603 pull-up and a 100n 0402 decoupling cap, board 20x15 mm; go ahead without stopping",
         );
         ax.until("the turn's end", idle)?;
         ax.settle();
@@ -315,3 +316,6 @@ fn an_engineers_specific_request_goes_on_without_a_card() -> Fallible {
     }
     Ok(())
 }
+
+#[path = "assistant_review_stops_tests.rs"]
+mod review_stops;
