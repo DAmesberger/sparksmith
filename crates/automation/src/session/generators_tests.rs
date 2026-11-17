@@ -460,13 +460,145 @@ fn a_search_lists_the_generic_part_its_words_name_to_make_then_to_place() -> Tes
     assert!(hint["component"]["id"].is_number(), "{hint}");
     assert!(hint.get("make").is_none(), "{hint}");
     assert!(hint["physical"]["footprint"].is_number(), "{hint}");
-    // A generated part selects no value field yet (GP1): the value is
-    // named for the person instead.
-    assert_eq!(hint["values"][0]["text"], "10 kΩ", "{hint}");
-    assert!(hint["note"].is_string(), "{hint}");
+    // The resistor family's part selects Resistance: the value goes on
+    // the placed instance.
+    let properties = hint["properties"].as_array().cloned().unwrap_or_default();
+    assert_eq!(properties.len(), 1, "{hint}");
+    assert_eq!(
+        properties[0]["input"],
+        json!({"input": "text", "value": "10 kΩ"}),
+        "{hint}"
+    );
+    assert!(hint.get("note").is_none(), "{hint}");
     // Words that name no generic part add nothing.
     let found = session.dispatch(json!({"command": "project.query", "params":
         {"query": "library.search", "params": {"query": "TLV75733PDBVR"}}}));
     assert!(found["result"].get("generic").is_none(), "{found}");
+    Ok(())
+}
+
+/// A generic resistor made from the shipped module selects its family's
+/// fields, so each placed part holds its own value: R1 and R2 at 4.7 kΩ and
+/// R3 at 10 kΩ are two BOM lines and show their values on the sheet.
+/// `instance.set_properties` changes R3 to 4.7 kΩ as one undo step (one
+/// BOM line), and undo takes it back. The project reopens as saved.
+#[test]
+fn a_generic_resistors_value_is_set_shown_and_grouped_in_the_bom() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = library(temp.path())?;
+    let mut session = session(&root)?;
+    let search = |session: &mut Session, words: &str| -> TestResult<Value> {
+        let found = session.dispatch(json!({"command": "project.query", "params":
+            {"query": "library.search", "params": {"query": words}}}));
+        assert_eq!(found["ok"], true, "{found}");
+        Ok(found["result"]["generic"][0].clone())
+    };
+    let hint = search(&mut session, "resistor 0603 4.7k")?;
+    let mut params = hint["make"]["params"].clone();
+    params["expected_revision"] = json!(session.engine().revision());
+    let made = session.dispatch(json!({"command": "library.generate_part", "params": params}));
+    assert_eq!(made["ok"], true, "{made}");
+    let revisions = made["result"]["outcome"]["report"]["revisions"].clone();
+    let place = |session: &mut Session, words: &str, designator: &str| -> TestResult<u64> {
+        let hint = search(session, words)?;
+        let placed = call(
+            session,
+            "project.apply",
+            json!({"operation": {"editor": "Instance", "operation": {"command": "component.place",
+                "params": {"component": hint["component"], "designator": designator,
+                    "properties": hint["properties"], "representation": revisions[1]["id"],
+                    "unit": 1, "position": [60.0, 0.0], "physical": hint["physical"]}}}}),
+        );
+        assert_eq!(placed["ok"], true, "{placed}");
+        placed["result"]["outcome"]["instance"]
+            .as_u64()
+            .ok_or_else(|| format!("no instance in {placed}").into())
+    };
+    place(&mut session, "resistor 0603 4.7k", "R1")?;
+    place(&mut session, "4k7 0603", "R2")?;
+    let r3 = place(&mut session, "10k 0603", "R3")?;
+    let lines = |session: &Session| -> TestResult<Vec<(Vec<String>, Vec<String>)>> {
+        let bom = sparksmith_core::completeness::bom(session.engine().project())?;
+        Ok(bom
+            .lines
+            .iter()
+            .map(|l| {
+                (
+                    l.designators.clone(),
+                    l.values.iter().map(|v| v.text.clone()).collect(),
+                )
+            })
+            .collect())
+    };
+    let two = vec![
+        (
+            vec!["R1".to_owned(), "R2".to_owned()],
+            vec!["4.7 kΩ".to_owned()],
+        ),
+        (vec!["R3".to_owned()], vec!["10 kΩ".to_owned()]),
+    ];
+    assert_eq!(lines(&session)?, two);
+    let csv = sparksmith_core::fabrication::assembly::bom_csv(session.engine().project())?;
+    assert!(csv.contains("\"R1 R2\"") || csv.contains("R1 R2"), "{csv}");
+    assert!(csv.contains("4.7 kΩ") && csv.contains("10 kΩ"), "{csv}");
+    // The sheet shows each value under the designator.
+    let project = session.engine().project();
+    let r1 = project
+        .instances
+        .iter()
+        .find(|i| i.designator == "R1")
+        .ok_or("no R1")?;
+    let occurrence = project
+        .occurrences
+        .iter()
+        .find(|o| o.instance == r1.id)
+        .ok_or("R1 is not on the sheet")?;
+    let drawn = sparksmith_core::schematic::placed_unit(project, occurrence.id)?;
+    let texts: Vec<&str> = drawn
+        .texts
+        .iter()
+        .chain(&drawn.fields)
+        .map(|t| t.text.as_str())
+        .collect();
+    assert!(
+        texts.contains(&"R1") && texts.contains(&"4.7 kΩ"),
+        "{texts:?}"
+    );
+    // One edit, one undo step.
+    let field = search(&mut session, "10k 0603")?["properties"][0]["field"].clone();
+    let set = call(
+        &mut session,
+        "project.apply",
+        json!({"operation": {"editor": "Instance", "operation": {"command": "instance.set_properties",
+            "params": {"instance": r3, "edits": [{"field": field,
+                "input": {"input": "text", "value": "4.7k"}}]}}}}),
+    );
+    assert_eq!(set["ok"], true, "{set}");
+    assert_eq!(
+        lines(&session)?,
+        vec![(
+            vec!["R1".to_owned(), "R2".to_owned(), "R3".to_owned()],
+            vec!["4.7 kΩ".to_owned()]
+        )]
+    );
+    let undone = call(&mut session, "project.undo", json!({}));
+    assert_eq!(undone["ok"], true, "{undone}");
+    assert_eq!(lines(&session)?, two);
+    // Saved and reopened: the stored fields pass the generator check.
+    let path = temp.path().join("values.sparksmith");
+    let saved = call(
+        &mut session,
+        "project.save",
+        json!({"path": path.display().to_string()}),
+    );
+    assert_eq!(saved["ok"], true, "{saved}");
+    let mut reopened = self::session(&root)?;
+    let opened = call(
+        &mut reopened,
+        "project.open",
+        json!({"path": path.display().to_string()}),
+    );
+    assert_eq!(opened["ok"], true, "{opened}");
+    assert_eq!(lines(&reopened)?, two);
     Ok(())
 }

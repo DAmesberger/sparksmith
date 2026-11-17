@@ -855,3 +855,89 @@ fn a_pointer_click_on_change_package_opens_the_gallery_at_a_small_window() -> Fa
     );
     Ok(())
 }
+
+/// At 1024 × 640: "4.7k 0603" in the Place palette makes the generic chip
+/// resistor and places it holding 4.7 kΩ; its Properties field edits the
+/// value inline (one `instance.set_properties`, one undo step).
+#[test]
+fn a_generic_resistors_value_is_placed_and_edited_in_properties_at_a_small_window() -> Fallible {
+    let mut ax = Ax::new(Workspace::Schematic)?;
+    ax.window = egui::vec2(1024.0, 640.0);
+    ax.settle();
+    let before: Vec<sparksmith_core::Id> = ax
+        .app
+        .engine
+        .project()
+        .instances
+        .iter()
+        .map(|i| i.id)
+        .collect();
+    let components = ax.app.engine.project().library.components.len();
+    ax.button("Place")?;
+    ax.settle();
+    ax.type_text("4.7k 0603");
+    for _ in 0..400 {
+        ax.settle();
+        if ax.find(Role::Button, "Chip resistor 0603").is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    ax.button("Chip resistor 0603")?;
+    for _ in 0..600 {
+        ax.settle();
+        if ax.app.engine.project().library.components.len() > components {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    ax.settle();
+    // Below and right of the demo's parts, inside the narrow canvas.
+    let (o, x, y) = (
+        ax.app.schematic.screen_point([0.0, 0.0]),
+        ax.app.schematic.screen_point([1.0, 0.0]),
+        ax.app.schematic.screen_point([0.0, 1.0]),
+    );
+    let want = ax.app.schematic.clear_rect().center() + egui::vec2(60.0, 120.0);
+    let at = [
+        f64::from((want.x - o.x) / (x.x - o.x)),
+        f64::from((want.y - o.y) / (y.y - o.y)),
+    ];
+    let free = on_sheet(&ax, at)?;
+    ax.click_at(free);
+    ax.settle();
+    let placed = ax
+        .app
+        .engine
+        .project()
+        .instances
+        .iter()
+        .find(|i| !before.contains(&i.id))
+        .map(|i| i.id)
+        .ok_or_else(|| format!("nothing placed:\n{}", ax.dump()))?;
+    let value = |ax: &Ax| -> Fallible<Option<String>> {
+        let project = ax.app.engine.project();
+        let instance = project.instance(placed).ok_or("the part is gone")?;
+        Ok(sparksmith_core::instances::value_text(
+            &project.library,
+            instance,
+        )?)
+    };
+    assert_eq!(value(&ax)?.as_deref(), Some("4.7 kΩ"));
+    ax.key(Key::Escape);
+    ax.settle();
+    let project = ax.app.engine.project().clone();
+    ax.app.schematic.select_instance(Some(placed), &project);
+    ax.settle();
+    ax.click(Role::TextInput, "Resistance")?;
+    assert!(ax.ctx.text_edit_focused(), "the field has the keyboard");
+    ax.key_with(Key::A, Modifiers::COMMAND);
+    ax.type_text("10k");
+    ax.key(Key::Enter);
+    ax.settle();
+    assert_eq!(value(&ax)?.as_deref(), Some("10 kΩ"), "{}", ax.dump());
+    ax.command_key(Key::Z);
+    ax.settle();
+    assert_eq!(value(&ax)?.as_deref(), Some("4.7 kΩ"), "one undo step");
+    Ok(())
+}

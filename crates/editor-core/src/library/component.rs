@@ -38,6 +38,11 @@ pub struct ComponentDefinition {
     /// Selected fields, at most one revision per field lineage, with
     /// component defaults.
     pub fields: Vec<FieldSelection>,
+    /// What a placed part shows as its value (schematic, BOM, placement
+    /// file): alternatives over the selected fields, the first filled one
+    /// winning. Without one, every field with a value is shown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value_template: Option<fields::ValueTemplate>,
     /// C1: sandboxed Rhai pin rules, part of the revision (F2).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pin_rules: Vec<functions::PinRule>,
@@ -192,6 +197,10 @@ impl ComponentDefinition {
             && functions::declarations_within_bounds(&self.resources, &self.constraints)
             && functions::rules::within_bounds(&self.pin_rules)
             && self.marking.as_ref().is_none_or(|m| m.within_bounds())
+            && self
+                .value_template
+                .as_ref()
+                .is_none_or(fields::ValueTemplate::within_bounds)
             && self
                 .fields
                 .iter()
@@ -433,6 +442,17 @@ impl ComponentDefinition {
             out.push(issue(
                 "component.duplicate_field_lineage",
                 "A component selects at most one revision of each field lineage.".into(),
+                vec![this],
+            ));
+        }
+        if let Some(template) = &self.value_template
+            && let Some(missing) = template.fields().find(|f| self.field(*f).is_none())
+        {
+            out.push(issue(
+                "component.value_template",
+                format!(
+                    "The value template names field {missing}, which the component does not select."
+                ),
                 vec![this],
             ));
         }

@@ -321,6 +321,7 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
                 representations,
                 implementations,
                 fields,
+                value_template,
                 pin_rules: _,
                 marking,
                 review: _,
@@ -337,6 +338,7 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
                 let (id, revision) = exact(map, DefinitionKind::Binding, r.id, r.revision)?;
                 *r = BindingRef::new(id, revision);
             }
+            let mut moved = Vec::with_capacity(fields.len());
             for selection in fields {
                 let FieldSelection {
                     field,
@@ -344,7 +346,19 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
                     show_on_symbol: _,
                 } = selection;
                 let (id, revision) = exact(map, DefinitionKind::Field, field.id, field.revision)?;
+                moved.push((field.id, id));
                 *field = FieldRef::new(id, revision);
+            }
+            // The template names selected lineages: they move with them.
+            for piece in value_template
+                .iter_mut()
+                .flat_map(|t| t.alternatives.iter_mut().flatten())
+            {
+                if let crate::fields::TemplatePiece::Field(id) = piece
+                    && let Some((_, new)) = moved.iter().find(|(old, _)| old == id)
+                {
+                    *id = *new;
+                }
             }
         }
         Definition::Symbol(symbol) => {

@@ -109,7 +109,7 @@ An entry that matches nothing fails the gate, so each is removed with the data i
 
 ## Limits of GP1
 
-- **Fields.** A generation's `component.fields` (standard field keys such as `value`) and derived `fields` stay in the generation and its result hash; GP1 selects no field definitions on the component. Mapping keys to the project's field lineages comes with the catalog switch.
+- **Fields.** A generation's `component.fields` (standard field keys such as `value`) and derived `fields` stay in the generation and its result hash, and the host does not read them. A component-scope part of a generic family (the shipped `catalog/generic-families.json`, matched by generator and the family's preset parameters) selects the family's standard `fields`, shown on the symbol, and its `value_template`, from the project's copies of the standard fields (imported with the part). These are host data outside the generation: the load check keeps the stored selection and compares the rest.
 - **Package geometry.** The package keeps the generation's envelope and the generator's part file (GP2), the seating height as the model's lift. Its lead contacts are not stored on the package yet (`PackageDefinition::leads`), and no footprint polarity is set from pin 1.
 - **Part-file bodies and terminals**: see slice B2 below.
 - **The chip part files' overcoat inset** is the builder's 0.04 mm, a literal in the saved file; the builder narrows it below 0.16 mm of body width, which no chip preset reaches.

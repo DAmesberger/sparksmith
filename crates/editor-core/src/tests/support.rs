@@ -379,6 +379,7 @@ pub fn bodies(spec: &Spec<'_>, f: &Fixture) -> Vec<DraftEdit> {
         pin_rules: Vec::new(),
         marking: None,
         review: None,
+        value_template: None,
         generic: None,
     };
     let symbol = SymbolDefinition {
