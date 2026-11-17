@@ -326,12 +326,14 @@ No turn limits (founder, 16 November): instead, as a conversation approaches the
 - **The kept record (B)** is built from the history alone. It holds what the person asked, every edit with the ids and names its reply gave, the last revision seen and the count of refused calls. The model-filled part, the `assist` entry for goals and the plan, is **not built**; the summary carries them as prose.
 - **The divider.** `Event::Condensed` draws the divider row ("Condensed 6 earlier tool replies · 31 k → 12 k tokens"), which unfolds to the record.
 - **Caching.** The Anthropic backend already marks the system prompt (tools and system) and the conversation tail for caching, for the chat and the workflows alike.
-- **Measured.** The scripted trace `chat::tests::board_chat` runs one message through the loop with the real verbs: it explores (including the 135 KB `rules.fab_profiles`), searches, makes and places three generic parts, wires them, updates the PCB, places, routes, pours GND and checks (0 errors). It takes 14 requests. Prompt sizes are estimated at 3 characters per token.
+- **Measured.** The scripted trace `chat::tests::board_chat` runs one message through the loop with the real verbs: it explores (including `rules.fab_profiles`, 3 KB since it lists ids, options and defaults only; it was 135 KB of whole profiles), sets the fab profile by id with an option in one step (`rules.set_fab_profile {"profile": "pcbway-2-layer", "options": {"limits": "minimum"}}`, whose reply names `rules.profile` as one changed field: 118 bytes), searches, makes and places three generic parts, wires them, updates the PCB, places, routes, pours GND and checks (0 errors). It takes 15 requests. Prompt sizes are estimated at 3 characters per token.
 
   | | Largest request | All requests |
   |---|---|---|
-  | `Policy::KEEP_ALL` (before K1) | 37.5 k tokens | 458 k tokens |
-  | `Policy::CHAT` | 11.8 k tokens | 105 k tokens |
+  | `Policy::KEEP_ALL` (before K1) | 17.5 k tokens | 209 k tokens |
+  | `Policy::CHAT` | 9.3 k tokens | 107 k tokens |
+
+  With the 135 KB listing and no profile step (14 requests, 17 November 2026) the same trace measured 37.7 k / 460 k tokens kept whole and 12.0 k / 107 k under `Policy::CHAT`.
 
   For comparison, E2E run 12 measured 13 k tokens for the first request and 100–140 k tokens for later ones.
 - **What the chat needs from the verbs** (run 12 findings 13–15):

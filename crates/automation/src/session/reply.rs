@@ -20,6 +20,10 @@ const MAX_IDS: usize = 200;
 const MAX_FINDINGS: usize = 20;
 /// Findings listed per changed draft.
 const MAX_DRAFT_FINDINGS: usize = 40;
+/// Snapshots a change names as one field: a fab profile switch names
+/// `rules.profile`, not each of its rules' values and sources
+/// (`rules.effective` lists them).
+const WHOLE: &[&str] = &["rules.profile"];
 
 /// The last project a compact reply described, kept so the next mutation
 /// serializes and checks only its result. Holding the `Arc` keeps the
@@ -392,6 +396,10 @@ struct Changes {
 impl Changes {
     fn diff(&mut self, path: &str, before: &Value, after: &Value) {
         if before == after {
+            return;
+        }
+        if WHOLE.contains(&path) {
+            self.fields.push(path.to_owned());
             return;
         }
         match (before, after) {

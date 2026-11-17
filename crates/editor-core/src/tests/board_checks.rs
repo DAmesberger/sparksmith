@@ -135,13 +135,7 @@ fn copper_clearance_follows_overrides_profiles_and_net_classes() -> Result<()> {
             .clearance
             .set(CopperObject::Track, CopperObject::Track, 0.26)
     })?;
-    with(
-        &mut fine,
-        RulesCommand::SetProfile {
-            profile: Box::new(p),
-            keep_overrides: false,
-        },
-    )?;
+    with(&mut fine, RulesCommand::set_profile(p, false))?;
     let hits = found(&fine, "board.clearance");
     assert_eq!(hits.len(), 1);
     assert!(
@@ -383,7 +377,8 @@ fn board_edge_clearance_flips_with_the_profile_and_previews() -> Result<()> {
         }
     })?;
     let QueryResult::ProfileImpact(impact) = engine.query(Query::PreviewProfile {
-        profile: Box::new(edgy.clone()),
+        profile: crate::rules::ProfileChoice::Profile(Box::new(edgy.clone())),
+        options: Default::default(),
         keep_overrides: false,
     })?
     else {
@@ -399,10 +394,7 @@ fn board_edge_clearance_flips_with_the_profile_and_previews() -> Result<()> {
     assert!(impact.resolved_issues.is_empty(), "{impact:#?}");
     engine.apply(
         engine.revision(),
-        Operation::Rules(RulesCommand::SetProfile {
-            profile: Box::new(edgy),
-            keep_overrides: false,
-        }),
+        Operation::Rules(RulesCommand::set_profile(edgy, false)),
     )?;
     let hits = found(engine.project(), "board.edge_clearance");
     assert_eq!(hits.len(), 1, "{hits:#?}");
@@ -977,10 +969,7 @@ fn the_default_rules_keep_every_former_verdict() -> Result<()> {
     let mut explicit = project.clone();
     with(
         &mut explicit,
-        RulesCommand::SetProfile {
-            profile: Box::new(profile("Plain", |_| {})?),
-            keep_overrides: false,
-        },
+        RulesCommand::set_profile(profile("Plain", |_| {})?, false),
     )?;
     assert_eq!(
         crate::layout::checks(&project, &Default::default()),

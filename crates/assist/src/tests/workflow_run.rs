@@ -184,7 +184,12 @@ fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
     // The person saw the generator choice (it went on) and the impact card.
     let asked: Vec<&str> = person.asked.iter().map(|(s, _)| s.as_str()).collect();
     assert_eq!(asked, ["pick", "import"]);
-    assert!(matches!(person.asked[1].1[0], ControlCard::Impact { .. }));
+    // The impact card says what the import makes: a new part, by its pins
+    // (the module plan names no preset, so no package).
+    let ControlCard::Impact { title, .. } = &person.asked[1].1[0] else {
+        return Err(format!("an impact card: {:?}", person.asked[1]).into());
+    };
+    assert_eq!(title, "New part: 23 pins");
     // The result card, without view.open on a host without a window.
     let card = person.events.iter().find_map(|e| match e {
         WorkflowEvent::Card {

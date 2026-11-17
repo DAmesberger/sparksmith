@@ -123,10 +123,7 @@ fn drill_files_list_tool_sizes_when_the_fabricator_drills_oversize() -> Fallible
     let finished = excellon::files(&project, &options, "b")?;
     rules::apply(
         &mut project.rules,
-        RulesCommand::SetProfile {
-            profile: Box::new(drilled(0.1)?),
-            keep_overrides: true,
-        },
+        RulesCommand::set_profile(drilled(0.1)?, true),
     )?;
     let oversize = excellon::files(&project, &options, "b")?;
     let table = drill::table(&drill::holes(&project));
