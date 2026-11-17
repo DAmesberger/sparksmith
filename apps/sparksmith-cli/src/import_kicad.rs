@@ -10,6 +10,7 @@ use serde_json::json;
 use sparksmith_automation::Session;
 use sparksmith_automation::kicad_import::{self, KicadImport};
 use sparksmith_core::product::SHORT_NAME as CLI;
+use sparksmith_io::persistence::{StagedNew, check_project_path};
 use std::path::Path;
 
 /// The usage line(s).
@@ -28,15 +29,27 @@ pub fn run(args: &[String]) -> Result<()> {
         [source, target, flag, id] if flag == "--profile" => (source, target, Some(id.as_str())),
         _ => return Err(format!("usage: {CLI} {USAGE}").into()),
     };
+    let target = Path::new(target);
+    check_project_path(target)?;
+    let project_stage = StagedNew::new(target)?;
+    let detail = target.with_extension("kicad-import.json");
+    let report_stage = StagedNew::new(&detail)?;
     // The one import, the desktop app's too.
     let KicadImport { engine, report, .. } = kicad_import::import(Path::new(source), choice)?;
     let mut session = Session::new(engine);
-    let saved = execute(
+    // Save through the same front door to our owned staging path. Only
+    // the IO publication step may claim the user's new destination.
+    let mut saved = execute(
         &mut session,
-        json!({"command": "project.save", "params": {"path": target}}),
+        json!({"command": "project.save", "params": {"path": project_stage.path()}}),
     )?;
-    let detail = Path::new(target).with_extension("kicad-import.json");
-    std::fs::write(&detail, serde_json::to_vec_pretty(&report.to_json())?)?;
+    std::fs::write(
+        report_stage.path(),
+        serde_json::to_vec_pretty(&report.to_json())?,
+    )?;
+    project_stage.persist()?;
+    report_stage.persist()?;
+    saved["saved_path"] = json!(target);
     print(&json!({
         "saved": saved,
         "summary": report.summary_named(),

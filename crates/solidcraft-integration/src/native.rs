@@ -6,6 +6,8 @@
 //! function here instead of string literals across the adapter. Tests run the
 //! session with strict parameter checking for the commands that have
 //! contracts.
+pub mod files;
+
 use crate::material::Material;
 use crate::pad_outline::{Contour, bulge_midpoint};
 use crate::{Error, Result};
@@ -966,23 +968,38 @@ impl Native {
 
     /// Save a copy as a native container. Saving is an external effect, never
     /// an edit of this design, and refuses to overwrite an existing file.
-    pub fn save_new(&self, path: &str) -> Result<()> {
-        validate_path(path)?;
-        if Path::new(path).try_exists()? {
+    pub fn save_new(&self, output: files::NewFile<'_>) -> Result<()> {
+        validate_path(output.path())?;
+        if Path::new(output.path()).try_exists()? {
             return Err(Error::Invalid(
                 "output exists; choose a new .solidcraft filename".into(),
             ));
         }
-        let mut copy = Self::with(Session::opened_validating(
-            (*self.session.doc).clone(),
-            None,
-            build_validation(),
-        ));
-        copy.call(
-            "file.save_as",
-            json!({"path": path, "format": "container", "cache": false, "preview": false}),
-        )?;
-        Ok(())
+        output.writer.write_new(output.path(), &mut |staged| {
+            validate_path(staged)?;
+            let save_error = |error: String| Error::Engine {
+                command: "file.save_as".into(),
+                message: error,
+            };
+            solidcraft_engine::io::vfs::check(output.path())
+                .map_err(|error| save_error(error.to_string()))?;
+            // Resolve links against the source before the copy takes its final
+            // location. Upstream owns both Save As naming and native encoding;
+            // the host's temporary filename must affect neither name nor links.
+            let mut copy = Session::opened_at_validating(
+                (*self.session.doc).clone(),
+                None,
+                self.session.path.as_deref(),
+                build_validation(),
+            );
+            copy.path = Some(staged.to_owned());
+            copy.follow_file_rename(staged, output.path());
+            let bytes = copy
+                .design_container(solidcraft_engine::io::DesignCompression::Fast, false, false)
+                .map_err(|error| save_error(error.to_string()))?;
+            std::fs::write(staged, bytes)?;
+            Ok(())
+        })
     }
 
     /// Escape hatch for commands without a typed builder yet (test fixtures).

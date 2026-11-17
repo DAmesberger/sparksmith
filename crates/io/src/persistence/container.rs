@@ -39,6 +39,11 @@ pub fn write_container(path: &Path, file: &EditorFile) -> Result<()> {
     write(path, file, None, Method::Deflated)
 }
 
+/// Encode `file` and create a container without replacing an existing file.
+pub fn create_container(path: &Path, file: &EditorFile) -> Result<()> {
+    write_with_mode(path, file, None, Method::Deflated, false)
+}
+
 /// Whether a container is a project or a recovery snapshot, which holds
 /// one more entry.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -239,6 +244,16 @@ pub(crate) fn write(
     recovery: Option<&[u8]>,
     assets: Method,
 ) -> Result<()> {
+    write_with_mode(path, file, recovery, assets, true)
+}
+
+fn write_with_mode(
+    path: &Path,
+    file: &EditorFile,
+    recovery: Option<&[u8]>,
+    assets: Method,
+    replace: bool,
+) -> Result<()> {
     let document = format::encode_container_document(file)?;
     if recovery.is_some_and(|r| r.len() > format::CONTAINER_MAX_RECOVERY_BYTES) {
         return Err(Error::TooLarge(
@@ -262,7 +277,7 @@ pub(crate) fn write(
     } else {
         super::Access::Shared
     };
-    super::write_with(path, true, access, |target| {
+    super::write_with(path, replace, access, |target| {
         let mut zip = ZipWriter::new(target);
         let deflated = options(CompressionMethod::Deflated);
         zip.start_file(CONTAINER_DOCUMENT, deflated)

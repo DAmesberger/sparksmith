@@ -112,6 +112,9 @@ pub enum Error {
     Json(#[from] serde_json::Error),
     #[error(transparent)]
     Io(#[from] std::io::Error),
+    /// Output is in place but its directory could not be synchronized.
+    #[error("{0}")]
+    Unsynced(String),
     /// A newer request replaced this build; nothing was produced.
     #[error("the build was cancelled")]
     Cancelled,
@@ -132,6 +135,7 @@ impl Error {
             Self::Engine { .. } => "native_engine_error",
             Self::Verification(_) => "native_verification_failed",
             Self::Io(_) => "io_error",
+            Self::Unsynced(_) => "written_unsynced",
             Self::Cancelled => "cancelled",
             Self::Unfit { .. } => "export_unfit",
         }

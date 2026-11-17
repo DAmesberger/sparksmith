@@ -6,7 +6,7 @@ use sparksmith_core::format::{self, EditorFile, MAX_FILE_BYTES};
 use std::fs::File;
 use std::{
     io::{Read, Write},
-    path::Path,
+    path::{Path, PathBuf},
 };
 
 pub mod container;
@@ -32,6 +32,13 @@ pub fn read_project(path: &Path) -> Result<EditorFile> {
 pub fn write_project(path: &Path, file: &EditorFile) -> Result<()> {
     check_project_path(path)?;
     container::write_container(path, file)
+}
+
+/// Validate, encode and create a project without replacing another file,
+/// including one created while the container is being written.
+pub fn create_project(path: &Path, file: &EditorFile) -> Result<()> {
+    check_project_path(path)?;
+    container::create_container(path, file)
 }
 
 pub fn read_bytes(path: &Path) -> Result<Vec<u8>> {
@@ -91,6 +98,75 @@ pub fn atomic_write_with(path: &Path, fill: impl FnOnce(&mut File) -> Result<()>
     write_with(path, true, Access::Shared, fill)
 }
 
+/// [`atomic_write_with`], creating a new file. A competing creator wins
+/// without having its file replaced; that case returns `AlreadyExists`.
+pub fn atomic_create_with(path: &Path, fill: impl FnOnce(&mut File) -> Result<()>) -> Result<()> {
+    write_with(path, false, Access::Shared, fill)
+}
+
+/// An owned sibling path for a writer that accepts a path, such as the
+/// native model writer. The target appears only on [`Self::persist`].
+/// Dropping this value removes the staging file, including after errors.
+pub struct StagedNew {
+    target: PathBuf,
+    temporary: tempfile::TempPath,
+}
+
+impl StagedNew {
+    /// Stage a new file beside `target`, retaining its extension. Refuse
+    /// existing targets early; persistence checks again atomically.
+    pub fn new(target: &Path) -> Result<Self> {
+        if target.file_name().is_none() {
+            return Err(Error::Invalid("the output path has no file name".into()));
+        }
+        match std::fs::symlink_metadata(target) {
+            Ok(_) => return Err(std::io::Error::from(std::io::ErrorKind::AlreadyExists).into()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+        let temporary = temporary_in(
+            parent_of(target),
+            target,
+            Access::Shared,
+            &temporary_suffix(target),
+        )?
+        .into_temp_path();
+        // A path-based Save As must see a new path: some native writers
+        // back up any existing file, including an empty placeholder.
+        std::fs::remove_file(&temporary)?;
+        Ok(Self {
+            target: target.to_path_buf(),
+            temporary,
+        })
+    }
+
+    /// The owned, initially absent path the external writer creates. It
+    /// may subsequently replace this file while producing the output.
+    pub fn path(&self) -> &Path {
+        &self.temporary
+    }
+
+    /// Sync the writer's actual file and publish without replacing any
+    /// target. `Unsynced` means the file is in place but its directory
+    /// flush failed, as for the other atomic writers.
+    pub fn persist(self) -> Result<()> {
+        // A path-based writer may replace the staging file. Reopen the
+        // named file so we sync exactly the bytes that will be published.
+        std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(self.path())?
+            .sync_all()?;
+        persist(self.temporary, &self.target, false)
+    }
+}
+
+fn parent_of(path: &Path) -> &Path {
+    path.parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."))
+}
+
 /// [`atomic_write_with`], replacing `path` only when `replace` is set;
 /// otherwise an existing `path` is an `AlreadyExists` error.
 pub(crate) fn write_with(
@@ -99,13 +175,14 @@ pub(crate) fn write_with(
     access: Access,
     fill: impl FnOnce(&mut File) -> Result<()>,
 ) -> Result<()> {
-    let parent = path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let mut temporary = temporary_in(parent, path, access)?;
+    let mut temporary = temporary_in(parent_of(path), path, access, std::ffi::OsStr::new(""))?;
     fill(temporary.as_file_mut())?;
     temporary.as_file().sync_all()?;
+    persist(temporary.into_temp_path(), path, replace)
+}
+
+/// The one publication primitive used by byte, container and path writers.
+fn persist(temporary: tempfile::TempPath, path: &Path, replace: bool) -> Result<()> {
     if replace {
         temporary.persist(path).map_err(|e| Error::Io(e.error))?;
     } else {
@@ -113,13 +190,18 @@ pub(crate) fn write_with(
             .persist_noclobber(path)
             .map_err(|e| Error::Io(e.error))?;
     }
-    sync_directory(parent)
+    sync_directory(parent_of(path))
 }
 
 /// The sibling temporary file for `path`, with the permissions `path` should
 /// end up with; tempfile's own default is owner-only.
 #[cfg(unix)]
-fn temporary_in(parent: &Path, path: &Path, access: Access) -> Result<tempfile::NamedTempFile> {
+fn temporary_in(
+    parent: &Path,
+    path: &Path,
+    access: Access,
+    suffix: &std::ffi::OsStr,
+) -> Result<tempfile::NamedTempFile> {
     use std::fs::Permissions;
     use std::os::unix::fs::PermissionsExt;
     let existing = match std::fs::metadata(path) {
@@ -135,6 +217,7 @@ fn temporary_in(parent: &Path, path: &Path, access: Access) -> Result<tempfile::
         _ => 0o600,
     };
     let temporary = tempfile::Builder::new()
+        .suffix(suffix)
         .permissions(Permissions::from_mode(mode))
         .tempfile_in(parent)?;
     if let (Access::Shared, Some(existing)) = (access, existing) {
@@ -146,8 +229,24 @@ fn temporary_in(parent: &Path, path: &Path, access: Access) -> Result<tempfile::
 }
 
 #[cfg(not(unix))]
-fn temporary_in(parent: &Path, _path: &Path, _access: Access) -> Result<tempfile::NamedTempFile> {
-    Ok(tempfile::NamedTempFile::new_in(parent)?)
+fn temporary_in(
+    parent: &Path,
+    _path: &Path,
+    _access: Access,
+    suffix: &std::ffi::OsStr,
+) -> Result<tempfile::NamedTempFile> {
+    Ok(tempfile::Builder::new()
+        .suffix(suffix)
+        .tempfile_in(parent)?)
+}
+
+fn temporary_suffix(path: &Path) -> std::ffi::OsString {
+    let mut suffix = std::ffi::OsString::new();
+    if let Some(extension) = path.extension() {
+        suffix.push(".");
+        suffix.push(extension);
+    }
+    suffix
 }
 
 /// Make a rename in `directory` durable. A failure is [`Error::Unsynced`]:

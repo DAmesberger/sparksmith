@@ -450,22 +450,22 @@ fn since(_: Option<Clock>) -> Option<f64> {
     None
 }
 
-/// Export `project`'s board at `tier` as a new `.solidcraft` file at
-/// `path`: build the exact model, check it against the board plan, then
-/// write it (to a hidden file beside `path`, moved into place when it is
-/// whole). Refuses an existing file before building, and the interface
-/// tier, which is published with `interface.publish`. A model that does
+/// Export `project`'s board at `tier` to `output`: build the exact model,
+/// check it against the board plan, then let the host stage and publish
+/// the native file without replacing any destination. Refuses an existing
+/// file before building, and the interface tier, which is published with
+/// `interface.publish`. A model that does
 /// not fit the plan is refused ([`Error::Unfit`], writing nothing) unless
 /// `unfit` is [`Unfit::Write`]. Stops with [`Error::Cancelled`], writing
 /// nothing, once `watch` is cancelled.
 pub fn board(
     project: &Project,
     tier: Tier,
-    path: &str,
+    output: crate::native::files::NewFile<'_>,
     watch: &Arc<Watch>,
     unfit: Unfit,
 ) -> Result<Report> {
-    let result = board_inner(project, tier, path, watch, unfit);
+    let result = board_inner(project, tier, output, watch, unfit);
     watch.finish();
     result
 }
@@ -473,12 +473,12 @@ pub fn board(
 fn board_inner(
     project: &Project,
     tier: Tier,
-    path: &str,
+    output: crate::native::files::NewFile<'_>,
     watch: &Arc<Watch>,
     unfit: Unfit,
 ) -> Result<Report> {
-    crate::native::validate_path(path)?;
-    if Path::new(path).try_exists()? {
+    crate::native::validate_path(output.path())?;
+    if Path::new(output.path()).try_exists()? {
         return Err(Error::Invalid(
             "output exists; choose a new .solidcraft filename".into(),
         ));
@@ -496,18 +496,18 @@ fn board_inner(
     let build = since(started);
     watch.enter(Stage::Checking)?;
     let plan = plan::of(&board)?;
-    write(&board, &plan, &model, tier, path, watch, (build, unfit))
+    write(&board, &plan, &model, tier, output, watch, (build, unfit))
 }
 
 /// Check `model` against `plan`, the plan of `board` (the board it was
-/// built from), then save it whole at `path`, unless it does not fit and
+/// built from), then save it whole to `output`, unless it does not fit and
 /// `unfit` refuses it; the report says both.
 fn write(
     board: &Project,
     plan: &plan::BoardPlan,
     model: &NativeModel,
     tier: Tier,
-    path: &str,
+    output: crate::native::files::NewFile<'_>,
     watch: &Watch,
     (build, unfit): (Option<f64>, Unfit),
 ) -> Result<Report> {
@@ -532,7 +532,7 @@ fn write(
     }
     watch.enter(Stage::Saving)?;
     let started = clock();
-    save_whole(model, path, watch)?;
+    save_whole(model, output, watch)?;
     let save = since(started);
     let bodies = model.native_geometry()?.len();
     Ok(report(
@@ -564,54 +564,25 @@ pub fn report(tier: Tier, bodies: usize, check: Option<Check>, ms: Timings) -> R
     }
 }
 
-/// Save `model` whole at `path`, which must not exist: written to a
-/// hidden sibling, then linked into place, which refuses a file that
-/// appeared meanwhile. A save that ends after `watch` was cancelled is
-/// removed.
-fn save_whole(model: &NativeModel, path: &str, watch: &Watch) -> Result<()> {
-    let target = Path::new(path);
-    let name = target
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .ok_or_else(|| Error::Invalid("the export path has no file name".into()))?;
-    let pid = std::process::id();
-    let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
-    let temporary = target.with_file_name(format!(".{name}.exporting-{pid}-{serial}.solidcraft"));
-    let temporary_text = temporary
-        .to_str()
-        .ok_or_else(|| Error::Invalid("the export path must be UTF-8".into()))?;
-    let _ = std::fs::remove_file(&temporary);
-    if let Err(error) = model.save(temporary_text) {
-        let _ = std::fs::remove_file(&temporary);
-        return Err(error);
-    }
-    if watch.is_cancelled() {
-        let _ = std::fs::remove_file(&temporary);
-        return Err(Error::Cancelled);
-    }
-    // A hard link never replaces a file; where links are not supported,
-    // a rename after one more look.
-    let placed = match std::fs::hard_link(&temporary, target) {
-        Ok(()) => {
-            let _ = std::fs::remove_file(&temporary);
-            return Ok(());
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(Error::Invalid(
-            "output exists; choose a new .solidcraft filename".into(),
-        )),
-        Err(_) if !target.try_exists()? => std::fs::rename(&temporary, target).map_err(Error::from),
-        Err(_) => Err(Error::Invalid(
-            "output exists; choose a new .solidcraft filename".into(),
-        )),
+/// Have the host publish `model` only after serialization completes and
+/// cancellation has been checked. The host owns staging and cleanup.
+fn save_whole(
+    model: &NativeModel,
+    output: crate::native::files::NewFile<'_>,
+    watch: &Watch,
+) -> Result<()> {
+    // Check cancellation after serialization and before the host publishes.
+    let writer = |target: &str, write: &mut dyn FnMut(&str) -> Result<()>| {
+        output.writer.write_new(target, &mut |staged| {
+            write(staged)?;
+            if watch.is_cancelled() {
+                return Err(Error::Cancelled);
+            }
+            Ok(())
+        })
     };
-    if placed.is_err() {
-        let _ = std::fs::remove_file(&temporary);
-    }
-    placed
+    model.save(crate::native::files::NewFile::new(output.path(), &writer))
 }
-
-/// Tells this process's temporary export files apart.
-static SERIAL: AtomicU64 = AtomicU64::new(0);
 
 #[cfg(test)]
 mod tests;

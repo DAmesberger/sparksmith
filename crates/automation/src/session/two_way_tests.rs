@@ -42,7 +42,7 @@ fn update_links(path: &Path) -> TestResult {
     assert!(update.failed.is_empty(), "{update:?}");
     let saved = path.with_extension("saving.solidcraft");
     let _ = std::fs::remove_file(&saved);
-    assembly_link.save(&saved.display().to_string())?;
+    assembly_link.save(crate::native_files::new_file(&saved.display().to_string()))?;
     std::fs::rename(&saved, path)?;
     Ok(())
 }
@@ -326,7 +326,9 @@ fn b5_a_feature_on_an_unexported_face_is_named() -> TestResult {
     )?;
     let errors = built.feature_errors();
     assert!(errors.is_empty(), "{errors:?}");
-    built.save(&assembly_link.display().to_string())?;
+    built.save(crate::native_files::new_file(
+        &assembly_link.display().to_string(),
+    ))?;
 
     let linked = link(&mut session, &assembly_link, &design)?;
     let unexported = linked["assembly"]["unexported"]
@@ -417,7 +419,9 @@ fn b5_a_loop_between_board_and_linked_design_is_found() -> TestResult {
     )?;
     let errors = built.feature_errors();
     assert!(errors.is_empty(), "{errors:?}");
-    built.save(&assembly_link.display().to_string())?;
+    built.save(crate::native_files::new_file(
+        &assembly_link.display().to_string(),
+    ))?;
     link(&mut session, &assembly_link, &design)?;
 
     let (added, curve) = follow_top_edge(&mut session, &assembly_link, &design)?;
@@ -633,7 +637,9 @@ fn a_feature_on_a_repeated_package_names_its_own_part() -> TestResult {
     )?;
     let errors = built.feature_errors();
     assert!(errors.is_empty(), "{errors:?}");
-    built.save(&assembly_link.display().to_string())?;
+    built.save(crate::native_files::new_file(
+        &assembly_link.display().to_string(),
+    ))?;
 
     let linked = link(&mut session, &assembly_link, &design)?;
     let unexported = linked["assembly"]["unexported"]

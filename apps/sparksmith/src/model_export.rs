@@ -169,14 +169,19 @@ impl ModelExport {
                     .to_str()
                     .ok_or_else(|| Failure::Other("The export path must be UTF-8".to_owned()))
                     .and_then(|path| {
-                        export::board(&thread_project, tier, path, &thread_watch, unfit).map_err(
-                            |e| match e {
-                                sparksmith_solidcraft::Error::Unfit { report, .. } => {
-                                    Failure::Unfit(report)
-                                }
-                                other => Failure::Other(other.to_string()),
-                            },
+                        export::board(
+                            &thread_project,
+                            tier,
+                            sparksmith_automation::native_files::new_file(path),
+                            &thread_watch,
+                            unfit,
                         )
+                        .map_err(|e| match e {
+                            sparksmith_solidcraft::Error::Unfit { report, .. } => {
+                                Failure::Unfit(report)
+                            }
+                            other => Failure::Other(other.to_string()),
+                        })
                     });
                 let _ = sender.send(result);
                 repaint.request_repaint();

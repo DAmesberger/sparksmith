@@ -132,7 +132,7 @@ impl Session {
         let exported = sparksmith_solidcraft::interface::build(&project, sidecar)?;
         let temporary = files::temporary_design(design)?;
         let temporary_text = temporary.to_string_lossy().into_owned();
-        if let Err(error) = exported.save_new(&temporary_text) {
+        if let Err(error) = exported.save_new(crate::native_files::new_file(&temporary_text)) {
             let _ = std::fs::remove_file(&temporary);
             return Err(error.into());
         }

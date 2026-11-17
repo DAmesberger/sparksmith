@@ -1,6 +1,7 @@
 use super::*;
 use crate::material::BodyKind;
 use crate::native::Native;
+use crate::native::files::test_file;
 use sparksmith_core::Engine;
 
 fn showcase() -> Result<Project> {
@@ -55,7 +56,7 @@ fn an_export_that_does_not_fit_is_refused_unless_written_anyway() -> Result<()> 
         &plan,
         &model,
         Tier::Full,
-        &path,
+        test_file(&path),
         &watch,
         (None, Unfit::Refuse),
     );
@@ -88,7 +89,7 @@ fn an_export_that_does_not_fit_is_refused_unless_written_anyway() -> Result<()> 
         &plan,
         &model,
         Tier::Full,
-        &path,
+        test_file(&path),
         &watch,
         (None, Unfit::Write),
     )?;
@@ -212,7 +213,7 @@ fn a_dropped_or_moved_laminate_hole_is_caught() -> Result<()> {
             &doctored,
             &model,
             Tier::Full,
-            &path,
+            crate::native::files::test_file(&path),
             &watch,
             (None, Unfit::Refuse),
         );
@@ -242,7 +243,13 @@ fn a_full_export_matches_its_plan_and_writes_the_file() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let path = path_in(&dir, "board.solidcraft");
     let watch = Watch::new();
-    let report = board(&project, Tier::Full, &path, &watch, Unfit::Refuse)?;
+    let report = board(
+        &project,
+        Tier::Full,
+        test_file(&path),
+        &watch,
+        Unfit::Refuse,
+    )?;
     let check = report
         .check
         .as_ref()
@@ -316,17 +323,26 @@ fn the_export_refuses_the_interface_tier_and_an_existing_file() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let path = path_in(&dir, "board.solidcraft");
     let watch = Watch::new();
-    let Err(Error::Invalid(message)) =
-        board(&project, Tier::Interface, &path, &watch, Unfit::Refuse)
-    else {
+    let Err(Error::Invalid(message)) = board(
+        &project,
+        Tier::Interface,
+        test_file(&path),
+        &watch,
+        Unfit::Refuse,
+    ) else {
         return Err(Error::Verification(
             "the interface tier was exported".into(),
         ));
     };
     assert!(message.contains("interface.publish"), "{message}");
     std::fs::write(&path, b"kept")?;
-    let Err(Error::Invalid(message)) = board(&project, Tier::Full, &path, &watch, Unfit::Refuse)
-    else {
+    let Err(Error::Invalid(message)) = board(
+        &project,
+        Tier::Full,
+        test_file(&path),
+        &watch,
+        Unfit::Refuse,
+    ) else {
         return Err(Error::Verification("an existing file was replaced".into()));
     };
     assert!(message.contains("output exists"), "{message}");
@@ -347,7 +363,13 @@ fn a_cancelled_export_writes_nothing() -> Result<()> {
     let watch = Watch::new();
     watch.cancel();
     assert!(matches!(
-        board(&project, Tier::Full, &path, &watch, Unfit::Refuse),
+        board(
+            &project,
+            Tier::Full,
+            test_file(&path),
+            &watch,
+            Unfit::Refuse
+        ),
         Err(Error::Cancelled)
     ));
     assert_eq!(watch.progress().commands, 0);
@@ -361,7 +383,13 @@ fn a_cancelled_export_writes_nothing() -> Result<()> {
         }
         cancelling.cancel();
     });
-    let result = board(&project, Tier::Full, &path, &watch, Unfit::Refuse);
+    let result = board(
+        &project,
+        Tier::Full,
+        test_file(&path),
+        &watch,
+        Unfit::Refuse,
+    );
     canceller
         .join()
         .map_err(|_| Error::Verification("the cancelling thread failed".into()))?;

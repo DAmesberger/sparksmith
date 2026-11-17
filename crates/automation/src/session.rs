@@ -1339,7 +1339,7 @@ impl Session {
                 let report = sparksmith_solidcraft::export::board(
                     self.engine.project(),
                     params.tier,
-                    &params.path,
+                    crate::native_files::new_file(&params.path),
                     &watch,
                     if params.write_anyway {
                         sparksmith_solidcraft::export::Unfit::Write

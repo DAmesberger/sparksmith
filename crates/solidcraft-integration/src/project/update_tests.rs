@@ -78,7 +78,7 @@ fn the_saved_laminate_follows_the_board_size_parameters() -> Result<()> {
         .join("size.solidcraft")
         .to_string_lossy()
         .into_owned();
-    model.save(&path)?;
+    model.save(crate::native::files::test_file(&path))?;
     let mut reopened = Native::open(&path)?;
     let [w, d] = project.board_size;
     reopened.change_parameters(

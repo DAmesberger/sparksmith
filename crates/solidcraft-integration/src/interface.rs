@@ -92,8 +92,8 @@ impl Exported {
     }
 
     /// Write the design as a new `.solidcraft` file; refuses existing files.
-    pub fn save_new(&self, path: &str) -> Result<()> {
-        self.native().save_new(path)
+    pub fn save_new(&self, output: crate::native::files::NewFile<'_>) -> Result<()> {
+        self.native().save_new(output)
     }
 }
 

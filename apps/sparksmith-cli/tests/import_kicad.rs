@@ -128,3 +128,98 @@ fn a_project_file_imports_its_board_and_names_the_rules_not_taken() -> Fallible 
     assert_eq!(detail["looser_rules"][0]["rule"], "min drill");
     Ok(())
 }
+
+fn import_preserves_existing(extension: &str) -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let config = tempfile::tempdir()?;
+    let board = dir.path().join("synthetic.kicad_pcb");
+    std::fs::write(&board, BOARD)?;
+    let target = dir.path().join("imported.sparksmith");
+    let occupied = target.with_extension(extension);
+    std::fs::write(&occupied, b"existing user data")?;
+    let output = Command::new(env!("CARGO_BIN_EXE_sparksmith"))
+        .env("SPARKSMITH_CONFIG_DIR", config.path())
+        .env("SPARKSMITH_CACHE_DIR", config.path())
+        .arg("import-kicad")
+        .arg(&board)
+        .arg(&target)
+        .output()?;
+    assert!(
+        std::fs::read(&occupied)? == b"existing user data",
+        "existing {extension} bytes were replaced"
+    );
+    assert!(
+        !output.status.success(),
+        "an existing {extension} must be refused"
+    );
+    assert_eq!(
+        std::fs::read_dir(dir.path())?.count(),
+        2,
+        "preflight refusal writes neither output"
+    );
+    Ok(())
+}
+
+#[test]
+fn import_refuses_existing_project_without_replacing_it() -> Fallible {
+    import_preserves_existing("sparksmith")
+}
+
+#[test]
+fn import_refuses_existing_report_without_replacing_it() -> Fallible {
+    import_preserves_existing("kicad-import.json")
+}
+
+#[test]
+fn competing_imports_publish_one_project_and_report() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    let board = dir.path().join("synthetic.kicad_pcb");
+    std::fs::write(&board, BOARD)?;
+    let target = dir.path().join("imported.sparksmith");
+    let configurations = [tempfile::tempdir()?, tempfile::tempdir()?];
+    let mut children = Vec::new();
+    for config in &configurations {
+        children.push(
+            Command::new(env!("CARGO_BIN_EXE_sparksmith"))
+                .env("SPARKSMITH_CONFIG_DIR", config.path())
+                .env("SPARKSMITH_CACHE_DIR", config.path())
+                .arg("import-kicad")
+                .arg(&board)
+                .arg(&target)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()?,
+        );
+    }
+    let outputs = children
+        .into_iter()
+        .map(|child| child.wait_with_output())
+        .collect::<Result<Vec<_>, _>>()?;
+    assert_eq!(
+        outputs
+            .iter()
+            .filter(|output| output.status.success())
+            .count(),
+        1,
+        "{outputs:?}"
+    );
+    let winner = outputs
+        .iter()
+        .find(|output| output.status.success())
+        .ok_or("no winner")?;
+    let reply: Value = serde_json::from_slice(&winner.stdout)?;
+    assert_eq!(
+        reply["saved"]["saved_path"],
+        target.to_string_lossy().as_ref()
+    );
+    sparksmith_io::read_project(&target)?;
+    let report: Value =
+        serde_json::from_slice(&std::fs::read(target.with_extension("kicad-import.json"))?)?;
+    assert!(report.is_object());
+    assert_eq!(
+        std::fs::read_dir(dir.path())?.count(),
+        3,
+        "no staging files remain"
+    );
+    Ok(())
+}

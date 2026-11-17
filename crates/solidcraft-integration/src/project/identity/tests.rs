@@ -150,7 +150,7 @@ fn the_largest_board_identity_survives_a_native_save_and_reopen() -> Result<()> 
         .join("identity.solidcraft")
         .to_string_lossy()
         .into_owned();
-    native.save_new(&path)?;
+    native.save_new(crate::native::files::test_file(&path))?;
     let reopened = Native::open(&path)?;
     let (read, kinds) = read(&reopened)?;
     same(&read, &sources)?;

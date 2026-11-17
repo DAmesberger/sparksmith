@@ -608,7 +608,7 @@ fn markings_are_absent_from_the_saved_model() -> TestResult {
     let plain = crate::project::build(&project)?;
     let dir = tempfile::tempdir()?;
     let a = dir.path().join("plain.solidcraft");
-    plain.save(&a.to_string_lossy())?;
+    plain.save(crate::native::files::test_file(&a.to_string_lossy()))?;
     // Mark every component with a can-style marking.
     for c in &mut project.library.components {
         c.definition.marking = Some(Box::new(MarkingSpec {
@@ -639,7 +639,7 @@ fn markings_are_absent_from_the_saved_model() -> TestResult {
             .all(|g| g.kind == DECAL_KIND && g.kind.is_appearance())
     );
     let b = dir.path().join("marked.solidcraft");
-    marked.save(&b.to_string_lossy())?;
+    marked.save(crate::native::files::test_file(&b.to_string_lossy()))?;
     let (pa, pb) = (std::fs::read(&a)?, std::fs::read(&b)?);
     // The saved bodies are the same; no marking body or decal mesh.
     let saved = |p: &std::path::Path| -> std::result::Result<

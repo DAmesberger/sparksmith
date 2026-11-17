@@ -139,9 +139,9 @@ impl NativeModel {
     /// Write the model as a new `.solidcraft` file; refuses existing files,
     /// and a model whose flat bodies are meshed ([`Flat::Meshed`]): it has
     /// no design of the board.
-    pub fn save(&self, path: &str) -> Result<()> {
+    pub fn save(&self, output: crate::native::files::NewFile<'_>) -> Result<()> {
         match (&self.native, self.flat) {
-            (Some(native), Flat::Native) => native.save_new(path),
+            (Some(native), Flat::Native) => native.save_new(output),
             _ => Err(Error::Invalid(
                 "a model with meshed board bodies is drawn, never saved; build the exact model"
                     .into(),

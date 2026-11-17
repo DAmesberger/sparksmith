@@ -24,7 +24,7 @@ pub mod settings;
 pub mod shipped;
 pub mod standards;
 
-pub use persistence::{read_project, write_project};
+pub use persistence::{create_project, read_project, write_project};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
