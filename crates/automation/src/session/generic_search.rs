@@ -77,16 +77,101 @@ impl Session {
 
     /// The shipped generators' descriptions, read once per session.
     fn shipped_descriptions(&self) -> &[Description] {
-        self.descriptions.get_or_init(|| {
+        cached_descriptions(&self.descriptions, || {
             let Ok(shipped) = self.shipped() else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
             let names = shipped.generators().unwrap_or_default();
-            names
-                .iter()
-                .filter_map(|name| shipped.generator(name).ok())
-                .filter_map(|bundle| self.describe(&bundle.module).ok())
-                .collect()
+            descriptions_from(
+                names
+                    .iter()
+                    .filter_map(|name| shipped.generator(name).ok())
+                    .map(|bundle| self.describe(&bundle.module)),
+            )
         })
+    }
+}
+
+fn descriptions_from(
+    results: impl Iterator<Item = crate::Result<Description>>,
+) -> crate::Result<Vec<Description>> {
+    let mut descriptions = Vec::new();
+    for result in results {
+        match result {
+            Ok(description) => descriptions.push(description),
+            Err(error) => {
+                super::generators::permanent_refusal(error)?;
+            }
+        }
+    }
+    Ok(descriptions)
+}
+
+fn cached_descriptions(
+    cache: &std::sync::OnceLock<Vec<Description>>,
+    load: impl FnOnce() -> crate::Result<Vec<Description>>,
+) -> &[Description] {
+    if cache.get().is_none()
+        && let Ok(descriptions) = load()
+    {
+        let _ = cache.set(descriptions);
+    }
+    cache.get().map_or(&[], Vec::as_slice)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn description(id: &str) -> Description {
+        Description {
+            abi: 1,
+            id: id.into(),
+            version: 1,
+            title: id.into(),
+            licence: "MIT".into(),
+            deterministic: true,
+            capabilities: Vec::new(),
+            needs: Vec::new(),
+        }
+    }
+
+    fn refused(code: &str) -> crate::Error {
+        crate::Error::Document(sparksmith_core::Error::Invalid(format!(
+            "{code}: Unavailable."
+        )))
+    }
+
+    #[test]
+    fn busy_then_success_never_caches_a_partial_description_list() {
+        let cache = std::sync::OnceLock::new();
+        let first = cached_descriptions(&cache, || {
+            descriptions_from(
+                [
+                    Ok(description("first")),
+                    Err(refused("generator.busy")),
+                    Ok(description("last")),
+                ]
+                .into_iter(),
+            )
+        });
+        assert!(first.is_empty());
+        assert!(cache.get().is_none());
+        let second = cached_descriptions(&cache, || {
+            descriptions_from(
+                [
+                    Ok(description("first")),
+                    Err(refused("generator.invalid_module")),
+                    Ok(description("last")),
+                ]
+                .into_iter(),
+            )
+        });
+        assert_eq!(
+            second.iter().map(|d| d.id.as_str()).collect::<Vec<_>>(),
+            ["first", "last"]
+        );
+        let third = cached_descriptions(&cache, || Err(refused("generator.busy")));
+        assert_eq!(third, second);
     }
 }

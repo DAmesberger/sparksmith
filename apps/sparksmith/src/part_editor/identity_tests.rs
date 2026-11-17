@@ -675,7 +675,7 @@ fn change_package_takes_a_generators_package_in_one_step() -> TestResult {
     use sparksmith_core::library::{Definition, PackageModel};
     let ctx = context();
     let mut engine = Engine::profiled()?;
-    engine.set_generators(sparksmith_automation::session::generators::runtime());
+    engine.set_generators(sparksmith_automation::session::generators::fixture_runtime());
     let mut editor = PartEditor::default();
     editor.set_shelf(&generators::test_shelf());
     create(&mut editor, &mut engine, &ctx, Template::TwoTerminal)?;
@@ -753,7 +753,7 @@ fn change_package_on_a_drafted_part_keeps_package_footprint_and_mapping_agreeing
     use crate::generators::{self, Into, MakeRequest};
     use sparksmith_core::library::Definition;
     let mut engine = Engine::profiled()?;
-    engine.set_generators(sparksmith_automation::session::generators::runtime());
+    engine.set_generators(sparksmith_automation::session::generators::fixture_runtime());
     let request = |preset: &str| MakeRequest {
         generator: "no-lead".into(),
         preset: Some(preset.into()),

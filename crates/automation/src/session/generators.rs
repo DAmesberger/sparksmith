@@ -191,8 +191,11 @@ impl Session {
         }
     }
 
-    fn runtime(&self) -> sparksmith_generators::worker::Worker {
-        sparksmith_generators::worker::Worker::default()
+    fn runtime(&self) -> Arc<dyn GeneratorRuntime + Send + Sync> {
+        self.engine
+            .generator_runtime()
+            .cloned()
+            .unwrap_or_else(runtime)
     }
 
     fn module_bytes(
@@ -333,7 +336,7 @@ impl Session {
         let (bytes, wire) = sparksmith_core::commands::generator_request(
             self.engine.document(),
             &generate,
-            &runtime,
+            runtime.as_ref(),
         )?;
         let made = runtime.generate(&bytes, &wire);
         Ok((generate, module.bundle, made))
@@ -427,7 +430,7 @@ impl Session {
                             .insert(description.id.clone(), (hash, description.version));
                         (Some(GeneratorSummary::of(&description)), None)
                     }
-                    Err(error) => (None, Some(error.to_string())),
+                    Err(error) => (None, Some(permanent_refusal(error)?)),
                 };
                 shipped.push(ShippedGenerator {
                     name,
@@ -503,11 +506,28 @@ impl Session {
     }
 }
 
+/// Busy is a transient host condition, not evidence against this module.
+/// Keep its typed rule so callers can retry instead of caching a missing
+/// generator. Other module refusals retain their existing presentation.
+pub(super) fn permanent_refusal(error: crate::Error) -> Result<String> {
+    if error.diagnostic().rule.as_deref() == Some("generator.busy") {
+        return Err(error);
+    }
+    Ok(error.to_string())
+}
+
 /// The generator runtime a host gives an engine that applies
 /// `library.generate` itself (`Engine::set_generators`): a worker thread
 /// per call with the host's limits and wall time, as the session's own.
 pub fn runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
     Arc::new(sparksmith_generators::worker::Worker::default())
+}
+
+/// A test fixture's isolated four-worker runtime. Install explicitly on
+/// its engine so lending sessions and background forks inherit that pool.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn fixture_runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
+    Arc::new(sparksmith_generators::worker::Worker::fixture())
 }
 
 /// `library.generators`' answer.
@@ -684,6 +704,75 @@ fn state(
 mod tests {
     use super::state;
     use sparksmith_core::ids::ContentHash;
+
+    #[test]
+    fn injected_runtime_is_used_by_sessions_forks_and_lending() {
+        use sparksmith_generator_abi::{Failure, Generated, GeneratorRuntime, v1};
+        use std::sync::Arc;
+
+        struct RefusingRuntime;
+        impl GeneratorRuntime for RefusingRuntime {
+            fn describe(&self, _: &[u8]) -> std::result::Result<v1::Description, Failure> {
+                Err(Failure::one("fixture.runtime", "Injected runtime".into()))
+            }
+            fn generate(
+                &self,
+                _: &[u8],
+                _: &v1::Request,
+            ) -> std::result::Result<Generated, Failure> {
+                Err(Failure::one("fixture.runtime", "Injected runtime".into()))
+            }
+        }
+
+        let runtime: Arc<dyn GeneratorRuntime + Send + Sync> = Arc::new(RefusingRuntime);
+        let mut engine = sparksmith_core::Engine::default();
+        engine.set_generators(runtime.clone());
+        let mut session = super::Session::new(engine);
+        session.ensure_generators();
+        let refusal = session.describe(b"not a module").err();
+        assert_eq!(
+            refusal.as_ref().and_then(|e| e.diagnostic().rule),
+            Some("fixture.runtime".into())
+        );
+        assert!(Arc::ptr_eq(&session.runtime(), &runtime));
+
+        let mut fork = session.engine().fork();
+        let mut lending = super::Session::lending();
+        lending.lend(&mut fork, None, |session| {
+            session.ensure_generators();
+            let refusal = session.describe(b"not a module").err();
+            assert_eq!(
+                refusal.as_ref().and_then(|e| e.diagnostic().rule),
+                Some("fixture.runtime".into())
+            );
+            assert!(Arc::ptr_eq(&session.runtime(), &runtime));
+        });
+        assert!(
+            fork.generator_runtime()
+                .is_some_and(|r| Arc::ptr_eq(r, &runtime))
+        );
+    }
+
+    #[test]
+    fn a_busy_description_keeps_its_rule_instead_of_becoming_a_bad_module_row() {
+        let failure = sparksmith_generator_abi::Failure::one(
+            "generator.busy",
+            "Workers are busy. It was not run.".into(),
+        );
+        let error = crate::Error::Document(sparksmith_core::library::generated::failure(&failure));
+        let refused = super::permanent_refusal(error).err();
+        assert_eq!(
+            refused.as_ref().and_then(|e| e.diagnostic().rule),
+            Some("generator.busy".into())
+        );
+        let bad = crate::Error::Document(sparksmith_core::Error::Invalid(
+            "generator.invalid_module: This module is invalid.".into(),
+        ));
+        assert_eq!(
+            super::permanent_refusal(bad).ok().as_deref(),
+            Some("This module is invalid.")
+        );
+    }
 
     #[test]
     fn a_newer_shipped_version_is_an_update_and_an_older_one_never_is() {

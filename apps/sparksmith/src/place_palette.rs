@@ -2651,7 +2651,7 @@ mod tests {
     #[test]
     fn the_list_keeps_its_order() -> Result<(), Box<dyn std::error::Error>> {
         let mut engine = Engine::profiled()?;
-        engine.set_generators(sparksmith_automation::session::generators::runtime());
+        engine.set_generators(sparksmith_automation::session::generators::fixture_runtime());
         let shelf = generators::test_shelf();
         let found = generators::find_generic(&engine, &shelf, "resistor 0603");
         let mut request =

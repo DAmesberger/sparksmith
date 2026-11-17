@@ -122,6 +122,18 @@ fn fail(code: &str, message: impl Into<String>) -> Failure {
     Failure::one(code, message.into())
 }
 
+fn check_module_size(bytes: usize, limit: usize) -> Result<(), Failure> {
+    if bytes > limit {
+        return Err(fail(
+            "generator.too_large",
+            format!(
+                "The generator module is {bytes} bytes, more than the {limit} allowed. It was not run."
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// The engine configuration every plugin runs under: fuel metering, no
 /// start function, and only the deterministic integer feature set that
 /// rustc emits for `wasm32-unknown-unknown` with floats left out: a plugin
@@ -169,16 +181,7 @@ impl WasmiRuntime {
 
     /// Check and compile `bytes`.
     pub fn load(&self, bytes: &[u8]) -> Result<Loaded<'_>, Failure> {
-        if bytes.len() > self.limits.module_bytes {
-            return Err(fail(
-                "generator.too_large",
-                format!(
-                    "The generator module is {} bytes, more than the {} allowed. It was not run.",
-                    bytes.len(),
-                    self.limits.module_bytes
-                ),
-            ));
-        }
+        check_module_size(bytes.len(), self.limits.module_bytes)?;
         let module = Module::new(&self.engine, bytes).map_err(|e| {
             let detail = e.to_string();
             // wasmparser (pinned) words a float instruction as

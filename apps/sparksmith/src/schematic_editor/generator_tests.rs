@@ -23,7 +23,7 @@ fn context() -> egui::Context {
 /// board's margins.
 fn empty_engine() -> Engine {
     let mut engine = Engine::profiled().unwrap_or_default();
-    engine.set_generators(sparksmith_automation::session::generators::runtime());
+    engine.set_generators(sparksmith_automation::session::generators::fixture_runtime());
     engine
 }
 

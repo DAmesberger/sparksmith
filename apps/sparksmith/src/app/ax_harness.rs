@@ -95,6 +95,8 @@ impl Ax {
         workspace: Workspace,
         sources: LibrarySources,
     ) -> Fallible<Self> {
+        let mut engine = engine;
+        engine.set_generators(sparksmith_automation::session::generators::fixture_runtime());
         let ctx = egui::Context::default();
         fonts::setup_bundled_fonts(&ctx);
         let mut files = FileUi::with_directory(

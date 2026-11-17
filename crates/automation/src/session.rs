@@ -1101,11 +1101,20 @@ pub struct Session {
 #[cfg(any(test, feature = "test-fixtures"))]
 impl Default for Session {
     fn default() -> Self {
-        Self::new(Engine::default())
+        Self::fixture(Engine::default())
     }
 }
 
 impl Session {
+    /// A session with an explicit, isolated four-worker test runtime. Its
+    /// engine and all forks share that pool; production constructors retain
+    /// the process-wide runtime unless a host explicitly injects another.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn fixture(mut engine: Engine) -> Self {
+        engine.set_generators(generators::fixture_runtime());
+        Self::new(engine)
+    }
+
     pub fn new(engine: Engine) -> Self {
         Self::with_sources(engine, sources::Sources::default())
     }

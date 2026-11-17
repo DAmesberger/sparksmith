@@ -44,8 +44,10 @@ fn covered(copper: &sparksmith_core::model::fill::FilledCopper, q: [f64; 2]) -> 
 #[test]
 fn the_module_keeps_copper_out_of_its_antenna_area_on_the_board() -> Fallible {
     let dir = tempfile::tempdir()?;
-    let mut backend = anthropic(script_on(Session::new(sparksmith_core::Engine::demo()?))?)?;
-    let mut s = Session::new(sparksmith_core::Engine::demo()?);
+    let mut backend = anthropic(script_on(Session::fixture(
+        sparksmith_core::Engine::demo()?
+    ))?)?;
+    let mut s = Session::fixture(sparksmith_core::Engine::demo()?);
     let outcome = run(
         &goal(datasheet(&dir)?),
         &shipped_config()?,

@@ -779,6 +779,14 @@ impl Engine {
             .map(library::standards::Context::enter)
     }
 
+    /// The generator runtime the host injected. Lending sessions and engine
+    /// forks use the same runtime, including its worker resource limits.
+    pub fn generator_runtime(
+        &self,
+    ) -> Option<&Arc<dyn library::generated::GeneratorRuntime + Send + Sync>> {
+        self.generators.as_ref()
+    }
+
     /// Whether this engine has a generator runtime.
     pub fn has_generators(&self) -> bool {
         self.generators.is_some()
