@@ -23,6 +23,7 @@ use crate::{Error, Result};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 /// Rough characters per token, where a server reports no usage.
 const CHARS_PER_TOKEN: u64 = 4;
@@ -56,6 +57,26 @@ impl<W: Wire> OpenAiBackend<W> {
             completion_field: false,
             calls: 0,
         }
+    }
+
+    fn stopped(&self) -> Result<ModelReply> {
+        self.wire.clean_reply(ModelReply {
+            model: self.profile.model.clone(),
+            content: Vec::new(),
+            stop: StopReason::Stopped,
+            usage: Usage::default(),
+            usage_estimated: false,
+        })
+    }
+}
+
+/// Compatibility retries share the logical request's deadline.
+fn remaining_timeout(started: Instant, timeout: Duration) -> Result<Duration> {
+    let remaining = timeout.saturating_sub(started.elapsed());
+    if remaining.is_zero() {
+        Err(Error::Http("the model request timed out".into()))
+    } else {
+        Ok(remaining)
     }
 }
 
@@ -567,9 +588,15 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
     }
 
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
+        let started = Instant::now();
         let body = request_body(&self.profile, request, self.completion_field)?;
         let path = "/chat/completions";
-        let response = match self.wire.post(path, &[], &body, request.timeout) {
+        let response = match self.wire.post(
+            path,
+            &[],
+            &body,
+            remaining_timeout(started, request.timeout)?,
+        ) {
             Err(Error::Api {
                 status: 400,
                 message,
@@ -577,17 +604,22 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
                 // OpenAI's newer models take the limit under another name.
                 self.completion_field = true;
                 let body = request_body(&self.profile, request, true)?;
-                self.wire.post(path, &[], &body, request.timeout)?
+                self.wire.post(
+                    path,
+                    &[],
+                    &body,
+                    remaining_timeout(started, request.timeout)?,
+                )?
             }
             other => other?,
         };
         let prompt_chars = body["messages"].to_string().len() as u64;
-        parse_reply(
+        self.wire.clean_reply(parse_reply(
             &response,
             &self.profile.model,
             prompt_chars,
             &mut self.calls,
-        )
+        )?)
     }
 
     fn stream(
@@ -596,12 +628,18 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
         deltas: &mut dyn FnMut(Delta),
         cancel: &AtomicBool,
     ) -> Result<ModelReply> {
+        let started = Instant::now();
         let path = "/chat/completions";
+        let mut redactor = self.wire.redactor();
+        let mut emit = |delta| redactor.push(delta, deltas);
         // Usage comes in a last chunk when asked for; a server that refuses
         // the option is asked again without it, and its usage is estimated.
         let mut usage_option = true;
         let mut chunks = Chunks::default();
         let (body, streamed) = loop {
+            if cancel.load(Ordering::Relaxed) {
+                return self.stopped();
+            }
             let mut body = request_body(&self.profile, request, self.completion_field)?;
             if let Some(fields) = body.as_object_mut() {
                 fields.insert("stream".into(), Value::Bool(true));
@@ -609,12 +647,16 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
                     fields.insert("stream_options".into(), json!({"include_usage": true}));
                 }
             }
-            let sent = self
-                .wire
-                .post_stream(path, &[], &body, request.timeout, &mut |event| {
-                    chunks.event(&event, deltas)?;
+            let sent = self.wire.post_stream(
+                path,
+                &[],
+                &body,
+                remaining_timeout(started, request.timeout)?,
+                &mut |event| {
+                    chunks.event(&event, &mut emit)?;
                     Ok(!cancel.load(Ordering::Relaxed))
-                });
+                },
+            );
             match sent {
                 Err(Error::Api {
                     status: 400,
@@ -633,18 +675,19 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
         let prompt_chars = body["messages"].to_string().len() as u64;
         let (response, stopped) = match streamed {
             Streamed::Whole(response) => {
-                let reply = parse_reply(
+                let reply = self.wire.clean_reply(parse_reply(
                     &response,
                     &self.profile.model,
                     prompt_chars,
                     &mut self.calls,
-                )?;
-                stream::deltas_of(&reply, deltas);
+                )?)?;
+                stream::deltas_of(&reply, &mut emit);
+                redactor.finish(true, deltas);
                 return Ok(reply);
             }
             Streamed::Stopped => (chunks.finish(), true),
             Streamed::Done if chunks.done || chunks.finish.is_some() => {
-                chunks.think.finish(deltas);
+                chunks.think.finish(&mut emit);
                 (chunks.finish(), false)
             }
             Streamed::Done => {
@@ -663,7 +706,8 @@ impl<W: Wire> ModelBackend for OpenAiBackend<W> {
         if stopped {
             reply.stop = StopReason::Stopped;
         }
-        Ok(reply)
+        redactor.finish(!stopped, deltas);
+        self.wire.clean_reply(reply)
     }
 
     fn count_prompt_tokens(&mut self, _request: &ModelRequest<'_>) -> Result<Option<u64>> {
@@ -681,6 +725,79 @@ mod tests {
 
     fn profile() -> ModelProfile {
         ModelProfile::openai_compatible("local", 100_000)
+    }
+
+    struct CompatibilityFailure<'a> {
+        cancel: Option<&'a AtomicBool>,
+        delay: Duration,
+        calls: usize,
+    }
+    impl Wire for CompatibilityFailure<'_> {
+        fn label(&self) -> String {
+            "scripted compatibility failure".into()
+        }
+        fn post(&mut self, _: &str, _: &[(&str, &str)], _: &Value, _: Duration) -> Result<Value> {
+            self.calls += 1;
+            if let Some(cancel) = self.cancel {
+                cancel.store(true, Ordering::Relaxed);
+            }
+            if !self.delay.is_zero() {
+                std::thread::sleep(self.delay);
+            }
+            Err(Error::Api {
+                status: 400,
+                message: "use max_completion_tokens".into(),
+            })
+        }
+        fn post_stream(
+            &mut self,
+            path: &str,
+            headers: &[(&str, &str)],
+            body: &Value,
+            timeout: Duration,
+            _: &mut dyn FnMut(SseEvent) -> Result<bool>,
+        ) -> Result<Streamed> {
+            self.post(path, headers, body, timeout).map(Streamed::Whole)
+        }
+    }
+
+    #[test]
+    fn compatibility_retry_does_not_send_after_stop() -> Result<()> {
+        let cancel = AtomicBool::new(false);
+        let wire = CompatibilityFailure {
+            cancel: Some(&cancel),
+            delay: Duration::ZERO,
+            calls: 0,
+        };
+        let mut backend = OpenAiBackend::new(profile(), wire);
+        let reply = backend.stream(&empty_request(), &mut |_| {}, &cancel)?;
+        assert_eq!(reply.stop, StopReason::Stopped);
+        assert_eq!(backend.wire.calls, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn compatibility_retries_share_one_timeout() {
+        for streamed in [false, true] {
+            let wire = CompatibilityFailure {
+                cancel: None,
+                delay: Duration::from_millis(40),
+                calls: 0,
+            };
+            let mut backend = OpenAiBackend::new(profile(), wire);
+            let mut request = empty_request();
+            request.timeout = Duration::from_millis(30);
+            let result = if streamed {
+                backend.stream(&request, &mut |_| {}, &AtomicBool::new(false))
+            } else {
+                backend.send(&request)
+            };
+            assert!(
+                matches!(result, Err(Error::Http(ref why)) if why.contains("timed out")),
+                "{result:?}"
+            );
+            assert!(backend.wire.calls <= 1, "an expired request cannot retry");
+        }
     }
 
     fn parse(response: &Value) -> Result<ModelReply> {

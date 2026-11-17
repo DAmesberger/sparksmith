@@ -21,6 +21,7 @@ pub mod keys;
 pub mod openai;
 pub mod profile;
 pub mod record;
+pub mod redact;
 pub mod stream;
 pub mod wire;
 

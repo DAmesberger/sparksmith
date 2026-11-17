@@ -37,6 +37,7 @@ pub mod model;
 pub mod pins;
 pub mod profile;
 pub mod report;
+mod request;
 mod run;
 pub mod settings;
 pub mod usage;
