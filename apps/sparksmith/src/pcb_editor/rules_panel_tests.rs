@@ -352,7 +352,11 @@ fn a_profile_switch_is_previewed_then_one_undo_step() -> TestResult {
     );
     let switch =
         click(&mut editor, &engine, &ctx, "Switch to Test fine")?.ok_or("Switch did nothing")?;
-    let Operation::Rules(RulesCommand::SetProfile { profile, .. }) = &switch else {
+    let Operation::Rules(RulesCommand::SetProfile {
+        profile: ProfileChoice::Profile(profile),
+        ..
+    }) = &switch
+    else {
         return Err("Switch issued another command".into());
     };
     assert_eq!(**profile, fixtures::fine()?);
@@ -376,10 +380,10 @@ fn a_fab_option_is_previewed_then_one_undo_step() -> TestResult {
     let mut engine = Engine::demo()?;
     engine.apply(
         engine.revision(),
-        Operation::Rules(RulesCommand::SetProfile {
-            profile: Box::new(fixtures::jlcpcb_example()?),
-            keep_overrides: false,
-        }),
+        Operation::Rules(RulesCommand::set_profile(
+            fixtures::jlcpcb_example()?,
+            false,
+        )),
     )?;
     let before = engine.project().rules.clone();
     let ctx = context();
@@ -593,6 +597,7 @@ fn impact_text_counts_changes_and_issues() -> TestResult {
         resolved_issues: Vec::new(),
         kept_choices: Vec::new(),
         reset_choices: Vec::new(),
+        chosen_choices: Vec::new(),
         outer_copper_um: None,
         refusal: None,
     };
@@ -623,6 +628,7 @@ fn impact_text_counts_changes_and_issues() -> TestResult {
     let switch = ProfileImpact {
         kept_choices: vec![note("Outer copper weight: 2 oz (70 µm)")],
         reset_choices: vec![note("Solder mask colour: Green")],
+        chosen_choices: Vec::new(),
         outer_copper_um: Some((35.0, 70.0)),
         ..impact
     };

@@ -161,10 +161,10 @@ pub fn profiled_engine(context: &Arc<Context>) -> Result<Engine> {
     let mut project = sparksmith_core::Project::new(&defaults.board);
     sparksmith_core::rules::apply(
         &mut project.rules,
-        sparksmith_core::rules::RulesCommand::SetProfile {
-            profile: Box::new(crate::rule_profiles::for_new_board_from_env(None)?),
-            keep_overrides: false,
-        },
+        sparksmith_core::rules::RulesCommand::set_profile(
+            crate::rule_profiles::for_new_board_from_env(None)?,
+            false,
+        ),
     )?;
     let mut engine = Engine::from_file_with(
         EditorFile {

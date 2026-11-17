@@ -58,6 +58,11 @@ pub struct Generate {
     /// host read it from a bundle: recorded as the part's provenance.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle: Option<ContentHash>,
+    /// The name of the module's preset the parameters start from
+    /// (`SOT-23-5`), recorded with the part: its package in a person's
+    /// words.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
 }
 
 /// A generated part's 3D model, from the host: the part file the module's
@@ -716,6 +721,7 @@ pub(crate) fn generate(
                 .collect(),
             result,
             ids: key_ids,
+            preset: request.preset.clone(),
         },
     };
     Arc::make_mut(&mut document.project)

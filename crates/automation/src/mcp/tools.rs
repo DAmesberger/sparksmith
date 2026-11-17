@@ -547,7 +547,14 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
         object.insert("kind".into(), json!(entry.kind));
         object.insert("title".into(), json!(entry.title));
         object.insert("summary".into(), json!(entry.summary));
-        object.insert("call".into(), example(entry));
+        // The call with the entry's first example as its params, else a
+        // placeholder: the examples are exactly what `params` takes.
+        let params = object
+            .get("examples")
+            .and_then(|e| e.get(0))
+            .cloned()
+            .unwrap_or_else(|| json!("<params>"));
+        object.insert("call".into(), example(entry, params));
         if entry.person.is_some() {
             object.insert("person".into(), json!(entry.person));
         }
@@ -580,23 +587,23 @@ fn generator(desk: &mut dyn Calls, name: &str) -> Option<Value> {
     Some(reply)
 }
 
-/// How this surface sends `entry`.
-fn example(entry: &EntryMeta) -> Value {
+/// How this surface sends `entry` with `params`.
+fn example(entry: &EntryMeta, params: Value) -> Value {
     let name = entry.name.as_str();
     match entry.kind {
         Some(Kind::Operation) => json!({"tool": APPLY, "arguments": {
             "project": "<project>", "expected_revision": "<revision>",
-            "operations": [{"op": name, "params": "<params>"}]}}),
+            "operations": [{"op": name, "params": params}]}}),
         Some(Kind::Action) if OPENS.contains(&name) => {
-            json!({"tool": ACT, "arguments": {"name": name, "params": "<params>"}})
+            json!({"tool": ACT, "arguments": {"name": name, "params": params}})
         }
         Some(Kind::Action) => json!({"tool": ACT, "arguments": {
-            "project": "<project>", "name": name, "params": "<params>"}}),
+            "project": "<project>", "name": name, "params": params}}),
         Some(Kind::Show) => {
-            json!({"tool": SHOW, "arguments": {"name": name, "params": "<params>"}})
+            json!({"tool": SHOW, "arguments": {"name": name, "params": params}})
         }
         _ => json!({"tool": QUERY, "arguments": {
-            "project": "<project>", "name": name, "params": "<params>"}}),
+            "project": "<project>", "name": name, "params": params}}),
     }
 }
 

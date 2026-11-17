@@ -287,10 +287,10 @@ fn sot_pour(
     if angle.is_none() {
         engine.apply(
             engine.revision(),
-            Operation::Rules(sparksmith_core::rules::RulesCommand::SetProfile {
-                profile: Box::new(sparksmith_core::rules::fixtures::jlcpcb_example()?),
-                keep_overrides: false,
-            }),
+            Operation::Rules(sparksmith_core::rules::RulesCommand::set_profile(
+                sparksmith_core::rules::fixtures::jlcpcb_example()?,
+                false,
+            )),
         )?;
     }
     engine.apply(
