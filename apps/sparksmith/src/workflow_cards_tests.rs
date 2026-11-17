@@ -909,3 +909,94 @@ fn a_workspace_signal_offers_what_names_it() -> Fallible {
     assert!(cards.workspace("component").is_empty(), "one waits already");
     Ok(())
 }
+
+/// Folder searches load off-thread, discard another project's choices, and
+/// feed the existing datasheet picker without changing its attachment behavior.
+#[test]
+fn a_datasheet_picker_loads_the_current_project_folder_and_selects_its_file() -> Fallible {
+    for size in SIZES {
+        let mut chat = Chat::new(size)?;
+        let first = chat.dir.path().join("first");
+        let second = chat.dir.path().join("second");
+        std::fs::create_dir(&first)?;
+        std::fs::create_dir(&second)?;
+        let alpha = chat.pdf("alpha.pdf")?;
+        let beta = chat.pdf("beta.pdf")?;
+        std::fs::rename(alpha, first.join("alpha.pdf"))?;
+        std::fs::rename(beta, second.join("beta.pdf"))?;
+        std::fs::write(second.join("not-a-datasheet.txt"), b"original text")?;
+        chat.cards.set_project(Some(first.clone()));
+        started(&mut chat);
+        card(
+            &mut chat,
+            "ask",
+            ControlCard::Datasheet {
+                field: field("datasheets", "Datasheets", false),
+                accept: vec!["application/pdf".into()],
+                min: 1,
+                max: 1,
+                files: Vec::new(),
+            },
+        );
+        let wait_for_choices = |chat: &mut Chat| -> Fallible {
+            let deadline = std::time::Instant::now() + crate::app::ax_harness::PATIENCE;
+            while std::time::Instant::now() < deadline {
+                chat.frame(vec![]);
+                if chat.has("None ⌄") {
+                    return Ok(());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            Err(format!("project choices did not load: {:?}", chat.names()).into())
+        };
+        chat.frame(vec![]);
+        assert!(chat.has("Searching project files…"));
+        let loading_field = chat.find(Role::Button, "Choose…")?.rect;
+        wait_for_choices(&mut chat)?;
+        let ready_field = chat.find(Role::Button, "Choose…")?.rect;
+        assert!(
+            (loading_field.top() - ready_field.top()).abs() <= 1.0,
+            "the file field moved from {loading_field:?} to {ready_field:?}"
+        );
+        chat.click(Role::Button, "None ⌄")?;
+        chat.find(Role::CheckBox, &format!("alpha.pdf · {}", first.display()))?;
+        chat.click(Role::Button, "None ⌄")?;
+        chat.cards.set_project(Some(second.clone()));
+        wait_for_choices(&mut chat)?;
+        chat.click(Role::Button, "None ⌄")?;
+        assert!(
+            !chat
+                .names()
+                .iter()
+                .any(|name| name.starts_with("alpha.pdf ·"))
+        );
+        assert!(
+            !chat
+                .names()
+                .iter()
+                .any(|name| name.starts_with("not-a-datasheet"))
+        );
+        chat.click(Role::CheckBox, &format!("beta.pdf · {}", second.display()))?;
+        chat.read()?;
+        chat.click(Role::Button, "Accept and continue")?;
+        let [
+            CardAction::Answer {
+                answer: ControlAnswer::Inputs { values },
+                ..
+            },
+        ] = chat.actions.as_slice()
+        else {
+            return Err(format!("{:?}", chat.actions).into());
+        };
+        assert_eq!(
+            values["datasheets"],
+            json!([chat
+                .dir
+                .path()
+                .join("conversation/beta.pdf")
+                .display()
+                .to_string()])
+        );
+    }
+    Ok(())
+}

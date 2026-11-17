@@ -148,7 +148,7 @@ pub struct Assistant {
     pub files: Vec<std::path::PathBuf>,
     /// The `@` list's highlighted row, and its candidates while it shows.
     mention: usize,
-    mention_list: Option<Vec<mentions::Candidate>>,
+    mention_search: mentions::search::Search,
     pub conversation: Conversation,
     /// What the model has been sent and answered, for the next turn.
     pub history: Vec<Message>,
@@ -192,7 +192,7 @@ impl Default for Assistant {
             composer: String::new(),
             files: Vec::new(),
             mention: 0,
-            mention_list: None,
+            mention_search: mentions::search::Search::default(),
             conversation: Conversation::default(),
             history: Vec::new(),
             job: None,
@@ -306,6 +306,7 @@ impl Assistant {
         let mut actions = Vec::new();
         self.header(ui, &mut actions);
         kit::rule(ui);
+        self.refresh_mentions(ui.ctx(), now, cards.attached());
         // The composer keeps its room at the bottom; the transcript takes
         // the rest and follows the newest item.
         let composer = composer_height(ui, !self.files.is_empty())
@@ -330,7 +331,7 @@ impl Assistant {
             });
         kit::rule(ui);
         self.slash_menu(ui, cards, &mut actions);
-        self.mention_menu(ui, now, cards.attached());
+        self.mention_menu(ui);
         self.composer(ui, now, &mut actions);
         actions
     }
@@ -526,7 +527,7 @@ impl Assistant {
 
     /// The room the `@` list takes: four rows while it shows.
     fn mention_height(&self) -> f32 {
-        if self.mention_list.is_none() {
+        if !self.mention_search.visible() {
             return 0.0;
         }
         let t = Tokens::get();
@@ -558,52 +559,96 @@ impl Assistant {
     /// match what follows it, best first; ↑↓ and Enter (or a click) put the
     /// one chosen in the message as a chip. `known`: the files attached in
     /// this session.
-    fn mention_menu(&mut self, ui: &mut Ui, now: &Now, known: &[std::path::PathBuf]) {
-        let ctx = ui.ctx().clone();
+    fn refresh_mentions(&mut self, ctx: &egui::Context, now: &Now, known: &[std::path::PathBuf]) {
         let focused = ctx.memory(|m| m.has_focus(Self::composer_id()));
-        let typed = mentions::active(&self.composer, self.cursor(&ctx));
-        let Some((start, query)) = typed.filter(|_| focused) else {
-            self.mention_list = None;
+        let typed = mentions::active(&self.composer, self.cursor(ctx));
+        let Some((_, query)) = typed.filter(|_| focused) else {
+            self.mention_search.clear();
             self.mention = 0;
             return;
         };
-        let list = self
-            .mention_list
-            .get_or_insert_with(|| mentions::candidates(known, now.folder.as_deref()));
-        let ranked: Vec<mentions::Candidate> =
-            mentions::rank(&query, list).into_iter().cloned().collect();
-        if ranked.is_empty() {
-            kit::note(ui, "No file matches");
-            kit::rule(ui);
+        if self.mention_search.refresh(
+            mentions::search::Request {
+                query,
+                revision: now.revision,
+                folder: now.folder.clone(),
+                known: known.to_vec(),
+            },
+            ctx,
+        ) {
+            self.mention = 0;
+        }
+    }
+
+    fn mention_menu(&mut self, ui: &mut Ui) {
+        if !self.mention_search.visible() {
             return;
         }
-        let rows: Vec<chat_cards::MenuRow<'_>> = ranked
-            .iter()
-            .map(|c| chat_cards::MenuRow {
-                title: &c.name,
-                summary: &c.detail,
-                enabled: true,
-            })
-            .collect();
-        let nav = chat_cards::MenuNav::take(ui);
+        let ctx = ui.ctx().clone();
+        let Some((start, query)) = mentions::active(&self.composer, self.cursor(&ctx)) else {
+            return;
+        };
         let height = self.mention_height();
-        let highlighted = &mut self.mention;
+        let ready = self.mention_search.result();
+        let ranked = ready
+            .and_then(|found| found.as_ref().ok())
+            .map(|found| &found.ranked);
+        let nav = ranked
+            .filter(|rows| !rows.is_empty())
+            .map(|_| chat_cards::MenuNav::take(ui));
+        // Keep the composer's place while the search changes from loading
+        // to results, including empty or truncated results.
         let chosen = egui::ScrollArea::vertical()
             .id_salt("assistant-mention-menu")
             .max_height(height)
-            .show(ui, |ui| chat_cards::menu(ui, &rows, highlighted, Some(nav)))
+            .min_scrolled_height(height)
+            .auto_shrink([false, false])
+            .show(ui, |ui| match ready {
+                None => {
+                    kit::note(ui, "Searching files…");
+                    None
+                }
+                Some(Err(error)) => {
+                    kit::note(ui, error);
+                    None
+                }
+                Some(Ok(found)) => {
+                    if found.limited {
+                        kit::note(
+                            ui,
+                            "Folder search limited; type a path to attach another file",
+                        );
+                    }
+                    if found.ranked.is_empty() {
+                        kit::note(ui, "No file matches");
+                    }
+                    let rows: Vec<chat_cards::MenuRow<'_>> = found
+                        .ranked
+                        .iter()
+                        .map(|candidate| chat_cards::MenuRow {
+                            title: &candidate.name,
+                            summary: &candidate.detail,
+                            enabled: true,
+                        })
+                        .collect();
+                    chat_cards::menu(ui, &rows, &mut self.mention, nav)
+                }
+            })
             .inner;
         kit::rule(ui);
-        if let Some(candidate) = chosen.and_then(|i| ranked.get(i)) {
+        if let Some(candidate) = chosen
+            .and_then(|i| ranked.and_then(|rows| rows.get(i)))
+            .cloned()
+        {
             let end = start + 1 + query.len();
             let name = format!("@{} ", candidate.name);
             let at = self.composer.get(..start).map_or(0, |b| b.chars().count());
             if end <= self.composer.len() && self.composer.len() + name.len() <= MAX_MESSAGE_BYTES {
                 self.composer.replace_range(start..end, &name);
                 Self::set_cursor(&ctx, at + name.chars().count());
-                self.add_file(candidate.path.clone());
+                self.add_file(candidate.path);
             }
-            self.mention_list = None;
+            self.mention_search.clear();
             self.mention = 0;
         }
     }

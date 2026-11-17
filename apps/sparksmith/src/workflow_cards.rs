@@ -209,7 +209,7 @@ pub(crate) struct WorkflowCards {
     latest: Vec<(String, String)>,
     /// The open project's folder, and its files once listed.
     project: Option<PathBuf>,
-    project_files: Option<Vec<PathBuf>>,
+    project_files: crate::assistant::mentions::search::Search,
 }
 
 impl WorkflowCards {
@@ -429,14 +429,14 @@ impl WorkflowCards {
     pub(crate) fn set_project(&mut self, folder: Option<PathBuf>) {
         if self.project != folder {
             self.project = folder;
-            self.project_files = None;
+            self.project_files.clear();
         }
     }
 
     /// The files a datasheet value may be: the PDFs attached (the latest
     /// first), then those in the project's folder. Listed by name only;
     /// the one chosen is read for its type like any other.
-    fn file_candidates(&mut self) -> Vec<PathBuf> {
+    fn file_candidates(&mut self, ui: &mut egui::Ui) -> Vec<PathBuf> {
         let pdf = |p: &PathBuf| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
         let mut out: Vec<PathBuf> = self
             .attached
@@ -445,15 +445,47 @@ impl WorkflowCards {
             .filter(|p| pdf(p))
             .cloned()
             .collect();
-        if let Some(folder) = self.project.clone() {
-            let files = self
-                .project_files
-                .get_or_insert_with(|| crate::assistant::mentions::project_files(&folder));
-            for path in files.iter().filter(|p| pdf(p)) {
-                if !out.contains(path) {
-                    out.push(path.clone());
+        if self.project.is_some() {
+            self.project_files.refresh(
+                crate::assistant::mentions::search::Request {
+                    query: String::new(),
+                    revision: 0,
+                    folder: self.project.clone(),
+                    known: Vec::new(),
+                },
+                ui.ctx(),
+            );
+            let status = match self.project_files.result() {
+                None => "Searching project files…",
+                Some(Err(error)) => error,
+                Some(Ok(found)) => {
+                    for candidate in &found.candidates {
+                        if pdf(&candidate.path) && !out.contains(&candidate.path) {
+                            out.push(candidate.path.clone());
+                        }
+                    }
+                    if found.limited {
+                        "Folder search limited; attach another file by its path"
+                    } else {
+                        ""
+                    }
                 }
-            }
+            };
+            // Reserve one kit row, including when ready: a background result
+            // must not move the card's field while the person is editing it.
+            let t = sparksmith_ui::theme::Tokens::get();
+            let (rect, response) = ui.allocate_exact_size(
+                egui::vec2(ui.available_width(), t.control_height),
+                egui::Sense::hover(),
+            );
+            let cut = crate::kit::text::paint_line(
+                ui,
+                rect,
+                status,
+                egui::FontId::proportional(t.font_small),
+                t.form_dim,
+            );
+            crate::kit::text::hover(response, status, "", cut);
         }
         out
     }
@@ -979,7 +1011,7 @@ impl WorkflowCards {
                 .iter()
                 .any(|f| matches!(f.card, ControlCard::Datasheet { .. })) =>
             {
-                self.file_candidates()
+                self.file_candidates(ui)
             }
             _ => Vec::new(),
         };

@@ -403,7 +403,9 @@ fn a_message_with_an_at_file_fills_one_card_and_enter_runs_it() -> Fallible {
             .memory_mut(|m| m.request_focus(crate::assistant::Assistant::composer_id()));
         ax.frame(vec![]);
         ax.type_text("make a part from @e2p");
-        ax.settle();
+        wait(&mut ax, "the file completion", |ax| {
+            ax.has(Role::Button, "exr22.pdf")
+        })?;
         // The list: the project folder's file, where it is.
         ax.find(Role::Button, "exr22.pdf")?;
         ax.key(egui::Key::Enter);

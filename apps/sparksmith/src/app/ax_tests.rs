@@ -941,3 +941,80 @@ fn a_generic_resistors_value_is_placed_and_edited_in_properties_at_a_small_windo
     assert_eq!(value(&ax)?.as_deref(), Some("10 kΩ"), "one undo step");
     Ok(())
 }
+
+/// File completion runs off the UI thread; changing a query replaces the
+/// shown rows, and selecting a result attaches it without sending a message.
+#[test]
+fn assistant_mentions_load_replace_results_and_attach_from_keyboard_and_pointer() -> Fallible {
+    for (workspace, size) in [
+        (Workspace::Schematic, egui::vec2(1380.0, 900.0)),
+        (Workspace::Pcb, egui::vec2(1000.0, 720.0)),
+    ] {
+        let mut ax = Ax::new(workspace)?;
+        ax.window = size;
+        let alpha = ax.dir.path().join("alpha-notes.txt");
+        let beta = ax.dir.path().join("beta-notes.txt");
+        std::fs::write(&alpha, b"original synthetic notes")?;
+        std::fs::write(&beta, b"other original notes")?;
+        // This replay uses no model or credential service.
+        ax.app.assistant.setup_checked = true;
+        ax.key_with(Key::A, Modifiers::COMMAND | Modifiers::SHIFT);
+        ax.ctx
+            .memory_mut(|memory| memory.request_focus(crate::assistant::Assistant::composer_id()));
+        ax.frame(vec![]);
+        ax.type_text("@alpha");
+        ax.until("alpha file completion", |ax| {
+            ax.has(Role::Button, "alpha-notes.txt")
+        })?;
+        assert!(!ax.has(Role::Button, "beta-notes.txt"));
+        ax.command_key(Key::A);
+        ax.type_text("@beta");
+        ax.frame(vec![]);
+        assert!(
+            !ax.has(Role::Button, "alpha-notes.txt"),
+            "a stale query row remained selectable"
+        );
+        let loading_send = ax.find(Role::Button, "Send")?.rect;
+        assert!(
+            loading_send.bottom() <= size.y,
+            "composer is outside the window"
+        );
+        ax.until("beta file completion", |ax| {
+            ax.has(Role::Button, "beta-notes.txt")
+        })?;
+        let ready_send = ax.find(Role::Button, "Send")?.rect;
+        assert!(
+            (ready_send.top() - loading_send.top()).abs() <= 1.0,
+            "loading moved the composer: {loading_send:?} -> {ready_send:?}"
+        );
+        ax.key(Key::Tab);
+        ax.settle();
+        assert_eq!(ax.app.assistant.files, vec![beta.clone()]);
+        assert_eq!(ax.app.assistant.composer, "@beta-notes.txt ");
+        assert!(
+            ax.app.assistant.conversation.items.is_empty(),
+            "choosing a file must not send"
+        );
+        assert!(!ax.has(Role::Button, "alpha-notes.txt"));
+        assert!(
+            !ax.has(Role::Button, "beta-notes.txt"),
+            "the completion menu closed"
+        );
+        ax.ctx
+            .memory_mut(|memory| memory.request_focus(crate::assistant::Assistant::composer_id()));
+        ax.key(Key::End);
+        ax.type_text("@alpha");
+        ax.until("pointer file completion", |ax| {
+            ax.has(Role::Button, "alpha-notes.txt")
+        })?;
+        ax.click(Role::Button, "alpha-notes.txt")?;
+        ax.settle();
+        assert_eq!(ax.app.assistant.files, vec![beta, alpha]);
+        assert_eq!(
+            ax.app.assistant.composer,
+            "@beta-notes.txt @alpha-notes.txt "
+        );
+        assert!(ax.app.assistant.conversation.items.is_empty());
+    }
+    Ok(())
+}

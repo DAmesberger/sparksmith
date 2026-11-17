@@ -28,80 +28,13 @@ pub struct Candidate {
     pub known: bool,
 }
 
-/// The candidates: `known` files (most recent first), then the files of
-/// the project's `folder`, each once.
-pub fn candidates(known: &[PathBuf], folder: Option<&Path>) -> Vec<Candidate> {
-    let mut out: Vec<Candidate> = Vec::new();
-    let detail = |path: &Path| {
-        let parent = path.parent().unwrap_or(Path::new(""));
-        match folder.and_then(|f| parent.strip_prefix(f).ok()) {
-            Some(inside) if inside.as_os_str().is_empty() => "Project folder".to_owned(),
-            Some(inside) => inside.display().to_string(),
-            None => parent.display().to_string(),
-        }
-    };
-    for path in known.iter().rev() {
-        if out.iter().any(|c| &c.path == path) {
-            continue;
-        }
-        out.push(Candidate {
-            name: file_name(path),
-            detail: detail(path),
-            path: path.clone(),
-            known: true,
-        });
-    }
-    if let Some(folder) = folder {
-        for path in project_files(folder) {
-            if out.iter().any(|c| c.path == path) {
-                continue;
-            }
-            out.push(Candidate {
-                name: file_name(&path),
-                detail: detail(&path),
-                path,
-                known: false,
-            });
-        }
-    }
-    out
-}
+pub mod search;
+mod traversal;
 
-/// The files in `folder` and its subfolders, bounded: hidden entries and
-/// `target` folders are left out, links are not followed.
-pub fn project_files(folder: &Path) -> Vec<PathBuf> {
-    let mut out = Vec::new();
-    let mut visited = 0usize;
-    let mut stack = vec![(folder.to_path_buf(), 0usize)];
-    while let Some((dir, depth)) = stack.pop() {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        let mut entries: Vec<std::fs::DirEntry> = entries.filter_map(Result::ok).collect();
-        entries.sort_by_key(std::fs::DirEntry::file_name);
-        for entry in entries {
-            visited += 1;
-            if visited > MAX_VISITED || out.len() >= MAX_PROJECT_FILES {
-                out.sort();
-                return out;
-            }
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if name.starts_with('.') || name == "target" {
-                continue;
-            }
-            let Ok(kind) = entry.file_type() else {
-                continue;
-            };
-            if kind.is_dir() && depth < MAX_DEPTH {
-                stack.push((entry.path(), depth + 1));
-            } else if kind.is_file() {
-                out.push(entry.path());
-            }
-        }
-    }
-    out.sort();
-    out
+#[cfg(test)]
+fn candidates(known: &[PathBuf], folder: Option<&Path>) -> Vec<Candidate> {
+    traversal::collect(known, folder, &std::sync::atomic::AtomicBool::new(false))
+        .map_or_else(Vec::new, |found| found.candidates)
 }
 
 /// The candidates `query` matches, best first, at most [`MAX_ROWS`]: by
