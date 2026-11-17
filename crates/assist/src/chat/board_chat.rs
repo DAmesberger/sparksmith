@@ -162,8 +162,7 @@ fn steps() -> Vec<Step> {
         vec![
             ("query", json!({"name": "project.inspect", "params": {}})),
             ("query", json!({"name": "library.generators", "params": {}})),
-            // The fab rules: a 135 KB listing, like the bulky replies run
-            // 12's model read.
+            // The fab profiles: ids, options, choices and defaults.
             ("query", json!({"name": "rules.fab_profiles", "params": {}})),
             ("describe", json!({"name": "component.place"})),
             (
@@ -172,15 +171,24 @@ fn steps() -> Vec<Step> {
             ),
         ]
     }));
-    // 2. Search for the parts.
+    // 2. The fab profile by the id and option the listing gives, in one
+    // step.
+    out.push(Box::new(move |m| {
+        vec![apply(
+            m,
+            vec![json!({"op": "rules.set_fab_profile", "params": {
+                "profile": "pcbway-2-layer", "options": {"limits": "minimum"}}})],
+        )]
+    }));
+    // 3. Search for the parts.
     out.push(Box::new(|_| PARTS.iter().map(|(w, _)| search(w)).collect()));
-    // 3. Make the generic parts the search offers: each make goes alone,
+    // 4. Make the generic parts the search offers: each make goes alone,
     // one revision after the other.
     out.push(Box::new(move |m| {
         let start = revision(m).as_u64().unwrap_or_default();
         (0..PARTS.len())
             .map(|k| {
-                let make = reply_to(m, &format!("c2_{k}"))["generic"][0]["make"].clone();
+                let make = reply_to(m, &format!("c3_{k}"))["generic"][0]["make"].clone();
                 (
                     "apply",
                     json!({"expected_revision": start + k as u64, "operations": [make]}),
@@ -188,15 +196,15 @@ fn steps() -> Vec<Step> {
             })
             .collect()
     }));
-    // 4. Search again: now held, with their place data.
+    // 5. Search again: now held, with their place data.
     out.push(Box::new(|_| PARTS.iter().map(|(w, _)| search(w)).collect()));
-    // 5. Place them; position left to the sheet.
+    // 6. Place them; position left to the sheet.
     out.push(Box::new(move |m| {
         let ops = PARTS
             .iter()
             .enumerate()
             .map(|(k, (_, designator))| {
-                let hint = &reply_to(m, &format!("c4_{k}"))["generic"][0];
+                let hint = &reply_to(m, &format!("c5_{k}"))["generic"][0];
                 let mut params = json!({"component": hint["component"], "physical": hint["physical"],
                     "designator": designator});
                 if let Some(properties) = hint.get("properties") {
@@ -207,10 +215,10 @@ fn steps() -> Vec<Step> {
             .collect();
         vec![apply(m, ops)]
     }));
-    // 6. Read the instances' terminals.
+    // 7. Read the instances' terminals.
     let l = learnt.clone();
     out.push(Box::new(move |m| {
-        let placed = reply_to(m, "c5_0");
+        let placed = reply_to(m, "c6_0");
         let instances: Vec<Value> = placed["outcomes"]
             .as_array()
             .into_iter()
@@ -228,12 +236,12 @@ fn steps() -> Vec<Step> {
             })
             .collect()
     }));
-    // 7. Wire: J1.1 to R1.1 (VIN), R1.2 to D1 anode, D1 cathode to J1.2.
+    // 8. Wire: J1.1 to R1.1 (VIN), R1.2 to D1 anode, D1 cathode to J1.2.
     let l = learnt.clone();
     out.push(Box::new(move |m| {
         let ids = l.borrow()["instances"].clone();
         let terminal = |k: usize, label: &str| -> Value {
-            let report = reply_to(m, &format!("c6_{k}"));
+            let report = reply_to(m, &format!("c7_{k}"));
             let functions = report["result"]["functions"]["active"]
                 .as_array()
                 .cloned()
@@ -258,7 +266,7 @@ fn steps() -> Vec<Step> {
             .collect();
         vec![apply(m, ops)]
     }));
-    // 8. The board and Update PCB.
+    // 9. The board and Update PCB.
     out.push(Box::new(move |m| {
         vec![apply(
             m,
@@ -268,7 +276,7 @@ fn steps() -> Vec<Step> {
             ],
         )]
     }));
-    // 9. Place the parts close together.
+    // 10. Place the parts close together.
     let l = learnt.clone();
     out.push(Box::new(move |m| {
         let ids = l.borrow()["instances"].clone();
@@ -286,13 +294,13 @@ fn steps() -> Vec<Step> {
         .collect();
         vec![apply(m, ops)]
     }));
-    // 10. Where the pads are.
+    // 11. Where the pads are.
     out.push(Box::new(|_| {
         vec![("query", json!({"name": "layout.pads", "params": {}}))]
     }));
-    // 11. Route each net with L-shaped legs between its pads.
+    // 12. Route each net with L-shaped legs between its pads.
     out.push(Box::new(move |m| {
-        let pads = reply_to(m, "c10_0");
+        let pads = reply_to(m, "c11_0");
         let pads = pads["result"].as_array().cloned().unwrap_or_default();
         let at = |designator: &str, pad: &str| -> (Value, [f64; 2]) {
             pads.iter()
@@ -326,7 +334,7 @@ fn steps() -> Vec<Step> {
         }
         vec![apply(m, ops)]
     }));
-    // 12. A GND fill on the bottom, on the net of J1's pad 2 (from the
+    // 13. A GND fill on the bottom, on the net of J1's pad 2 (from the
     // pads reply, two requests back).
     out.push(Box::new(move |m| {
         let gnd = m
@@ -353,7 +361,7 @@ fn steps() -> Vec<Step> {
             ],
         )]
     }));
-    // 13. The check.
+    // 14. The check.
     out.push(Box::new(|_| {
         vec![(
             "query",

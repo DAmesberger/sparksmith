@@ -113,10 +113,7 @@ fn board_operations_are_atomic_undoable_and_persist() -> Fallible<()> {
 
     engine.apply(
         engine.revision(),
-        Operation::Rules(RulesCommand::SetProfile {
-            profile: Box::new(fixtures::fine()?),
-            keep_overrides: false,
-        }),
+        Operation::Rules(RulesCommand::set_profile(fixtures::fine()?, false)),
     )?;
     let Outcome::NetClassAdded { class } = engine.apply(
         engine.revision(),
@@ -200,7 +197,8 @@ fn board_operations_are_atomic_undoable_and_persist() -> Fallible<()> {
     };
     assert_eq!(board.edges.len(), 4);
     let QueryResult::ProfileImpact(impact) = engine.query(Query::PreviewProfile {
-        profile: Box::new(fixtures::prototype()?),
+        profile: crate::rules::ProfileChoice::Profile(Box::new(fixtures::prototype()?)),
+        options: Default::default(),
         keep_overrides: false,
     })?
     else {

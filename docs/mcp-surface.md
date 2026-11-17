@@ -446,6 +446,8 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - `find` reads the static M2 metadata, not a project, so it does not go through the desk.
 - **`describe {name, def?}`** runs `project.schema` through the gate.
   - It answers one reachable entry with `kind`, `title`, `summary`, `person` where set, and `call`, the call on this surface. Today's `send` shape and `asks_with_path` are removed.
+  - `schema` is exactly what the verb's `params` take: an operation's or query's parameters without the tag that names it (`{command, params}` is the core's wire shape, never `apply`'s), with the variant's description. `apply`, `query` and `act` check fields against the same schema (`discovery::params_schema`).
+  - `examples` lists the parameter examples the entry's description gives (each JSON object in backticks), and `call` sends the first in place of `<params>`. `every_describe_example_is_what_apply_and_query_accept` sends every example of every operation and query through the field check and the typed read `apply` and `query` run.
   - `def` reads one definition.
 - **`query {project?, name, params}`**: a query becomes `project.query`, and a read command runs as itself.
 - **`apply {project?, expected_revision, operations, dry_run?}`**: 1–256 steps.

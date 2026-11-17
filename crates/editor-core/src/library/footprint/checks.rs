@@ -844,13 +844,7 @@ mod rules_tests {
             &values,
             "",
         )?;
-        crate::rules::apply(
-            &mut fine,
-            RulesCommand::SetProfile {
-                profile: Box::new(profile),
-                keep_overrides: false,
-            },
-        )?;
+        crate::rules::apply(&mut fine, RulesCommand::set_profile(profile, false))?;
         assert_eq!(
             messages(&f, &fine, "footprint.mask_web"),
             vec![

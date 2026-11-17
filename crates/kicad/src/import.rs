@@ -674,10 +674,7 @@ impl Session<'_> {
         };
         self.apply(
             "rules.set_fab_profile",
-            Operation::Rules(RulesCommand::SetProfile {
-                profile: Box::new(profile.clone()),
-                keep_overrides: false,
-            }),
+            Operation::Rules(RulesCommand::set_profile(profile.clone(), false)),
         )?;
         let mut overrides = vec![(
             RuleKey::MaskExpansion,

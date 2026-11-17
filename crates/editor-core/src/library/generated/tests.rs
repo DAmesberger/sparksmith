@@ -329,6 +329,7 @@ fn request(module: &[u8], scope: GeneratorScope, length: i64) -> Generate {
         replaces: None,
         model: Some(evaluated(length)),
         bundle: None,
+        preset: None,
     }
 }
 
