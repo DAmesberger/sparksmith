@@ -21,7 +21,7 @@
 use super::App;
 use crate::assistant::worker::{self, ChatModel, FromTurn, ToolRequest};
 use crate::assistant::{
-    self, Action, Allow, AskCard, Dock, Held, Item, Now, OpenTurn, State, TurnSummary,
+    self, Action, Allow, AskCard, Asking, Dock, Held, Item, Now, OpenTurn, State, TurnSummary,
 };
 use crate::kit::severity::Level;
 use serde_json::{Value, json};
@@ -30,6 +30,7 @@ use sparksmith_assist::desk::{self, Called};
 use sparksmith_assist::model::{Budget, Connection, KeySource, Message, Part, Provider};
 use sparksmith_assist::settings::{self as ai, AssistSettings, Permissions, Rule, Shipped};
 use sparksmith_automation::front::{self, Answer, Asker, Call, CallCx, NoOne, Surface};
+use sparksmith_automation::workflow::ask::AskReply;
 use sparksmith_automation::{Grant, Principal, Question, WindowHost};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{Container, Edge, Surface as Host};
@@ -44,6 +45,9 @@ const NAMED_ISSUES: usize = 3;
 const NAMED_OBJECTS: usize = 4;
 /// The longest undo label, in characters, before "…".
 const LABEL_CHARS: usize = 60;
+/// The entry that asks the person on a question card: it shows no view, so
+/// the rule for moving the view does not hold it.
+const ASK: &str = "assist.ask";
 
 /// The kind of action a question is about, as Settings › AI's permissions
 /// name it.
@@ -365,6 +369,21 @@ impl App {
             Action::Card(action) => self.workflow_card_action(action),
             // The card is in the cards already; the next frame shows it.
             Action::Offered(_) => {}
+            Action::Question { card, choice } => {
+                let reply = match choice {
+                    assistant::questions::Choice::Send(answers) => AskReply {
+                        card,
+                        answers,
+                        ..AskReply::default()
+                    },
+                    assistant::questions::Choice::Skip => AskReply {
+                        card,
+                        skipped: true,
+                        ..AskReply::default()
+                    },
+                };
+                self.answer_question(reply);
+            }
             Action::ConnectModel => {
                 self.settings_window.ai.focus_connection();
                 if !self.settings_window.is_open() {
@@ -374,9 +393,46 @@ impl App {
         }
     }
 
+    /// The person's answers to the question card the turn waits on: they
+    /// are the reply of its `assist.ask` call, and the turn goes on.
+    fn answer_question(&mut self, reply: AskReply) {
+        let Some(asking) = self
+            .assistant
+            .asking
+            .take_if(|asking| asking.card == reply.card)
+        else {
+            return;
+        };
+        let revision = self.engine.revision();
+        let value = serde_json::to_value(&reply).unwrap_or_default();
+        let _ = asking.request.reply.send(Called {
+            envelope: front::envelope(Ok(value)),
+            before: revision,
+            after: revision,
+        });
+        self.assistant.conversation.state = State::Running;
+    }
+
     /// Send the composer's message: read what the window shows, open the
-    /// message's turn and start the model on it.
+    /// message's turn and start the model on it. While a question card
+    /// waits, the message answers it in the person's own words instead.
     fn assistant_send(&mut self, ctx: &egui::Context) {
+        if let Some(card) = self.assistant.asking.as_ref().map(|a| a.card.clone()) {
+            let said = self.assistant.composer.trim().to_owned();
+            if said.is_empty() {
+                return;
+            }
+            if let Some(question) = self.assistant.conversation.question_mut(&card) {
+                question.answer = Some(assistant::questions::Answered::Said(said.clone()));
+            }
+            self.assistant.composer.clear();
+            self.answer_question(AskReply {
+                card,
+                said: Some(said),
+                ..AskReply::default()
+            });
+            return;
+        }
         if self.assistant.job.is_some()
             || self.assistant.run.is_some()
             || self.assistant.conversation.state.busy()
@@ -575,6 +631,7 @@ impl App {
             .unwrap_or_default()
             .to_owned();
         if request.verb == sparksmith_assist::verbs::SHOW
+            && shown != ASK
             && !allowed
             && !self.assistant.allowed_session.contains(&shown)
         {
@@ -644,8 +701,16 @@ impl App {
                 )
             }
         });
-        match asker.question {
-            Some(question) if !allowed => self.hold(request, question),
+        let asked = self.asks.shown.take();
+        match (asker.question, asked) {
+            (Some(question), _) if !allowed => self.hold(request, question),
+            // A question card shown: the call waits for the person's answers.
+            (_, Some((card, params))) if reply.envelope["ok"] == true => {
+                let question = assistant::questions::QuestionCard::new(card.clone(), &params);
+                self.assistant.conversation.push(Item::Question(question));
+                self.assistant.conversation.state = State::Waiting;
+                self.assistant.asking = Some(Asking { request, card });
+            }
             _ => {
                 let _ = request.reply.send(reply);
             }
@@ -712,6 +777,11 @@ impl App {
     fn finish_turn(&mut self, outcome: Outcome, history: Vec<Message>) {
         self.assistant.job = None;
         self.assistant.held = None;
+        if let Some(asking) = self.assistant.asking.take()
+            && let Some(card) = self.assistant.conversation.question_mut(&asking.card)
+        {
+            card.answer = Some(assistant::questions::Answered::Stopped);
+        }
         self.assistant.history = history;
         let Some(turn) = self.assistant.turn.take() else {
             return;
@@ -894,3 +964,7 @@ mod tests {
 #[cfg(test)]
 #[path = "assistant_tests.rs"]
 mod assistant_tests;
+
+#[cfg(test)]
+#[path = "assistant_ask_tests.rs"]
+mod assistant_ask_tests;

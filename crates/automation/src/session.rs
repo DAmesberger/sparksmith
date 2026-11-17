@@ -495,6 +495,10 @@ pub enum Request {
     /// Show a workflow's card in the chat, with the inputs already known.
     #[serde(rename = "assist.offer")]
     Offer(crate::workflow::entries::OfferParams),
+    /// Ask the person questions on one card in the chat; their answers are
+    /// the reply.
+    #[serde(rename = "assist.ask")]
+    AskPerson(crate::workflow::ask::AskParams),
     /// What the window shows: workspace, view, sheet and selection.
     #[serde(rename = "view.context")]
     ViewContext(crate::view::ContextParams),
@@ -573,6 +577,7 @@ sparksmith_core::declare_entries!(Request in project {
     Workflows "assist.workflows" Read "List workflows" [in assist, effect(World), since(1, 1)],
     StepResult "assist.step_result" Read "Answer a workflow step" [in assist, effect(World), since(1, 1)],
     Offer "assist.offer" Show "Offer a workflow in the chat" [in assist, reach(Window), needs(Window), since(1, 2)],
+    AskPerson "assist.ask" Show "Ask the person in the chat" [in assist, reach(Window), needs(Window), since(1, 3)],
     ViewContext "view.context" Read "What the window shows" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewSelect "view.select" Show "Select in the window" [in view, reach(Window), needs(Window), since(1, 0)],
     ViewOpen "view.open" Show "Open a workspace or view" [in view, reach(Window), needs(Window), since(1, 0)],
@@ -1009,6 +1014,11 @@ impl Request {
                 "assist.offer",
                 "Offer a workflow in the chat as one card with every input the conversation gives; the person accepts and continues, or just chats.",
                 "Show the workflow's card in the window's chat: its title and summary, why it fits (one sentence), the inputs given (each checked against the workflow's input, changed in place by the person; the latest files the person attached fill its files inputs) and an inline field for each required one still missing. Answers the card's id and the missing inputs; the person's answer comes as their next message. Nothing starts until they choose Accept and continue. Not a document change; a host without a window answers host.unavailable.",
+            ),
+            info::<crate::workflow::ask::AskParams>(
+                "assist.ask",
+                "Ask the person what you need to know, as one card of questions in the chat; their answers are the reply.",
+                "Show one card of questions in the window's chat and wait for the person. Each question has an id, a short title, the question in plain words (text) and a type: single (options, each with value, title and a short plain about; one recommended), multiple (options; recommended values), number (unit, min, max, recommended) or text (recommended). Recommended values are chosen until the person changes them. The reply is the card's id and answers by question id; or said, when the person answered in their own words in the chat; or skipped, when they left it to you: choose sensibly and say what you chose. Not a document change; a host without the window's chat answers host.unavailable.",
             ),
             info::<turns::TurnBeginParams>(
                 "project.turn_begin",
@@ -1492,7 +1502,8 @@ impl Session {
             request @ (Request::ViewContext(_)
             | Request::ViewSelect(_)
             | Request::ViewOpen(_)
-            | Request::Offer(_)) => {
+            | Request::Offer(_)
+            | Request::AskPerson(_)) => {
                 return Err(crate::Error::refused(crate::view::unavailable(
                     request.command(),
                 )));

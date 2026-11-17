@@ -281,7 +281,8 @@
   {"name":"library.use_part_file","class":"edit","schema":"0c9c07c7bf83b70d","fields":[["builtin","428293de17850c2e"],["expected_revision","9295ea67127970c6"],["licence","428293de17850c2e"],["name","428293de17850c2e"],["package","dd016f7f1c3e2ab4"],["path","428293de17850c2e"],["redistribution","f8cdd37b92f07225"],["values","2905ffaa50c97ef9"]],"required":["expected_revision","package"]},
   {"name":"project.export_native","class":"ask","schema":"ee897275b361b97f","fields":[["path","f186891b5656c9ae"],["tier","f68f07ffbe12713d"],["write_anyway","e3ce44acd037492c"]],"required":["path"]}
  ]},
- {"id": "assist", "version": "1.2", "digest": "sha256:8499de310c6e797c0c81327efed873dc05380ad726eb26cbab5dcb7c876fc28d", "entries": [
+ {"id": "assist", "version": "1.3", "digest": "sha256:b3bd39098730cc82cb98eb361106d9aaa61356967090dda38a49774a6d393441", "entries": [
+  {"name":"assist.ask","class":"show","schema":"da77996d726c03f3","fields":[["questions","54276f348ddac05b"],["title","428293de17850c2e"],["why","428293de17850c2e"]],"required":["questions"]},
   {"name":"assist.document_page","class":"read","schema":"f4a74bbffa04b3c9","fields":[["document","40bd5b57f4261fe2"],["page","bb9a2e7fd64c1bc0"]],"required":["page"]},
   {"name":"assist.document_text","class":"read","schema":"d251b1b31aa39dae","fields":[["document","40bd5b57f4261fe2"],["pages","40bd5b57f4261fe2"]],"required":[]},
   {"name":"assist.offer","class":"show","schema":"6c7f56cbbf2d7f25","fields":[["inputs","d66f35905a5179c5"],["why","f186891b5656c9ae"],["workflow","f186891b5656c9ae"]],"required":["why","workflow"]},

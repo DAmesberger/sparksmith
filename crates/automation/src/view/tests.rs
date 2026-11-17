@@ -268,6 +268,58 @@ fn an_offer_shows_the_workflow_card_in_the_window() -> Fallible {
     Ok(())
 }
 
+/// `assist.ask` shows its question card in the window's chat and answers
+/// the card's id (the chat replies with the answers later); headless it
+/// answers `host.unavailable`, and a card that does not pass is refused,
+/// naming why, with nothing shown. No revision changes.
+#[test]
+fn an_ask_shows_its_question_card_in_the_window() -> Fallible {
+    let mut session = Session::new(Engine::demo()?);
+    let revision = session.engine().revision();
+    let ask = json!({"title": "A few things first", "questions": [
+        {"id": "power", "title": "Power", "type": "single", "recommended": "usb",
+         "options": [{"value": "usb", "title": "USB", "about": "plugs into a phone charger"},
+                     {"value": "battery", "title": "Batteries"}]},
+        {"id": "every", "title": "How often", "type": "number", "unit": "minutes", "min": 1}
+    ]});
+    let Err(error) = run(&mut session, None, call("assist.ask", ask.clone())) else {
+        return Err("assist.ask ran without a window".into());
+    };
+    assert_eq!(error.code, "host.unavailable", "{error:?}");
+
+    let mut window = Fake::idle();
+    let shown = run(&mut session, Some(&mut window), call("assist.ask", ask))
+        .map_err(|e| format!("{e:?}"))?;
+    assert_eq!(shown, json!({"card": "question-1"}));
+    assert_eq!(window.asks.len(), 1);
+    assert_eq!(window.asks[0].questions.len(), 2);
+
+    let bad = json!({"questions": [{"id": "power", "title": "Power", "type": "single",
+        "options": [{"value": "usb", "title": "USB"}]}]});
+    let Err(error) = run(&mut session, Some(&mut window), call("assist.ask", bad)) else {
+        return Err("a choice of one option was shown".into());
+    };
+    assert_eq!(error.code, "assist.ask", "{error:?}");
+    assert!(
+        error.message.contains("power: a choice needs two options"),
+        "{error:?}"
+    );
+    let Err(error) = run(
+        &mut session,
+        Some(&mut window),
+        call(
+            "assist.ask",
+            json!({"questions": [{"id": "x", "title": "X", "type": "slider"}]}),
+        ),
+    ) else {
+        return Err("an unknown question type was shown".into());
+    };
+    assert_ne!(error.code, "ok", "{error:?}");
+    assert_eq!(window.asks.len(), 1);
+    assert_eq!(session.engine().revision(), revision);
+    Ok(())
+}
+
 /// Place `component` with only its id, as the person: the reply's
 /// outcome.
 fn place(session: &mut Session, component: Value) -> Fallible<Value> {

@@ -1,7 +1,7 @@
 //! The assistant's in-chat cards (`docs/assistant-panel.md` §3.1, §4, §7): the ten controls of
 //! a workflow, the compact confirmation of its inputs (each a value to change in place, then
-//! "Accept and continue"), a running workflow's block, and the composer's `/` and `@` lists and
-//! file chips. Sparksmith's own code, built once here on the kit's container, buttons,
+//! "Accept and continue"), a running workflow's block, the options and keys of the model's
+//! question card (§3.4), and the composer's `/` and `@` lists and file chips. Sparksmith's own code, built once here on the kit's container, buttons,
 //! fields and tokens; the chat transcript (the desktop app) supplies the content and acts on
 //! what each card returns.
 //!
@@ -660,6 +660,127 @@ pub fn compact_row<R>(ui: &mut Ui, title: &str, error: Option<&str>, control: im
         text(ui, error, Text::Error(error));
     }
     inner
+}
+
+/// An option of a question on the chat's question card (§3.4): its title, a short plain
+/// explanation, and whether the model recommends it.
+#[derive(Clone, Copy, Debug)]
+pub struct QuestionOption<'a> {
+    pub value: &'a str,
+    pub title: &'a str,
+    pub about: &'a str,
+    pub recommended: bool,
+}
+
+/// A question's options, one row each: a mark (◉ ○ for a single choice, ☑ ☐ for several), the
+/// title, then "recommended" and the explanation dimmed, cut with "…" and shown whole on the
+/// row's hover. `highlighted` is the row the keys stand on. Answers the row clicked.
+pub fn question_options(ui: &mut Ui, options: &[QuestionOption<'_>], chosen: &[String], multiple: bool, highlighted: Option<usize>) -> Option<usize> {
+    ui.vertical(|ui| option_rows(ui, options, chosen, multiple, highlighted)).inner
+}
+
+fn option_rows(ui: &mut Ui, options: &[QuestionOption<'_>], chosen: &[String], multiple: bool, highlighted: Option<usize>) -> Option<usize> {
+    let t = Tokens::get();
+    let mut clicked = None;
+    let title_font = type_face::medium(t.font_label);
+    let about_font = egui::FontId::proportional(t.font_small);
+    for (index, option) in options.iter().enumerate() {
+        let on = chosen.iter().any(|c| c == option.value);
+        let (rect, response) = ui.allocate_exact_size(vec2(dimension(ui.available_width()), row_height()), egui::Sense::click());
+        let lit = highlighted == Some(index) || response.hovered();
+        if lit {
+            ui.painter().rect_filled(rect, t.radius_sm, t.selected_bg);
+        }
+        let ink = if lit { t.selected_ink } else { t.form_ink };
+        let mark = match (multiple, on) {
+            (false, true) => "◉",
+            (false, false) => "○",
+            (true, true) => "☑",
+            (true, false) => "☐",
+        };
+        let inner = rect.shrink2(vec2(t.space_4, 0.0));
+        let mark_width = t.font_label * 1.4;
+        let mark_ink = if on { t.form_primary } else { t.form_dim };
+        crate::kit::text::paint_text(
+            ui,
+            egui::Rect::from_min_size(inner.min, vec2(mark_width, inner.height())),
+            mark,
+            about_font.clone(),
+            mark_ink,
+            false,
+        );
+        let words = egui::Rect::from_min_max(egui::pos2(inner.left() + mark_width, inner.top()), inner.max);
+        let title_width = ui.painter().layout_no_wrap(option.title.to_owned(), title_font.clone(), ink).size().x;
+        let title_rect = egui::Rect::from_min_size(words.min, vec2(title_width.min(words.width()), words.height()));
+        crate::kit::text::paint_text(ui, title_rect, option.title, title_font.clone(), ink, false);
+        let mut rest = Vec::new();
+        if option.recommended {
+            rest.push("recommended");
+        }
+        if !option.about.is_empty() {
+            rest.push(option.about);
+        }
+        let rest = rest.join(" · ");
+        let gap = t.space_6;
+        let rest_rect = egui::Rect::from_min_max(egui::pos2(title_rect.right() + gap, words.top()), words.max);
+        let mut cut = title_width > words.width();
+        if !rest.is_empty() && rest_rect.width() > 0.0 {
+            crate::kit::text::paint_text(ui, rest_rect, &rest, about_font.clone(), t.form_dim, false);
+            cut |= ui.painter().layout_no_wrap(rest.clone(), about_font.clone(), t.form_dim).size().x > rest_rect.width();
+        } else {
+            cut |= !rest.is_empty();
+        }
+        let label = option.title;
+        response.widget_info(|| {
+            let role = if multiple { egui::Role::CheckBox } else { egui::Role::RadioButton };
+            let mut info = egui::WidgetInfo::labeled(role, true, label);
+            info.selected = Some(on);
+            info
+        });
+        let response = if cut {
+            let full = if rest.is_empty() { option.title.to_owned() } else { format!("{} · {rest}", option.title) };
+            response.on_hover_text(full)
+        } else {
+            response
+        };
+        if response.clicked() {
+            clicked = Some(index);
+        }
+    }
+    clicked
+}
+
+/// The keys a question card reads while it is active and no field holds the keyboard: ↑↓ move
+/// over the current question's options, Space chooses (or, for several, toggles) the one lit,
+/// Enter chooses it and goes on (sending after the last), Esc skips.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct QuestionNav {
+    pub up: bool,
+    pub down: bool,
+    pub space: bool,
+    pub enter: bool,
+    pub escape: bool,
+}
+
+impl QuestionNav {
+    /// The keys taken out of this frame, so nothing else also acts on them.
+    pub fn take(ui: &Ui) -> Self {
+        ui.ctx().input_mut(|i| {
+            let none = egui::Modifiers::NONE;
+            Self {
+                up: i.consume_key(none, egui::Key::ArrowUp),
+                down: i.consume_key(none, egui::Key::ArrowDown),
+                space: i.consume_key(none, egui::Key::Space),
+                enter: i.consume_key(none, egui::Key::Enter),
+                escape: i.consume_key(none, egui::Key::Escape),
+            }
+        })
+    }
+
+    /// Esc alone, while a field of the card holds the keyboard.
+    pub fn escape(ui: &Ui) -> bool {
+        ui.ctx().input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+    }
 }
 
 /// A file a `datasheet` value may be: one the conversation has (attached, recently used, in the

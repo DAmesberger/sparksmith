@@ -21,6 +21,7 @@
 mod conversation;
 mod markdown;
 pub mod mentions;
+pub mod questions;
 pub mod worker;
 
 pub use conversation::{
@@ -86,6 +87,11 @@ pub enum Action {
     Offered(String),
     /// Connect a model…: Settings › AI › Connection.
     ConnectModel,
+    /// What the person did on the question card `card`.
+    Question {
+        card: String,
+        choice: questions::Choice,
+    },
 }
 
 /// The turn a message opened: its handle, its undo label, and the document
@@ -102,6 +108,14 @@ pub struct Held {
     pub request: ToolRequest,
     pub ask: u64,
     pub question: sparksmith_automation::Question,
+}
+
+/// A tool call (`assist.ask`) waiting for the person's answers on the
+/// question card `card`, which the front door checked and the window
+/// showed.
+pub struct Asking {
+    pub request: ToolRequest,
+    pub card: String,
 }
 
 /// A workflow run that ended: Undo run takes it back while the document
@@ -148,6 +162,8 @@ pub struct Assistant {
     pub notes: Vec<String>,
     pub turn: Option<OpenTurn>,
     pub held: Option<Held>,
+    /// A question card the turn waits on.
+    pub asking: Option<Asking>,
     /// The session the chat's calls run in, over the window's engine; it
     /// keeps the turns open between calls.
     pub session: Session,
@@ -185,6 +201,7 @@ impl Default for Assistant {
             notes: Vec::new(),
             turn: None,
             held: None,
+            asking: None,
             session: Session::lending(),
             model: None,
             library: None,
@@ -240,6 +257,11 @@ impl Assistant {
             && let Some(card) = self.conversation.ask_mut(held.ask)
         {
             card.answer = Some(Allow::Deny);
+        }
+        if let Some(asking) = self.asking.take()
+            && let Some(card) = self.conversation.question_mut(&asking.card)
+        {
+            card.answer = Some(questions::Answered::Stopped);
         }
     }
 
@@ -373,7 +395,8 @@ impl Assistant {
     ) {
         let t = Tokens::get();
         let mut toggled = None;
-        for (index, item) in self.conversation.items.iter().enumerate() {
+        let asking = self.asking.as_ref().map(|a| a.card.clone());
+        for (index, item) in self.conversation.items.iter_mut().enumerate() {
             ui.add_space(t.space_6);
             let open = self.expanded.contains(&index);
             ui.push_id(("assistant-item", index), |ui| match item {
@@ -417,6 +440,15 @@ impl Assistant {
                     }
                 }
                 Item::Ask(card) => ask(ui, card, actions),
+                Item::Question(card) => {
+                    let active = asking.as_deref() == Some(card.card.as_str());
+                    if let Some(choice) = questions::show(ui, card, active) {
+                        actions.push(Action::Question {
+                            card: card.card.clone(),
+                            choice,
+                        });
+                    }
+                }
                 Item::Summary(card) => summary(ui, card, now, actions),
                 Item::Workflow(key) => {
                     if let Some(action) = cards.show_key(ui, *key) {
@@ -620,7 +652,9 @@ impl Assistant {
         // sees the key.
         let focused = ui.memory(|m| m.has_focus(id));
         let busy = self.conversation.state.busy();
-        let can_send = !busy
+        // While a question card waits, a message answers it.
+        let answering = self.asking.is_some();
+        let can_send = (!busy || answering)
             && !self.composer.trim().is_empty()
             && !matches!(self.conversation.state, State::NotSetUp(_));
         // While the `/` menu shows, Enter is its own (the `@` list took
@@ -662,7 +696,11 @@ impl Assistant {
         }
         let edit = egui::TextEdit::multiline(&mut self.composer)
             .id(id)
-            .hint_text("Ask about this design… @ adds a file")
+            .hint_text(if answering {
+                "Answer the card, or in your own words here"
+            } else {
+                "Ask about this design… @ adds a file"
+            })
             .desired_rows(COMPOSER_ROWS)
             .desired_width(ui.available_width())
             .char_limit(MAX_MESSAGE_BYTES);
@@ -674,6 +712,9 @@ impl Assistant {
             if busy {
                 if ui_kit::button(ui, "Stop", Button::Enabled(true)).clicked() {
                     actions.push(Action::Stop);
+                }
+                if answering && kit::primary(ui, "Send", can_send).clicked() {
+                    actions.push(Action::Send);
                 }
             } else if kit::primary(ui, "Send", can_send).clicked() {
                 actions.push(Action::Send);

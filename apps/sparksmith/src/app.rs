@@ -133,6 +133,8 @@ pub struct App {
     /// The chat's workflow cards: offers from `assist.offer`, a dropped
     /// PDF, the palette and the `/` menu, and a run's cards (C2).
     workflow_cards: crate::workflow_cards::WorkflowCards,
+    /// The question card `assist.ask` showed, for the chat to hold its call.
+    asks: window_host::AskSlot,
     /// A datasheet field's Choose…: its card and the picker's answer.
     workflow_pick: Option<(String, std::sync::mpsc::Receiver<Vec<std::path::PathBuf>>)>,
     /// ⌘ commands pressed over a focused field, run once it committed.
@@ -361,6 +363,7 @@ impl App {
             keymap_problems,
             palette: Default::default(),
             workflow_cards: Default::default(),
+            asks: Default::default(),
             workflow_pick: None,
             after_commit: Default::default(),
             shortcut_sheet: Default::default(),

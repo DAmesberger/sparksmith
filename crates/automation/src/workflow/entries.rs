@@ -8,6 +8,7 @@
 //! |---|---|---|---|
 //! | `assist.workflows` | query, read | [`WorkflowsParams`] | [`WorkflowsReply`] |
 //! | `assist.offer` | show, show (a window; headless `host.unavailable`) | [`OfferParams`] | [`OfferReply`] |
+//! | `assist.ask` | show, show (a window's chat; elsewhere `host.unavailable`) | [`super::ask::AskParams`] | [`super::ask::AskReply`] |
 //! | `assist.step_result` | query, read (changes no document) | [`StepResultParams`] | [`StepResultReply`] |
 use super::{InputType, Problem};
 use serde::{Deserialize, Serialize};
