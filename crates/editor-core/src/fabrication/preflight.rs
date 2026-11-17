@@ -9,7 +9,7 @@
 use crate::diagnostics::{Error, ObjectRef, Result};
 use crate::geometry::{Bounds, Point, polyline_polygon_distance};
 use crate::ids::{DefinitionId, Id};
-use crate::issues::{IssueArea, IssueRow, IssueScope, Severity};
+use crate::issues::{IssueArea, IssueRow, Severity};
 use crate::layout::board_edge::{BoardEdges, EdgeLoopKind, EdgeVerdict};
 use crate::layout::{self, BoardDrawing, CopperRing, PlacedItem};
 use crate::library::{Drafts, MaskRule, PackageModel};
@@ -130,7 +130,7 @@ pub use crate::rules::ProfileChoice;
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct PreflightItem {
     /// Stable identity for waivers: the finding code and the objects it
-    /// names (`board.clearance via:12 track:40`).
+    /// names, encoded by [`key`].
     pub key: String,
     pub code: String,
     pub severity: Severity,
@@ -262,8 +262,7 @@ pub fn report(
         _ => Cow::Borrowed(project),
     };
     let p: &Project = &checked;
-    let issues = crate::issues::report_with(p, drafts, &IssueScope::All, true, settings)?;
-    for row in &issues.rows {
+    for row in &crate::issues::production_rows(p, drafts, settings)? {
         let Some(severity) = severity(row) else {
             continue;
         };
@@ -422,7 +421,7 @@ fn production_findings(project: &Project, drafts: &Drafts, items: &mut Vec<Prefl
                 Severity::Error,
                 format!("Fill {} has never been filled", fill.name),
                 Some("Refill the fills".into()),
-                Vec::new(),
+                vec![ObjectRef::Fill { id: fill.id }],
             ));
         }
     }
@@ -488,10 +487,17 @@ fn legend_name(text: &str, designator: &str) -> String {
 fn legend_against_the_board(project: &Project, items: &mut Vec<PreflightItem>) {
     let limit = project.rules.effective().silkscreen.edge_clearance;
     let edges = BoardEdges::of(project);
-    let names: BTreeMap<Id, &str> = project
+    let names: BTreeMap<Id, (&str, DefinitionId)> = project
         .instances
         .iter()
-        .map(|i| (i.id, i.designator.as_str()))
+        .filter_map(|instance| {
+            let footprint = crate::instances::resolve(&project.library, instance)
+                .ok()?
+                .physical?
+                .footprint
+                .id;
+            Some((instance.id, (instance.designator.as_str(), footprint)))
+        })
         .collect();
     for graphic in layout::placed_graphics(project) {
         let BoardDrawing::Silkscreen(side) = graphic.layer else {
@@ -547,7 +553,10 @@ fn legend_against_the_board(project: &Project, items: &mut Vec<PreflightItem>) {
         let Some(fault) = worst else {
             continue;
         };
-        let designator = names.get(&graphic.instance).copied().unwrap_or("a part");
+        // placed_graphics includes only instances with resolved footprints.
+        let Some(&(designator, footprint)) = names.get(&graphic.instance) else {
+            continue;
+        };
         let name = legend_name(&text.text, designator);
         let (code, title) = match fault {
             LegendFault::Outside => (
@@ -566,17 +575,21 @@ fn legend_against_the_board(project: &Project, items: &mut Vec<PreflightItem>) {
                 ),
             ),
         };
-        let mut finding = item(
+        let finding = item(
             code,
             Severity::Warning,
             title,
             Some("Move the text on the part's Placement card, or move the part".into()),
-            vec![ObjectRef::Instance {
-                id: graphic.instance,
-            }],
+            vec![
+                ObjectRef::Instance {
+                    id: graphic.instance,
+                },
+                ObjectRef::LibraryObject {
+                    definition: footprint,
+                    local: graphic.graphic.0,
+                },
+            ],
         );
-        // One waiver per legend item, not per part.
-        finding.key = format!("{} graphic:{}", finding.key, graphic.graphic.0);
         items.push(finding);
     }
 }

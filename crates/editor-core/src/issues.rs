@@ -217,54 +217,56 @@ pub fn report_on(
     graph: &layout::CopperGraph,
     settings: &layout::CheckSettings,
 ) -> Result<IssueReport> {
-    report_in(project, drafts, scope, false, graph, settings)
+    report_in(project, drafts, scope, graph, settings)
 }
 
-/// [`report`], keeping the findings waived for production when
-/// `waived` (the production check marks them; Issues leaves them out,
-/// as a waived finding is accepted and blocks nothing). A finding that
-/// blocks a component stage stays: a waiver is for production only.
-pub(crate) fn report_with(
+/// Every raw finding, with its own severity and wording, including findings
+/// waived for production. Production checks must gate and match waivers by
+/// individual identity before any display grouping can combine findings.
+pub(crate) fn production_rows(
     project: &Project,
     drafts: &Drafts,
-    scope: &IssueScope,
-    waived: bool,
     settings: &layout::CheckSettings,
-) -> Result<IssueReport> {
-    report_in(
-        project,
-        drafts,
-        scope,
-        waived,
-        &layout::CopperGraph::of(project),
-        settings,
-    )
+) -> Result<Vec<IssueRow>> {
+    let names = names::Names::new(project, drafts);
+    let graph = layout::CopperGraph::of(project);
+    Ok(collect(project, drafts, &graph, settings)?
+        .into_iter()
+        .flat_map(|(area, findings)| findings.into_iter().map(move |finding| (area, finding)))
+        .map(|(area, finding)| row(&names, area, vec![finding]))
+        .collect())
 }
 
 fn report_in(
     project: &Project,
     drafts: &Drafts,
     scope: &IssueScope,
-    waived: bool,
     graph: &layout::CopperGraph,
     settings: &layout::CheckSettings,
 ) -> Result<IssueReport> {
     let names = names::Names::new(project, drafts);
     let mut all = Vec::new();
-    for (area, merged) in collect(project, drafts, graph, settings)? {
-        all.push(row(&names, area, merged));
-    }
-    if !waived && !project.production.waivers.is_empty() {
-        all.retain(|r| {
-            r.blocks().is_some()
+    for (area, mut findings) in collect(project, drafts, graph, settings)? {
+        // A production waiver accepts only the exact finding it names.
+        // Filter before grouping, so waiving the primary never hides its
+        // unwaived siblings, and titles/counts describe only what remains.
+        findings.retain(|finding| {
+            project.production.is_default()
+                || finding.blocks.is_some()
                 || project
                     .production
                     .waiver(&crate::model::production::waiver_key(
-                        &r.finding.code,
-                        &r.finding.objects,
+                        &finding.code,
+                        &finding.objects,
                     ))
                     .is_none()
         });
+        let groups = match area {
+            IssueArea::Component => merge::component(&names, findings),
+            IssueArea::Schematic => merge::schematic(findings),
+            IssueArea::Board => merge::board(findings),
+        };
+        all.extend(groups.into_iter().map(|merged| row(&names, area, merged)));
     }
     all.sort_by(|a, b| {
         (a.severity, a.area, &a.group.code, &a.group.key).cmp(&(
@@ -490,8 +492,8 @@ fn row(names: &names::Names<'_>, area: IssueArea, merged: Vec<Finding>) -> Issue
     }
 }
 
-/// Every finding of the project, by area, with same-cause findings merged
-/// into one entry (primary first).
+/// Every raw finding of the project, by area. Grouping belongs to the
+/// Issues report; production checks need each finding independently.
 fn collect(
     project: &Project,
     drafts: &Drafts,
@@ -503,11 +505,7 @@ fn collect(
     for report in completeness::drafts(project, drafts)? {
         component.extend(report.findings);
     }
-    out.extend(
-        merge::component(&names::Names::new(project, drafts), component)
-            .into_iter()
-            .map(|m| (IssueArea::Component, m)),
-    );
+    out.push((IssueArea::Component, component));
     let mut schematic = Vec::new();
     for instance in &project.instances {
         match completeness::instance(project, instance.id) {
@@ -536,18 +534,10 @@ fn collect(
     }
     schematic.extend(erc::checks(project));
     schematic.extend(crate::model::import_review::findings(project));
-    out.extend(
-        merge::schematic(schematic)
-            .into_iter()
-            .map(|m| (IssueArea::Schematic, m)),
-    );
+    out.push((IssueArea::Schematic, schematic));
     let mut board = layout::checks_with(project, graph, settings);
     board.extend(crate::interface::list::checks(project));
     board.extend(crate::interface::assembly_link::checks(project));
-    out.extend(
-        merge::board(board)
-            .into_iter()
-            .map(|m| (IssueArea::Board, m)),
-    );
+    out.push((IssueArea::Board, board));
     Ok(out)
 }

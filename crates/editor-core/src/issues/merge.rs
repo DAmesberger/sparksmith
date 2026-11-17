@@ -3,7 +3,8 @@
 //! every merged finding is kept unchanged ([`super::IssueRow::also`]), so
 //! no count of findings, object or raw text is lost. A side without a
 //! counterpart keeps its own row. Merging decides by objects and stored
-//! data, never by matching message text.
+//! data, never by matching message text. Production waivers are applied to
+//! individual findings before they reach this display grouping.
 use super::names::Names;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::ids::{DefinitionId, Id, PackageTerminalId};

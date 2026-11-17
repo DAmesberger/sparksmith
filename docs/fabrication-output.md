@@ -39,9 +39,9 @@ The check reports every project issue under the chosen fabrication profile. Over
 - component-area findings.
 
 **Waivers:**
-- An unwaived error blocks export, and nothing is written.
+- An unwaived error blocks export, and nothing is written. Every underlying finding is checked separately, even when Issues groups several pad pairs or unrouted connections into one row. A waiver removes only its own finding before Issues groups the remaining findings.
 - `fabrication.waive {keys, reason?}` waives one or more findings with one optional reason, and `fabrication.unwaive {key}` restores one. Each is a document operation and one undo step. A list with one empty or unprintable key is refused whole. The desktop setting "Require a reason to waive errors" (Settings → Production, off by default) makes the app's engine refuse a waiver without a reason, from the dialog and the in-app assistant alike; headless CLI and MCP sessions keep the reason optional.
-- Waivers are saved in the project (`Project.production.waivers`, keyed by finding code plus the objects it names). A finding that changes identity needs a new waiver.
+- Waivers are saved in the project (`Project.production.waivers`, keyed by finding code plus the objects it names). A finding that changes identity needs a new waiver. Unfilled fills are keyed by fill ID; legend text findings name both the instance and the footprint graphic, so accepting one never accepts another.
 
 ## Files
 

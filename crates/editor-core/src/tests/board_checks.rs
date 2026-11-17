@@ -1036,6 +1036,9 @@ fn a_waived_finding_leaves_issues_and_stays_waived_in_production() -> Result<()>
         .find(|r| {
             r.area == IssueArea::Board
                 && r.blocks().is_none()
+                // This checks removing a whole row. A grouped row keeps
+                // its unwaived siblings (fabrication's preflight tests).
+                && r.also.is_empty()
                 && r.severity != issues::Severity::Info
         })
         .ok_or_else(|| Error::NotFound("a board finding".into()))?;
