@@ -569,6 +569,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "component.terminal_count",
     "component.terminal_name",
     "component.text_field_unknown",
+    "component.value_template",
     "config.function_unresolved",
     "config.pin_option",
     "config.requirement_unmet",

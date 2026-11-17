@@ -21,26 +21,6 @@ use crate::quantity::UnitSet;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-/// The fields of each chip kind, by lineage.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ChipFields {
-    pub resistor: Vec<SourceLineageId>,
-    pub capacitor: Vec<SourceLineageId>,
-    pub inductor: Vec<SourceLineageId>,
-    pub led: Vec<SourceLineageId>,
-}
-
-impl ChipFields {
-    fn all(&self) -> impl Iterator<Item = &SourceLineageId> {
-        self.resistor
-            .iter()
-            .chain(&self.capacitor)
-            .chain(&self.inductor)
-            .chain(&self.led)
-    }
-}
-
 /// What the standard fields are for (`standard-fields/roles.json`).
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -53,8 +33,6 @@ pub struct FieldRoles {
     /// frequency and an LED's colour. Ratings and tolerances qualify a
     /// value.
     pub value_fields: Vec<SourceLineageId>,
-    /// The selections a chip component starts with.
-    pub chip_fields: ChipFields,
 }
 
 /// Fields one role lists.
@@ -84,24 +62,12 @@ impl StandardFields {
                 .iter()
                 .any(|r| r.lineage == *lineage && r.kind == DefinitionKind::Field)
         };
-        let lists = [
-            &roles.value_fields,
-            &roles.chip_fields.resistor,
-            &roles.chip_fields.capacitor,
-            &roles.chip_fields.inductor,
-            &roles.chip_fields.led,
-        ];
-        if lists.iter().any(|l| l.len() > MAX_ROLE_FIELDS) {
+        if roles.value_fields.len() > MAX_ROLE_FIELDS {
             return Err(Error::Limit(format!(
                 "a standard field role lists at most {MAX_ROLE_FIELDS} fields"
             )));
         }
-        if let Some(missing) = roles
-            .value_fields
-            .iter()
-            .chain(roles.chip_fields.all())
-            .find(|l| !is_field(l))
-        {
+        if let Some(missing) = roles.value_fields.iter().find(|l| !is_field(l)) {
             return Err(Error::Invalid(format!(
                 "the standard field roles name {missing}, which is not a field of the standard fields bundle"
             )));
@@ -157,6 +123,31 @@ impl StandardFields {
     /// The source's identity, as origins of imported copies record it.
     pub fn library(&self) -> LibraryId {
         self.bundle.library
+    }
+
+    /// The lineage of a standard field, by its name.
+    pub fn lineage(&self, field: &str) -> Option<SourceLineageId> {
+        self.bundle
+            .records
+            .iter()
+            .find(|r| r.kind == DefinitionKind::Field && r.meta.name == field)
+            .map(|r| r.lineage)
+    }
+
+    /// The project's copy of a standard field, by its name: the field
+    /// whose recorded origin is that standard field.
+    pub fn local(&self, library: &Library, field: &str) -> Option<FieldRef> {
+        let lineage = self.lineage(field)?;
+        let source = self.library();
+        library
+            .origins
+            .iter()
+            .find(|o| {
+                o.local.kind == DefinitionKind::Field
+                    && o.origin.library == source
+                    && o.origin.lineage == lineage
+            })
+            .map(|o| FieldRef::new(o.local.id, o.local.revision))
     }
 
     /// The units of a standard quantity field, by its name.

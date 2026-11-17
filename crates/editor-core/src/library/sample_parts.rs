@@ -144,6 +144,7 @@ fn sample(name: &str, kind: Kind<'_>, refs: SampleRefs, layout: Layout) -> Resul
                 pin_rules: Vec::new(),
                 marking: None,
                 review: None,
+                value_template: None,
                 generic: None,
                 // Terminals 1–2, then their fixed passive functions 3–4.
                 next_local: 5,

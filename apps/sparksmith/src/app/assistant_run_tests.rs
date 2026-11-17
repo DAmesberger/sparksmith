@@ -9,7 +9,7 @@
 //! undoes the whole run as one step. Stop mid-run leaves the document as it
 //! was; Just chat goes on as chat; the start page's Create from datasheet…
 //! opens the chat on the card. At 1024×640 and 1920×1080.
-use super::super::ax_harness::{Ax, Fallible};
+use super::super::ax_harness::{Ax, Fallible, PATIENCE};
 use crate::assistant::State;
 use crate::assistant::worker::ChatModel;
 use crate::shell::Workspace;
@@ -118,10 +118,11 @@ impl egui::DroppedFile for Dropped {
     }
 }
 
-/// Frames until `done`: a run's steps take real work (the PDF read, the
-/// generator), so this waits longer than the harness's own `until`.
+/// Frames until `done`, for up to [`PATIENCE`] of real time (a run's steps
+/// take real work: the PDF read, the generator); the error shows the chat.
 fn wait(ax: &mut Ax, what: &str, mut done: impl FnMut(&Ax) -> bool) -> Fallible {
-    for _ in 0..6_000 {
+    let deadline = std::time::Instant::now() + PATIENCE;
+    while std::time::Instant::now() < deadline {
         ax.frame(vec![]);
         if done(ax) {
             return Ok(());

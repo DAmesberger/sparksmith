@@ -865,6 +865,7 @@ fn component_definition(
         pin_rules: vec![],
         marking: None,
         review: None,
+        value_template: None,
         generic: None,
     })
 }
