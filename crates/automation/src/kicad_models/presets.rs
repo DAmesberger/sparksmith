@@ -106,17 +106,34 @@ impl Presets {
         let Some(candidates) = &self.candidates else {
             return Ok(None);
         };
+        let mut geometry: Vec<_> = pads
+            .iter()
+            .map(|p| {
+                (
+                    &p.number,
+                    p.kind,
+                    &p.hole,
+                    p.side,
+                    p.position,
+                    p.rotation_mdeg,
+                    &p.shape,
+                )
+            })
+            .collect();
+        geometry.sort_by(|a, b| a.0.cmp(b.0));
         let key = sparksmith_core::library::bundle::asset_hash(
-            &serde_json::to_vec(&(pads, prefix)).map_err(|e| e.to_string())?,
+            &serde_json::to_vec(&(geometry, prefix)).map_err(|e| e.to_string())?,
         );
         let found = if let Some(found) = self.matches.get(&key) {
             *found
         } else {
-            let matching: Vec<_> = candidates
-                .iter()
-                .enumerate()
-                .filter_map(|(index, candidate)| matches(pads, &candidate.pads).map(|p| (index, p)))
-                .collect();
+            let mut matching = Vec::new();
+            for (index, candidate) in candidates.iter().enumerate() {
+                super::check_time(deadline)?;
+                if let Some(placement) = matches(pads, &candidate.pads) {
+                    matching.push((index, placement));
+                }
+            }
             let found = if matching.len() == 1 {
                 matching.first().copied()
             } else {
@@ -225,6 +242,7 @@ fn matches(imported: &[Pad], candidate: &[Pad]) -> Option<ModelPlacement> {
         }
         pairs.push((pad, *other));
     }
+    pairs.sort_by(|a, b| a.0.number.cmp(&b.0.number));
     for angle in [0.0, 90.0, 180.0, 270.0] {
         let (c, s) = sparksmith_core::geometry::cos_sin(angle);
         let rotate = |p: [f64; 2]| [c * p[0] - s * p[1], s * p[0] + c * p[1]];

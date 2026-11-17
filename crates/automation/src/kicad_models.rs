@@ -470,6 +470,49 @@ mod tests {
         Ok(())
     }
     #[test]
+    fn report_counts_instances_of_complete_assemblies_and_names_missing_models() -> Fallible {
+        let context = sparksmith_core::library::standards::Context::fixture()?;
+        let _context = context.enter();
+        let dir = tempfile::tempdir()?;
+        std::fs::write(dir.path().join("own.step"), fixture()?)?;
+        let mut board = String::from(
+            r#"(kicad_pcb (version 20240108) (generator "original assembly report fixture")
+            (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
+            (gr_rect (start 0 0) (end 40 30) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#,
+        );
+        for (name, x) in [("U1", 10), ("U2", 20)] {
+            board.push_str(&format!(
+                r#"(footprint "Original:Assembly" (layer "F.Cu") (at {x} 10)
+                (property "Reference" "{name}")
+                (model "own.step" (offset (xyz 0 0 0)))
+                (model "own.step" (offset (xyz 5 0 0))))"#
+            ));
+        }
+        board.push_str(
+            r#"(footprint "Original:Missing" (layer "F.Cu") (at 30 10)
+            (property "Reference" "U3") (model "missing.step")))"#,
+        );
+        let path = dir.path().join("assembly.kicad_pcb");
+        std::fs::write(&path, board)?;
+        let imported = crate::kicad_import::import(&path, None)?;
+        assert_eq!(
+            imported.report.count(Case::VendorModel),
+            2,
+            "two footprint instances, not four references or one unique model"
+        );
+        assert_eq!(imported.report.count(Case::NoModel), 1);
+        assert_eq!(imported.engine.project().library.models.len(), 1);
+        assert_eq!(
+            imported.engine.project().library.models[0]
+                .definition
+                .bodies
+                .len(),
+            2
+        );
+        Ok(())
+    }
+
+    #[test]
     fn host_import_shares_one_vendor_model_across_top_and_bottom_instances() -> Fallible {
         let context = sparksmith_core::library::standards::Context::fixture()?;
         let _context = context.enter();
