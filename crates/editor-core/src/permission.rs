@@ -74,9 +74,9 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "assist",
-        (1, 2),
+        (1, 3),
         "Assistant",
-        "Documents attached to an assistant run, its working pinout documents, its workflows and their cards in the chat.",
+        "Documents attached to an assistant run, its working pinout documents, its workflows and their cards in the chat, and its questions to the person.",
     ),
     module_at(
         "view",

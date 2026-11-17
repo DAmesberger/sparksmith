@@ -142,6 +142,8 @@ pub enum Item {
     Reasoning(String),
     Call(CallRow),
     Ask(AskCard),
+    /// The model's questions to the person (`assist.ask`).
+    Question(super::questions::QuestionCard),
     Summary(TurnSummary),
     /// A workflow's card or a run's (C2), by its key in the window's
     /// workflow cards (`crate::workflow_cards`).
@@ -332,6 +334,14 @@ impl Conversation {
     pub fn ask_mut(&mut self, id: u64) -> Option<&mut AskCard> {
         self.items.iter_mut().find_map(|item| match item {
             Item::Ask(card) if card.id == id => Some(card),
+            _ => None,
+        })
+    }
+
+    /// The question card `card`, if it is in the transcript.
+    pub fn question_mut(&mut self, card: &str) -> Option<&mut super::questions::QuestionCard> {
+        self.items.iter_mut().rev().find_map(|item| match item {
+            Item::Question(question) if question.card == card => Some(question),
             _ => None,
         })
     }

@@ -18,6 +18,7 @@
 //! the automation crate, below the runner, because the catalog's
 //! `assist.workflows` and `assist.step_result` and the MCP prompts
 //! ([`crate::mcp::prompts`]) are made from the same data.
+pub mod ask;
 pub mod control;
 pub mod entries;
 pub mod event;

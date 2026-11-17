@@ -442,3 +442,51 @@ fn the_slash_menu_lists_workflows_and_skips_those_that_cannot_run() {
         assert_eq!(chosen.take(), Some(0));
     });
 }
+
+/// A question's options on the chat's question card: each a radio named by its title, below
+/// one another inside the column, beside the card's Skip and Answer; a click answers the row.
+#[test]
+fn question_options_are_radios_with_their_explanations() {
+    let options = [
+        QuestionOption { value: "usb", title: "USB", about: "plugs into a phone charger", recommended: true },
+        QuestionOption { value: "battery", title: "Batteries", about: "no cable, change them now and then", recommended: false },
+    ];
+    every_size(|h| {
+        let chosen = vec!["usb".to_owned()];
+        let clicked = Cell::new(None);
+        let mut draw = |ui: &mut Ui| {
+            card(ui, "A few things first", "", |ui| {
+                let row = compact_row(ui, "Power", None, |ui| question_options(ui, &options, &chosen, false, Some(1)));
+                if row.is_some() {
+                    clicked.set(row);
+                }
+                footer(ui, &[FooterButton::new("Skip"), FooterButton::primary("Answer")]);
+            });
+        };
+        h.settle(&mut draw);
+        h.buttons_fit();
+        let usb = h.find(Role::RadioButton, "USB");
+        let battery = h.find(Role::RadioButton, "Batteries");
+        assert!(battery.rect.top() >= usb.rect.bottom() - 0.5, "{usb:?} {battery:?}");
+        assert!(usb.rect.right() <= h.size.x + 0.5);
+        h.click(Role::RadioButton, "Batteries", &mut draw);
+        assert_eq!(clicked.get(), Some(1));
+    });
+}
+
+/// Several may be chosen: each option is a check box.
+#[test]
+fn several_choices_are_check_boxes() {
+    let options = [
+        QuestionOption { value: "in", title: "Indoors", about: "", recommended: false },
+        QuestionOption { value: "out", title: "Outdoors", about: "", recommended: true },
+    ];
+    let mut h = Harness::new(SIZES[0], COLUMNS[0]);
+    let chosen = vec!["out".to_owned()];
+    let mut draw = |ui: &mut Ui| {
+        question_options(ui, &options, &chosen, true, None);
+    };
+    h.settle(&mut draw);
+    h.find(Role::CheckBox, "Indoors");
+    h.find(Role::CheckBox, "Outdoors");
+}

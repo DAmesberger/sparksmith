@@ -30,6 +30,8 @@ pub(super) struct Window<'a> {
     pub toasts: &'a mut Toasts,
     /// The chat's workflow cards, where `assist.offer` shows its card.
     pub cards: &'a mut crate::workflow_cards::WorkflowCards,
+    /// Where `assist.ask` leaves its card: only the chat's calls have one.
+    pub asks: Option<&'a mut AskSlot>,
     /// Why the person holds the window now, for the busy rule.
     pub busy: Option<String>,
 }
@@ -49,6 +51,7 @@ impl App {
             pcb: &mut self.pcb,
             toasts: &mut self.toasts,
             cards: &mut self.workflow_cards,
+            asks: None,
             busy: None,
         };
         (window, &self.engine)
@@ -67,6 +70,7 @@ impl App {
             pcb: &mut self.pcb,
             toasts: &mut self.toasts,
             cards: &mut self.workflow_cards,
+            asks: None,
             busy,
         };
         (window, &mut self.engine, &mut self.live)
@@ -85,6 +89,7 @@ impl App {
             pcb: &mut self.pcb,
             toasts: &mut self.toasts,
             cards: &mut self.workflow_cards,
+            asks: Some(&mut self.asks),
             busy,
         };
         (window, &mut self.engine, &mut self.assistant)
@@ -242,5 +247,39 @@ impl WindowHost for Window<'_> {
         offer: &sparksmith_automation::workflow::Offer,
     ) -> Result<String, Box<Error>> {
         Ok(self.cards.show_offer(offer.clone()))
+    }
+
+    fn ask(
+        &mut self,
+        ask: &sparksmith_automation::workflow::ask::AskParams,
+    ) -> Result<String, Box<Error>> {
+        let Some(slot) = self.asks.as_deref_mut() else {
+            return Err(Box::new(sparksmith_automation::gate::refusal(
+                "host.unavailable",
+                "assist.ask",
+                "only the window's own chat asks the person on a card. Nothing was shown.",
+                "Ask the person in your own conversation.",
+            )));
+        };
+        Ok(slot.show(ask.clone()))
+    }
+}
+
+/// Where `assist.ask` leaves the question card it shows: the chat's host
+/// takes it after the call, puts it in the conversation and holds the call
+/// until the person answers.
+#[derive(Default)]
+pub(super) struct AskSlot {
+    next: u64,
+    pub shown: Option<(String, sparksmith_automation::workflow::ask::AskParams)>,
+}
+
+impl AskSlot {
+    /// Keep `ask` as shown; answer its card's id.
+    fn show(&mut self, ask: sparksmith_automation::workflow::ask::AskParams) -> String {
+        self.next += 1;
+        let card = format!("question-{}", self.next);
+        self.shown = Some((card.clone(), ask));
+        card
     }
 }

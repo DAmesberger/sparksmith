@@ -230,6 +230,14 @@ pub trait WindowHost {
         let _ = offer;
         Err(unavailable("assist.offer"))
     }
+    /// Show a question card in the chat (`assist.ask`), already checked;
+    /// answer the card's id. The chat holds the call until the person
+    /// answers and replies with their answers. A window without a chat
+    /// answers `host.unavailable`.
+    fn ask(&mut self, ask: &crate::workflow::ask::AskParams) -> Result<String, Box<Error>> {
+        let _ = ask;
+        Err(unavailable("assist.ask"))
+    }
 }
 
 /// A `view` request, as the front door runs it.
@@ -239,6 +247,7 @@ pub enum Request {
     Select(SelectParams),
     Open(OpenParams),
     Offer(crate::workflow::entries::OfferParams),
+    Ask(crate::workflow::ask::AskParams),
 }
 
 impl Request {
@@ -249,6 +258,7 @@ impl Request {
             crate::Request::ViewSelect(params) => Some(Self::Select(params.clone())),
             crate::Request::ViewOpen(params) => Some(Self::Open(params.clone())),
             crate::Request::Offer(params) => Some(Self::Offer(params.clone())),
+            crate::Request::AskPerson(params) => Some(Self::Ask(params.clone())),
             _ => None,
         }
     }
@@ -281,6 +291,21 @@ pub fn run(
             serde_json::to_value(crate::workflow::entries::OfferReply {
                 card,
                 missing: offer.missing,
+            })
+        }
+        Request::Ask(params) => {
+            params.check().map_err(|why| {
+                refused(
+                    "assist.ask",
+                    entry,
+                    &format!("{why}. Nothing was shown."),
+                    "Fix the card and ask again.",
+                )
+            })?;
+            let card = window.ask(&params)?;
+            serde_json::to_value(crate::workflow::ask::AskReply {
+                card,
+                ..Default::default()
             })
         }
     };
@@ -525,6 +550,8 @@ pub(crate) struct Fake {
     pub selection: Vec<ObjectRef>,
     /// The workflow cards shown, oldest first.
     pub offers: Vec<crate::workflow::Offer>,
+    /// The question cards shown, oldest first.
+    pub asks: Vec<crate::workflow::ask::AskParams>,
 }
 
 #[cfg(test)]
@@ -538,6 +565,7 @@ impl Fake {
             sheet: None,
             selection: Vec::new(),
             offers: Vec::new(),
+            asks: Vec::new(),
         }
     }
     /// Held by the person for `reason`, or idle.
@@ -573,6 +601,10 @@ impl WindowHost for Fake {
     fn offer(&mut self, offer: &crate::workflow::Offer) -> Result<String, Box<Error>> {
         self.offers.push(offer.clone());
         Ok(format!("card-{}", self.offers.len()))
+    }
+    fn ask(&mut self, ask: &crate::workflow::ask::AskParams) -> Result<String, Box<Error>> {
+        self.asks.push(ask.clone());
+        Ok(format!("question-{}", self.asks.len()))
     }
     fn open(&mut self, engine: &Engine, params: &OpenParams) -> Result<Context, Box<Error>> {
         self.workspace = params.workspace;
