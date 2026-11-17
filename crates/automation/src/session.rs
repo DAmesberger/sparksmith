@@ -1296,9 +1296,11 @@ impl Session {
             Request::Open(params) => {
                 let path = PathBuf::from(params.path);
                 let file = sparksmith_io::read_project(&path)?;
+                // Stage host data before replacing the document: a missing
+                // library must leave history and the previous save path intact.
+                let defaults = sparksmith_io::new_project::shipped()?;
                 self.engine.replace_document(file)?;
-                self.engine
-                    .supply_dk_estimates(&sparksmith_io::new_project::shipped()?.presets.glass_dk);
+                self.engine.supply_dk_estimates(&defaults.presets.glass_dk);
                 // A file holds no fill copper: refill before answering, so
                 // checks, connectivity and fabrication see it. A fill that
                 // cannot be computed stays unfilled, and the production
