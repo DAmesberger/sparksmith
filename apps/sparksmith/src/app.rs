@@ -315,7 +315,9 @@ impl App {
         // `library.generate` runs the shipped generators' modules through
         // the host's runtime (slice D1); it stays across documents.
         let mut engine = engine;
-        engine.set_generators(sparksmith_automation::session::generators::runtime());
+        if !engine.has_generators() {
+            engine.set_generators(sparksmith_automation::session::generators::runtime());
+        }
         let mut pcb = pcb_editor::PcbEditor::default();
         *pcb.filter_mut() = sources.selection_filter();
         // The starting document's first page, framed like an opened one.

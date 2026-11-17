@@ -38,13 +38,14 @@ tokio = { workspace = true, features = ["rt", "sync", "macros"] }
 profile = ["sparksmith-solidcraft/profile"]
 # Test fixtures (`Session::default` on the core's fixture engine) for
 # other crates' tests, enabled only by their dev-dependencies.
-test-fixtures = ["sparksmith-core/test-fixtures"]
+test-fixtures = ["sparksmith-core/test-fixtures", "sparksmith-generators/test-fixtures"]
 
 [[test]]
 name = "build_profile"
 required-features = ["profile"]
 
 [dev-dependencies]
+sparksmith-generators = { workspace = true, features = ["test-fixtures"] }
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
 tempfile.workspace = true
 rmcp = { workspace = true, features = ["client"] }

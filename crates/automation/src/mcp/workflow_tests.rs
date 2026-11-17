@@ -245,7 +245,7 @@ fn the_method_file_and_the_prompt_are_one_source() -> Fallible<()> {
 fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallible<()> {
     // Publishing is Ask-class: allow-all stands in for the person's Allow,
     // so the test reaches the review gate that must still refuse it.
-    let mut session = Session::new(sparksmith_core::Engine::profiled()?);
+    let mut session = Session::fixture(sparksmith_core::Engine::profiled()?);
     session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(
         std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../library")),
     )?);
@@ -488,7 +488,7 @@ fn the_review_check_passes_the_strictest_gate() -> Fallible<()> {
 #[test]
 fn without_a_generator_the_part_is_authored_by_commands() -> Fallible<()> {
     let tools = Tools::new(
-        Session::new(sparksmith_core::Engine::profiled()?),
+        Session::fixture(sparksmith_core::Engine::profiled()?),
         Grant::default(),
     )?;
     let mut document: Value = serde_json::from_str(EXM48)?;

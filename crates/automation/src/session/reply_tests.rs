@@ -22,7 +22,7 @@ fn add_via(session: &Session, position: [f64; 2]) -> Value {
 }
 
 fn demo() -> std::result::Result<Session, Box<dyn std::error::Error>> {
-    Ok(Session::new(sparksmith_core::Engine::demo()?))
+    Ok(Session::fixture(sparksmith_core::Engine::demo()?))
 }
 
 fn ok(reply: Value) -> std::result::Result<Value, Box<dyn std::error::Error>> {

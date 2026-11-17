@@ -16,7 +16,7 @@ use std::sync::atomic::AtomicBool;
 /// A session on a board with the test fixture fab profile: the estimated
 /// lands a run builds take their margins from the board's profile.
 fn profiled_session() -> Session {
-    Session::new(sparksmith_core::Engine::profiled().unwrap_or_default())
+    Session::fixture(sparksmith_core::Engine::profiled().unwrap_or_default())
 }
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;

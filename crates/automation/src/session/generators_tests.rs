@@ -46,7 +46,7 @@ fn copy_dir(from: &Path, to: &Path) -> TestResult {
 }
 
 fn session(root: &Path) -> TestResult<Session> {
-    let mut session = Session::new(Engine::default());
+    let mut session = Session::fixture(Engine::default());
     session.set_shipped(ShippedLibrary::at(root)?);
     Ok(session)
 }

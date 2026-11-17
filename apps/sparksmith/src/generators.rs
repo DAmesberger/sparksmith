@@ -24,6 +24,9 @@ use sparksmith_core::library::generated::{
 use sparksmith_core::{ComponentRef, DefinitionId, Engine, LibraryCommand, Operation};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+const SHELF_RETRY: Duration = Duration::from_millis(250);
 
 /// One shipped generator: its bundle name (`library.generate_part`'s
 /// `generator`), what it offers, and its description for the core's
@@ -48,6 +51,9 @@ enum Loaded {
     Loading,
     Ready(Arc<Vec<Offer>>),
     Failed(String),
+    Retry {
+        at: Instant,
+    },
 }
 
 /// The shipped generators, loading or loaded: cheap to clone, shared by
@@ -55,18 +61,38 @@ enum Loaded {
 #[derive(Clone, Debug, Default)]
 pub struct Shelf {
     loaded: Arc<Mutex<Loaded>>,
+    repaint: Option<egui::Context>,
 }
 
-/// `library.generators`, on a session of its own: the shipped modules
-/// described, in name order. A module the host could not describe is left
-/// out.
-pub fn read_offers() -> Result<Vec<Offer>, String> {
+enum ReadFailure {
+    Busy,
+    Failed(String),
+}
+
+impl ReadFailure {
+    fn message(&self) -> String {
+        match self {
+            Self::Busy => "Generators are busy; retrying shortly…".into(),
+            Self::Failed(why) => why.clone(),
+        }
+    }
+}
+
+/// `library.generators`, on a session of its own. Permanent module
+/// refusals leave that module out; busy refuses the incomplete read.
+fn read_offers_once() -> Result<Vec<Offer>, ReadFailure> {
     let session = Session::lending();
-    let report = session
-        .generators_report()
-        .map_err(|e| crate::refusal::automation_error(&e))?;
+    let report = session.generators_report().map_err(|e| {
+        if e.diagnostic().rule.as_deref() == Some("generator.busy") {
+            ReadFailure::Busy
+        } else {
+            ReadFailure::Failed(crate::refusal::automation_error(&e))
+        }
+    })?;
     if report.shipped_library.is_none() {
-        return Err("The shipped library was not found, so no generator is offered".into());
+        return Err(ReadFailure::Failed(
+            "The shipped library was not found, so no generator is offered".into(),
+        ));
     }
     Ok(report
         .shipped
@@ -86,27 +112,57 @@ impl Shelf {
     /// Read the shipped generators off the UI thread; `ctx` repaints when
     /// they are there.
     pub fn load(ctx: &egui::Context) -> Self {
-        let shelf = Self::default();
-        let loaded = Arc::clone(&shelf.loaded);
-        let repaint = ctx.clone();
+        let shelf = Self {
+            repaint: Some(ctx.clone()),
+            ..Self::default()
+        };
+        shelf.start_read();
+        shelf
+    }
+
+    fn start_read(&self) {
+        let loaded = Arc::downgrade(&self.loaded);
+        let repaint = self.repaint.clone();
         let started = std::thread::Builder::new()
             .name("sparksmith-generators".into())
             .spawn(sparksmith_core::library::standards::carried(move || {
-                let read = match read_offers() {
-                    Ok(offers) => Loaded::Ready(Arc::new(offers)),
-                    Err(why) => Loaded::Failed(why),
-                };
-                if let Ok(mut slot) = loaded.lock() {
-                    *slot = read;
+                // The result belongs only to this shelf/context. Replacing
+                // or closing its last owner abandons the read and retries.
+                if loaded.strong_count() == 0 {
+                    return;
                 }
-                repaint.request_repaint();
+                let read = read_offers_once();
+                if let Some(loaded) = loaded.upgrade() {
+                    finish_read(&loaded, read, Instant::now());
+                    if let Some(repaint) = repaint {
+                        repaint.request_repaint();
+                        repaint.request_repaint_after(SHELF_RETRY);
+                    }
+                }
             }));
         if started.is_err()
-            && let Ok(mut slot) = shelf.loaded.lock()
+            && let Ok(mut slot) = self.loaded.lock()
         {
             *slot = Loaded::Failed("The generators could not be read: no thread".into());
         }
-        shelf
+    }
+
+    fn begin_retry(&self, now: Instant) -> bool {
+        if let Ok(mut slot) = self.loaded.lock()
+            && matches!(&*slot, Loaded::Retry { at } if now >= *at)
+        {
+            *slot = Loaded::Loading;
+            return true;
+        }
+        false
+    }
+
+    fn retry_if_due(&self) {
+        // No waiting thread and no timer loop: a view asking for this
+        // shelf starts at most one background retry after the backoff.
+        if self.begin_retry(Instant::now()) {
+            self.start_read();
+        }
     }
 
     /// A shelf with `offers`, loaded now (tests).
@@ -114,11 +170,13 @@ impl Shelf {
     pub fn with(offers: Vec<Offer>) -> Self {
         Self {
             loaded: Arc::new(Mutex::new(Loaded::Ready(Arc::new(offers)))),
+            repaint: None,
         }
     }
 
     /// The shipped generators, once read.
     pub fn offers(&self) -> Option<Arc<Vec<Offer>>> {
+        self.retry_if_due();
         match &*self.loaded.lock().ok()? {
             Loaded::Ready(offers) => Some(Arc::clone(offers)),
             _ => None,
@@ -127,9 +185,11 @@ impl Shelf {
 
     /// Why no generator is offered, while none is.
     pub fn status(&self) -> Option<String> {
+        self.retry_if_due();
         match &*self.loaded.lock().ok()? {
             Loaded::Loading => Some("Reading the shipped generators…".into()),
             Loaded::Failed(why) => Some(why.clone()),
+            Loaded::Retry { .. } => Some(ReadFailure::Busy.message()),
             Loaded::Ready(_) => None,
         }
     }
@@ -147,6 +207,18 @@ impl Shelf {
             .iter()
             .find(|o| o.description.id == id)
             .cloned()
+    }
+}
+
+fn finish_read(loaded: &Mutex<Loaded>, result: Result<Vec<Offer>, ReadFailure>, now: Instant) {
+    if let Ok(mut slot) = loaded.lock() {
+        *slot = match result {
+            Ok(offers) => Loaded::Ready(Arc::new(offers)),
+            Err(ReadFailure::Busy) => Loaded::Retry {
+                at: now + SHELF_RETRY,
+            },
+            Err(ReadFailure::Failed(why)) => Loaded::Failed(why),
+        };
     }
 }
 
@@ -458,12 +530,43 @@ pub fn made_component(
 /// The shipped generators, read once for every test of the process.
 #[cfg(test)]
 pub fn test_shelf() -> Shelf {
-    static OFFERS: std::sync::OnceLock<Result<Vec<Offer>, String>> = std::sync::OnceLock::new();
-    match OFFERS.get_or_init(read_offers) {
-        Ok(offers) => Shelf::with(offers.clone()),
+    static OFFERS: Mutex<Option<Vec<Offer>>> = Mutex::new(None);
+    match test_offers(&OFFERS, read_offers_once) {
+        Ok(offers) => Shelf::with(offers),
         Err(why) => Shelf {
-            loaded: Arc::new(Mutex::new(Loaded::Failed(why.clone()))),
+            loaded: Arc::new(Mutex::new(Loaded::Failed(why))),
+            repaint: None,
         },
+    }
+}
+
+/// Only fixture initialization is shared, as with the previous OnceLock;
+/// tests run concurrently after loading. Other tests can temporarily own
+/// all worker permits, so retry busy within a watchdog and cache successes
+/// only. Neither a transient refusal nor a failed read poisons later tests.
+#[cfg(test)]
+fn test_offers(
+    cache: &Mutex<Option<Vec<Offer>>>,
+    mut read: impl FnMut() -> Result<Vec<Offer>, ReadFailure>,
+) -> Result<Vec<Offer>, String> {
+    let mut saved = cache
+        .lock()
+        .map_err(|_| "The test shelf lock was poisoned")?;
+    if let Some(offers) = &*saved {
+        return Ok(offers.clone());
+    }
+    let started = Instant::now();
+    loop {
+        match read() {
+            Ok(offers) => {
+                *saved = Some(offers.clone());
+                return Ok(offers);
+            }
+            Err(ReadFailure::Busy) if started.elapsed() < Duration::from_secs(30) => {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(failure) => return Err(failure.message()),
+        }
     }
 }
 
@@ -477,4 +580,101 @@ pub fn wait(making: &mut Making) -> Result<Operation, String> {
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     Err("making the part took more than 30 s".into())
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    #[test]
+    fn test_shelf_cache_retries_busy_and_never_caches_failures() {
+        let cache = Mutex::new(None);
+        assert!(test_offers(&cache, || Err(ReadFailure::Failed("unavailable".into()))).is_err());
+        let mut calls = 0;
+        let loaded = test_offers(&cache, || {
+            calls += 1;
+            if calls == 1 {
+                Err(ReadFailure::Busy)
+            } else {
+                Ok(Vec::new())
+            }
+        });
+        assert!(loaded.is_ok());
+        assert_eq!(calls, 2);
+        assert!(
+            test_offers(&cache, || Err(ReadFailure::Failed(
+                "must not read again".into()
+            )))
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn a_busy_shelf_retries_once_when_due_then_keeps_the_complete_result() {
+        let shelf = Shelf::default();
+        let now = Instant::now() + Duration::from_secs(3600);
+        finish_read(&shelf.loaded, Err(ReadFailure::Busy), now);
+        assert!(shelf.offers().is_none());
+        assert_eq!(
+            shelf.status().as_deref(),
+            Some("Generators are busy; retrying shortly…")
+        );
+        assert!(!shelf.begin_retry(now));
+        assert!(shelf.begin_retry(now + SHELF_RETRY));
+        assert!(!shelf.clone().begin_retry(now + SHELF_RETRY));
+        let description = v1::Description {
+            abi: 1,
+            id: "fixture".into(),
+            version: 1,
+            title: "Fixture".into(),
+            licence: "MIT".into(),
+            deterministic: true,
+            capabilities: Vec::new(),
+            needs: Vec::new(),
+        };
+        finish_read(
+            &shelf.loaded,
+            Ok(vec![Offer {
+                name: "fixture".into(),
+                summary: GeneratorSummary::of(&description),
+                description,
+            }]),
+            now,
+        );
+        assert_eq!(
+            shelf
+                .offers()
+                .map(|offers| offers.iter().map(|o| o.name.clone()).collect::<Vec<_>>()),
+            Some(vec!["fixture".into()])
+        );
+        assert!(shelf.status().is_none());
+        assert!(!shelf.begin_retry(now + SHELF_RETRY));
+    }
+
+    #[test]
+    fn replacing_the_shelf_abandons_old_results_and_retry_state() {
+        let old = Shelf::default();
+        let pending = Arc::downgrade(&old.loaded);
+        finish_read(&old.loaded, Err(ReadFailure::Busy), Instant::now());
+        let current = Shelf::with(Vec::new());
+        drop(old);
+        assert!(pending.upgrade().is_none());
+        assert!(current.offers().is_some());
+        assert!(current.status().is_none());
+    }
+
+    #[test]
+    fn permanent_load_failure_remains_visible_and_does_not_retry() {
+        let shelf = Shelf::default();
+        finish_read(
+            &shelf.loaded,
+            Err(ReadFailure::Failed("The shipped library is missing".into())),
+            Instant::now(),
+        );
+        assert_eq!(
+            shelf.status().as_deref(),
+            Some("The shipped library is missing")
+        );
+        assert!(!shelf.begin_retry(Instant::now() + Duration::from_secs(3600)));
+    }
 }

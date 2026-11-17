@@ -17,7 +17,7 @@ type TestResult<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 const LIBRARY: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../library");
 
 fn session() -> TestResult<Session> {
-    let mut session = Session::new(Engine::default());
+    let mut session = Session::fixture(Engine::default());
     session.set_shipped(ShippedLibrary::at(Path::new(LIBRARY))?);
     Ok(session)
 }

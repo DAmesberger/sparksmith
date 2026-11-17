@@ -125,6 +125,9 @@ fn returning(generation: &Generation) -> Result<Fixture, String> {
     let mut fixture = Fixture::ok()?;
     fixture.response = vec![v1::STATUS_OK];
     fixture.response.extend(bytes);
+    fixture.pages = fixture
+        .pages
+        .max(((RESPONSE_AT as usize + fixture.response.len() + 65536) / 65536) as u32);
     fixture.generate = format!("i64.const {}", packed(RESPONSE_AT, fixture.response.len()));
     Ok(fixture)
 }
@@ -175,6 +178,9 @@ impl Fixture {
 
     fn wasm(&self) -> Result<Vec<u8>, String> {
         let description = codec::encode(&self.description).map_err(|e| e.to_string())?;
+        // Large adversarial responses must not overlap the request buffer.
+        let request_at =
+            (REQUEST_AT as usize).max(RESPONSE_AT as usize + self.response.len() + 1024);
         let text = format!(
             r#"(module
               {extra}
@@ -183,7 +189,7 @@ impl Fixture {
               (data (i32.const {DESCRIPTION_AT}) "{description_data}")
               (data (i32.const {RESPONSE_AT}) "{response_data}")
               (func (export "sparksmith_abi") (result i32) i32.const 1)
-              (func (export "sparksmith_alloc") (param i32) (result i32) i32.const {REQUEST_AT})
+              (func (export "sparksmith_alloc") (param i32) (result i32) i32.const {request_at})
               (func (export "sparksmith_describe") (result i64) i64.const {describe})
               (func (export "sparksmith_invoke") (param i32 i32) (result i64)
                 ;; A second call on the same instance traps: calls must not share one.
@@ -237,6 +243,77 @@ fn a_valid_fixture_runs_and_each_call_gets_a_fresh_instance() -> Result<(), Stri
     let second = loaded.generate(&request()).map_err(|f| f.to_string())?;
     assert_eq!(first, second);
     assert_eq!(first.generation, generation());
+    Ok(())
+}
+
+#[test]
+fn the_maximum_pad_count_decodes_and_keeps_identical_canonical_output() -> Result<(), String> {
+    let mut large = generation();
+    let pad = large
+        .footprint
+        .pads
+        .first()
+        .ok_or("fixture pad missing")?
+        .clone();
+    large.package.terminals.clear();
+    large.package.geometry.leads.clear();
+    large.footprint.pads.clear();
+    for n in 1..=v1::limits::PADS {
+        let key = n.to_string();
+        large.package.terminals.push(key.clone());
+        large.package.geometry.leads.push(Lead {
+            key: key.clone(),
+            contact: [0, 0, 0],
+        });
+        large.footprint.pads.push(Pad {
+            key: key.clone(),
+            terminal: key,
+            ..pad.clone()
+        });
+    }
+    let canonical = codec::encode(&large).map_err(|e| e.to_string())?;
+    assert!(canonical.len() < v1::limits::RESPONSE_BYTES);
+    let runtime = WasmiRuntime::new(Limits::DEFAULT);
+    let generated = runtime
+        .generate(&returning(&large)?.wasm()?, &request())
+        .map_err(|e| e.to_string())?;
+    assert_eq!(generated.canonical, canonical);
+    assert_eq!(generated.generation, large);
+    Ok(())
+}
+
+#[test]
+fn host_decode_rejects_structural_overflow_even_with_a_larger_wire_allowance() -> Result<(), String>
+{
+    let body = format!("[{}0]", "0,".repeat(codec::MAX_NODES - 1));
+    let mut fixture = Fixture::ok()?;
+    fixture.response = vec![v1::STATUS_OK];
+    fixture.response.extend_from_slice(body.as_bytes());
+    fixture.pages = ((RESPONSE_AT as usize + fixture.response.len() + 65536) / 65536) as u32;
+    fixture.generate = format!("i64.const {}", packed(RESPONSE_AT, fixture.response.len()));
+    // This host explicitly allows more than ABI 1's default wire bytes;
+    // the structural bound still refuses the result after WASM returns.
+    let runtime = WasmiRuntime::new(Limits {
+        module_bytes: 2 * 1024 * 1024,
+        response_bytes: 2 * 1024 * 1024,
+        ..Limits::DEFAULT
+    });
+    let failure = refused(&runtime, &fixture)?;
+    assert_eq!(code(&failure), "generator.invalid_output");
+    assert!(
+        failure
+            .to_string()
+            .contains(&codec::CodecError::TooManyNodes.to_string())
+    );
+    // Error reports cross the same bounded decoder, not a second path.
+    fixture.response[0] = v1::STATUS_ERR;
+    let failure = refused(&runtime, &fixture)?;
+    assert_eq!(code(&failure), "generator.invalid_output");
+    assert!(
+        failure
+            .to_string()
+            .contains(&codec::CodecError::TooManyNodes.to_string())
+    );
     Ok(())
 }
 

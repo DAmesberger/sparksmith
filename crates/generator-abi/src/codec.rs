@@ -34,6 +34,17 @@ pub use tree::Canon;
 /// Deepest nesting of arrays and objects the codec accepts.
 pub const MAX_DEPTH: usize = 64;
 
+/// Total JSON values plus object keys accepted by one read. A tree with
+/// `n` such nodes takes at least `2n - 1` bytes, so this admits every tree
+/// within ABI 1's largest (1 MiB) response while bounding allocations even
+/// when a caller gives a larger byte allowance.
+pub const MAX_NODES: usize = 512 * 1024;
+
+/// Total decoded UTF-8 bytes in all keys and string values in one read.
+/// Decoding JSON escapes never expands their byte length, so this also
+/// admits every string within ABI 1's 1 MiB response bound.
+pub const MAX_STRING_BYTES: usize = 1024 * 1024;
+
 /// Why bytes were not canonical JSON of the expected shape, in plain words.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CodecError {
@@ -45,6 +56,10 @@ pub enum CodecError {
     Float,
     /// Nesting deeper than [`MAX_DEPTH`].
     TooDeep,
+    /// More JSON values and object keys than [`MAX_NODES`].
+    TooManyNodes,
+    /// More decoded string bytes than [`MAX_STRING_BYTES`].
+    TooMuchText,
     /// A string is not in Unicode NFC (with the `nfc` feature).
     NotNfc,
     /// Valid JSON, but not in canonical form (key order, whitespace,
@@ -63,6 +78,8 @@ impl fmt::Display for CodecError {
             Self::Syntax(detail) => write!(f, "the data is not valid JSON ({detail})"),
             Self::Float => f.write_str("a number is not a whole number; only integers are allowed"),
             Self::TooDeep => write!(f, "the data nests deeper than {MAX_DEPTH} levels"),
+            Self::TooManyNodes => write!(f, "the data has more than {MAX_NODES} values and object keys"),
+            Self::TooMuchText => write!(f, "the data has more than {MAX_STRING_BYTES} decoded text bytes"),
             Self::NotNfc => f.write_str("a text value is not in Unicode normal form C"),
             Self::NotCanonical => f.write_str(
                 "the data is not in canonical form (sorted keys, no spaces, no nulls, each key once)",
@@ -80,7 +97,8 @@ pub fn encode<T: Serialize + ?Sized>(value: &T) -> Result<Vec<u8>, CodecError> {
     Ok(out)
 }
 
-/// Decode canonical bytes of at most `limit` bytes into `T`.
+/// Decode canonical bytes of at most `limit` bytes into `T`, also bounded
+/// by [`MAX_DEPTH`], [`MAX_NODES`] and [`MAX_STRING_BYTES`].
 pub fn decode<T: DeserializeOwned + Serialize>(
     bytes: &[u8],
     limit: usize,
@@ -107,7 +125,8 @@ pub fn decode<T: DeserializeOwned + Serialize>(
 }
 
 /// Read JSON that need not be canonical (spaces, any key order), such as a
-/// generator's `presets.json`, into `T`; integers only.
+/// generator's `presets.json`, into `T`; integers only. The same structural
+/// and decoded-text bounds as [`decode`] apply even if `limit` is larger.
 pub fn read<T: DeserializeOwned>(bytes: &[u8], limit: usize) -> Result<T, CodecError> {
     if bytes.len() > limit {
         return Err(CodecError::TooLarge {
@@ -259,6 +278,98 @@ mod tests {
             "]".repeat(MAX_DEPTH + 1)
         );
         assert_eq!(tree::read(text.as_bytes()).err(), Some(CodecError::TooDeep));
+    }
+
+    #[test]
+    fn a_large_map_keeps_keys_and_duplicate_detection_uses_decoded_keys() -> Result<(), CodecError>
+    {
+        let expected: BTreeMap<String, u8> = (0..60_000)
+            .map(|i| (alloc::format!("k{i:05}"), 0))
+            .collect();
+        let bytes = encode(&expected)?;
+        assert_eq!(bytes.len(), 660_001);
+        assert_eq!(
+            decode::<BTreeMap<String, u8>>(&bytes, 1024 * 1024)?,
+            expected
+        );
+        // The second value is intentionally invalid: the duplicate key
+        // must be refused before that value is visited or allocated.
+        assert_eq!(
+            tree::read(br#"{"key":0,"\u006bey":!}"#).err(),
+            Some(CodecError::NotCanonical),
+        );
+        let value = tree::read(br#"{"z":0,"a":1}"#)?;
+        assert_eq!(
+            value,
+            Canon::Obj(vec![
+                ("z".into(), Canon::Int(0)),
+                ("a".into(), Canon::Int(1))
+            ])
+        );
+        assert!(read::<BTreeMap<String, u8>>(br#"{"z":0,"a":1}"#, 100).is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn structural_budget_admits_the_densest_one_mib_tree_and_refuses_one_more()
+    -> Result<(), CodecError> {
+        // Root + MAX_NODES-1 integers: 2*MAX_NODES-1 bytes, the largest
+        // node count that fits the default ABI response byte allowance.
+        let bytes = alloc::format!("[{}0]", "0,".repeat(MAX_NODES - 2));
+        assert_eq!(bytes.len(), 1024 * 1024 - 1);
+        let values: Vec<u8> = decode(bytes.as_bytes(), 1024 * 1024)?;
+        assert_eq!(values.len(), MAX_NODES - 1);
+        assert!(values.iter().all(|&v| v == 0));
+        // No parsing of the next value, even with an unlimited wire cap.
+        let over = alloc::format!("[{}!]", "0,".repeat(MAX_NODES - 1));
+        for error in [
+            read::<Vec<u8>>(over.as_bytes(), usize::MAX).err(),
+            decode::<Vec<u8>>(over.as_bytes(), usize::MAX).err(),
+        ] {
+            assert_eq!(error, Some(CodecError::TooManyNodes));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn decoded_text_budget_is_shared_by_keys_and_values() -> Result<(), CodecError> {
+        let payload = "x".repeat(MAX_STRING_BYTES - 3);
+        // The key is one byte; the escaped character decodes to two.
+        let at = alloc::format!("{{\"k\":\"{payload}\\u00e9\"}}");
+        let value: BTreeMap<String, String> = read(at.as_bytes(), usize::MAX)?;
+        assert_eq!(value.get("k").map(String::len), Some(MAX_STRING_BYTES - 1));
+        let over = alloc::format!("{{\"k\":\"{payload}\\u00e9x");
+        assert_eq!(
+            tree::read(over.as_bytes()).err(),
+            Some(CodecError::TooMuchText)
+        );
+        // Different values share the same budget, rather than each
+        // receiving a fresh allowance. Keys are charged too.
+        let half = "x".repeat(MAX_STRING_BYTES / 2 - 1);
+        let at = alloc::format!("{{\"a\":\"{half}\",\"b\":\"{half}\"}}");
+        assert!(tree::read(at.as_bytes()).is_ok());
+        let over = alloc::format!("{{\"a\":\"{half}\",\"b\":\"{half}x");
+        assert_eq!(
+            tree::read(over.as_bytes()).err(),
+            Some(CodecError::TooMuchText)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn structural_budget_counts_keys_and_is_shared_across_nested_objects() {
+        // Each object contributes its object, key and integer nodes.
+        // MAX_NODES = root + 174762*3 + one final node.
+        let objects = "{\"a\":0},".repeat((MAX_NODES - 1) / 3);
+        let at = alloc::format!("[{objects}0]");
+        assert!(tree::read(at.as_bytes()).is_ok());
+        // The last object spends the final node: its key must be refused
+        // before attempting the intentionally invalid value.
+        let over = alloc::format!("[{objects}{{\"a\":!}}]");
+        assert_eq!(
+            tree::read(over.as_bytes()).err(),
+            Some(CodecError::TooManyNodes)
+        );
     }
 
     #[cfg(feature = "nfc")]

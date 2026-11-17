@@ -38,7 +38,7 @@ pub(super) fn fresh() -> Fallible<Session> {
         &defaults.presets.glass_dk,
     )?;
     engine.set_context(context);
-    Ok(Session::new(engine))
+    Ok(Session::fixture(engine))
 }
 
 /// The calls made so far: verb, entry and the reply's size as the chat

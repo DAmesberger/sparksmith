@@ -534,7 +534,7 @@ mod generic_tests {
     #[test]
     fn open_makes_the_part_and_opens_it() -> TestResult {
         let mut engine = Engine::profiled()?;
-        engine.set_generators(sparksmith_automation::session::generators::runtime());
+        engine.set_generators(sparksmith_automation::session::generators::fixture_runtime());
         let mut editor = PartEditor::default();
         editor.set_shelf(&generators::test_shelf());
         let screen = Screen::new(vec2(1000.0, 700.0));

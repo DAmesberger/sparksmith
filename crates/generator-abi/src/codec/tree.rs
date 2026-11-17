@@ -2,7 +2,8 @@
 //! integers only: the reader refuses a fraction or an exponent before any
 //! arithmetic, so no floating-point code is ever reached, in the host or
 //! in a module.
-use super::{CodecError, MAX_DEPTH};
+use super::{CodecError, MAX_DEPTH, MAX_NODES, MAX_STRING_BYTES};
+use alloc::collections::BTreeSet;
 use alloc::string::String;
 use alloc::vec::Vec;
 
@@ -119,9 +120,15 @@ pub fn write_string(s: &str, out: &mut Vec<u8>) -> Result<(), CodecError> {
 /// Read one JSON value filling `bytes`, whitespace allowed around tokens.
 /// A fraction or exponent is [`CodecError::Float`], `-0` too (it is not
 /// an integer's shortest form); a key twice in one object is
-/// [`CodecError::NotCanonical`].
+/// [`CodecError::NotCanonical`]. Structural and decoded-text budgets apply
+/// before allocating the next node or string byte; callers bound wire bytes.
 pub fn read(bytes: &[u8]) -> Result<Canon, CodecError> {
-    let mut reader = Reader { bytes, at: 0 };
+    let mut reader = Reader {
+        bytes,
+        at: 0,
+        nodes_left: MAX_NODES,
+        text_left: MAX_STRING_BYTES,
+    };
     let value = reader.value(0)?;
     reader.space();
     if reader.at != bytes.len() {
@@ -133,9 +140,28 @@ pub fn read(bytes: &[u8]) -> Result<Canon, CodecError> {
 struct Reader<'a> {
     bytes: &'a [u8],
     at: usize,
+    nodes_left: usize,
+    text_left: usize,
 }
 
 impl Reader<'_> {
+    fn node(&mut self) -> Result<(), CodecError> {
+        self.nodes_left = self
+            .nodes_left
+            .checked_sub(1)
+            .ok_or(CodecError::TooManyNodes)?;
+        Ok(())
+    }
+
+    fn text(&mut self, out: &mut Vec<u8>, bytes: &[u8]) -> Result<(), CodecError> {
+        self.text_left = self
+            .text_left
+            .checked_sub(bytes.len())
+            .ok_or(CodecError::TooMuchText)?;
+        out.extend_from_slice(bytes);
+        Ok(())
+    }
+
     fn syntax(&self, what: &str) -> CodecError {
         CodecError::Syntax(alloc::format!("{what} at byte {}", self.at))
     }
@@ -163,6 +189,7 @@ impl Reader<'_> {
         if depth > MAX_DEPTH {
             return Err(CodecError::TooDeep);
         }
+        self.node()?;
         self.space();
         match self.peek() {
             None => Err(self.syntax("the data ends early")),
@@ -194,6 +221,7 @@ impl Reader<'_> {
             Some(b'{') => {
                 self.at += 1;
                 let mut members: Vec<(String, Canon)> = Vec::new();
+                let mut keys = BTreeSet::new();
                 self.space();
                 if self.peek() == Some(b'}') {
                     self.at += 1;
@@ -204,16 +232,19 @@ impl Reader<'_> {
                     if self.peek() != Some(b'"') {
                         return Err(self.syntax("expected a key"));
                     }
+                    self.node()?;
                     let key = self.string()?;
+                    // A tree set bounds comparisons even for adversarial
+                    // insertion order. Refuse a duplicate before its value.
+                    if !keys.insert(key.clone()) {
+                        return Err(CodecError::NotCanonical);
+                    }
                     self.space();
                     if self.peek() != Some(b':') {
                         return Err(self.syntax("expected :"));
                     }
                     self.at += 1;
                     let value = self.value(depth + 1)?;
-                    if members.iter().any(|(k, _)| *k == key) {
-                        return Err(CodecError::NotCanonical);
-                    }
                     members.push((key, value));
                     self.space();
                     match self.peek() {
@@ -307,14 +338,14 @@ impl Reader<'_> {
                     };
                     self.at += 1;
                     match e {
-                        b'"' => out.push(b'"'),
-                        b'\\' => out.push(b'\\'),
-                        b'/' => out.push(b'/'),
-                        b'b' => out.push(0x08),
-                        b'f' => out.push(0x0c),
-                        b'n' => out.push(b'\n'),
-                        b'r' => out.push(b'\r'),
-                        b't' => out.push(b'\t'),
+                        b'"' => self.text(&mut out, b"\"")?,
+                        b'\\' => self.text(&mut out, b"\\")?,
+                        b'/' => self.text(&mut out, b"/")?,
+                        b'b' => self.text(&mut out, &[0x08])?,
+                        b'f' => self.text(&mut out, &[0x0c])?,
+                        b'n' => self.text(&mut out, b"\n")?,
+                        b'r' => self.text(&mut out, b"\r")?,
+                        b't' => self.text(&mut out, b"\t")?,
                         b'u' => {
                             let first = self.hex4()?;
                             let code = if (0xd800..0xdc00).contains(&first) {
@@ -333,13 +364,13 @@ impl Reader<'_> {
                             let c = char::from_u32(code)
                                 .ok_or_else(|| self.syntax("a lone surrogate"))?;
                             let mut buf = [0u8; 4];
-                            out.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
+                            self.text(&mut out, c.encode_utf8(&mut buf).as_bytes())?;
                         }
                         _ => return Err(self.syntax("an unknown escape")),
                     }
                 }
                 0x00..=0x1f => return Err(self.syntax("a control character in a string")),
-                _ => out.push(b),
+                _ => self.text(&mut out, &[b])?,
             }
         }
         String::from_utf8(out).map_err(|_| self.syntax("a string that is not UTF-8"))
