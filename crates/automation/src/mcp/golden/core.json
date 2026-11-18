@@ -410,6 +410,33 @@
                 "required": true
               },
               {
+                "description": "Part: The placed part's designator, e.g. J16",
+                "name": "part",
+                "required": true
+              },
+              {
+                "description": "Photos: Product photo URLs or files to compare the body with, one per line",
+                "name": "photos",
+                "required": false
+              },
+              {
+                "description": "Notes: Variant, what to leave out",
+                "name": "notes",
+                "required": false
+              }
+            ],
+            "description": "Give a placed part a 3D body recreated by a generator from the datasheet's drawing, fitted to the footprint it keeps, every value cited.",
+            "name": "datasheet_to_body",
+            "title": "Datasheet → 3D body"
+          },
+          {
+            "arguments": [
+              {
+                "description": "Datasheets. File paths or URLs (application/pdf), one per line. You read them with your own tools; Sparksmith does not.",
+                "name": "datasheets",
+                "required": true
+              },
+              {
                 "description": "Part name: The manufacturer part number",
                 "name": "part",
                 "required": true

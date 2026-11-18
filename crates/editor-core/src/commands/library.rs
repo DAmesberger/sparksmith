@@ -256,8 +256,8 @@ pub enum LibraryCommand {
     /// `replace`. Needs the host's generator runtime.
     #[serde(rename = "library.package_from_generator")]
     PackageFromGenerator(Box<super::generated::PackageFromGenerator>),
-    /// Give a placed part's package a generator's body, its footprint kept:
-    /// the package-scope generation's part file (evaluated by the host),
+    /// Give a placed part's package a generator's body, keeping its footprint.
+    /// The package-scope generation's part file (evaluated by the host),
     /// its leads fitted onto the pads of every footprint that lands the
     /// package, each on its land (the board check's lead-on-land rule,
     /// plus `tolerance`), or the request is refused naming each lead that

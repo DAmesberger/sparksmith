@@ -26,7 +26,7 @@ fn component_of(session: &Session, designator: &str) -> Option<(u64, u32)> {
         .instances
         .iter()
         .find(|i| i.designator == designator)
-        .map(|i| (u64::from(i.component.id.0), i.component.revision.0))
+        .map(|i| (i.component.id.0, i.component.revision.0))
 }
 
 fn body(generator: &str, preset: &str) -> Value {
