@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "b2b-dual-row-pegs",
+  "title": "Dual-row SMD terminal strip with alignment pins",
+  "summary": "Dual-row SMD terminal strip with two tin alignment pins tapering from the insulator's bottom into the board on the centre line; otherwise as b2b-dual-row (adds peg_x, peg_diameter, peg_tip, peg_bottom).",
+  "use": "package_body",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 2 × 4 strip of 2.54 mm); the board-to-board generator gives every value. Proportions follow Samtec's public TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (Table 1, Fig 3) and catalogue page (retrieved 18 November 2026), compared with Samtec's public product photos; grooves and pockets are estimated. No vendor CAD, image or EDA library data copied."
+}

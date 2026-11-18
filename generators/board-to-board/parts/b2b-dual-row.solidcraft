@@ -1,0 +1,4293 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Dual-row SMD terminal strip",
+  "units": "mm",
+  "params": [
+    {
+      "name": "positions",
+      "expr": "5",
+      "unit": "",
+      "comment": "positions per row (x)",
+      "model": false
+    },
+    {
+      "name": "pitch",
+      "expr": "1.27 mm",
+      "unit": "mm",
+      "comment": "pitch along a row",
+      "model": false
+    },
+    {
+      "name": "row_pitch",
+      "expr": "1.27 mm",
+      "unit": "mm",
+      "comment": "pitch between the rows",
+      "model": false
+    },
+    {
+      "name": "body_length",
+      "expr": "6.35 mm",
+      "unit": "mm",
+      "comment": "insulator along x, centred",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "3.43 mm",
+      "unit": "mm",
+      "comment": "insulator along y, centred",
+      "model": false
+    },
+    {
+      "name": "standoff",
+      "expr": "0.41 mm",
+      "unit": "mm",
+      "comment": "insulator's bottom",
+      "model": false
+    },
+    {
+      "name": "body_top",
+      "expr": "2.92 mm",
+      "unit": "mm",
+      "comment": "insulator's top",
+      "model": false
+    },
+    {
+      "name": "post_side",
+      "expr": "0.41 mm",
+      "unit": "mm",
+      "comment": "square post side, also the tails' section",
+      "model": false
+    },
+    {
+      "name": "post_top",
+      "expr": "5.97 mm",
+      "unit": "mm",
+      "comment": "posts' tips",
+      "model": false
+    },
+    {
+      "name": "z_split",
+      "expr": "1.665 mm",
+      "unit": "mm",
+      "comment": "where posts meet their tails, inside the insulator",
+      "model": false
+    },
+    {
+      "name": "tail_tip",
+      "expr": "2.9 mm",
+      "unit": "mm",
+      "comment": "tails' tips from the centre line",
+      "model": false
+    },
+    {
+      "name": "bend_r",
+      "expr": "0.41 mm",
+      "unit": "mm",
+      "comment": "tails' bends' centreline radius",
+      "model": false
+    },
+    {
+      "name": "pocket",
+      "expr": "0.738 mm",
+      "unit": "mm",
+      "comment": "square pocket round each post",
+      "model": false
+    },
+    {
+      "name": "pocket_depth",
+      "expr": "0.31375 mm",
+      "unit": "mm",
+      "comment": "pocket depth",
+      "model": false
+    },
+    {
+      "name": "groove_width",
+      "expr": "0.1905 mm",
+      "unit": "mm",
+      "comment": "grooves between positions, along x",
+      "model": false
+    },
+    {
+      "name": "groove_depth",
+      "expr": "0.4375 mm",
+      "unit": "mm",
+      "comment": "grooves' depth into the long faces",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "0.1 mm",
+      "unit": "mm",
+      "comment": "round of the insulator's upright corners",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "body_length * 0.6",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "groove_depth",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    },
+    {
+      "name": "d30",
+      "expr": "(bend_r) + (post_side / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d31",
+      "expr": "(bend_r) - (post_side / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d39",
+      "expr": "(bend_r) - (post_side / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d40",
+      "expr": "(bend_r) + (post_side / 2)",
+      "unit": "mm",
+      "model": true
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "insulator",
+      "suppressed": false,
+      "body_names": [
+        "insulator"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "standoff"
+      ],
+      "length": "(body_length / 2) - (- body_length / 2)",
+      "width": "(body_width / 2) - (- body_width / 2)",
+      "height": "(body_top) - (standoff)",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.175,
+            -1.715,
+            0.41
+          ],
+          "max": [
+            3.175,
+            1.715,
+            2.92
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.175,
+            -1.715,
+            0.41
+          ],
+          "max": [
+            3.175,
+            1.715,
+            2.92
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.175,
+            -1.715,
+            0.41
+          ],
+          "max": [
+            3.175,
+            1.715,
+            2.92
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.175,
+            -1.715,
+            0.41
+          ],
+          "max": [
+            3.175,
+            1.715,
+            2.92
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -3.175,
+          -1.715,
+          1.665
+        ],
+        [
+          3.175,
+          -1.715,
+          1.665
+        ],
+        [
+          3.175,
+          1.715,
+          1.665
+        ],
+        [
+          -3.175,
+          1.715,
+          1.665
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "insulator"
+    },
+    {
+      "id": 3,
+      "name": "groove",
+      "suppressed": false,
+      "param_names": [
+        "d5",
+        "d6",
+        "d7"
+      ],
+      "participants": [
+        "insulator"
+      ],
+      "type": "box",
+      "corner": [
+        "- (positions - 2) / 2 * pitch - groove_width / 2",
+        "- body_width / 2 - 1 mm",
+        "standoff - 1 mm"
+      ],
+      "length": "(- (positions - 2) / 2 * pitch + groove_width / 2) - (- (positions - 2) / 2 * pitch - groove_width / 2)",
+      "width": "(- body_width / 2 + groove_depth) - (- body_width / 2 - 1 mm)",
+      "height": "(body_top + 1 mm) - (standoff - 1 mm)",
+      "operation": "cut"
+    },
+    {
+      "id": 4,
+      "name": "grooves",
+      "suppressed": false,
+      "param_names": [
+        "d8",
+        "d9",
+        "d10",
+        "d11"
+      ],
+      "type": "pattern",
+      "features": [
+        3
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "positions - 1",
+        "spacing1": "pitch",
+        "dir2": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "count2": "2",
+        "spacing2": "body_width - groove_depth + 1 mm"
+      }
+    },
+    {
+      "id": 5,
+      "name": "pocket",
+      "suppressed": false,
+      "param_names": [
+        "d12",
+        "d13",
+        "d14"
+      ],
+      "participants": [
+        "insulator"
+      ],
+      "type": "box",
+      "corner": [
+        "- (positions - 1) / 2 * pitch - pocket / 2",
+        "- row_pitch / 2 - pocket / 2",
+        "body_top - pocket_depth"
+      ],
+      "length": "(- (positions - 1) / 2 * pitch + pocket / 2) - (- (positions - 1) / 2 * pitch - pocket / 2)",
+      "width": "(- row_pitch / 2 + pocket / 2) - (- row_pitch / 2 - pocket / 2)",
+      "height": "(body_top + 1 mm) - (body_top - pocket_depth)",
+      "operation": "cut"
+    },
+    {
+      "id": 6,
+      "name": "post hole",
+      "suppressed": false,
+      "param_names": [
+        "d15",
+        "d16",
+        "d17"
+      ],
+      "participants": [
+        "insulator"
+      ],
+      "type": "box",
+      "corner": [
+        "- (positions - 1) / 2 * pitch - post_side / 2",
+        "- row_pitch / 2 - post_side / 2",
+        "z_split"
+      ],
+      "length": "(- (positions - 1) / 2 * pitch + post_side / 2) - (- (positions - 1) / 2 * pitch - post_side / 2)",
+      "width": "(- row_pitch / 2 + post_side / 2) - (- row_pitch / 2 - post_side / 2)",
+      "height": "(body_top + 1 mm) - (z_split)",
+      "operation": "cut"
+    },
+    {
+      "id": 7,
+      "name": "post",
+      "suppressed": false,
+      "body_names": [
+        "post"
+      ],
+      "param_names": [
+        "d18",
+        "d19",
+        "d20"
+      ],
+      "type": "box",
+      "corner": [
+        "- (positions - 1) / 2 * pitch - post_side / 2",
+        "- row_pitch / 2 - post_side / 2",
+        "z_split"
+      ],
+      "length": "(- (positions - 1) / 2 * pitch + post_side / 2) - (- (positions - 1) / 2 * pitch - post_side / 2)",
+      "width": "(- row_pitch / 2 + post_side / 2) - (- row_pitch / 2 - post_side / 2)",
+      "height": "(post_top) - (z_split)",
+      "operation": "new_body"
+    },
+    {
+      "id": 8,
+      "name": "pockets and holes",
+      "suppressed": false,
+      "param_names": [
+        "d21",
+        "d22",
+        "d23",
+        "d24"
+      ],
+      "type": "pattern",
+      "features": [
+        5,
+        6
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "positions",
+        "spacing1": "pitch",
+        "dir2": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "count2": "2",
+        "spacing2": "row_pitch"
+      }
+    },
+    {
+      "id": 9,
+      "name": "posts",
+      "suppressed": false,
+      "body_names": [
+        "post (2)",
+        "post (3)",
+        "post (4)",
+        "post (5)",
+        "post (6)",
+        "post (7)",
+        "post (8)",
+        "post (9)",
+        "post (10)",
+        "post (11)",
+        "post (12)",
+        "post (13)",
+        "post (14)",
+        "post (15)",
+        "post (16)",
+        "post (17)",
+        "post (18)",
+        "post (19)",
+        "post (20)",
+        "post (21)",
+        "post (22)",
+        "post (23)",
+        "post (24)",
+        "post (25)",
+        "post (26)",
+        "post (27)",
+        "post (28)",
+        "post (29)",
+        "post (30)",
+        "post (31)",
+        "post (32)",
+        "post (33)",
+        "post (34)",
+        "post (35)",
+        "post (36)",
+        "post (37)",
+        "post (38)",
+        "post (39)",
+        "post (40)",
+        "post (41)",
+        "post (42)",
+        "post (43)",
+        "post (44)",
+        "post (45)",
+        "post (46)",
+        "post (47)",
+        "post (48)",
+        "post (49)",
+        "post (50)",
+        "post (51)",
+        "post (52)",
+        "post (53)",
+        "post (54)",
+        "post (55)",
+        "post (56)",
+        "post (57)",
+        "post (58)",
+        "post (59)",
+        "post (60)",
+        "post (61)",
+        "post (62)",
+        "post (63)",
+        "post (64)",
+        "post (65)",
+        "post (66)",
+        "post (67)",
+        "post (68)",
+        "post (69)",
+        "post (70)",
+        "post (71)",
+        "post (72)",
+        "post (73)",
+        "post (74)",
+        "post (75)",
+        "post (76)",
+        "post (77)",
+        "post (78)",
+        "post (79)",
+        "post (80)",
+        "post (81)",
+        "post (82)",
+        "post (83)",
+        "post (84)",
+        "post (85)",
+        "post (86)",
+        "post (87)",
+        "post (88)",
+        "post (89)",
+        "post (90)",
+        "post (91)",
+        "post (92)",
+        "post (93)",
+        "post (94)",
+        "post (95)",
+        "post (96)",
+        "post (97)",
+        "post (98)",
+        "post (99)",
+        "post (100)"
+      ],
+      "param_names": [
+        "d25",
+        "d26",
+        "d27",
+        "d28"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "positions",
+        "spacing1": "pitch",
+        "dir2": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "count2": "2",
+        "spacing2": "row_pitch"
+      },
+      "bodies": [
+        "post"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "tail 1 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d29"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- (positions - 1) / 2 * pitch - post_side / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -0.43000000000000005,
+              1.665
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(-(row_pitch / 2)) + (post_side / 2)",
+              "y": "z_split"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              -0.43000000000000005,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(-(row_pitch / 2)) + (post_side / 2)",
+              "y": "(post_side / 2) - (post_side / 2)"
+            }
+          },
+          {
+            "id": "p3",
+            "pos": [
+              -2.9,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(tail_tip)",
+              "y": "(post_side / 2) - (post_side / 2)"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              -2.9,
+              0.41
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(tail_tip)",
+              "y": "(post_side / 2) + (post_side / 2)"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              -0.84,
+              0.41
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(-(row_pitch / 2)) - (post_side / 2)",
+              "y": "(post_side / 2) + (post_side / 2)"
+            }
+          },
+          {
+            "id": "p6",
+            "pos": [
+              -0.84,
+              1.665
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(-(row_pitch / 2)) - (post_side / 2)",
+              "y": "z_split"
+            }
+          },
+          {
+            "id": "p7",
+            "pos": [
+              -0.43000000000000005,
+              0.6150000000000001
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p8",
+            "pos": [
+              -1.0450000000000002,
+              0.0
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              -1.045,
+              0.615
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -1.045,
+              0.41
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -0.84,
+              0.615
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              -1.045,
+              0.615
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 8,
+            "b": 3,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 11,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 6,
+            "b": 1,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 9,
+            "a": 8,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 12,
+            "a": 10,
+            "b": 11,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 6
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 6
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 6,
+            "value": 0.615,
+            "param": "d30"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 5,
+            "c": 3
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 5,
+            "c": 4
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 3,
+            "b": 7
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 4,
+            "b": 7
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 7,
+            "value": 0.205,
+            "param": "d31"
+          }
+        ],
+        "counters": {
+          "a": 2,
+          "corner": 2,
+          "k": 10,
+          "l": 6,
+          "p": 10
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "tail 1",
+      "suppressed": false,
+      "body_names": [
+        "tail 1"
+      ],
+      "param_names": [
+        "d32"
+      ],
+      "type": "extrude",
+      "sketch": 10,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "post_side",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 12,
+      "name": "tail 1 cut",
+      "suppressed": false,
+      "param_names": [
+        "d33"
+      ],
+      "type": "extrude",
+      "sketch": 10,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "post_side",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "insulator"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "tail 1 cuts",
+      "suppressed": false,
+      "param_names": [
+        "d34",
+        "d35"
+      ],
+      "type": "pattern",
+      "features": [
+        12
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "positions",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 14,
+      "name": "tail 1 pattern",
+      "suppressed": false,
+      "body_names": [
+        "tail 1 (2)",
+        "tail 1 (3)",
+        "tail 1 (4)",
+        "tail 1 (5)",
+        "tail 1 (6)",
+        "tail 1 (7)",
+        "tail 1 (8)",
+        "tail 1 (9)",
+        "tail 1 (10)",
+        "tail 1 (11)",
+        "tail 1 (12)",
+        "tail 1 (13)",
+        "tail 1 (14)",
+        "tail 1 (15)",
+        "tail 1 (16)",
+        "tail 1 (17)",
+        "tail 1 (18)",
+        "tail 1 (19)",
+        "tail 1 (20)",
+        "tail 1 (21)",
+        "tail 1 (22)",
+        "tail 1 (23)",
+        "tail 1 (24)",
+        "tail 1 (25)",
+        "tail 1 (26)",
+        "tail 1 (27)",
+        "tail 1 (28)",
+        "tail 1 (29)",
+        "tail 1 (30)",
+        "tail 1 (31)",
+        "tail 1 (32)",
+        "tail 1 (33)",
+        "tail 1 (34)",
+        "tail 1 (35)",
+        "tail 1 (36)",
+        "tail 1 (37)",
+        "tail 1 (38)",
+        "tail 1 (39)",
+        "tail 1 (40)",
+        "tail 1 (41)",
+        "tail 1 (42)",
+        "tail 1 (43)",
+        "tail 1 (44)",
+        "tail 1 (45)",
+        "tail 1 (46)",
+        "tail 1 (47)",
+        "tail 1 (48)",
+        "tail 1 (49)",
+        "tail 1 (50)"
+      ],
+      "param_names": [
+        "d36",
+        "d37"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "positions",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "tail 1"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "tail 2 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d38"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- (positions - 1) / 2 * pitch - post_side / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.84,
+              1.665
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(row_pitch / 2) + (post_side / 2)",
+              "y": "z_split"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              0.84,
+              0.41
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(row_pitch / 2) + (post_side / 2)",
+              "y": "(post_side / 2) + (post_side / 2)"
+            }
+          },
+          {
+            "id": "p3",
+            "pos": [
+              2.9,
+              0.41
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tail_tip",
+              "y": "(post_side / 2) + (post_side / 2)"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              2.9,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tail_tip",
+              "y": "(post_side / 2) - (post_side / 2)"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              0.43000000000000005,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(row_pitch / 2) - (post_side / 2)",
+              "y": "(post_side / 2) - (post_side / 2)"
+            }
+          },
+          {
+            "id": "p6",
+            "pos": [
+              0.43000000000000005,
+              1.665
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(row_pitch / 2) - (post_side / 2)",
+              "y": "z_split"
+            }
+          },
+          {
+            "id": "p7",
+            "pos": [
+              0.84,
+              0.615
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p8",
+            "pos": [
+              1.045,
+              0.41
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              1.045,
+              0.615
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p9",
+            "pos": [
+              1.0450000000000002,
+              0.0
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              0.43000000000000005,
+              0.6150000000000001
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              1.045,
+              0.615
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 8,
+            "b": 3,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 11,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 6,
+            "b": 1,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 9,
+            "a": 7,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 12,
+            "a": 11,
+            "b": 10,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 6
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 6
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 6,
+            "value": 0.205,
+            "param": "d39"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 5,
+            "c": 3
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 5,
+            "c": 4
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 3,
+            "b": 7
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 4,
+            "b": 7
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 7,
+            "value": 0.615,
+            "param": "d40"
+          }
+        ],
+        "counters": {
+          "a": 2,
+          "corner": 2,
+          "k": 10,
+          "l": 6,
+          "p": 10
+        }
+      }
+    },
+    {
+      "id": 16,
+      "name": "tail 2",
+      "suppressed": false,
+      "body_names": [
+        "tail 2"
+      ],
+      "param_names": [
+        "d41"
+      ],
+      "type": "extrude",
+      "sketch": 15,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "post_side",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 17,
+      "name": "tail 2 cut",
+      "suppressed": false,
+      "param_names": [
+        "d42"
+      ],
+      "type": "extrude",
+      "sketch": 15,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "post_side",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "insulator"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "tail 2 cuts",
+      "suppressed": false,
+      "param_names": [
+        "d43",
+        "d44"
+      ],
+      "type": "pattern",
+      "features": [
+        17
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "positions",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 19,
+      "name": "tail 2 pattern",
+      "suppressed": false,
+      "body_names": [
+        "tail 2 (2)",
+        "tail 2 (3)",
+        "tail 2 (4)",
+        "tail 2 (5)",
+        "tail 2 (6)",
+        "tail 2 (7)",
+        "tail 2 (8)",
+        "tail 2 (9)",
+        "tail 2 (10)",
+        "tail 2 (11)",
+        "tail 2 (12)",
+        "tail 2 (13)",
+        "tail 2 (14)",
+        "tail 2 (15)",
+        "tail 2 (16)",
+        "tail 2 (17)",
+        "tail 2 (18)",
+        "tail 2 (19)",
+        "tail 2 (20)",
+        "tail 2 (21)",
+        "tail 2 (22)",
+        "tail 2 (23)",
+        "tail 2 (24)",
+        "tail 2 (25)",
+        "tail 2 (26)",
+        "tail 2 (27)",
+        "tail 2 (28)",
+        "tail 2 (29)",
+        "tail 2 (30)",
+        "tail 2 (31)",
+        "tail 2 (32)",
+        "tail 2 (33)",
+        "tail 2 (34)",
+        "tail 2 (35)",
+        "tail 2 (36)",
+        "tail 2 (37)",
+        "tail 2 (38)",
+        "tail 2 (39)",
+        "tail 2 (40)",
+        "tail 2 (41)",
+        "tail 2 (42)",
+        "tail 2 (43)",
+        "tail 2 (44)",
+        "tail 2 (45)",
+        "tail 2 (46)",
+        "tail 2 (47)",
+        "tail 2 (48)",
+        "tail 2 (49)",
+        "tail 2 (50)"
+      ],
+      "param_names": [
+        "d45",
+        "d46"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "positions",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "tail 2"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d47"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "body_top"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 21,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "insulator": {
+        "name": "lcp",
+        "color": [
+          44,
+          44,
+          47
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.35,
+          "dielectric_ior": 1.6
+        }
+      },
+      "post": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (10)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (100)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (11)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (12)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (13)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (14)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (15)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (16)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (17)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (18)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (19)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (2)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (20)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (21)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (22)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (23)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (24)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (25)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (26)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (27)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (28)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (29)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (3)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (30)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (31)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (32)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (33)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (34)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (35)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (36)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (37)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (38)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (39)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (4)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (40)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (41)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (42)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (43)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (44)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (45)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (46)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (47)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (48)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (49)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (5)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (50)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (51)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (52)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (53)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (54)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (55)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (56)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (57)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (58)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (59)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (6)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (60)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (61)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (62)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (63)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (64)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (65)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (66)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (67)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (68)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (69)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (7)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (70)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (71)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (72)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (73)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (74)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (75)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (76)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (77)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (78)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (79)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (8)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (80)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (81)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (82)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (83)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (84)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (85)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (86)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (87)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (88)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (89)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (9)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (90)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (91)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (92)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (93)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (94)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (95)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (96)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (97)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (98)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "post (99)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (17)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (18)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (19)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (20)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (21)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (22)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (23)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (24)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (25)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (26)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (27)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (28)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (29)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (30)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (31)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (32)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (33)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (34)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (35)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (36)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (37)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (38)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (39)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (40)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (41)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (42)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (43)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (44)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (45)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (46)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (47)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (48)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (49)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (50)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 1 (9)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (17)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (18)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (19)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (20)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (21)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (22)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (23)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (24)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (25)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (26)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (27)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (28)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (29)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (30)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (31)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (32)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (33)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (34)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (35)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (36)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (37)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (38)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (39)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (40)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (41)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (42)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (43)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (44)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (45)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (46)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (47)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (48)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (49)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (50)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tail 2 (9)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

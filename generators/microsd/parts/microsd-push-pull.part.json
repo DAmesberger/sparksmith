@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "microsd-push-pull",
+  "title": "MicroSD socket, push-pull",
+  "summary": "Push-pull microSD socket: a nickel-silver shell (top plate with two windows, side and rear walls, open at the front and below) on six tin-plated solder feet (four ground, two card-detect), a black LCP insulator (floor and rear block) and eight gold contacts, each a tail on the board at the card's entry rising through the floor into a spring arm (contacts, pitch, first_x, shell_x0, shell_x1, front, rear, height, sheet, foot, floor_top, floor_front, block_front, lead_width, lead_thickness, tip_y, rise_y, arm_z, arm_end, bend_r, window_x, window_w, window_y0, window_y1, and each foot's <name>_x0, _x1, _y0, _y1).",
+  "use": "package_body",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at the DM3D-style starter row); the microsd generator gives every value. Proportions follow Hirose's public DM3 series catalogue (p. 9, DM3D push-pull, https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/9054/DM3.pdf, retrieved 18 November 2026), compared with Hirose's public product photo; sheet, insulator and contact springs are estimated. No vendor CAD, image or EDA library data copied."
+}

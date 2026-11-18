@@ -1,0 +1,2986 @@
+[
+ {
+  "key": "b2b-ftsh-2-01",
+  "name": "1.27 mm dual-row strip 2x2, 3.05 mm posts",
+  "aliases": [
+   "FTSH-102-01-L-DV",
+   "FTSH-102-01-S-DV",
+   "FTSH-102-01-F-DV",
+   "FTSH-102-01-S-DV-TR",
+   "FTSH-102-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 2, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 2,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-3-01",
+  "name": "1.27 mm dual-row strip 2x3, 3.05 mm posts",
+  "aliases": [
+   "FTSH-103-01-L-DV",
+   "FTSH-103-01-S-DV",
+   "FTSH-103-01-F-DV",
+   "FTSH-103-01-S-DV-TR",
+   "FTSH-103-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 3, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 3,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-4-01",
+  "name": "1.27 mm dual-row strip 2x4, 3.05 mm posts",
+  "aliases": [
+   "FTSH-104-01-L-DV",
+   "FTSH-104-01-S-DV",
+   "FTSH-104-01-F-DV",
+   "FTSH-104-01-S-DV-TR",
+   "FTSH-104-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 4, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 4,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-5-01",
+  "name": "1.27 mm dual-row strip 2x5, 3.05 mm posts",
+  "aliases": [
+   "FTSH-105-01-L-DV",
+   "FTSH-105-01-S-DV",
+   "FTSH-105-01-F-DV",
+   "FTSH-105-01-S-DV-TR",
+   "FTSH-105-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 5, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 5,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-6-01",
+  "name": "1.27 mm dual-row strip 2x6, 3.05 mm posts",
+  "aliases": [
+   "FTSH-106-01-L-DV",
+   "FTSH-106-01-S-DV",
+   "FTSH-106-01-F-DV",
+   "FTSH-106-01-S-DV-TR",
+   "FTSH-106-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 6, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 6,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-7-01",
+  "name": "1.27 mm dual-row strip 2x7, 3.05 mm posts",
+  "aliases": [
+   "FTSH-107-01-L-DV",
+   "FTSH-107-01-S-DV",
+   "FTSH-107-01-F-DV",
+   "FTSH-107-01-S-DV-TR",
+   "FTSH-107-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 7, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 7,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-8-01",
+  "name": "1.27 mm dual-row strip 2x8, 3.05 mm posts",
+  "aliases": [
+   "FTSH-108-01-L-DV",
+   "FTSH-108-01-S-DV",
+   "FTSH-108-01-F-DV",
+   "FTSH-108-01-S-DV-TR",
+   "FTSH-108-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 8, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 8,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-9-01",
+  "name": "1.27 mm dual-row strip 2x9, 3.05 mm posts",
+  "aliases": [
+   "FTSH-109-01-L-DV",
+   "FTSH-109-01-S-DV",
+   "FTSH-109-01-F-DV",
+   "FTSH-109-01-S-DV-TR",
+   "FTSH-109-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 9, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 9,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-10-01",
+  "name": "1.27 mm dual-row strip 2x10, 3.05 mm posts",
+  "aliases": [
+   "FTSH-110-01-L-DV",
+   "FTSH-110-01-S-DV",
+   "FTSH-110-01-F-DV",
+   "FTSH-110-01-S-DV-TR",
+   "FTSH-110-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 10, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 10,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-11-01",
+  "name": "1.27 mm dual-row strip 2x11, 3.05 mm posts",
+  "aliases": [
+   "FTSH-111-01-L-DV",
+   "FTSH-111-01-S-DV",
+   "FTSH-111-01-F-DV",
+   "FTSH-111-01-S-DV-TR",
+   "FTSH-111-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 11, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 11,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-12-01",
+  "name": "1.27 mm dual-row strip 2x12, 3.05 mm posts",
+  "aliases": [
+   "FTSH-112-01-L-DV",
+   "FTSH-112-01-S-DV",
+   "FTSH-112-01-F-DV",
+   "FTSH-112-01-S-DV-TR",
+   "FTSH-112-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 12, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 12,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-13-01",
+  "name": "1.27 mm dual-row strip 2x13, 3.05 mm posts",
+  "aliases": [
+   "FTSH-113-01-L-DV",
+   "FTSH-113-01-S-DV",
+   "FTSH-113-01-F-DV",
+   "FTSH-113-01-S-DV-TR",
+   "FTSH-113-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 13, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 13,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-14-01",
+  "name": "1.27 mm dual-row strip 2x14, 3.05 mm posts",
+  "aliases": [
+   "FTSH-114-01-L-DV",
+   "FTSH-114-01-S-DV",
+   "FTSH-114-01-F-DV",
+   "FTSH-114-01-S-DV-TR",
+   "FTSH-114-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 14, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 14,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-15-01",
+  "name": "1.27 mm dual-row strip 2x15, 3.05 mm posts",
+  "aliases": [
+   "FTSH-115-01-L-DV",
+   "FTSH-115-01-S-DV",
+   "FTSH-115-01-F-DV",
+   "FTSH-115-01-S-DV-TR",
+   "FTSH-115-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 15, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 15,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-16-01",
+  "name": "1.27 mm dual-row strip 2x16, 3.05 mm posts",
+  "aliases": [
+   "FTSH-116-01-L-DV",
+   "FTSH-116-01-S-DV",
+   "FTSH-116-01-F-DV",
+   "FTSH-116-01-S-DV-TR",
+   "FTSH-116-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 16, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 16,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-17-01",
+  "name": "1.27 mm dual-row strip 2x17, 3.05 mm posts",
+  "aliases": [
+   "FTSH-117-01-L-DV",
+   "FTSH-117-01-S-DV",
+   "FTSH-117-01-F-DV",
+   "FTSH-117-01-S-DV-TR",
+   "FTSH-117-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 17, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 17,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-18-01",
+  "name": "1.27 mm dual-row strip 2x18, 3.05 mm posts",
+  "aliases": [
+   "FTSH-118-01-L-DV",
+   "FTSH-118-01-S-DV",
+   "FTSH-118-01-F-DV",
+   "FTSH-118-01-S-DV-TR",
+   "FTSH-118-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 18, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 18,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-19-01",
+  "name": "1.27 mm dual-row strip 2x19, 3.05 mm posts",
+  "aliases": [
+   "FTSH-119-01-L-DV",
+   "FTSH-119-01-S-DV",
+   "FTSH-119-01-F-DV",
+   "FTSH-119-01-S-DV-TR",
+   "FTSH-119-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 19, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 19,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-20-01",
+  "name": "1.27 mm dual-row strip 2x20, 3.05 mm posts",
+  "aliases": [
+   "FTSH-120-01-L-DV",
+   "FTSH-120-01-S-DV",
+   "FTSH-120-01-F-DV",
+   "FTSH-120-01-S-DV-TR",
+   "FTSH-120-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 20, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 20,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-21-01",
+  "name": "1.27 mm dual-row strip 2x21, 3.05 mm posts",
+  "aliases": [
+   "FTSH-121-01-L-DV",
+   "FTSH-121-01-S-DV",
+   "FTSH-121-01-F-DV",
+   "FTSH-121-01-S-DV-TR",
+   "FTSH-121-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 21, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 21,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-22-01",
+  "name": "1.27 mm dual-row strip 2x22, 3.05 mm posts",
+  "aliases": [
+   "FTSH-122-01-L-DV",
+   "FTSH-122-01-S-DV",
+   "FTSH-122-01-F-DV",
+   "FTSH-122-01-S-DV-TR",
+   "FTSH-122-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 22, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 22,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-23-01",
+  "name": "1.27 mm dual-row strip 2x23, 3.05 mm posts",
+  "aliases": [
+   "FTSH-123-01-L-DV",
+   "FTSH-123-01-S-DV",
+   "FTSH-123-01-F-DV",
+   "FTSH-123-01-S-DV-TR",
+   "FTSH-123-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 23, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 23,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-24-01",
+  "name": "1.27 mm dual-row strip 2x24, 3.05 mm posts",
+  "aliases": [
+   "FTSH-124-01-L-DV",
+   "FTSH-124-01-S-DV",
+   "FTSH-124-01-F-DV",
+   "FTSH-124-01-S-DV-TR",
+   "FTSH-124-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 24, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 24,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-ftsh-25-01",
+  "name": "1.27 mm dual-row strip 2x25, 3.05 mm posts",
+  "aliases": [
+   "FTSH-125-01-L-DV",
+   "FTSH-125-01-S-DV",
+   "FTSH-125-01-F-DV",
+   "FTSH-125-01-S-DV-TR",
+   "FTSH-125-01-L-DV-K"
+  ],
+  "description": "Surface-mount 1.27 mm dual-row terminal strip, 2 x 25, 0.41 mm square posts 3.05 mm above the insulator.",
+  "params": {
+   "positions": 25,
+   "pitch": 1270000,
+   "row_pitch": 1270000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 3430000,
+   "body_height": 2510000,
+   "standoff": 410000,
+   "post_side": 410000,
+   "post_height": 3050000,
+   "tail_span": 5800000,
+   "land_width": 740000,
+   "land_length": 2790000,
+   "land_span": 6860000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 635000
+  },
+  "citation": {
+   "document": "Samtec FTSH-1XX-XX-XXX-DV-XXX-MKT; Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX",
+   "revision": "ET; G"
+  },
+  "basis": "cited",
+  "note": "Outline (insulator 3.43 mm wide, top 2.92 mm over the seating plane, 2.51 mm high, 0.41 mm square posts, -01 post 3.05 mm, tails 5.8 mm tip to tip) from Samtec's FTSH-1XX-XX-XXX-DV-XXX-MKT print (rev. ET, sheet 1), lands (0.74 x 2.79 mm, 6.86 mm over their outer edges) from Samtec's 'Recommended PCB layout for FTSH-1XX-XX-XXX-DV-XXX' (rev. G), retrieved 18 November 2026. Estimated: the insulator's grooves and post pockets."
+ },
+ {
+  "key": "b2b-tsm-2-01",
+  "name": "2.54 mm dual-row strip 2x2, 5.84 mm posts",
+  "aliases": [
+   "TSM-102-01-L-DV",
+   "TSM-102-01-T-DV",
+   "TSM-102-01-S-DV",
+   "TSM-102-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 2, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 2,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-3-01",
+  "name": "2.54 mm dual-row strip 2x3, 5.84 mm posts",
+  "aliases": [
+   "TSM-103-01-L-DV",
+   "TSM-103-01-T-DV",
+   "TSM-103-01-S-DV",
+   "TSM-103-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 3, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 3,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-4-01",
+  "name": "2.54 mm dual-row strip 2x4, 5.84 mm posts",
+  "aliases": [
+   "TSM-104-01-L-DV",
+   "TSM-104-01-T-DV",
+   "TSM-104-01-S-DV",
+   "TSM-104-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 4, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 4,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-5-01",
+  "name": "2.54 mm dual-row strip 2x5, 5.84 mm posts",
+  "aliases": [
+   "TSM-105-01-L-DV",
+   "TSM-105-01-T-DV",
+   "TSM-105-01-S-DV",
+   "TSM-105-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 5, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 5,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-6-01",
+  "name": "2.54 mm dual-row strip 2x6, 5.84 mm posts",
+  "aliases": [
+   "TSM-106-01-L-DV",
+   "TSM-106-01-T-DV",
+   "TSM-106-01-S-DV",
+   "TSM-106-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 6, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 6,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-7-01",
+  "name": "2.54 mm dual-row strip 2x7, 5.84 mm posts",
+  "aliases": [
+   "TSM-107-01-L-DV",
+   "TSM-107-01-T-DV",
+   "TSM-107-01-S-DV",
+   "TSM-107-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 7, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 7,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-8-01",
+  "name": "2.54 mm dual-row strip 2x8, 5.84 mm posts",
+  "aliases": [
+   "TSM-108-01-L-DV",
+   "TSM-108-01-T-DV",
+   "TSM-108-01-S-DV",
+   "TSM-108-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 8, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 8,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-9-01",
+  "name": "2.54 mm dual-row strip 2x9, 5.84 mm posts",
+  "aliases": [
+   "TSM-109-01-L-DV",
+   "TSM-109-01-T-DV",
+   "TSM-109-01-S-DV",
+   "TSM-109-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 9, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 9,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-10-01",
+  "name": "2.54 mm dual-row strip 2x10, 5.84 mm posts",
+  "aliases": [
+   "TSM-110-01-L-DV",
+   "TSM-110-01-T-DV",
+   "TSM-110-01-S-DV",
+   "TSM-110-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 10, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 10,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-11-01",
+  "name": "2.54 mm dual-row strip 2x11, 5.84 mm posts",
+  "aliases": [
+   "TSM-111-01-L-DV",
+   "TSM-111-01-T-DV",
+   "TSM-111-01-S-DV",
+   "TSM-111-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 11, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 11,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-12-01",
+  "name": "2.54 mm dual-row strip 2x12, 5.84 mm posts",
+  "aliases": [
+   "TSM-112-01-L-DV",
+   "TSM-112-01-T-DV",
+   "TSM-112-01-S-DV",
+   "TSM-112-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 12, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 12,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-13-01",
+  "name": "2.54 mm dual-row strip 2x13, 5.84 mm posts",
+  "aliases": [
+   "TSM-113-01-L-DV",
+   "TSM-113-01-T-DV",
+   "TSM-113-01-S-DV",
+   "TSM-113-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 13, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 13,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-14-01",
+  "name": "2.54 mm dual-row strip 2x14, 5.84 mm posts",
+  "aliases": [
+   "TSM-114-01-L-DV",
+   "TSM-114-01-T-DV",
+   "TSM-114-01-S-DV",
+   "TSM-114-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 14, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 14,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-15-01",
+  "name": "2.54 mm dual-row strip 2x15, 5.84 mm posts",
+  "aliases": [
+   "TSM-115-01-L-DV",
+   "TSM-115-01-T-DV",
+   "TSM-115-01-S-DV",
+   "TSM-115-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 15, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 15,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-16-01",
+  "name": "2.54 mm dual-row strip 2x16, 5.84 mm posts",
+  "aliases": [
+   "TSM-116-01-L-DV",
+   "TSM-116-01-T-DV",
+   "TSM-116-01-S-DV",
+   "TSM-116-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 16, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 16,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-17-01",
+  "name": "2.54 mm dual-row strip 2x17, 5.84 mm posts",
+  "aliases": [
+   "TSM-117-01-L-DV",
+   "TSM-117-01-T-DV",
+   "TSM-117-01-S-DV",
+   "TSM-117-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 17, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 17,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-18-01",
+  "name": "2.54 mm dual-row strip 2x18, 5.84 mm posts",
+  "aliases": [
+   "TSM-118-01-L-DV",
+   "TSM-118-01-T-DV",
+   "TSM-118-01-S-DV",
+   "TSM-118-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 18, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 18,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-19-01",
+  "name": "2.54 mm dual-row strip 2x19, 5.84 mm posts",
+  "aliases": [
+   "TSM-119-01-L-DV",
+   "TSM-119-01-T-DV",
+   "TSM-119-01-S-DV",
+   "TSM-119-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 19, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 19,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-20-01",
+  "name": "2.54 mm dual-row strip 2x20, 5.84 mm posts",
+  "aliases": [
+   "TSM-120-01-L-DV",
+   "TSM-120-01-T-DV",
+   "TSM-120-01-S-DV",
+   "TSM-120-01-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 20, 0.64 mm square posts 5.84 mm above the insulator.",
+  "params": {
+   "positions": 20,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 5840000,
+   "tail_span": 7700000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7950000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-3-03-a",
+  "name": "2.54 mm dual-row strip 2x3, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-103-03-L-DV-A",
+   "TSM-103-03-T-DV-A",
+   "TSM-103-03-S-DV-A",
+   "TSM-103-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 3, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 3,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-4-03-a",
+  "name": "2.54 mm dual-row strip 2x4, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-104-03-L-DV-A",
+   "TSM-104-03-T-DV-A",
+   "TSM-104-03-S-DV-A",
+   "TSM-104-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 4, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 4,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-5-03-a",
+  "name": "2.54 mm dual-row strip 2x5, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-105-03-L-DV-A",
+   "TSM-105-03-T-DV-A",
+   "TSM-105-03-S-DV-A",
+   "TSM-105-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 5, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 5,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-6-03-a",
+  "name": "2.54 mm dual-row strip 2x6, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-106-03-L-DV-A",
+   "TSM-106-03-T-DV-A",
+   "TSM-106-03-S-DV-A",
+   "TSM-106-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 6, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 6,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-7-03-a",
+  "name": "2.54 mm dual-row strip 2x7, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-107-03-L-DV-A",
+   "TSM-107-03-T-DV-A",
+   "TSM-107-03-S-DV-A",
+   "TSM-107-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 7, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 7,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-8-03-a",
+  "name": "2.54 mm dual-row strip 2x8, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-108-03-L-DV-A",
+   "TSM-108-03-T-DV-A",
+   "TSM-108-03-S-DV-A",
+   "TSM-108-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 8, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 8,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-9-03-a",
+  "name": "2.54 mm dual-row strip 2x9, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-109-03-L-DV-A",
+   "TSM-109-03-T-DV-A",
+   "TSM-109-03-S-DV-A",
+   "TSM-109-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 9, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 9,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-10-03-a",
+  "name": "2.54 mm dual-row strip 2x10, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-110-03-L-DV-A",
+   "TSM-110-03-T-DV-A",
+   "TSM-110-03-S-DV-A",
+   "TSM-110-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 10, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 10,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-11-03-a",
+  "name": "2.54 mm dual-row strip 2x11, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-111-03-L-DV-A",
+   "TSM-111-03-T-DV-A",
+   "TSM-111-03-S-DV-A",
+   "TSM-111-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 11, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 11,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-12-03-a",
+  "name": "2.54 mm dual-row strip 2x12, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-112-03-L-DV-A",
+   "TSM-112-03-T-DV-A",
+   "TSM-112-03-S-DV-A",
+   "TSM-112-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 12, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 12,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-13-03-a",
+  "name": "2.54 mm dual-row strip 2x13, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-113-03-L-DV-A",
+   "TSM-113-03-T-DV-A",
+   "TSM-113-03-S-DV-A",
+   "TSM-113-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 13, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 13,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-14-03-a",
+  "name": "2.54 mm dual-row strip 2x14, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-114-03-L-DV-A",
+   "TSM-114-03-T-DV-A",
+   "TSM-114-03-S-DV-A",
+   "TSM-114-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 14, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 14,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-15-03-a",
+  "name": "2.54 mm dual-row strip 2x15, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-115-03-L-DV-A",
+   "TSM-115-03-T-DV-A",
+   "TSM-115-03-S-DV-A",
+   "TSM-115-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 15, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 15,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-16-03-a",
+  "name": "2.54 mm dual-row strip 2x16, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-116-03-L-DV-A",
+   "TSM-116-03-T-DV-A",
+   "TSM-116-03-S-DV-A",
+   "TSM-116-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 16, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 16,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-17-03-a",
+  "name": "2.54 mm dual-row strip 2x17, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-117-03-L-DV-A",
+   "TSM-117-03-T-DV-A",
+   "TSM-117-03-S-DV-A",
+   "TSM-117-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 17, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 17,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-18-03-a",
+  "name": "2.54 mm dual-row strip 2x18, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-118-03-L-DV-A",
+   "TSM-118-03-T-DV-A",
+   "TSM-118-03-S-DV-A",
+   "TSM-118-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 18, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 18,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-19-03-a",
+  "name": "2.54 mm dual-row strip 2x19, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-119-03-L-DV-A",
+   "TSM-119-03-T-DV-A",
+   "TSM-119-03-S-DV-A",
+   "TSM-119-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 19, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 19,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-20-03-a",
+  "name": "2.54 mm dual-row strip 2x20, 10.67 mm posts, alignment pins",
+  "aliases": [
+   "TSM-120-03-L-DV-A",
+   "TSM-120-03-T-DV-A",
+   "TSM-120-03-S-DV-A",
+   "TSM-120-03-F-DV-A"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 20, 0.64 mm square posts 10.67 mm above the insulator, two alignment pins.",
+  "params": {
+   "positions": 20,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "pins",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-2-03",
+  "name": "2.54 mm dual-row strip 2x2, 10.67 mm posts",
+  "aliases": [
+   "TSM-102-03-L-DV",
+   "TSM-102-03-T-DV",
+   "TSM-102-03-S-DV",
+   "TSM-102-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 2, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 2,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-3-03",
+  "name": "2.54 mm dual-row strip 2x3, 10.67 mm posts",
+  "aliases": [
+   "TSM-103-03-L-DV",
+   "TSM-103-03-T-DV",
+   "TSM-103-03-S-DV",
+   "TSM-103-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 3, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 3,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-4-03",
+  "name": "2.54 mm dual-row strip 2x4, 10.67 mm posts",
+  "aliases": [
+   "TSM-104-03-L-DV",
+   "TSM-104-03-T-DV",
+   "TSM-104-03-S-DV",
+   "TSM-104-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 4, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 4,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-5-03",
+  "name": "2.54 mm dual-row strip 2x5, 10.67 mm posts",
+  "aliases": [
+   "TSM-105-03-L-DV",
+   "TSM-105-03-T-DV",
+   "TSM-105-03-S-DV",
+   "TSM-105-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 5, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 5,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-6-03",
+  "name": "2.54 mm dual-row strip 2x6, 10.67 mm posts",
+  "aliases": [
+   "TSM-106-03-L-DV",
+   "TSM-106-03-T-DV",
+   "TSM-106-03-S-DV",
+   "TSM-106-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 6, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 6,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-7-03",
+  "name": "2.54 mm dual-row strip 2x7, 10.67 mm posts",
+  "aliases": [
+   "TSM-107-03-L-DV",
+   "TSM-107-03-T-DV",
+   "TSM-107-03-S-DV",
+   "TSM-107-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 7, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 7,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-8-03",
+  "name": "2.54 mm dual-row strip 2x8, 10.67 mm posts",
+  "aliases": [
+   "TSM-108-03-L-DV",
+   "TSM-108-03-T-DV",
+   "TSM-108-03-S-DV",
+   "TSM-108-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 8, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 8,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-9-03",
+  "name": "2.54 mm dual-row strip 2x9, 10.67 mm posts",
+  "aliases": [
+   "TSM-109-03-L-DV",
+   "TSM-109-03-T-DV",
+   "TSM-109-03-S-DV",
+   "TSM-109-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 9, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 9,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-10-03",
+  "name": "2.54 mm dual-row strip 2x10, 10.67 mm posts",
+  "aliases": [
+   "TSM-110-03-L-DV",
+   "TSM-110-03-T-DV",
+   "TSM-110-03-S-DV",
+   "TSM-110-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 10, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 10,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-11-03",
+  "name": "2.54 mm dual-row strip 2x11, 10.67 mm posts",
+  "aliases": [
+   "TSM-111-03-L-DV",
+   "TSM-111-03-T-DV",
+   "TSM-111-03-S-DV",
+   "TSM-111-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 11, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 11,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-12-03",
+  "name": "2.54 mm dual-row strip 2x12, 10.67 mm posts",
+  "aliases": [
+   "TSM-112-03-L-DV",
+   "TSM-112-03-T-DV",
+   "TSM-112-03-S-DV",
+   "TSM-112-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 12, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 12,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-13-03",
+  "name": "2.54 mm dual-row strip 2x13, 10.67 mm posts",
+  "aliases": [
+   "TSM-113-03-L-DV",
+   "TSM-113-03-T-DV",
+   "TSM-113-03-S-DV",
+   "TSM-113-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 13, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 13,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-14-03",
+  "name": "2.54 mm dual-row strip 2x14, 10.67 mm posts",
+  "aliases": [
+   "TSM-114-03-L-DV",
+   "TSM-114-03-T-DV",
+   "TSM-114-03-S-DV",
+   "TSM-114-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 14, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 14,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-15-03",
+  "name": "2.54 mm dual-row strip 2x15, 10.67 mm posts",
+  "aliases": [
+   "TSM-115-03-L-DV",
+   "TSM-115-03-T-DV",
+   "TSM-115-03-S-DV",
+   "TSM-115-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 15, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 15,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-16-03",
+  "name": "2.54 mm dual-row strip 2x16, 10.67 mm posts",
+  "aliases": [
+   "TSM-116-03-L-DV",
+   "TSM-116-03-T-DV",
+   "TSM-116-03-S-DV",
+   "TSM-116-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 16, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 16,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-17-03",
+  "name": "2.54 mm dual-row strip 2x17, 10.67 mm posts",
+  "aliases": [
+   "TSM-117-03-L-DV",
+   "TSM-117-03-T-DV",
+   "TSM-117-03-S-DV",
+   "TSM-117-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 17, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 17,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-18-03",
+  "name": "2.54 mm dual-row strip 2x18, 10.67 mm posts",
+  "aliases": [
+   "TSM-118-03-L-DV",
+   "TSM-118-03-T-DV",
+   "TSM-118-03-S-DV",
+   "TSM-118-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 18, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 18,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-19-03",
+  "name": "2.54 mm dual-row strip 2x19, 10.67 mm posts",
+  "aliases": [
+   "TSM-119-03-L-DV",
+   "TSM-119-03-T-DV",
+   "TSM-119-03-S-DV",
+   "TSM-119-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 19, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 19,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ },
+ {
+  "key": "b2b-tsm-20-03",
+  "name": "2.54 mm dual-row strip 2x20, 10.67 mm posts",
+  "aliases": [
+   "TSM-120-03-L-DV",
+   "TSM-120-03-T-DV",
+   "TSM-120-03-S-DV",
+   "TSM-120-03-F-DV"
+  ],
+  "description": "Surface-mount 2.54 mm dual-row terminal strip, 2 x 20, 0.64 mm square posts 10.67 mm above the insulator.",
+  "params": {
+   "positions": 20,
+   "pitch": 2540000,
+   "row_pitch": 2540000,
+   "alignment": "none",
+   "body_trim": 0,
+   "body_width": 5080000,
+   "body_height": 2540000,
+   "standoff": 1270000,
+   "post_side": 640000,
+   "post_height": 10670000,
+   "tail_span": 7440000,
+   "land_width": 1020000,
+   "land_length": 2790000,
+   "land_span": 7690000,
+   "peg_diameter": 1600000,
+   "peg_tip": 1210000,
+   "peg_length": 2540000,
+   "peg_inset": 1270000
+  },
+  "citation": {
+   "document": "Samtec TSM-1XX-XX-XXX-XX-X-XXX-X-MKT (double row gullwing assembly), Table 1 and Fig 3; TSM catalogue F-226",
+   "revision": "DJ"
+  },
+  "basis": "cited_unverified",
+  "note": "Outline (insulator (positions x 2.54) mm long, 5.08 mm wide, 2.54 mm high on a 1.27 mm standoff, 0.64 mm square posts, post height and tail span 'C' max by lead style, Table 1; alignment pins 1.60 mm tapering to 1.21 mm, 2.54 mm under the insulator, (positions - 2) x 2.54 mm apart, Fig 3) from Samtec's TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (rev. DJ) and the TSM catalogue page (F-226), retrieved 18 November 2026. Estimated: the lands (1.02 x 2.79 mm, outer edges 0.25 mm past the tails' span; Samtec's TSM layout print was not reachable), the alignment pins' holes, grooves and pockets."
+ }
+]

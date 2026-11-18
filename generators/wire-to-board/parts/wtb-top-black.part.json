@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "wtb-top-black",
+  "title": "Wire-to-board header, top entry, black shroud",
+  "summary": "Top-entry wire-to-board header: a moulded shroud with its mating cavity opening upwards, a latch window in the front wall and two polarising grooves down the rear wall, a row of tin-plated contacts standing in the cavity, down through the floor and out along +y under the shroud onto the board, and a tin-plated tab standing in each end wall with its foot on the board (pins, pitch, body_length, y_front, y_rear, standoff, top, cavity_width, cavity_bottom, cavity_y0, cavity_y1, latch_width, latch_bottom, key_width, key_depth, lead_width, lead_thickness, post_y, post_top, tip_y, bend_r, tab_x, tab_thickness, tab_y0, tab_y1, tab_height, foot_x, corner_round). Shroud in black PA9T.",
+  "use": "package_body",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm top-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied."
+}
