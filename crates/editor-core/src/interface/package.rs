@@ -19,7 +19,7 @@ use crate::instances;
 use crate::library::datum::{DatumName, DatumProfile, PackageDatum, PackageDatumGeometry};
 use crate::library::{Outline, PackageDefinition, Segment};
 
-use crate::model::{CopperLayer, Layer, Placement, Project, Stackup};
+use crate::model::Project;
 use crate::units::Nm;
 
 /// A package datum of one placed instance, in the board frame.
@@ -33,39 +33,9 @@ pub struct PlacedDatum {
     pub geometry: DatumGeometry,
 }
 
-/// Model frame → board frame of one placement, mm.
-///
-/// Equal to the footprint-frame chain the 2D drawing and the 3D board use
-/// (`library::model_frame` then `layout::placement_transform`, the seating
-/// plane at its side's land copper): the footprint datum that chain applies
-/// and undoes cancels, leaving the model placement in the datum frame.
-/// Refused when the stackup has no copper on the placement's side.
-pub fn model_to_board(
-    placement: &Placement,
-    package: &PackageDefinition,
-    stackup: &Stackup,
-) -> Result<Transform3> {
-    let (layer, seat) = match placement.layer {
-        Layer::Top => (CopperLayer::Top, 1),
-        Layer::Bottom => (CopperLayer::Bottom, 0),
-    };
-    let span = stackup.copper_span(layer).ok_or_else(|| {
-        Error::Invalid(format!(
-            "interface.datum: the stackup has no {} copper to seat a part on",
-            layer.name()
-        ))
-    })?;
-    let z = if seat == 1 { span.1 } else { span.0 };
-    let side = match placement.layer {
-        Layer::Top => Transform3::IDENTITY,
-        Layer::Bottom => Transform3::rot_x(180.0),
-    };
-    let [x, y] = placement.position;
-    Ok(Transform3::translation([x, y, z])
-        .then(&Transform3::rot_z(placement.rotation_deg))
-        .then(&side)
-        .then(&package.placement.transform()))
-}
+/// Model frame → board frame of one placement (the layout's one
+/// transform for a placed model).
+pub use crate::layout::model_to_board;
 
 /// `datum` placed by `to_board` (model → board).
 pub fn placed_geometry(datum: &PackageDatum, to_board: &Transform3) -> DatumGeometry {

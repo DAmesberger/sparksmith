@@ -716,6 +716,37 @@ pub struct LeadState {
     pub pads: Vec<PadId>,
 }
 
+/// How far a lead contact at `q` (footprint frame, mm) misses `pad`'s
+/// land: past [`LEAD_OFF_LAND_FRACTION`] of the land width across the
+/// lead, or outside the land; ≤ 0 is on the land. The one lead-on-land
+/// rule. `outward` is the lead's direction from the package's centre in
+/// the footprint frame (its contact in the model frame, turned): a lead
+/// runs along it, so "across" is the land axis nearer perpendicular to it
+/// (a gull-wing foot's land width, a chip termination's land width, which
+/// is often the land's longer side). A lead at the centre (an exposed pad)
+/// has no direction: across is then the land's narrower side.
+pub fn land_miss(pad: &Pad, q: Point, outward: Point) -> f64 {
+    let local = rotate(
+        [q[0] - pad.position()[0], q[1] - pad.position()[1]],
+        -pad.rotation_deg(),
+    );
+    let extent = pad.shape.extent();
+    let along = rotate(outward, -pad.rotation_deg());
+    let across = if along[0].hypot(along[1]) < OUTWARD_MIN_MM {
+        if extent[0] <= extent[1] { 0 } else { 1 }
+    } else if along[0].abs() >= along[1].abs() {
+        1
+    } else {
+        0
+    };
+    let lateral = local[across].abs() - LEAD_OFF_LAND_FRACTION * extent[across];
+    let outside = pad.land(PAD_ARC_TOLERANCE_MM).distance(q, true);
+    lateral.max(outside)
+}
+
+/// A lead contact this near the package's centre has no outward direction.
+const OUTWARD_MIN_MM: f64 = 1e-6;
+
 /// The stored lead contacts of `package` under `placement` against the
 /// footprint's lands; empty when the package has none.
 pub fn lead_states(
@@ -729,6 +760,7 @@ pub fn lead_states(
         .into_iter()
         .map(|(terminal, lead)| {
             let q = frame.apply(lead);
+            let o = frame.apply_vector(lead);
             let pads: Vec<_> = footprint
                 .pads
                 .iter()
@@ -736,17 +768,7 @@ pub fn lead_states(
                 .collect();
             let miss_mm = pads
                 .iter()
-                .map(|pad| {
-                    let local = rotate(
-                        [q[0] - pad.position()[0], q[1] - pad.position()[1]],
-                        -pad.rotation_deg(),
-                    );
-                    let extent = pad.shape.extent();
-                    let across = if extent[0] <= extent[1] { 0 } else { 1 };
-                    let lateral = local[across].abs() - LEAD_OFF_LAND_FRACTION * extent[across];
-                    let outside = pad.land(PAD_ARC_TOLERANCE_MM).distance([q[0], q[1]], true);
-                    lateral.max(outside)
-                })
+                .map(|pad| land_miss(pad, [q[0], q[1]], [o[0], o[1]]))
                 .reduce(f64::min);
             LeadState {
                 terminal,

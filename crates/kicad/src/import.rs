@@ -20,8 +20,9 @@ use sparksmith_core::library::footprint_source::{SketchEdit, SketchRef};
 use sparksmith_core::library::symbol_blocks::named_block_symbol;
 use sparksmith_core::library::{
     BindingDefinition, ComponentDefinition, Definition, DefinitionMeta, DraftEdit,
-    FootprintDefinition, ModelPlacement, PackageDefinition, PackageModel, PackageTerminal, Pad,
-    PadDefaults, PadKind, Terminal, TerminalClass, TerminalMap, designator_prefix_valid,
+    FootprintDefinition, ModelPlacement, PackageDefinition, PackageLead, PackageModel,
+    PackageTerminal, Pad, PadDefaults, PadKind, Terminal, TerminalClass, TerminalMap,
+    designator_prefix_valid,
 };
 use sparksmith_core::materials::MaterialId;
 use sparksmith_core::model::board::BoardShape;
@@ -1130,6 +1131,18 @@ impl Session<'_> {
                     package.model = model.model.clone();
                     package.placement = model.placement;
                     package.envelope_nm = model.envelope_nm;
+                    package.leads = model
+                        .leads
+                        .iter()
+                        .filter_map(|(key, contact)| {
+                            let terminal =
+                                package.terminals.iter().find(|t| t.designation == *key)?;
+                            Some(PackageLead {
+                                terminal: terminal.id,
+                                contact: *contact,
+                            })
+                        })
+                        .collect();
                     edit.meta
                         .provenance
                         .push_str(&format!("\n{}", model.provenance));

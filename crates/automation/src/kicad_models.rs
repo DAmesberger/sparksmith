@@ -369,4 +369,86 @@ mod tests {
         assert!(summary.contains(Placeholder::VendorReferenceFound.describe()));
         Ok(())
     }
+    /// A six-lead SOT land pattern as the shipped preset draws it, written
+    /// as KiCad stores it (y down): pins 1–3 along +y in +x, 4–6 along −y
+    /// in −x. A back-side footprint's pads are stored as seen from the top
+    /// (mirrored in local y); every pad's angle includes the footprint's.
+    fn sot_footprint(name: &str, at: [f64; 2], angle: f64, back: bool) -> String {
+        let flip = if back { -1.0 } else { 1.0 };
+        let (cu, paste, mask) = if back {
+            ("B.Cu", "B.Paste", "B.Mask")
+        } else {
+            ("F.Cu", "F.Paste", "F.Mask")
+        };
+        let mut out = format!(
+            r#"(footprint "Original:Six" (layer "{cu}") (at {} {} {angle})
+            (property "Reference" "{name}")"#,
+            at[0], at[1]
+        );
+        for (number, x, y) in [
+            (1, -0.95, 1.3),
+            (2, 0.0, 1.3),
+            (3, 0.95, 1.3),
+            (4, 0.95, -1.3),
+            (5, 0.0, -1.3),
+            (6, -0.95, -1.3),
+        ] {
+            out.push_str(&format!(
+                r#"(pad "{number}" smd rect (at {x} {} {angle}) (size 0.6 1.0) (layers "{cu}" "{paste}" "{mask}"))"#,
+                flip * y
+            ));
+        }
+        out.push(')');
+        out
+    }
+
+    /// Imported parts on both sides at every quarter turn: each generated
+    /// body's stored lead contacts, placed as the 3D view places the body,
+    /// land on their pads as the copper is drawn, and pin 1 lands pad 1;
+    /// the board check finds no body off its pads.
+    #[test]
+    fn imported_bodies_land_their_leads_on_both_sides_at_every_rotation() -> Fallible {
+        let context = sparksmith_core::library::standards::Context::fixture()?;
+        let _context = context.enter();
+        let dir = tempfile::tempdir()?;
+        let mut board = String::from(
+            r#"(kicad_pcb (version 20240108) (generator "original body landing fixture")
+            (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
+            (gr_rect (start 0 0) (end 90 30) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#,
+        );
+        let mut n = 0;
+        for back in [false, true] {
+            for angle in [0.0, 90.0, 180.0, 270.0] {
+                n += 1;
+                let at = [10.0 * f64::from(n), if back { 20.0 } else { 10.0 }];
+                board.push_str(&sot_footprint(&format!("U{n}"), at, angle, back));
+            }
+        }
+        board.push(')');
+        let path = dir.path().join("bodies.kicad_pcb");
+        std::fs::write(&path, board)?;
+        let imported = crate::kicad_import::import(&path, None)?;
+        let project = imported.engine.project();
+        let report = sparksmith_core::layout::bodies::bodies(project);
+        assert_eq!(report.parts.len(), 8, "{:?}", report.without_leads);
+        for part in &report.parts {
+            assert_eq!(part.off_pads, 0, "{}: {:?}", part.designator, part.leads);
+            assert_eq!(
+                part.pin_one,
+                sparksmith_core::layout::bodies::PinOne::Agrees,
+                "{}",
+                part.designator
+            );
+            assert!(part.seat_mm.is_some_and(|z| z.abs() < 1e-6));
+            // The body sits between its rows: over the pads' box.
+            let pads = part.pads.ok_or("pad box")?;
+            let c = part.body.center();
+            assert!(pads.contains(c), "{}: body off its pads", part.designator);
+        }
+        assert!(
+            sparksmith_core::layout::bodies::checks(project).is_empty(),
+            "no body off its pads"
+        );
+        Ok(())
+    }
 }
