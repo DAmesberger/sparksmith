@@ -600,6 +600,9 @@ pub enum Placeholder {
     VendorReferenceMissing,
     /// No numbered lands to match a preset against (a fiducial, a logo).
     NoLands,
+    /// A preset fits the lands, but no fitting preset's reference prefix
+    /// begins the designator's (an inductor on a chip resistor's lands).
+    PrefixMismatch,
     /// Only KiCad library references (never resolved); no preset matched.
     KicadLibraryReferenceNoPreset,
     /// No model reference at all; no preset matched.
@@ -613,6 +616,9 @@ impl Placeholder {
             Self::Hidden => "all model references hidden",
             Self::VendorReferenceFound => "needs recreation (vendor reference found)",
             Self::VendorReferenceMissing => "needs recreation (vendor reference not found)",
+            Self::PrefixMismatch => {
+                "needs recreation (a preset fits, but its reference prefix differs)"
+            }
             Self::NoLands => "needs recreation (no numbered lands to match a preset)",
             Self::KicadLibraryReferenceNoPreset => {
                 "needs recreation (KiCad library reference, no matching preset)"

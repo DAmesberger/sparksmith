@@ -195,18 +195,17 @@ impl Presets {
                     nearest = Some((index, fit));
                 }
             }
-            let found = choose(candidates, fitting, prefix).ok_or_else(|| match nearest {
-                Some((index, fit)) => Miss::NoFit {
-                    nearest: candidates[index].name.clone(),
-                    error_nm: fit.error_nm,
-                    tolerance_nm: fit.tolerance_nm,
-                },
-                None => Miss::NoPreset,
-            });
-            let found = match found {
-                Ok(Some(found)) => Ok(found),
-                Ok(None) => Err(Miss::Ambiguous),
-                Err(miss) => Err(miss),
+            let found = if fitting.is_empty() {
+                Err(match nearest {
+                    Some((index, fit)) => Miss::NoFit {
+                        nearest: candidates[index].name.clone(),
+                        error_nm: fit.error_nm,
+                        tolerance_nm: fit.tolerance_nm,
+                    },
+                    None => Miss::NoPreset,
+                })
+            } else {
+                choose(candidates, fitting, prefix)
             };
             self.matches.insert(key, found.clone());
             found
@@ -232,7 +231,7 @@ impl Presets {
         made.definition.provenance.redistribution = Redistribution::Forbidden;
         let key = made.definition.asset.hash;
         let provenance = format!(
-            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same numbered lands, each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°; the longest generator reference prefix that begins the designator's narrows the candidates, the nearest centres decide. No electrical mapping inferred. Project-only.",
+            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same numbered lands, each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°; only presets whose declared reference prefix begins the designator's (the longest counting), the nearest centres decide. No electrical mapping inferred. Project-only.",
             candidate.name, candidate.bundle.hash
         );
         let reference = if let Some(reference) = models.get(&key) {
@@ -278,6 +277,8 @@ pub(super) enum Miss {
     },
     /// Equally near presets the reference prefix does not tell apart.
     Ambiguous,
+    /// Presets fit, but none declares a prefix that begins the designator's.
+    PrefixMismatch { nearest: String },
 }
 impl std::fmt::Display for Miss {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -297,6 +298,10 @@ impl std::fmt::Display for Miss {
                 error_nm / 1e6,
                 tolerance_nm / 1e6
             ),
+            Self::PrefixMismatch { nearest } => write!(
+                f,
+                "nearest shipped preset {nearest} fits the lands, but its reference prefix does not begin the designator's"
+            ),
             Self::Ambiguous => write!(
                 f,
                 "several shipped presets fit equally and the reference prefix does not choose one"
@@ -305,20 +310,17 @@ impl std::fmt::Display for Miss {
     }
 }
 
-/// The prefix narrows the fitting presets (when any of them declares it);
-/// the nearest centres decide; a tie is no choice.
+/// Only presets whose generator declares a prefix that begins the
+/// designator's may give the body: a wrong-looking body is worse than a
+/// placeholder. The longest such prefix counts ("RFB" is a resistor's "R",
+/// "FB" a ferrite bead's); the nearest centres decide; a tie is no choice.
 fn choose(
     candidates: &[Candidate],
     fitting: Vec<(usize, Fit)>,
     prefix: &str,
-) -> Option<Option<(usize, ModelPlacement)>> {
-    if fitting.is_empty() {
-        return None;
-    }
+) -> Result<(usize, ModelPlacement), Miss> {
     // The generator supplies this optional appearance hint. It never
-    // replaces geometry matching or changes electrical definitions. The
-    // longest declared prefix that begins the imported one counts ("RFB"
-    // is a resistor's, "FB" a ferrite bead's).
+    // replaces geometry matching or changes electrical definitions.
     let declared = |index: &usize| {
         candidates[*index]
             .generation
@@ -328,27 +330,34 @@ fn choose(
             .filter(|p| !p.is_empty() && prefix.to_ascii_uppercase().starts_with(p.as_str()))
             .map_or(0, |p| p.len())
     };
-    let longest = fitting.iter().map(|(i, _)| declared(i)).max().unwrap_or(0);
-    let pool: Vec<_> = if longest > 0 {
-        fitting
-            .into_iter()
-            .filter(|(i, _)| declared(i) == longest)
-            .collect()
-    } else {
-        fitting
+    let nearest_of = |pool: &[(usize, Fit)]| {
+        pool.iter()
+            .map(|(_, f)| f.error_nm)
+            .fold(f64::INFINITY, f64::min)
     };
-    let best = pool
-        .iter()
-        .map(|(_, f)| f.error_nm)
-        .fold(f64::INFINITY, f64::min);
+    let longest = fitting.iter().map(|(i, _)| declared(i)).max().unwrap_or(0);
+    if longest == 0 {
+        let best = nearest_of(&fitting);
+        let nearest = fitting
+            .iter()
+            .find(|(_, f)| f.error_nm <= best)
+            .map(|(i, _)| candidates[*i].name.clone())
+            .unwrap_or_default();
+        return Err(Miss::PrefixMismatch { nearest });
+    }
+    let pool: Vec<_> = fitting
+        .into_iter()
+        .filter(|(i, _)| declared(i) == longest)
+        .collect();
+    let best = nearest_of(&pool);
     let nearest: Vec<_> = pool
         .into_iter()
         .filter(|(_, f)| f.error_nm <= best + TIE_NM)
         .collect();
-    Some(match nearest.as_slice() {
-        [(index, fit)] => Some((*index, fit.placement)),
-        _ => None,
-    })
+    match nearest.as_slice() {
+        [(index, fit)] => Ok((*index, fit.placement)),
+        _ => Err(Miss::Ambiguous),
+    }
 }
 
 fn shape_class(shape: &PadShape) -> u8 {
@@ -659,12 +668,27 @@ mod tests {
                 .map_err(|miss| format!("{preset}: {miss}"))?;
             assert!(choice.provenance.contains(preset), "{}", choice.provenance);
         }
-        // Equal lands of a resistor and a ferrite bead: no prefix, no choice.
+        // A prefix no fitting preset declares keeps the placeholder: an
+        // inductor's lands of a 1210 chip's size get no resistor body.
         let r0603 = lands_of(&presets, "chip/resistor-0603")?;
         assert!(matches!(
             presets.match_model(&mut engine, &r0603, "?", &mut models, deadline)?,
-            Err(Miss::Ambiguous)
+            Err(Miss::PrefixMismatch { .. })
         ));
+        let mut inductor = chip(2.4, [1.0, 3.0])?;
+        for pad in &mut inductor {
+            let [x, y] = pad.position.to_mm_f64();
+            pad.position = PointNm::from_mm_f64_rounded([y, x])?;
+            pad.shape = PadShape::round_rect_mm([3.0, 1.0], 0.25, None, CornerMask::ALL)?;
+        }
+        assert!(
+            accepted(&inductor, &lands_of(&presets, "chip/resistor-1210")?),
+            "the lands fit a 1210 chip"
+        );
+        match presets.match_model(&mut engine, &inductor, "L", &mut models, deadline)? {
+            Err(Miss::PrefixMismatch { nearest }) => assert!(nearest.starts_with("chip/")),
+            other => return Err(format!("an L part got {:?}", other.map(|c| c.provenance)).into()),
+        }
         for name in [
             "tabbed/tabbed-sot-23-3",
             "gull-wing/gull-wing-soic-8-3.9",

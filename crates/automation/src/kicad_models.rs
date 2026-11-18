@@ -125,7 +125,9 @@ impl Provider for Models {
             Err(miss) => Ok(Selection {
                 choice: None,
                 case: Case::NoModel,
-                placeholder: Some(if !found.is_empty() {
+                placeholder: Some(if matches!(miss, presets::Miss::PrefixMismatch { .. }) {
+                    Placeholder::PrefixMismatch
+                } else if !found.is_empty() {
                     Placeholder::VendorReferenceFound
                 } else if !missing.is_empty() {
                     Placeholder::VendorReferenceMissing
