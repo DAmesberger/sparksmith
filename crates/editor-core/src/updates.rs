@@ -897,6 +897,13 @@ fn stage_change(project: &Project, change: &Change) -> Result<Project> {
     Ok(next)
 }
 
+/// Move `ids` to `target` with no resolutions, as an update with nothing
+/// to decide applies them: for a command that published `target` with only
+/// physical changes (`library.replace_body`).
+pub(crate) fn move_instances(next: &mut Project, ids: &[Id], target: ComponentRef) -> Result<()> {
+    revise(next, ids, target, &Resolutions::default())
+}
+
 /// Move instances to `target`, applying only explicit resolutions.
 fn revise(
     next: &mut Project,

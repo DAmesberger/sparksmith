@@ -835,7 +835,12 @@ fn numbers_read_as_the_command_wire_does() -> Fallible {
 #[test]
 fn palette_and_slash_rows_come_from_the_workflows() {
     let listed = shipped();
-    let rows = palette_rows(&listed, "datasheet");
+    assert_eq!(
+        palette_rows(&listed, "datasheet").len(),
+        2,
+        "both workflows"
+    );
+    let rows = palette_rows(&listed, "component");
     assert_eq!(rows.len(), 1, "{rows:?}");
     assert_eq!(rows[0].title, "Assistant: Datasheet → component");
     assert_eq!(
@@ -870,7 +875,7 @@ fn the_slash_menu_shows_the_chosen_workflows_card() -> Fallible {
             ..Default::default()
         };
         let _ = ctx.run_ui(input, |ui| {
-            if let Some(id) = cards.slash_menu(ui, "datasheet", true) {
+            if let Some(id) = cards.slash_menu(ui, "component", true) {
                 chosen = Some(id);
             }
         });

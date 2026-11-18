@@ -262,7 +262,7 @@ pub struct GenerateReport {
     pub notes: Vec<String>,
 }
 
-fn runtime_needed() -> Error {
+pub(super) fn runtime_needed() -> Error {
     Error::Unsupported(
         "generator.runtime: library.generate needs the host's generator runtime; this host has none".into(),
     )
@@ -312,11 +312,11 @@ fn module_bytes(document: &Document, source: &ModuleSource) -> Result<(AssetByte
 
 /// What `library.generate` will run: the module's bytes (and whether the
 /// project must embed them), its description and the complete request.
-struct Prepared {
-    bytes: AssetBytes,
-    embed: bool,
-    description: v1::Description,
-    wire: v1::Request,
+pub(super) struct Prepared {
+    pub(super) bytes: AssetBytes,
+    pub(super) embed: bool,
+    pub(super) description: v1::Description,
+    pub(super) wire: v1::Request,
 }
 
 /// The module bytes and complete request `request` runs on `document`:
@@ -331,7 +331,7 @@ pub fn generator_request(
     Ok((prepared.bytes, prepared.wire))
 }
 
-fn prepare(
+pub(super) fn prepare(
     document: &Document,
     request: &Generate,
     runtime: &dyn GeneratorRuntime,
@@ -470,63 +470,8 @@ pub(crate) fn generate(
         None
     };
     let result = ContentHash(made.result_hash);
-    let (asset, part_values) = expand::part_file(&made.generation)?;
-    let supplied = request.model.as_ref().ok_or_else(|| {
-        Error::Invalid(format!(
-            "generated.model_unevaluated: the part's 3D model, the part file sha256 {asset}, was not evaluated by the host. Nothing was changed."
-        ))
-    })?;
-    expand::part_values_match(part_values, &supplied.values)?;
-    if supplied.definition.asset.hash != asset
-        || supplied.definition.format != ModelFormat::Solidcraft
-    {
-        return Err(Error::Invalid(format!(
-            "generated.model: the host evaluated the part file sha256 {}, but the generator names sha256 {asset}. Nothing was changed.",
-            supplied.definition.asset.hash
-        )));
-    }
-    // The part file as a Model of the project: the newest one packing
-    // those bytes, or a new lineage published with the part.
-    let held = document
-        .project
-        .library
-        .models
-        .iter()
-        .filter(|m| {
-            m.definition.format == ModelFormat::Solidcraft && m.definition.asset.hash == asset
-        })
-        .max_by_key(|m| (m.id, m.revision))
-        .map(|m| ModelRef::new(m.id, m.revision));
-    let new_model = match held {
-        Some(_) => None,
-        None => {
-            let import = ImportModel {
-                name: supplied.name.clone(),
-                assets: supplied
-                    .data
-                    .iter()
-                    .map(|data| PackedAsset {
-                        hash: asset,
-                        media_type: ModelFormat::Solidcraft.media_type().into(),
-                        data: data.clone(),
-                    })
-                    .collect(),
-                definition: Box::new(supplied.definition.clone()),
-                assign: None,
-            };
-            if let Some(data) = &supplied.data
-                && data.hash() != asset
-            {
-                return Err(Error::Invalid(format!(
-                    "generated.model: the part file's bytes hash to sha256 {}, not to sha256 {asset}. Nothing was changed.",
-                    data.hash()
-                )));
-            }
-            let (meta, definition) = model3d::import_model(&import)?;
-            let fresh = model3d::assets_to_pack(&document.project.library, &import)?;
-            Some((meta, definition, fresh))
-        }
-    };
+    let supplied = supplied_model(&request, &made.generation)?;
+    let (held, new_model) = model_of(document, supplied)?;
     // The bundle: the one the host named, or the one recorded with the
     // same module before.
     let bundle = request.bundle.or_else(|| {
@@ -741,6 +686,80 @@ pub(crate) fn generate(
     })
 }
 
+/// The host's evaluation of the part file `generation` names, checked to
+/// be that file at those values.
+pub(super) fn supplied_model<'a>(
+    request: &'a Generate,
+    generation: &v1::Generation,
+) -> Result<&'a GeneratedModel> {
+    let (asset, part_values) = expand::part_file(generation)?;
+    let supplied = request.model.as_ref().ok_or_else(|| {
+        Error::Invalid(format!(
+            "generated.model_unevaluated: the part's 3D model, the part file sha256 {asset}, was not evaluated by the host. Nothing was changed."
+        ))
+    })?;
+    expand::part_values_match(part_values, &supplied.values)?;
+    if supplied.definition.asset.hash != asset
+        || supplied.definition.format != ModelFormat::Solidcraft
+    {
+        return Err(Error::Invalid(format!(
+            "generated.model: the host evaluated the part file sha256 {}, but the generator names sha256 {asset}. Nothing was changed.",
+            supplied.definition.asset.hash
+        )));
+    }
+    Ok(supplied)
+}
+
+/// A new Model lineage's draft content and the assets it packs.
+pub(super) type NewModel = (DefinitionMeta, crate::library::Definition, Vec<PackedAsset>);
+
+/// The part file as a Model of the project: the newest one packing those
+/// bytes, or else what a new lineage is made of.
+pub(super) fn model_of(
+    document: &Document,
+    supplied: &GeneratedModel,
+) -> Result<(Option<ModelRef>, Option<NewModel>)> {
+    let asset = supplied.definition.asset.hash;
+    let held = document
+        .project
+        .library
+        .models
+        .iter()
+        .filter(|m| {
+            m.definition.format == ModelFormat::Solidcraft && m.definition.asset.hash == asset
+        })
+        .max_by_key(|m| (m.id, m.revision))
+        .map(|m| ModelRef::new(m.id, m.revision));
+    if held.is_some() {
+        return Ok((held, None));
+    }
+    let import = ImportModel {
+        name: supplied.name.clone(),
+        assets: supplied
+            .data
+            .iter()
+            .map(|data| PackedAsset {
+                hash: asset,
+                media_type: ModelFormat::Solidcraft.media_type().into(),
+                data: data.clone(),
+            })
+            .collect(),
+        definition: Box::new(supplied.definition.clone()),
+        assign: None,
+    };
+    if let Some(data) = &supplied.data
+        && data.hash() != asset
+    {
+        return Err(Error::Invalid(format!(
+            "generated.model: the part file's bytes hash to sha256 {}, not to sha256 {asset}. Nothing was changed.",
+            data.hash()
+        )));
+    }
+    let (meta, definition) = model3d::import_model(&import)?;
+    let fresh = model3d::assets_to_pack(&document.project.library, &import)?;
+    Ok((None, Some((meta, definition, fresh))))
+}
+
 /// The report for a part the project already holds: nothing changed.
 fn found(existing: &GeneratedPart, key: PartKey) -> Outcome {
     let key = existing.from.key().unwrap_or(key);
@@ -785,7 +804,7 @@ fn label(name: &str, suffix: &str) -> String {
 }
 
 /// `text` within the note bound.
-fn bounded(text: String) -> String {
+pub(super) fn bounded(text: String) -> String {
     if text.len() <= MAX_NOTE {
         return text;
     }

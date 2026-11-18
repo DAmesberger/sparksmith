@@ -69,6 +69,8 @@ ANTHROPIC_API_KEY=… cargo run --locked --profile ci -p sparksmith-cli -- desig
 cargo run --locked --profile ci -p sparksmith-cli -- design-part --provider openai \
   --base-url http://localhost:11434/v1 --model MODEL --context-tokens N --vision yes \
   --datasheet PART.pdf --name PART --out part.sparksmith   # the same on a local model
+cargo run --locked --profile ci -p sparksmith-cli -- design-body --project BOARD.sparksmith \
+  --designator J16 --datasheet PART.pdf [--photo URL]... --out board-2.sparksmith   # a placed part's 3D body from its datasheet, footprint kept
 ```
 
 `stdio` reads one JSON request per line (4 MiB maximum) and answers `{"ok":true,"result":…}` or `{"ok":false,"error":{"code":…,"message":…}}`. `project.apply` takes the same typed operations as the UI with an expected revision; `project.inspect`, `.undo`, `.redo`, `.new`, `.open`, `.save`, `.preview_update`, `.apply_update` and `.export_native` share the session. `mcp` serves the same catalog over stdio as MCP `2026-07-28` (only that version; a client that sends `initialize` is told so): six verbs, `find`, `describe`, `query`, `apply`, `act` and `show`, carry every entry by name, as the [MCP surface](mcp-surface.md#as-built-s3-the-cut-over-14-november-2026) describes. `commands` prints schemas generated from the Rust types.

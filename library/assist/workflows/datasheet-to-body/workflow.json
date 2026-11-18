@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "id": "datasheet-to-body",
+  "version": "1.0",
+  "title": "Datasheet → 3D body",
+  "summary": "Give a placed part a 3D body recreated by a generator from the datasheet's drawing, fitted to the footprint it keeps, every value cited.",
+  "intents": [
+    "give J16 a real 3D body from the datasheet",
+    "replace the placeholder 3D model of U13",
+    "recreate the 3D body of LS1 from its drawing"
+  ],
+  "needs": [
+    {"module": "library", "major": 3, "minor": 4},
+    {"module": "generators", "major": 1, "minor": 4},
+    {"module": "assist", "major": 1}
+  ],
+  "reach": {"project": "read", "library": "read", "generators": "edit", "assist": "edit", "view": "show"},
+  "budget": {"requests": 30, "output_tokens": 120000, "minutes": 30},
+  "inputs": {
+    "datasheets": {"type": "files", "title": "Datasheets", "accept": ["application/pdf"], "min": 1, "max": 4},
+    "part": {"type": "text", "title": "Part", "help": "The placed part's designator, e.g. J16", "max": 64},
+    "photos": {"type": "text", "title": "Photos", "help": "Product photo URLs or files to compare the body with, one per line", "optional": true, "multiline": true, "max": 4096},
+    "notes": {"type": "text", "title": "Notes", "help": "Variant, what to leave out", "optional": true, "multiline": true, "max": 4096}
+  },
+  "outputs": {
+    "body_plan": {
+      "help": "The generator and preset that make the body and every value the mechanical drawing states; or, when no shipped generator makes it, why.",
+      "fields": {
+        "generator": {"type": "text", "optional": true, "help": "A generator's name from library.generators; leave it out when none makes this body"},
+        "preset": {"type": "text", "optional": true, "help": "A preset of that generator, when one is the body"},
+        "params": {"type": "object", "optional": true, "help": "Parameter values: lengths in integer nanometres, angles in integer millidegrees"},
+        "pins": {"type": "list", "optional": true, "help": "[{lead, pad}] where a lead lands a pad of another number"},
+        "missing": {"type": "text", "optional": true, "help": "Without a generator: the body's family and what no shipped generator offers"},
+        "pages": {"type": "text", "help": "The pages you read, by document: \"evqp2.pdf: drawing 2, land pattern 3\""},
+        "why": {"type": "text", "help": "One line: the body and where its values come from"}
+      }
+    },
+    "review_report": {
+      "help": "The review report, as library.review_check checks it.",
+      "fields": {"report": {"type": "object"}}
+    }
+  },
+  "steps": [
+    {"id": "ask", "kind": "input", "title": "Inputs", "inputs": ["datasheets", "part", "photos", "notes"]},
+    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title"}},
+    {"id": "target", "kind": "tool", "title": "Part", "call": "library.body_fit", "params": {"designator": "/inputs/part"}},
+    {"id": "gens", "kind": "tool", "title": "Generators", "call": "library.generators", "params": {}},
+    {"id": "plan", "kind": "model", "title": "Body", "goal": "Read the mechanical drawing; choose the generator and preset that make this body and give every value the drawing states, or say why no generator makes it.", "method": "method.md#procedure", "output": "body_plan", "check": "fit", "retries": 2},
+    {"id": "pick", "kind": "review", "title": "Generator", "gate": "notify", "control": "choice", "show": "/steps/plan/generator", "options": {"list": "/steps/gens/shipped", "value": "/name", "title": "/title"}, "change": "plan"},
+    {"id": "fit", "kind": "tool", "title": "Fit", "call": "library.body_fit", "params": {"designator": "/inputs/part", "generator": "/steps/plan/generator", "preset": "/steps/plan/preset", "params": "/steps/plan/params", "pins": "/steps/plan/pins", "missing": "/steps/plan/missing"}},
+    {"id": "apply", "kind": "review", "title": "Replace the body", "gate": "confirm", "control": "impact", "plan": "/steps/fit", "then": {"call": "library.make_body", "params": {"designator": "/inputs/part", "generator": "/steps/plan/generator", "preset": "/steps/plan/preset", "params": "/steps/plan/params", "pins": "/steps/plan/pins", "sources": "/steps/plan/pages"}}},
+    {"id": "report", "kind": "model", "title": "Report", "goal": "Write the review report: every body value with its page and figure, confidence and open questions.", "method": "method.md#the-review-report", "output": "review_report", "check": "accept"},
+    {"id": "accept", "kind": "tool", "title": "Review", "call": "library.review_check", "params": {"report": "/steps/report/report", "body": "/inputs/part"}},
+    {"id": "done", "kind": "result", "title": "Done",
+     "items": [
+       {"title": "Body", "from": "/steps/apply"},
+       {"title": "Fit", "from": "/steps/fit"},
+       {"title": "Pages used", "from": "/steps/plan/pages"},
+       {"title": "Review", "from": "/steps/accept"}
+     ],
+     "actions": [{"title": "Show in 3D", "call": "view.open", "params": {"workspace": "pcb", "view": "3d"}}]}
+  ]
+}

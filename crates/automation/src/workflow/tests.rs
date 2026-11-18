@@ -768,3 +768,47 @@ fn an_offer_names_the_inputs_still_missing() -> Fallible {
     assert!(why.contains("why"), "{why}");
     Ok(())
 }
+
+/// The body workflow passes its check, is available here, offers itself on
+/// no signal (a dropped PDF stays the datasheet workflow's) and its method
+/// lists its steps' entries in their order.
+#[test]
+fn the_shipped_body_workflow_passes_its_check_and_follows_its_method() -> Fallible {
+    const BODY: &str = "datasheet-to-body";
+    let folder = shipped_folder().join(BODY);
+    let workflow = Workflow::parse(&std::fs::read_to_string(folder.join(WORKFLOW_FILE))?, BODY)?;
+    let method = std::fs::read_to_string(folder.join(METHOD_FILE))?;
+    workflow
+        .check_method(&method)
+        .map_err(|p| format!("{p:?}"))?;
+    assert!(workflow.offer_when.is_empty());
+    let listed = load::list(Some(&shipped_folder()), None, &HostCatalog);
+    let ours = listed.iter().find(|l| l.id == BODY).ok_or("listed")?;
+    assert_eq!(ours.why_not, Vec::<String>::new());
+    let mut calls: Vec<&str> = Vec::new();
+    for step in &workflow.steps {
+        let call = match step.kind {
+            StepKind::Tool => step.call.as_deref(),
+            StepKind::Review => step.then.as_ref().map(|t| t.call.as_str()),
+            _ => None,
+        };
+        if let Some(call) = call
+            && !calls.contains(&call)
+        {
+            calls.push(call);
+        }
+    }
+    assert_eq!(
+        calls,
+        [
+            "assist.document_text",
+            "library.body_fit",
+            "library.generators",
+            "library.make_body",
+            "library.review_check"
+        ]
+    );
+    let procedure = method_section(&method, "procedure").ok_or("a procedure section")?;
+    in_order(procedure, &calls)?;
+    Ok(())
+}

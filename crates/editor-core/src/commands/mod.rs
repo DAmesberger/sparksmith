@@ -2,6 +2,7 @@
 //! stage on the candidate document and call domain functions; they hold no
 //! domain rules. The engine reconciles nets and validates afterwards.
 mod assets;
+pub mod body;
 pub(crate) mod generated;
 mod instance;
 mod library;
@@ -223,6 +224,11 @@ pub enum Outcome {
     /// GP1 `library.generate`: the part made or found.
     Generated {
         report: GenerateReport,
+    },
+    /// `library.replace_body`: the package's new revision, its model,
+    /// what was published and the plan it applied.
+    BodyReplaced {
+        report: Box<body::BodyReplaced>,
     },
 }
 

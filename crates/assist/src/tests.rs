@@ -1095,6 +1095,7 @@ fn a_shrinking_prompt_count_warns_of_truncation() -> Fallible {
 }
 
 mod board;
+mod body_run;
 mod flash_next;
 mod local_run;
 mod profiles;

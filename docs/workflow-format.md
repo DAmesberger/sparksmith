@@ -22,6 +22,8 @@ library/assist/workflows/<id>/        shipped
 
 The first instance is `library/assist/workflows/datasheet-to-component/`: `workflow.json` and `method.md`; the skill and `AGENTS.md` point to it. Its inputs are the datasheets, the part name and optional notes; no one gives it page numbers. Its Read step reads every page, its Package step finds the pages with the pin layout, the drawing and the land pattern and names them in `package_plan.pages`, and the result card lists them as Pages used.
 
+The second is `library/assist/workflows/datasheet-to-body/`: a placed part's 3D body from its datasheets, its footprint kept. Its inputs are the datasheets, the part's designator, and optional photo references and notes; it offers itself on no signal (a dropped PDF stays the datasheet workflow's). Its steps: read the datasheets, describe the part (`library.body_fit` with the designator), list the generators, a model step that chooses the generator, preset and values from the mechanical drawing or says in `missing` why none makes the body, the fit (`library.body_fit`, which its model step's `check` names: a misfit or a `missing` reason goes back, at most twice, then ends the run naming it), the impact card from the fit's `change_counts` and findings, Apply as `library.make_body`, and the review report checked with `library.review_check {body}` ([a body for an existing part](generator-plugins.md#a-body-for-an-existing-part)). `sparksmith-cli design-body` runs it headless and writes the project only when a body was applied.
+
 ## `workflow.json`, format 1
 
 Unknown fields are refused, naming them. A field that does not apply to an input's `type` or a step's `kind` is refused too ("is for tool steps, not model").
