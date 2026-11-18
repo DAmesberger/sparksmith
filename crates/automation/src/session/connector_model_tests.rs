@@ -45,17 +45,16 @@ fn library(dir: &Path) -> TestResult<PathBuf> {
     Ok(root)
 }
 
-/// Make `preset` of `generator`; the package's part file evaluated at its
-/// values and the lead bodies the host bound, by terminal.
-fn make(
-    root: &Path,
-    generator: &str,
-    preset: &str,
-) -> TestResult<(
+/// A made part: its part file evaluated at the package's values, the lead
+/// bodies the host bound (body, terminal) and the package's terminal count.
+type Made = (
     std::sync::Arc<part_file::EvaluatedPart>,
     Vec<(String, String)>,
     usize,
-)> {
+);
+
+/// Make `preset` of `generator`.
+fn make(root: &Path, generator: &str, preset: &str) -> TestResult<Made> {
     let mut session = Session::fixture(Engine::default());
     session.set_shipped(ShippedLibrary::at(root)?);
     let reply = session.dispatch(json!({"command": "library.generate_part", "params": {
