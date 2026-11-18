@@ -46,6 +46,8 @@ mod tht;
 
 #[path = "author_parts/families.rs"]
 mod families;
+#[path = "author_parts/connectors.rs"]
+mod connectors;
 
 fn run(s: &mut Session, command: &str, params: serde_json::Value) -> serde_json::Value {
     s.execute(command, &params)
@@ -4497,7 +4499,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 51] = [
+    let parts: [(&str, &str, Author); 60] = [
         // The chip generator's bundle (`generators/chip/parts/`) was saved
         // from the in-code chip builder, deleted in part-generation D2;
         // its four files are kept as shipped (the builder is in history:
@@ -4654,6 +4656,58 @@ fn author_parts() {
         ("generators/standoff/parts", "standoff-spigot", || {
             families::author_standoff(true)
         }),
+        // The wire-to-board generator's bundle
+        // (`generators/wire-to-board/parts/`): side and top entry, each in
+        // the three shroud colours.
+        (
+            "generators/wire-to-board/parts",
+            "wtb-side-natural",
+            connectors::author_wtb_side_natural,
+        ),
+        (
+            "generators/wire-to-board/parts",
+            "wtb-side-white",
+            connectors::author_wtb_side_white,
+        ),
+        (
+            "generators/wire-to-board/parts",
+            "wtb-side-black",
+            connectors::author_wtb_side_black,
+        ),
+        (
+            "generators/wire-to-board/parts",
+            "wtb-top-natural",
+            connectors::author_wtb_top_natural,
+        ),
+        (
+            "generators/wire-to-board/parts",
+            "wtb-top-white",
+            connectors::author_wtb_top_white,
+        ),
+        (
+            "generators/wire-to-board/parts",
+            "wtb-top-black",
+            connectors::author_wtb_top_black,
+        ),
+        // The board-to-board generator's bundle
+        // (`generators/board-to-board/parts/`): with and without alignment
+        // pins.
+        (
+            "generators/board-to-board/parts",
+            "b2b-dual-row",
+            connectors::author_b2b_dual_row,
+        ),
+        (
+            "generators/board-to-board/parts",
+            "b2b-dual-row-pegs",
+            connectors::author_b2b_dual_row_pegs,
+        ),
+        // The microSD generator's bundle (`generators/microsd/parts/`).
+        (
+            "generators/microsd/parts",
+            "microsd-push-pull",
+            connectors::author_microsd_push_pull,
+        ),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),
         ("library/parts", "finned-heatsink", author_finned_heatsink),

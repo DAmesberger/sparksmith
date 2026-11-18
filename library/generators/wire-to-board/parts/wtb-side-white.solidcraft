@@ -1,0 +1,1514 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Wire-to-board header, side entry, white",
+  "units": "mm",
+  "params": [
+    {
+      "name": "pins",
+      "expr": "4",
+      "unit": "",
+      "comment": "contacts in the row (x)",
+      "model": false
+    },
+    {
+      "name": "pitch",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "contact pitch",
+      "model": false
+    },
+    {
+      "name": "body_length",
+      "expr": "6 mm",
+      "unit": "mm",
+      "comment": "shroud length along x, centred",
+      "model": false
+    },
+    {
+      "name": "y_front",
+      "expr": "-4.575 mm",
+      "unit": "mm",
+      "comment": "shroud face away from the tails (side entry: the mating face)",
+      "model": false
+    },
+    {
+      "name": "y_rear",
+      "expr": "-0.325 mm",
+      "unit": "mm",
+      "comment": "shroud face the tails leave by",
+      "model": false
+    },
+    {
+      "name": "standoff",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "shroud's bottom",
+      "model": false
+    },
+    {
+      "name": "top",
+      "expr": "2.9 mm",
+      "unit": "mm",
+      "comment": "shroud's top",
+      "model": false
+    },
+    {
+      "name": "cavity_width",
+      "expr": "5.1 mm",
+      "unit": "mm",
+      "comment": "mating cavity along x",
+      "model": false
+    },
+    {
+      "name": "cavity_bottom",
+      "expr": "0.35 mm",
+      "unit": "mm",
+      "comment": "cavity's floor",
+      "model": false
+    },
+    {
+      "name": "latch_width",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "latch window along x",
+      "model": false
+    },
+    {
+      "name": "key_width",
+      "expr": "0.4 mm",
+      "unit": "mm",
+      "comment": "polarising groove width",
+      "model": false
+    },
+    {
+      "name": "key_depth",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "polarising groove depth",
+      "model": false
+    },
+    {
+      "name": "lead_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "contact width along x",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "contact thickness",
+      "model": false
+    },
+    {
+      "name": "tip_y",
+      "expr": "0.375 mm",
+      "unit": "mm",
+      "comment": "tails' tips",
+      "model": false
+    },
+    {
+      "name": "bend_r",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "contact bends' centreline radius",
+      "model": false
+    },
+    {
+      "name": "tab_x",
+      "expr": "2.8 mm",
+      "unit": "mm",
+      "comment": "tabs' plates' centre on x",
+      "model": false
+    },
+    {
+      "name": "tab_thickness",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "tab sheet",
+      "model": false
+    },
+    {
+      "name": "tab_y0",
+      "expr": "-4.395 mm",
+      "unit": "mm",
+      "comment": "tabs' front edge",
+      "model": false
+    },
+    {
+      "name": "tab_y1",
+      "expr": "-3.075 mm",
+      "unit": "mm",
+      "comment": "tabs' rear edge",
+      "model": false
+    },
+    {
+      "name": "tab_height",
+      "expr": "2 mm",
+      "unit": "mm",
+      "comment": "tabs' plates' top",
+      "model": false
+    },
+    {
+      "name": "foot_x",
+      "expr": "3.3 mm",
+      "unit": "mm",
+      "comment": "tabs' feet's outer end",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "0.09 mm",
+      "unit": "mm",
+      "comment": "round of the shroud's upright corners",
+      "model": false
+    },
+    {
+      "name": "cavity_top",
+      "expr": "2.7 mm",
+      "unit": "mm",
+      "comment": "cavity's roof",
+      "model": false
+    },
+    {
+      "name": "cavity_back",
+      "expr": "-1.075 mm",
+      "unit": "mm",
+      "comment": "cavity's back wall",
+      "model": false
+    },
+    {
+      "name": "latch_back",
+      "expr": "-3.575 mm",
+      "unit": "mm",
+      "comment": "latch window's back edge",
+      "model": false
+    },
+    {
+      "name": "post_tip",
+      "expr": "-3.075 mm",
+      "unit": "mm",
+      "comment": "contacts' tips in the cavity",
+      "model": false
+    },
+    {
+      "name": "post_z",
+      "expr": "1.525 mm",
+      "unit": "mm",
+      "comment": "contacts' centreline height in the cavity",
+      "model": false
+    },
+    {
+      "name": "bend_y",
+      "expr": "-0.175 mm",
+      "unit": "mm",
+      "comment": "where the tails turn down (centreline)",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "body_length * 0.5",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "(y_rear - latch_back) * 0.6",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    },
+    {
+      "name": "d18",
+      "expr": "(bend_r) + (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d19",
+      "expr": "(bend_r) - (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d20",
+      "expr": "(bend_r) - (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d21",
+      "expr": "(bend_r) + (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "shroud",
+      "suppressed": false,
+      "body_names": [
+        "shroud"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "y_front",
+        "standoff"
+      ],
+      "length": "(body_length / 2) - (- body_length / 2)",
+      "width": "(y_rear) - (y_front)",
+      "height": "(top) - (standoff)",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.0,
+            -4.575,
+            0.05
+          ],
+          "max": [
+            3.0,
+            -0.3250000000000002,
+            2.9
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.0,
+            -4.575,
+            0.05
+          ],
+          "max": [
+            3.0,
+            -0.3250000000000002,
+            2.9
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.0,
+            -4.575,
+            0.05
+          ],
+          "max": [
+            3.0,
+            -0.3250000000000002,
+            2.9
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.0,
+            -4.575,
+            0.05
+          ],
+          "max": [
+            3.0,
+            -0.3250000000000002,
+            2.9
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -3.0,
+          -4.575,
+          1.5
+        ],
+        [
+          3.0,
+          -4.575,
+          1.5
+        ],
+        [
+          3.0,
+          -0.325,
+          1.5
+        ],
+        [
+          -3.0,
+          -0.325,
+          1.5
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "shroud"
+    },
+    {
+      "id": 3,
+      "name": "cavity",
+      "suppressed": false,
+      "param_names": [
+        "d5",
+        "d6",
+        "d7"
+      ],
+      "participants": [
+        "shroud"
+      ],
+      "type": "box",
+      "corner": [
+        "- cavity_width / 2",
+        "y_front - 1 mm",
+        "cavity_bottom"
+      ],
+      "length": "(cavity_width / 2) - (- cavity_width / 2)",
+      "width": "(cavity_back) - (y_front - 1 mm)",
+      "height": "(cavity_top) - (cavity_bottom)",
+      "operation": "cut"
+    },
+    {
+      "id": 4,
+      "name": "latch window",
+      "suppressed": false,
+      "param_names": [
+        "d8",
+        "d9",
+        "d10"
+      ],
+      "participants": [
+        "shroud"
+      ],
+      "type": "box",
+      "corner": [
+        "- latch_width / 2",
+        "y_front - 1 mm",
+        "cavity_top - 0.01 mm"
+      ],
+      "length": "(latch_width / 2) - (- latch_width / 2)",
+      "width": "(latch_back) - (y_front - 1 mm)",
+      "height": "(top + 1 mm) - (cavity_top - 0.01 mm)",
+      "operation": "cut"
+    },
+    {
+      "id": 5,
+      "name": "key groove 1",
+      "suppressed": false,
+      "param_names": [
+        "d11",
+        "d12",
+        "d13"
+      ],
+      "participants": [
+        "shroud"
+      ],
+      "type": "box",
+      "corner": [
+        "- (cavity_width / 2 - key_width)",
+        "y_front - 1 mm",
+        "cavity_bottom - key_depth"
+      ],
+      "length": "(- (cavity_width / 2 - 2 * key_width)) - (- (cavity_width / 2 - key_width))",
+      "width": "(cavity_back) - (y_front - 1 mm)",
+      "height": "(cavity_bottom + 0.01 mm) - (cavity_bottom - key_depth)",
+      "operation": "cut"
+    },
+    {
+      "id": 6,
+      "name": "key groove 2",
+      "suppressed": false,
+      "param_names": [
+        "d14",
+        "d15",
+        "d16"
+      ],
+      "participants": [
+        "shroud"
+      ],
+      "type": "box",
+      "corner": [
+        "cavity_width / 2 - 2 * key_width",
+        "y_front - 1 mm",
+        "cavity_bottom - key_depth"
+      ],
+      "length": "(cavity_width / 2 - key_width) - (cavity_width / 2 - 2 * key_width)",
+      "width": "(cavity_back) - (y_front - 1 mm)",
+      "height": "(cavity_bottom + 0.01 mm) - (cavity_bottom - key_depth)",
+      "operation": "cut"
+    },
+    {
+      "id": 7,
+      "name": "contact sketch",
+      "suppressed": false,
+      "param_names": [
+        "d17"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- (pins - 1) / 2 * pitch - lead_width / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -3.075,
+              1.5999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "post_tip",
+              "y": "(post_z) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              -0.09999999999999999,
+              1.5999999999999999
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(bend_y) + (lead_thickness / 2)",
+              "y": "(post_z) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner3",
+            "pos": [
+              -0.09999999999999999,
+              0.15
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(bend_y) + (lead_thickness / 2)",
+              "y": "(lead_thickness / 2) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              0.375,
+              0.15
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tip_y",
+              "y": "(lead_thickness / 2) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              0.375,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tip_y",
+              "y": "(lead_thickness / 2) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner4",
+            "pos": [
+              -0.25,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(bend_y) - (lead_thickness / 2)",
+              "y": "(lead_thickness / 2) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              -0.25,
+              1.45
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(bend_y) - (lead_thickness / 2)",
+              "y": "(post_z) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p8",
+            "pos": [
+              -3.075,
+              1.45
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "post_tip",
+              "y": "(post_z) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -0.325,
+              1.5999999999999999
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -0.09999999999999999,
+              1.3749999999999998
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              -0.32499999999999996,
+              1.375
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -0.25,
+              1.375
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              -0.325,
+              1.45
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              -0.325,
+              1.375
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              -0.09999999999999999,
+              0.225
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p14",
+            "pos": [
+              -0.02499999999999998,
+              0.15
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              -0.024999999999999994,
+              0.22499999999999998
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p15",
+            "pos": [
+              -0.024999999999999994,
+              0.0
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p16",
+            "pos": [
+              -0.25,
+              0.225
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              -0.025000000000000022,
+              0.22499999999999998
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 10,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 16,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 5,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 19,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 13,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 8,
+            "b": 1,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 11,
+            "a": 10,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 12,
+            "b": 13,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 17,
+            "a": 15,
+            "b": 16,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 20,
+            "a": 19,
+            "b": 18,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 8
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 8
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 8,
+            "value": 0.22499999999999998,
+            "param": "d18"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 5
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 6
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 5,
+            "b": 9
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 6,
+            "b": 9
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 9,
+            "value": 0.075,
+            "param": "d19"
+          },
+          {
+            "id": "k11",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 1
+          },
+          {
+            "id": "k12",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 2
+          },
+          {
+            "id": "k13",
+            "type": "tangent",
+            "a": 1,
+            "b": 10
+          },
+          {
+            "id": "k14",
+            "type": "tangent",
+            "a": 2,
+            "b": 10
+          },
+          {
+            "id": "k15",
+            "type": "radius",
+            "c": 10,
+            "value": 0.075,
+            "param": "d20"
+          },
+          {
+            "id": "k16",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 4
+          },
+          {
+            "id": "k17",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 5
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 4,
+            "b": 11
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 5,
+            "b": 11
+          },
+          {
+            "id": "k20",
+            "type": "radius",
+            "c": 11,
+            "value": 0.22499999999999998,
+            "param": "d21"
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 4,
+          "k": 20,
+          "l": 8,
+          "p": 16
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "contact",
+      "suppressed": false,
+      "body_names": [
+        "contact"
+      ],
+      "param_names": [
+        "d22"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "contact cut",
+      "suppressed": false,
+      "param_names": [
+        "d23"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "shroud"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "contact cuts",
+      "suppressed": false,
+      "param_names": [
+        "d24",
+        "d25"
+      ],
+      "type": "pattern",
+      "features": [
+        9
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "pins",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 11,
+      "name": "contact pattern",
+      "suppressed": false,
+      "body_names": [
+        "contact (2)",
+        "contact (3)",
+        "contact (4)",
+        "contact (5)",
+        "contact (6)",
+        "contact (7)",
+        "contact (8)",
+        "contact (9)",
+        "contact (10)",
+        "contact (11)",
+        "contact (12)",
+        "contact (13)",
+        "contact (14)",
+        "contact (15)",
+        "contact (16)",
+        "contact (17)",
+        "contact (18)",
+        "contact (19)",
+        "contact (20)"
+      ],
+      "param_names": [
+        "d26",
+        "d27"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "pins",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "contact"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "tab 1 plate",
+      "suppressed": false,
+      "body_names": [
+        "tab 1"
+      ],
+      "param_names": [
+        "d28",
+        "d29",
+        "d30"
+      ],
+      "type": "box",
+      "corner": [
+        "-(tab_x + tab_thickness / 2)",
+        "tab_y0",
+        "0 mm"
+      ],
+      "length": "(-(tab_x - tab_thickness / 2)) - (-(tab_x + tab_thickness / 2))",
+      "width": "(tab_y1) - (tab_y0)",
+      "height": "(tab_height) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 13,
+      "name": "tab 1 foot",
+      "suppressed": false,
+      "param_names": [
+        "d31",
+        "d32",
+        "d33"
+      ],
+      "participants": [
+        "tab 1"
+      ],
+      "type": "box",
+      "corner": [
+        "-foot_x",
+        "tab_y0",
+        "0 mm"
+      ],
+      "length": "(-(tab_x - tab_thickness / 2)) - (-foot_x)",
+      "width": "(tab_y1) - (tab_y0)",
+      "height": "(tab_thickness) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 14,
+      "name": "tab 1 slot",
+      "suppressed": false,
+      "type": "combine",
+      "target": "shroud",
+      "tools": [
+        "tab 1"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 15,
+      "name": "tab 2 plate",
+      "suppressed": false,
+      "body_names": [
+        "tab 2"
+      ],
+      "param_names": [
+        "d34",
+        "d35",
+        "d36"
+      ],
+      "type": "box",
+      "corner": [
+        "(tab_x - tab_thickness / 2)",
+        "tab_y0",
+        "0 mm"
+      ],
+      "length": "((tab_x + tab_thickness / 2)) - ((tab_x - tab_thickness / 2))",
+      "width": "(tab_y1) - (tab_y0)",
+      "height": "(tab_height) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 16,
+      "name": "tab 2 foot",
+      "suppressed": false,
+      "param_names": [
+        "d37",
+        "d38",
+        "d39"
+      ],
+      "participants": [
+        "tab 2"
+      ],
+      "type": "box",
+      "corner": [
+        "(tab_x - tab_thickness / 2)",
+        "tab_y0",
+        "0 mm"
+      ],
+      "length": "(foot_x) - ((tab_x - tab_thickness / 2))",
+      "width": "(tab_y1) - (tab_y0)",
+      "height": "(tab_thickness) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 17,
+      "name": "tab 2 slot",
+      "suppressed": false,
+      "type": "combine",
+      "target": "shroud",
+      "tools": [
+        "tab 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 18,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d40"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "(latch_back + y_rear) / 2",
+            "top"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 19,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "contact": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (17)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (18)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (19)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (20)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (9)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "shroud": {
+        "name": "pa-white",
+        "color": [
+          231,
+          231,
+          226
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.5,
+          "dielectric_ior": 1.53
+        }
+      },
+      "tab 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "tab 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

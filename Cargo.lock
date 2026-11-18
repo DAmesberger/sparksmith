@@ -6610,6 +6610,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-board-to-board"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-buzzer"
 version = "0.1.0"
 dependencies = [
@@ -6658,6 +6666,14 @@ dependencies = [
 
 [[package]]
 name = "sparksmith-gen-header"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-microsd"
 version = "0.1.0"
 dependencies = [
  "sparksmith-generator-abi",
@@ -6730,6 +6746,14 @@ dependencies = [
 
 [[package]]
 name = "sparksmith-gen-tht"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-wire-to-board"
 version = "0.1.0"
 dependencies = [
  "sparksmith-generator-abi",

@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "module": {
+    "file": "microsd.wasm",
+    "sha256": "417f3362f25e26f3908b50a8357a94cf66f589e540d7dd888224fea8f3a31f0a"
+  },
+  "name": "microsd",
+  "parts": [
+    {
+      "file": "parts/microsd-push-pull.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at the DM3D-style starter row); the microsd generator gives every value. Proportions follow Hirose's public DM3 series catalogue (p. 9, DM3D push-pull, https://mm.digikey.com/Volume0/opasdata/d220001/medias/docus/9054/DM3.pdf, retrieved 18 November 2026), compared with Hirose's public product photo; sheet, insulator and contact springs are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "fc4010b4daf8a7fb55038caed4f351fb7c9033138391b4234e8b1cb296a42744",
+      "title": "MicroSD socket, push-pull"
+    }
+  ]
+}

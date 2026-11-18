@@ -88,6 +88,12 @@ The electromechanical families (18 November 2026) are original parametric recrea
 | `power-inductor` | `inductor-molded`, `inductor-shielded`, `inductor-shielded-window` | Power inductors: moulded composite block with inlaid bottom terminals, or a ferrite sleeve round a drum core (epoxy ring, enamelled winding, optional winding windows) | L | Coilcraft XEL4030, Bourns SRR6028, an estimated 6 × 6 × 4.5 mm |
 | `standoff` | `standoff`, `standoff-spigot` | SMD spacers with an internal thread: tin-plated tube, chamfers, optional locating spigot below the board; an annular land round a non-plated hole | H | Würth WA-SMSI M3 (9774015360R … 9774100360R) |
 
+The connector generators (18 November 2026) make surface-mount connectors whose lands are the maker's recommended layout, given as parameters, with each body placed on them by the drawing's offsets, so the lead tips stand on the lands (what a body fitted to an imported board's footprint by its pads relies on):
+
+- **`wire-to-board`**: one-row shrouded headers with a metal tab in each end wall, side or top entry, the shroud natural (ivory), white or black (`pa-natural`, `pa-white`, `pa9t`); six part files (`wtb-side-*`, `wtb-top-*`, one per entry and colour), each with the mating cavity, a latch window, two polarising grooves, bent tin contacts and the tabs. Presets: JST SH (1.0 mm) and PH (2.0 mm) SMD headers, side and top entry.
+- **`board-to-board`**: dual-row SMD terminal strips (gold posts, tin gull tails, grooved insulator with post pockets), optionally with two alignment pins; part files `b2b-dual-row` and `b2b-dual-row-pegs`. Presets: Samtec FTSH-1xx-01 (1.27 mm) and TSM-1xx-01/-03 (2.54 mm, -03 also with -A pins).
+- **`microsd`**: a push-pull microSD socket (nickel-silver shell on tin solder feet, LCP insulator, eight gold spring contacts, card-detect feet); part file `microsd-push-pull`. Preset: Hirose DM3D-style.
+
 The chip generator ships four part files (resistor, capacitor, ferrite or inductor, LED), saved from the in-code chip builder's construction (`cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`); evaluated at the module's values they equal the builder to 0 mm in bounds and volume for resistors and capacitors 0402–1206, a ferrite bead 0603 and an LED 0603 (`models::chip_part_tests`).
 
 ## ABI 1 changes

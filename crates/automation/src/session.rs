@@ -1919,6 +1919,8 @@ mod assembly_link_tests;
 #[cfg(test)]
 mod catalog_tests;
 #[cfg(test)]
+mod connector_model_tests;
+#[cfg(test)]
 mod dimension_tests;
 #[cfg(test)]
 mod fabrication_tests;

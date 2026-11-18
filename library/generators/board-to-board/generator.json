@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "module": {
+    "file": "board-to-board.wasm",
+    "sha256": "9446a40fc9d26e20602e2a7fbf56d4c817b813453c90951cba71549d54fd403f"
+  },
+  "name": "board-to-board",
+  "parts": [
+    {
+      "file": "parts/b2b-dual-row.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 2 × 5 strip of 1.27 mm); the board-to-board generator gives every value. Proportions follow Samtec's public FTSH-1XX-XX-XXX-DV-XXX-MKT and TSM-1XX-XX-XXX-XX-X-XXX-X-MKT prints and catalogue page (retrieved 18 November 2026), compared with Samtec's public product photos; grooves and pockets are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "2d88a0e4edb47b32203e39969fffcf1c4cdf189d18a272aeabebdad29db7c2f7",
+      "title": "Dual-row SMD terminal strip"
+    },
+    {
+      "file": "parts/b2b-dual-row-pegs.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 2 × 4 strip of 2.54 mm); the board-to-board generator gives every value. Proportions follow Samtec's public TSM-1XX-XX-XXX-XX-X-XXX-X-MKT print (Table 1, Fig 3) and catalogue page (retrieved 18 November 2026), compared with Samtec's public product photos; grooves and pockets are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "ea65e691e8f15f4b071429f739c66b3ccc7ac18407ee9196a7309e0627cfb46f",
+      "title": "Dual-row SMD terminal strip with alignment pins"
+    }
+  ]
+}

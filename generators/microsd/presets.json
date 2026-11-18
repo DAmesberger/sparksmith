@@ -1,0 +1,60 @@
+[
+ {
+  "key": "microsd-dm3d",
+  "name": "MicroSD socket, push-pull, 1.55 mm",
+  "aliases": [
+   "DM3D-SF",
+   "HRS DM3D-SF",
+   "Hirose DM3D"
+  ],
+  "description": "Surface-mount microSD socket, push-pull (no ejector), top-board mount, 11.95 × 11.45 × 1.55 mm metal shell, eight contacts at 1.1 mm, card-detect switch.",
+  "params": {
+   "pitch": 1100000,
+   "first_x": -4500000,
+   "land_width": 700000,
+   "land_length": 1750000,
+   "shell_x0": -5950000,
+   "shell_x1": 6000000,
+   "front": -550000,
+   "depth": 11450000,
+   "height": 1550000,
+   "sheet": 150000,
+   "foot": 150000,
+   "lead_width": 400000,
+   "lead_thickness": 100000,
+   "tip_y": -650000,
+   "foot_length": 1000000,
+   "arm_length": 4150000,
+   "g1_x": -5700000,
+   "g1_y": 125000,
+   "g1_w": 1300000,
+   "g1_l": 1500000,
+   "g2_x": 5650000,
+   "g2_y": 125000,
+   "g2_w": 1500000,
+   "g2_l": 1500000,
+   "g3_x": -5950000,
+   "g3_y": 7725000,
+   "g3_w": 800000,
+   "g3_l": 1500000,
+   "g4_x": 6000000,
+   "g4_y": 8375000,
+   "g4_w": 800000,
+   "g4_l": 1400000,
+   "cd_a_x": 5600000,
+   "cd_a_y": 10800000,
+   "cd_a_w": 1000000,
+   "cd_a_l": 1550000,
+   "cd_b_x": -5625000,
+   "cd_b_y": 9225000,
+   "cd_b_w": 1450000,
+   "cd_b_l": 1000000
+  },
+  "citation": {
+   "document": "Hirose DM3 series microSD card connectors catalogue: DM3D, push-pull, top board mounting; recommended PCB mounting pattern",
+   "page": 9
+  },
+  "basis": "cited",
+  "note": "Shell 11.95 × 11.45 × 1.55 mm, the card's centre line 6 mm from the shell's +x side, contacts at 1.1 mm with contact 8 4.5 mm from the centre line, 1.75 mm contact lands and every mechanical land (positions and sizes) from Hirose's DM3 catalogue (p. 9, DM3D, and its recommended PCB mounting pattern), retrieved 18 November 2026. Estimated: the contact land width (0.7 mm, scaled from the pattern), the shell's front edge relative to the lands (0.55 mm in front of their centre), sheet, insulator and the contacts' section and springs."
+ }
+]

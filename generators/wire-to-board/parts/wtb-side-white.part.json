@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "wtb-side-white",
+  "title": "Wire-to-board header, side entry, white shroud",
+  "summary": "Side-entry wire-to-board header: a moulded shroud with its mating cavity opening at the front (-y), a latch window in the roof and two polarising grooves along the floor, a row of tin-plated contacts running along y in the cavity, out of the rear face, down and out onto the board along +y, and a tin-plated tab standing in each end wall with its foot on the board (pins, pitch, body_length, y_front, y_rear, standoff, top, cavity_width, cavity_bottom, cavity_top, cavity_back, latch_width, latch_back, key_width, key_depth, lead_width, lead_thickness, post_tip, post_z, bend_y, tip_y, bend_r, tab_x, tab_thickness, tab_y0, tab_y1, tab_height, foot_x, corner_round). Shroud in white polyamide.",
+  "use": "package_body",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm side-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied."
+}

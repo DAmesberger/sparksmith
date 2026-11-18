@@ -402,6 +402,36 @@
       ]
     },
     {
+      "id": "pa_natural",
+      "name": "Natural polyamide",
+      "base_linear": [0.72, 0.64, 0.45],
+      "metallic": 0.0,
+      "roughness": 0.5,
+      "ior": 1.53,
+      "density_kg_m3": 1450.0,
+      "source": [
+        {
+          "reference": "est",
+          "note": "unpigmented heat-resistant polyamide (the 'natural (ivory)' shroud colour connector makers list): a warm ivory, from the resin's own yellowish tint; n and density of glass-filled PA grades"
+        }
+      ]
+    },
+    {
+      "id": "pa_white",
+      "name": "White polyamide",
+      "base_linear": [0.8, 0.8, 0.76],
+      "metallic": 0.0,
+      "roughness": 0.5,
+      "ior": 1.53,
+      "density_kg_m3": 1450.0,
+      "source": [
+        {
+          "reference": "est",
+          "note": "titanium-dioxide whitened polyamide shroud, slightly warm white; n and density of glass-filled PA grades"
+        }
+      ]
+    },
+    {
       "id": "silicone_clear",
       "name": "Clear silicone",
       "base_linear": [0.9, 0.9, 0.9],

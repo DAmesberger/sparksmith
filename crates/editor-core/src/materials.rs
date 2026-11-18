@@ -69,6 +69,11 @@ pub enum MaterialId {
     /// LCP plastic (high-temperature connector bodies).
     Lcp,
     Pa9t,
+    /// Natural (unpigmented, ivory) heat-resistant polyamide: wire-to-board
+    /// connector shrouds.
+    PaNatural,
+    /// White-pigmented polyamide connector shroud.
+    PaWhite,
     SiliconeClear,
     SiliconeDiffuse,
     Polyimide,
@@ -85,7 +90,7 @@ pub enum MaterialId {
 }
 
 impl MaterialId {
-    pub const ALL: [Self; 31] = [
+    pub const ALL: [Self; 33] = [
         Self::EpoxyMould,
         Self::EpoxyLaserMarked,
         Self::MarkingInkWhite,
@@ -109,6 +114,8 @@ impl MaterialId {
         Self::Pbt,
         Self::Lcp,
         Self::Pa9t,
+        Self::PaNatural,
+        Self::PaWhite,
         Self::SiliconeClear,
         Self::SiliconeDiffuse,
         Self::Polyimide,
@@ -135,7 +142,8 @@ impl MaterialId {
             Alumina96 | BariumTitanate | Ferrite => MaterialCategory::Ceramic,
             BorosilicateGlass => MaterialCategory::Glass,
             EpoxyMould | EpoxyLaserMarked | MarkingInkWhite | MarkingInkBlack | PadPrintInk
-            | ResistorOvercoat | PvcSleeve | Pbt | Lcp | Pa9t | PomWhite | SiliconeClear
+            | ResistorOvercoat | PvcSleeve | Pbt | Lcp | Pa9t | PaNatural | PaWhite | PomWhite
+            | SiliconeClear
             | SiliconeDiffuse | Polyimide | SolderMaskGreen | SolderMaskOverCopper => {
                 MaterialCategory::Polymer
             }
