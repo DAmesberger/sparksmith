@@ -76,6 +76,8 @@ pub enum PadPart {
     Land,
     /// A through-hole pad's land on the other side.
     Opposite,
+    /// A through-hole pad's land on an inner layer.
+    Inner(CopperLayer),
     /// The plated barrel of the pad's hole (0) or of each of its vias.
     Barrel(usize),
 }
@@ -280,6 +282,16 @@ impl BoardPlan {
             .chain(self.vias.iter().flat_map(|v| &v.bodies))
             .chain(&self.laminate)
     }
+
+    /// The copper on `layer`: each fill tile, pad land, track and via ring
+    /// lying on it (barrels span the board and lie on none). The one
+    /// answer to what copper a layer holds and where: Layout draws these
+    /// bodies' loops, the 3D view meshes them, the exact build builds
+    /// them, and the laminate's foil level is cut by them.
+    pub fn layer_copper(&self, layer: CopperLayer) -> impl Iterator<Item = &PlanBody> {
+        self.bodies()
+            .filter(move |b| b.layer == Some(layer) && b.kind != BodyKind::Substrate)
+    }
 }
 
 /// The plan of `project`'s board. Refused (as the build refuses it) when
@@ -319,17 +331,37 @@ pub(super) fn of_pads(
             "blind and buried vias are not built in the native model yet".into(),
         ));
     }
-    let fills = fills(project, memo)?;
-    let laminate = laminate(project, pads, &fills)?;
+    let mut plan = of_pads_copper(project, pads, memo)?;
+    plan.laminate = laminate(project, pads, &plan)?;
+    Ok(plan)
+}
+
+/// The board's copper alone: [`of`] without the laminate (its
+/// [`BoardPlan::laminate`] empty), taking unchanged fills from `memo`.
+/// Layout draws this, so what it shows on a copper layer is
+/// [`BoardPlan::layer_copper`], the bodies the 3D view meshes and the
+/// exact build builds.
+pub fn copper(project: &Project, memo: &mut Memo) -> Result<BoardPlan> {
+    sparksmith_core::validate::project(project).map_err(|e| Error::Invalid(e.to_string()))?;
+    project
+        .stackup
+        .check()
+        .map_err(|e| Error::Invalid(e.to_string()))?;
+    let pads = placed_pads(project)?;
+    of_pads_copper(project, &pads, memo)
+}
+
+/// [`copper`] for the board's placed pads.
+fn of_pads_copper(project: &Project, pads: &[PlacedPad<'_>], memo: &mut Memo) -> Result<BoardPlan> {
     Ok(BoardPlan {
+        fills: fills(project, memo)?,
         pads: pads
             .iter()
             .map(|pad| pad_plan(project, pad))
             .collect::<Result<_>>()?,
         tracks: tracks(project)?,
         vias: vias(project)?,
-        fills,
-        laminate,
+        laminate: Vec::new(),
     })
 }
 
@@ -512,26 +544,31 @@ fn pad_plan(project: &Project, pad: &PlacedPad<'_>) -> Result<PadPlan> {
     };
     let mut land = vec![pad.local(&shape)];
     land.extend(pad.bores().iter().map(|c| pad.local(c)));
-    plan.bodies.push(PlanBody::new(
-        pp.clone(),
-        BodyKind::PadCopper,
-        source(PadPart::Land),
-        net,
-        Some(near),
-        span(project, near)?,
-        frame,
-        land.clone(),
-    )?);
-    if copper == PadCopper::Through {
+    // A land on every layer the core gives the pad copper on (the copper
+    // graph, the checks and the fabrication output ask the same).
+    for layer in project.stackup.layers() {
+        if !pad.placed.on_copper(layer) {
+            continue;
+        }
+        let (name, part) = if layer == near {
+            (pp.clone(), PadPart::Land)
+        } else if layer == far {
+            (format!("{pp}_opposite"), PadPart::Opposite)
+        } else {
+            (
+                format!("{pp}_land_{}", super::layer_slug(layer)),
+                PadPart::Inner(layer),
+            )
+        };
         plan.bodies.push(PlanBody::new(
-            format!("{pp}_opposite"),
+            name,
             BodyKind::PadCopper,
-            source(PadPart::Opposite),
+            source(part),
             net,
-            Some(far),
-            span(project, far)?,
+            Some(layer),
+            span(project, layer)?,
             frame,
-            land,
+            land.clone(),
         )?);
     }
     for (index, [drill, bore]) in pad.barrels().iter().enumerate() {
@@ -617,12 +654,24 @@ fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
                 )
             };
             let mut bodies = Vec::new();
-            if bore > 0.0 {
+            // A through barrel spans the laminate; a blind or buried one
+            // (in [`copper`] only: the exact build refuses it) its layers.
+            let barrel = match via.span {
+                ViaSpan::Through => (0.0, board_thickness(project)),
+                _ => layers
+                    .iter()
+                    .filter(|l| via.on(**l, &layers))
+                    .filter_map(|l| project.stackup.copper_span(*l))
+                    .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), (a, b)| {
+                        (lo.min(a), hi.max(b))
+                    }),
+            };
+            if bore > 0.0 && barrel.0 < barrel.1 {
                 bodies.push(body(
                     format!("{name}_barrel"),
                     ViaPart::Barrel,
                     None,
-                    (0.0, board_thickness(project)),
+                    barrel,
                     vec![circle(drill), circle(bore)],
                 )?);
             }
@@ -659,8 +708,9 @@ fn vias(project: &Project) -> Result<Vec<ViaPlan>> {
 fn laminate(
     project: &Project,
     pads: &[PlacedPad<'_>],
-    fills: &[FillPlan],
+    copper: &BoardPlan,
 ) -> Result<Vec<PlanBody>> {
+    let fills = &copper.fills;
     let stackup = &project.stackup;
     let pad_drills: Vec<Contour> = pads
         .iter()
@@ -730,25 +780,23 @@ fn laminate(
             slab(Level::Dielectric(index), (low, high), &dielectric)?;
             continue;
         };
+        // The layer's copper is the plan's own ([`BoardPlan::layer_copper`]):
+        // each body's outer loop (its holes are drills, cut already).
+        let outer = |b: &PlanBody| b.loops.first().map(|l| b.frame.contour(l));
         let mut holes = pad_drills.clone();
         holes.extend(through.iter().cloned());
+        holes.extend(
+            copper
+                .layer_copper(layer)
+                .filter(|b| b.kind == BodyKind::PadCopper)
+                .filter_map(outer),
+        );
         let mut level = holes.clone();
         level.extend(
-            project
-                .tracks
-                .iter()
-                .filter(|t| t.layer == layer)
-                .filter_map(|t| polygon(&track_outline(t.start, t.end, t.width))),
-        );
-        level.extend(
-            project
-                .vias
-                .iter()
-                .filter(|v| v.on(layer, &layers))
-                .map(|v| Contour::Circle {
-                    center: v.position,
-                    radius: v.diameter / 2.0,
-                }),
+            copper
+                .layer_copper(layer)
+                .filter(|b| matches!(b.kind, BodyKind::CopperTrack | BodyKind::ViaCopper))
+                .filter_map(outer),
         );
         // A via ring or drill inside a wide track's copper is already cut
         // with it; drawn too, it would be an island of laminate.

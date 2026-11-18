@@ -916,3 +916,159 @@ pub fn add_paste_window(pads: &mut [Pad], window: &Pad) -> bool {
     target.paste = PasteRule::Windows(windows);
     true
 }
+
+/// Most growth (mm, either way) a footprint polygon may give its pad's
+/// land and still count as that pad's opening.
+const MAX_OPENING_GROWTH_MM: f64 = 1.0;
+/// How much of an opening's area may differ from its pad's land grown
+/// evenly: KiCad's drawn polygons keep sharp corners where an even growth
+/// rounds them (a few thousandths of a square millimetre per corner).
+const OPENING_AREA_SLACK: f64 = 0.02;
+
+/// The footprint's mask and paste polygons ([`crate::board::Opening`])
+/// that are one of its pads' land grown evenly, taken as that pad's mask
+/// expansion or paste rule (where the pad has no opening of its own on
+/// that layer, or the same one). Returns how many were taken; the others
+/// stay refused drawings.
+pub fn take_openings(board: &Board, fp: &Footprint, pads: &mut [Pad]) -> usize {
+    let place = transform(board, fp);
+    let (c, s) = sparksmith_core::geometry::cos_sin(place.rotation_deg);
+    let on_board = |p: PointNm| {
+        let q = local(p);
+        [
+            place.translate[0] + c * q[0] - s * q[1],
+            place.translate[1] + s * q[0] + c * q[1],
+        ]
+    };
+    let component = if fp.back { "B" } else { "F" };
+    let mut taken = 0;
+    for opening in &fp.openings {
+        let Some((side, what)) = opening.layer.split_once('.') else {
+            continue;
+        };
+        let ring: Vec<Point> = opening.points.iter().map(|p| on_board(*p)).collect();
+        let open_area = sparksmith_core::geometry::signed_area2(&ring).abs() / 2.0;
+        let matches: Vec<(usize, f64)> = pads
+            .iter()
+            .enumerate()
+            .filter(|(_, pad)| {
+                let own = match pad.side {
+                    PadSide::Top => component,
+                    PadSide::Bottom if component == "F" => "B",
+                    PadSide::Bottom => "F",
+                };
+                match pad.kind {
+                    PadKind::NonPlatedHole => false,
+                    PadKind::PlatedThrough => true,
+                    _ => own == side,
+                }
+            })
+            .filter_map(|(i, pad)| Some((i, even_growth(pad, &place, &ring, open_area)?)))
+            .collect();
+        let [(index, growth)] = matches.as_slice() else {
+            continue;
+        };
+        let (Some(pad), Ok(by), Ok(reduction)) =
+            (pads.get_mut(*index), nm(snap(*growth)), nm(-snap(*growth)))
+        else {
+            continue;
+        };
+        let took = match what {
+            "Mask" => match pad.mask {
+                MaskRule::Tented => {
+                    pad.mask = MaskRule::Expansion(by);
+                    true
+                }
+                MaskRule::Expansion(e) => e == by,
+                MaskRule::Inherit => false,
+            },
+            "Paste" => match &pad.paste {
+                PasteRule::None => {
+                    pad.paste = PasteRule::Reduction(reduction);
+                    true
+                }
+                PasteRule::Reduction(r) => *r == reduction,
+                _ => false,
+            },
+            _ => false,
+        };
+        if took {
+            taken += 1;
+        }
+    }
+    taken
+}
+
+/// How far `ring` (board mm) grows `pad`'s land evenly on every side, if
+/// it does: the growth whose land has the ring's area, accepted when the
+/// grown land and the ring differ by at most [`OPENING_AREA_SLACK`] of it.
+fn even_growth(pad: &Pad, place: &Transform2, ring: &[Point], open_area: f64) -> Option<f64> {
+    let to_board = pad.frame().then(place);
+    let land: Vec<Point> = pad
+        .shape
+        .outline(CHORD_MM)
+        .transformed(&to_board)
+        .flatten(CHORD_MM);
+    if land.len() < 3 || !boxes_overlap(&land, ring) {
+        return None;
+    }
+    let area = sparksmith_core::geometry::signed_area2(&land).abs() / 2.0;
+    let perimeter: f64 = (0..land.len())
+        .map(|i| sparksmith_core::geometry::distance(land[i], land[(i + 1) % land.len()]))
+        .sum();
+    // An even growth d of a convex land with sharp corners (as drawn)
+    // adds its perimeter times d and d² times the sum of tan(θ/2) over its
+    // corners' turns θ (π for a round land, 4 for a box).
+    let n = land.len();
+    let turn = |i: usize| {
+        let (a, b, c) = (land[(i + n - 1) % n], land[i], land[(i + 1) % n]);
+        let (u, v) = ([b[0] - a[0], b[1] - a[1]], [c[0] - b[0], c[1] - b[1]]);
+        (u[0] * v[1] - u[1] * v[0]).atan2(u[0] * v[0] + u[1] * v[1])
+    };
+    let sense = sparksmith_core::geometry::signed_area2(&land).signum();
+    let corners: f64 = (0..n)
+        .map(|i| sense * turn(i))
+        .filter(|t| *t > 0.0)
+        .map(|t| (t / 2.0).tan())
+        .sum();
+    let k = corners.max(f64::EPSILON);
+    let disc = perimeter * perimeter + 4.0 * k * (open_area - area);
+    if disc < 0.0 {
+        return None;
+    }
+    let growth = (disc.sqrt() - perimeter) / (2.0 * k);
+    if !growth.is_finite() || growth.abs() > MAX_OPENING_GROWTH_MM {
+        return None;
+    }
+    let grown: Vec<Point> = pad
+        .shape
+        .grown(growth, CHORD_MM)?
+        .transformed(&to_board)
+        .flatten(CHORD_MM);
+    let xor: Vec<Rings> =
+        vec![grown].overlay(&vec![ring.to_vec()], OverlayRule::Xor, FillRule::EvenOdd);
+    // Holes counted as area too: that only makes the test stricter.
+    let differ: f64 = xor
+        .iter()
+        .flatten()
+        .map(|r| sparksmith_core::geometry::signed_area2(r).abs() / 2.0)
+        .sum();
+    (differ <= OPENING_AREA_SLACK * open_area).then_some(growth)
+}
+
+/// Whether two rings' boxes overlap.
+fn boxes_overlap(a: &[Point], b: &[Point]) -> bool {
+    let bounds = |r: &[Point]| {
+        r.iter().fold(
+            ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]),
+            |(lo, hi), p| {
+                (
+                    [lo[0].min(p[0]), lo[1].min(p[1])],
+                    [hi[0].max(p[0]), hi[1].max(p[1])],
+                )
+            },
+        )
+    };
+    let ((alo, ahi), (blo, bhi)) = (bounds(a), bounds(b));
+    alo[0] <= bhi[0] && blo[0] <= ahi[0] && alo[1] <= bhi[1] && blo[1] <= ahi[1]
+}

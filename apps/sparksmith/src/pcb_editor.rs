@@ -35,6 +35,7 @@ mod board_card;
 pub(crate) mod board_shape;
 mod board_shape_ui;
 mod commands;
+mod copper_paint;
 pub(crate) use commands::LAYER_KEYS;
 pub(crate) use commands::shape_tool_entries;
 pub(crate) use route_tool::ROUTE_KEYS;
@@ -238,8 +239,16 @@ fn drawing_side(layer: BoardDrawing) -> Layer {
 /// One placed pad with its board outline and holes, cached per revision.
 struct BoardPad {
     placed: PlacedPad,
+    /// Its land on its own layer from the board plan
+    /// ([`copper_paint::LayoutCopper`]); a bare hole's keep-out land.
     outline: CoreShape,
     holes: Vec<PlacedHole>,
+}
+
+/// The keep-out land of a pad without copper (a bare hole), which the board
+/// plan has no body for. Never copper: Layout outlines it, unfilled.
+fn bare_hole_land(placed: &PlacedPad) -> CoreShape {
+    placed.outline()
 }
 
 impl BoardPad {
@@ -418,6 +427,8 @@ pub struct PcbEditor {
     graph: Arc<CopperGraph>,
     airwires: Vec<(WorldPad, WorldPad)>,
     issues: Vec<sparksmith_core::Finding>,
+    /// The board plan's copper, the only copper Layout draws, per revision.
+    layout_copper: copper_paint::LayoutCopper,
     board_pads: Vec<BoardPad>,
     graphics: Vec<PlacedGraphic>,
     /// Both ends of every track with its net and layer, per revision, for
@@ -597,6 +608,7 @@ impl Default for PcbEditor {
             graph: Arc::default(),
             airwires: vec![],
             issues: vec![],
+            layout_copper: Default::default(),
             board_pads: vec![],
             graphics: vec![],
             track_ends: vec![],
@@ -854,7 +866,13 @@ impl PcbEditor {
             {
                 self.via = None;
             }
-            self.fill_meshes.update(engine.project());
+            {
+                // The plan reads the host's materials, as the 3D view does.
+                let _context = engine.enter_context();
+                self.layout_copper.update(engine.project());
+            }
+            self.fill_meshes
+                .update(engine.project(), &self.layout_copper);
             self.stale_fills = layout::fill::status(engine.project())
                 .into_iter()
                 .filter(|s| s.stale)
@@ -949,12 +967,26 @@ impl PcbEditor {
 
     /// Place pads and graphics once per revision.
     fn cache_board(&mut self, project: &Project) {
+        let copper = &self.layout_copper;
         self.board_pads = layout::placed_pads(project)
             .into_iter()
-            .map(|placed| BoardPad {
-                outline: placed.outline(),
-                holes: placed.holes(),
-                placed,
+            .map(|placed| {
+                // The land on the pad's own layer, as the plan has it; a
+                // bare hole has no copper, only its keep-out land.
+                let land = copper
+                    .land(placed.instance, placed.pad.id, placed.layer.into())
+                    .or_else(|| {
+                        copper
+                            .lands(placed.instance, placed.pad.id)
+                            .first()
+                            .map(|(_, shape)| shape)
+                    })
+                    .cloned();
+                BoardPad {
+                    outline: land.unwrap_or_else(|| bare_hole_land(&placed)),
+                    holes: placed.holes(),
+                    placed,
+                }
             })
             .collect();
         self.graphics = layout::placed_graphics(project);
@@ -2266,7 +2298,10 @@ impl PcbEditor {
         let seen = self.seen();
         project.vias.iter().rev().find(|via| {
             seen.via(via, &self.stack)
-                && sparksmith_core::geometry::distance(via.position, at) <= via.diameter / 2.0
+                && self
+                    .layout_copper
+                    .via_extent(via.id)
+                    .is_some_and(|(c, r)| sparksmith_core::geometry::distance(c, at) <= r)
         })
     }
 
@@ -2527,6 +2562,16 @@ impl PcbEditor {
             self.paint_layer(painter, view, project, *layer, *look, true);
         }
         self.paint_vias(painter, view, project, near);
+        if let Some(error) = self.layout_copper.error() {
+            // Layout draws only the plan's copper; say why there is none.
+            painter.text(
+                painter.clip_rect().left_top() + egui::vec2(t.space_4, t.space_4),
+                Align2::LEFT_TOP,
+                format!("Copper not shown: {error}"),
+                type_face::semibold(t.font_label),
+                t.error,
+            );
+        }
         if self.layers.holes {
             for pad in &self.board_pads {
                 let delta = self.drag_delta(pad.placed.instance);
@@ -2666,7 +2711,13 @@ impl PcbEditor {
             if chosen && !selected {
                 continue;
             }
-            let shape = view.shape(&pad.outline, self.drag_delta(placed.instance));
+            let Some(land) = self
+                .layout_copper
+                .land(placed.instance, placed.pad.id, layer)
+            else {
+                continue;
+            };
+            let shape = view.shape(land, self.drag_delta(placed.instance));
             symbol_view::paint_shape(
                 painter,
                 view.view,
@@ -2689,10 +2740,10 @@ impl PcbEditor {
         let ink = BoardInk::get();
         let colors = crate::palette::board();
         let seen = self.seen();
-        let base = if seen.copper_layer(self.layer) {
-            colors.copper_layer(self.layer)
+        let (base, layer) = if seen.copper_layer(self.layer) {
+            (colors.copper_layer(self.layer), self.layer)
         } else {
-            colors.copper(near)
+            (colors.copper(near), CopperLayer::from(near))
         };
         for pad in &self.board_pads {
             let placed = &pad.placed;
@@ -2700,8 +2751,9 @@ impl PcbEditor {
                 continue;
             }
             let selected = self.pad_chosen(placed);
-            let shape = view.shape(&pad.outline, self.drag_delta(placed.instance));
+            let delta = self.drag_delta(placed.instance);
             if placed.pad.kind == PadKind::NonPlatedHole {
+                let shape = view.shape(&pad.outline, delta);
                 // A bare hole has no copper: outline its keep-out land.
                 let color = if selected {
                     copper_color(Layer::Top, true)
@@ -2717,6 +2769,14 @@ impl PcbEditor {
                 );
                 continue;
             }
+            // The plan's land on the layer it is drawn in.
+            let Some(land) = self
+                .layout_copper
+                .land(placed.instance, placed.pad.id, layer)
+            else {
+                continue;
+            };
+            let shape = view.shape(land, delta);
             let color = if selected { colors.selected } else { base };
             symbol_view::paint_shape(
                 painter,
@@ -2730,10 +2790,10 @@ impl PcbEditor {
 
     /// The tracks on one copper layer in its colour, `shade` of the way
     /// from the board; the selected track and the highlighted net in the
-    /// selection colour (with `chosen`, only those). Each track is its
-    /// round-capped copper outline ([`layout::track_shape`]) in an opaque
-    /// colour, so joins at any angle are seamless and overlapping copper
-    /// of a layer reads as one.
+    /// selection colour (with `chosen`, only those). Each track is the
+    /// board plan's stadium ([`copper_paint::LayoutCopper::track`]) in an
+    /// opaque colour, so joins at any angle are seamless and overlapping
+    /// copper of a layer reads as one.
     fn paint_tracks(
         &self,
         painter: &egui::Painter,
@@ -2761,12 +2821,11 @@ impl PcbEditor {
             if chosen_only && !chosen {
                 continue;
             }
+            let Some(ring) = self.layout_copper.track(track.id) else {
+                continue;
+            };
             painter.add(Shape::convex_polygon(
-                capsule(
-                    view.screen(track.start),
-                    view.screen(track.end),
-                    track.width as f32 * view.view.scale / 2.0,
-                ),
+                ring.iter().map(|p| view.screen(*p)).collect(),
                 if chosen { selected } else { plain },
                 Stroke::NONE,
             ));
@@ -2791,22 +2850,33 @@ impl PcbEditor {
                 || self.group.vias.contains(&via.id)
                 || self.highlighted == Some(via.net);
             let joins = |l: CopperLayer| seen.copper_layer(l) && via.on(l, &self.stack);
-            let (ring, share) = if selected {
-                (colors.selected, 1.0)
-            } else if joins(self.layer) {
-                (colors.copper_layer(self.layer), 1.0)
+            let shown = if joins(self.layer) {
+                self.layer
             } else {
-                let shown = self
-                    .stack
+                self.stack
                     .iter()
                     .copied()
                     .find(|l| joins(*l))
-                    .unwrap_or(CopperLayer::from(near));
+                    .unwrap_or(CopperLayer::from(near))
+            };
+            let (ring, share) = if selected {
+                (colors.selected, 1.0)
+            } else if shown == self.layer {
+                (colors.copper_layer(self.layer), 1.0)
+            } else {
                 let share = self.look(shown, near).map_or(1.0, |l| l.shade);
                 (colors.copper_layer(shown), share)
             };
-            let at = view.screen(via.position);
-            let outer = (via.diameter as f32 * scale / 2.0).max(2.5);
+            // The plan's ring on the layer it is drawn in.
+            let Some((center, radius)) = self
+                .layout_copper
+                .via_ring(via.id, shown)
+                .or_else(|| self.layout_copper.via_extent(via.id))
+            else {
+                continue;
+            };
+            let at = view.screen(center);
+            let outer = (radius as f32 * scale).max(2.5);
             let drill = (via.drill as f32 * scale / 2.0).max(1.0).min(outer - 0.5);
             if via.tented {
                 painter.circle(
@@ -3260,20 +3330,20 @@ fn bounds_of(editor: &PcbEditor, project: &Project, refs: &[ObjectRef]) -> Optio
                 pads_where(&|p| p.instance == instance && p.pad.id == pad, &mut points)
             }
             ObjectRef::Track { id } => {
-                for track in project.tracks.iter().filter(|t| t.id == id) {
-                    points.extend(layout::track_outline(track));
+                if let Some(ring) = editor.layout_copper.track(id) {
+                    points.extend_from_slice(ring);
                 }
             }
             ObjectRef::Net { id } => {
                 pads_where(&|p| p.net == Some(id), &mut points);
                 for track in project.tracks.iter().filter(|t| t.net == id) {
-                    points.extend(layout::track_outline(track));
+                    points.extend_from_slice(
+                        editor.layout_copper.track(track.id).unwrap_or_default(),
+                    );
                 }
             }
             ObjectRef::Via { id } => {
-                for via in project.vias.iter().filter(|v| v.id == id) {
-                    let r = via.diameter / 2.0;
-                    let [x, y] = via.position;
+                if let Some(([x, y], r)) = editor.layout_copper.via_extent(id) {
                     points.extend([[x - r, y - r], [x + r, y + r]]);
                 }
             }

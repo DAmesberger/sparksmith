@@ -286,6 +286,85 @@ fn paste_only_pads_become_windows_of_the_pad_under_them() -> Fallible<()> {
     Ok(())
 }
 
+/// A filled footprint polygon on `layer` through `points` (footprint
+/// frame, KiCad's axes).
+fn poly(layer: &str, points: &[[f64; 2]]) -> String {
+    let pts: Vec<String> = points
+        .iter()
+        .map(|p| format!("(xy {} {})", p[0], p[1]))
+        .collect();
+    format!(
+        " (fp_poly (pts {}) (stroke (width 0.01) (type solid)) (fill solid) (layer \"{layer}\"))",
+        pts.join(" ")
+    )
+}
+
+/// A box about `c` of half-size `h`, corners sharp.
+fn square(c: [f64; 2], h: [f64; 2]) -> Vec<[f64; 2]> {
+    vec![
+        [c[0] - h[0], c[1] - h[1]],
+        [c[0] + h[0], c[1] - h[1]],
+        [c[0] + h[0], c[1] + h[1]],
+        [c[0] - h[0], c[1] + h[1]],
+    ]
+}
+
+/// A pad with copper only (no mask or paste layer) whose openings the
+/// footprint draws as polygons on the mask and paste layers (a footprint
+/// generator's habit): each polygon that grows the pad's land evenly
+/// becomes the pad's mask expansion or paste rule, on either side and at
+/// any angle, instead of a tented pad under a refused drawing. A polygon
+/// that is no pad's opening stays refused.
+#[test]
+fn footprint_mask_and_paste_polygons_become_their_pads_openings() -> Fallible<()> {
+    let front = Footprint::new(
+        "J1",
+        [10.0, 10.0, 30.0],
+        false,
+        vec![Pad::smd("1", "rect", [1.0, 0.5, 30.0], [0.6, 1.2]).layers("\"F.Cu\"")],
+    );
+    let back = Footprint::new(
+        "J2",
+        [20.0, 10.0, 90.0],
+        true,
+        vec![Pad::smd("1", "rect", [-1.0, 0.0, 90.0], [0.8, 0.8]).layers("\"B.Cu\"")],
+    );
+    let mut board = one_footprint(vec![]);
+    board.footprints = vec![front, back];
+    board.footprints[0].extra = [
+        poly("F.Mask", &square([1.0, 0.5], [0.4, 0.7])),
+        poly("F.Paste", &square([1.0, 0.5], [0.3, 0.6])),
+        // Nobody's opening: a window between pads.
+        poly("F.Mask", &square([3.0, 3.0], [0.2, 0.2])),
+    ]
+    .concat();
+    board.footprints[1].extra = poly("B.Mask", &square([-1.0, 0.0], [0.45, 0.45]));
+    let imported = import(board.text().as_bytes())?;
+    let project = imported.engine.project();
+    let placed = placed_pads(project);
+    let of = |designator: &str| {
+        let instance = project.instance_by_designator(designator)?.id;
+        placed.iter().find(|p| p.instance == instance)
+    };
+    let j1 = of("J1").ok_or("J1")?;
+    let MaskRule::Expansion(e) = j1.pad.mask else {
+        return Err(format!("J1 mask {:?}", j1.pad.mask).into());
+    };
+    assert!((e.to_mm_f64() - 0.1).abs() < 0.002, "{e:?}");
+    let PasteRule::Reduction(r) = j1.pad.paste else {
+        return Err(format!("J1 paste {:?}", j1.pad.paste).into());
+    };
+    assert!(r.to_mm_f64().abs() < 0.002, "{r:?}");
+    let j2 = of("J2").ok_or("J2")?;
+    let MaskRule::Expansion(e) = j2.pad.mask else {
+        return Err(format!("J2 mask {:?}", j2.pad.mask).into());
+    };
+    assert!((e.to_mm_f64() - 0.05).abs() < 0.002, "{e:?}");
+    assert_eq!(imported.report.count(Case::FootprintOpenings), 3);
+    assert_eq!(imported.report.count(Case::FootprintFabGraphics), 1);
+    Ok(())
+}
+
 #[test]
 fn a_fiducial_is_a_part_without_terminals() -> Fallible<()> {
     let fiducial = Pad::smd("", "circle", [0.0, 0.0, 0.0], [1.0, 1.0])

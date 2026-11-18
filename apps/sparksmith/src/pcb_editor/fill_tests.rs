@@ -204,7 +204,7 @@ fn fill_copper_triangulates_with_its_holes() {
             holes: vec![],
         },
     ];
-    let mesh = FillMesh::of(0, &regions);
+    let mesh = FillMesh::of(0, &regions, &regions);
     assert!(
         (mesh.area() - (60.0 - 4.0 - 12.0 + 1.0)).abs() < 1e-9,
         "{}",

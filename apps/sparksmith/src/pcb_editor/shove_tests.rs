@@ -193,9 +193,7 @@ fn a_blocked_step_points_at_the_blocking_track() -> TestResult {
     assert!(!planned.reached());
     let blocker = planned.blocker().ok_or("no blocker")?;
     assert_eq!(blocker, ObjectRef::Track { id: track.id });
-    let outline = editor
-        .blocker_outline(engine.project(), blocker)
-        .ok_or("no outline")?;
+    let outline = editor.blocker_outline(blocker).ok_or("no outline")?;
     let xs: Vec<f64> = outline.iter().map(|p| p[0]).collect();
     let ys: Vec<f64> = outline.iter().map(|p| p[1]).collect();
     let min = |v: &[f64]| v.iter().copied().fold(f64::INFINITY, f64::min);
