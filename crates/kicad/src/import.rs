@@ -310,11 +310,15 @@ pub fn import_with_models(
         let prefix = first
             .map(|fp| prefix_of(&fp.reference))
             .unwrap_or_else(|| "U".to_owned());
-        let name = definition_name(
-            first.map_or("", |fp| fp.lib_id.as_str()),
-            k,
-            &mut names_taken,
-        );
+        let source_id = first.map_or("", |fp| fp.lib_id.as_str());
+        let naming = definition_name(source_id, k, &mut names_taken);
+        if naming.changed {
+            report.add(Case::NameShortened);
+        }
+        if naming.numbered {
+            report.add(Case::NameNumbered);
+        }
+        let name = naming.name;
         let selection = match (models.as_deref_mut(), first) {
             (Some(provider), Some(fp)) => Some(
                 provider
@@ -341,6 +345,7 @@ pub fn import_with_models(
         sets.push(session.component_set(
             ComponentSource {
                 name: &name,
+                source_id,
                 pads,
                 prefix: &prefix,
                 kicad_symbol: symbol.as_ref(),
@@ -689,6 +694,8 @@ fn value_text(value: &str) -> Option<String> {
 /// Parsed electrical data and the optional mechanical model for one definition.
 struct ComponentSource<'a> {
     name: &'a str,
+    /// The KiCad footprint id (`Library:Name`), recorded in the provenance.
+    source_id: &'a str,
     pads: Vec<Pad>,
     prefix: &'a str,
     kicad_symbol: Option<&'a crate::schematic::LibSymbol>,
@@ -1044,6 +1051,7 @@ impl Session<'_> {
     ) -> Result<Set, ImportError> {
         let ComponentSource {
             name,
+            source_id,
             pads,
             prefix,
             kicad_symbol,
@@ -1098,6 +1106,18 @@ impl Session<'_> {
             step: "library.edit",
             reason: e.to_string(),
         })?;
+        if !source_id.trim().is_empty() {
+            let id: String = source_id
+                .chars()
+                .filter(|c| !c.is_control())
+                .take(4 * MAX_NAME_CHARS)
+                .collect();
+            for edit in &mut edits {
+                edit.meta
+                    .provenance
+                    .push_str(&format!("\nKiCad footprint: {id}"));
+            }
+        }
         if let Some(model) = model {
             for edit in &mut edits {
                 if let Definition::Package(package) = &mut edit.definition {
@@ -1133,26 +1153,58 @@ impl Session<'_> {
 /// Longest definition name taken from a footprint's KiCad name, chars.
 const MAX_NAME_CHARS: usize = 120;
 
+/// The name of the `k`th imported definition, and how it was reached.
+struct Naming {
+    name: String,
+    /// The name is not the KiCad id as it is (library nickname dropped,
+    /// control characters or extra whitespace removed).
+    changed: bool,
+    /// An earlier definition took the name: this one is numbered apart.
+    numbered: bool,
+}
+
 /// The name of the `k`th imported definition: its first footprint's KiCad
-/// name (`Library:R_0805`), without control characters and bounded, else
-/// "KiCad footprint {k + 1}". A name an earlier definition took (one KiCad
-/// footprint whose copies differ) gets " (2)", " (3)" and so on.
-fn definition_name(lib_id: &str, k: usize, taken: &mut BTreeMap<String, usize>) -> String {
-    let clean: String = lib_id
+/// footprint name without the library nickname (`R_0805` of
+/// `Library:R_0805`; the full id stays in the provenance), without control
+/// characters, with whitespace runs made one space, trimmed and bounded,
+/// else "KiCad footprint {k + 1}". A name an earlier definition took (two
+/// libraries' footprints of one name, or one footprint whose copies differ)
+/// gets ", 2", ", 3" and so on.
+fn definition_name(lib_id: &str, k: usize, taken: &mut BTreeMap<String, usize>) -> Naming {
+    let short = match lib_id.split_once(':') {
+        Some((nickname, name)) if !nickname.trim().is_empty() && !name.trim().is_empty() => name,
+        _ => lib_id,
+    };
+    let clean = short
         .chars()
         .filter(|c| !c.is_control())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
         .take(MAX_NAME_CHARS)
-        .collect();
-    let base = match clean.trim() {
-        "" => format!("KiCad footprint {}", k + 1),
-        name => name.to_owned(),
+        .collect::<String>();
+    let base = if clean.is_empty() {
+        format!("KiCad footprint {}", k + 1)
+    } else {
+        clean
     };
+    let changed = !lib_id.trim().is_empty() && base != lib_id;
     let seen = taken.entry(base.clone()).or_insert(0);
     *seen += 1;
     if *seen == 1 {
-        base
+        Naming {
+            name: base,
+            changed,
+            numbered: false,
+        }
     } else {
-        format!("{base} ({seen})")
+        Naming {
+            name: format!("{base}, {seen}"),
+            changed,
+            numbered: true,
+        }
     }
 }
 
@@ -1318,16 +1370,27 @@ fn drafts(
 mod tests {
     use super::*;
 
-    /// A definition is named by its KiCad footprint; a repeated name is
-    /// numbered, and a footprint without one is numbered by its place.
+    /// A definition is named by its KiCad footprint name without the
+    /// library nickname; a repeated name is numbered, and a footprint
+    /// without one is numbered by its place.
     #[test]
     fn definitions_take_their_kicad_footprint_names() {
         let mut taken = BTreeMap::new();
-        let mut name = |lib_id: &str, k: usize| definition_name(lib_id, k, &mut taken);
-        assert_eq!(name("Lib:R_0805", 0), "Lib:R_0805");
-        assert_eq!(name("Lib:R_0805", 1), "Lib:R_0805 (2)");
-        assert_eq!(name("  ", 2), "KiCad footprint 3");
-        assert_eq!(name("Lib:C\n_0603", 3), "Lib:C_0603");
-        assert_eq!(name(&"x".repeat(500), 4).chars().count(), MAX_NAME_CHARS);
+        let mut name = |lib_id: &str, k: usize| {
+            let n = definition_name(lib_id, k, &mut taken);
+            (n.name, n.changed, n.numbered)
+        };
+        assert_eq!(name("Lib:R_0805", 0), ("R_0805".into(), true, false));
+        assert_eq!(name("Other:R_0805", 1), ("R_0805, 2".into(), true, true));
+        assert_eq!(name("R_0805", 2), ("R_0805, 3".into(), false, true));
+        assert_eq!(name("  ", 3), ("KiCad footprint 4".into(), false, false));
+        assert_eq!(name("Lib:C\n_0603", 4), ("C_0603".into(), true, false));
+        assert_eq!(
+            name("Lib:  Wide   name ", 5),
+            ("Wide name".into(), true, false)
+        );
+        assert_eq!(name(":Bare", 6), (":Bare".into(), false, false));
+        assert_eq!(name("Lib:", 7), ("Lib:".into(), false, false));
+        assert_eq!(name(&"x".repeat(500), 8).0.chars().count(), MAX_NAME_CHARS);
     }
 }

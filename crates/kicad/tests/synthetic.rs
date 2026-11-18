@@ -85,7 +85,7 @@ fn the_showcase_board_imports_through_the_engine() -> Fallible<()> {
     assert!(
         names
             .iter()
-            .all(|n| n.starts_with("Synthetic:") && !n.contains("KiCad footprint")),
+            .all(|n| !n.contains(':') && !n.contains("KiCad footprint")),
         "{names:?}"
     );
     // The import is undoable command history, not a written document.
@@ -429,11 +429,12 @@ fn distinct_footprints_with_equal_pads_stay_distinct() -> Fallible<()> {
             part("Lib:LED_0805", "D1", 15.0),
             part("Lib:C_0805", "C1", 20.0),
             part("Lib:R_0805", "R2", 25.0),
+            part("Other:R_0805", "R3", 30.0),
         ],
         items: String::new(),
     };
     let imported = import(board.text().as_bytes())?;
-    assert_eq!(imported.report.counts.definitions, 3);
+    assert_eq!(imported.report.counts.definitions, 4);
     let project = imported.engine.project();
     let component = |designator: &str| -> Fallible<String> {
         let instance = project
@@ -447,17 +448,37 @@ fn distinct_footprints_with_equal_pads_stay_distinct() -> Fallible<()> {
             .name
             .clone())
     };
-    assert_eq!(component("R1")?, "Lib:R_0805");
-    assert_eq!(component("D1")?, "Lib:LED_0805");
-    assert_eq!(component("C1")?, "Lib:C_0805");
-    assert_eq!(component("R2")?, "Lib:R_0805");
+    // The visible name is the footprint's own; the library nickname and
+    // full id stay in the provenance. Another library's footprint of the
+    // same name is numbered apart, and the report counts both.
+    assert_eq!(component("R1")?, "R_0805");
+    assert_eq!(component("D1")?, "LED_0805");
+    assert_eq!(component("C1")?, "C_0805");
+    assert_eq!(component("R2")?, "R_0805");
+    assert_eq!(component("R3")?, "R_0805, 2");
+    assert_eq!(imported.report.count(Case::NameShortened), 4);
+    assert_eq!(imported.report.count(Case::NameNumbered), 1);
+    let r3 = project.instance_by_designator("R3").ok_or("R3")?;
+    let provenance = &project
+        .library
+        .component(r3.component)
+        .ok_or("component")?
+        .meta
+        .provenance;
+    assert!(
+        provenance.contains("KiCad footprint: Other:R_0805"),
+        "{provenance}"
+    );
     let bom = sparksmith_core::completeness::bom(project)?;
     let lines: Vec<Vec<&str>> = bom
         .lines
         .iter()
         .map(|l| l.designators.iter().map(String::as_str).collect())
         .collect();
-    assert_eq!(lines, [vec!["C1"], vec!["D1"], vec!["R1", "R2"]]);
+    assert_eq!(
+        lines,
+        [vec!["C1"], vec!["D1"], vec!["R1", "R2"], vec!["R3"]]
+    );
     Ok(())
 }
 

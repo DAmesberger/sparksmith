@@ -82,6 +82,11 @@ pub enum Case {
     PadOnBothSides,
     /// A designator that was not valid or repeated, renumbered.
     Designator,
+    /// Definition names without their KiCad library nickname, or cleaned
+    /// of control characters and extra whitespace.
+    NameShortened,
+    /// Definition names an earlier definition took, numbered apart.
+    NameNumbered,
     /// G9/G10: board-level drawings, texts and dimensions (not imported).
     BoardObjects,
     /// G12: 3D model references.
@@ -319,6 +324,16 @@ impl Case {
             ),
             Self::PadOnBothSides => ("G8", Refused, "surface pads on both outer sides"),
             Self::Designator => ("-", Report, "designators renumbered"),
+            Self::NameShortened => (
+                "-",
+                Report,
+                "definition names without their KiCad library nickname or extra whitespace (the full id kept in the provenance)",
+            ),
+            Self::NameNumbered => (
+                "-",
+                Report,
+                "definition names shared with another footprint, numbered apart (\", 2\")",
+            ),
             Self::BoardObjects => (
                 "G9",
                 Report,
