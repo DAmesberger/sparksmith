@@ -1222,7 +1222,10 @@ fn write_family_pictures() -> Result<(), Box<dyn std::error::Error>> {
         target.envelope_nm = generated.envelope_nm;
         target.model = generated.model.clone();
         let mut v = viewport(&project)?;
-        let at = centre(&v, BodyKind::ModelBody).ok_or("no body")?;
+        // A part all of a lead finish (a tin-plated spacer) has no body.
+        let at = centre(&v, BodyKind::ModelBody)
+            .or_else(|| centre(&v, BodyKind::ModelLead))
+            .ok_or("no body")?;
         let (w, h) = (1280, 960);
         for (view, yaw, pitch) in [("a", 35.0, 35.0), ("b", 200.0, 25.0)] {
             aim(&mut v, Vec3::new(at.x, at.y, at.z / 2.0), distance, yaw, pitch);
