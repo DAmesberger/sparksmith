@@ -86,25 +86,34 @@ pub struct Row {
 
 /// The rows `query` finds among `offers`, restricted to `chip` (a
 /// generator id) when one is chosen: each generator's custom row (when the
-/// text names the generator or is empty), then the presets it names.
+/// text names the generator or is empty), then the presets it names. At
+/// most [`ROWS`]; the cap shortens preset lists, never drops a generator's
+/// custom row.
 pub fn rows(offers: &[Offer], chip: Option<&str>, query: &str) -> Vec<Row> {
     let words: Vec<String> = query
         .split_whitespace()
         .map(|w| w.to_lowercase().replace('×', "x"))
         .collect();
-    let mut out = Vec::new();
-    for offer in offers
+    let offers: Vec<(&Offer, String)> = offers
         .iter()
         .filter(|o| chip.is_none_or(|c| o.description.id == c))
-    {
-        let title = format!(
-            "{} {} {}",
-            offer.summary.name,
-            offer.description.id,
-            offer.summary.families.join(" ")
-        )
-        .to_lowercase();
-        if words.iter().all(|w| title.contains(w.as_str())) {
+        .map(|offer| {
+            let title = format!(
+                "{} {} {}",
+                offer.summary.name,
+                offer.description.id,
+                offer.summary.families.join(" ")
+            )
+            .to_lowercase();
+            (offer, title)
+        })
+        .collect();
+    let named = |title: &str| words.iter().all(|w| title.contains(w.as_str()));
+    let customs = offers.iter().filter(|(_, title)| named(title)).count();
+    let mut presets_left = ROWS.saturating_sub(customs);
+    let mut out = Vec::new();
+    for (offer, title) in offers {
+        if named(&title) && out.len() < ROWS {
             out.push(Row {
                 generator: offer.description.id.clone(),
                 preset: None,
@@ -122,16 +131,14 @@ pub fn rows(offers: &[Offer], chip: Option<&str>, query: &str) -> Vec<Row> {
             )
             .to_lowercase()
             .replace('×', "x");
-            if words.iter().all(|w| text.contains(w.as_str())) {
+            if presets_left > 0 && words.iter().all(|w| text.contains(w.as_str())) {
+                presets_left -= 1;
                 out.push(Row {
                     generator: offer.description.id.clone(),
                     preset: Some(preset.key.clone()),
                     name: preset.name.clone(),
                     detail: generator_form::basis_line(preset),
                 });
-            }
-            if out.len() >= ROWS {
-                return out;
             }
         }
     }
