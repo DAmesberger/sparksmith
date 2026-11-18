@@ -761,33 +761,40 @@ mod tests {
                 .map_err(|miss| format!("{preset}: {miss}"))?;
             assert!(choice.provenance.contains(preset), "{}", choice.provenance);
         }
-        // A prefix no fitting preset declares keeps the placeholder: a test
-        // point's lands of a 1210 chip's size get no resistor body; an
-        // inductor's get the power inductor that declares "L".
+        // A prefix no fitting preset declares keeps the placeholder: a
+        // crystal's (Y) lands of a 1210 chip's size get no resistor body.
         let r0603 = lands_of(&presets, "chip/resistor-0603")?;
         assert!(matches!(
             presets.match_model(&mut engine, &r0603, "?", &mut models, deadline)?,
             Err(Miss::PrefixMismatch { .. })
         ));
-        let mut inductor = chip(2.4, [1.0, 3.0])?;
-        for pad in &mut inductor {
+        let mut crystal = chip(2.4, [1.0, 3.0])?;
+        for pad in &mut crystal {
             let [x, y] = pad.position.to_mm_f64();
             pad.position = PointNm::from_mm_f64_rounded([y, x])?;
             pad.shape = PadShape::round_rect_mm([3.0, 1.0], 0.25, None, CornerMask::ALL)?;
         }
         assert!(
-            accepted(&inductor, &lands_of(&presets, "chip/resistor-1210")?),
+            accepted(&crystal, &lands_of(&presets, "chip/resistor-1210")?),
             "the lands fit a 1210 chip"
         );
-        match presets.match_model(&mut engine, &inductor, "TP", &mut models, deadline)? {
-            Err(Miss::PrefixMismatch { .. }) => {}
-            other => return Err(format!("a TP part got {:?}", other.map(|c| c.provenance)).into()),
+        match presets.match_model(&mut engine, &crystal, "Y", &mut models, deadline)? {
+            // Nearest by centres is the XEL4030 (2.39 mm span), which declares L.
+            Err(Miss::PrefixMismatch { nearest }) => {
+                assert_eq!(nearest, "power-inductor/power-inductor-xel4030");
+            }
+            other => return Err(format!("a Y part got {:?}", other.map(|c| c.provenance)).into()),
         }
+        // The power-inductor family declares L: an inductor on its lands
+        // gets its body, not the placeholder.
+        let xel4030 = lands_of(&presets, "power-inductor/power-inductor-xel4030")?;
         let choice = presets
-            .match_model(&mut engine, &inductor, "L", &mut models, deadline)?
-            .map_err(|miss| format!("an L part: {miss}"))?;
+            .match_model(&mut engine, &xel4030, "L", &mut models, deadline)?
+            .map_err(|miss| format!("XEL4030 under L: {miss}"))?;
         assert!(
-            choice.provenance.contains("power-inductor/"),
+            choice
+                .provenance
+                .contains("power-inductor/power-inductor-xel4030"),
             "{}",
             choice.provenance
         );

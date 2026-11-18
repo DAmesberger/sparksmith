@@ -11,8 +11,9 @@ fn offers(ax: &Ax) -> usize {
     ax.app.workflow_cards.offers()
 }
 
-/// ⌘P, "datasheet", Enter: the palette's entry for the workflow, made from
-/// its data, shows its card.
+/// ⌘P, "datasheet component", Enter: the palette's entry for the workflow,
+/// made from its data, shows its card. ("datasheet" alone also names the
+/// datasheet-to-body workflow, which sorts first by title.)
 #[test]
 fn the_palette_offers_a_workflow_by_its_title() -> Fallible {
     for size in [egui::vec2(1024.0, 640.0), egui::vec2(1920.0, 1080.0)] {
@@ -20,9 +21,13 @@ fn the_palette_offers_a_workflow_by_its_title() -> Fallible {
         ax.window = size;
         ax.app.palette.open();
         ax.settle();
-        ax.type_text("datasheet");
+        ax.type_text("datasheet component");
         ax.settle();
         ax.find(Role::Label, "Assistant: Datasheet → component")?;
+        assert!(
+            ax.all(Role::Label, "Assistant: Datasheet → 3D body")
+                .is_empty()
+        );
         ax.key(Key::Enter);
         assert_eq!(offers(&ax), 1);
         assert!(!ax.app.palette.is_open());
