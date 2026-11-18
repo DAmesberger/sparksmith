@@ -75,6 +75,62 @@ pub struct Choice {
     pub leads: Vec<(String, PointNm)>,
 }
 
+/// What the source footprint says of its package besides its lands: hints
+/// for telling equally fitting presets apart, never geometry to import.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Facts {
+    /// The footprint's name, without its library nickname.
+    pub name: String,
+    /// The extent (x, y) of its fabrication-layer outline, footprint frame.
+    pub fab_extent_nm: Option<[Nm; 2]>,
+    /// The extent (x, y) of its courtyard, footprint frame.
+    pub courtyard_extent_nm: Option<[Nm; 2]>,
+}
+impl Facts {
+    pub fn of(footprint: &crate::board::Footprint) -> Self {
+        let extent = |b: Option<[crate::board::PointNm; 2]>| {
+            let [lo, hi] = b?;
+            let along = |a: usize| Nm::new(hi[a].checked_sub(lo[a])?).ok();
+            Some([along(0)?, along(1)?])
+        };
+        let name = footprint
+            .lib_id
+            .rsplit_once(':')
+            .map_or(footprint.lib_id.as_str(), |(_, name)| name);
+        Self {
+            name: name.to_owned(),
+            fab_extent_nm: extent(footprint.fab_bounds),
+            courtyard_extent_nm: extent(footprint.courtyard_bounds),
+        }
+    }
+}
+
+/// Why `footprint` is no part to draw, as its source has it: it names no 3D
+/// model and nothing is assembled there (KiCad's board-only or exclude
+/// attributes), or it is bare copper (no pad on a net on a board with nets:
+/// a fiducial, a logo;
+/// a net tie; one surface pad: a test or contact pad). `None` for a part
+/// that needs a body.
+pub fn no_body(footprint: &crate::board::Footprint, board_nets: bool) -> Option<&'static str> {
+    use crate::board::PadType;
+    if !footprint.models.is_empty() {
+        return None;
+    }
+    if footprint.board_only || footprint.not_assembled {
+        Some("not assembled (KiCad's board-only or exclude attribute)")
+    } else if footprint.net_tie {
+        Some("a net tie")
+    } else if board_nets && footprint.pads.iter().all(|p| p.net.is_none()) {
+        Some("no pad on a net (a fiducial, a logo or a mark)")
+    } else if let [pad] = footprint.pads.as_slice()
+        && pad.kind == PadType::Smd
+    {
+        Some("one surface pad (a test or contact pad)")
+    } else {
+        None
+    }
+}
+
 /// Host preparation runs while the new engine is still private. Any error
 /// discards it, including staged model assets; no existing document is changed.
 pub trait Provider {
@@ -84,6 +140,7 @@ pub trait Provider {
         pads: &[Pad],
         prefix: &str,
         models: &[Reference],
+        footprint: &Facts,
     ) -> Result<Selection, String>;
 }
 pub struct Selection {
@@ -109,6 +166,32 @@ mod tests {
         let legacy = Reference::read(&root)?;
         assert_eq!(legacy.offset_nm[0].to_mm_f64(), 25.4);
         assert!(legacy.hidden);
+        Ok(())
+    }
+    #[test]
+    fn facts_carry_the_footprint_name_and_its_body_and_courtyard_extents()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let text = r#"(kicad_pcb (version 20240108) (generator "original facts fixture")
+            (layers (0 "F.Cu" signal))
+            (footprint "Own:Body_4x3" (layer "F.Cu") (at 10 10 90)
+              (property "Reference" "U1")
+              (fp_line (start -2 -1.5) (end 2 -1.5) (layer "F.Fab"))
+              (fp_poly (pts (xy 2 -1.5) (xy 2 1.5) (xy -2 1.5)) (layer "F.Fab"))
+              (fp_circle (center 0 0) (end 2.5 0) (layer "F.CrtYd"))
+              (fp_line (start -9 -9) (end 9 9) (layer "F.SilkS"))
+              (pad "1" smd rect (at 0 0) (size 1 1) (layers "F.Cu")))
+            (footprint "NoOutline" (layer "F.Cu") (at 0 0)
+              (property "Reference" "U2")
+              (pad "1" smd rect (at 0 0) (size 1 1) (layers "F.Cu"))))"#;
+        let board = crate::board::read(text.as_bytes(), &mut crate::report::Report::default())?;
+        let facts = Facts::of(&board.footprints[0]);
+        assert_eq!(facts.name, "Body_4x3");
+        let mm = |e: Option<[Nm; 2]>| e.map(|e| e.map(Nm::to_mm_f64));
+        assert_eq!(mm(facts.fab_extent_nm), Some([4.0, 3.0]));
+        assert_eq!(mm(facts.courtyard_extent_nm), Some([5.0, 5.0]));
+        let bare = Facts::of(&board.footprints[1]);
+        assert_eq!(bare.name, "NoOutline");
+        assert_eq!((bare.fab_extent_nm, bare.courtyard_extent_nm), (None, None));
         Ok(())
     }
     #[test]

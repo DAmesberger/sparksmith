@@ -1111,41 +1111,45 @@ impl<'a> PlacedPart<'a> {
     }
 }
 
-/// Every placed part, in placement order, and what its model is made of;
-/// refused when a placement's instance, physical implementation or model
-/// file is missing.
+/// Every placed part with a body, in placement order, and what its model is
+/// made of; refused when a placement's instance, physical implementation or
+/// model file is missing. A package of no body ([`PackageModel::NoBody`]: a
+/// jumper, a contact pad, a fiducial) places nothing, in the view and the
+/// export alike.
 fn placed_parts(project: &Project) -> Result<Vec<PlacedPart<'_>>> {
     project
         .placements
         .iter()
-        .map(|placement| {
-            let instance = project
-                .instance(placement.instance)
-                .ok_or_else(|| Error::Invalid("missing instance".into()))?;
-            let physical = instances::resolve(&project.library, instance)
-                .ok()
-                .and_then(|r| r.physical)
-                .ok_or_else(|| {
-                    Error::Invalid("placed instance has no physical implementation".into())
-                })?;
-            let package = &physical.package.definition;
-            let model = match &package.model {
-                PackageModel::Library(use_) => PartModel::Library(library_model(project, use_)?),
-                PackageModel::PartFile(use_) => {
-                    PartModel::PartFile(use_, part_bytes(project, use_)?)
-                }
-                _ => PartModel::Envelope,
-            };
-            Ok(PlacedPart {
-                placement,
-                instance,
-                package,
-                footprint: &physical.footprint.definition,
-                stem: models::definition_name(physical.package.id, physical.package.revision.0),
-                model,
-            })
-        })
+        .filter_map(|placement| placed_part(project, placement).transpose())
         .collect()
+}
+
+fn placed_part<'a>(
+    project: &'a Project,
+    placement: &'a Placement,
+) -> Result<Option<PlacedPart<'a>>> {
+    let instance = project
+        .instance(placement.instance)
+        .ok_or_else(|| Error::Invalid("missing instance".into()))?;
+    let physical = instances::resolve(&project.library, instance)
+        .ok()
+        .and_then(|r| r.physical)
+        .ok_or_else(|| Error::Invalid("placed instance has no physical implementation".into()))?;
+    let package = &physical.package.definition;
+    let model = match &package.model {
+        PackageModel::Library(use_) => PartModel::Library(library_model(project, use_)?),
+        PackageModel::PartFile(use_) => PartModel::PartFile(use_, part_bytes(project, use_)?),
+        PackageModel::Envelope { .. } => PartModel::Envelope,
+        PackageModel::NoBody => return Ok(None),
+    };
+    Ok(Some(PlacedPart {
+        placement,
+        instance,
+        package,
+        footprint: &physical.footprint.definition,
+        stem: models::definition_name(physical.package.id, physical.package.revision.0),
+        model,
+    }))
 }
 
 /// The layer on the other side of the board.

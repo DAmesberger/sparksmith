@@ -35,6 +35,10 @@ fn model_hint(model: &PackageModel) -> (&'static str, &'static str) {
             "Part file; check it against the datasheet",
             "A parametric SolidCraft part file built at this package's values; its marking surfaces are the file's marking planes",
         ),
+        PackageModel::NoBody => (
+            "No body",
+            "Copper and markings only (a jumper, a contact pad, a fiducial or a logo): nothing is drawn in 3D or exported",
+        ),
     }
 }
 
@@ -147,6 +151,15 @@ impl ModelCard {
             .ok()
             .filter(|n| *n > 0);
         match &package.model {
+            PackageModel::NoBody => Self {
+                name: "No body".into(),
+                revision: None,
+                detail: "Copper and markings only".into(),
+                licence: None,
+                leads: None,
+                body_mm: [0.0; 3],
+                pins: None,
+            },
             PackageModel::Envelope { .. } => Self {
                 name: "Envelope box".into(),
                 revision: None,

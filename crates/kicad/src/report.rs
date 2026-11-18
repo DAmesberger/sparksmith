@@ -97,6 +97,9 @@ pub enum Case {
     GeneratedModel,
     LibraryModelGenerated,
     NoModel,
+    /// Footprint instances that are no part to draw (a jumper, a contact
+    /// pad, a fiducial, a logo): no body, as in the source.
+    NoBody,
     /// A pad whose size, place or margins are beyond the coordinate bound.
     PadOutOfRange,
     /// No fab profile was given: no rules, so no outline, tracks or fills.
@@ -361,6 +364,11 @@ impl Case {
                 "G12K",
                 Approximate,
                 "footprint instances using generated models instead of KiCad library references",
+            ),
+            Self::NoBody => (
+                "G12B",
+                Exact,
+                "footprint instances with no body (as in the source: no model, and not an assembled part)",
             ),
             Self::NoModel => (
                 "G12N",

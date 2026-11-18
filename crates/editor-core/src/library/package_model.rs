@@ -25,6 +25,10 @@ pub enum PackageModel {
     /// A parametric Solidcraft part file (a Model of format `solidcraft`)
     /// with values for some of its parameters ([`PartFileModel`]).
     PartFile(Box<PartFileModel>),
+    /// No 3D body: the part is copper and markings only (a solder jumper,
+    /// a test or contact pad, a fiducial, a logo), as its source has it.
+    /// Nothing is drawn in 3D or exported.
+    NoBody,
 }
 
 /// Values one part-file package gives.
@@ -328,6 +332,7 @@ impl PackageModel {
                 part.model,
                 part.values.len()
             ),
+            Self::NoBody => "no body".to_owned(),
         }
     }
 }

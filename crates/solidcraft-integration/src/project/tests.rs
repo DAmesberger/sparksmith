@@ -2411,3 +2411,34 @@ fn the_copper_measure_finds_missing_and_reshaped_copper() -> Result<()> {
     assert!(differing.iter().any(|l| !l.agrees()), "{differing:#?}");
     Ok(())
 }
+
+/// A package of no body places nothing: neither the live view's parts nor
+/// the export's see it, while the other parts stay.
+#[test]
+fn a_package_of_no_body_places_nothing() -> Result<()> {
+    let mut project = envelope_demo()?;
+    let all = placed_parts(&project)?.len();
+    assert!(all >= 2, "the demo places parts");
+    let (r1, _) = instances(&project)?;
+    let instance = project
+        .instance(r1)
+        .ok_or_else(|| Error::Verification("R1".into()))?;
+    let package = instances::resolve(&project.library, instance)
+        .ok()
+        .and_then(|r| r.physical)
+        .map(|p| p.package.id)
+        .ok_or_else(|| Error::Verification("R1's package".into()))?;
+    for published in &mut project.library.packages {
+        if published.id == package {
+            published.definition.model = PackageModel::NoBody;
+        }
+    }
+    let left = placed_parts(&project)?;
+    assert!(left.len() < all);
+    assert!(left.iter().all(|p| p.instance.id != r1));
+    assert!(
+        left.iter()
+            .all(|p| !matches!(p.package.model, PackageModel::NoBody))
+    );
+    Ok(())
+}

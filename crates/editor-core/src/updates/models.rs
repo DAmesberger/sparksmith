@@ -15,7 +15,7 @@ pub(super) fn of<'a>(
     match &package?.model {
         PackageModel::Library(model) => project.library.model(model.model),
         PackageModel::PartFile(part) => project.library.model(part.model),
-        PackageModel::Envelope { .. } => None,
+        PackageModel::Envelope { .. } | PackageModel::NoBody => None,
     }
 }
 
