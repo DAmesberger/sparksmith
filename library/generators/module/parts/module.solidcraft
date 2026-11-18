@@ -1,17 +1,13 @@
 {
-  "format": "solidcraft/52",
+  "format": "solidcraft/57",
   "format_pending": [
-    "3d-wire-point-nodes",
-    "frame-end-caps",
-    "joint-origin-inside",
-    "nested-face-name",
-    "opus-quality",
-    "render-indirect-clamp",
-    "render-quality-controls",
-    "revolve-axis-sketch",
-    "sheet-flange-segments",
-    "sketch-link-construction-point",
-    "two-sided-cut-cap-names"
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
   ],
   "name": "Radio module",
   "units": "mm",
@@ -91,6 +87,27 @@
       "expr": "0.3 mm",
       "unit": "mm",
       "comment": "round of the can's top edges",
+      "model": false
+    },
+    {
+      "name": "can_emboss_inset",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "the stamped emboss groove's inset from the can's sides",
+      "model": false
+    },
+    {
+      "name": "can_emboss_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "the emboss groove's width (est.)",
+      "model": false
+    },
+    {
+      "name": "can_emboss_depth",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "the emboss groove's depth (est.)",
       "model": false
     },
     {
@@ -2809,10 +2826,68 @@
     },
     {
       "id": 38,
+      "name": "can emboss",
+      "suppressed": false,
+      "body_names": [
+        "can emboss"
+      ],
+      "param_names": [
+        "d103",
+        "d104",
+        "d105"
+      ],
+      "type": "box",
+      "corner": [
+        "can_x - can_width / 2 + can_emboss_inset",
+        "can_y - can_length / 2 + can_emboss_inset",
+        "height - can_emboss_depth"
+      ],
+      "length": "can_width - 2 * can_emboss_inset",
+      "width": "can_length - 2 * can_emboss_inset",
+      "height": "can_emboss_depth + 1 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 39,
+      "name": "can emboss inside",
+      "suppressed": false,
+      "param_names": [
+        "d106",
+        "d107",
+        "d108"
+      ],
+      "participants": [
+        "can emboss"
+      ],
+      "type": "box",
+      "corner": [
+        "can_x - can_width / 2 + can_emboss_inset + can_emboss_width",
+        "can_y - can_length / 2 + can_emboss_inset + can_emboss_width",
+        "height - 2 * can_emboss_depth"
+      ],
+      "length": "can_width - 2 * (can_emboss_inset + can_emboss_width)",
+      "width": "can_length - 2 * (can_emboss_inset + can_emboss_width)",
+      "height": "2 * can_emboss_depth + 2 mm",
+      "operation": "cut"
+    },
+    {
+      "id": 40,
+      "name": "can emboss groove",
+      "suppressed": false,
+      "type": "combine",
+      "target": "shield can",
+      "tools": [
+        "can emboss"
+      ],
+      "operation": "cut",
+      "keep_tools": false
+    },
+    {
+      "id": 41,
       "name": "antenna head sketch",
       "suppressed": false,
       "param_names": [
-        "d103"
+        "d109"
       ],
       "type": "sketch",
       "plane": {
@@ -2990,17 +3065,17 @@
       }
     },
     {
-      "id": 39,
+      "id": 42,
       "name": "antenna head",
       "suppressed": false,
       "body_names": [
         "antenna"
       ],
       "param_names": [
-        "d104"
+        "d110"
       ],
       "type": "extrude",
-      "sketch": 38,
+      "sketch": 41,
       "profiles": {
         "type": "all"
       },
@@ -3012,11 +3087,11 @@
       "operation": "new_body"
     },
     {
-      "id": 40,
+      "id": 43,
       "name": "antenna turn sketch",
       "suppressed": false,
       "param_names": [
-        "d105"
+        "d111"
       ],
       "type": "sketch",
       "plane": {
@@ -3404,14 +3479,14 @@
       }
     },
     {
-      "id": 41,
+      "id": 44,
       "name": "antenna turn",
       "suppressed": false,
       "param_names": [
-        "d106"
+        "d112"
       ],
       "type": "extrude",
-      "sketch": 40,
+      "sketch": 43,
       "profiles": {
         "type": "all"
       },
@@ -3426,16 +3501,16 @@
       ]
     },
     {
-      "id": 42,
+      "id": 45,
       "name": "antenna turns",
       "suppressed": false,
       "param_names": [
-        "d107",
-        "d108"
+        "d113",
+        "d114"
       ],
       "type": "pattern",
       "features": [
-        41
+        44
       ],
       "pattern": {
         "type": "rectangular",
@@ -3449,11 +3524,11 @@
       }
     },
     {
-      "id": 43,
+      "id": 46,
       "name": "antenna tail sketch",
       "suppressed": false,
       "param_names": [
-        "d109"
+        "d115"
       ],
       "type": "sketch",
       "plane": {
@@ -3771,14 +3846,14 @@
       }
     },
     {
-      "id": 44,
+      "id": 47,
       "name": "antenna tail",
       "suppressed": false,
       "param_names": [
-        "d110"
+        "d116"
       ],
       "type": "extrude",
-      "sketch": 43,
+      "sketch": 46,
       "profiles": {
         "type": "all"
       },
@@ -3793,13 +3868,13 @@
       ]
     },
     {
-      "id": 45,
+      "id": 48,
       "name": "parked",
       "suppressed": false,
       "param_names": [
-        "d111",
-        "d112",
-        "d113"
+        "d117",
+        "d118",
+        "d119"
       ],
       "type": "box",
       "corner": [
@@ -3813,11 +3888,11 @@
       "operation": "cut"
     },
     {
-      "id": 46,
+      "id": 49,
       "name": "marking-top",
       "suppressed": false,
       "param_names": [
-        "d114"
+        "d120"
       ],
       "type": "construction_plane",
       "plane": {
@@ -3844,11 +3919,11 @@
       }
     },
     {
-      "id": 47,
+      "id": 50,
       "name": "marking-can-top",
       "suppressed": false,
       "param_names": [
-        "d115"
+        "d121"
       ],
       "type": "construction_plane",
       "plane": {
@@ -3875,11 +3950,11 @@
       }
     },
     {
-      "id": 48,
+      "id": 51,
       "name": "marking-can-pos-x",
       "suppressed": false,
       "param_names": [
-        "d116"
+        "d122"
       ],
       "type": "construction_plane",
       "plane": {
@@ -3906,11 +3981,11 @@
       }
     },
     {
-      "id": 49,
+      "id": 52,
       "name": "marking-can-neg-x",
       "suppressed": false,
       "param_names": [
-        "d117"
+        "d123"
       ],
       "type": "construction_plane",
       "plane": {
@@ -3937,11 +4012,11 @@
       }
     },
     {
-      "id": 50,
+      "id": 53,
       "name": "marking-can-pos-y",
       "suppressed": false,
       "param_names": [
-        "d118"
+        "d124"
       ],
       "type": "construction_plane",
       "plane": {
@@ -3968,11 +4043,11 @@
       }
     },
     {
-      "id": 51,
+      "id": 54,
       "name": "marking-can-neg-y",
       "suppressed": false,
       "param_names": [
-        "d119"
+        "d125"
       ],
       "type": "construction_plane",
       "plane": {
@@ -3999,11 +4074,11 @@
       }
     },
     {
-      "id": 52,
+      "id": 55,
       "name": "marking-pcb-top",
       "suppressed": false,
       "param_names": [
-        "d120"
+        "d126"
       ],
       "type": "construction_plane",
       "plane": {
@@ -4030,11 +4105,11 @@
       }
     },
     {
-      "id": 53,
+      "id": 56,
       "name": "marking-antenna-area",
       "suppressed": false,
       "param_names": [
-        "d121"
+        "d127"
       ],
       "type": "construction_plane",
       "plane": {
@@ -4061,11 +4136,11 @@
       }
     },
     {
-      "id": 54,
+      "id": 57,
       "name": "pin 1 sketch",
       "suppressed": false,
       "param_names": [
-        "d122"
+        "d128"
       ],
       "type": "sketch",
       "plane": {
@@ -4105,7 +4180,7 @@
       }
     },
     {
-      "id": 55,
+      "id": 58,
       "name": "pin1",
       "suppressed": false,
       "type": "construction_point",
@@ -4113,13 +4188,13 @@
         "type": "at",
         "point": {
           "type": "sketch_point",
-          "sketch": 54,
+          "sketch": 57,
           "point": "p1"
         }
       }
     }
   ],
-  "next_id": 56,
+  "next_id": 59,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {

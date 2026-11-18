@@ -1,0 +1,1365 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Tactile switch, square, top push",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "4.5 mm",
+      "unit": "mm",
+      "comment": "base along x",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "4.5 mm",
+      "unit": "mm",
+      "comment": "base across (y), over the cover tabs",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "1.75 mm",
+      "unit": "mm",
+      "comment": "cover top above the seating plane (est.)",
+      "model": false
+    },
+    {
+      "name": "height",
+      "expr": "3.8 mm",
+      "unit": "mm",
+      "comment": "plunger top above the seating plane",
+      "model": false
+    },
+    {
+      "name": "plunger_diameter",
+      "expr": "2.5 mm",
+      "unit": "mm",
+      "comment": "plunger diameter",
+      "model": false
+    },
+    {
+      "name": "cover_thickness",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "cover sheet thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "stud_diameter",
+      "expr": "0.7 mm",
+      "unit": "mm",
+      "comment": "cover corner stud diameter (est.)",
+      "model": false
+    },
+    {
+      "name": "stud_height",
+      "expr": "0.25 mm",
+      "unit": "mm",
+      "comment": "cover corner stud height (est.)",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "7.5 mm",
+      "unit": "mm",
+      "comment": "overall length over the terminals",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "0.7 mm",
+      "unit": "mm",
+      "comment": "terminal width",
+      "model": false
+    },
+    {
+      "name": "terminal_pitch",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "terminal centres across (y)",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal sheet thickness",
+      "model": false
+    },
+    {
+      "name": "lead_exit",
+      "expr": "0.7 mm",
+      "unit": "mm",
+      "comment": "terminal top where it leaves the base (est.)",
+      "model": false
+    },
+    {
+      "name": "lead_gap",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "gap between the base and a terminal's leg (est.)",
+      "model": false
+    },
+    {
+      "name": "lead_root",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "how far a terminal reaches into the base (est.)",
+      "model": false
+    },
+    {
+      "name": "tab_length",
+      "expr": "1.2 mm",
+      "unit": "mm",
+      "comment": "cover side tab along x (est.)",
+      "model": false
+    },
+    {
+      "name": "d15",
+      "expr": "stud_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d18",
+      "expr": "stud_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d21",
+      "expr": "stud_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d24",
+      "expr": "stud_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d27",
+      "expr": "plunger_diameter + 0.3 mm",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d30",
+      "expr": "plunger_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.6 * plunger_diameter",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.6 * plunger_diameter",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "base",
+      "suppressed": false,
+      "body_names": [
+        "base"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2 + cover_thickness",
+        "0 mm"
+      ],
+      "length": "body_length",
+      "width": "body_width - 2 * cover_thickness",
+      "height": "body_height - cover_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "base corners",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.25,
+            -2.1,
+            0.0
+          ],
+          "max": [
+            2.25,
+            2.1,
+            1.6
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.25,
+            -2.1,
+            0.0
+          ],
+          "max": [
+            2.25,
+            2.1,
+            1.6
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.25,
+            -2.1,
+            0.0
+          ],
+          "max": [
+            2.25,
+            2.1,
+            1.6
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.25,
+            -2.1,
+            0.0
+          ],
+          "max": [
+            2.25,
+            2.1,
+            1.6
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.25,
+          -2.1,
+          0.875
+        ],
+        [
+          2.25,
+          -2.1,
+          0.875
+        ],
+        [
+          2.25,
+          2.1,
+          0.875
+        ],
+        [
+          -2.25,
+          2.1,
+          0.875
+        ]
+      ],
+      "radius": "0.2 mm",
+      "body": "base"
+    },
+    {
+      "id": 3,
+      "name": "cover",
+      "suppressed": false,
+      "body_names": [
+        "cover"
+      ],
+      "param_names": [
+        "d5",
+        "d6",
+        "d7"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "body_height - cover_thickness"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "cover_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 4,
+      "name": "cover tab -y",
+      "suppressed": false,
+      "param_names": [
+        "d8",
+        "d9",
+        "d10"
+      ],
+      "participants": [
+        "cover"
+      ],
+      "type": "box",
+      "corner": [
+        "- tab_length / 2",
+        "- body_width / 2",
+        "lead_exit"
+      ],
+      "length": "(tab_length / 2) - (- tab_length / 2)",
+      "width": "(- body_width / 2 + cover_thickness) - (- body_width / 2)",
+      "height": "(body_height - cover_thickness) - (lead_exit)",
+      "operation": "join"
+    },
+    {
+      "id": 5,
+      "name": "cover tab +y",
+      "suppressed": false,
+      "param_names": [
+        "d11",
+        "d12",
+        "d13"
+      ],
+      "participants": [
+        "cover"
+      ],
+      "type": "box",
+      "corner": [
+        "- tab_length / 2",
+        "body_width / 2 - cover_thickness",
+        "lead_exit"
+      ],
+      "length": "(tab_length / 2) - (- tab_length / 2)",
+      "width": "(body_width / 2) - (body_width / 2 - cover_thickness)",
+      "height": "(body_height - cover_thickness) - (lead_exit)",
+      "operation": "join"
+    },
+    {
+      "id": 6,
+      "name": "cover stud 1 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d14"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "body_height"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -1.55,
+              -1.55
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- (body_length / 2 - stud_diameter)",
+              "y": "- (body_width / 2 - stud_diameter)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.35,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.7,
+            "param": "d15"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "cover stud 1",
+      "suppressed": false,
+      "param_names": [
+        "d16"
+      ],
+      "type": "extrude",
+      "sketch": 6,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "stud_height",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "cover"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "cover stud 2 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d17"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "body_height"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              1.55,
+              -1.55
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(body_length / 2 - stud_diameter)",
+              "y": "- (body_width / 2 - stud_diameter)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.35,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.7,
+            "param": "d18"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "cover stud 2",
+      "suppressed": false,
+      "param_names": [
+        "d19"
+      ],
+      "type": "extrude",
+      "sketch": 8,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "stud_height",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "cover"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "cover stud 3 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d20"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "body_height"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              1.55,
+              1.55
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(body_length / 2 - stud_diameter)",
+              "y": "(body_width / 2 - stud_diameter)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.35,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.7,
+            "param": "d21"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "cover stud 3",
+      "suppressed": false,
+      "param_names": [
+        "d22"
+      ],
+      "type": "extrude",
+      "sketch": 10,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "stud_height",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "cover"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "cover stud 4 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d23"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "body_height"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -1.55,
+              1.55
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- (body_length / 2 - stud_diameter)",
+              "y": "(body_width / 2 - stud_diameter)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.35,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.7,
+            "param": "d24"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 13,
+      "name": "cover stud 4",
+      "suppressed": false,
+      "param_names": [
+        "d25"
+      ],
+      "type": "extrude",
+      "sketch": 12,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "stud_height",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "cover"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "cover opening sketch",
+      "suppressed": false,
+      "param_names": [
+        "d26"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "body_height - 2 * cover_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 1.4,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 2.8,
+            "param": "d27"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 15,
+      "name": "cover opening",
+      "suppressed": false,
+      "param_names": [
+        "d28"
+      ],
+      "type": "extrude",
+      "sketch": 14,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "3 * cover_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "cover"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "plunger sketch",
+      "suppressed": false,
+      "param_names": [
+        "d29"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "body_height - cover_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 1.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 2.5,
+            "param": "d30"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 17,
+      "name": "plunger",
+      "suppressed": false,
+      "body_names": [
+        "plunger"
+      ],
+      "param_names": [
+        "d31"
+      ],
+      "type": "extrude",
+      "sketch": 16,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "height - body_height + cover_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 18,
+      "name": "plunger top",
+      "suppressed": false,
+      "param_names": [
+        "d32"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -1.25,
+            -1.25,
+            1.5999999999999999
+          ],
+          "max": [
+            1.25,
+            1.25,
+            3.8000000000000003
+          ]
+        }
+      ],
+      "edge_names": [
+        "F17:side:c1|F17:top"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          1.25,
+          0.0,
+          3.8
+        ]
+      ],
+      "radius": "0.15 mm",
+      "body": "plunger"
+    },
+    {
+      "id": 19,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d33",
+        "d34",
+        "d35"
+      ],
+      "type": "box",
+      "corner": [
+        "- (span / 2)",
+        "(- terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- (body_length / 2 + lead_gap)) - (- (span / 2))",
+      "width": "((- terminal_pitch / 2) + terminal_width / 2) - ((- terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 20,
+      "name": "terminal 1 leg",
+      "suppressed": false,
+      "param_names": [
+        "d36",
+        "d37",
+        "d38"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "box",
+      "corner": [
+        "- (body_length / 2 + lead_gap + lead_thickness)",
+        "(- terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- (body_length / 2 + lead_gap)) - (- (body_length / 2 + lead_gap + lead_thickness))",
+      "width": "((- terminal_pitch / 2) + terminal_width / 2) - ((- terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 21,
+      "name": "terminal 1 tab",
+      "suppressed": false,
+      "param_names": [
+        "d39",
+        "d40",
+        "d41"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "box",
+      "corner": [
+        "- (body_length / 2 + lead_gap + lead_thickness)",
+        "(- terminal_pitch / 2) - terminal_width / 2",
+        "lead_exit - lead_thickness"
+      ],
+      "length": "(- (body_length / 2 - lead_root)) - (- (body_length / 2 + lead_gap + lead_thickness))",
+      "width": "((- terminal_pitch / 2) + terminal_width / 2) - ((- terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (lead_exit - lead_thickness)",
+      "operation": "join"
+    },
+    {
+      "id": 22,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d42",
+        "d43",
+        "d44"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 + lead_gap",
+        "(- terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(span / 2) - (body_length / 2 + lead_gap)",
+      "width": "((- terminal_pitch / 2) + terminal_width / 2) - ((- terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 23,
+      "name": "terminal 2 leg",
+      "suppressed": false,
+      "param_names": [
+        "d45",
+        "d46",
+        "d47"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 + lead_gap",
+        "(- terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(body_length / 2 + lead_gap + lead_thickness) - (body_length / 2 + lead_gap)",
+      "width": "((- terminal_pitch / 2) + terminal_width / 2) - ((- terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 24,
+      "name": "terminal 2 tab",
+      "suppressed": false,
+      "param_names": [
+        "d48",
+        "d49",
+        "d50"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 - lead_root",
+        "(- terminal_pitch / 2) - terminal_width / 2",
+        "lead_exit - lead_thickness"
+      ],
+      "length": "(body_length / 2 + lead_gap + lead_thickness) - (body_length / 2 - lead_root)",
+      "width": "((- terminal_pitch / 2) + terminal_width / 2) - ((- terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (lead_exit - lead_thickness)",
+      "operation": "join"
+    },
+    {
+      "id": 25,
+      "name": "terminal 3",
+      "suppressed": false,
+      "body_names": [
+        "terminal 3"
+      ],
+      "param_names": [
+        "d51",
+        "d52",
+        "d53"
+      ],
+      "type": "box",
+      "corner": [
+        "- (span / 2)",
+        "(terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- (body_length / 2 + lead_gap)) - (- (span / 2))",
+      "width": "((terminal_pitch / 2) + terminal_width / 2) - ((terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 26,
+      "name": "terminal 3 leg",
+      "suppressed": false,
+      "param_names": [
+        "d54",
+        "d55",
+        "d56"
+      ],
+      "participants": [
+        "terminal 3"
+      ],
+      "type": "box",
+      "corner": [
+        "- (body_length / 2 + lead_gap + lead_thickness)",
+        "(terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- (body_length / 2 + lead_gap)) - (- (body_length / 2 + lead_gap + lead_thickness))",
+      "width": "((terminal_pitch / 2) + terminal_width / 2) - ((terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 27,
+      "name": "terminal 3 tab",
+      "suppressed": false,
+      "param_names": [
+        "d57",
+        "d58",
+        "d59"
+      ],
+      "participants": [
+        "terminal 3"
+      ],
+      "type": "box",
+      "corner": [
+        "- (body_length / 2 + lead_gap + lead_thickness)",
+        "(terminal_pitch / 2) - terminal_width / 2",
+        "lead_exit - lead_thickness"
+      ],
+      "length": "(- (body_length / 2 - lead_root)) - (- (body_length / 2 + lead_gap + lead_thickness))",
+      "width": "((terminal_pitch / 2) + terminal_width / 2) - ((terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (lead_exit - lead_thickness)",
+      "operation": "join"
+    },
+    {
+      "id": 28,
+      "name": "terminal 4",
+      "suppressed": false,
+      "body_names": [
+        "terminal 4"
+      ],
+      "param_names": [
+        "d60",
+        "d61",
+        "d62"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 + lead_gap",
+        "(terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(span / 2) - (body_length / 2 + lead_gap)",
+      "width": "((terminal_pitch / 2) + terminal_width / 2) - ((terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 29,
+      "name": "terminal 4 leg",
+      "suppressed": false,
+      "param_names": [
+        "d63",
+        "d64",
+        "d65"
+      ],
+      "participants": [
+        "terminal 4"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 + lead_gap",
+        "(terminal_pitch / 2) - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(body_length / 2 + lead_gap + lead_thickness) - (body_length / 2 + lead_gap)",
+      "width": "((terminal_pitch / 2) + terminal_width / 2) - ((terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 30,
+      "name": "terminal 4 tab",
+      "suppressed": false,
+      "param_names": [
+        "d66",
+        "d67",
+        "d68"
+      ],
+      "participants": [
+        "terminal 4"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 - lead_root",
+        "(terminal_pitch / 2) - terminal_width / 2",
+        "lead_exit - lead_thickness"
+      ],
+      "length": "(body_length / 2 + lead_gap + lead_thickness) - (body_length / 2 - lead_root)",
+      "width": "((terminal_pitch / 2) + terminal_width / 2) - ((terminal_pitch / 2) - terminal_width / 2)",
+      "height": "(lead_exit) - (lead_exit - lead_thickness)",
+      "operation": "join"
+    },
+    {
+      "id": 31,
+      "name": "terminal roots",
+      "suppressed": false,
+      "type": "combine",
+      "target": "base",
+      "tools": [
+        "terminal 1",
+        "terminal 2",
+        "terminal 3",
+        "terminal 4"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 32,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d69"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 33,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "base": {
+        "name": "pa9t",
+        "color": [
+          48,
+          48,
+          48
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.53
+        }
+      },
+      "cover": {
+        "name": "nickel-silver",
+        "color": [
+          211,
+          208,
+          202
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.25,
+          "dielectric_ior": 1.5
+        }
+      },
+      "plunger": {
+        "name": "pa9t",
+        "color": [
+          48,
+          48,
+          48
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.53
+        }
+      },
+      "terminal 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 3": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 4": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

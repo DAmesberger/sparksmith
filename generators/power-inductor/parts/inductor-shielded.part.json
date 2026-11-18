@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "inductor-shielded",
+  "title": "Power inductor, shielded",
+  "summary": "Shielded wound power inductor (Bourns SRR class): a ferrite sleeve with bevelled upright corners, the drum core's round top flange set in an epoxy ring, the enamelled winding inside and two matte-tin bottom terminals at ±x (body_length, body_width, height, corner_bevel, bore_diameter, flange_diameter, flange_thickness, winding_diameter, terminal_length, terminal_width).",
+  "use": "package_body",
+  "prefix": "L",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at the SRR6028 from Bourns' public SRR6028 datasheet (Product Dimensions and Recommended Layout; https://www.bourns.com/docs/Product-Datasheets/SRR6028.pdf, downloaded 18 November 2026): 6.8 × 6.8 × 2.8 mm, terminals 2.3 mm; bevels, flange, bore, winding and terminal width estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

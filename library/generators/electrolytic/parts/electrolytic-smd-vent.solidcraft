@@ -1,0 +1,917 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Aluminium electrolytic capacitor, SMD, vent",
+  "units": "mm",
+  "params": [
+    {
+      "name": "can_diameter",
+      "expr": "6.3 mm",
+      "unit": "mm",
+      "comment": "can diameter (D)",
+      "model": false
+    },
+    {
+      "name": "height",
+      "expr": "5.8 mm",
+      "unit": "mm",
+      "comment": "overall height above the seating plane (L)",
+      "model": false
+    },
+    {
+      "name": "base_length",
+      "expr": "6.6 mm",
+      "unit": "mm",
+      "comment": "seat plate along x (A)",
+      "model": false
+    },
+    {
+      "name": "base_width",
+      "expr": "6.6 mm",
+      "unit": "mm",
+      "comment": "seat plate across (B)",
+      "model": false
+    },
+    {
+      "name": "base_height",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "seat plate height (est.)",
+      "model": false
+    },
+    {
+      "name": "base_bevel",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "bevel of the seat plate's + corners (est.)",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "7.8 mm",
+      "unit": "mm",
+      "comment": "overall length over the terminals (H)",
+      "model": false
+    },
+    {
+      "name": "terminal_gap",
+      "expr": "1.8 mm",
+      "unit": "mm",
+      "comment": "gap between the terminals (P)",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "0.65 mm",
+      "unit": "mm",
+      "comment": "terminal width (W)",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "bead_height",
+      "expr": "0.8 mm",
+      "unit": "mm",
+      "comment": "seal bead centre above the seat plate (est.)",
+      "model": false
+    },
+    {
+      "name": "bead_depth",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "seal bead depth (est.)",
+      "model": false
+    },
+    {
+      "name": "rim_round",
+      "expr": "0.35 mm",
+      "unit": "mm",
+      "comment": "round of the can's rim (est.)",
+      "model": false
+    },
+    {
+      "name": "print_from",
+      "expr": "0.15 * can_diameter",
+      "unit": "mm",
+      "comment": "x where the negative print begins (est.)",
+      "model": false
+    },
+    {
+      "name": "print_thickness",
+      "expr": "0.02 mm",
+      "unit": "mm",
+      "comment": "negative print ink thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "vent_length",
+      "expr": "0.6 * can_diameter",
+      "unit": "mm",
+      "comment": "vent score length (est.)",
+      "model": false
+    },
+    {
+      "name": "vent_width",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "vent score width (est.)",
+      "model": false
+    },
+    {
+      "name": "vent_depth",
+      "expr": "0.06 mm",
+      "unit": "mm",
+      "comment": "vent score depth (est.)",
+      "model": false
+    },
+    {
+      "name": "d6",
+      "expr": "can_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d10",
+      "expr": "can_diameter + 1 mm",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d13",
+      "expr": "can_diameter - 2 * bead_depth",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d16",
+      "expr": "can_diameter - 2 * rim_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "print_from + can_diameter / 2 - rim_round",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.6 * can_diameter",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "base",
+      "suppressed": false,
+      "body_names": [
+        "base"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- base_length / 2",
+        "- base_width / 2",
+        "0 mm"
+      ],
+      "length": "base_length",
+      "width": "base_width",
+      "height": "base_height",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "base bevels",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.3,
+            -3.3,
+            0.0
+          ],
+          "max": [
+            3.3,
+            3.3,
+            1.0
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.3,
+            -3.3,
+            0.0
+          ],
+          "max": [
+            3.3,
+            3.3,
+            1.0
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "chamfer",
+      "edges": [
+        [
+          -3.3,
+          -3.3,
+          0.5
+        ],
+        [
+          -3.3,
+          3.3,
+          0.5
+        ]
+      ],
+      "distance": "base_bevel",
+      "body": "base"
+    },
+    {
+      "id": 3,
+      "name": "can sketch",
+      "suppressed": false,
+      "param_names": [
+        "d5"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "base_height"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 3.15,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 6.3,
+            "param": "d6"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "can",
+      "suppressed": false,
+      "body_names": [
+        "can"
+      ],
+      "param_names": [
+        "d7"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "height - base_height",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "rim",
+      "suppressed": false,
+      "param_names": [
+        "d8"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.15,
+            -3.15,
+            0.9999999999999999
+          ],
+          "max": [
+            3.15,
+            3.1500000000000004,
+            5.800000000000001
+          ]
+        }
+      ],
+      "edge_names": [
+        "F4:side:c1|F4:top"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          3.15,
+          0.0,
+          5.8
+        ]
+      ],
+      "radius": "rim_round",
+      "body": "can"
+    },
+    {
+      "id": 6,
+      "name": "seal bead ring sketch",
+      "suppressed": false,
+      "param_names": [
+        "d9"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "base_height + bead_height - bead_depth"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 3.65,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 7.3,
+            "param": "d10"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "seal bead ring",
+      "suppressed": false,
+      "body_names": [
+        "seal bead"
+      ],
+      "param_names": [
+        "d11"
+      ],
+      "type": "extrude",
+      "sketch": 6,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "2 * bead_depth",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 8,
+      "name": "seal bead inside sketch",
+      "suppressed": false,
+      "param_names": [
+        "d12"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "base_height + bead_height - bead_depth - 1 mm"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.9499999999999997,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 5.8999999999999995,
+            "param": "d13"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "seal bead inside",
+      "suppressed": false,
+      "param_names": [
+        "d14"
+      ],
+      "type": "extrude",
+      "sketch": 8,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "2 * bead_depth + 2 mm",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "seal bead"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "seal bead groove",
+      "suppressed": false,
+      "type": "combine",
+      "target": "can",
+      "tools": [
+        "seal bead"
+      ],
+      "operation": "cut",
+      "keep_tools": false
+    },
+    {
+      "id": 11,
+      "name": "print sketch",
+      "suppressed": false,
+      "param_names": [
+        "d15"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "height - print_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.8,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 5.6,
+            "param": "d16"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "print",
+      "suppressed": false,
+      "body_names": [
+        "print"
+      ],
+      "param_names": [
+        "d17"
+      ],
+      "type": "extrude",
+      "sketch": 11,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "print_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 13,
+      "name": "print edge",
+      "suppressed": false,
+      "param_names": [
+        "d18",
+        "d19",
+        "d20"
+      ],
+      "participants": [
+        "print"
+      ],
+      "type": "box",
+      "corner": [
+        "- can_diameter",
+        "- can_diameter",
+        "height - 1 mm"
+      ],
+      "length": "(print_from) - (- can_diameter)",
+      "width": "(can_diameter) - (- can_diameter)",
+      "height": "(height + 1 mm) - (height - 1 mm)",
+      "operation": "cut"
+    },
+    {
+      "id": 14,
+      "name": "print inlay",
+      "suppressed": false,
+      "type": "combine",
+      "target": "can",
+      "tools": [
+        "print"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 15,
+      "name": "vent score 1",
+      "suppressed": false,
+      "param_names": [
+        "d21",
+        "d22",
+        "d23"
+      ],
+      "participants": [
+        "can",
+        "print"
+      ],
+      "type": "box",
+      "corner": [
+        "- (vent_length) / 2",
+        "- (vent_width) / 2",
+        "height - vent_depth"
+      ],
+      "length": "vent_length",
+      "width": "vent_width",
+      "height": "vent_depth + 1 mm",
+      "operation": "cut"
+    },
+    {
+      "id": 16,
+      "name": "vent score 2",
+      "suppressed": false,
+      "param_names": [
+        "d24",
+        "d25",
+        "d26"
+      ],
+      "participants": [
+        "can",
+        "print"
+      ],
+      "type": "box",
+      "corner": [
+        "- (vent_width) / 2",
+        "- (vent_length) / 2",
+        "height - vent_depth"
+      ],
+      "length": "vent_width",
+      "width": "vent_length",
+      "height": "vent_depth + 1 mm",
+      "operation": "cut"
+    },
+    {
+      "id": 17,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d27",
+        "d28",
+        "d29"
+      ],
+      "type": "box",
+      "corner": [
+        "- span / 2",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- terminal_gap / 2) - (- span / 2)",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 18,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d30",
+        "d31",
+        "d32"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_gap / 2",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(span / 2) - (terminal_gap / 2)",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 19,
+      "name": "terminal grooves",
+      "suppressed": false,
+      "type": "combine",
+      "target": "base",
+      "tools": [
+        "terminal 1",
+        "terminal 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 20,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d33"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "(print_from - can_diameter / 2 + rim_round) / 2",
+            "0 mm",
+            "height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 21,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "base": {
+        "name": "pa9t",
+        "color": [
+          48,
+          48,
+          48
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.53
+        }
+      },
+      "can": {
+        "name": "aluminium",
+        "color": [
+          245,
+          246,
+          246
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "print": {
+        "name": "marking-ink-black",
+        "color": [
+          39,
+          39,
+          41
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.5,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

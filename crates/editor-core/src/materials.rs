@@ -78,10 +78,14 @@ pub enum MaterialId {
     SolderMaskGreen,
     /// Green soldermask over copper: a module's printed antenna trace.
     SolderMaskOverCopper,
+    /// White polyoxymethylene (acetal): a tactile switch's push plate.
+    PomWhite,
+    /// Black marking ink: an aluminium capacitor's polarity mark.
+    MarkingInkBlack,
 }
 
 impl MaterialId {
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 31] = [
         Self::EpoxyMould,
         Self::EpoxyLaserMarked,
         Self::MarkingInkWhite,
@@ -111,6 +115,8 @@ impl MaterialId {
         Self::NickelSilver,
         Self::SolderMaskGreen,
         Self::SolderMaskOverCopper,
+        Self::PomWhite,
+        Self::MarkingInkBlack,
     ];
 
     /// The id as files and messages write it (`epoxy_mould`).
@@ -128,9 +134,11 @@ impl MaterialId {
             | Brass | Aluminium | NickelSilver | MetalLaserMarked => MaterialCategory::Metal,
             Alumina96 | BariumTitanate | Ferrite => MaterialCategory::Ceramic,
             BorosilicateGlass => MaterialCategory::Glass,
-            EpoxyMould | EpoxyLaserMarked | MarkingInkWhite | PadPrintInk | ResistorOvercoat
-            | PvcSleeve | Pbt | Lcp | Pa9t | SiliconeClear | SiliconeDiffuse | Polyimide
-            | SolderMaskGreen | SolderMaskOverCopper => MaterialCategory::Polymer,
+            EpoxyMould | EpoxyLaserMarked | MarkingInkWhite | MarkingInkBlack | PadPrintInk
+            | ResistorOvercoat | PvcSleeve | Pbt | Lcp | Pa9t | PomWhite | SiliconeClear
+            | SiliconeDiffuse | Polyimide | SolderMaskGreen | SolderMaskOverCopper => {
+                MaterialCategory::Polymer
+            }
         }
     }
 }

@@ -1,0 +1,938 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Power inductor, shielded, winding windows",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "6.8 mm",
+      "unit": "mm",
+      "comment": "body along x",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "6.8 mm",
+      "unit": "mm",
+      "comment": "body across (y)",
+      "model": false
+    },
+    {
+      "name": "height",
+      "expr": "2.8 mm",
+      "unit": "mm",
+      "comment": "top above the seating plane",
+      "model": false
+    },
+    {
+      "name": "corner_bevel",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "bevel of the sleeve's upright corners (est.)",
+      "model": false
+    },
+    {
+      "name": "bore_diameter",
+      "expr": "5.9 mm",
+      "unit": "mm",
+      "comment": "sleeve bore, the drum flange's seat (est.)",
+      "model": false
+    },
+    {
+      "name": "flange_diameter",
+      "expr": "5.6 mm",
+      "unit": "mm",
+      "comment": "drum core top flange diameter (est.)",
+      "model": false
+    },
+    {
+      "name": "flange_thickness",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "drum core flange thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "winding_diameter",
+      "expr": "5.2 mm",
+      "unit": "mm",
+      "comment": "winding outer diameter (est.)",
+      "model": false
+    },
+    {
+      "name": "terminal_length",
+      "expr": "2.3 mm",
+      "unit": "mm",
+      "comment": "bottom terminal along x",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "4 mm",
+      "unit": "mm",
+      "comment": "bottom terminal across (y) (est.)",
+      "model": false
+    },
+    {
+      "name": "terminal_thickness",
+      "expr": "0.08 mm",
+      "unit": "mm",
+      "comment": "terminal thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "window_width",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "winding window along x (est.)",
+      "model": false
+    },
+    {
+      "name": "d6",
+      "expr": "bore_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d9",
+      "expr": "winding_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d12",
+      "expr": "flange_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d15",
+      "expr": "bore_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d18",
+      "expr": "winding_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.5 * flange_diameter",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.5 * flange_diameter",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "sleeve",
+      "suppressed": false,
+      "body_names": [
+        "sleeve"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "terminal_thickness"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "height - terminal_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "corner bevels",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.4,
+            -3.4,
+            0.08
+          ],
+          "max": [
+            3.4,
+            3.4,
+            2.8
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.4,
+            -3.4,
+            0.08
+          ],
+          "max": [
+            3.4,
+            3.4,
+            2.8
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.4,
+            -3.4,
+            0.08
+          ],
+          "max": [
+            3.4,
+            3.4,
+            2.8
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.4,
+            -3.4,
+            0.08
+          ],
+          "max": [
+            3.4,
+            3.4,
+            2.8
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "chamfer",
+      "edges": [
+        [
+          -3.4,
+          -3.4,
+          1.4
+        ],
+        [
+          3.4,
+          -3.4,
+          1.4
+        ],
+        [
+          3.4,
+          3.4,
+          1.4
+        ],
+        [
+          -3.4,
+          3.4,
+          1.4
+        ]
+      ],
+      "distance": "corner_bevel",
+      "body": "sleeve"
+    },
+    {
+      "id": 3,
+      "name": "bore sketch",
+      "suppressed": false,
+      "param_names": [
+        "d5"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "height - flange_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.95,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 5.9,
+            "param": "d6"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "bore",
+      "suppressed": false,
+      "param_names": [
+        "d7"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "flange_thickness + 1 mm",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "sleeve"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "winding space sketch",
+      "suppressed": false,
+      "param_names": [
+        "d8"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "terminal_thickness + flange_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.6,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 5.2,
+            "param": "d9"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "winding space",
+      "suppressed": false,
+      "param_names": [
+        "d10"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "height - 2 * flange_thickness - terminal_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "sleeve"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "flange sketch",
+      "suppressed": false,
+      "param_names": [
+        "d11"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "height - flange_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.8,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 5.6,
+            "param": "d12"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "flange",
+      "suppressed": false,
+      "body_names": [
+        "flange"
+      ],
+      "param_names": [
+        "d13"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "flange_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "adhesive sketch",
+      "suppressed": false,
+      "param_names": [
+        "d14"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "height - flange_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.95,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 5.9,
+            "param": "d15"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 10,
+      "name": "adhesive",
+      "suppressed": false,
+      "body_names": [
+        "adhesive"
+      ],
+      "param_names": [
+        "d16"
+      ],
+      "type": "extrude",
+      "sketch": 9,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "flange_thickness - 0.05 mm",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 11,
+      "name": "adhesive ring",
+      "suppressed": false,
+      "type": "combine",
+      "target": "adhesive",
+      "tools": [
+        "flange"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 12,
+      "name": "winding sketch",
+      "suppressed": false,
+      "param_names": [
+        "d17"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "terminal_thickness + flange_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.6,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 5.2,
+            "param": "d18"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 13,
+      "name": "winding",
+      "suppressed": false,
+      "body_names": [
+        "winding"
+      ],
+      "param_names": [
+        "d19"
+      ],
+      "type": "extrude",
+      "sketch": 12,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "height - 2 * flange_thickness - terminal_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 14,
+      "name": "window -y",
+      "suppressed": false,
+      "param_names": [
+        "d20",
+        "d21",
+        "d22"
+      ],
+      "participants": [
+        "sleeve"
+      ],
+      "type": "box",
+      "corner": [
+        "- window_width / 2",
+        "- body_width",
+        "terminal_thickness + flange_thickness"
+      ],
+      "length": "(window_width / 2) - (- window_width / 2)",
+      "width": "(0 mm) - (- body_width)",
+      "height": "(height - flange_thickness) - (terminal_thickness + flange_thickness)",
+      "operation": "cut"
+    },
+    {
+      "id": 15,
+      "name": "window +y",
+      "suppressed": false,
+      "param_names": [
+        "d23",
+        "d24",
+        "d25"
+      ],
+      "participants": [
+        "sleeve"
+      ],
+      "type": "box",
+      "corner": [
+        "- window_width / 2",
+        "0 mm",
+        "terminal_thickness + flange_thickness"
+      ],
+      "length": "(window_width / 2) - (- window_width / 2)",
+      "width": "(body_width) - (0 mm)",
+      "height": "(height - flange_thickness) - (terminal_thickness + flange_thickness)",
+      "operation": "cut"
+    },
+    {
+      "id": 16,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d26",
+        "d27",
+        "d28"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- body_length / 2 + terminal_length) - (- body_length / 2)",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(terminal_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 17,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d29",
+        "d30",
+        "d31"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 - terminal_length",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(body_length / 2) - (body_length / 2 - terminal_length)",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(terminal_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 18,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d32"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 19,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "adhesive": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "flange": {
+        "name": "ferrite",
+        "color": [
+          60,
+          60,
+          61
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.6,
+          "dielectric_ior": 2.0
+        }
+      },
+      "sleeve": {
+        "name": "ferrite",
+        "color": [
+          60,
+          60,
+          61
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.6,
+          "dielectric_ior": 2.0
+        }
+      },
+      "terminal 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "winding": {
+        "name": "polyimide",
+        "color": [
+          170,
+          108,
+          39
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.25,
+          "dielectric_ior": 1.7
+        }
+      }
+    }
+  }
+}

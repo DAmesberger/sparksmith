@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "buzzer-smd-label",
+  "title": "Magnetic buzzer, surface mount, masking label",
+  "summary": "As buzzer-smd, with the polyimide (Kapton) masking label over the top, cut round the sound port.",
+  "use": "package_body",
+  "prefix": "BZ",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from CUI Devices' public CMI-9653S-SMT-TR datasheet (12/15/2022, p. 2; https://www.cuidevices.com, downloaded 18 November 2026); the label's size and thickness estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

@@ -1,0 +1,264 @@
+[
+ {
+  "key": "electrolytic-panasonic-b",
+  "name": "Aluminium electrolytic 4×5.8 mm (size code B)",
+  "aliases": [
+   "4x5.8",
+   "size B"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø4.0 × 5.8 mm on a 4.3 × 4.3 mm seat plate (Panasonic size code B).",
+  "params": {
+   "can_diameter": 4000000,
+   "height": 5800000,
+   "base_length": 4300000,
+   "base_width": 4300000,
+   "span": 5500000,
+   "terminal_gap": 1000000,
+   "terminal_width": 650000,
+   "land_gap": 1000000,
+   "land_length": 2500000,
+   "land_width": 1600000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A = B, H, W and P from the dimensions table (p. 1); the lands a, b, c from the land table (p. 2). The seat plate's height, the terminal thickness, the seal bead and the rim are estimated; H is the drawing's maximum."
+ },
+ {
+  "key": "electrolytic-panasonic-c",
+  "name": "Aluminium electrolytic 5×5.8 mm (size code C)",
+  "aliases": [
+   "5x5.8",
+   "size C"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø5.0 × 5.8 mm on a 5.3 × 5.3 mm seat plate (Panasonic size code C).",
+  "params": {
+   "can_diameter": 5000000,
+   "height": 5800000,
+   "base_length": 5300000,
+   "base_width": 5300000,
+   "span": 6500000,
+   "terminal_gap": 1500000,
+   "terminal_width": 650000,
+   "land_gap": 1500000,
+   "land_length": 2800000,
+   "land_width": 1600000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A = B, H, W and P from the dimensions table (p. 1); the lands a, b, c from the land table (p. 2). The seat plate's height, the terminal thickness, the seal bead and the rim are estimated; H is the drawing's maximum."
+ },
+ {
+  "key": "electrolytic-panasonic-d",
+  "name": "Aluminium electrolytic 6.3×5.8 mm (size code D)",
+  "aliases": [
+   "6.3x5.8",
+   "size D"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø6.3 × 5.8 mm on a 6.6 × 6.6 mm seat plate (Panasonic size code D).",
+  "params": {
+   "can_diameter": 6300000,
+   "height": 5800000,
+   "base_length": 6600000,
+   "base_width": 6600000,
+   "span": 7800000,
+   "terminal_gap": 1800000,
+   "terminal_width": 650000,
+   "land_gap": 1800000,
+   "land_length": 3200000,
+   "land_width": 1600000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A = B, H, W and P from the dimensions table (p. 1); the lands a, b, c from the land table (p. 2). The seat plate's height, the terminal thickness, the seal bead and the rim are estimated; H is the drawing's maximum."
+ },
+ {
+  "key": "electrolytic-6.3x5.4",
+  "name": "Aluminium electrolytic 6.3×5.4 mm (CAPAE660X550N)",
+  "aliases": [
+   "6.3x5.4",
+   "CAPAE660X550N",
+   "6.3x5.5"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø6.3 × 5.4 mm (5.5 mm max.) on a 6.6 × 6.6 mm seat plate.",
+  "params": {
+   "can_diameter": 6300000,
+   "height": 5500000,
+   "base_length": 6600000,
+   "base_width": 6600000,
+   "span": 7800000,
+   "terminal_gap": 1800000,
+   "terminal_width": 650000,
+   "land_gap": 1800000,
+   "land_length": 3200000,
+   "land_width": 1600000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "estimated",
+  "note": "Estimated: the IPC-7351 name CAPAE660X550N gives the 6.60 mm seat plate and the 5.50 mm height; the terminals and lands are Panasonic's size code D (the same Ø6.3 can and seat plate). Confirm against the chosen part's drawing."
+ },
+ {
+  "key": "electrolytic-panasonic-d8",
+  "name": "Aluminium electrolytic 6.3×7.7 mm (size code D8)",
+  "aliases": [
+   "6.3x7.7",
+   "size D8"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø6.3 × 7.7 mm on a 6.6 × 6.6 mm seat plate (Panasonic size code D8).",
+  "params": {
+   "can_diameter": 6300000,
+   "height": 7700000,
+   "base_length": 6600000,
+   "base_width": 6600000,
+   "span": 7800000,
+   "terminal_gap": 1800000,
+   "terminal_width": 650000,
+   "land_gap": 1800000,
+   "land_length": 3200000,
+   "land_width": 1600000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A = B, H, W and P from the dimensions table (p. 1); the lands a, b, c from the land table (p. 2). The seat plate's height, the terminal thickness, the seal bead and the rim are estimated; H is the drawing's maximum."
+ },
+ {
+  "key": "electrolytic-panasonic-e",
+  "name": "Aluminium electrolytic 8×6.2 mm (size code E)",
+  "aliases": [
+   "8x6.2",
+   "size E"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø8.0 × 6.2 mm on a 8.3 × 8.3 mm seat plate (Panasonic size code E).",
+  "params": {
+   "can_diameter": 8000000,
+   "height": 6200000,
+   "base_length": 8300000,
+   "base_width": 8300000,
+   "span": 9500000,
+   "terminal_gap": 2200000,
+   "terminal_width": 650000,
+   "land_gap": 2200000,
+   "land_length": 4000000,
+   "land_width": 1600000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A = B, H, W and P from the dimensions table (p. 1); the lands a, b, c from the land table (p. 2). The seat plate's height, the terminal thickness, the seal bead and the rim are estimated; H is the drawing's maximum."
+ },
+ {
+  "key": "electrolytic-panasonic-f",
+  "name": "Aluminium electrolytic 8×10.2 mm (size code F)",
+  "aliases": [
+   "8x10.2",
+   "size F"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø8.0 × 10.2 mm on a 8.3 × 8.3 mm seat plate (Panasonic size code F).",
+  "params": {
+   "can_diameter": 8000000,
+   "height": 10200000,
+   "base_length": 8300000,
+   "base_width": 8300000,
+   "span": 10000000,
+   "terminal_gap": 3100000,
+   "terminal_width": 900000,
+   "land_gap": 3100000,
+   "land_length": 4000000,
+   "land_width": 2000000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A = B, H, W and P from the dimensions table (p. 1); the lands a, b, c from the land table (p. 2). The seat plate's height, the terminal thickness, the seal bead and the rim are estimated; H is the drawing's maximum."
+ },
+ {
+  "key": "electrolytic-panasonic-g",
+  "name": "Aluminium electrolytic 10×10.2 mm (size code G)",
+  "aliases": [
+   "10x10.2",
+   "size G"
+  ],
+  "description": "Vertical-chip aluminium electrolytic, can Ø10.0 × 10.2 mm on a 10.3 × 10.3 mm seat plate (Panasonic size code G).",
+  "params": {
+   "can_diameter": 10000000,
+   "height": 10200000,
+   "base_length": 10300000,
+   "base_width": 10300000,
+   "span": 12000000,
+   "terminal_gap": 4600000,
+   "terminal_width": 900000,
+   "land_gap": 4600000,
+   "land_length": 4100000,
+   "land_width": 2000000,
+   "vent": true
+  },
+  "citation": {
+   "document": "Panasonic, Aluminum Electrolytic Capacitors (SMD Type), FK series datasheet: Dimensions table and Land / Pad pattern table (standard products)",
+   "revision": "06-Dec-19",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A = B, H, W and P from the dimensions table (p. 1); the lands a, b, c from the land table (p. 2). The seat plate's height, the terminal thickness, the seal bead and the rim are estimated; H is the drawing's maximum."
+ },
+ {
+  "key": "electrolytic-kemet-edk-6.3x7.7",
+  "name": "KEMET EDK 6.3×7.7 mm",
+  "aliases": [
+   "EDK 6.3x7.7",
+   "EDK107M025A9HAA"
+  ],
+  "description": "KEMET EDK vertical-chip aluminium electrolytic: can Ø6.3 × 7.7 mm on a 6.6 × 6.6 mm seat plate, 7.8 mm over the terminals.",
+  "params": {
+   "can_diameter": 6300000,
+   "height": 7700000,
+   "base_length": 6600000,
+   "base_width": 6600000,
+   "span": 7800000,
+   "terminal_gap": 2100000,
+   "terminal_width": 650000,
+   "land_gap": 1800000,
+   "land_length": 3200000,
+   "land_width": 1600000,
+   "vent": true
+  },
+  "citation": {
+   "document": "KEMET (YAGEO), EDK107M025A9HAA specification sheet: Dimensions (D, L, W, A, B, C, P)",
+   "revision": "generated 18 November 2026",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "D, L, A, B, C (as H), W and P from KEMET's sheet; it gives no land pattern, so the lands are Panasonic's for the same Ø6.3 seat plate (FK land table, size D8)."
+ }
+]

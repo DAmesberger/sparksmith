@@ -1,0 +1,24 @@
+{
+ "cases": [
+  {
+   "name": "EVQP2 ground, component",
+   "request": {"abi": 1, "scope": "component", "params": {"body_height": 1550000, "body_length": 4700000, "body_width": 3500000, "common": "across", "ground": true, "ground_land_length": 1400000, "ground_land_width": 650000, "ground_land_y": 2025000, "height": 2100000, "land_length": 1450000, "land_width": 700000, "land_x": 2575000, "land_y": 1000000, "lead_thickness": 150000, "plunger_length": 2600000, "plunger_width": 1600000, "span": 5500000, "style": "mini", "terminal_pitch": 1700000, "terminal_width": 600000}},
+   "result": "368edd241d18f1dd800ce0868341a42f06156e2e4c84593fd63aa7c8a7bedf91"
+  },
+  {
+   "name": "EVQP2, package",
+   "request": {"abi": 1, "scope": "package", "params": {"body_height": 1550000, "body_length": 4700000, "body_width": 3500000, "common": "across", "ground": false, "ground_land_length": 1400000, "ground_land_width": 650000, "ground_land_y": 2025000, "height": 2100000, "land_length": 1450000, "land_width": 700000, "land_x": 2575000, "land_y": 1000000, "lead_thickness": 150000, "plunger_length": 2600000, "plunger_width": 1600000, "span": 5500000, "style": "mini", "terminal_pitch": 1700000, "terminal_width": 600000}},
+   "result": "6d656a2d729f44578729741f9376f3d72bfbc2f9fdf844f8ce5375e2b02ec45e"
+  },
+  {
+   "name": "TL3305A, component",
+   "request": {"abi": 1, "scope": "component", "params": {"body_height": 1500000, "body_length": 4500000, "body_width": 4500000, "common": "across", "ground": false, "ground_land_length": 1400000, "ground_land_width": 650000, "ground_land_y": 2025000, "height": 3800000, "land_length": 1600000, "land_width": 1600000, "land_x": 3600000, "land_y": 1400000, "lead_thickness": 300000, "plunger_length": 2500000, "plunger_width": 2500000, "span": 7500000, "style": "square", "terminal_pitch": 3000000, "terminal_width": 700000}},
+   "result": "e391d80d6d32e6a222731a56b24ab29e68e524c5928c5b97c7637fd63980c8e7"
+  },
+  {
+   "name": "B3S-1000, package",
+   "request": {"abi": 1, "scope": "package", "params": {"body_height": 3400000, "body_length": 6000000, "body_width": 6600000, "common": "along", "ground": false, "ground_land_length": 1400000, "ground_land_width": 650000, "ground_land_y": 2025000, "height": 4300000, "land_length": 1550000, "land_width": 1300000, "land_x": 3975000, "land_y": 2250000, "lead_thickness": 250000, "plunger_length": 3300000, "plunger_width": 3300000, "span": 9000000, "style": "square", "terminal_pitch": 4500000, "terminal_width": 700000}},
+   "result": "d9bd97c61d36591e004c3eb6bb7923094a552f859b23620b6463a8a7fe9ad3b3"
+  }
+ ]
+}

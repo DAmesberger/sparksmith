@@ -1,0 +1,405 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Power inductor, moulded",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "4 mm",
+      "unit": "mm",
+      "comment": "body along x",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "4 mm",
+      "unit": "mm",
+      "comment": "body across (y)",
+      "model": false
+    },
+    {
+      "name": "height",
+      "expr": "3.1 mm",
+      "unit": "mm",
+      "comment": "top above the seating plane",
+      "model": false
+    },
+    {
+      "name": "terminal_length",
+      "expr": "0.82 mm",
+      "unit": "mm",
+      "comment": "bottom terminal along x",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "3.25 mm",
+      "unit": "mm",
+      "comment": "bottom terminal across (y)",
+      "model": false
+    },
+    {
+      "name": "terminal_gap",
+      "expr": "1.57 mm",
+      "unit": "mm",
+      "comment": "gap between the terminals",
+      "model": false
+    },
+    {
+      "name": "terminal_thickness",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "terminal plating thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "round of the upright edges (est.)",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "round of the top edges (est.)",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.7 * body_length",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.7 * body_width",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "core",
+      "suppressed": false,
+      "body_names": [
+        "core"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "0 mm"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "height",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.0,
+            -2.0,
+            0.0
+          ],
+          "max": [
+            2.0,
+            2.0,
+            3.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.0,
+            -2.0,
+            0.0
+          ],
+          "max": [
+            2.0,
+            2.0,
+            3.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.0,
+            -2.0,
+            0.0
+          ],
+          "max": [
+            2.0,
+            2.0,
+            3.1
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.0,
+            -2.0,
+            0.0
+          ],
+          "max": [
+            2.0,
+            2.0,
+            3.1
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+x|F1:+y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.0,
+          -2.0,
+          1.55
+        ],
+        [
+          2.0,
+          -2.0,
+          1.55
+        ],
+        [
+          2.0,
+          2.0,
+          1.55
+        ],
+        [
+          -2.0,
+          2.0,
+          1.55
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "core"
+    },
+    {
+      "id": 3,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d5"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -2.0,
+            -2.0,
+            0.0
+          ],
+          "max": [
+            2.0,
+            2.0,
+            3.100000000000001
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -2.0,
+          3.1
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "core"
+    },
+    {
+      "id": 4,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d6",
+        "d7",
+        "d8"
+      ],
+      "type": "box",
+      "corner": [
+        "- terminal_gap / 2 - terminal_length",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- terminal_gap / 2) - (- terminal_gap / 2 - terminal_length)",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(terminal_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d9",
+        "d10",
+        "d11"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_gap / 2",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(terminal_gap / 2 + terminal_length) - (terminal_gap / 2)",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(terminal_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 6,
+      "name": "terminal recesses",
+      "suppressed": false,
+      "type": "combine",
+      "target": "core",
+      "tools": [
+        "terminal 1",
+        "terminal 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 7,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d12"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 8,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "core": {
+        "name": "ferrite",
+        "color": [
+          60,
+          60,
+          61
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.6,
+          "dielectric_ior": 2.0
+        }
+      },
+      "terminal 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

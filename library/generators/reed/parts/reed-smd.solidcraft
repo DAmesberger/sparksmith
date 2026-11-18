@@ -1,0 +1,1074 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Reed switch, surface mount",
+  "units": "mm",
+  "params": [
+    {
+      "name": "tube_length",
+      "expr": "15.24 mm",
+      "unit": "mm",
+      "comment": "glass envelope length",
+      "model": false
+    },
+    {
+      "name": "tube_diameter",
+      "expr": "2.28 mm",
+      "unit": "mm",
+      "comment": "glass envelope diameter",
+      "model": false
+    },
+    {
+      "name": "height",
+      "expr": "2.84 mm",
+      "unit": "mm",
+      "comment": "envelope top above the seating plane",
+      "model": false
+    },
+    {
+      "name": "bend_span",
+      "expr": "17.52 mm",
+      "unit": "mm",
+      "comment": "over the leads' downward legs",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "19.3 mm",
+      "unit": "mm",
+      "comment": "overall length over the feet",
+      "model": false
+    },
+    {
+      "name": "lead_diameter",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "lead wire diameter (est.)",
+      "model": false
+    },
+    {
+      "name": "foot_width",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "flattened foot width",
+      "model": false
+    },
+    {
+      "name": "foot_thickness",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "flattened foot thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "seal_length",
+      "expr": "1.6 mm",
+      "unit": "mm",
+      "comment": "tapered seal length at each end (est.)",
+      "model": false
+    },
+    {
+      "name": "seal_diameter",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "diameter at the seal's tip (est.)",
+      "model": false
+    },
+    {
+      "name": "wall",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "glass wall thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "blade_width",
+      "expr": "0.45 mm",
+      "unit": "mm",
+      "comment": "reed blade width (est.)",
+      "model": false
+    },
+    {
+      "name": "blade_thickness",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "reed blade thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "blade_overlap",
+      "expr": "0.8 mm",
+      "unit": "mm",
+      "comment": "reed blades' overlap at the centre (est.)",
+      "model": false
+    },
+    {
+      "name": "contact_gap",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "gap between the open blades (est.)",
+      "model": false
+    },
+    {
+      "name": "axis_z",
+      "expr": "height - tube_diameter / 2",
+      "unit": "mm",
+      "comment": "envelope axis height",
+      "model": false
+    },
+    {
+      "name": "seal_taper",
+      "expr": "atan2((tube_diameter - seal_diameter) / 2, seal_length)",
+      "unit": "deg",
+      "comment": "the seals' taper",
+      "model": false
+    },
+    {
+      "name": "leg_x",
+      "expr": "bend_span / 2 - lead_diameter / 2",
+      "unit": "mm",
+      "comment": "leg centre x",
+      "model": false
+    },
+    {
+      "name": "blade_tip",
+      "expr": "blade_overlap / 2",
+      "unit": "mm",
+      "comment": "how far a blade reaches past the centre",
+      "model": false
+    },
+    {
+      "name": "d2",
+      "expr": "tube_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d5",
+      "expr": "seal_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d9",
+      "expr": "tube_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d13",
+      "expr": "tube_diameter - 2 * wall",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d19",
+      "expr": "lead_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d23",
+      "expr": "lead_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d32",
+      "expr": "lead_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d36",
+      "expr": "lead_diameter",
+      "unit": "mm",
+      "model": true
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "glass tube sketch",
+      "suppressed": false,
+      "param_names": [
+        "d1"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- tube_length / 2 + seal_length"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              1.7
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "axis_z"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 1.14,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 2.28,
+            "param": "d2"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "glass tube",
+      "suppressed": false,
+      "body_names": [
+        "glass"
+      ],
+      "param_names": [
+        "d3"
+      ],
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "tube_length - 2 * seal_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "glass seal 1 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- tube_length / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              1.7
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "axis_z"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.5,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 1.0,
+            "param": "d5"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "glass seal 1",
+      "suppressed": false,
+      "param_names": [
+        "d6",
+        "d7"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "seal_length",
+        "convention": "total_distance",
+        "direction": "positive",
+        "taper": "seal_taper"
+      },
+      "operation": "join",
+      "targets": [
+        "glass"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "glass seal 2 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d8"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "tube_length / 2 - seal_length"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              1.7
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "axis_z"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 1.14,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 2.28,
+            "param": "d9"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "glass seal 2",
+      "suppressed": false,
+      "param_names": [
+        "d10",
+        "d11"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "seal_length",
+        "convention": "total_distance",
+        "direction": "positive",
+        "taper": "- seal_taper"
+      },
+      "operation": "join",
+      "targets": [
+        "glass"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "glass cavity sketch",
+      "suppressed": false,
+      "param_names": [
+        "d12"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- tube_length / 2 + seal_length"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              1.7
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "axis_z"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.8399999999999999,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 1.6799999999999997,
+            "param": "d13"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "glass cavity",
+      "suppressed": false,
+      "param_names": [
+        "d14"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "tube_length - 2 * seal_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "glass"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d15",
+        "d16",
+        "d17"
+      ],
+      "type": "box",
+      "corner": [
+        "- (span / 2)",
+        "- foot_width / 2",
+        "0 mm"
+      ],
+      "length": "(- (bend_span / 2 - lead_diameter)) - (- (span / 2))",
+      "width": "(foot_width / 2) - (- foot_width / 2)",
+      "height": "(foot_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 10,
+      "name": "terminal 1 leg sketch",
+      "suppressed": false,
+      "param_names": [
+        "d18"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "foot_thickness / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -8.51,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- (leg_x)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.5,
+            "param": "d19"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "terminal 1 leg",
+      "suppressed": false,
+      "param_names": [
+        "d20"
+      ],
+      "type": "extrude",
+      "sketch": 10,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "axis_z - foot_thickness / 2",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "terminal 1"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "terminal 1 bend",
+      "suppressed": false,
+      "param_names": [
+        "d21"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "sphere",
+      "center": [
+        "- (leg_x)",
+        "0 mm",
+        "axis_z"
+      ],
+      "radius": "(lead_diameter) / 2",
+      "operation": "join"
+    },
+    {
+      "id": 13,
+      "name": "terminal 1 wire sketch",
+      "suppressed": false,
+      "param_names": [
+        "d22"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- (leg_x)"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              1.7
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "axis_z"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.5,
+            "param": "d23"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 14,
+      "name": "terminal 1 wire",
+      "suppressed": false,
+      "param_names": [
+        "d24"
+      ],
+      "type": "extrude",
+      "sketch": 13,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "leg_x - (tube_length / 2 - seal_length + 0.2 mm)",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "terminal 1"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "terminal 1 blade",
+      "suppressed": false,
+      "param_names": [
+        "d25",
+        "d26",
+        "d27"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "box",
+      "corner": [
+        "- (tube_length / 2 - seal_length + 0.2 mm)",
+        "- blade_width / 2",
+        "axis_z + contact_gap / 2"
+      ],
+      "length": "(blade_tip) - (- (tube_length / 2 - seal_length + 0.2 mm))",
+      "width": "(blade_width / 2) - (- blade_width / 2)",
+      "height": "((axis_z + contact_gap / 2) + blade_thickness) - (axis_z + contact_gap / 2)",
+      "operation": "join"
+    },
+    {
+      "id": 16,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d28",
+        "d29",
+        "d30"
+      ],
+      "type": "box",
+      "corner": [
+        "(bend_span / 2 - lead_diameter)",
+        "- foot_width / 2",
+        "0 mm"
+      ],
+      "length": "( (span / 2)) - ( (bend_span / 2 - lead_diameter))",
+      "width": "(foot_width / 2) - (- foot_width / 2)",
+      "height": "(foot_thickness) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 17,
+      "name": "terminal 2 leg sketch",
+      "suppressed": false,
+      "param_names": [
+        "d31"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "foot_thickness / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              8.51,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(leg_x)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.5,
+            "param": "d32"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 18,
+      "name": "terminal 2 leg",
+      "suppressed": false,
+      "param_names": [
+        "d33"
+      ],
+      "type": "extrude",
+      "sketch": 17,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "axis_z - foot_thickness / 2",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "terminal 2"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "terminal 2 bend",
+      "suppressed": false,
+      "param_names": [
+        "d34"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "sphere",
+      "center": [
+        "(leg_x)",
+        "0 mm",
+        "axis_z"
+      ],
+      "radius": "(lead_diameter) / 2",
+      "operation": "join"
+    },
+    {
+      "id": 20,
+      "name": "terminal 2 wire sketch",
+      "suppressed": false,
+      "param_names": [
+        "d35"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "tube_length / 2 - seal_length + 0.2 mm"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              0.0,
+              1.7
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "axis_z"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "diameter",
+            "c": 0,
+            "value": 0.5,
+            "param": "d36"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 1,
+          "p": 1
+        }
+      }
+    },
+    {
+      "id": 21,
+      "name": "terminal 2 wire",
+      "suppressed": false,
+      "param_names": [
+        "d37"
+      ],
+      "type": "extrude",
+      "sketch": 20,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "leg_x - (tube_length / 2 - seal_length + 0.2 mm)",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "terminal 2"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "terminal 2 blade",
+      "suppressed": false,
+      "param_names": [
+        "d38",
+        "d39",
+        "d40"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "box",
+      "corner": [
+        "- blade_tip",
+        "- blade_width / 2",
+        "axis_z - contact_gap / 2 - blade_thickness"
+      ],
+      "length": "(tube_length / 2 - seal_length + 0.2 mm) - (- blade_tip)",
+      "width": "(blade_width / 2) - (- blade_width / 2)",
+      "height": "((axis_z - contact_gap / 2 - blade_thickness) + blade_thickness) - (axis_z - contact_gap / 2 - blade_thickness)",
+      "operation": "join"
+    },
+    {
+      "id": 23,
+      "name": "seals",
+      "suppressed": false,
+      "type": "combine",
+      "target": "glass",
+      "tools": [
+        "terminal 1",
+        "terminal 2"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    }
+  ],
+  "next_id": 24,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "glass": {
+        "name": "borosilicate-glass",
+        "color": [
+          237,
+          241,
+          239
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.05,
+          "dielectric_ior": 1.47
+        }
+      },
+      "terminal 1": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

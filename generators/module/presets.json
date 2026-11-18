@@ -25,10 +25,26 @@
    "land_width": 900000,
    "land_outer": 300000,
    "land_inner": 0,
-   "row_sides": ["left", "bottom", "right"],
-   "row_counts": [14, 10, 14],
-   "row_x": [-8400000, -5715000, 8400000],
-   "row_y": [5500000, -11900000, -11010000],
+   "row_sides": [
+    "left",
+    "bottom",
+    "right"
+   ],
+   "row_counts": [
+    14,
+    10,
+    14
+   ],
+   "row_x": [
+    -8400000,
+    -5715000,
+    8400000
+   ],
+   "row_y": [
+    5500000,
+    -11900000,
+    -11010000
+   ],
    "ground": true,
    "ground_rows": 3,
    "ground_columns": 3,
@@ -79,10 +95,30 @@
    "land_width": 400000,
    "land_outer": 0,
    "land_inner": 0,
-   "row_sides": ["left", "bottom", "right", "top"],
-   "row_counts": [25, 22, 25, 22],
-   "row_x": [-10300000, -8925000, 10300000, 8925000],
-   "row_y": [7200000, -14300000, -13200000, 8300000],
+   "row_sides": [
+    "left",
+    "bottom",
+    "right",
+    "top"
+   ],
+   "row_counts": [
+    25,
+    22,
+    25,
+    22
+   ],
+   "row_x": [
+    -10300000,
+    -8925000,
+    10300000,
+    8925000
+   ],
+   "row_y": [
+    7200000,
+    -14300000,
+    -13200000,
+    8300000
+   ],
    "ground": true,
    "ground_rows": 3,
    "ground_columns": 3,
@@ -94,11 +130,36 @@
    "ground_y": -3000000,
    "ground_rotation": 45000,
    "ground_number": "95",
-   "single_numbers": ["96", "97", "98", "99"],
-   "single_x": [-10300000, 10300000, 10300000, -10300000],
-   "single_y": [-14300000, -14300000, 8300000, 8300000],
-   "single_length": [800000, 800000, 800000, 800000],
-   "single_width": [800000, 800000, 800000, 800000],
+   "single_numbers": [
+    "96",
+    "97",
+    "98",
+    "99"
+   ],
+   "single_x": [
+    -10300000,
+    10300000,
+    10300000,
+    -10300000
+   ],
+   "single_y": [
+    -14300000,
+    -14300000,
+    8300000,
+    8300000
+   ],
+   "single_length": [
+    800000,
+    800000,
+    800000,
+    800000
+   ],
+   "single_width": [
+    800000,
+    800000,
+    800000,
+    800000
+   ],
    "keepout": true,
    "keepout_left": 0,
    "keepout_right": 0,
@@ -111,5 +172,86 @@
   },
   "basis": "cited",
   "note": "The pad rows, pitch, outline and land pattern are the datasheet's (Figure 10-1, p. 64; Figure 11-1, p. 67); the ground array's turn and pitch were checked against Espressif's published footprint and STEP model, used as a dimension source only. The ground pad nearest the antenna is chamfered on the module; it is drawn square. The can size, board thickness and antenna meander are estimated."
+ },
+ {
+  "key": "module-esp32-s3-wroom-1",
+  "name": "ESP32-S3-WROOM-1",
+  "aliases": [
+   "ESP32-S3-WROOM-1",
+   "WROOM-1",
+   "ESP32-S3 module",
+   "ESP32-S3-WROOM-1-N8"
+  ],
+  "description": "Espressif ESP32-S3-WROOM-1: 18 × 25.5 × 3.1 mm castellated module, 14 + 12 + 14 pads at 1.27 mm, a 3 × 3 ground array (pad 41), a 15.8 × 17.6 mm shield can and a 6 mm PCB antenna end.",
+  "params": {
+   "width": 18000000,
+   "length": 25500000,
+   "height": 3100000,
+   "board_thickness": 800000,
+   "antenna_length": 6000000,
+   "antenna_trace": 500000,
+   "antenna_margin": 700000,
+   "antenna_turns": 3,
+   "can_emboss": true,
+   "can_emboss_inset": 1000000,
+   "can_width": 15800000,
+   "can_length": 17600000,
+   "can_x": 0,
+   "can_y": -2900000,
+   "pitch": 1270000,
+   "pad_length": 850000,
+   "pad_width": 900000,
+   "castellation": 550000,
+   "land_width": 900000,
+   "land_outer": 500000,
+   "land_inner": 150000,
+   "row_sides": [
+    "left",
+    "bottom",
+    "right"
+   ],
+   "row_counts": [
+    14,
+    12,
+    14
+   ],
+   "row_x": [
+    -8575000,
+    -6985000,
+    8575000
+   ],
+   "row_y": [
+    5260000,
+    -12325000,
+    -11250000
+   ],
+   "ground": true,
+   "ground_rows": 3,
+   "ground_columns": 3,
+   "ground_pitch_x": 1400000,
+   "ground_pitch_y": 1400000,
+   "ground_size_x": 900000,
+   "ground_size_y": 900000,
+   "ground_x": -1500000,
+   "ground_y": -2460000,
+   "ground_rotation": 0,
+   "ground_number": "41",
+   "single_numbers": [],
+   "single_x": [],
+   "single_y": [],
+   "single_length": [],
+   "single_width": [],
+   "keepout": true,
+   "keepout_left": 0,
+   "keepout_right": 0,
+   "keepout_top": 0
+  },
+  "citation": {
+   "document": "Espressif ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet, Figure 10-1 module dimensions and Figure 11-1 recommended PCB land pattern",
+   "revision": "v1.8",
+   "page": 42
+  },
+  "basis": "cited",
+  "note": "Outline, height, board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 7.49 mm below the antenna edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.8 × 17.6 mm, read 1.05 mm above the bottom edge) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-1, p. 45) from the datasheet. The antenna meander's trace, inset and turns are estimated from the top view; the emboss groove is estimated."
  }
 ]

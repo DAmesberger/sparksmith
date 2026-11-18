@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "module": {
+    "file": "buzzer.wasm",
+    "sha256": "9b6b11704cf2db194948bc6963a14c4467b711941501655f1c899af438a6e941"
+  },
+  "name": "buzzer",
+  "parts": [
+    {
+      "file": "parts/buzzer-smd.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from CUI Devices' public CMI-9653S-SMT-TR datasheet (12/15/2022, p. 2, mechanical drawing; https://www.cuidevices.com, downloaded 18 November 2026): case 9.6 × 9.6 × 5.0 mm, terminals 1.5 mm wide rising 2.4 mm, 0.25 mm proud of the case, at most 0.1 mm under it; the bevel, port, edge round and foot length estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "2d2174be8c6c5db52beb41cd11c865d2e13dbc1938844d9d96050c13771b34f5",
+      "title": "Magnetic buzzer, surface mount"
+    },
+    {
+      "file": "parts/buzzer-smd-label.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from CUI Devices' public CMI-9653S-SMT-TR datasheet (12/15/2022, p. 2; https://www.cuidevices.com, downloaded 18 November 2026); the label's size and thickness estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "160356893f7d0e18a1e1ff6d6282d1e75bfccf515af9d0a5c0b4855e9e586830",
+      "title": "Magnetic buzzer, surface mount, masking label"
+    }
+  ]
+}

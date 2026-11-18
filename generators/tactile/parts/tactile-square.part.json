@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tactile-square",
+  "title": "Tactile switch, square, top push",
+  "summary": "Square top-push tactile switch (6 × 6 and 4.5 × 4.5 mm classes): a black PA9T base, a nickel-silver cover with side tabs and corner studs, a round black plunger and four gull-wing matte-tin terminals (body_length, body_width, body_height, height, plunger_diameter, span, terminal_width, terminal_pitch, lead_thickness, lead_exit).",
+  "use": "package_body",
+  "prefix": "SW",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at E-Switch's public TL3305 drawing (TL3305 series datasheet p. 3; https://www.e-switch.com/wp-content/uploads/2022/06/TL3305.pdf, downloaded 18 November 2026): 4.5 × 4.5 mm, 7.5 mm over the terminals, terminals 0.7 mm at 3.0 mm, 0.3 mm thick, plunger Ø2.5, 3.8 mm high; the 6 × 6 mm values come from Omron's public B3S catalogue (en-b3s.pdf p. 2); cover height, studs and terminal forming estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

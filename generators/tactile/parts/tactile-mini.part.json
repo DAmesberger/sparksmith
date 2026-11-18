@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tactile-mini",
+  "title": "Tactile switch, mini, top push",
+  "summary": "Mini top-push tactile switch (Panasonic EVQP2 class): a black LCP base on four J-bent matte-tin terminals (1, 2 at −x; 3, 4 at +x), a nickel-silver cover with side tabs and a white POM push plate (body_length, body_width, height, cover_height, span, terminal_width, terminal_pitch, plate_length, plate_width, plate_round and the estimated sheet thicknesses).",
+  "use": "package_body",
+  "prefix": "SW",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Panasonic's public catalogue Tactile Switches EVQP2/EVQP9/EVQ3P2 (ANCTB19E 202204, p. 5, EVQP2V02M; https://industrial.panasonic.com/ac/e/, downloaded 18 November 2026): base 4.7 × 3.5 mm, 5.5 mm over the terminals, terminals 0.6 mm at 1.7 mm, push plate 2.6 × 1.6 mm, height 2.1 mm, cover at 1.55 mm; sheet thicknesses, J-bend and rounds estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

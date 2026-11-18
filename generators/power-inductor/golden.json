@@ -1,0 +1,19 @@
+{
+ "cases": [
+  {
+   "name": "XEL4030, component",
+   "request": {"abi": 1, "scope": "component", "params": {"body_length": 4000000, "body_width": 4000000, "height": 3100000, "land_length": 980000, "land_width": 3400000, "land_x": 1185000, "style": "molded", "terminal_gap": 1570000, "terminal_length": 820000, "terminal_width": 3250000, "window": false}},
+   "result": "71aeb59e889e9164b387a1183471e282b0f8ebd42f5b966e3acfda464579d02a"
+  },
+  {
+   "name": "SRR6028, package",
+   "request": {"abi": 1, "scope": "package", "params": {"body_length": 6800000, "body_width": 6800000, "height": 2800000, "land_length": 2600000, "land_width": 7300000, "land_x": 2350000, "style": "shielded", "terminal_gap": 2200000, "terminal_length": 2300000, "terminal_width": 5000000, "window": false}},
+   "result": "0568ebd5acc0dd53aa233ae22205721a10b7b41a2c7fc021d77b835b87f06c86"
+  },
+  {
+   "name": "6x6 windows, component",
+   "request": {"abi": 1, "scope": "component", "params": {"body_length": 6000000, "body_width": 6000000, "height": 4500000, "land_length": 2400000, "land_width": 6400000, "land_x": 2100000, "style": "shielded", "terminal_gap": 2000000, "terminal_length": 2000000, "terminal_width": 4400000, "window": true}},
+   "result": "2b9d86f33a644f412ee74b536411aae61350fce5e065e6c592f86f6fa7f2a6aa"
+  }
+ ]
+}

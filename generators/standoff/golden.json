@@ -1,0 +1,14 @@
+{
+ "cases": [
+  {
+   "name": "9774100360R, component",
+   "request": {"abi": 1, "scope": "component", "params": {"bore_diameter": 2500000, "hole_diameter": 4400000, "land_diameter": 7400000, "length": 10000000, "outer_diameter": 6000000, "spigot_diameter": 4200000, "spigot_length": 1400000}},
+   "result": "6310515625ef13aeae4448383f2e3ceded78e546d191fb3fb25e2990381268c7"
+  },
+  {
+   "name": "No spigot, package",
+   "request": {"abi": 1, "scope": "package", "params": {"bore_diameter": 2500000, "hole_diameter": 4400000, "land_diameter": 7400000, "length": 6000000, "outer_diameter": 6000000, "spigot_diameter": 4200000, "spigot_length": 0}},
+   "result": "31d5ba185a868fef646c11246bee7c6c4c102974c7a3bf14b45b3c8bab6ed627"
+  }
+ ]
+}

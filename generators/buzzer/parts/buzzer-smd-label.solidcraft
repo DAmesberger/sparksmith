@@ -1,0 +1,766 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "Magnetic buzzer, surface mount, masking label",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "9.6 mm",
+      "unit": "mm",
+      "comment": "case along x",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "9.6 mm",
+      "unit": "mm",
+      "comment": "case across (y)",
+      "model": false
+    },
+    {
+      "name": "height",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "top above the seating plane",
+      "model": false
+    },
+    {
+      "name": "corner_bevel",
+      "expr": "1.2 mm",
+      "unit": "mm",
+      "comment": "the orientation corner's bevel (est.)",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "round of the case's top edges (est.)",
+      "model": false
+    },
+    {
+      "name": "port_diameter",
+      "expr": "1.5 mm",
+      "unit": "mm",
+      "comment": "sound port diameter (est.)",
+      "model": false
+    },
+    {
+      "name": "port_depth",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "sound port depth (est.)",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "1.5 mm",
+      "unit": "mm",
+      "comment": "terminal width (y)",
+      "model": false
+    },
+    {
+      "name": "terminal_rise",
+      "expr": "2.4 mm",
+      "unit": "mm",
+      "comment": "terminal plate height up the case end",
+      "model": false
+    },
+    {
+      "name": "terminal_out",
+      "expr": "0.25 mm",
+      "unit": "mm",
+      "comment": "terminal plate thickness beyond the case end",
+      "model": false
+    },
+    {
+      "name": "terminal_depth",
+      "expr": "1.2 mm",
+      "unit": "mm",
+      "comment": "foot length under the case (est.)",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.1 mm",
+      "unit": "mm",
+      "comment": "foot thickness under the case",
+      "model": false
+    },
+    {
+      "name": "label_diameter",
+      "expr": "7.6 mm",
+      "unit": "mm",
+      "comment": "masking label diameter (est.)",
+      "model": false
+    },
+    {
+      "name": "label_thickness",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "masking label thickness (est.)",
+      "model": false
+    },
+    {
+      "name": "d7",
+      "expr": "port_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d22",
+      "expr": "label_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d25",
+      "expr": "port_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.6 * body_length",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.6 * body_width",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "case",
+      "suppressed": false,
+      "body_names": [
+        "case"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "lead_thickness"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "height - label_thickness - lead_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "orientation corner",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -4.8,
+            -4.8,
+            0.1
+          ],
+          "max": [
+            4.8,
+            4.8,
+            4.95
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+x|F1:+y"
+      ],
+      "type": "chamfer",
+      "edges": [
+        [
+          4.8,
+          4.8,
+          2.5
+        ]
+      ],
+      "distance": "corner_bevel",
+      "body": "case"
+    },
+    {
+      "id": 3,
+      "name": "top edges",
+      "suppressed": false,
+      "param_names": [
+        "d5"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -4.8,
+            -4.8,
+            0.09999999999999787
+          ],
+          "max": [
+            4.8,
+            4.8,
+            4.95
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            -4.8,
+            -4.8,
+            0.09999999999999787
+          ],
+          "max": [
+            4.8,
+            4.8,
+            4.95
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -4.8,
+            -4.8,
+            0.09999999999999787
+          ],
+          "max": [
+            4.8,
+            4.8,
+            4.95
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -4.8,
+            -4.8,
+            0.09999999999999787
+          ],
+          "max": [
+            4.8,
+            4.8,
+            4.95
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y",
+        "F1:+x|F1:+z",
+        "F1:+y|F1:+z",
+        "F1:+z|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -4.8,
+          4.95
+        ],
+        [
+          4.8,
+          0.0,
+          4.95
+        ],
+        [
+          0.0,
+          4.8,
+          4.95
+        ],
+        [
+          -4.8,
+          0.0,
+          4.95
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "case"
+    },
+    {
+      "id": 4,
+      "name": "sound port sketch",
+      "suppressed": false,
+      "param_names": [
+        "d6"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "height - label_thickness - port_depth"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.75,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 1.5,
+            "param": "d7"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "sound port",
+      "suppressed": false,
+      "param_names": [
+        "d8"
+      ],
+      "type": "extrude",
+      "sketch": 4,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "port_depth + 1 mm",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "case"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d9",
+        "d10",
+        "d11"
+      ],
+      "type": "box",
+      "corner": [
+        "- (body_length / 2 + terminal_out)",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- (body_length / 2)) - (- (body_length / 2 + terminal_out))",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(terminal_rise) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "terminal 1 foot",
+      "suppressed": false,
+      "param_names": [
+        "d12",
+        "d13",
+        "d14"
+      ],
+      "participants": [
+        "terminal 1"
+      ],
+      "type": "box",
+      "corner": [
+        "- (body_length / 2 + terminal_out)",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "(- (body_length / 2 - terminal_depth)) - (- (body_length / 2 + terminal_out))",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 8,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d15",
+        "d16",
+        "d17"
+      ],
+      "type": "box",
+      "corner": [
+        "(body_length / 2)",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "( (body_length / 2 + terminal_out)) - ( (body_length / 2))",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(terminal_rise) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "terminal 2 foot",
+      "suppressed": false,
+      "param_names": [
+        "d18",
+        "d19",
+        "d20"
+      ],
+      "participants": [
+        "terminal 2"
+      ],
+      "type": "box",
+      "corner": [
+        "(body_length / 2 - terminal_depth)",
+        "- terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "( (body_length / 2 + terminal_out)) - ( (body_length / 2 - terminal_depth))",
+      "width": "(terminal_width / 2) - (- terminal_width / 2)",
+      "height": "(lead_thickness) - (0 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 10,
+      "name": "label sketch",
+      "suppressed": false,
+      "param_names": [
+        "d21"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "height - label_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 3.8,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 7.6,
+            "param": "d22"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "label",
+      "suppressed": false,
+      "body_names": [
+        "label"
+      ],
+      "param_names": [
+        "d23"
+      ],
+      "type": "extrude",
+      "sketch": 10,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "label_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 12,
+      "name": "label port sketch",
+      "suppressed": false,
+      "param_names": [
+        "d24"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "height - 2 * label_thickness"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 0.75,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 1.5,
+            "param": "d25"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 13,
+      "name": "label port",
+      "suppressed": false,
+      "param_names": [
+        "d26"
+      ],
+      "type": "extrude",
+      "sketch": 12,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "3 * label_thickness",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "label"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d27"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 15,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "case": {
+        "name": "lcp",
+        "color": [
+          44,
+          44,
+          47
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.35,
+          "dielectric_ior": 1.6
+        }
+      },
+      "label": {
+        "name": "polyimide",
+        "color": [
+          170,
+          108,
+          39
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.25,
+          "dielectric_ior": 1.7
+        }
+      },
+      "terminal 1": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

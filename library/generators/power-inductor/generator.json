@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "module": {
+    "file": "power-inductor.wasm",
+    "sha256": "6631f76936e545954cdc108dddd3e86a244a37d22a29f2be0c1947d294ee1c3d"
+  },
+  "name": "power-inductor",
+  "parts": [
+    {
+      "file": "parts/inductor-molded.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at the XEL4030 from Coilcraft's public datasheets (Document 1321-1, revised 02/19/26, https://www.coilcraft.com/pdfs/xel4030.pdf, and the drawing of the same package in Document 1048-2, XFL4030, revised 05/04/26, https://www.coilcraft.com/pdfs/xfl4030.pdf, both downloaded 18 November 2026): 4.0 × 4.0 mm, 3.10 mm max, terminals 0.82 × 3.25 mm, 1.57 mm apart; plating thickness and rounds estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "7a368eb214175e63f8c8b5ac03aab73b3ac7aa7f92d00d98e1d32b0402970018",
+      "title": "Power inductor, moulded"
+    },
+    {
+      "file": "parts/inductor-shielded.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at the SRR6028 from Bourns' public SRR6028 datasheet (Product Dimensions and Recommended Layout; https://www.bourns.com/docs/Product-Datasheets/SRR6028.pdf, downloaded 18 November 2026): 6.8 × 6.8 × 2.8 mm, terminals 2.3 mm; bevels, flange, bore, winding and terminal width estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "73b043ee894d8bdf7db0968c9ac90f62477c15e5c270dd5579fda3d4481ac177",
+      "title": "Power inductor, shielded"
+    },
+    {
+      "file": "parts/inductor-shielded-window.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at the SRR6028's outline (Bourns' public SRR6028 datasheet; https://www.bourns.com/docs/Product-Datasheets/SRR6028.pdf, downloaded 18 November 2026); the windows estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "f3325d56143a34aa6ab4307473f09debeacfbe4ea93aa3179318ce30fe23143a",
+      "title": "Power inductor, shielded, winding windows"
+    }
+  ]
+}

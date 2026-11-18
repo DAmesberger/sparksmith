@@ -6610,7 +6610,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-buzzer"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-chip"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-electrolytic"
 version = "0.1.0"
 dependencies = [
  "sparksmith-generator-abi",
@@ -6673,7 +6689,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-power-inductor"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-reed"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-standoff"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-tabbed"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-abi",
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
+name = "sparksmith-gen-tactile"
 version = "0.1.0"
 dependencies = [
  "sparksmith-generator-abi",

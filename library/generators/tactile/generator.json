@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "module": {
+    "file": "tactile.wasm",
+    "sha256": "a9ff08cb53fa463c6f7ceeec80649b18d39bb00a63c5c8440bb076964ec569cc"
+  },
+  "name": "tactile",
+  "parts": [
+    {
+      "file": "parts/tactile-mini.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Panasonic's public catalogue Tactile Switches EVQP2/EVQP9/EVQ3P2 (ANCTB19E 202204, p. 5, EVQP2V02M; https://industrial.panasonic.com/ac/e/, downloaded 18 November 2026): base 4.7 × 3.5 mm, 5.5 mm over the terminals, terminals 0.6 mm at 1.7 mm, push plate 2.6 × 1.6 mm, height 2.1 mm, cover at 1.55 mm; sheet thicknesses, J-bend and rounds estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "949dca65b7df684bf12e90bc366f01e8aede06f101e2b80ca32e54350e058088",
+      "title": "Tactile switch, mini, top push"
+    },
+    {
+      "file": "parts/tactile-mini-ground.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Panasonic's public catalogue Tactile Switches EVQP2/EVQP9/EVQ3P2 (ANCTB19E 202204, p. 5, EVQP2V02M; https://industrial.panasonic.com/ac/e/, downloaded 18 November 2026), the ground tab 1 × 0.3 mm; sheet thicknesses, J-bend and rounds estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "20408ac11e7094217a0bab181be78c1464d7534b4cde78bb804d4fda8dee36b2",
+      "title": "Tactile switch, mini, top push, ground tab"
+    },
+    {
+      "file": "parts/tactile-square.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at E-Switch's public TL3305 drawing (TL3305 series datasheet p. 3; https://www.e-switch.com/wp-content/uploads/2022/06/TL3305.pdf, downloaded 18 November 2026): 4.5 × 4.5 mm, 7.5 mm over the terminals, terminals 0.7 mm at 3.0 mm, 0.3 mm thick, plunger Ø2.5, 3.8 mm high; the 6 × 6 mm values come from Omron's public B3S catalogue (en-b3s.pdf p. 2); cover height, studs and terminal forming estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "3754bfa01720d2e4d9c389df9ae6c0e580a6fdcd1289f43f392618cc62972cb1",
+      "title": "Tactile switch, square, top push"
+    }
+  ]
+}

@@ -60,7 +60,7 @@ fn golden_hashes_match_natively() -> Result<(), String> {
 #[test]
 fn presets_generate_in_both_scopes() -> Result<(), Vec<Problem>> {
     let description = description();
-    assert_eq!(description.presets().len(), 2);
+    assert_eq!(description.presets().len(), 3);
     for p in description.presets() {
         for scope in [Scope::Component, Scope::Package] {
             let g = Module::generate(&request(scope, &preset(&p.key)))?;
@@ -165,6 +165,57 @@ fn castellated_rows_land_outward_and_contact_under_their_plating() -> Result<(),
     );
     assert_eq!(int(v, "antenna_turns"), 6);
     assert_eq!(int(v, "antenna_units"), 5);
+    Ok(())
+}
+
+#[test]
+fn the_wroom1_lands_where_its_datasheet_lays_them() -> Result<(), Vec<Problem>> {
+    // ESP32-S3-WROOM-1 (datasheet v1.8, Figures 10-1 and 11-1): 41 pads,
+    // lands 1.5 × 0.9 mm from 0.5 mm outside the 18 mm outline (x −9.5 to
+    // −8.0), pin 1 7.49 mm below the +y edge, pin 15 2.015 mm in from the
+    // −x edge; nine 0.9 mm ground pads numbered 41 at 1.4 mm about
+    // (−1.5, −2.46); castellations Ø0.55; the can embossed.
+    let g = Module::generate(&request(Scope::Component, &preset("module-esp32-s3-wroom-1")))?;
+    let pads = &g.footprint.pads;
+    assert_eq!(pads.len(), 49);
+    assert_eq!(
+        pads.first().map(|p| (p.at, p.shape.clone())),
+        Some((
+            [-8_750_000, 5_260_000],
+            PadShape::Rect {
+                size: [1_500_000, 900_000]
+            }
+        ))
+    );
+    assert_eq!(pads.get(14).map(|p| p.at[0]), Some(-6_985_000));
+    assert_eq!(pads.get(39).map(|p| p.at), Some([8_750_000, 5_260_000]));
+    let ground: Vec<[i64; 2]> = pads
+        .iter()
+        .filter(|p| p.number.as_deref() == Some("41"))
+        .map(|p| p.at)
+        .collect();
+    assert_eq!(ground.len(), 9);
+    let mid = [
+        ground.iter().map(|p| p[0]).sum::<i64>() / 9,
+        ground.iter().map(|p| p[1]).sum::<i64>() / 9,
+    ];
+    assert_eq!(mid, [-1_500_000, -2_460_000]);
+    assert_eq!(
+        g.package.geometry.envelope_nm,
+        [18_000_000, 25_500_000, 3_100_000]
+    );
+    let (asset, v) = values(&g);
+    assert_eq!(asset, parts::MODULE_CASTELLATED);
+    assert_eq!(int(v, "notch_radius"), 275_000);
+    assert_eq!(
+        [
+            int(v, "can_emboss_inset"),
+            int(v, "can_emboss_width"),
+            int(v, "antenna_turns"),
+            int(v, "antenna_trace"),
+        ],
+        [1_000_000, 300_000, 3, 500_000]
+    );
     Ok(())
 }
 

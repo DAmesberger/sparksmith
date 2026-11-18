@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "inductor-molded",
+  "title": "Power inductor, moulded",
+  "summary": "Moulded power inductor (Coilcraft XEL4030 class): a block of moulded magnetic composite (ferrite look) with rounded upright and top edges and two matte-tin bottom terminals inlaid flush at ±x (body_length, body_width, height, terminal_length, terminal_width, terminal_gap, corner_round, edge_round).",
+  "use": "package_body",
+  "prefix": "L",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at the XEL4030 from Coilcraft's public datasheets (Document 1321-1, revised 02/19/26, https://www.coilcraft.com/pdfs/xel4030.pdf, and the drawing of the same package in Document 1048-2, XFL4030, revised 05/04/26, https://www.coilcraft.com/pdfs/xfl4030.pdf, both downloaded 18 November 2026): 4.0 × 4.0 mm, 3.10 mm max, terminals 0.82 × 3.25 mm, 1.57 mm apart; plating thickness and rounds estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

@@ -1,0 +1,29 @@
+[
+ {
+  "key": "reed-mdsm-4",
+  "name": "Littelfuse MDSM-4",
+  "aliases": [
+   "MDSM-4",
+   "MDSM-4R",
+   "15.3 mm SMD reed switch"
+  ],
+  "description": "Littelfuse MDSM-4 surface-mount reed switch: glass envelope 15.24 × Ø2.28 mm, 19.30 mm overall, 2.84 mm high.",
+  "params": {
+   "tube_length": 15240000,
+   "tube_diameter": 2280000,
+   "height": 2840000,
+   "bend_span": 17520000,
+   "span": 19300000,
+   "foot_width": 1000000,
+   "land_gap": 16000000,
+   "land_length": 2340000,
+   "land_width": 1300000
+  },
+  "citation": {
+   "document": "Littelfuse, MDSM-4 15.3 mm Surface Mount Reed Switch datasheet: Dimensions and Recommended Land Pattern",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Envelope, leads, height and land pattern from the drawing (the envelope and height are its maxima); the wire, seals, glass wall and blades are estimated."
+ }
+]

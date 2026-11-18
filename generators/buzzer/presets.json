@@ -1,0 +1,31 @@
+[
+ {
+  "key": "buzzer-cmi-9653s-smt",
+  "name": "CUI Devices CMI-9653S-SMT",
+  "aliases": [
+   "CMI-9653S-SMT",
+   "CMI-9653S",
+   "buzzer 9.6x9.6"
+  ],
+  "description": "CUI Devices CMI-9653S-SMT magnetic buzzer: case 9.6 × 9.6 × 5.0 mm, gold terminals 1.5 mm wide at the ends.",
+  "params": {
+   "body_length": 9600000,
+   "body_width": 9600000,
+   "height": 5000000,
+   "terminal_width": 1500000,
+   "terminal_rise": 2400000,
+   "terminal_out": 250000,
+   "land_x": 3800000,
+   "land_length": 3000000,
+   "land_width": 2500000,
+   "label": false
+  },
+  "citation": {
+   "document": "CUI Devices, CMI-9653S-SMT-TR magnetic buzzer indicator datasheet: Mechanical Drawing and Recommended PCB Layout",
+   "revision": "12/15/2022",
+   "page": 2
+  },
+  "basis": "cited",
+  "note": "Case, terminals and lands from the drawing (tolerance ±0.5 mm; the land pattern gives 2–3.0 × 2–2.5 mm reaching 0.5 mm beyond the case, here the larger values). The bevel, sound port, top round and feet are estimated."
+ }
+]

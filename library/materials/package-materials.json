@@ -516,6 +516,39 @@
           "note": "amber colour of polyimide film"
         }
       ]
+    },
+    {
+      "id": "pom_white",
+      "name": "White POM",
+      "base_linear": [0.72, 0.72, 0.70],
+      "metallic": 0.0,
+      "roughness": 0.4,
+      "ior": 1.48,
+      "density_kg_m3": 1410.0,
+      "source": [
+        {
+          "reference": "palik-crc",
+          "note": "n ≈ 1.48 and density of polyoxymethylene (acetal)"
+        },
+        {
+          "reference": "est",
+          "note": "colour and roughness of a white moulded acetal push plate"
+        }
+      ]
+    },
+    {
+      "id": "marking_ink_black",
+      "name": "Black marking ink",
+      "base_linear": [0.02, 0.02, 0.022],
+      "metallic": 0.0,
+      "roughness": 0.5,
+      "ior": 1.5,
+      "source": [
+        {
+          "reference": "est",
+          "note": "carbon-black pigmented ink printed on an aluminium can"
+        }
+      ]
     }
   ]
 }

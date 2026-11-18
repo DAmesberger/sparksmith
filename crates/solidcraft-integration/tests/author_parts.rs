@@ -44,6 +44,9 @@ fn pt(p: [f64; 2]) -> sparksmith_core::units::PointNm {
 #[path = "author_parts/tht.rs"]
 mod tht;
 
+#[path = "author_parts/families.rs"]
+mod families;
+
 fn run(s: &mut Session, command: &str, params: serde_json::Value) -> serde_json::Value {
     s.execute(command, &params)
         .unwrap_or_else(|e| panic!("{command} {params}: {e}"))
@@ -2701,6 +2704,24 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
             "shield can height above the board",
         ),
         param("can_round", "0.3 mm", "mm", "round of the can's top edges"),
+        param(
+            "can_emboss_inset",
+            "1 mm",
+            "mm",
+            "the stamped emboss groove's inset from the can's sides",
+        ),
+        param(
+            "can_emboss_width",
+            "0.3 mm",
+            "mm",
+            "the emboss groove's width (est.)",
+        ),
+        param(
+            "can_emboss_depth",
+            "0.05 mm",
+            "mm",
+            "the emboss groove's depth (est.)",
+        ),
         param("pitch", "1.27 mm", "mm", "pad pitch within every row"),
         param("pad_length", "1.2 mm", "mm", "row pad across its edge"),
         param("pad_width", "0.9 mm", "mm", "row pad along its edge"),
@@ -3228,6 +3249,36 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
         "solid.fillet",
         json!({"name": "can round", "body": "shield can", "radius": "can_round",
             "edges": [[0.0, -11.2, 3.2], [8.3, -2.5, 3.2], [0.0, 6.2, 3.2], [-8.3, -2.5, 3.2]]}),
+    );
+    // The stamped emboss round the can's label area: a rectangular groove
+    // `can_emboss_width` wide and `can_emboss_depth` deep, inset
+    // `can_emboss_inset` from the can's sides (a ring of two boxes cut
+    // from the can). The label area inside stays at the can's top.
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["can_x - can_width / 2 + can_emboss_inset",
+                "can_y - can_length / 2 + can_emboss_inset", "height - can_emboss_depth"],
+            "length": "can_width - 2 * can_emboss_inset",
+            "width": "can_length - 2 * can_emboss_inset", "height": "can_emboss_depth + 1 mm",
+            "name": "can emboss", "body_name": "can emboss"}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["can_x - can_width / 2 + can_emboss_inset + can_emboss_width",
+                "can_y - can_length / 2 + can_emboss_inset + can_emboss_width",
+                "height - 2 * can_emboss_depth"],
+            "length": "can_width - 2 * (can_emboss_inset + can_emboss_width)",
+            "width": "can_length - 2 * (can_emboss_inset + can_emboss_width)",
+            "height": "2 * can_emboss_depth + 2 mm", "operation": "cut", "targets": ["can emboss"],
+            "name": "can emboss inside"}),
+    );
+    run(
+        &mut s,
+        "solid.combine",
+        json!({"target": "shield can", "tools": ["can emboss"], "operation": "cut",
+            "name": "can emboss groove"}),
     );
     // The antenna meander: head, turn copies, tail, joined.
     let antenna_sketch = |s: &mut Session, name: &str| {
@@ -4446,7 +4497,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 38] = [
+    let parts: [(&str, &str, Author); 51] = [
         // The chip generator's bundle (`generators/chip/parts/`) was saved
         // from the in-code chip builder, deleted in part-generation D2;
         // its four files are kept as shipped (the builder is in history:
@@ -4555,6 +4606,50 @@ fn author_parts() {
             "module-castellated-diagonal",
             author_module_castellated_diagonal,
         ),
+        // The electromechanical families' bundles (`author_parts/families.rs`).
+        ("generators/tactile/parts", "tactile-mini", || {
+            families::author_tactile_mini(false)
+        }),
+        ("generators/tactile/parts", "tactile-mini-ground", || {
+            families::author_tactile_mini(true)
+        }),
+        (
+            "generators/tactile/parts",
+            "tactile-square",
+            families::author_tactile_square,
+        ),
+        ("generators/reed/parts", "reed-smd", families::author_reed),
+        ("generators/buzzer/parts", "buzzer-smd", || {
+            families::author_buzzer(false)
+        }),
+        ("generators/buzzer/parts", "buzzer-smd-label", || {
+            families::author_buzzer(true)
+        }),
+        ("generators/electrolytic/parts", "electrolytic-smd", || {
+            families::author_electrolytic(false)
+        }),
+        ("generators/electrolytic/parts", "electrolytic-smd-vent", || {
+            families::author_electrolytic(true)
+        }),
+        (
+            "generators/power-inductor/parts",
+            "inductor-molded",
+            families::author_inductor_molded,
+        ),
+        ("generators/power-inductor/parts", "inductor-shielded", || {
+            families::author_inductor_shielded(false)
+        }),
+        (
+            "generators/power-inductor/parts",
+            "inductor-shielded-window",
+            || families::author_inductor_shielded(true),
+        ),
+        ("generators/standoff/parts", "standoff", || {
+            families::author_standoff(false)
+        }),
+        ("generators/standoff/parts", "standoff-spigot", || {
+            families::author_standoff(true)
+        }),
         ("library/parts", "smd-nut", author_smd_nut),
         ("library/parts", "round-spacer", author_round_spacer),
         ("library/parts", "finned-heatsink", author_finned_heatsink),

@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "inductor-shielded-window",
+  "title": "Power inductor, shielded, winding windows",
+  "summary": "As inductor-shielded, with the sleeve open over the middle of its ±y sides so the enamelled winding shows (the WE-PD class).",
+  "use": "package_body",
+  "prefix": "L",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at the SRR6028's outline (Bourns' public SRR6028 datasheet; https://www.bourns.com/docs/Product-Datasheets/SRR6028.pdf, downloaded 18 November 2026); the windows estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}
