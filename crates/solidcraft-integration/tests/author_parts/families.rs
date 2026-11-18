@@ -69,6 +69,7 @@ fn span_box(s: &mut Session, name: &str, op: Op<'_>, [x0, x1, y0, y1, z0, z1]: [
 /// MELF part file draws its round bodies, so the body's bounds are its
 /// exact outline (a cylinder primitive's bounds are its control hull,
 /// about 1.39 radii out). With `taper` the walls draw in by that angle.
+#[allow(clippy::too_many_arguments)]
 fn disc(
     s: &mut Session,
     name: &str,
