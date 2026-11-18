@@ -1,14 +1,15 @@
 //! Footprint content in board coordinates: the one placement transform and
 //! the placed pad and graphic queries every view and check reads.
-use crate::geometry::{Point, Shape, Transform2, cos_sin};
+use crate::diagnostics::{Error, Result};
+use crate::geometry::{Point, Shape, Transform2, Transform3, cos_sin};
 use crate::ids::{Endpoint, GraphicId, Id};
 use crate::instances;
 use crate::library::graphics::{
     DrawingLayer, Fill, Item, PlacedText, Side, TextContent, TextMetric,
 };
-use crate::library::{Datum, PAD_ARC_TOLERANCE_MM, Pad, PadSide};
+use crate::library::{Datum, PAD_ARC_TOLERANCE_MM, PackageDefinition, Pad, PadSide};
 use crate::model::fill::PadFillOverride;
-use crate::model::{CopperLayer, Layer, Placement, Project};
+use crate::model::{CopperLayer, Layer, Placement, Project, Stackup};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -28,6 +29,49 @@ pub fn placement_transform(placement: &Placement, datum: &Datum) -> Transform2 {
         translate: placement.position,
         rotation_deg: placement.rotation_deg,
         mirror: placement.layer == Layer::Bottom,
+    })
+}
+
+/// Model frame → board frame of one placement, mm.
+///
+/// Equal to the footprint-frame chain the 2D drawing and the 3D board use
+/// (`library::model_frame` then `layout::placement_transform`, the seating
+/// plane at its side's land copper): the footprint datum that chain applies
+/// and undoes cancels, leaving the model placement in the datum frame.
+/// Refused when the stackup has no copper on the placement's side.
+pub fn model_to_board(
+    placement: &Placement,
+    package: &PackageDefinition,
+    stackup: &Stackup,
+) -> Result<Transform3> {
+    let z = seat_height(placement, stackup)?;
+    let side = match placement.layer {
+        Layer::Top => Transform3::IDENTITY,
+        Layer::Bottom => Transform3::rot_x(180.0),
+    };
+    let [x, y] = placement.position;
+    Ok(Transform3::translation([x, y, z])
+        .then(&Transform3::rot_z(placement.rotation_deg))
+        .then(&side)
+        .then(&package.placement.transform()))
+}
+
+/// The board height of a placement's seating plane, mm: the outer face of
+/// its side's land copper. Refused when the stackup has no copper there.
+pub fn seat_height(placement: &Placement, stackup: &Stackup) -> Result<f64> {
+    let layer = match placement.layer {
+        Layer::Top => CopperLayer::Top,
+        Layer::Bottom => CopperLayer::Bottom,
+    };
+    let span = stackup.copper_span(layer).ok_or_else(|| {
+        Error::Invalid(format!(
+            "interface.datum: the stackup has no {} copper to seat a part on",
+            layer.name()
+        ))
+    })?;
+    Ok(match placement.layer {
+        Layer::Top => span.1,
+        Layer::Bottom => span.0,
     })
 }
 

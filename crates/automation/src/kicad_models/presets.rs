@@ -4,8 +4,10 @@ use super::{BTreeMap, Choice, Engine, ModelPlacement, ModelRef, PackageModel, Pa
 use sparksmith_core::ids::ContentHash;
 use sparksmith_core::library::generated::{self, GeneratorRuntime, expand};
 use sparksmith_core::library::model3d::Redistribution;
+use sparksmith_core::library::package_fit::land_miss;
 use sparksmith_core::library::package_model::PartFileModel;
-use sparksmith_core::library::{Hole, HoleShape, PadShape};
+use sparksmith_core::library::{Hole, HoleShape, PadKind, PadShape};
+use sparksmith_core::units::{Nm, PointNm};
 use sparksmith_generators::abi::v1;
 use sparksmith_io::generator_bundle::GeneratorBundle;
 use sparksmith_io::shipped::ShippedLibrary;
@@ -183,13 +185,24 @@ impl Presets {
         } else {
             let mut fitting = Vec::new();
             let mut nearest: Option<(usize, Fit)> = None;
+            let mut off_lands: Option<(usize, String, f64)> = None;
             for (index, candidate) in candidates.iter().enumerate() {
                 super::check_time(deadline)?;
                 let Some(fit) = fit(pads, &candidate.pads) else {
                     continue;
                 };
                 if fit.error_nm <= fit.tolerance_nm {
-                    fitting.push((index, fit));
+                    // The body's leads, not only its lands, must land: a
+                    // preset whose lead contacts miss these lands by the
+                    // board check's rule is the wrong body for them.
+                    match lead_off_land(pads, candidate, &fit.placement) {
+                        None => fitting.push((index, fit)),
+                        Some((lead, miss)) => {
+                            if off_lands.as_ref().is_none_or(|(_, _, m)| miss < *m) {
+                                off_lands = Some((index, lead, miss));
+                            }
+                        }
+                    }
                 } else if nearest
                     .as_ref()
                     .is_none_or(|(_, n)| fit.excess() < n.excess())
@@ -198,13 +211,18 @@ impl Presets {
                 }
             }
             let found = if fitting.is_empty() {
-                Err(match nearest {
-                    Some((index, fit)) => Miss::NoFit {
+                Err(match (off_lands, nearest) {
+                    (Some((index, lead, miss_mm)), _) => Miss::LeadOffLand {
+                        nearest: candidates[index].name.clone(),
+                        lead,
+                        miss_mm,
+                    },
+                    (None, Some((index, fit))) => Miss::NoFit {
                         nearest: candidates[index].name.clone(),
                         error_nm: fit.error_nm,
                         tolerance_nm: fit.tolerance_nm,
                     },
-                    None => Miss::NoPreset,
+                    (None, None) => Miss::NoPreset,
                 })
             } else {
                 choose(candidates, fitting, prefix)
@@ -233,7 +251,7 @@ impl Presets {
         made.definition.provenance.redistribution = Redistribution::Forbidden;
         let key = made.definition.asset.hash;
         let provenance = format!(
-            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same numbered lands, each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°; the longest declared reference prefix that begins the designator's narrows the candidates (for two-pad lands one is required), the nearest centres decide. No electrical mapping inferred. Project-only.",
+            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same numbered lands, each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°, every lead contact on its land (the board check's rule); the longest declared reference prefix that begins the designator's narrows the candidates (for two-pad lands one is required), the nearest centres decide. No electrical mapping inferred. Project-only.",
             candidate.name, candidate.bundle.hash
         );
         let reference = if let Some(reference) = models.get(&key) {
@@ -248,7 +266,22 @@ impl Presets {
         // Do not retain the generator's lead-to-terminal bindings.
         made.derived.leads.clear();
         let envelope_nm = super::envelope(made.derived.bounds())?;
+        // Each lead contact by the pad number the lands were matched on:
+        // mechanical contacts for the board check, never a net or mapping.
+        let leads = candidate
+            .generation
+            .package
+            .geometry
+            .leads
+            .iter()
+            .map(|lead| {
+                let [x, y, _] = lead.contact;
+                Ok((lead.key.clone(), PointNm::new(Nm::new(x)?, Nm::new(y)?)))
+            })
+            .collect::<Result<Vec<_>, sparksmith_core::Error>>()
+            .map_err(|e| e.to_string())?;
         let choice = Choice {
+            leads,
             model: PackageModel::PartFile(Box::new(PartFileModel {
                 model: reference,
                 values: made.values,
@@ -281,6 +314,13 @@ pub(super) enum Miss {
     Ambiguous,
     /// Presets fit, but none declares a prefix that begins the designator's.
     PrefixMismatch { nearest: String },
+    /// Presets' land centres fit, but a lead of each misses its land by
+    /// the board check's rule: the body is wrong for these lands.
+    LeadOffLand {
+        nearest: String,
+        lead: String,
+        miss_mm: f64,
+    },
 }
 impl std::fmt::Display for Miss {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -307,6 +347,14 @@ impl std::fmt::Display for Miss {
             Self::Ambiguous => write!(
                 f,
                 "several shipped presets fit equally and the reference prefix does not choose one"
+            ),
+            Self::LeadOffLand {
+                nearest,
+                lead,
+                miss_mm,
+            } => write!(
+                f,
+                "nearest shipped preset {nearest} fits the land centres, but its lead {lead} would miss its land by {miss_mm:.3} mm"
             ),
         }
     }
@@ -368,6 +416,42 @@ fn choose(
         _ => Err(Miss::Ambiguous),
     }
 }
+
+/// The worst lead of `candidate` placed at `placement` (model frame →
+/// these lands' frame) that misses the copper lands of its number by the
+/// board check's lead-on-land rule ([`land_miss`]), and by how much (mm);
+/// `None` when every lead lands.
+fn lead_off_land(
+    pads: &[Pad],
+    candidate: &Candidate,
+    placement: &ModelPlacement,
+) -> Option<(String, f64)> {
+    let frame = placement.transform();
+    let mut worst: Option<(String, f64)> = None;
+    for lead in &candidate.generation.package.geometry.leads {
+        let [x, y, _] = lead
+            .contact
+            .map(|v| Nm::new(v).map_or(f64::NAN, Nm::to_mm_f64));
+        let q = frame.apply([x, y, 0.0]);
+        let o = frame.apply_vector([x, y, 0.0]);
+        let miss = pads
+            .iter()
+            .filter(|p| {
+                p.number == lead.key && matches!(p.kind, PadKind::Smd | PadKind::PlatedThrough)
+            })
+            .map(|p| land_miss(p, [q[0], q[1]], [o[0], o[1]]))
+            .reduce(f64::min);
+        if let Some(miss) = miss.filter(|m| *m > LEAD_MISS_EPSILON_MM)
+            && worst.as_ref().is_none_or(|(_, w)| miss > *w)
+        {
+            worst = Some((lead.key.clone(), miss));
+        }
+    }
+    worst
+}
+
+/// A miss below a nanometre is on the land (rounding).
+const LEAD_MISS_EPSILON_MM: f64 = 1e-6;
 
 fn shape_class(shape: &PadShape) -> u8 {
     match shape {
@@ -677,8 +761,9 @@ mod tests {
                 .map_err(|miss| format!("{preset}: {miss}"))?;
             assert!(choice.provenance.contains(preset), "{}", choice.provenance);
         }
-        // A prefix no fitting preset declares keeps the placeholder: an
-        // inductor's lands of a 1210 chip's size get no resistor body.
+        // A prefix no fitting preset declares keeps the placeholder: a test
+        // point's lands of a 1210 chip's size get no resistor body; an
+        // inductor's get the power inductor that declares "L".
         let r0603 = lands_of(&presets, "chip/resistor-0603")?;
         assert!(matches!(
             presets.match_model(&mut engine, &r0603, "?", &mut models, deadline)?,
@@ -694,10 +779,18 @@ mod tests {
             accepted(&inductor, &lands_of(&presets, "chip/resistor-1210")?),
             "the lands fit a 1210 chip"
         );
-        match presets.match_model(&mut engine, &inductor, "L", &mut models, deadline)? {
-            Err(Miss::PrefixMismatch { nearest }) => assert!(nearest.starts_with("chip/")),
-            other => return Err(format!("an L part got {:?}", other.map(|c| c.provenance)).into()),
+        match presets.match_model(&mut engine, &inductor, "TP", &mut models, deadline)? {
+            Err(Miss::PrefixMismatch { .. }) => {}
+            other => return Err(format!("a TP part got {:?}", other.map(|c| c.provenance)).into()),
         }
+        let choice = presets
+            .match_model(&mut engine, &inductor, "L", &mut models, deadline)?
+            .map_err(|miss| format!("an L part: {miss}"))?;
+        assert!(
+            choice.provenance.contains("power-inductor/"),
+            "{}",
+            choice.provenance
+        );
         // A multi-pad package keeps its body under an unusual designator.
         let sot = lands_of(&presets, "tabbed/tabbed-sot-23-6")?;
         let choice = presets
@@ -749,6 +842,54 @@ mod tests {
                 .iter()
                 .all(|m| m.definition.provenance.redistribution == Redistribution::Forbidden)
         );
+        Ok(())
+    }
+
+    /// The body's leads must land, not only its land centres fit: every
+    /// matchable shipped preset's leads land on its own lands, at every
+    /// quarter turn,
+    /// and a land moved off its lead is refused by the board check's rule.
+    #[test]
+    fn a_preset_whose_leads_miss_the_lands_is_refused() -> Fallible {
+        let presets = loaded()?;
+        for candidate in candidates(&presets)? {
+            // Lands the matcher never takes (custom shapes, repeated
+            // numbers) choose no body.
+            if candidate.generation.package.geometry.leads.is_empty()
+                || fit(&candidate.pads, &candidate.pads).is_none()
+            {
+                continue;
+            }
+            for quarter in 0..4 {
+                let angle = f64::from(quarter * 90);
+                let (c, s) = sparksmith_core::geometry::cos_sin(angle);
+                let mut turned = candidate.pads.clone();
+                for pad in &mut turned {
+                    let [x, y] = pad.position.to_mm_f64();
+                    pad.position = PointNm::from_mm_f64_rounded([c * x - s * y, s * x + c * y])?;
+                    let r = pad.rotation_mdeg.millidegrees() + quarter * 90_000;
+                    pad.rotation_mdeg = Angle::normalized(i64::from(r));
+                }
+                let pose = fit(&turned, &candidate.pads).ok_or("own lands fit")?;
+                assert_eq!(
+                    lead_off_land(&turned, candidate, &pose.placement),
+                    None,
+                    "{} at {angle}°",
+                    candidate.name
+                );
+            }
+        }
+        let sot = candidates(&presets)?
+            .iter()
+            .find(|c| c.name == "tabbed/tabbed-sot-23-6")
+            .ok_or("SOT-23-6 preset")?;
+        let mut moved = sot.pads.clone();
+        let [x, y] = moved[0].position.to_mm_f64();
+        moved[0].position = PointNm::from_mm_f64_rounded([x + 0.8, y])?;
+        let (lead, miss) = lead_off_land(&moved, sot, &ModelPlacement::default())
+            .ok_or("a land moved off its lead")?;
+        assert_eq!(lead, "1");
+        assert!(miss > 0.0);
         Ok(())
     }
 

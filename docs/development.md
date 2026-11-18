@@ -59,6 +59,7 @@ cargo run --locked --profile ci -p sparksmith-cli -- sample-library NEW_DIR [NAM
 cargo run --locked --profile ci -p sparksmith-cli -- export example.sparksmith example.solidcraft
 cargo run --locked --profile ci -p sparksmith-cli -- fab example.sparksmith out/   # production check, then Gerber X2, Excellon, job, pick-and-place, BOM and PDF drawings
 cargo run --locked --profile ci -p sparksmith-cli -- export-schematic-pdf example.sparksmith example.pdf [--sheet ID]...   # vector PDF, one page per sheet
+cargo run --locked --profile ci -p sparksmith-cli -- check-bodies example.sparksmith [--all]   # each placed 3D body's lead contacts against its pads on the board (board.body_off_pads)
 cargo run --locked --profile ci -p sparksmith-cli -- commands
 cargo run --locked --profile ci -p sparksmith-cli -- stdio [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
 cargo run --locked --profile ci -p sparksmith-cli -- stdio --operator [FILE.sparksmith]

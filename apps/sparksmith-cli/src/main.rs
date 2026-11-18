@@ -1,5 +1,6 @@
 //! Command-line access to Sparksmith's command engine (`sparksmith`). Every subcommand is a
 //! thin transport over `sparksmith_automation::Session`.
+mod check_bodies;
 mod design_body;
 mod design_part;
 mod fab;
@@ -60,7 +61,12 @@ const USAGE: &str = concat!(
                                    against the board plan
   export-schematic-pdf FILE.sparksmith OUT.pdf [--sheet ID]...
                                    print the schematic (all sheets, or the given
-                                   sheets in page order) as a vector PDF"
+                                   sheets in page order) as a vector PDF
+  check-bodies FILE.sparksmith [--all]
+                                   each placed 3D body's lead contacts on the
+                                   board against its pads (the board check's
+                                   body_off_pads): counts and a histogram, then the
+                                   parts with a lead off its pad (--all: every part)"
 );
 
 fn main() -> ExitCode {
@@ -348,6 +354,15 @@ fn run() -> Result<()> {
                 json!({"command": "schematic.export_pdf",
                        "params": {"path": target, "sheets": sheets}}),
             )?)
+        }
+        [command, source, rest @ ..] if command == "check-bodies" && rest.len() <= 1 => {
+            let all = match rest {
+                [] => false,
+                [flag] if flag == "--all" => true,
+                _ => return Err("check-bodies: the only flag is --all".into()),
+            };
+            let session = open(Some(source))?;
+            print(&check_bodies::report(session.engine().project(), all))
         }
         [command, rest @ ..] if command == "fab" => fab::run(rest),
         [command, rest @ ..] if command == "pinout" => pinout::run(rest),

@@ -594,3 +594,24 @@ fn a_spacing_mismatch_is_named_and_a_matching_one_is_not() -> Result<()> {
     assert!(pads > leads + 0.5, "{leads} vs {pads}");
     Ok(())
 }
+
+/// A chip termination sits off its land's centre along the chip, on a land
+/// often wider than long: "across" is across the lead's direction, not the
+/// land's narrower side. Without a direction (a lead at the centre) it is
+/// the narrower side.
+#[test]
+fn across_is_across_the_lead_even_on_a_land_wider_than_long() -> Result<()> {
+    let id = crate::ids::PackageTerminalId(1);
+    // Land 0.3 mm along the chip (x) by 0.32 mm across, centred 0.32 mm out.
+    let pad = Pad::smd_rect_mm(PadId(1), id, "1", [0.32, 0.0], [0.3, 0.32])?;
+    // A termination contact 0.095 mm in from the centre along the chip.
+    assert!(land_miss(&pad, [0.225, 0.0], [0.225, 0.0]) <= 0.0);
+    // 0.1 mm across it: past 25 % of the 0.32 mm width.
+    assert!(land_miss(&pad, [0.32, 0.1], [0.32, 0.1]) > 0.0);
+    // Off the land altogether.
+    assert!(land_miss(&pad, [0.1, 0.0], [0.1, 0.0]) > 0.0);
+    // No direction: across is the narrower side (x), where 0.095 mm is past
+    // 25 % of 0.3 mm.
+    assert!(land_miss(&pad, [0.225, 0.0], [0.0, 0.0]) > 0.0);
+    Ok(())
+}

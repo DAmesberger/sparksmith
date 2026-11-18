@@ -4,7 +4,7 @@ use crate::board::BoardError;
 use crate::sexpr::Node;
 use sparksmith_core::Engine;
 use sparksmith_core::library::{ModelPlacement, PackageModel, Pad};
-use sparksmith_core::units::Nm;
+use sparksmith_core::units::{Nm, PointNm};
 
 pub const MAX_MODELS: usize = 32;
 #[derive(Clone, Debug, PartialEq)]
@@ -68,6 +68,11 @@ pub struct Choice {
     pub placement: ModelPlacement,
     pub envelope_nm: [Nm; 3],
     pub provenance: String,
+    /// The model's lead contacts (model frame, on the seating plane), each
+    /// by the pad number it was matched to: stored as the package's lead
+    /// contacts on the terminal of that designation, so the board check
+    /// can find a lead off its pad. Mechanical only.
+    pub leads: Vec<(String, PointNm)>,
 }
 
 /// Host preparation runs while the new engine is still private. Any error
