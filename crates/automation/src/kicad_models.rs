@@ -525,7 +525,7 @@ mod tests {
         let model_of = |designator: &str| -> Result<PackageModel, String> {
             let instance = project
                 .instance_by_designator(designator)
-                .ok_or(format!("{designator}"))?;
+                .ok_or(designator.to_string())?;
             sparksmith_core::instances::resolve(&project.library, instance)
                 .ok()
                 .and_then(|r| r.physical)
