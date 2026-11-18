@@ -281,7 +281,11 @@ fn a_kicad_import_arrives_unsaved_with_its_report() -> Fallible {
         .iter()
         .map(|c| c.meta.name.clone())
         .collect();
-    assert_eq!(names, ["Demo:R_0805"]);
+    assert_eq!(
+        names,
+        ["R_0805"],
+        "the footprint name without its library nickname"
+    );
     h.engine.replace_document(*document)?;
     h.files.adopt_imported(&h.engine, source)?;
     assert!(h.files.dirty());
