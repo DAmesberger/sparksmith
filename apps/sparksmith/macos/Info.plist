@@ -16,6 +16,8 @@
   <string>Sparksmith</string>
   <key>CFBundleIdentifier</key>
   <string>io.sparksmith.app</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleExecutable</key>
   <string>sparksmith-desktop</string>
   <key>CFBundlePackageType</key>

@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Original app icon: a board tile with copper traces meeting in a spark. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1d3b36"/>
+      <stop offset="1" stop-color="#0b1a1c"/>
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.25"/>
+    </linearGradient>
+    <linearGradient id="copper" gradientUnits="userSpaceOnUse" x1="100" y1="100" x2="924" y2="924">
+      <stop offset="0" stop-color="#f6c58b"/>
+      <stop offset="0.5" stop-color="#d98b46"/>
+      <stop offset="1" stop-color="#9c5524"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff6d6" stop-opacity="1"/>
+      <stop offset="0.25" stop-color="#ffc24a" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#ff7a1a" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+    <clipPath id="clip"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+  </defs>
+
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)" filter="url(#shadow)"/>
+  <g clip-path="url(#clip)">
+    <!-- faint solder-mask grid -->
+    <g stroke="#2f5a52" stroke-width="2" opacity="0.35">
+      <path d="M100 260H924M100 420H924M100 604H924M100 764H924M260 100V924M420 100V924M604 100V924M764 100V924"/>
+    </g>
+    <!-- glow behind the traces -->
+    <circle cx="512" cy="512" r="300" fill="url(#glow)"/>
+    <!-- copper traces converging on the spark (45° routing) -->
+    <g fill="none" stroke="url(#copper)" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M170 300H330L452 422"/>
+      <path d="M170 724H330L452 602"/>
+      <path d="M854 300H694L572 422"/>
+      <path d="M854 724H694L572 602"/>
+      <path d="M512 160V330"/>
+      <path d="M512 864V694"/>
+    </g>
+    <!-- vias / pads -->
+    <g fill="url(#copper)">
+      <circle cx="170" cy="300" r="34"/><circle cx="170" cy="724" r="34"/>
+      <circle cx="854" cy="300" r="34"/><circle cx="854" cy="724" r="34"/>
+      <circle cx="512" cy="160" r="34"/><circle cx="512" cy="864" r="34"/>
+    </g>
+    <g fill="#0b1a1c">
+      <circle cx="170" cy="300" r="13"/><circle cx="170" cy="724" r="13"/>
+      <circle cx="854" cy="300" r="13"/><circle cx="854" cy="724" r="13"/>
+      <circle cx="512" cy="160" r="13"/><circle cx="512" cy="864" r="13"/>
+    </g>
+    <!-- the spark -->
+    <path d="M512 300 C528 450 574 496 724 512 C574 528 528 574 512 724 C496 574 450 528 300 512 C450 496 496 450 512 300Z"
+          fill="#fff8e6"/>
+    <path d="M512 400 C520 480 544 504 624 512 C544 520 520 544 512 624 C504 544 480 520 400 512 C480 504 504 480 512 400Z"
+          fill="#ffffff"/>
+  </g>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="none" stroke="url(#rim)" stroke-width="4"/>
+</svg>
