@@ -44,10 +44,10 @@ fn pt(p: [f64; 2]) -> sparksmith_core::units::PointNm {
 #[path = "author_parts/tht.rs"]
 mod tht;
 
-#[path = "author_parts/families.rs"]
-mod families;
 #[path = "author_parts/connectors.rs"]
 mod connectors;
+#[path = "author_parts/families.rs"]
+mod families;
 
 fn run(s: &mut Session, command: &str, params: serde_json::Value) -> serde_json::Value {
     s.execute(command, &params)
