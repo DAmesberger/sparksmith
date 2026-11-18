@@ -38,6 +38,9 @@ pub enum Case {
     ProjectOnly,
     /// G2: footprint drawings on copper, mask or paste (slice K7).
     FootprintFabGraphics,
+    /// G2: footprint mask and paste polygons that grow one pad's land
+    /// evenly, imported as that pad's mask or paste rule.
+    FootprintOpenings,
     /// G3: a custom pad whose union is not one outline without holes.
     CustomPadNotOneOutline,
     /// A custom-pad primitive this importer cannot draw (arcs, curves).
@@ -242,6 +245,11 @@ impl Case {
                 "G2",
                 Refused,
                 "footprint drawings on copper, mask or paste (slice K7)",
+            ),
+            Self::FootprintOpenings => (
+                "G2",
+                Approximate,
+                "footprint mask and paste polygons imported as their pad's opening (an even growth of its land; corners rounded)",
             ),
             Self::CustomPadNotOneOutline => (
                 "G3",

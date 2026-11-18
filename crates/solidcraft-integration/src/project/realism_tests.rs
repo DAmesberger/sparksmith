@@ -469,9 +469,10 @@ fn silkscreen_prints_the_legend_on_the_mask_clear_of_openings() -> Result<()> {
 }
 
 /// A through-hole pad's bodies lie on their own layers: its land on the
-/// placement side, its opposite land on the other side and its plated
-/// barrels on none, so hiding one side's copper in 3D hides that side's
-/// lands only (the barrels go with the vias).
+/// placement side, its opposite land on the other side, a land on each
+/// inner layer and its plated barrels on none, so hiding one layer's
+/// copper in 3D hides that layer's lands only (the barrels go with the
+/// vias).
 #[test]
 fn a_through_hole_pad_s_lands_and_barrels_carry_their_own_layers() -> Result<()> {
     let _context = crate::looks::test_context().map(|c| c.enter());
@@ -491,10 +492,18 @@ fn a_through_hole_pad_s_lands_and_barrels_carry_their_own_layers() -> Result<()>
     {
         layers.insert(g.layer);
     }
+    let mut expected = BTreeSet::from([Some(CopperLayer::Top), Some(CopperLayer::Bottom), None]);
+    expected.extend(
+        project
+            .stackup
+            .layers()
+            .into_iter()
+            .filter(|l| l.side().is_none())
+            .map(Some),
+    );
     assert_eq!(
-        layers,
-        BTreeSet::from([Some(CopperLayer::Top), Some(CopperLayer::Bottom), None]),
-        "top lands, the header's bottom lands and its barrels"
+        layers, expected,
+        "top lands, the header's bottom and inner lands and its barrels"
     );
     // The bottom lands lie under the board, the top ones on it.
     for g in model

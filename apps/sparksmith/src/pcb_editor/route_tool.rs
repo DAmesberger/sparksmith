@@ -618,7 +618,7 @@ impl PcbEditor {
         );
         if let Some(outline) = plan
             .blocker()
-            .and_then(|blocker| self.blocker_outline(project, blocker))
+            .and_then(|blocker| self.blocker_outline(blocker))
         {
             let t = sparksmith_ui::theme::Tokens::get();
             let points = outline.into_iter().map(|p| view.screen(p)).collect();
@@ -629,22 +629,15 @@ impl PcbEditor {
     /// The board outline of the track, via or pad a route step stopped at,
     /// ringed in the warning colour with the "Blocked by" refusal so the
     /// blocker shows even on a dim layer.
-    pub(super) fn blocker_outline(
-        &self,
-        project: &Project,
-        blocker: ObjectRef,
-    ) -> Option<Vec<Point>> {
+    pub(super) fn blocker_outline(&self, blocker: ObjectRef) -> Option<Vec<Point>> {
         let outline = match blocker {
-            ObjectRef::Track { id } => {
-                layout::track_outline(project.tracks.iter().find(|t| t.id == id)?)
-            }
+            ObjectRef::Track { id } => self.layout_copper.track(id)?.to_vec(),
             ObjectRef::Via { id } => {
-                let via = project.via(id)?;
-                let r = via.diameter / 2.0;
+                let (center, r) = self.layout_copper.via_extent(id)?;
                 (0..32)
                     .map(|i| {
                         let a = f64::from(i) * std::f64::consts::TAU / 32.0;
-                        [via.position[0] + r * a.cos(), via.position[1] + r * a.sin()]
+                        [center[0] + r * a.cos(), center[1] + r * a.sin()]
                     })
                     .collect()
             }

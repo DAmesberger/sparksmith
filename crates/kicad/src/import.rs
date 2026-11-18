@@ -248,7 +248,7 @@ pub fn import_with_models(
         let mut records = Vec::new();
         let mut nets = Vec::new();
         let mut overrides = Vec::new();
-        let pads = footprint_pads(
+        let mut pads = footprint_pads(
             &board,
             fp,
             &mut report,
@@ -256,6 +256,8 @@ pub fn import_with_models(
             &mut nets,
             &mut overrides,
         );
+        // Mask and paste polygons that are a pad's opening become its rule.
+        let openings = translate::take_openings(&board, fp, &mut pads);
         per_footprint.push(records);
         terminal_nets.push(nets);
         zone_overrides.push(overrides);
@@ -279,7 +281,11 @@ pub fn import_with_models(
             definitions.push((pads, symbol));
         }
         uses.push(index);
-        report.add_n(Case::FootprintFabGraphics, fp.fab_graphics);
+        report.add_n(
+            Case::FootprintFabGraphics,
+            fp.fab_graphics.saturating_sub(openings),
+        );
+        report.add_n(Case::FootprintOpenings, openings);
         report.add_n(Case::FootprintDrawings, fp.drawings);
         if models.is_none() {
             report.add_n(Case::Models, fp.models.len());

@@ -1,6 +1,7 @@
 mod brand_crates;
 mod clean_room;
 mod connectivity;
+mod copper_source;
 mod core_modules;
 mod f64_lengths;
 mod generators;
@@ -82,6 +83,7 @@ fn run() -> Result<()> {
             layers::check()?;
             core_modules::check()?;
             connectivity::check()?;
+            copper_source::check()?;
             f64_lengths::check()?;
             surface(&["--check".into()])?;
             licences::check()?;
@@ -131,6 +133,7 @@ fn run() -> Result<()> {
         "layers" => layers::check(),
         "core-modules" => core_modules::check(),
         "connectivity" => connectivity::check(),
+        "copper-source" => copper_source::check(),
         "f64-lengths" => f64_lengths::check(),
         "clean-room" => clean_room::check(),
         "no-builtin-data" | "no-builtin-parts" => no_builtin_data::check(),
@@ -141,7 +144,7 @@ fn run() -> Result<()> {
         "ui-forms" => ui_forms::check(),
         "raw-keys" => raw_keys::check(),
         _ => Err(
-            "usage: cargo xtask ci | ci-native | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | f64-lengths \
+            "usage: cargo xtask ci | ci-native | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
              | surface --check | --update | kicad-compare [--design PATH]"
                 .into(),
@@ -225,6 +228,9 @@ fn wasm_tests(package: &str, filter: &str, what: &str) -> Result<()> {
 /// live view's meshes of each plan (`mesh::parity`). The exact build is
 /// slow, so the workspace tests leave it out and CI runs it once, here.
 fn board_parity() -> Result<()> {
+    // Layout draws the plan's copper only, so 2D and 3D agree by
+    // construction (and `board_parity`'s copper test measures it).
+    copper_source::check()?;
     cargo(&[
         "test",
         "--locked",

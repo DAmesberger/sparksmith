@@ -582,6 +582,15 @@ B0–B6 and B9: 68–81 hours. The 9 November plan's S6 (14 h) is dropped; its S
 | Interface | Document datums → interface builder | commands and writer |
 | Linked design reading and dry run | Sparksmith, in-process | everything |
 | Connectivity | The copper graph alone | none |
+| Copper drawn in Layout (2D) | Board plan's copper (`plan::copper`) | none |
+
+#### One copper source for 2D and 3D
+
+Decided 2026-11-18 by the founder: 2D and 3D copper must not be able to differ by construction. A check alone is not enough. Layout draws the board plan's copper (`plan::copper`, the plan without its laminate) and derives none itself. `BoardPlan::layer_copper` answers which copper a layer holds: pad lands, track stadiums, via rings and fill tiles. Layout flattens those bodies' loops for drawing (`pcb_editor/copper_paint.rs`). The 3D view meshes the same bodies, the exact build builds them, and the laminate's foil levels are cut by them. The plan selects a pad's layers with the core's rule (`layout::pad_copper_on`), the same rule the copper graph and the fabrication output use, so a plated pad has a land on every inner layer as well.
+
+- `cargo xtask copper-source` (also run by `cargo xtask board-parity`) rejects any copper geometry Layout derives itself: the core's track and pad outlines, a fill's stored copper, or a via's pad size. Exceptions are counted and give a reason: a bare hole's keep-out land, the fill card's counts, the via card's values, and a route step's preview of copper not yet in the document.
+- `copper_agree::agreement` measures, per layer, the area where the plan's copper and the core's copper differ (pads by outline, tracks, via pads, computed fills), against what flattening allows. Project tests run it on every pad kind on both sides, on four layers and on the showcase's tracks, vias and fills.
+- Known approximation: the plan's track caps are chords, eight to a half circle, so Layout shows them as the 3D view does. At most this differs from the core's exact stadium by the cap's sagitta, 1.9 % of the half-width.
 
 ### 3.2 Staged path
 
