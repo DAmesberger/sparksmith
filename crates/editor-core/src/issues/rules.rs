@@ -79,6 +79,7 @@ pub fn group_title(code: &str) -> String {
         "board.acute_copper" => "Acute copper angles",
         "board.copper_sliver" => "Unfilled slivers",
         "board.courtyard_overlap" => "Courtyards overlap",
+        "board.body_off_pads" => "Body leads off their pads",
         "board.outside_outline" => "Outside the board outline",
         "board.unrouted" => "Unrouted connections",
         "board.unplaced" => "Not placed",
@@ -225,6 +226,7 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "board.acute_copper" => "Reroute the copper to meet at a wider angle",
         "board.copper_sliver" => "Move the copper apart or together, or widen the hatch",
         "board.courtyard_overlap" => "Move the parts apart",
+        "board.body_off_pads" => "Fit the body to its pads or give the part another body",
         "board.outside_outline" => "Move it inside the board",
         "board.unrouted" => "Route the connection",
         "board.unplaced" => "Update the PCB from the schematic",
@@ -437,6 +439,10 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
             }
         }
         "board.unplaced" => format!("{} not placed", list(&names_of(names, findings, |_| true))),
+        "board.body_off_pads" => format!(
+            "{}: body leads off their pads",
+            list(&names_of(names, findings, |_| true))
+        ),
         // Short enough for the Issues row: the hole and what it is near.
         "board.hole_clearance" => {
             let near = names_of(names, findings, |o| !matches!(o, ObjectRef::Board));
@@ -528,6 +534,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "binding.unavailable_required",
     "binding.unavailable_unknown",
     "board.acute_copper",
+    "board.body_off_pads",
     "board.check_limit",
     "board.clearance",
     "board.copper_sliver",
