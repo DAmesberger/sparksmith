@@ -1923,7 +1923,7 @@ pub mod assist;
 pub mod body;
 pub mod discovery;
 mod firmware;
-mod generated_models;
+pub(crate) mod generated_models;
 pub mod generators;
 mod generic_search;
 mod interface;

@@ -35,7 +35,7 @@ use sparksmith_core::product::SHORT_NAME as CLI;
 use std::io::Read as _;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 pub const USAGE: &str = "design-part --datasheet PDF|URL [--datasheet …] --name NAME --out NEW.sparksmith
               [--provider anthropic|openai] [--base-url URL] [--model ID] [--key none|keychain|env:NAME]
@@ -327,10 +327,26 @@ pub(super) fn print_event(event: Event) {
 }
 
 /// The person of a headless run: the run's steps and cards as lines on
-/// standard error; the pinout import is applied (the drafts wait for review
-/// in the new project, and nothing is published); a choice the model made
-/// stands.
-pub(super) struct Console;
+/// standard error, each finished step with its seconds; the pinout import
+/// is applied (the drafts wait for review in the new project, and nothing
+/// is published); a choice the model made stands.
+#[derive(Default)]
+pub(super) struct Console {
+    /// When the current step (or its retry) began.
+    step_started: Option<Instant>,
+    /// Seconds spent waiting for model replies, summed over the run.
+    model_seconds: f64,
+}
+
+impl Console {
+    /// Seconds since the current step began, restarting the clock.
+    fn lap(&mut self) -> f64 {
+        let now = Instant::now();
+        self.step_started
+            .replace(now)
+            .map_or(0.0, |started| (now - started).as_secs_f64())
+    }
+}
 
 impl Person for Console {
     fn event(&mut self, event: &WorkflowEvent) {
@@ -339,10 +355,16 @@ impl Person for Console {
             WorkflowEvent::Step {
                 step, done, total, ..
             } => {
+                self.step_started = Some(Instant::now());
                 eprintln!("step {}/{total}: {step}", done + 1);
             }
-            WorkflowEvent::StepDone { summary, .. } if !summary.is_empty() => {
-                eprintln!("  {summary}");
+            WorkflowEvent::StepDone { summary, .. } => {
+                let seconds = self.lap();
+                if summary.is_empty() {
+                    eprintln!("  ({seconds:.1} s)");
+                } else {
+                    eprintln!("  {summary} ({seconds:.1} s)");
+                }
             }
             WorkflowEvent::Retry {
                 step,
@@ -351,8 +373,9 @@ impl Person for Console {
                 why,
                 ..
             } => {
+                let seconds = self.lap();
                 let why: String = why.chars().take(200).collect();
-                eprintln!("  back to {step} ({attempt} of {of}): {why}");
+                eprintln!("  back to {step} ({attempt} of {of}) after {seconds:.1} s: {why}");
             }
             WorkflowEvent::Card {
                 card: ControlCard::Choice { field, value, .. },
@@ -364,6 +387,9 @@ impl Person for Console {
     }
 
     fn model_event(&mut self, event: &Event) {
+        if let Event::Response { seconds, .. } = event {
+            self.model_seconds += seconds;
+        }
         print_event(event.clone());
     }
 
@@ -375,6 +401,68 @@ impl Person for Console {
                 leave_out: Vec::new(),
             })
     }
+}
+
+/// How long a key read may take before the run says what it waits for.
+const KEY_PATIENCE: Duration = Duration::from_secs(2);
+
+/// `work` on its own thread; when it takes longer than `patience`, `say`
+/// gets `notice` once while the wait goes on. The result and its seconds.
+fn waited<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+    patience: Duration,
+    notice: &str,
+    say: &mut dyn FnMut(&str),
+) -> Result<(T, f64)> {
+    let started = Instant::now();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::Builder::new()
+        .name("key-read".into())
+        .spawn(move || {
+            let _ = tx.send(work());
+        })?;
+    let value = match rx.recv_timeout(patience) {
+        Ok(value) => value,
+        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+            say(notice);
+            rx.recv().map_err(|_| "the key could not be read")?
+        }
+        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+            return Err("the key could not be read".into());
+        }
+    };
+    Ok((value, started.elapsed().as_secs_f64()))
+}
+
+/// The connection's backend, its key read first. A keychain read can wait
+/// on the system: macOS asks before a program the key was not stored by
+/// (a new build too) may read it, and nothing moves until that dialog is
+/// answered. So a slow read says what it waits for, and a keychain read
+/// prints its seconds.
+pub(super) fn connect(
+    config: &RunConfig,
+    connection: &Connection,
+) -> Result<(Box<dyn ModelBackend>, f64)> {
+    let source = connection.key.clone();
+    let endpoint = connection.endpoint.clone();
+    let keychain = source == KeySource::Keychain;
+    let notice = format!(
+        "waiting for the system keychain: allow access to the key for {} in the system's dialog \
+         (it asks again after each new build; --key env:NAME does not wait)",
+        endpoint.base()
+    );
+    let (key, seconds) = waited(
+        move || source.resolve(&endpoint),
+        KEY_PATIENCE,
+        &notice,
+        &mut |line| eprintln!("{line}"),
+    )?;
+    let key = key?;
+    if keychain {
+        eprintln!("key: read from the system keychain in {seconds:.1} s");
+    }
+    let backend = model::connect_with_key(&config.profile, &connection.endpoint, key)?;
+    Ok((backend, seconds))
 }
 
 /// The workflow `id` as this program lists it.
@@ -416,6 +504,7 @@ fn inputs(args: &Args) -> serde_json::Map<String, Value> {
 /// `design-part`: the datasheet workflow, run headless through the one
 /// runner the chat uses, on a new project saved at `--out` with its review.
 pub fn run(args: &[String]) -> Result<()> {
+    let started = Instant::now();
     let args = parse(args)?;
     for path in std::iter::once(args.out.clone()).chain(sparksmith_assist::review_paths(&args.out))
     {
@@ -428,14 +517,14 @@ pub fn run(args: &[String]) -> Result<()> {
         other => other,
     };
     let loaded = installed_workflow(WORKFLOW)?;
-    let mut backend: Box<dyn ModelBackend> = match (replay, &args.record) {
-        (Some(replay), _) => Box::new(replay),
-        (None, Some(path)) => Box::new(Recording::for_workflow(
-            model::connect(&args.config.profile, &args.connection)?,
-            path.clone(),
-            runner::mark(&loaded),
-        )?),
-        (None, None) => model::connect(&args.config.profile, &args.connection)?,
+    let (mut backend, key_seconds): (Box<dyn ModelBackend>, f64) = match (replay, &args.record) {
+        (Some(replay), _) => (Box::new(replay), 0.0),
+        (None, Some(path)) => {
+            let (inner, seconds) = connect(&args.config, &args.connection)?;
+            let recording = Recording::for_workflow(inner, path.clone(), runner::mark(&loaded))?;
+            (Box::new(recording), seconds)
+        }
+        (None, None) => connect(&args.config, &args.connection)?,
     };
     let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
         &super::context()?,
@@ -447,9 +536,18 @@ pub fn run(args: &[String]) -> Result<()> {
         grant: args.config.reach.grant(),
         config: &args.config,
     };
-    let outcome = runner::run_workflow(run, backend.as_mut(), &mut session, &mut Console, &cancel)?;
+    let mut console = Console::default();
+    let outcome = runner::run_workflow(run, backend.as_mut(), &mut session, &mut console, &cancel)?;
     let review = outcome.review(&session);
-    save(&mut session, &args, &review)
+    let saved = save(&mut session, &args, &review);
+    let total = started.elapsed().as_secs_f64();
+    let model = console.model_seconds;
+    let local = (total - key_seconds - model).max(0.0);
+    eprintln!(
+        "time: {total:.1} s in all: {model:.1} s waiting for the model, \
+         {key_seconds:.1} s reading the key, {local:.1} s of local work"
+    );
+    saved
 }
 
 /// A recording that names no workflow: the reference conversations in
@@ -627,6 +725,32 @@ mod tests {
             parsed.connection.key,
             KeySource::Env("ANTHROPIC_API_KEY".into())
         );
+        Ok(())
+    }
+
+    /// A key read the system holds up (the macOS keychain's access dialog)
+    /// says what it waits for once, and its seconds count; a quick one says
+    /// nothing.
+    #[test]
+    fn a_slow_key_read_says_what_it_waits_for() -> Result<()> {
+        let mut said = Vec::new();
+        let (value, seconds) = waited(
+            || {
+                std::thread::sleep(Duration::from_millis(300));
+                7
+            },
+            Duration::from_millis(20),
+            "waiting",
+            &mut |line| said.push(line.to_owned()),
+        )?;
+        assert_eq!((value, said), (7, vec!["waiting".to_owned()]));
+        assert!(seconds >= 0.3, "{seconds}");
+        let mut said = Vec::new();
+        let (value, _) = waited(|| 8, Duration::from_secs(5), "waiting", &mut |line| {
+            said.push(line.to_owned())
+        })?;
+        assert_eq!(value, 8);
+        assert!(said.is_empty());
         Ok(())
     }
 

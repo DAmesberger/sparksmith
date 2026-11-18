@@ -154,7 +154,7 @@ pub struct Footprint {
     pub fab_graphics: usize,
     /// Other drawings and texts (silkscreen, courtyard, fabrication).
     pub drawings: usize,
-    pub models: usize,
+    pub models: Vec<crate::models::Reference>,
     /// Drawings on `Edge.Cuts` (not imported).
     pub edge_cuts: usize,
     /// Zones and rule areas inside the footprint (KiCad writes their
@@ -520,7 +520,12 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                 }
             }
             "fp_text" | "fp_text_box" | "dimension" => fp.drawings += 1,
-            "model" => fp.models += 1,
+            "model" => {
+                if fp.models.len() >= crate::models::MAX_MODELS {
+                    return Err(BoardError::Limit("more than 32 models on a footprint"));
+                }
+                fp.models.push(crate::models::Reference::read(item)?);
+            }
             "zone" => {
                 if fp.zones.len() >= crate::items::MAX_ZONES {
                     return Err(BoardError::Limit("too many zones in a footprint"));

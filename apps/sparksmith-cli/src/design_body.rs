@@ -8,11 +8,11 @@
 //! `.review.md`); a run that makes no body writes nothing and says why.
 //! The model flags, `--record` and `--replay` are `design-part`'s.
 use super::Result;
-use super::design_part::{Console, ModelFlags, installed_workflow};
+use super::design_part::{Console, ModelFlags, connect, installed_workflow};
 use serde_json::Value;
 use sparksmith_assist::Datasheet;
+use sparksmith_assist::model::ModelBackend;
 use sparksmith_assist::model::record::{Recording, Replay};
-use sparksmith_assist::model::{self, ModelBackend};
 use sparksmith_assist::workflow::event::RunEnd;
 use sparksmith_assist::workflow::runner::{self, WorkflowRun};
 use sparksmith_core::product::SHORT_NAME as CLI;
@@ -121,11 +121,11 @@ pub fn run(args: &[String]) -> Result<()> {
     let mut backend: Box<dyn ModelBackend> = match (replay, &record) {
         (Some(replay), _) => Box::new(replay),
         (None, Some(path)) => Box::new(Recording::for_workflow(
-            model::connect(&config.profile, &connection)?,
+            connect(&config, &connection)?.0,
             path.clone(),
             runner::mark(&loaded),
         )?),
-        (None, None) => model::connect(&config.profile, &connection)?,
+        (None, None) => connect(&config, &connection)?.0,
     };
     let mut session = super::open(Some(&args.project))?;
     let run = WorkflowRun {
@@ -138,7 +138,7 @@ pub fn run(args: &[String]) -> Result<()> {
         run,
         backend.as_mut(),
         &mut session,
-        &mut Console,
+        &mut Console::default(),
         &AtomicBool::new(false),
     )?;
     let review = outcome.review(&session);

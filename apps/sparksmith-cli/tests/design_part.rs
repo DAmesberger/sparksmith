@@ -77,6 +77,20 @@ fn a_workflow_recording_replays_to_a_project_and_its_review() -> Fallible {
     // The runner's steps, in the workflow's order.
     assert!(said.contains("Datasheet → component"), "{said}");
     assert!(said.contains("step 1/"), "{said}");
+    // Each finished step shows its seconds, and the run ends with where the
+    // time went: a replay waits for no model and reads no key, and its
+    // local work stays well inside a generous budget.
+    assert!(said.lines().any(|l| l.ends_with(" s)")), "{said}");
+    let time = said
+        .lines()
+        .find_map(|l| l.strip_prefix("time: "))
+        .ok_or_else(|| format!("no time line: {said}"))?;
+    assert!(
+        time.contains("0.0 s waiting for the model, 0.0 s reading the key"),
+        "{time}"
+    );
+    let total: f64 = time.split(' ').next().unwrap_or_default().parse()?;
+    assert!(total < 60.0, "{time}");
     assert!(out.exists());
     let review: Value = serde_json::from_str(&std::fs::read_to_string(
         dir.path().join("exr22.review.json"),

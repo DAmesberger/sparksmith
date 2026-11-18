@@ -265,8 +265,18 @@ pub trait ModelBackend {
 /// another computer.
 pub fn connect(profile: &ModelProfile, connection: &Connection) -> Result<Box<dyn ModelBackend>> {
     let key = connection.key.resolve(&connection.endpoint)?;
+    connect_with_key(profile, &connection.endpoint, key)
+}
+
+/// [`connect`] with a key already read (`KeySource::resolve`), for a caller
+/// that reads it on its own terms, such as the CLI timing the keychain.
+pub fn connect_with_key(
+    profile: &ModelProfile,
+    endpoint: &Endpoint,
+    key: Option<Secret>,
+) -> Result<Box<dyn ModelBackend>> {
     let auth = profile.provider.auth_style();
-    let http = wire::HttpWire::new(connection.endpoint.clone(), key, auth)?;
+    let http = wire::HttpWire::new(endpoint.clone(), key, auth)?;
     Ok(match profile.provider {
         Provider::Anthropic => Box::new(anthropic::AnthropicBackend::new(profile.clone(), http)),
         Provider::OpenAiCompatible => Box::new(openai::OpenAiBackend::new(profile.clone(), http)),
