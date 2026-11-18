@@ -57,6 +57,7 @@ pub fn run(args: &[String]) -> Result<()> {
         "refused_patterns": report.refused_patterns(),
         "counts": report.counts,
         "rows": report.rows(),
+        "placeholders": report.placeholders(),
         "detail": detail,
     }))
 }

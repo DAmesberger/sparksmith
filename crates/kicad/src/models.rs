@@ -85,6 +85,8 @@ pub struct Selection {
     pub choice: Option<Choice>,
     pub case: crate::report::Case,
     pub reason: String,
+    /// Why no model was chosen, when none was.
+    pub placeholder: Option<crate::report::Placeholder>,
 }
 
 #[cfg(test)]

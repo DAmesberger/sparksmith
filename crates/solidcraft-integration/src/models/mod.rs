@@ -15,7 +15,6 @@ pub mod inspect;
 pub mod look;
 pub mod named;
 pub mod part_file;
-pub mod step_assembly;
 
 use crate::material::BodyKind;
 use crate::native::Native;

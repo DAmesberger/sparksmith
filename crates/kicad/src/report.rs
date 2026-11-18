@@ -86,7 +86,6 @@ pub enum Case {
     BoardObjects,
     /// G12: 3D model references.
     Models,
-    VendorModel,
     GeneratedModel,
     LibraryModelGenerated,
     NoModel,
@@ -330,7 +329,6 @@ impl Case {
                 Report,
                 "3D model references (host resolution unavailable)",
             ),
-            Self::VendorModel => ("G12V", Exact, "footprint instances with vendor STEP models"),
             Self::GeneratedModel => (
                 "G12G",
                 Approximate,
@@ -344,7 +342,7 @@ impl Case {
             Self::NoModel => (
                 "G12N",
                 Report,
-                "footprint instances without a model (placeholder; reason in details)",
+                "footprint instances without a generated model (placeholder; reason below and in details)",
             ),
             Self::PadOutOfRange => (
                 "-",
@@ -571,6 +569,44 @@ impl Case {
     }
 }
 
+/// Why a footprint instance keeps its labelled placeholder body
+/// ([`Case::NoModel`]) and needs a recreation, counted per instance in the
+/// summary.
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum Placeholder {
+    /// Every model reference is hidden.
+    Hidden,
+    /// A vendor model file was found in the project and recorded as a
+    /// reference source (never used as the body); no preset matched.
+    VendorReferenceFound,
+    /// A vendor model reference names no readable file in the project; no
+    /// preset matched.
+    VendorReferenceMissing,
+    /// No numbered lands to match a preset against (a fiducial, a logo).
+    NoLands,
+    /// Only KiCad library references (never resolved); no preset matched.
+    KicadLibraryReferenceNoPreset,
+    /// No model reference at all; no preset matched.
+    NoReferenceNoPreset,
+}
+
+impl Placeholder {
+    /// A fixed description.
+    pub fn describe(self) -> &'static str {
+        match self {
+            Self::Hidden => "all model references hidden",
+            Self::VendorReferenceFound => "needs recreation (vendor reference found)",
+            Self::VendorReferenceMissing => "needs recreation (vendor reference not found)",
+            Self::NoLands => "needs recreation (no numbered lands to match a preset)",
+            Self::KicadLibraryReferenceNoPreset => {
+                "needs recreation (KiCad library reference, no matching preset)"
+            }
+            Self::NoReferenceNoPreset => "needs recreation (no reference, no matching preset)",
+        }
+    }
+}
+
 /// One counted row.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct Row {
@@ -589,6 +625,9 @@ pub struct Detail {
     pub footprint: String,
     pub pad: String,
     pub path: String,
+    /// For [`Case::NoModel`]: why the placeholder stays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub placeholder: Option<Placeholder>,
 }
 
 /// A KiCad limit looser than the fab profile's, not taken
@@ -729,6 +768,7 @@ pub struct Report {
     looser: Vec<LooserRule>,
     patterns: Vec<RefusedPattern>,
     refused: Vec<RefusedCopper>,
+    placeholders: BTreeMap<Placeholder, usize>,
 }
 
 impl Report {
@@ -753,8 +793,33 @@ impl Report {
                 footprint: footprint.to_owned(),
                 pad: pad.to_owned(),
                 path: path.to_owned(),
+                placeholder: None,
             });
         }
+    }
+
+    /// One footprint instance's 3D model outcome with its reason; a
+    /// placeholder ([`Case::NoModel`]) is also counted under its category.
+    pub fn add_model(
+        &mut self,
+        case: Case,
+        footprint: &str,
+        reason: &str,
+        placeholder: Option<Placeholder>,
+    ) {
+        let kept = self.details.len();
+        self.add_detail(case, footprint, "", reason);
+        if let Some(placeholder) = placeholder {
+            *self.placeholders.entry(placeholder).or_default() += 1;
+            if let Some(detail) = self.details.get_mut(kept) {
+                detail.placeholder = Some(placeholder);
+            }
+        }
+    }
+
+    /// Placeholder counts by category.
+    pub fn placeholders(&self) -> &BTreeMap<Placeholder, usize> {
+        &self.placeholders
     }
 
     /// A limit not taken, counted and named.
@@ -879,6 +944,16 @@ impl Report {
                 "  {fidelity:<11} {:>3}  {:>6}  {}\n",
                 row.code, row.count, row.title
             ));
+            if row.case == Case::NoModel {
+                for (placeholder, count) in &self.placeholders {
+                    out.push_str(&format!(
+                        "  {:<11} {:>3}  {count:>6}    {}\n",
+                        "",
+                        "",
+                        placeholder.describe()
+                    ));
+                }
+            }
         }
         out
     }
@@ -922,6 +997,7 @@ impl Report {
             "looser_rules": self.looser,
             "refused_patterns": self.patterns,
             "refused_copper": self.refused,
+            "placeholders": self.placeholders,
             "details": self.details,
         })
     }

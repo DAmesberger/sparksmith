@@ -329,7 +329,12 @@ pub fn import_with_models(
         if let Some(selection) = &selection {
             for (fp, used) in board.footprints.iter().zip(&uses) {
                 if *used == k {
-                    report.add_detail(selection.case, &fp.reference, "", &selection.reason);
+                    report.add_model(
+                        selection.case,
+                        &fp.reference,
+                        &selection.reason,
+                        selection.placeholder,
+                    );
                 }
             }
         }
@@ -1194,6 +1199,10 @@ fn drafts(
     }))
     .unwrap_or(Bounds::point([0.0, 0.0]));
     let size = bounds.size();
+    // The placeholder box is centred on its pads, not on the footprint's
+    // origin (a header's origin is often its pin 1).
+    let centre = bounds.center();
+    let placeholder = ModelPlacement::from_mm([centre[0], centre[1], 0.0], [0.0; 3])?;
     let envelope = [
         Nm::from_mm_f64_rounded(size[0].max(0.1))?,
         Nm::from_mm_f64_rounded(size[1].max(0.1))?,
@@ -1266,7 +1275,7 @@ fn drafts(
                 model: PackageModel::Envelope {
                     material: MaterialId::EpoxyMould,
                 },
-                placement: ModelPlacement::default(),
+                placement: placeholder,
                 mechanical: None,
                 datums: Vec::new(),
                 leads: Vec::new(),
