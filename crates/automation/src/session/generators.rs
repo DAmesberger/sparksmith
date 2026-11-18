@@ -71,7 +71,7 @@ const MAX_FILTER: usize = 128;
 /// `library.generators`: which shipped generators to list, and how much of
 /// each. Without filters every one is listed; without `generator` or
 /// `detail`, each by name, title, families, scopes, version and its
-/// presets' keys and names.
+/// presets' keys (with their names when `family` or `text` filters).
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratorsParams {
@@ -133,8 +133,10 @@ impl GeneratorsParams {
 }
 
 /// A shipped generator as the default listing gives it: what a caller
-/// needs to pick one, and the presets by key and name.
-fn listed(shipped: &ShippedGenerator) -> Value {
+/// needs to pick one, and its presets by key, with their names when the
+/// listing is filtered (`named`): unfiltered, the names of every shipped
+/// preset would outgrow a model's reply budget.
+fn listed(shipped: &ShippedGenerator, named: bool) -> Value {
     let mut out = serde_json::json!({"name": shipped.name});
     if let Some(d) = &shipped.description {
         out["title"] = Value::from(d.name.clone());
@@ -144,7 +146,13 @@ fn listed(shipped: &ShippedGenerator) -> Value {
         out["presets"] = d
             .presets
             .iter()
-            .map(|p| serde_json::json!({"key": p.key, "name": p.name}))
+            .map(|p| {
+                if named {
+                    serde_json::json!({"key": p.key, "name": p.name})
+                } else {
+                    serde_json::json!({"key": p.key})
+                }
+            })
             .collect();
     }
     if let Some(refused) = &shipped.refused {
@@ -398,9 +406,10 @@ impl Session {
         }
         let mut value = serde_json::to_value(&report)?;
         if !params.detail && params.generator.is_none() {
-            value["shipped"] = report.shipped.iter().map(listed).collect();
+            let named = params.family.is_some() || params.text.is_some();
+            value["shipped"] = report.shipped.iter().map(|g| listed(g, named)).collect();
             value["detail"] = Value::from(
-                "library.generators {generator: <name>} gives one generator's parameters, rules and presets with their values",
+                "library.generators {generator: <name>} gives one generator's parameters, rules and presets with their values; {family} or {text} adds the presets' names",
             );
         }
         Ok(value)

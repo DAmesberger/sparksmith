@@ -704,7 +704,8 @@ fn generators_are_found_and_called() -> Fallible<()> {
     let shipped = listed["shipped"].as_array().ok_or("shipped")?;
     assert!(shipped.iter().any(|g| g["name"] == "chip"), "{listed}");
     // The default listing names each generator, its families and preset
-    // keys, within a reply budget; the parameters come by name.
+    // keys, within a reply budget; preset names come with a filter, the
+    // parameters by name.
     let compact = listed.to_string().len();
     assert!(compact <= GENERATORS_BUDGET, "{compact} bytes");
     assert!(
@@ -717,6 +718,17 @@ fn generators_are_found_and_called() -> Fallible<()> {
             .as_array()
             .is_some_and(|p| p.iter().any(|p| p["key"] == "resistor-0603")),
         "{chip}"
+    );
+    // Filtered, the presets come with their names.
+    let found = tools.ok(
+        QUERY,
+        json!({"name": "library.generators", "params": {"text": "resistor-0603"}}),
+    )?;
+    assert!(
+        found["shipped"][0]["presets"].as_array().is_some_and(|p| p
+            .iter()
+            .any(|p| p["key"] == "resistor-0603" && p["name"].is_string())),
+        "{found}"
     );
     let full = tools.ok(
         QUERY,
