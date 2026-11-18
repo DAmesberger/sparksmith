@@ -256,6 +256,18 @@ pub enum LibraryCommand {
     /// `replace`. Needs the host's generator runtime.
     #[serde(rename = "library.package_from_generator")]
     PackageFromGenerator(Box<super::generated::PackageFromGenerator>),
+    /// Give a placed part's package a generator's body, its footprint kept:
+    /// the package-scope generation's part file (evaluated by the host),
+    /// its leads fitted onto the pads of every footprint that lands the
+    /// package, each on its land (the board check's lead-on-land rule,
+    /// plus `tolerance`), or the request is refused naming each lead that
+    /// misses. The package's next revision changes only its model,
+    /// placement, envelope and lead contacts; its footprints, bindings and
+    /// components are republished pinning it, and every placed part that
+    /// used the package moves to them. One undo step; terminals and pads
+    /// never change. Needs the host's generator runtime.
+    #[serde(rename = "library.replace_body")]
+    ReplaceBody(Box<super::body::ReplaceBody>),
 }
 
 // A new command chooses its permission class here.
@@ -287,6 +299,7 @@ declare_entries!(LibraryCommand in library {
     PackArtwork "library.pack_artwork" Edit "Pack marking artwork",
     Generate "library.generate" Edit "Generate a part" [in generators],
     PackageFromGenerator "library.package_from_generator" Edit "Package from a generator" [in generators, since(1, 1)],
+    ReplaceBody "library.replace_body" Edit "Replace a part's 3D body" [in generators, since(1, 4)],
 });
 
 fn close_by_default() -> bool {
@@ -499,7 +512,7 @@ fn footprint_draft(
 
 /// `library.publish` of `ids`: the pure publish rules, then the freshness of
 /// each parametric footprint, then closing the drafts when asked.
-fn publish_drafts(
+pub(super) fn publish_drafts(
     document: &mut Document,
     evaluator: Option<&dyn library::FootprintEvaluator>,
     published: Vec<DefinitionId>,
@@ -838,7 +851,7 @@ fn draft_closure(document: &mut Document, component: ComponentRef) -> Result<Vec
 /// drafted from now names that draft's pending revision, as the part
 /// editor's own edits pin them. Without it a published closure would name
 /// the revisions it was drafted from, not what it publishes together.
-fn pin_pending(document: &mut Document, set: &[DefinitionRef]) {
+pub(super) fn pin_pending(document: &mut Document, set: &[DefinitionRef]) {
     let pending: Vec<(DefinitionId, Revision, Revision)> = set
         .iter()
         .filter_map(|r| {
@@ -967,6 +980,9 @@ pub(crate) fn apply_library(
         LibraryCommand::Generate(request) => super::generated::generate(document, *request, None),
         LibraryCommand::PackageFromGenerator(request) => {
             super::generated::package_from_generator(document, *request, None)
+        }
+        LibraryCommand::ReplaceBody(request) => {
+            super::body::replace_body(document, *request, None, evaluator)
         }
         LibraryCommand::DiscardDraft { id } => {
             let before = super::assets::named_by_drafts(&document.drafts, [id]);

@@ -449,6 +449,14 @@ pub enum Request {
     /// GP1: make a part with a generator module (`library.generate`).
     #[serde(rename = "library.generate_part")]
     GeneratePart(generators::GeneratePartParams),
+    /// A placed part's package and pads, and the body a generator would
+    /// give it fitted to them; changes nothing.
+    #[serde(rename = "library.body_fit")]
+    BodyFit(body::BodyFitParams),
+    /// Give a placed part a generator's 3D body, its footprint kept
+    /// (`library.replace_body`).
+    #[serde(rename = "library.make_body")]
+    MakeBody(body::MakeBodyParams),
     /// Mechanical parts: place a part file directly on the board.
     #[serde(rename = "layout.place_part_file")]
     PlacePartFile(Box<mechanical_parts::PlacePartFileParams>),
@@ -562,6 +570,8 @@ sparksmith_core::declare_entries!(Request in project {
     PartFiles "library.part_files" Read "List part files" [in model3d, link],
     Generators "library.generators" Read "List generator modules" [in generators],
     GeneratePart "library.generate_part" Edit "Generate a part" [in generators],
+    BodyFit "library.body_fit" Read "Fit a generated body to a part" [in generators, since(1, 4)],
+    MakeBody "library.make_body" Edit "Make a part's 3D body" [in generators, since(1, 4)],
     PlacePartFile "layout.place_part_file" Edit "Place a part file on the board" [in layout, link, needs(Solidcraft)],
     SetPartFileValues "layout.set_part_file_values" Edit "Change a placed part file" [in layout, link, needs(Solidcraft)],
     InterfacePreview "interface.publish_preview" Read "Preview publishing the board interface" [in model3d],
@@ -919,6 +929,16 @@ impl Request {
                 "library.generate_part",
                 "Make a part (component or package) with a generator module, e.g. a chip resistor 0603; requires scope and generator or module.",
                 "Make a part with a generator module, through library.generate in one undo step at expected_revision: generator (a shipped name) or module (an embedded SHA-256), scope component (component, symbol, package, footprint, binding) or package, an optional preset and params (lengths in integer nm, angles in integer millidegrees; the rest from project settings and the module's defaults). The module is embedded once by hash, so the project reopens without the generator folder; a part the project already holds with the same key, or that the same generator version made from the same parameters, is returned unchanged (created: false). A newer version of the generator that made a part with the same parameters makes the next revisions of the same lineages (replaced names the old root), and the reply carries update, the project.preview_update plan that moves the placed instances (apply it with project.apply_update); an older version is refused (generated.older_version). Refusals name the module's own problems (param.*) or the host's (generator.*); nothing changes.",
+            ),
+            info::<body::BodyFitParams>(
+                "library.body_fit",
+                "A placed part's package and pads by designator; with a generator, the 3D body it makes fitted to those pads, changing nothing.",
+                "Describe the placed part designator: its package (terminals, envelope, current model), the other parts that use it, and its footprint's pads in the package's datum frame (mm). With generator (a shipped name), preset and params (integer nm and millidegrees) the generator's package-scope body is evaluated and its leads fitted onto those pads (pins maps a lead to another pad number; tolerance in mm, 0–0.5): the reply is the plan library.make_body applies, accepted only when every lead lands on its pad (the contact on the land, within the middle half across it, plus tolerance) on every footprint the parts use, with each lead's miss, the pads no lead lands, the placement, the body before and after, blocking findings and change counts. missing instead of a generator refuses with that reason. Not a document change.",
+            ),
+            info::<body::MakeBodyParams>(
+                "library.make_body",
+                "Give a placed part a generator's 3D body fitted to its existing footprint; every part that uses the package changes.",
+                "Make the body library.body_fit plans and apply it through library.replace_body in one undo step at expected_revision: the package's next revision takes only the generator's model, its placement on the pads, its envelope and lead contacts; footprints, bindings and components are republished pinning it, unchanged otherwise, and every placed part that used the package moves to them. sources (the datasheets with the pages read) is recorded with the package and its model as AI-made and unreviewed. Refused, changing nothing, when a lead misses its pad, when a lineage has a draft or a newer revision, or on the generator's own refusal.",
             ),
             info::<mechanical_parts::PlacePartFileParams>(
                 "layout.place_part_file",
@@ -1468,7 +1488,13 @@ impl Session {
             Request::OpenPreview(params) => return self.open_preview(params),
             Request::PinoutSchema(_) => return self.pinout_schema(),
             Request::ReviewCheck(params) => {
-                return Ok(crate::review::check(&self.snapshot(), &params.report));
+                return match &params.body {
+                    None => Ok(crate::review::check(&self.snapshot(), &params.report)),
+                    Some(part) => Ok(crate::review::check_body(
+                        &self.body_state(part)?,
+                        &params.report,
+                    )),
+                };
             }
             Request::FirmwarePreview(params) => return self.firmware(params, false),
             Request::FirmwareExport(params) => return self.firmware(params, true),
@@ -1493,6 +1519,8 @@ impl Session {
             Request::PartFiles(_) => return self.part_files(),
             Request::Generators(params) => return self.generators(&params),
             Request::GeneratePart(params) => return self.generate_part(params),
+            Request::BodyFit(params) => return self.body_fit(params),
+            Request::MakeBody(params) => return self.make_body(params),
             Request::PlacePartFile(params) => return self.place_part_file(*params),
             Request::SetPartFileValues(params) => return self.set_part_file_values(params),
             Request::InterfacePreview(params) => return self.interface_preview(params),
@@ -1892,6 +1920,7 @@ pub fn schemas() -> Value {
 
 mod assembly_link;
 pub mod assist;
+pub mod body;
 pub mod discovery;
 mod firmware;
 mod generated_models;
@@ -1916,6 +1945,8 @@ pub mod sources;
 
 #[cfg(test)]
 mod assembly_link_tests;
+#[cfg(test)]
+mod body_tests;
 #[cfg(test)]
 mod catalog_tests;
 #[cfg(test)]

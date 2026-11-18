@@ -787,6 +787,20 @@ impl Engine {
         self.generators.as_ref()
     }
 
+    /// What `library.replace_body` would do with `request`, changing
+    /// nothing (`library.body_fit`).
+    pub fn body_plan(
+        &self,
+        request: &commands::body::ReplaceBody,
+    ) -> Result<commands::body::BodyPlan> {
+        let _context = self.enter_context();
+        let runtime = self
+            .generators
+            .as_deref()
+            .map(|r| r as &dyn library::generated::GeneratorRuntime);
+        commands::body::plan(&self.document, request, runtime)
+    }
+
     /// Whether this engine has a generator runtime.
     pub fn has_generators(&self) -> bool {
         self.generators.is_some()
@@ -1666,6 +1680,13 @@ impl Engine {
                     .as_deref()
                     .map(|r| r as &dyn library::generated::GeneratorRuntime);
                 commands::generated::package_from_generator(&mut candidate, *request, runtime)?
+            }
+            Operation::Library(commands::LibraryCommand::ReplaceBody(request)) => {
+                let runtime = self
+                    .generators
+                    .as_deref()
+                    .map(|r| r as &dyn library::generated::GeneratorRuntime);
+                commands::body::replace_body(&mut candidate, *request, runtime, evaluator)?
             }
             Operation::Library(command) => {
                 commands::apply_library(&mut candidate, command, evaluator)?
