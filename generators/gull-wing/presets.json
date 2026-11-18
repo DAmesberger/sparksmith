@@ -21,7 +21,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 200000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO8A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
@@ -50,7 +54,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 200000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO14A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
@@ -79,7 +87,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 200000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO16A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
@@ -108,7 +120,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 270000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO16A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -137,7 +153,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 270000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO18A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -166,7 +186,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 270000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO20A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -195,7 +219,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 270000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO24A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -224,7 +252,11 @@
    "span_x": 0,
    "lead_width": 410000,
    "lead_thickness": 270000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "pin1_bevel": true,
+   "marking": [
+    "SO28A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -252,7 +284,10 @@
    "span_x": 0,
    "lead_width": 300000,
    "lead_thickness": 170000,
-   "foot_length": 750000
+   "foot_length": 750000,
+   "marking": [
+    "SS14A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -280,7 +315,10 @@
    "span_x": 0,
    "lead_width": 300000,
    "lead_thickness": 170000,
-   "foot_length": 750000
+   "foot_length": 750000,
+   "marking": [
+    "SS16A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -308,7 +346,10 @@
    "span_x": 0,
    "lead_width": 300000,
    "lead_thickness": 170000,
-   "foot_length": 750000
+   "foot_length": 750000,
+   "marking": [
+    "SS20A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -336,7 +377,10 @@
    "span_x": 0,
    "lead_width": 300000,
    "lead_thickness": 170000,
-   "foot_length": 750000
+   "foot_length": 750000,
+   "marking": [
+    "SS24A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -364,7 +408,10 @@
    "span_x": 0,
    "lead_width": 300000,
    "lead_thickness": 170000,
-   "foot_length": 750000
+   "foot_length": 750000,
+   "marking": [
+    "SS28A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -392,7 +439,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 200000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "marking": [
+    "QS16A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
@@ -420,7 +470,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 200000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "marking": [
+    "QS20A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
@@ -448,7 +501,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 200000,
-   "foot_length": 835000
+   "foot_length": 835000,
+   "marking": [
+    "QS24A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
@@ -476,7 +532,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS8A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -504,7 +563,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS14A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -532,7 +594,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS16A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -560,7 +625,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS20A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -588,7 +656,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS24A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -616,7 +687,10 @@
    "span_x": 0,
    "lead_width": 250000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS28A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -644,7 +718,10 @@
    "span_x": 0,
    "lead_width": 220000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS38A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -672,7 +749,10 @@
    "span_x": 0,
    "lead_width": 220000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS48A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -700,7 +780,10 @@
    "span_x": 0,
    "lead_width": 220000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TS56A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -729,7 +812,10 @@
    "span_x": 0,
    "lead_width": 300000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "MS8A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-187, plastic micro small outline, 3.00 mm body (MSOP)"
@@ -757,7 +843,10 @@
    "span_x": 0,
    "lead_width": 220000,
    "lead_thickness": 150000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "MS10A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-187, plastic micro small outline, 3.00 mm body (MSOP)"
@@ -785,7 +874,10 @@
    "span_x": 9000000,
    "lead_width": 370000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ32A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -813,7 +905,10 @@
    "span_x": 12000000,
    "lead_width": 370000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ44A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -841,7 +936,10 @@
    "span_x": 9000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ48A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -869,7 +967,10 @@
    "span_x": 12000000,
    "lead_width": 300000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ52A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -897,7 +998,10 @@
    "span_x": 9000000,
    "lead_width": 180000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ64A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -925,7 +1029,10 @@
    "span_x": 12000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ64A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -953,7 +1060,10 @@
    "span_x": 16000000,
    "lead_width": 370000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ64A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -981,7 +1091,10 @@
    "span_x": 14000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ80A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1009,7 +1122,10 @@
    "span_x": 16000000,
    "lead_width": 300000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ80A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1037,7 +1153,10 @@
    "span_x": 16000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ100A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1065,7 +1184,10 @@
    "span_x": 16000000,
    "lead_width": 180000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ120A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1093,7 +1215,10 @@
    "span_x": 22000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ144A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1121,7 +1246,10 @@
    "span_x": 26000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ176A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1149,7 +1277,10 @@
    "span_x": 30000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ208A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1177,7 +1308,10 @@
    "span_x": 22000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "LQ128A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1205,7 +1339,10 @@
    "span_x": 9000000,
    "lead_width": 370000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TQ32A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1233,7 +1370,10 @@
    "span_x": 12000000,
    "lead_width": 370000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TQ44A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1261,7 +1401,10 @@
    "span_x": 9000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TQ48A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1289,7 +1432,10 @@
    "span_x": 12000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TQ64A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1317,7 +1463,10 @@
    "span_x": 16000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TQ100A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1345,7 +1494,10 @@
    "span_x": 22000000,
    "lead_width": 220000,
    "lead_thickness": 145000,
-   "foot_length": 600000
+   "foot_length": 600000,
+   "marking": [
+    "TQ144A"
+   ]
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"

@@ -2,28 +2,33 @@
  "cases": [
   {
    "name": "SOIC-8 3.9 mm, component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "leads": 4, "leads_short": 0, "pitch": 1270000, "body_length": 4900000, "body_width": 3900000, "body_height": 1450000, "standoff": 175000, "span": 6000000, "span_x": 0, "lead_width": 410000, "lead_thickness": 200000, "foot_length": 835000, "land_width_extra": 200000}},
-   "result": "8edd25e881acd61d249372f3214fe586083e0e33a857e35c078e4f1dc45bd422"
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "leads": 4, "leads_short": 0, "pitch": 1270000, "body_length": 4900000, "body_width": 3900000, "body_height": 1450000, "standoff": 175000, "span": 6000000, "span_x": 0, "lead_width": 410000, "lead_thickness": 200000, "foot_length": 835000, "land_width_extra": 200000, "marking": [], "pin1_bevel": false}},
+   "result": "50b41d77055caef1e65f1388ec56bc1c92ccf1260288cfb22388d83fe29d5163"
   },
   {
    "name": "SOIC-8 3.9 mm, package",
-   "request": {"abi": 1, "scope": "package", "params": {"sides": "two", "leads": 4, "leads_short": 0, "pitch": 1270000, "body_length": 4900000, "body_width": 3900000, "body_height": 1450000, "standoff": 175000, "span": 6000000, "span_x": 0, "lead_width": 410000, "lead_thickness": 200000, "foot_length": 835000, "land_width_extra": 200000}},
-   "result": "e83040e63a3467416da2a6ec5dc9212137a1bd033333c898fc2cbba5624ed0a8"
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "two", "leads": 4, "leads_short": 0, "pitch": 1270000, "body_length": 4900000, "body_width": 3900000, "body_height": 1450000, "standoff": 175000, "span": 6000000, "span_x": 0, "lead_width": 410000, "lead_thickness": 200000, "foot_length": 835000, "land_width_extra": 200000, "marking": [], "pin1_bevel": false}},
+   "result": "fa9e55648ab8deabfd3531225eb597d8eede496d90a9d35f52461f9c5d5368a3"
   },
   {
    "name": "TSSOP-56 6.1 mm (two-digit pins), component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "leads": 28, "leads_short": 0, "pitch": 500000, "body_length": 14000000, "body_width": 6100000, "body_height": 900000, "standoff": 100000, "span": 8100000, "span_x": 0, "lead_width": 220000, "lead_thickness": 150000, "foot_length": 600000, "land_width_extra": 200000}},
-   "result": "ee57714bc403fc6f6a6fecc537ebc78a35e2003fed3a8f0d82a42ae47d5f74dd"
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "leads": 28, "leads_short": 0, "pitch": 500000, "body_length": 14000000, "body_width": 6100000, "body_height": 900000, "standoff": 100000, "span": 8100000, "span_x": 0, "lead_width": 220000, "lead_thickness": 150000, "foot_length": 600000, "land_width_extra": 200000, "marking": [], "pin1_bevel": false}},
+   "result": "ee25eec7a7f5620836af4e21e37df8ef8102a7ece4b6702b9d7078de23c90703"
   },
   {
    "name": "LQFP-48 7×7 0.5 (four sides), component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "leads": 12, "leads_short": 12, "pitch": 500000, "body_length": 7000000, "body_width": 7000000, "body_height": 1400000, "standoff": 100000, "span": 9000000, "span_x": 9000000, "lead_width": 220000, "lead_thickness": 145000, "foot_length": 600000, "land_width_extra": 200000}},
-   "result": "76e6721177f394b75fa90e6706783d21da02736009fdc127f192aceb258c8dac"
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "leads": 12, "leads_short": 12, "pitch": 500000, "body_length": 7000000, "body_width": 7000000, "body_height": 1400000, "standoff": 100000, "span": 9000000, "span_x": 9000000, "lead_width": 220000, "lead_thickness": 145000, "foot_length": 600000, "land_width_extra": 200000, "marking": [], "pin1_bevel": false}},
+   "result": "b0337080514923c68774b13f3130a09e2ed77ef3704ce94542092fd1a7470460"
   },
   {
    "name": "LQFP-128 14×20 0.5 (unequal sides, three-digit pins), package",
-   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "leads": 38, "leads_short": 26, "pitch": 500000, "body_length": 20000000, "body_width": 14000000, "body_height": 1400000, "standoff": 100000, "span": 16000000, "span_x": 22000000, "lead_width": 220000, "lead_thickness": 145000, "foot_length": 600000, "land_width_extra": 200000}},
-   "result": "5766063d1e5979009ae7a8171b329a29d1c1bee36da0d6d462aae0008926898f"
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "leads": 38, "leads_short": 26, "pitch": 500000, "body_length": 20000000, "body_width": 14000000, "body_height": 1400000, "standoff": 100000, "span": 16000000, "span_x": 22000000, "lead_width": 220000, "lead_thickness": 145000, "foot_length": 600000, "land_width_extra": 200000, "marking": [], "pin1_bevel": false}},
+   "result": "2f3da1d060f192bdd7831a2b4c2e2cc0dfeb3418cf2919e3c7183f6477111b26"
+  },
+  {
+   "name": "SOIC-8 bevelled pin-1 edge, marked, package",
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "two", "leads": 4, "leads_short": 0, "pitch": 1270000, "body_length": 4900000, "body_width": 3900000, "body_height": 1450000, "standoff": 175000, "span": 6000000, "span_x": 0, "lead_width": 410000, "lead_thickness": 200000, "foot_length": 835000, "land_width_extra": 200000, "marking": ["SO8A"], "pin1_bevel": true}},
+   "result": "a381f9fdf49498ab6793ea8b22a07f34453c8564be459a55ad38f1a8e9c0618e"
   }
  ]
 }

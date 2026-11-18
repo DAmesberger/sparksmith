@@ -28,6 +28,7 @@ pub mod entry;
 pub mod golden;
 pub mod host;
 pub mod land;
+pub mod marking;
 pub mod units;
 
 pub use sparksmith_generator_abi as abi;

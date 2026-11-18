@@ -1208,6 +1208,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         two_lead_symbol(d.symbol, args.text("resistor_style").map_err(|p| vec![p])?)
     };
     Ok(Generation {
+        marking: None,
         component: component_part.then(|| Component {
             terminals: terminals(&d),
             prefix: d.symbol.prefix().into(),

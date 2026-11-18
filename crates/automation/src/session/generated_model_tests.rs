@@ -385,3 +385,200 @@ fn every_electromechanical_preset_makes_a_part_with_its_model() -> TestResult {
     }
     Ok(())
 }
+
+/// The shipped library of the repository (every generator's bundle).
+const SHIPPED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../library");
+
+/// One preset (with parameter overrides) made as a complete part from the
+/// shipped bundles: the session holding it.
+fn made(generator: &str, preset: &str, params: &Value) -> TestResult<Session> {
+    let mut session = session(Path::new(SHIPPED))?;
+    let reply = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": generator, "scope": "component", "preset": preset, "params": params}),
+    );
+    if reply["ok"] != true {
+        return Err(format!("{generator} {preset} {params}: {reply}").into());
+    }
+    Ok(session)
+}
+
+/// Every preset of the IC and discrete generators, and each part-file
+/// variant, placed on either side of the board at every quarter turn: each
+/// lead contact of the body, placed as the 3D view places it, lands on its
+/// pad as the copper is drawn (the `board.body_off_pads` rule), pin 1's
+/// lead lands pad 1 and the leads seat on the board.
+#[test]
+fn every_ic_preset_lands_its_leads_at_every_quarter_turn() -> TestResult {
+    use sparksmith_core::layout::bodies::{PinOne, placed_body};
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let variants: [(&str, &str, Value); 4] = [
+        (
+            "no-lead",
+            "no-lead-qfn-16-4x4-0.65-ti-rgv",
+            json!({"wettable_flank": true}),
+        ),
+        (
+            "no-lead",
+            "no-lead-dfn-8-2x3-0.5",
+            json!({"wettable_flank": true}),
+        ),
+        (
+            "gull-wing",
+            "gull-wing-tssop-14-4.4",
+            json!({"pin1_bevel": true}),
+        ),
+        (
+            "tabbed",
+            "tabbed-sot-23-3",
+            json!({"marking_pin1_dot": true}),
+        ),
+    ];
+    let mut cases: Vec<(String, String, Value)> = variants
+        .iter()
+        .map(|(g, p, v)| ((*g).to_owned(), (*p).to_owned(), v.clone()))
+        .collect();
+    for generator in ["gull-wing", "tabbed", "no-lead", "chip", "molded", "grid"] {
+        let text = std::fs::read_to_string(
+            Path::new(SHIPPED)
+                .join("../generators")
+                .join(generator)
+                .join("presets.json"),
+        )?;
+        for preset in serde_json::from_str::<Vec<Value>>(&text)? {
+            let key = preset["key"].as_str().ok_or("no key")?;
+            cases.push((generator.to_owned(), key.to_owned(), json!({})));
+        }
+    }
+    for (generator, preset, params) in &cases {
+        let session = made(generator, preset, params)?;
+        let project = session.engine().project();
+        let library = &project.library;
+        let package = &library.packages.first().ok_or("no package")?.definition;
+        let footprint = &library
+            .footprints
+            .first()
+            .ok_or("no footprint")?
+            .definition;
+        for layer in ["Top", "Bottom"] {
+            for rotation in [0.0, 90.0, 180.0, 270.0] {
+                let placement = serde_json::from_value(json!({"instance": 1,
+                    "position": [20.0, 15.0], "rotation_deg": rotation, "layer": layer,
+                    "locked": false}))?;
+                let body = placed_body(project, &placement, preset, package, footprint, None)
+                    .ok_or_else(|| format!("{preset}: no lead contacts"))?;
+                assert_eq!(
+                    body.off_pads, 0,
+                    "{preset} {params} {layer} {rotation}°: {:?}",
+                    body.leads
+                );
+                assert_eq!(
+                    body.pin_one,
+                    PinOne::Agrees,
+                    "{preset} {params} {layer} {rotation}°"
+                );
+                assert!(
+                    body.seat_mm.is_some_and(|z| z.abs() < 1e-6),
+                    "{preset} {layer} {rotation}°: seats at {:?}",
+                    body.seat_mm
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The presets made after a manufacturer's drawing match it: the model's
+/// outline (its part file's bounds at the module's values) and land 1's
+/// place are the drawing's.
+#[test]
+fn real_part_presets_match_their_drawings() -> TestResult {
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    // (preset, outline x y z mm, land 1 centre x y mm)
+    type Case = (&'static str, [f64; 3], [f64; 2]);
+    let cases: [Case; 3] = [
+        // ADI CC-14-1: 5 × 3 × 0.95; the long sides' lands 1.01 mm off
+        // the long axis, the end ones 0.49 mm from the ends at 0.8 mm.
+        (
+            "no-lead-lga-14-3x5-0.8-adi-cc-14-1",
+            [5.0, 3.0, 0.95],
+            [-2.0, -1.0100],
+        ),
+        // Sensirion SHT4x: 1.5 × 1.5 × 0.54, terminals 0.3 mm at 0.8 mm.
+        (
+            "no-lead-dfn-4-1.5x1.5-0.8-sensirion-sht4x",
+            [1.5, 1.5, 0.54],
+            [-0.4, -0.6],
+        ),
+        // TI RGV0016A: 4 × 4 × 0.9, terminals 0.55 mm long at 0.65 mm.
+        (
+            "no-lead-qfn-16-4x4-0.65-ti-rgv",
+            [4.0, 4.0, 0.9],
+            [-0.975, -1.725],
+        ),
+    ];
+    for (preset, outline, land1) in cases {
+        let session = made("no-lead", preset, &json!({}))?;
+        let library = &session.engine().project().library;
+        let package = &library.packages.first().ok_or("no package")?.definition;
+        let PackageModel::PartFile(part) = &package.model else {
+            return Err(format!("{preset}: no part file").into());
+        };
+        let [lo, hi] = part.derived.bounds_nm;
+        for axis in 0..3 {
+            let from = if axis == 2 { 0.0 } else { lo[axis].to_mm_f64() };
+            let size = hi[axis].to_mm_f64() - from;
+            assert!(
+                (size - outline[axis]).abs() < 0.011,
+                "{preset}: axis {axis} spans {size} mm, the drawing {}",
+                outline[axis]
+            );
+        }
+        let lead = package
+            .leads
+            .iter()
+            .map(|l| l.contact.to_mm_f64())
+            .next()
+            .ok_or("no lead")?;
+        let at = lead;
+        assert!(
+            (at[0] - land1[0]).abs() < 0.002 && (at[1] - land1[1]).abs() < 0.002,
+            "{preset}: land 1 at {at:?}, the drawing {land1:?}"
+        );
+    }
+    Ok(())
+}
+
+/// A generated part carries its preset's default top marking, as data: a
+/// resistor's value code printed on its overcoat, a SOT-23-6's code
+/// laser-etched with a pin-1 dot; an MLCC none.
+#[test]
+fn generated_parts_carry_their_presets_marking() -> TestResult {
+    use sparksmith_core::library::marking::{Finish, MarkingItem, MarkingSpec};
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let marking = |preset: (&str, &str)| -> TestResult<Option<Box<MarkingSpec>>> {
+        let session = made(preset.0, preset.1, &json!({}))?;
+        let library = &session.engine().project().library;
+        let component = library.components.first().ok_or("no component")?;
+        Ok(component.definition.marking.clone())
+    };
+    let resistor = marking(("chip", "resistor-0603"))?.ok_or("no resistor marking")?;
+    assert_eq!(resistor.finish, Finish::InkWhite);
+    assert!(
+        matches!(&resistor.items[..], [MarkingItem::Text { template, .. }]
+            if template.0.starts_with("{field:D") && template.0.ends_with("|code3}")),
+        "{resistor:?}"
+    );
+    let sot = marking(("tabbed", "tabbed-sot-23-6"))?.ok_or("no SOT-23-6 marking")?;
+    assert_eq!(sot.finish, Finish::LaserEtch);
+    assert!(
+        matches!(
+            &sot.items[..],
+            [MarkingItem::Text { .. }, MarkingItem::Polarity { .. }]
+        ),
+        "{sot:?}"
+    );
+    assert!(marking(("chip", "capacitor-0603"))?.is_none());
+    Ok(())
+}

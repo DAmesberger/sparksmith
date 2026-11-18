@@ -1315,3 +1315,95 @@ fn write_family_pictures() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+/// Generated parts named in a JSON list (`SPARKSMITH_IC_PICTURES`, a file of
+/// `[name, generator, preset, params, distance]` rows), each on the demo
+/// board in place of its first part, from three views, for comparison with
+/// the manufacturers' photographs at board zoom:
+/// `SPARKSMITH_PICTURES=dir SPARKSMITH_IC_PICTURES=list.json cargo test -p sparksmith write_ic_pictures -- --ignored`.
+#[test]
+#[ignore = "writes generated package pictures"]
+fn write_ic_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    use sparksmith_core::library::PackageModel;
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let (Some(dir), Some(list)) = (
+        std::env::var_os("SPARKSMITH_PICTURES"),
+        std::env::var_os("SPARKSMITH_IC_PICTURES"),
+    ) else {
+        return Err("set SPARKSMITH_PICTURES and SPARKSMITH_IC_PICTURES".into());
+    };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir)?;
+    let parts: Vec<(String, String, String, serde_json::Value, f64)> =
+        serde_json::from_str(&std::fs::read_to_string(list)?)?;
+    let Some(mut gpu) = Gpu::new() else {
+        return Err("no GPU adapter".into());
+    };
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    for (name, generator, preset, params, distance) in parts {
+        let mut session = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
+        session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(&root)?);
+        let revision = session.engine().revision();
+        let made = session.dispatch(serde_json::json!({
+            "command": "library.generate_part",
+            "params": {"generator": generator, "scope": "package", "preset": preset,
+                       "params": params, "expected_revision": revision},
+        }));
+        if made["ok"] != true {
+            return Err(format!("{name}: not made: {made}").into());
+        }
+        let mut project = session.engine().project().clone();
+        project.fabrication = Fabrication::default();
+        let generated = project
+            .library
+            .packages
+            .last()
+            .map(|p| p.definition.clone())
+            .ok_or("no package")?;
+        if !matches!(generated.model, PackageModel::PartFile(_)) {
+            return Err(format!("{name}: no part file").into());
+        }
+        let target = &mut project.library.packages[0].definition;
+        target.envelope_nm = generated.envelope_nm;
+        target.model = generated.model.clone();
+        // The part's own top marking (the complete part's), on every
+        // placed part, when it needs no field the demo parts lack.
+        let mut whole = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
+        whole.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(&root)?);
+        let revision = whole.engine().revision();
+        let made = whole.dispatch(serde_json::json!({
+            "command": "library.generate_part",
+            "params": {"generator": generator, "scope": "component", "preset": preset,
+                       "params": params, "expected_revision": revision},
+        }));
+        let marking = (made["ok"] == true)
+            .then(|| whole.engine().project().library.components.last())
+            .flatten()
+            .and_then(|c| c.definition.marking.as_deref().cloned())
+            .filter(|m| !format!("{m:?}").contains("{field:"));
+        if let Some(marking) = marking {
+            for instance in &mut project.instances {
+                instance.marking.replace = Some(marking.clone());
+            }
+        }
+        let mut v = viewport(&project)?;
+        let at = centre(&v, BodyKind::ModelBody)
+            .or_else(|| centre(&v, BodyKind::ModelLead))
+            .ok_or("no body")?;
+        let (w, h) = (1280, 960);
+        for (view, yaw, pitch) in [("a", 35.0, 40.0), ("b", 215.0, 28.0), ("top", 0.0, 89.0)] {
+            aim(
+                &mut v,
+                Vec3::new(at.x, at.y, at.z / 2.0),
+                distance,
+                yaw,
+                pitch,
+            );
+            let rgba = gpu.draw(&mut v, w, h, 2.0).ok_or("no picture")?;
+            let png = sparksmith_solidcraft::viewport::png(w as usize, h as usize, rgba)
+                .ok_or("png encoding failed")?;
+            std::fs::write(dir.join(format!("{name}-{view}.png")), png)?;
+        }
+    }
+    Ok(())
+}

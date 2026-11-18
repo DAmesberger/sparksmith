@@ -1,17 +1,13 @@
 {
-  "format": "solidcraft/52",
+  "format": "solidcraft/57",
   "format_pending": [
-    "3d-wire-point-nodes",
-    "frame-end-caps",
-    "joint-origin-inside",
-    "nested-face-name",
-    "opus-quality",
-    "render-indirect-clamp",
-    "render-quality-controls",
-    "revolve-axis-sketch",
-    "sheet-flange-segments",
-    "sketch-link-construction-point",
-    "two-sided-cut-cap-names"
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
   ],
   "name": "SOT-223 and SOT-89 package",
   "units": "mm",
@@ -108,24 +104,38 @@
       "model": false
     },
     {
-      "name": "corner_round",
-      "expr": "0.2 mm",
-      "unit": "mm",
-      "comment": "round of the body's upright corners",
-      "model": false
-    },
-    {
-      "name": "edge_round",
-      "expr": "0.12 mm",
-      "unit": "mm",
-      "comment": "round of the body's top edges",
-      "model": false
-    },
-    {
       "name": "lead_exit",
       "expr": "standoff + body_height / 2",
       "unit": "mm",
       "comment": "height of the lead centreline where it leaves the body",
+      "model": false
+    },
+    {
+      "name": "draft",
+      "expr": "8 deg",
+      "unit": "deg",
+      "comment": "mould draft of the walls above and below the parting line (Microchip SOT-23 and SOIC drawings: 5–15°)",
+      "model": false
+    },
+    {
+      "name": "draft_inset",
+      "expr": "(standoff + body_height - lead_exit) * tan(draft)",
+      "unit": "mm",
+      "comment": "how far the top face's edge lies in from the parting line's",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "max(min(0.2 mm, 0.1 * body_width), draft_inset + 0.04 mm)",
+      "unit": "mm",
+      "comment": "round of the body's upright corners at the parting line",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "min(0.1 mm, 0.08 * body_height, (standoff + body_height - lead_exit - lead_thickness / 2) / 2, 0.6 * (corner_round - draft_inset))",
+      "unit": "mm",
+      "comment": "round of the body's top edges, clear of the lead exit and the top's corner arcs",
       "model": false
     },
     {
@@ -151,14 +161,14 @@
     },
     {
       "name": "marking_top_u",
-      "expr": "0.8 * body_length",
+      "expr": "0.8 * (body_length - 2 * draft_inset)",
       "unit": "mm",
       "comment": "marking-top size along its u axis",
       "model": false
     },
     {
       "name": "marking_top_v",
-      "expr": "0.8 * body_width",
+      "expr": "0.7 * (body_width - 2 * draft_inset)",
       "unit": "mm",
       "comment": "marking-top size across it",
       "model": false
@@ -276,49 +286,55 @@
       "model": false
     },
     {
-      "name": "d5",
+      "name": "d2",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d9",
       "expr": "lead_r1 + lead_thickness / 2",
       "unit": "mm",
       "model": true
     },
     {
-      "name": "d6",
+      "name": "d10",
       "expr": "lead_r2 - lead_thickness / 2",
       "unit": "mm",
       "model": true
     },
     {
-      "name": "d7",
+      "name": "d11",
       "expr": "lead_r2 + lead_thickness / 2",
       "unit": "mm",
       "model": true
     },
     {
-      "name": "d8",
+      "name": "d12",
       "expr": "lead_r1 - lead_thickness / 2",
       "unit": "mm",
       "model": true
     },
     {
-      "name": "d12",
+      "name": "d16",
       "expr": "tab_lead_r1 + lead_thickness / 2",
       "unit": "mm",
       "model": true
     },
     {
-      "name": "d13",
+      "name": "d17",
       "expr": "tab_lead_r2 - lead_thickness / 2",
       "unit": "mm",
       "model": true
     },
     {
-      "name": "d14",
+      "name": "d18",
       "expr": "tab_lead_r2 + lead_thickness / 2",
       "unit": "mm",
       "model": true
     },
     {
-      "name": "d15",
+      "name": "d19",
       "expr": "tab_lead_r1 - lead_thickness / 2",
       "unit": "mm",
       "model": true
@@ -327,33 +343,457 @@
   "features": [
     {
       "id": 1,
-      "name": "body",
+      "name": "body parting line",
+      "suppressed": false,
+      "param_names": [
+        "d1"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "lead_exit"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              -3.25,
+              -1.75
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "-(body_length) / 2",
+              "y": "-(body_width) / 2"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              3.25,
+              1.75
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(body_length) / 2",
+              "y": "(body_width) / 2"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              -3.05,
+              -1.75
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p6",
+            "pos": [
+              -3.25,
+              -1.55
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              -3.05,
+              -1.55
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p7",
+            "pos": [
+              3.05,
+              -1.75
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p8",
+            "pos": [
+              3.25,
+              -1.5499999999999998
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              3.05,
+              -1.55
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p9",
+            "pos": [
+              3.25,
+              1.55
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              3.05,
+              1.75
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              3.05,
+              1.55
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -3.05,
+              1.75
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              -3.25,
+              1.5499999999999998
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              -3.05,
+              1.55
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 3,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 7,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 10,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 13,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 5,
+            "a": 4,
+            "b": 3,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 8,
+            "a": 6,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 11,
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 14,
+            "a": 12,
+            "b": 13,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 5,
+            "b": 11,
+            "construction": true
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "horizontal",
+            "l": 0
+          },
+          {
+            "id": "k2",
+            "type": "horizontal",
+            "l": 2
+          },
+          {
+            "id": "k3",
+            "type": "vertical",
+            "l": 1
+          },
+          {
+            "id": "k4",
+            "type": "vertical",
+            "l": 3
+          },
+          {
+            "id": "k5",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 0
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 3
+          },
+          {
+            "id": "k7",
+            "type": "tangent",
+            "a": 0,
+            "b": 4
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 3,
+            "b": 4
+          },
+          {
+            "id": "k9",
+            "type": "radius",
+            "c": 4,
+            "value": 0.2,
+            "param": "d2"
+          },
+          {
+            "id": "k10",
+            "type": "tangent",
+            "a": 0,
+            "b": 5
+          },
+          {
+            "id": "k11",
+            "type": "tangent",
+            "a": 1,
+            "b": 5
+          },
+          {
+            "id": "k12",
+            "type": "equal",
+            "a": 4,
+            "b": 5
+          },
+          {
+            "id": "k13",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k14",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 2
+          },
+          {
+            "id": "k15",
+            "type": "tangent",
+            "a": 1,
+            "b": 6
+          },
+          {
+            "id": "k16",
+            "type": "tangent",
+            "a": 2,
+            "b": 6
+          },
+          {
+            "id": "k17",
+            "type": "equal",
+            "a": 4,
+            "b": 6
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 2,
+            "b": 7
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 3,
+            "b": 7
+          },
+          {
+            "id": "k20",
+            "type": "equal",
+            "a": 4,
+            "b": 7
+          },
+          {
+            "id": "k21",
+            "type": "midpoint",
+            "p": 15,
+            "l": 8
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 2,
+          "k": 21,
+          "l": 5,
+          "p": 13
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "body upper mould",
       "suppressed": false,
       "body_names": [
         "body"
       ],
       "param_names": [
-        "d1",
-        "d2",
-        "d3"
+        "d3",
+        "d4"
       ],
-      "type": "box",
-      "corner": [
-        "- body_length / 2",
-        "- body_width / 2",
-        "standoff"
-      ],
-      "length": "body_length",
-      "width": "body_width",
-      "height": "body_height",
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "(standoff + body_height) - (lead_exit)",
+        "convention": "total_distance",
+        "direction": "positive",
+        "taper": "-(draft)"
+      },
       "operation": "new_body"
     },
     {
-      "id": 2,
+      "id": 3,
+      "name": "body lower mould",
+      "suppressed": false,
+      "param_names": [
+        "d5",
+        "d6"
+      ],
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "(lead_exit) - (standoff)",
+        "convention": "total_distance",
+        "direction": "negative",
+        "taper": "-(draft)"
+      },
+      "operation": "join",
+      "targets": [
+        "body"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "body top round",
+      "suppressed": false,
+      "param_names": [
+        "d7"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -3.25,
+            -1.7500000000000002,
+            0.06000000000000005
+          ],
+          "max": [
+            3.25,
+            1.7500000000000002,
+            1.6600000000000004
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:side:l1|F2:top"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -1.6375673322380868,
+          1.6600000000000001
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body",
+      "fit": "reduce"
+    },
+    {
+      "id": 5,
       "name": "row_s lead sketch",
       "suppressed": false,
       "param_names": [
-        "d4"
+        "d8"
       ],
       "type": "sketch",
       "plane": {
@@ -685,7 +1125,7 @@
             "type": "radius",
             "c": 8,
             "value": 0.44999999999999996,
-            "param": "d5"
+            "param": "d9"
           },
           {
             "id": "k6",
@@ -716,7 +1156,7 @@
             "type": "radius",
             "c": 9,
             "value": 0.15,
-            "param": "d6"
+            "param": "d10"
           },
           {
             "id": "k11",
@@ -747,7 +1187,7 @@
             "type": "radius",
             "c": 10,
             "value": 0.44999999999999996,
-            "param": "d7"
+            "param": "d11"
           },
           {
             "id": "k16",
@@ -778,7 +1218,7 @@
             "type": "radius",
             "c": 11,
             "value": 0.15,
-            "param": "d8"
+            "param": "d12"
           }
         ],
         "counters": {
@@ -791,17 +1231,17 @@
       }
     },
     {
-      "id": 3,
+      "id": 6,
       "name": "row_s lead",
       "suppressed": false,
       "body_names": [
         "row_s lead"
       ],
       "param_names": [
-        "d9"
+        "d13"
       ],
       "type": "extrude",
-      "sketch": 2,
+      "sketch": 5,
       "profiles": {
         "type": "all"
       },
@@ -813,14 +1253,14 @@
       "operation": "new_body"
     },
     {
-      "id": 4,
+      "id": 7,
       "name": "row_s root",
       "suppressed": false,
       "param_names": [
-        "d10"
+        "d14"
       ],
       "type": "extrude",
-      "sketch": 2,
+      "sketch": 5,
       "profiles": {
         "type": "all"
       },
@@ -835,11 +1275,11 @@
       ]
     },
     {
-      "id": 5,
+      "id": 8,
       "name": "tab sketch",
       "suppressed": false,
       "param_names": [
-        "d11"
+        "d15"
       ],
       "type": "sketch",
       "plane": {
@@ -1171,7 +1611,7 @@
             "type": "radius",
             "c": 8,
             "value": 0.44999999999999996,
-            "param": "d12"
+            "param": "d16"
           },
           {
             "id": "k6",
@@ -1202,7 +1642,7 @@
             "type": "radius",
             "c": 9,
             "value": 0.15,
-            "param": "d13"
+            "param": "d17"
           },
           {
             "id": "k11",
@@ -1233,7 +1673,7 @@
             "type": "radius",
             "c": 10,
             "value": 0.44999999999999996,
-            "param": "d14"
+            "param": "d18"
           },
           {
             "id": "k16",
@@ -1264,7 +1704,7 @@
             "type": "radius",
             "c": 11,
             "value": 0.15,
-            "param": "d15"
+            "param": "d19"
           }
         ],
         "counters": {
@@ -1277,17 +1717,17 @@
       }
     },
     {
-      "id": 6,
+      "id": 9,
       "name": "tab",
       "suppressed": false,
       "body_names": [
         "tab"
       ],
       "param_names": [
-        "d16"
+        "d20"
       ],
       "type": "extrude",
-      "sketch": 5,
+      "sketch": 8,
       "profiles": {
         "type": "all"
       },
@@ -1299,14 +1739,14 @@
       "operation": "new_body"
     },
     {
-      "id": 7,
+      "id": 10,
       "name": "tab root",
       "suppressed": false,
       "param_names": [
-        "d17"
+        "d21"
       ],
       "type": "extrude",
-      "sketch": 5,
+      "sketch": 8,
       "profiles": {
         "type": "all"
       },
@@ -1321,16 +1761,16 @@
       ]
     },
     {
-      "id": 8,
+      "id": 11,
       "name": "row_s roots",
       "suppressed": false,
       "param_names": [
-        "d18",
-        "d19"
+        "d22",
+        "d23"
       ],
       "type": "pattern",
       "features": [
-        4
+        7
       ],
       "pattern": {
         "type": "rectangular",
@@ -1344,7 +1784,7 @@
       }
     },
     {
-      "id": 9,
+      "id": 12,
       "name": "row_s pattern",
       "suppressed": false,
       "body_names": [
@@ -1365,8 +1805,8 @@
         "row_s lead (16)"
       ],
       "param_names": [
-        "d20",
-        "d21"
+        "d24",
+        "d25"
       ],
       "type": "pattern",
       "features": [],
@@ -1385,229 +1825,11 @@
       ]
     },
     {
-      "id": 10,
-      "name": "corner round",
-      "suppressed": false,
-      "param_names": [
-        "d22"
-      ],
-      "edge_refs": [
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000001
-          ]
-        },
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000001
-          ]
-        },
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000001
-          ]
-        },
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000001
-          ]
-        }
-      ],
-      "edge_names": [
-        "F1:-x|F1:-y",
-        "F1:+x|F1:-y",
-        "F1:+x|F1:+y",
-        "F1:+y|F1:-x"
-      ],
-      "type": "fillet",
-      "edges": [
-        [
-          -3.25,
-          -1.75,
-          1.335
-        ],
-        [
-          3.25,
-          -1.75,
-          1.335
-        ],
-        [
-          3.25,
-          1.75,
-          1.335
-        ],
-        [
-          -3.25,
-          1.75,
-          1.335
-        ]
-      ],
-      "radius": "corner_round",
-      "body": "body"
-    },
-    {
-      "id": 11,
-      "name": "edge round",
-      "suppressed": false,
-      "param_names": [
-        "d23"
-      ],
-      "edge_refs": [
-        {
-          "dir": [
-            1.0,
-            0.0,
-            0.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000006
-          ]
-        },
-        {
-          "dir": [
-            0.0,
-            1.0,
-            0.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000006
-          ]
-        },
-        {
-          "dir": [
-            -1.0,
-            0.0,
-            0.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000006
-          ]
-        },
-        {
-          "dir": [
-            0.0,
-            -1.0,
-            0.0
-          ],
-          "min": [
-            -3.25,
-            -1.75,
-            0.06
-          ],
-          "max": [
-            3.25,
-            1.75,
-            1.6600000000000006
-          ]
-        }
-      ],
-      "edge_names": [
-        "F1:+z|F1:-y",
-        "F1:+x|F1:+z",
-        "F1:+y|F1:+z",
-        "F1:+z|F1:-x"
-      ],
-      "type": "fillet",
-      "edges": [
-        [
-          0.0,
-          -1.75,
-          1.6600000000000001
-        ],
-        [
-          3.25,
-          0.0,
-          1.6600000000000001
-        ],
-        [
-          0.0,
-          1.75,
-          1.6600000000000001
-        ],
-        [
-          -3.25,
-          0.0,
-          1.6600000000000001
-        ]
-      ],
-      "radius": "edge_round",
-      "body": "body"
-    },
-    {
-      "id": 12,
+      "id": 13,
       "name": "marking-top",
       "suppressed": false,
       "param_names": [
-        "d24"
+        "d26"
       ],
       "type": "construction_plane",
       "plane": {
@@ -1634,7 +1856,7 @@
       }
     }
   ],
-  "next_id": 13,
+  "next_id": 14,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {

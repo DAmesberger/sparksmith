@@ -20,7 +20,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 1650000,
-   "pad_width": 1650000
+   "pad_width": 1650000,
+   "marking": [
+    "QN12A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -49,7 +52,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 1700000,
-   "pad_width": 1700000
+   "pad_width": 1700000,
+   "marking": [
+    "QN16A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -78,7 +84,10 @@
    "terminal_width": 200000,
    "exposed_pad": true,
    "pad_length": 1700000,
-   "pad_width": 1700000
+   "pad_width": 1700000,
+   "marking": [
+    "QN20A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -107,7 +116,10 @@
    "terminal_width": 300000,
    "exposed_pad": true,
    "pad_length": 2100000,
-   "pad_width": 2100000
+   "pad_width": 2100000,
+   "marking": [
+    "QN16A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -136,7 +148,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 2600000,
-   "pad_width": 2600000
+   "pad_width": 2600000,
+   "marking": [
+    "QN20A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -165,7 +180,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 2600000,
-   "pad_width": 2600000
+   "pad_width": 2600000,
+   "marking": [
+    "QN24A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -194,7 +212,10 @@
    "terminal_width": 200000,
    "exposed_pad": true,
    "pad_length": 2600000,
-   "pad_width": 2600000
+   "pad_width": 2600000,
+   "marking": [
+    "QN28A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -223,7 +244,10 @@
    "terminal_width": 300000,
    "exposed_pad": true,
    "pad_length": 3100000,
-   "pad_width": 3100000
+   "pad_width": 3100000,
+   "marking": [
+    "QN20A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -252,7 +276,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 3250000,
-   "pad_width": 3250000
+   "pad_width": 3250000,
+   "marking": [
+    "QN28A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -281,7 +308,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 3450000,
-   "pad_width": 3450000
+   "pad_width": 3450000,
+   "marking": [
+    "QN32A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -310,7 +340,10 @@
    "terminal_width": 200000,
    "exposed_pad": true,
    "pad_length": 3500000,
-   "pad_width": 3500000
+   "pad_width": 3500000,
+   "marking": [
+    "QN40A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -339,7 +372,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 4100000,
-   "pad_width": 4100000
+   "pad_width": 4100000,
+   "marking": [
+    "QN36A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -368,7 +404,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 4500000,
-   "pad_width": 4500000
+   "pad_width": 4500000,
+   "marking": [
+    "QN40A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -397,7 +436,10 @@
    "terminal_width": 200000,
    "exposed_pad": true,
    "pad_length": 4400000,
-   "pad_width": 4400000
+   "pad_width": 4400000,
+   "marking": [
+    "QN48A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -426,7 +468,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 5150000,
-   "pad_width": 5150000
+   "pad_width": 5150000,
+   "marking": [
+    "QN44A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -455,7 +500,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 5300000,
-   "pad_width": 5300000
+   "pad_width": 5300000,
+   "marking": [
+    "QN48A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -484,7 +532,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 6000000,
-   "pad_width": 6000000
+   "pad_width": 6000000,
+   "marking": [
+    "QN56A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -513,7 +564,10 @@
    "terminal_width": 200000,
    "exposed_pad": true,
    "pad_length": 6400000,
-   "pad_width": 6400000
+   "pad_width": 6400000,
+   "marking": [
+    "QN68A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -542,7 +596,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 7150000,
-   "pad_width": 7150000
+   "pad_width": 7150000,
+   "marking": [
+    "QN64A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -571,7 +628,10 @@
    "terminal_width": 300000,
    "exposed_pad": true,
    "pad_length": 1600000,
-   "pad_width": 1000000
+   "pad_width": 1000000,
+   "marking": [
+    "DN6A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -600,7 +660,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 1600000,
-   "pad_width": 900000
+   "pad_width": 900000,
+   "marking": [
+    "DN8A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -629,7 +692,10 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 1600000,
-   "pad_width": 1300000
+   "pad_width": 1300000,
+   "marking": [
+    "DN8A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -658,7 +724,10 @@
    "terminal_width": 400000,
    "exposed_pad": true,
    "pad_length": 2400000,
-   "pad_width": 1600000
+   "pad_width": 1600000,
+   "marking": [
+    "DN6A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -687,7 +756,10 @@
    "terminal_width": 300000,
    "exposed_pad": true,
    "pad_length": 2400000,
-   "pad_width": 1600000
+   "pad_width": 1600000,
+   "marking": [
+    "DN8A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -716,12 +788,115 @@
    "terminal_width": 250000,
    "exposed_pad": true,
    "pad_length": 2400000,
-   "pad_width": 1650000
+   "pad_width": 1650000,
+   "marking": [
+    "DN10A"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
   },
   "basis": "cited_unverified",
   "note": "The exposed pad is one typical size for this body; it varies between devices, so confirm it against the device's drawing."
+ },
+ {
+  "key": "no-lead-qfn-16-4x4-0.65-ti-rgv",
+  "name": "VQFN-16 4×4 0.65 EP 2.16 (TI RGV)",
+  "aliases": [
+   "RGV0016A",
+   "VQFN-16 RGV",
+   "INA3221 RGV"
+  ],
+  "description": "TI's RGV very thin quad flat no-lead, 16 terminals at 0.65 mm, body 4 × 4 × 0.9 mm, terminals 0.55 × 0.3 mm, exposed pad 2.16 mm (INA3221AIRGVR).",
+  "params": {
+   "sides": "four",
+   "terminals": 4,
+   "terminals_short": 4,
+   "pitch": 650000,
+   "body_length": 4000000,
+   "body_width": 4000000,
+   "body_height": 900000,
+   "terminal_length": 550000,
+   "terminal_width": 305000,
+   "exposed_pad": true,
+   "pad_length": 2160000,
+   "pad_width": 2160000,
+   "marking": [
+    "QN16A"
+   ]
+  },
+  "citation": {
+   "document": "Texas Instruments RGV0016A package outline (4219037/A, 06/2019), in the INA3221 datasheet"
+  },
+  "basis": "cited_unverified",
+  "note": "Nominal values of the outline's ranges: height 0.8–1.0, terminal length 0.45–0.65, width 0.23–0.38."
+ },
+ {
+  "key": "no-lead-lga-14-3x5-0.8-adi-cc-14-1",
+  "name": "LGA-14 3×5 0.8 (ADI CC-14-1)",
+  "aliases": [
+   "CC-14-1",
+   "LGA-14 3x5",
+   "ADXL343 LGA"
+  ],
+  "description": "ADI's 14-terminal land grid array, 3 × 5 × 0.95 mm: six lands at 0.8 mm along each long side and one centred on each short side, 0.813 × 0.50 mm, Au over Ni (ADXL343).",
+  "params": {
+   "sides": "four",
+   "terminals": 6,
+   "terminals_short": 1,
+   "pitch": 800000,
+   "body_length": 5000000,
+   "body_width": 3000000,
+   "body_height": 950000,
+   "terminal_length": 813000,
+   "terminal_width": 500000,
+   "pullback": 83500,
+   "exposed_pad": false,
+   "construction": "lga",
+   "marking": [
+    "343B"
+   ]
+  },
+  "citation": {
+   "document": "Analog Devices ADXL343 data sheet Rev. 0, outline dimensions CC-14-1 (Figure 51)",
+   "page": 35
+  },
+  "basis": "cited_unverified",
+  "note": "Lands 1.01 mm from the centre across the long sides and 0.49 mm from the ends, as the outline gives; the long axis is x here (the outline draws it upright)."
+ },
+ {
+  "key": "no-lead-dfn-4-1.5x1.5-0.8-sensirion-sht4x",
+  "name": "DFN-4 1.5×1.5 0.8 sensor (Sensirion SHT4x)",
+  "aliases": [
+   "SHT40",
+   "SHT41",
+   "SHT45",
+   "SHT4x DFN"
+  ],
+  "description": "Sensirion's open-cavity DFN, 1.5 × 1.5 × 0.54 mm, four terminals 0.3 × 0.3 mm at 0.8 mm, a 0.6 mm sensor opening centred on top; the die pad is not soldered (SHT4x).",
+  "params": {
+   "sides": "two",
+   "terminals": 2,
+   "terminals_short": 0,
+   "pitch": 800000,
+   "body_length": 1500000,
+   "body_width": 1500000,
+   "body_height": 540000,
+   "terminal_length": 300000,
+   "terminal_width": 300000,
+   "exposed_pad": false,
+   "construction": "sensor_window",
+   "window_diameter": 600000,
+   "marking": [
+    "SH4x",
+    "AD1ABC"
+   ]
+  },
+  "citation": {
+   "document": "Sensirion SHT4x datasheet, version 7.3 (June 2026), 5.2 Package Outline",
+   "page": 15
+  },
+  "basis": "cited_unverified",
+  "note": "Sensirion recommends no copper under the die pad, so the package has no exposed pad land. The terminals face along y here (the datasheet draws them along x)."
  }
 ]

@@ -693,6 +693,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         });
     }
     Ok(Generation {
+        marking: None,
         component: component_part.then(|| Component {
             terminals,
             prefix: "J".into(),

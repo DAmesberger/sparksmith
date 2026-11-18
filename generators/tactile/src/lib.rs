@@ -653,6 +653,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         names.push(("3", "SH"));
     }
     Ok(Generation {
+        marking: None,
         component: component_part.then(|| Component {
             terminals: names
                 .iter()

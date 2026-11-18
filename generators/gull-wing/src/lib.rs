@@ -37,7 +37,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most leads on one side: the part files' lead looks are named up to
 /// this count, and four sides of it are the core's 512 leads of a form.
@@ -134,7 +134,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     short.help = Some("Four sides only; 0 for two.".into());
     let mut span_x = length("span_x", "Lead span across x", 0, 0, "leads");
     span_x.help = Some("Four sides only: tip to tip across the short sides; 0 for two.".into());
-    let params = vec![
+    let mut params = vec![
         sides,
         count("leads", "Leads per long side", 1, 4),
         short,
@@ -185,7 +185,17 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "leads",
         ),
         extra,
+        Param {
+            key: "pin1_bevel".into(),
+            label: "Bevelled pin-1 edge".into(),
+            help: Some("Two sides only: the top edge along the pin-1 row bevelled at 45°, as many SOIC outlines mark pin 1 (with the dimple).".into()),
+            ty: ParamType::Bool,
+            default: ParamValue::Bool(false),
+            group: Some("body".into()),
+            context: None,
+        },
     ];
+    params.push(sparksmith_generator_sdk::marking::param());
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),
@@ -251,6 +261,8 @@ struct Dims {
     lead_thickness: i64,
     foot_length: i64,
     land_extra: i64,
+    /// The pin-1 row's top edge bevelled (two sides).
+    bevel: bool,
 }
 
 type Point2 = [i64; 2];
@@ -313,6 +325,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         lead_thickness: args.int("lead_thickness").map_err(one)?,
         foot_length: args.int("foot_length").map_err(one)?,
         land_extra: args.int("land_width_extra").map_err(one)?,
+        bevel: args.flag("pin1_bevel").map_err(one)?,
     };
     let mut problems = Vec::new();
     let mut rule = |ok: bool, field: &str, message: String| {
@@ -518,6 +531,8 @@ fn model(d: &Dims) -> v1::Model {
     v1::Model::PartFile {
         asset: if d.four {
             parts::GULL_WING_FOUR_SIDED
+        } else if d.bevel {
+            parts::GULL_WING_TWO_SIDED_BEVEL
         } else {
             parts::GULL_WING_TWO_SIDED
         }
@@ -600,6 +615,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     };
     let component_part = request.scope == Scope::Component;
     Ok(Generation {
+        marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

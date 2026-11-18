@@ -47,7 +47,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Most leads on one side, and most grid positions between neighbours.
 pub const MAX_LEADS_PER_SIDE: i64 = 16;
@@ -145,7 +145,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     };
     // The defaults: an original SOT-23-3 in round numbers, from no drawing
     // (the host's typical tabbed form).
-    let params = vec![
+    let mut params = vec![
         count("leads_s", "Leads on the −y side", 1, MAX_LEADS_PER_SIDE, 2),
         count("leads_n", "Leads on the +y side", 0, MAX_LEADS_PER_SIDE, 1),
         count("step_s", "Grid positions between −y leads", 1, MAX_STEP, 2),
@@ -275,6 +275,8 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "lands",
         ),
     ];
+    params.push(sparksmith_generator_sdk::marking::param());
+    params.push(sparksmith_generator_sdk::marking::dot_param());
     let rules = vec![
         Rule {
             text: "Neighbouring leads must not touch: step × pitch > lead width".into(),
@@ -957,6 +959,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     };
     let component_part = request.scope == Scope::Component;
     Ok(Generation {
+        marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

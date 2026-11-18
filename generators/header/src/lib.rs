@@ -488,6 +488,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let component_part = request.scope == Scope::Component;
     let name = format!("Pin header {}×{} {} mm", d.rows, d.columns, mm(d.pitch));
     Ok(Generation {
+        marking: None,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

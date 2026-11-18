@@ -1581,6 +1581,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             .to_string(),
     ];
     Ok(Generation {
+        marking: None,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

@@ -35,7 +35,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Estimated land: terminal length plus this along x…
 const LAND_EXTRA_LENGTH_NM: i64 = 600_000;
@@ -192,7 +192,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     let parts: Vec<(&str, &str)> = Part::ALL.iter().map(|(_, k, l)| (*k, *l)).collect();
     let leads: Vec<(&str, &str)> = Form::ALL.iter().map(|(_, k, l)| (*k, *l)).collect();
     // The defaults are the SOD-123 starter row.
-    let params = vec![
+    let mut params = vec![
         enumeration("part", "Part", &parts, "diode", "part"),
         enumeration("lead", "Terminals", &leads, "flat", "body"),
         length("body_length", "Body length", 200 * UM, 20 * MM, 2_700_000),
@@ -235,6 +235,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             context: None,
         },
     ];
+    params.push(sparksmith_generator_sdk::marking::param());
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),
@@ -786,6 +787,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.body_width).trim_end_matches(" mm"),
     );
     Ok(Generation {
+        marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: ["1", "2"]
                 .iter()

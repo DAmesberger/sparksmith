@@ -39,7 +39,7 @@ const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 
 /// The generator's version (`Description::version`): 1, the first with a
 /// 3D model; 2 marks an LED's pin 1 (its cathode) with a silkscreen dot.
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// The pin-1 dot of a polarised chip (an LED): a filled silkscreen circle
 /// of this radius beyond pad 1's −x edge, clear of its mask opening by the
@@ -182,7 +182,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         m.insert("part".into(), ParamValue::Text(part.into()));
         m
     };
-    let params = vec![
+    let mut params = vec![
         enumeration("part", "Part", &parts, "resistor", "part"),
         length("length", "Body length", 200_000, 8 * MM, 1_600_000, "body"),
         length("width", "Body width", 100_000, 6 * MM, 800_000, "body"),
@@ -223,6 +223,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         gap,
         style,
     ];
+    params.push(sparksmith_generator_sdk::marking::param());
     let rules = vec![
         Rule {
             text: "2 × termination < body length".into(),
@@ -633,6 +634,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         fields.push("colour".into());
     }
     Ok(Generation {
+        marking: sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: terminals(d.part),
             prefix: d.part.prefix().into(),

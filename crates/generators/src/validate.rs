@@ -394,6 +394,22 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
     for note in &g.notes {
         text("note", note)?;
     }
+    if let Some(marking) = &g.marking {
+        count(
+            "marking lines",
+            marking.lines.len(),
+            limits::MARKING_LINES,
+        )?;
+        for line in &marking.lines {
+            if line.trim().is_empty() || line.len() > limits::MARKING_LINE_BYTES || line.contains('\n')
+            {
+                return Err(invalid(format!(
+                    "The generator returned a marking line that is empty, spans lines or is longer than {} bytes.",
+                    limits::MARKING_LINE_BYTES
+                )));
+            }
+        }
+    }
     for field in &g.fields {
         key("field", &field.field)?;
         text("field value", &field.value)?;

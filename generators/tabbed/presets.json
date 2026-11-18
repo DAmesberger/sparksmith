@@ -22,7 +22,10 @@
    "lead_width": 400000,
    "lead_thickness": 120000,
    "foot_length": 400000,
-   "tab": "none"
+   "tab": "none",
+   "marking": [
+    "A7W"
+   ]
   },
   "citation": {
    "document": "JEDEC TO-236, SOT-23 3-lead small outline transistor package"
@@ -52,7 +55,11 @@
    "lead_width": 400000,
    "lead_thickness": 150000,
    "foot_length": 400000,
-   "tab": "none"
+   "tab": "none",
+   "marking": [
+    "C6BK"
+   ],
+   "marking_pin1_dot": true
   },
   "citation": {
    "document": "JEDEC MO-178, small outline transistor plastic package, 5 and 6 leads (SOT-23-5/6)"
@@ -83,7 +90,10 @@
    "foot_length": 900000,
    "tab_width": 3000000,
    "tab_length": 900000,
-   "tab": "lead"
+   "tab": "lead",
+   "marking": [
+    "223A"
+   ]
   },
   "citation": {
    "document": "JEDEC TO-261, SOT-223 package"
@@ -174,7 +184,11 @@
    "lead_width": 400000,
    "lead_thickness": 150000,
    "foot_length": 400000,
-   "tab": "none"
+   "tab": "none",
+   "marking": [
+    "B5AK"
+   ],
+   "marking_pin1_dot": true
   },
   "citation": {
    "document": "JEDEC MO-178, small outline transistor plastic package, 5 and 6 leads (SOT-23-5/6)"
@@ -205,7 +219,10 @@
    "lead_width": 300000,
    "lead_thickness": 120000,
    "foot_length": 300000,
-   "tab": "none"
+   "tab": "none",
+   "marking": [
+    "K7"
+   ]
   },
   "citation": {
    "document": "JEDEC MO-203, plastic small outline transistor package, 3, 5 and 6 leads (SC-70)"
@@ -236,7 +253,11 @@
    "lead_width": 250000,
    "lead_thickness": 120000,
    "foot_length": 300000,
-   "tab": "none"
+   "tab": "none",
+   "marking": [
+    "D5A"
+   ],
+   "marking_pin1_dot": true
   },
   "citation": {
    "document": "JEDEC MO-203, plastic small outline transistor package, 3, 5 and 6 leads (SC-70)"
@@ -268,7 +289,11 @@
    "lead_width": 250000,
    "lead_thickness": 120000,
    "foot_length": 300000,
-   "tab": "none"
+   "tab": "none",
+   "marking": [
+    "E6A"
+   ],
+   "marking_pin1_dot": true
   },
   "citation": {
    "document": "JEDEC MO-203, plastic small outline transistor package, 3, 5 and 6 leads (SC-70)"
@@ -302,7 +327,10 @@
    "foot_length": 600000,
    "tab_width": 1700000,
    "tab_length": 600000,
-   "tab": "lead"
+   "tab": "lead",
+   "marking": [
+    "89A"
+   ]
   },
   "basis": "estimated",
   "note": "Estimated: the nominal lead pitch, body and span of the TO-243 (SOT-89) outline; its flat leads are modelled as short gull-wing feet and the centre lead's wide tab under the body as a tab foot opposite the leads. Confirm against the device's drawing."
