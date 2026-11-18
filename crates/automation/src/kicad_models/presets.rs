@@ -32,6 +32,8 @@ const EXTENT_FRACTION: f64 = 0.25;
 const LAND_FRACTION: f64 = 0.5;
 /// Pad orientation within 0.1° of the preset's (or a quarter turn from it).
 const ANGLE_TOLERANCE_MDEG: i64 = 100;
+/// Lands of at most this many pads need a preset of the designator's prefix.
+const PREFIX_REQUIRED_MAX_PADS: usize = 2;
 /// Presets whose centre errors differ by at most 1 µm are equally near.
 const TIE_NM: f64 = 1_000.0;
 
@@ -231,7 +233,7 @@ impl Presets {
         made.definition.provenance.redistribution = Redistribution::Forbidden;
         let key = made.definition.asset.hash;
         let provenance = format!(
-            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same numbered lands, each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°; only presets whose declared reference prefix begins the designator's (the longest counting), the nearest centres decide. No electrical mapping inferred. Project-only.",
+            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same numbered lands, each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°; the longest declared reference prefix that begins the designator's narrows the candidates (for two-pad lands one is required), the nearest centres decide. No electrical mapping inferred. Project-only.",
             candidate.name, candidate.bundle.hash
         );
         let reference = if let Some(reference) = models.get(&key) {
@@ -310,10 +312,13 @@ impl std::fmt::Display for Miss {
     }
 }
 
-/// Only presets whose generator declares a prefix that begins the
-/// designator's may give the body: a wrong-looking body is worse than a
-/// placeholder. The longest such prefix counts ("RFB" is a resistor's "R",
-/// "FB" a ferrite bead's); the nearest centres decide; a tie is no choice.
+/// The longest declared prefix that begins the designator's narrows the
+/// fitting presets ("RFB" is a resistor's "R", "FB" a ferrite bead's); the
+/// nearest centres decide; a tie is no choice. Two-pad lands (chip
+/// resistors, capacitors, inductors, LEDs, diodes) do not tell the body
+/// type, so there a designator no fitting preset's prefix begins keeps the
+/// placeholder: a wrong-looking body is worse. Multi-pad packages (SOT, SO,
+/// QFN) keep their body whatever the designator.
 fn choose(
     candidates: &[Candidate],
     fitting: Vec<(usize, Fit)>,
@@ -336,7 +341,10 @@ fn choose(
             .fold(f64::INFINITY, f64::min)
     };
     let longest = fitting.iter().map(|(i, _)| declared(i)).max().unwrap_or(0);
-    if longest == 0 {
+    let two_pad = fitting
+        .first()
+        .is_some_and(|(i, _)| candidates[*i].pads.len() <= PREFIX_REQUIRED_MAX_PADS);
+    if longest == 0 && two_pad {
         let best = nearest_of(&fitting);
         let nearest = fitting
             .iter()
@@ -349,6 +357,7 @@ fn choose(
         .into_iter()
         .filter(|(i, _)| declared(i) == longest)
         .collect();
+    // (With `longest == 0`, every fitting multi-pad preset stays.)
     let best = nearest_of(&pool);
     let nearest: Vec<_> = pool
         .into_iter()
@@ -689,6 +698,12 @@ mod tests {
             Err(Miss::PrefixMismatch { nearest }) => assert!(nearest.starts_with("chip/")),
             other => return Err(format!("an L part got {:?}", other.map(|c| c.provenance)).into()),
         }
+        // A multi-pad package keeps its body under an unusual designator.
+        let sot = lands_of(&presets, "tabbed/tabbed-sot-23-6")?;
+        let choice = presets
+            .match_model(&mut engine, &sot, "XQ", &mut models, deadline)?
+            .map_err(|miss| format!("SOT-23-6 under XQ: {miss}"))?;
+        assert!(choice.provenance.contains("tabbed/tabbed-sot-23-6"));
         for name in [
             "tabbed/tabbed-sot-23-3",
             "gull-wing/gull-wing-soic-8-3.9",

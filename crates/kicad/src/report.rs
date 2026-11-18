@@ -600,8 +600,8 @@ pub enum Placeholder {
     VendorReferenceMissing,
     /// No numbered lands to match a preset against (a fiducial, a logo).
     NoLands,
-    /// A preset fits the lands, but no fitting preset's reference prefix
-    /// begins the designator's (an inductor on a chip resistor's lands).
+    /// A two-pad preset fits the lands, but no fitting preset's reference
+    /// prefix begins the designator's (an inductor on a chip resistor's lands).
     PrefixMismatch,
     /// Only KiCad library references (never resolved); no preset matched.
     KicadLibraryReferenceNoPreset,
