@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use sparksmith_core::Project;
-use sparksmith_solidcraft::project::{self, NativeModel, designs, mesh, plan};
+use sparksmith_solidcraft::project::{self, NativeModel, copper_agree, designs, mesh, plan};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
@@ -372,6 +372,44 @@ fn example_boards_mesh_as_their_plan() {
             width_ms.map_or(f64::NAN, |w| w.0),
             width_ms.map_or(f64::NAN, |w| w.1),
         );
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+/// 2D equals 3D on every example board: Layout's copper (`plan::copper`)
+/// is the plan's copper body for body, and on every layer it is the
+/// core's copper (what the copper graph joins and fabrication plots)
+/// within flattening ([`copper_agree::agreement`]).
+#[test]
+fn example_boards_draw_their_plans_copper_on_every_layer() {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let mut failures = Vec::new();
+    for (name, project) in boards() {
+        let plan = plan::of(&project).unwrap();
+        let copper = plan::copper(&project, &mut plan::Memo::default()).unwrap();
+        let flat = plan
+            .bodies()
+            .filter(|b| b.kind != sparksmith_solidcraft::material::BodyKind::Substrate);
+        if !flat.eq(copper.bodies()) {
+            failures.push(format!("{name}: Layout's copper is not the plan's"));
+        }
+        for layer in copper_agree::agreement(&project, &plan).unwrap() {
+            eprintln!(
+                "{name} {:?}: plan {:.3} mm², core {:.3} mm², differ {:.4} mm² (pads, tracks, vias \
+                 {:.4} of {:.4} allowed; fills {:.4} of {:.4})",
+                layer.layer,
+                layer.plan_mm2,
+                layer.core_mm2,
+                layer.differ_mm2(),
+                layer.objects_differ_mm2,
+                layer.objects_allowed_mm2,
+                layer.fills_differ_mm2,
+                layer.fills_allowed_mm2,
+            );
+            if !layer.agrees() {
+                failures.push(format!("{name}: {layer:?}"));
+            }
+        }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
