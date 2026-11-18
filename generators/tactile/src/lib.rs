@@ -129,20 +129,83 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "mini",
             "body",
         ),
-        length("body_length", "Base length (x, along the terminals)", [MM, 20 * MM], 4_700_000, "body"),
-        length("body_width", "Base width (y)", [MM, 20 * MM], 3_500_000, "body"),
-        length("body_height", "Cover top height", [300 * UM, 15 * MM], 1_550_000, "body"),
-        length("height", "Actuator top height", [500 * UM, 25 * MM], 2_100_000, "body"),
-        length("plunger_length", "Actuator length (square: diameter)", [300 * UM, 15 * MM], 2_600_000, "body"),
-        length("plunger_width", "Actuator width (mini)", [300 * UM, 15 * MM], 1_600_000, "body"),
-        length("span", "Overall length over the terminals", [MM, 30 * MM], 5_500_000, "terminals"),
-        length("terminal_width", "Terminal width", [100 * UM, 3 * MM], 600_000, "terminals"),
-        length("terminal_pitch", "Terminal centres across (y)", [300 * UM, 20 * MM], 1_700_000, "terminals"),
-        length("lead_thickness", "Terminal thickness", [50 * UM, MM], 150_000, "terminals"),
+        length(
+            "body_length",
+            "Base length (x, along the terminals)",
+            [MM, 20 * MM],
+            4_700_000,
+            "body",
+        ),
+        length(
+            "body_width",
+            "Base width (y)",
+            [MM, 20 * MM],
+            3_500_000,
+            "body",
+        ),
+        length(
+            "body_height",
+            "Cover top height",
+            [300 * UM, 15 * MM],
+            1_550_000,
+            "body",
+        ),
+        length(
+            "height",
+            "Actuator top height",
+            [500 * UM, 25 * MM],
+            2_100_000,
+            "body",
+        ),
+        length(
+            "plunger_length",
+            "Actuator length (square: diameter)",
+            [300 * UM, 15 * MM],
+            2_600_000,
+            "body",
+        ),
+        length(
+            "plunger_width",
+            "Actuator width (mini)",
+            [300 * UM, 15 * MM],
+            1_600_000,
+            "body",
+        ),
+        length(
+            "span",
+            "Overall length over the terminals",
+            [MM, 30 * MM],
+            5_500_000,
+            "terminals",
+        ),
+        length(
+            "terminal_width",
+            "Terminal width",
+            [100 * UM, 3 * MM],
+            600_000,
+            "terminals",
+        ),
+        length(
+            "terminal_pitch",
+            "Terminal centres across (y)",
+            [300 * UM, 20 * MM],
+            1_700_000,
+            "terminals",
+        ),
+        length(
+            "lead_thickness",
+            "Terminal thickness",
+            [50 * UM, MM],
+            150_000,
+            "terminals",
+        ),
         choices(
             "common",
             "Terminals joined inside",
-            &[("across", "The pair at one y"), ("along", "The pair at one x")],
+            &[
+                ("across", "The pair at one y"),
+                ("along", "The pair at one x"),
+            ],
             "across",
             "terminals",
         ),
@@ -155,13 +218,55 @@ fn description_with(presets: Vec<Preset>) -> Description {
             group: Some("terminals".into()),
             context: None,
         },
-        length("land_x", "Land centre x", [200 * UM, 20 * MM], 2_575_000, "lands"),
-        length("land_y", "Land centre y", [100 * UM, 20 * MM], 1_000_000, "lands"),
-        length("land_length", "Land length (x)", [200 * UM, 10 * MM], 1_450_000, "lands"),
-        length("land_width", "Land width (y)", [200 * UM, 10 * MM], 700_000, "lands"),
-        length("ground_land_y", "Ground land centre −y", [200 * UM, 20 * MM], 2_025_000, "lands"),
-        length("ground_land_length", "Ground land length (x)", [200 * UM, 10 * MM], 1_400_000, "lands"),
-        length("ground_land_width", "Ground land width (y)", [200 * UM, 10 * MM], 650_000, "lands"),
+        length(
+            "land_x",
+            "Land centre x",
+            [200 * UM, 20 * MM],
+            2_575_000,
+            "lands",
+        ),
+        length(
+            "land_y",
+            "Land centre y",
+            [100 * UM, 20 * MM],
+            1_000_000,
+            "lands",
+        ),
+        length(
+            "land_length",
+            "Land length (x)",
+            [200 * UM, 10 * MM],
+            1_450_000,
+            "lands",
+        ),
+        length(
+            "land_width",
+            "Land width (y)",
+            [200 * UM, 10 * MM],
+            700_000,
+            "lands",
+        ),
+        length(
+            "ground_land_y",
+            "Ground land centre −y",
+            [200 * UM, 20 * MM],
+            2_025_000,
+            "lands",
+        ),
+        length(
+            "ground_land_length",
+            "Ground land length (x)",
+            [200 * UM, 10 * MM],
+            1_400_000,
+            "lands",
+        ),
+        length(
+            "ground_land_width",
+            "Ground land width (y)",
+            [200 * UM, 10 * MM],
+            650_000,
+            "lands",
+        ),
     ];
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
@@ -462,10 +567,7 @@ fn model(d: &Dims) -> v1::Model {
             set("cover_thickness", SQUARE_COVER_NM.min(part_of(d.bh, 8)));
             set("stud_diameter", STUD_NM.min(part_of(d.bl.min(d.bw), 6)));
             set("stud_height", STUD_HEIGHT_NM.min(part_of(d.h - d.bh, 4)));
-            set(
-                "lead_exit",
-                EXIT_NM.min(part_of(d.bh, 2)).max(2 * d.t),
-            );
+            set("lead_exit", EXIT_NM.min(part_of(d.bh, 2)).max(2 * d.t));
             set("lead_gap", d.lead_gap());
             set("tab_length", SQUARE_TAB_NM.min(part_of(d.bl, 4)));
             parts::TACTILE_SQUARE
@@ -484,8 +586,11 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let pads = pads(&d);
     let envelope = d.envelope();
     let body = Box2::centred([0, 0], [d.bl, d.bw]);
-    let courtyard = land::courtyard(&pads, Some(Box2::centred([0, 0], [envelope[0], envelope[1]])))
-        .unwrap_or_default();
+    let courtyard = land::courtyard(
+        &pads,
+        Some(Box2::centred([0, 0], [envelope[0], envelope[1]])),
+    )
+    .unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
     let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
     silk.push(land::silk_designator(body, top));

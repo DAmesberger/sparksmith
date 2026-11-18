@@ -175,7 +175,10 @@ fn the_wroom1_lands_where_its_datasheet_lays_them() -> Result<(), Vec<Problem>> 
     // −8.0), pin 1 7.49 mm below the +y edge, pin 15 2.015 mm in from the
     // −x edge; nine 0.9 mm ground pads numbered 41 at 1.4 mm about
     // (−1.5, −2.46); castellations Ø0.55; the can embossed.
-    let g = Module::generate(&request(Scope::Component, &preset("module-esp32-s3-wroom-1")))?;
+    let g = Module::generate(&request(
+        Scope::Component,
+        &preset("module-esp32-s3-wroom-1"),
+    ))?;
     let pads = &g.footprint.pads;
     assert_eq!(pads.len(), 49);
     assert_eq!(

@@ -81,16 +81,70 @@ fn description() -> Description {
 fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults are Panasonic's size code D (6.3 × 5.8 mm).
     let params = vec![
-        length("can_diameter", "Can diameter (D)", [2 * MM, 25 * MM], 6_300_000, "can"),
+        length(
+            "can_diameter",
+            "Can diameter (D)",
+            [2 * MM, 25 * MM],
+            6_300_000,
+            "can",
+        ),
         length("height", "Height (L)", [2 * MM, 30 * MM], 5_800_000, "can"),
-        length("base_length", "Seat plate length (A)", [2 * MM, 30 * MM], 6_600_000, "body"),
-        length("base_width", "Seat plate width (B)", [2 * MM, 30 * MM], 6_600_000, "body"),
-        length("span", "Overall length over the terminals (H)", [2 * MM, 35 * MM], 7_800_000, "terminals"),
-        length("terminal_gap", "Gap between the terminals (P)", [200 * UM, 20 * MM], 1_800_000, "terminals"),
-        length("terminal_width", "Terminal width (W)", [200 * UM, 5 * MM], 650_000, "terminals"),
-        length("land_gap", "Gap between the lands (a)", [200 * UM, 20 * MM], 1_800_000, "lands"),
-        length("land_length", "Land length (b)", [300 * UM, 15 * MM], 3_200_000, "lands"),
-        length("land_width", "Land width (c)", [300 * UM, 10 * MM], 1_600_000, "lands"),
+        length(
+            "base_length",
+            "Seat plate length (A)",
+            [2 * MM, 30 * MM],
+            6_600_000,
+            "body",
+        ),
+        length(
+            "base_width",
+            "Seat plate width (B)",
+            [2 * MM, 30 * MM],
+            6_600_000,
+            "body",
+        ),
+        length(
+            "span",
+            "Overall length over the terminals (H)",
+            [2 * MM, 35 * MM],
+            7_800_000,
+            "terminals",
+        ),
+        length(
+            "terminal_gap",
+            "Gap between the terminals (P)",
+            [200 * UM, 20 * MM],
+            1_800_000,
+            "terminals",
+        ),
+        length(
+            "terminal_width",
+            "Terminal width (W)",
+            [200 * UM, 5 * MM],
+            650_000,
+            "terminals",
+        ),
+        length(
+            "land_gap",
+            "Gap between the lands (a)",
+            [200 * UM, 20 * MM],
+            1_800_000,
+            "lands",
+        ),
+        length(
+            "land_length",
+            "Land length (b)",
+            [300 * UM, 15 * MM],
+            3_200_000,
+            "lands",
+        ),
+        length(
+            "land_width",
+            "Land width (c)",
+            [300 * UM, 10 * MM],
+            1_600_000,
+            "lands",
+        ),
         Param {
             key: "vent".into(),
             label: "Vent cross".into(),
@@ -112,7 +166,13 @@ fn description_with(presets: Vec<Preset>) -> Description {
         ),
         rule(
             "P < H ≤ 2 × A; W < B",
-            &["terminal_gap", "span", "base_length", "terminal_width", "base_width"],
+            &[
+                "terminal_gap",
+                "span",
+                "base_length",
+                "terminal_width",
+                "base_width",
+            ],
         ),
         rule("L > 2 mm over the seat plate", &["height"]),
     ];
@@ -353,8 +413,11 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let pads = pads(&d);
     let envelope = d.envelope();
     let body = Box2::centred([0, 0], [d.a, d.b]);
-    let courtyard = land::courtyard(&pads, Some(Box2::centred([0, 0], [envelope[0], envelope[1]])))
-        .unwrap_or_default();
+    let courtyard = land::courtyard(
+        &pads,
+        Some(Box2::centred([0, 0], [envelope[0], envelope[1]])),
+    )
+    .unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
     let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
     silk.push(land::silk_designator(body, top));

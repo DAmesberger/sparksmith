@@ -4628,17 +4628,21 @@ fn author_parts() {
         ("generators/electrolytic/parts", "electrolytic-smd", || {
             families::author_electrolytic(false)
         }),
-        ("generators/electrolytic/parts", "electrolytic-smd-vent", || {
-            families::author_electrolytic(true)
-        }),
+        (
+            "generators/electrolytic/parts",
+            "electrolytic-smd-vent",
+            || families::author_electrolytic(true),
+        ),
         (
             "generators/power-inductor/parts",
             "inductor-molded",
             families::author_inductor_molded,
         ),
-        ("generators/power-inductor/parts", "inductor-shielded", || {
-            families::author_inductor_shielded(false)
-        }),
+        (
+            "generators/power-inductor/parts",
+            "inductor-shielded",
+            || families::author_inductor_shielded(false),
+        ),
         (
             "generators/power-inductor/parts",
             "inductor-shielded-window",

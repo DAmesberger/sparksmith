@@ -371,7 +371,12 @@ fn description_with(presets: Vec<Preset>) -> Description {
             0,
             "antenna",
         ),
-        flag("can_emboss", "Emboss groove round the can's label area", true, "can"),
+        flag(
+            "can_emboss",
+            "Emboss groove round the can's label area",
+            true,
+            "can",
+        ),
         length(
             "can_emboss_inset",
             "Emboss groove inset from the can's sides",

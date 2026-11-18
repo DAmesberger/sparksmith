@@ -350,9 +350,7 @@ pub fn role_of(material: Option<MaterialId>) -> BodyRole {
             | M::MarkingInkWhite
             | M::MarkingInkBlack
             | M::PadPrintInk,
-        ) => {
-            BodyRole::Marking
-        }
+        ) => BodyRole::Marking,
         _ => BodyRole::Body,
     }
 }

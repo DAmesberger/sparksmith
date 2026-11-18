@@ -66,13 +66,55 @@ fn description() -> Description {
 fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults are Würth Elektronik's 9774100360R (M3, 10 mm).
     let params = vec![
-        length("length", "Length above the board", [500 * UM, 50 * MM], 10_000_000, "spacer"),
-        length("outer_diameter", "Outer diameter", [MM, 20 * MM], 6_000_000, "spacer"),
-        length("bore_diameter", "Bore (thread minor diameter)", [300 * UM, 15 * MM], 2_500_000, "spacer"),
-        length("spigot_diameter", "Spigot diameter", [0, 20 * MM], 4_200_000, "spigot"),
-        length("spigot_length", "Spigot length below the board (0: none)", [0, 10 * MM], 1_400_000, "spigot"),
-        length("land_diameter", "Land diameter", [MM, 30 * MM], 7_400_000, "land"),
-        length("hole_diameter", "Board hole diameter (non-plated)", [0, 20 * MM], 4_400_000, "land"),
+        length(
+            "length",
+            "Length above the board",
+            [500 * UM, 50 * MM],
+            10_000_000,
+            "spacer",
+        ),
+        length(
+            "outer_diameter",
+            "Outer diameter",
+            [MM, 20 * MM],
+            6_000_000,
+            "spacer",
+        ),
+        length(
+            "bore_diameter",
+            "Bore (thread minor diameter)",
+            [300 * UM, 15 * MM],
+            2_500_000,
+            "spacer",
+        ),
+        length(
+            "spigot_diameter",
+            "Spigot diameter",
+            [0, 20 * MM],
+            4_200_000,
+            "spigot",
+        ),
+        length(
+            "spigot_length",
+            "Spigot length below the board (0: none)",
+            [0, 10 * MM],
+            1_400_000,
+            "spigot",
+        ),
+        length(
+            "land_diameter",
+            "Land diameter",
+            [MM, 30 * MM],
+            7_400_000,
+            "land",
+        ),
+        length(
+            "hole_diameter",
+            "Board hole diameter (non-plated)",
+            [0, 20 * MM],
+            4_400_000,
+            "land",
+        ),
     ];
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
@@ -81,12 +123,14 @@ fn description_with(presets: Vec<Preset>) -> Description {
     let rules = vec![
         rule(
             "bore < outer diameter; with a spigot, bore < spigot < outer diameter and spigot < hole",
-            &["bore_diameter", "outer_diameter", "spigot_diameter", "hole_diameter"],
+            &[
+                "bore_diameter",
+                "outer_diameter",
+                "spigot_diameter",
+                "hole_diameter",
+            ],
         ),
-        rule(
-            "hole < land diameter",
-            &["hole_diameter", "land_diameter"],
-        ),
+        rule("hole < land diameter", &["hole_diameter", "land_diameter"]),
     ];
     let offer = PartOffer {
         families: vec!["standoff".into()],
@@ -211,10 +255,15 @@ fn model(d: &Dims) -> v1::Model {
     set("length", d.length);
     set("outer_diameter", d.od);
     set("bore_diameter", d.bore);
-    set("chamfer", CHAMFER_NM.min(part_of(wall, 4)).min(part_of(d.length, 4)));
+    set(
+        "chamfer",
+        CHAMFER_NM.min(part_of(wall, 4)).min(part_of(d.length, 4)),
+    );
     set(
         "bore_chamfer",
-        BORE_CHAMFER_NM.min(part_of(wall, 4)).min(part_of(d.length, 4)),
+        BORE_CHAMFER_NM
+            .min(part_of(wall, 4))
+            .min(part_of(d.length, 4)),
     );
     let asset = match d.spigot {
         Some([dia, len]) => {
@@ -336,8 +385,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         model: Some(model(&d)),
         fields: Vec::new(),
         notes: vec![
-            "The land and hole are the manufacturer's as given; the chamfers are estimated."
-                .into(),
+            "The land and hole are the manufacturer's as given; the chamfers are estimated.".into(),
         ],
     })
 }

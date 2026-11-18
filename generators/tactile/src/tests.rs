@@ -67,7 +67,12 @@ fn every_preset_generates_on_its_lands() -> Result<(), Vec<Problem>> {
     for p in description.presets() {
         let g = Tactile::generate(&request(Scope::Component, &preset(&p.key)))?;
         contacts_on_lands(&g);
-        assert_eq!(g.component.map(|c| c.prefix), Some("SW".into()), "{}", p.key);
+        assert_eq!(
+            g.component.map(|c| c.prefix),
+            Some("SW".into()),
+            "{}",
+            p.key
+        );
     }
     Ok(())
 }
@@ -130,7 +135,10 @@ fn square_switches_join_their_pairs_as_drawn() -> Result<(), Vec<Problem>> {
     let bound: Vec<&str> = g.binding.iter().map(|b| b.terminal.as_str()).collect();
     assert_eq!(bound, vec!["1", "1", "2", "2"]);
     // Gull-wing feet from 2.25 + 0.3 to 3.75 mm: contacts at ±3.15 mm.
-    assert_eq!(g.package.geometry.leads[0].contact, [-3_150_000, -1_500_000, 0]);
+    assert_eq!(
+        g.package.geometry.leads[0].contact,
+        [-3_150_000, -1_500_000, 0]
+    );
     // B3S: joined along x (1 and 3 at −x).
     let g = Tactile::generate(&request(Scope::Component, &preset("tactile-b3s-1000")))?;
     let bound: Vec<&str> = g.binding.iter().map(|b| b.terminal.as_str()).collect();

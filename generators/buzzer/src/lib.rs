@@ -76,15 +76,63 @@ fn description() -> Description {
 fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults are CUI Devices' CMI-9653S-SMT.
     let params = vec![
-        length("body_length", "Case length (x)", [3 * MM, 40 * MM], 9_600_000, "case"),
-        length("body_width", "Case width (y)", [3 * MM, 40 * MM], 9_600_000, "case"),
+        length(
+            "body_length",
+            "Case length (x)",
+            [3 * MM, 40 * MM],
+            9_600_000,
+            "case",
+        ),
+        length(
+            "body_width",
+            "Case width (y)",
+            [3 * MM, 40 * MM],
+            9_600_000,
+            "case",
+        ),
         length("height", "Height", [MM, 20 * MM], 5_000_000, "case"),
-        length("terminal_width", "Terminal width", [200 * UM, 10 * MM], 1_500_000, "terminals"),
-        length("terminal_rise", "Terminal rise up the case end", [200 * UM, 20 * MM], 2_400_000, "terminals"),
-        length("terminal_out", "Terminal beyond the case end", [50 * UM, 2 * MM], 250_000, "terminals"),
-        length("land_x", "Land centre from the middle (x)", [MM, 30 * MM], 3_800_000, "lands"),
-        length("land_length", "Land length (x)", [300 * UM, 10 * MM], 3_000_000, "lands"),
-        length("land_width", "Land width (y)", [300 * UM, 10 * MM], 2_500_000, "lands"),
+        length(
+            "terminal_width",
+            "Terminal width",
+            [200 * UM, 10 * MM],
+            1_500_000,
+            "terminals",
+        ),
+        length(
+            "terminal_rise",
+            "Terminal rise up the case end",
+            [200 * UM, 20 * MM],
+            2_400_000,
+            "terminals",
+        ),
+        length(
+            "terminal_out",
+            "Terminal beyond the case end",
+            [50 * UM, 2 * MM],
+            250_000,
+            "terminals",
+        ),
+        length(
+            "land_x",
+            "Land centre from the middle (x)",
+            [MM, 30 * MM],
+            3_800_000,
+            "lands",
+        ),
+        length(
+            "land_length",
+            "Land length (x)",
+            [300 * UM, 10 * MM],
+            3_000_000,
+            "lands",
+        ),
+        length(
+            "land_width",
+            "Land width (y)",
+            [300 * UM, 10 * MM],
+            2_500_000,
+            "lands",
+        ),
         Param {
             key: "label".into(),
             label: "Masking label".into(),
@@ -297,8 +345,11 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let pads = pads(&d);
     let envelope = d.envelope();
     let body = Box2::centred([0, 0], [d.bl, d.bw]);
-    let courtyard = land::courtyard(&pads, Some(Box2::centred([0, 0], [envelope[0], envelope[1]])))
-        .unwrap_or_default();
+    let courtyard = land::courtyard(
+        &pads,
+        Some(Box2::centred([0, 0], [envelope[0], envelope[1]])),
+    )
+    .unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
     let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
     silk.push(land::silk_designator(body, top));

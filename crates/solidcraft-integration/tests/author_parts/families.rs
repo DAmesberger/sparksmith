@@ -263,24 +263,89 @@ pub fn author_tactile_mini(ground: bool) -> Vec<u8> {
         &[
             ("body_length", "4.7 mm", "mm", "mounting base along x"),
             ("body_width", "3.5 mm", "mm", "mounting base across (y)"),
-            ("height", "2.1 mm", "mm", "push plate top above the seating plane"),
-            ("cover_height", "1.55 mm", "mm", "cover top above the seating plane"),
-            ("cover_thickness", "0.1 mm", "mm", "cover sheet thickness (est.)"),
+            (
+                "height",
+                "2.1 mm",
+                "mm",
+                "push plate top above the seating plane",
+            ),
+            (
+                "cover_height",
+                "1.55 mm",
+                "mm",
+                "cover top above the seating plane",
+            ),
+            (
+                "cover_thickness",
+                "0.1 mm",
+                "mm",
+                "cover sheet thickness (est.)",
+            ),
             ("span", "5.5 mm", "mm", "overall length over the terminals"),
             ("terminal_width", "0.6 mm", "mm", "terminal width"),
-            ("terminal_pitch", "1.7 mm", "mm", "terminal centres across (y)"),
-            ("lead_thickness", "0.15 mm", "mm", "terminal sheet thickness (est.)"),
-            ("lead_rise", "0.5 mm", "mm", "height of the J's tab above the seating plane (est.)"),
-            ("foot_length", "0.7 mm", "mm", "foot length under the base from the tip (est.)"),
-            ("lead_root", "0.3 mm", "mm", "how far a tab reaches into the base (est.)"),
+            (
+                "terminal_pitch",
+                "1.7 mm",
+                "mm",
+                "terminal centres across (y)",
+            ),
+            (
+                "lead_thickness",
+                "0.15 mm",
+                "mm",
+                "terminal sheet thickness (est.)",
+            ),
+            (
+                "lead_rise",
+                "0.5 mm",
+                "mm",
+                "height of the J's tab above the seating plane (est.)",
+            ),
+            (
+                "foot_length",
+                "0.7 mm",
+                "mm",
+                "foot length under the base from the tip (est.)",
+            ),
+            (
+                "lead_root",
+                "0.3 mm",
+                "mm",
+                "how far a tab reaches into the base (est.)",
+            ),
             ("plate_length", "2.6 mm", "mm", "push plate along x"),
             ("plate_width", "1.6 mm", "mm", "push plate across (y)"),
-            ("plate_round", "0.5 mm", "mm", "round of the push plate's upright edges"),
-            ("plate_clearance", "0.1 mm", "mm", "cover opening clearance round the plate (est.)"),
-            ("tab_length", "0.8 mm", "mm", "cover side tab along x (est.)"),
-            ("tab_drop", "0.7 mm", "mm", "how far the cover's side tabs reach down (est.)"),
+            (
+                "plate_round",
+                "0.5 mm",
+                "mm",
+                "round of the push plate's upright edges",
+            ),
+            (
+                "plate_clearance",
+                "0.1 mm",
+                "mm",
+                "cover opening clearance round the plate (est.)",
+            ),
+            (
+                "tab_length",
+                "0.8 mm",
+                "mm",
+                "cover side tab along x (est.)",
+            ),
+            (
+                "tab_drop",
+                "0.7 mm",
+                "mm",
+                "how far the cover's side tabs reach down (est.)",
+            ),
             ("ground_length", "1 mm", "mm", "ground tab along x"),
-            ("ground_out", "0.3 mm", "mm", "ground tab reach beyond the −y side"),
+            (
+                "ground_out",
+                "0.3 mm",
+                "mm",
+                "ground tab reach beyond the −y side",
+            ),
         ],
     );
     let (bl, bw, ch, ct) = (4.7, 3.5, 1.55, 0.1);
@@ -315,12 +380,20 @@ pub fn author_tactile_mini(ground: bool) -> Vec<u8> {
         &mut s,
         "cover",
         Op::New("cover"),
-        ["- body_length / 2", "- body_width / 2", "cover_height - cover_thickness"],
+        [
+            "- body_length / 2",
+            "- body_width / 2",
+            "cover_height - cover_thickness",
+        ],
         ["body_length", "body_width", "cover_thickness"],
     );
     for (k, x) in [(1, "-"), (2, "")] {
         for (side, y0, y1) in [
-            ("-y", "- body_width / 2", "- body_width / 2 + cover_thickness"),
+            (
+                "-y",
+                "- body_width / 2",
+                "- body_width / 2 + cover_thickness",
+            ),
             ("+y", "body_width / 2 - cover_thickness", "body_width / 2"),
         ] {
             let x0 = format!("{x} body_length / 4 - tab_length / 2");
@@ -395,7 +468,11 @@ pub fn author_tactile_mini(ground: bool) -> Vec<u8> {
             "- plate_width / 2",
             "cover_height - cover_thickness",
         ],
-        ["plate_length", "plate_width", "height - cover_height + cover_thickness"],
+        [
+            "plate_length",
+            "plate_width",
+            "height - cover_height + cover_thickness",
+        ],
     );
     let (pl, pw, h) = (2.6, 1.6, 2.1);
     let plate_corners: Vec<[f64; 3]> = [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]]
@@ -485,7 +562,14 @@ fn gull_terminal(s: &mut Session, name: &str, minus: bool, y: &str) {
         s,
         &format!("{name} tab"),
         Op::Join(name),
-        [&tx0, &tx1, &y0, &y1, "lead_exit - lead_thickness", "lead_exit"],
+        [
+            &tx0,
+            &tx1,
+            &y0,
+            &y1,
+            "lead_exit - lead_thickness",
+            "lead_exit",
+        ],
     );
 }
 
@@ -501,21 +585,76 @@ pub fn author_tactile_square() -> Vec<u8> {
         &mut s,
         &[
             ("body_length", "4.5 mm", "mm", "base along x"),
-            ("body_width", "4.5 mm", "mm", "base across (y), over the cover tabs"),
-            ("body_height", "1.75 mm", "mm", "cover top above the seating plane (est.)"),
-            ("height", "3.8 mm", "mm", "plunger top above the seating plane"),
+            (
+                "body_width",
+                "4.5 mm",
+                "mm",
+                "base across (y), over the cover tabs",
+            ),
+            (
+                "body_height",
+                "1.75 mm",
+                "mm",
+                "cover top above the seating plane (est.)",
+            ),
+            (
+                "height",
+                "3.8 mm",
+                "mm",
+                "plunger top above the seating plane",
+            ),
             ("plunger_diameter", "2.5 mm", "mm", "plunger diameter"),
-            ("cover_thickness", "0.15 mm", "mm", "cover sheet thickness (est.)"),
-            ("stud_diameter", "0.7 mm", "mm", "cover corner stud diameter (est.)"),
-            ("stud_height", "0.25 mm", "mm", "cover corner stud height (est.)"),
+            (
+                "cover_thickness",
+                "0.15 mm",
+                "mm",
+                "cover sheet thickness (est.)",
+            ),
+            (
+                "stud_diameter",
+                "0.7 mm",
+                "mm",
+                "cover corner stud diameter (est.)",
+            ),
+            (
+                "stud_height",
+                "0.25 mm",
+                "mm",
+                "cover corner stud height (est.)",
+            ),
             ("span", "7.5 mm", "mm", "overall length over the terminals"),
             ("terminal_width", "0.7 mm", "mm", "terminal width"),
-            ("terminal_pitch", "3 mm", "mm", "terminal centres across (y)"),
+            (
+                "terminal_pitch",
+                "3 mm",
+                "mm",
+                "terminal centres across (y)",
+            ),
             ("lead_thickness", "0.3 mm", "mm", "terminal sheet thickness"),
-            ("lead_exit", "0.7 mm", "mm", "terminal top where it leaves the base (est.)"),
-            ("lead_gap", "0.3 mm", "mm", "gap between the base and a terminal's leg (est.)"),
-            ("lead_root", "0.3 mm", "mm", "how far a terminal reaches into the base (est.)"),
-            ("tab_length", "1.2 mm", "mm", "cover side tab along x (est.)"),
+            (
+                "lead_exit",
+                "0.7 mm",
+                "mm",
+                "terminal top where it leaves the base (est.)",
+            ),
+            (
+                "lead_gap",
+                "0.3 mm",
+                "mm",
+                "gap between the base and a terminal's leg (est.)",
+            ),
+            (
+                "lead_root",
+                "0.3 mm",
+                "mm",
+                "how far a terminal reaches into the base (est.)",
+            ),
+            (
+                "tab_length",
+                "1.2 mm",
+                "mm",
+                "cover side tab along x (est.)",
+            ),
         ],
     );
     let (bl, bw, bh, ct) = (4.5, 4.5, 1.75, 0.15);
@@ -523,7 +662,11 @@ pub fn author_tactile_square() -> Vec<u8> {
         &mut s,
         "base",
         Op::New("base"),
-        ["- body_length / 2", "- body_width / 2 + cover_thickness", "0 mm"],
+        [
+            "- body_length / 2",
+            "- body_width / 2 + cover_thickness",
+            "0 mm",
+        ],
         [
             "body_length",
             "body_width - 2 * cover_thickness",
@@ -543,11 +686,19 @@ pub fn author_tactile_square() -> Vec<u8> {
         &mut s,
         "cover",
         Op::New("cover"),
-        ["- body_length / 2", "- body_width / 2", "body_height - cover_thickness"],
+        [
+            "- body_length / 2",
+            "- body_width / 2",
+            "body_height - cover_thickness",
+        ],
         ["body_length", "body_width", "cover_thickness"],
     );
     for (side, y0, y1) in [
-        ("-y", "- body_width / 2", "- body_width / 2 + cover_thickness"),
+        (
+            "-y",
+            "- body_width / 2",
+            "- body_width / 2 + cover_thickness",
+        ),
         ("+y", "body_width / 2 - cover_thickness", "body_width / 2"),
     ] {
         span_box(
@@ -564,12 +715,7 @@ pub fn author_tactile_square() -> Vec<u8> {
             ],
         );
     }
-    for (k, x, y) in [
-        (1, "-", "-"),
-        (2, "", "-"),
-        (3, "", ""),
-        (4, "-", ""),
-    ] {
+    for (k, x, y) in [(1, "-", "-"), (2, "", "-"), (3, "", ""), (4, "-", "")] {
         let at = format!("{x} (body_length / 2 - stud_diameter)");
         let at_y = format!("{y} (body_width / 2 - stud_diameter)");
         cyl(
@@ -655,28 +801,83 @@ pub fn author_reed() -> Vec<u8> {
         &[
             ("tube_length", "15.24 mm", "mm", "glass envelope length"),
             ("tube_diameter", "2.28 mm", "mm", "glass envelope diameter"),
-            ("height", "2.84 mm", "mm", "envelope top above the seating plane"),
-            ("bend_span", "17.52 mm", "mm", "over the leads' downward legs"),
+            (
+                "height",
+                "2.84 mm",
+                "mm",
+                "envelope top above the seating plane",
+            ),
+            (
+                "bend_span",
+                "17.52 mm",
+                "mm",
+                "over the leads' downward legs",
+            ),
             ("span", "19.3 mm", "mm", "overall length over the feet"),
             ("lead_diameter", "0.5 mm", "mm", "lead wire diameter (est.)"),
             ("foot_width", "1 mm", "mm", "flattened foot width"),
-            ("foot_thickness", "0.2 mm", "mm", "flattened foot thickness (est.)"),
-            ("seal_length", "1.6 mm", "mm", "tapered seal length at each end (est.)"),
-            ("seal_diameter", "1 mm", "mm", "diameter at the seal's tip (est.)"),
+            (
+                "foot_thickness",
+                "0.2 mm",
+                "mm",
+                "flattened foot thickness (est.)",
+            ),
+            (
+                "seal_length",
+                "1.6 mm",
+                "mm",
+                "tapered seal length at each end (est.)",
+            ),
+            (
+                "seal_diameter",
+                "1 mm",
+                "mm",
+                "diameter at the seal's tip (est.)",
+            ),
             ("wall", "0.3 mm", "mm", "glass wall thickness (est.)"),
             ("blade_width", "0.45 mm", "mm", "reed blade width (est.)"),
-            ("blade_thickness", "0.15 mm", "mm", "reed blade thickness (est.)"),
-            ("blade_overlap", "0.8 mm", "mm", "reed blades' overlap at the centre (est.)"),
-            ("contact_gap", "0.05 mm", "mm", "gap between the open blades (est.)"),
-            ("axis_z", "height - tube_diameter / 2", "mm", "envelope axis height"),
+            (
+                "blade_thickness",
+                "0.15 mm",
+                "mm",
+                "reed blade thickness (est.)",
+            ),
+            (
+                "blade_overlap",
+                "0.8 mm",
+                "mm",
+                "reed blades' overlap at the centre (est.)",
+            ),
+            (
+                "contact_gap",
+                "0.05 mm",
+                "mm",
+                "gap between the open blades (est.)",
+            ),
+            (
+                "axis_z",
+                "height - tube_diameter / 2",
+                "mm",
+                "envelope axis height",
+            ),
             (
                 "seal_taper",
                 "atan2((tube_diameter - seal_diameter) / 2, seal_length)",
                 "deg",
                 "the seals' taper",
             ),
-            ("leg_x", "bend_span / 2 - lead_diameter / 2", "mm", "leg centre x"),
-            ("blade_tip", "blade_overlap / 2", "mm", "how far a blade reaches past the centre"),
+            (
+                "leg_x",
+                "bend_span / 2 - lead_diameter / 2",
+                "mm",
+                "leg centre x",
+            ),
+            (
+                "blade_tip",
+                "blade_overlap / 2",
+                "mm",
+                "how far a blade reaches past the centre",
+            ),
         ],
     );
     // The envelope: a tube between two cones, hollowed.
@@ -693,7 +894,12 @@ pub fn author_reed() -> Vec<u8> {
     // from the tube's in to the tip's at the other.
     for (k, base, from, taper) in [
         (1, "- tube_length / 2", "seal_diameter", "seal_taper"),
-        (2, "tube_length / 2 - seal_length", "tube_diameter", "- seal_taper"),
+        (
+            2,
+            "tube_length / 2 - seal_length",
+            "tube_diameter",
+            "- seal_taper",
+        ),
     ] {
         disc(
             &mut s,
@@ -825,17 +1031,62 @@ pub fn author_buzzer(label: bool) -> Vec<u8> {
             ("body_length", "9.6 mm", "mm", "case along x"),
             ("body_width", "9.6 mm", "mm", "case across (y)"),
             ("height", "5 mm", "mm", "top above the seating plane"),
-            ("corner_bevel", "1.2 mm", "mm", "the orientation corner's bevel (est.)"),
-            ("edge_round", "0.3 mm", "mm", "round of the case's top edges (est.)"),
-            ("port_diameter", "1.5 mm", "mm", "sound port diameter (est.)"),
+            (
+                "corner_bevel",
+                "1.2 mm",
+                "mm",
+                "the orientation corner's bevel (est.)",
+            ),
+            (
+                "edge_round",
+                "0.3 mm",
+                "mm",
+                "round of the case's top edges (est.)",
+            ),
+            (
+                "port_diameter",
+                "1.5 mm",
+                "mm",
+                "sound port diameter (est.)",
+            ),
             ("port_depth", "1 mm", "mm", "sound port depth (est.)"),
             ("terminal_width", "1.5 mm", "mm", "terminal width (y)"),
-            ("terminal_rise", "2.4 mm", "mm", "terminal plate height up the case end"),
-            ("terminal_out", "0.25 mm", "mm", "terminal plate thickness beyond the case end"),
-            ("terminal_depth", "1.2 mm", "mm", "foot length under the case (est.)"),
-            ("lead_thickness", "0.1 mm", "mm", "foot thickness under the case"),
-            ("label_diameter", "7.6 mm", "mm", "masking label diameter (est.)"),
-            ("label_thickness", "0.05 mm", "mm", "masking label thickness (est.)"),
+            (
+                "terminal_rise",
+                "2.4 mm",
+                "mm",
+                "terminal plate height up the case end",
+            ),
+            (
+                "terminal_out",
+                "0.25 mm",
+                "mm",
+                "terminal plate thickness beyond the case end",
+            ),
+            (
+                "terminal_depth",
+                "1.2 mm",
+                "mm",
+                "foot length under the case (est.)",
+            ),
+            (
+                "lead_thickness",
+                "0.1 mm",
+                "mm",
+                "foot thickness under the case",
+            ),
+            (
+                "label_diameter",
+                "7.6 mm",
+                "mm",
+                "masking label diameter (est.)",
+            ),
+            (
+                "label_thickness",
+                "0.05 mm",
+                "mm",
+                "masking label thickness (est.)",
+            ),
         ],
     );
     let (bl, bw, h) = (9.6, 9.6, 5.0);
@@ -849,7 +1100,11 @@ pub fn author_buzzer(label: bool) -> Vec<u8> {
         "case",
         Op::New("case"),
         ["- body_length / 2", "- body_width / 2", "lead_thickness"],
-        ["body_length", "body_width", &format!("{top} - lead_thickness")],
+        [
+            "body_length",
+            "body_width",
+            &format!("{top} - lead_thickness"),
+        ],
     );
     let top_z = if label { h - 0.05 } else { h };
     run(
@@ -974,21 +1229,71 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
         &mut s,
         &[
             ("can_diameter", "6.3 mm", "mm", "can diameter (D)"),
-            ("height", "5.8 mm", "mm", "overall height above the seating plane (L)"),
+            (
+                "height",
+                "5.8 mm",
+                "mm",
+                "overall height above the seating plane (L)",
+            ),
             ("base_length", "6.6 mm", "mm", "seat plate along x (A)"),
             ("base_width", "6.6 mm", "mm", "seat plate across (B)"),
             ("base_height", "1 mm", "mm", "seat plate height (est.)"),
-            ("base_bevel", "1 mm", "mm", "bevel of the seat plate's + corners (est.)"),
-            ("span", "7.8 mm", "mm", "overall length over the terminals (H)"),
-            ("terminal_gap", "1.8 mm", "mm", "gap between the terminals (P)"),
+            (
+                "base_bevel",
+                "1 mm",
+                "mm",
+                "bevel of the seat plate's + corners (est.)",
+            ),
+            (
+                "span",
+                "7.8 mm",
+                "mm",
+                "overall length over the terminals (H)",
+            ),
+            (
+                "terminal_gap",
+                "1.8 mm",
+                "mm",
+                "gap between the terminals (P)",
+            ),
             ("terminal_width", "0.65 mm", "mm", "terminal width (W)"),
-            ("lead_thickness", "0.3 mm", "mm", "terminal thickness (est.)"),
-            ("bead_height", "0.8 mm", "mm", "seal bead centre above the seat plate (est.)"),
+            (
+                "lead_thickness",
+                "0.3 mm",
+                "mm",
+                "terminal thickness (est.)",
+            ),
+            (
+                "bead_height",
+                "0.8 mm",
+                "mm",
+                "seal bead centre above the seat plate (est.)",
+            ),
             ("bead_depth", "0.2 mm", "mm", "seal bead depth (est.)"),
-            ("rim_round", "0.35 mm", "mm", "round of the can's rim (est.)"),
-            ("print_from", "0.15 * can_diameter", "mm", "x where the negative print begins (est.)"),
-            ("print_thickness", "0.02 mm", "mm", "negative print ink thickness (est.)"),
-            ("vent_length", "0.6 * can_diameter", "mm", "vent score length (est.)"),
+            (
+                "rim_round",
+                "0.35 mm",
+                "mm",
+                "round of the can's rim (est.)",
+            ),
+            (
+                "print_from",
+                "0.15 * can_diameter",
+                "mm",
+                "x where the negative print begins (est.)",
+            ),
+            (
+                "print_thickness",
+                "0.02 mm",
+                "mm",
+                "negative print ink thickness (est.)",
+            ),
+            (
+                "vent_length",
+                "0.6 * can_diameter",
+                "mm",
+                "vent score length (est.)",
+            ),
             ("vent_width", "0.15 mm", "mm", "vent score width (est.)"),
             ("vent_depth", "0.06 mm", "mm", "vent score depth (est.)"),
         ],
@@ -1037,7 +1342,11 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
         &mut s,
         "seal bead inside",
         Op::Cut(&["seal bead"]),
-        ["0 mm", "0 mm", "base_height + bead_height - bead_depth - 1 mm"],
+        [
+            "0 mm",
+            "0 mm",
+            "base_height + bead_height - bead_depth - 1 mm",
+        ],
         [0, 0, 1],
         "can_diameter - 2 * bead_depth",
         "2 * bead_depth + 2 mm",
@@ -1111,7 +1420,12 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
             ],
         );
     }
-    cut_keep(&mut s, "terminal grooves", "base", &["terminal 1", "terminal 2"]);
+    cut_keep(
+        &mut s,
+        "terminal grooves",
+        "base",
+        &["terminal 1", "terminal 2"],
+    );
     assign_look(&mut s, &["base"], MaterialId::Pa9t);
     assign_look(&mut s, &["can"], MaterialId::Aluminium);
     assign_look(&mut s, &["print"], MaterialId::MarkingInkBlack);
@@ -1120,7 +1434,11 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
     marking_up(
         &mut s,
         "top",
-        ["(print_from - can_diameter / 2 + rim_round) / 2", "0 mm", "height"],
+        [
+            "(print_from - can_diameter / 2 + rim_round) / 2",
+            "0 mm",
+            "height",
+        ],
         [
             "print_from + can_diameter / 2 - rim_round",
             "0.6 * can_diameter",
@@ -1145,12 +1463,37 @@ pub fn author_inductor_molded() -> Vec<u8> {
             ("body_length", "4 mm", "mm", "body along x"),
             ("body_width", "4 mm", "mm", "body across (y)"),
             ("height", "3.1 mm", "mm", "top above the seating plane"),
-            ("terminal_length", "0.82 mm", "mm", "bottom terminal along x"),
-            ("terminal_width", "3.25 mm", "mm", "bottom terminal across (y)"),
+            (
+                "terminal_length",
+                "0.82 mm",
+                "mm",
+                "bottom terminal along x",
+            ),
+            (
+                "terminal_width",
+                "3.25 mm",
+                "mm",
+                "bottom terminal across (y)",
+            ),
             ("terminal_gap", "1.57 mm", "mm", "gap between the terminals"),
-            ("terminal_thickness", "0.05 mm", "mm", "terminal plating thickness (est.)"),
-            ("corner_round", "0.2 mm", "mm", "round of the upright edges (est.)"),
-            ("edge_round", "0.15 mm", "mm", "round of the top edges (est.)"),
+            (
+                "terminal_thickness",
+                "0.05 mm",
+                "mm",
+                "terminal plating thickness (est.)",
+            ),
+            (
+                "corner_round",
+                "0.2 mm",
+                "mm",
+                "round of the upright edges (est.)",
+            ),
+            (
+                "edge_round",
+                "0.15 mm",
+                "mm",
+                "round of the top edges (est.)",
+            ),
         ],
     );
     let (bl, bw, h) = (4.0, 4.0, 3.1);
@@ -1198,7 +1541,12 @@ pub fn author_inductor_molded() -> Vec<u8> {
             ],
         );
     }
-    cut_keep(&mut s, "terminal recesses", "core", &["terminal 1", "terminal 2"]);
+    cut_keep(
+        &mut s,
+        "terminal recesses",
+        "core",
+        &["terminal 1", "terminal 2"],
+    );
     assign_look(&mut s, &["core"], MaterialId::Ferrite);
     assign_look(&mut s, &["terminal 1", "terminal 2"], MaterialId::TinMatte);
     marking_up(
@@ -1228,15 +1576,55 @@ pub fn author_inductor_shielded(window: bool) -> Vec<u8> {
             ("body_length", "6.8 mm", "mm", "body along x"),
             ("body_width", "6.8 mm", "mm", "body across (y)"),
             ("height", "2.8 mm", "mm", "top above the seating plane"),
-            ("corner_bevel", "1 mm", "mm", "bevel of the sleeve's upright corners (est.)"),
-            ("bore_diameter", "5.9 mm", "mm", "sleeve bore, the drum flange's seat (est.)"),
-            ("flange_diameter", "5.6 mm", "mm", "drum core top flange diameter (est.)"),
-            ("flange_thickness", "0.5 mm", "mm", "drum core flange thickness (est.)"),
-            ("winding_diameter", "5.2 mm", "mm", "winding outer diameter (est.)"),
+            (
+                "corner_bevel",
+                "1 mm",
+                "mm",
+                "bevel of the sleeve's upright corners (est.)",
+            ),
+            (
+                "bore_diameter",
+                "5.9 mm",
+                "mm",
+                "sleeve bore, the drum flange's seat (est.)",
+            ),
+            (
+                "flange_diameter",
+                "5.6 mm",
+                "mm",
+                "drum core top flange diameter (est.)",
+            ),
+            (
+                "flange_thickness",
+                "0.5 mm",
+                "mm",
+                "drum core flange thickness (est.)",
+            ),
+            (
+                "winding_diameter",
+                "5.2 mm",
+                "mm",
+                "winding outer diameter (est.)",
+            ),
             ("terminal_length", "2.3 mm", "mm", "bottom terminal along x"),
-            ("terminal_width", "4 mm", "mm", "bottom terminal across (y) (est.)"),
-            ("terminal_thickness", "0.08 mm", "mm", "terminal thickness (est.)"),
-            ("window_width", "3 mm", "mm", "winding window along x (est.)"),
+            (
+                "terminal_width",
+                "4 mm",
+                "mm",
+                "bottom terminal across (y) (est.)",
+            ),
+            (
+                "terminal_thickness",
+                "0.08 mm",
+                "mm",
+                "terminal thickness (est.)",
+            ),
+            (
+                "window_width",
+                "3 mm",
+                "mm",
+                "winding window along x (est.)",
+            ),
         ],
     );
     let (bl, bw, h) = (6.8, 6.8, 2.8);
@@ -1244,7 +1632,11 @@ pub fn author_inductor_shielded(window: bool) -> Vec<u8> {
         &mut s,
         "sleeve",
         Op::New("sleeve"),
-        ["- body_length / 2", "- body_width / 2", "terminal_thickness"],
+        [
+            "- body_length / 2",
+            "- body_width / 2",
+            "terminal_thickness",
+        ],
         ["body_length", "body_width", "height - terminal_thickness"],
     );
     let corners: Vec<[f64; 3]> = [[-1.0, -1.0], [1.0, -1.0], [1.0, 1.0], [-1.0, 1.0]]
@@ -1306,10 +1698,7 @@ pub fn author_inductor_shielded(window: bool) -> Vec<u8> {
         "height - 2 * flange_thickness - terminal_thickness",
     );
     if window {
-        for (side, y0, y1) in [
-            ("-y", "- body_width", "0 mm"),
-            ("+y", "0 mm", "body_width"),
-        ] {
+        for (side, y0, y1) in [("-y", "- body_width", "0 mm"), ("+y", "0 mm", "body_width")] {
             span_box(
                 &mut s,
                 &format!("window {side}"),
@@ -1375,15 +1764,30 @@ pub fn author_standoff(spigot: bool) -> Vec<u8> {
         "SMD spacer, internal thread"
     });
     let mut rows = vec![
-        ("length", "10 mm", "mm", "height above the seating plane (L)"),
+        (
+            "length",
+            "10 mm",
+            "mm",
+            "height above the seating plane (L)",
+        ),
         ("outer_diameter", "6 mm", "mm", "outer diameter"),
-        ("bore_diameter", "2.5 mm", "mm", "threaded bore, the thread's minor diameter"),
+        (
+            "bore_diameter",
+            "2.5 mm",
+            "mm",
+            "threaded bore, the thread's minor diameter",
+        ),
         ("chamfer", "0.3 mm", "mm", "top outer edge chamfer (est.)"),
         ("bore_chamfer", "0.25 mm", "mm", "bore mouth chamfer (est.)"),
     ];
     if spigot {
         rows.push(("spigot_diameter", "4.2 mm", "mm", "spigot diameter"));
-        rows.push(("spigot_length", "1.4 mm", "mm", "spigot length below the seating plane"));
+        rows.push((
+            "spigot_length",
+            "1.4 mm",
+            "mm",
+            "spigot length below the seating plane",
+        ));
     }
     params(&mut s, &rows);
     let (l, od, bore) = (10.0, 6.0, 2.5);

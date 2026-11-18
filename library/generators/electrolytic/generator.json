@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "electrolytic.wasm",
-    "sha256": "3d5f6eadbee362da68832ae58b0e2b7a0378241455886f17e705ec855885bd59"
+    "sha256": "3b52e9e771e541049f2b5ea289e90d3942ae42d15aeccaaaa6145c2ebb98b8ac"
   },
   "name": "electrolytic",
   "parts": [

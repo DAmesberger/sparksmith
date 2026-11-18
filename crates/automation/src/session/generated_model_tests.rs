@@ -230,26 +230,118 @@ fn every_electromechanical_preset_makes_a_part_with_its_model() -> TestResult {
     // ground pads.
     type Case = (&'static str, &'static str, Value, usize, [f64; 3]);
     let cases: [Case; 18] = [
-        ("tactile", "tactile-evqp2-ground", json!({}), 4, [5.5, 4.1, 2.1]),
+        (
+            "tactile",
+            "tactile-evqp2-ground",
+            json!({}),
+            4,
+            [5.5, 4.1, 2.1],
+        ),
         ("tactile", "tactile-evqp2", json!({}), 4, [5.5, 3.5, 2.1]),
         ("tactile", "tactile-tl3305a", json!({}), 4, [7.5, 4.5, 3.8]),
         ("tactile", "tactile-b3s-1000", json!({}), 4, [9.0, 6.6, 4.3]),
         ("reed", "reed-mdsm-4", json!({}), 2, [19.3, 2.28, 2.84]),
-        ("buzzer", "buzzer-cmi-9653s-smt", json!({}), 2, [10.1, 9.6, 5.0]),
-        ("buzzer", "buzzer-cmi-9653s-smt", json!({"label": true}), 2, [10.1, 9.6, 5.0]),
-        ("electrolytic", "electrolytic-6.3x5.4", json!({}), 2, [7.8, 6.6, 5.5]),
-        ("electrolytic", "electrolytic-panasonic-d", json!({"vent": false}), 2, [7.8, 6.6, 5.8]),
-        ("electrolytic", "electrolytic-kemet-edk-6.3x7.7", json!({}), 2, [7.8, 6.6, 7.7]),
-        ("electrolytic", "electrolytic-panasonic-g", json!({}), 2, [12.0, 10.3, 10.2]),
-        ("power-inductor", "power-inductor-xel4030", json!({}), 2, [4.0, 4.0, 3.1]),
-        ("power-inductor", "power-inductor-srr6028", json!({}), 2, [6.8, 6.8, 2.8]),
-        ("power-inductor", "power-inductor-6x6-shielded", json!({}), 2, [6.0, 6.0, 4.5]),
-        ("standoff", "standoff-wurth-9774100360r", json!({}), 1, [6.0, 6.0, 10.0]),
-        ("standoff", "standoff-wurth-9774060360r", json!({"spigot_length": 0}), 1, [6.0, 6.0, 6.0]),
-        ("module", "module-esp32-s3-wroom-1", json!({}), 89, [18.0, 25.5, 3.1]),
-        ("module", "module-esp32-s3-wroom-1", json!({"can_emboss": false}), 89, [18.0, 25.5, 3.1]),
+        (
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            json!({}),
+            2,
+            [10.1, 9.6, 5.0],
+        ),
+        (
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            json!({"label": true}),
+            2,
+            [10.1, 9.6, 5.0],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-6.3x5.4",
+            json!({}),
+            2,
+            [7.8, 6.6, 5.5],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-panasonic-d",
+            json!({"vent": false}),
+            2,
+            [7.8, 6.6, 5.8],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-kemet-edk-6.3x7.7",
+            json!({}),
+            2,
+            [7.8, 6.6, 7.7],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-panasonic-g",
+            json!({}),
+            2,
+            [12.0, 10.3, 10.2],
+        ),
+        (
+            "power-inductor",
+            "power-inductor-xel4030",
+            json!({}),
+            2,
+            [4.0, 4.0, 3.1],
+        ),
+        (
+            "power-inductor",
+            "power-inductor-srr6028",
+            json!({}),
+            2,
+            [6.8, 6.8, 2.8],
+        ),
+        (
+            "power-inductor",
+            "power-inductor-6x6-shielded",
+            json!({}),
+            2,
+            [6.0, 6.0, 4.5],
+        ),
+        (
+            "standoff",
+            "standoff-wurth-9774100360r",
+            json!({}),
+            1,
+            [6.0, 6.0, 10.0],
+        ),
+        (
+            "standoff",
+            "standoff-wurth-9774060360r",
+            json!({"spigot_length": 0}),
+            1,
+            [6.0, 6.0, 6.0],
+        ),
+        (
+            "module",
+            "module-esp32-s3-wroom-1",
+            json!({}),
+            89,
+            [18.0, 25.5, 3.1],
+        ),
+        (
+            "module",
+            "module-esp32-s3-wroom-1",
+            json!({"can_emboss": false}),
+            89,
+            [18.0, 25.5, 3.1],
+        ),
     ];
-    for name in ["tactile", "reed", "buzzer", "electrolytic", "power-inductor", "standoff", "module"] {
+    for name in [
+        "tactile",
+        "reed",
+        "buzzer",
+        "electrolytic",
+        "power-inductor",
+        "standoff",
+        "module",
+    ] {
         copy_dir(
             &Path::new(BUNDLE).with_file_name(name),
             &root.join("generators").join(name),
@@ -269,12 +361,15 @@ fn every_electromechanical_preset_makes_a_part_with_its_model() -> TestResult {
         let PackageModel::PartFile(part) = &package.definition.model else {
             return Err(format!("{preset}: no part file").into());
         };
-        assert_eq!(part.derived.leads.len(), leads, "{preset} {params}: lead bodies");
+        assert_eq!(
+            part.derived.leads.len(),
+            leads,
+            "{preset} {params}: lead bodies"
+        );
         let [lo, hi] = part.derived.bounds_nm;
         for axis in 0..2 {
-            let size = (hi[axis].to_mm_f64() - lo[axis].to_mm_f64()).max(
-                2.0 * hi[axis].to_mm_f64().abs().max(lo[axis].to_mm_f64().abs()),
-            );
+            let size = (hi[axis].to_mm_f64() - lo[axis].to_mm_f64())
+                .max(2.0 * hi[axis].to_mm_f64().abs().max(lo[axis].to_mm_f64().abs()));
             assert!(
                 (size - outline[axis]).abs() < 0.011,
                 "{preset} {params}: axis {axis} spans {size} mm, the drawing {}",

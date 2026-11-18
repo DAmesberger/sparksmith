@@ -55,12 +55,19 @@ fn the_cmi_9653s_lands_under_its_feet() -> Result<(), Vec<Problem>> {
     let c = g.component.as_ref();
     assert_eq!(c.map(|c| c.prefix.as_str()), Some("BZ"));
     assert_eq!(
-        c.map(|c| c.terminals.iter().map(|t| t.name.as_str()).collect::<Vec<_>>()),
+        c.map(|c| c
+            .terminals
+            .iter()
+            .map(|t| t.name.as_str())
+            .collect::<Vec<_>>()),
         Some(vec!["+", "−"])
     );
     let (asset, values) = model(&g);
     assert_eq!(asset, parts::BUZZER_SMD);
-    assert_eq!(values.get("corner_bevel"), Some(&ParamValue::Int(1_200_000)));
+    assert_eq!(
+        values.get("corner_bevel"),
+        Some(&ParamValue::Int(1_200_000))
+    );
     let with_label = Buzzer::generate(&request(
         Scope::Package,
         &[("label".into(), ParamValue::Bool(true))],

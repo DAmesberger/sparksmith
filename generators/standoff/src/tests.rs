@@ -53,7 +53,12 @@ fn the_wa_smsi_land_and_spigot() -> Result<(), Vec<Problem>> {
     // Ø4.2 inside it; the contact on the wall between Ø2.5 and Ø6.0.
     let g = Standoff::generate(&request(Scope::Component, &[]))?;
     let pad = &g.footprint.pads[0];
-    assert_eq!(pad.shape, PadShape::Circle { diameter_nm: 7_400_000 });
+    assert_eq!(
+        pad.shape,
+        PadShape::Circle {
+            diameter_nm: 7_400_000
+        }
+    );
     assert_eq!(pad.hole, None);
     let hole = &g.footprint.pads[1];
     assert_eq!(

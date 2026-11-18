@@ -1182,18 +1182,90 @@ fn write_family_pictures() -> Result<(), Box<dyn std::error::Error>> {
     };
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
     let parts: [(&str, &str, &str, serde_json::Value, f64); 12] = [
-        ("module-wroom-1", "module", "module-esp32-s3-wroom-1", serde_json::json!({}), 40.0),
-        ("tactile-evqp2", "tactile", "tactile-evqp2-ground", serde_json::json!({}), 11.0),
-        ("tactile-tl3305", "tactile", "tactile-tl3305a", serde_json::json!({}), 14.0),
-        ("tactile-b3s", "tactile", "tactile-b3s-1000", serde_json::json!({}), 17.0),
-        ("reed-mdsm-4", "reed", "reed-mdsm-4", serde_json::json!({}), 30.0),
-        ("buzzer-cmi-9653s", "buzzer", "buzzer-cmi-9653s-smt", serde_json::json!({}), 20.0),
-        ("buzzer-cmi-9653s-label", "buzzer", "buzzer-cmi-9653s-smt", serde_json::json!({"label": true}), 20.0),
-        ("electrolytic-6.3x5.4", "electrolytic", "electrolytic-6.3x5.4", serde_json::json!({}), 15.0),
-        ("inductor-xel4030", "power-inductor", "power-inductor-xel4030", serde_json::json!({}), 10.0),
-        ("inductor-srr6028", "power-inductor", "power-inductor-srr6028", serde_json::json!({}), 14.0),
-        ("inductor-6x6-window", "power-inductor", "power-inductor-6x6-shielded", serde_json::json!({}), 14.0),
-        ("standoff-9774100360r", "standoff", "standoff-wurth-9774100360r", serde_json::json!({}), 24.0),
+        (
+            "module-wroom-1",
+            "module",
+            "module-esp32-s3-wroom-1",
+            serde_json::json!({}),
+            40.0,
+        ),
+        (
+            "tactile-evqp2",
+            "tactile",
+            "tactile-evqp2-ground",
+            serde_json::json!({}),
+            11.0,
+        ),
+        (
+            "tactile-tl3305",
+            "tactile",
+            "tactile-tl3305a",
+            serde_json::json!({}),
+            14.0,
+        ),
+        (
+            "tactile-b3s",
+            "tactile",
+            "tactile-b3s-1000",
+            serde_json::json!({}),
+            17.0,
+        ),
+        (
+            "reed-mdsm-4",
+            "reed",
+            "reed-mdsm-4",
+            serde_json::json!({}),
+            30.0,
+        ),
+        (
+            "buzzer-cmi-9653s",
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            serde_json::json!({}),
+            20.0,
+        ),
+        (
+            "buzzer-cmi-9653s-label",
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            serde_json::json!({"label": true}),
+            20.0,
+        ),
+        (
+            "electrolytic-6.3x5.4",
+            "electrolytic",
+            "electrolytic-6.3x5.4",
+            serde_json::json!({}),
+            15.0,
+        ),
+        (
+            "inductor-xel4030",
+            "power-inductor",
+            "power-inductor-xel4030",
+            serde_json::json!({}),
+            10.0,
+        ),
+        (
+            "inductor-srr6028",
+            "power-inductor",
+            "power-inductor-srr6028",
+            serde_json::json!({}),
+            14.0,
+        ),
+        (
+            "inductor-6x6-window",
+            "power-inductor",
+            "power-inductor-6x6-shielded",
+            serde_json::json!({}),
+            14.0,
+        ),
+        (
+            "standoff-9774100360r",
+            "standoff",
+            "standoff-wurth-9774100360r",
+            serde_json::json!({}),
+            24.0,
+        ),
     ];
     for (name, generator, preset, params, distance) in parts {
         let mut session = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
@@ -1228,7 +1300,13 @@ fn write_family_pictures() -> Result<(), Box<dyn std::error::Error>> {
             .ok_or("no body")?;
         let (w, h) = (1280, 960);
         for (view, yaw, pitch) in [("a", 35.0, 35.0), ("b", 200.0, 25.0)] {
-            aim(&mut v, Vec3::new(at.x, at.y, at.z / 2.0), distance, yaw, pitch);
+            aim(
+                &mut v,
+                Vec3::new(at.x, at.y, at.z / 2.0),
+                distance,
+                yaw,
+                pitch,
+            );
             let rgba = gpu.draw(&mut v, w, h, 2.0).ok_or("no picture")?;
             let png = sparksmith_solidcraft::viewport::png(w as usize, h as usize, rgba)
                 .ok_or("png encoding failed")?;

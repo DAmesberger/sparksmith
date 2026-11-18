@@ -105,12 +105,42 @@ fn description_with(presets: Vec<Preset>) -> Description {
             group: Some("body".into()),
             context: None,
         },
-        length("body_length", "Body length (x)", [MM, 30 * MM], 4_000_000, "body"),
-        length("body_width", "Body width (y)", [MM, 30 * MM], 4_000_000, "body"),
+        length(
+            "body_length",
+            "Body length (x)",
+            [MM, 30 * MM],
+            4_000_000,
+            "body",
+        ),
+        length(
+            "body_width",
+            "Body width (y)",
+            [MM, 30 * MM],
+            4_000_000,
+            "body",
+        ),
         length("height", "Height", [500 * UM, 20 * MM], 3_100_000, "body"),
-        length("terminal_length", "Terminal length (x)", [100 * UM, 15 * MM], 820_000, "terminals"),
-        length("terminal_width", "Terminal width (y)", [100 * UM, 30 * MM], 3_250_000, "terminals"),
-        length("terminal_gap", "Gap between the terminals", [100 * UM, 25 * MM], 1_570_000, "terminals"),
+        length(
+            "terminal_length",
+            "Terminal length (x)",
+            [100 * UM, 15 * MM],
+            820_000,
+            "terminals",
+        ),
+        length(
+            "terminal_width",
+            "Terminal width (y)",
+            [100 * UM, 30 * MM],
+            3_250_000,
+            "terminals",
+        ),
+        length(
+            "terminal_gap",
+            "Gap between the terminals",
+            [100 * UM, 25 * MM],
+            1_570_000,
+            "terminals",
+        ),
         Param {
             key: "window".into(),
             label: "Winding windows".into(),
@@ -120,9 +150,27 @@ fn description_with(presets: Vec<Preset>) -> Description {
             group: Some("body".into()),
             context: None,
         },
-        length("land_x", "Land centre from the middle (x)", [100 * UM, 20 * MM], 1_185_000, "lands"),
-        length("land_length", "Land length (x)", [200 * UM, 15 * MM], 980_000, "lands"),
-        length("land_width", "Land width (y)", [200 * UM, 30 * MM], 3_400_000, "lands"),
+        length(
+            "land_x",
+            "Land centre from the middle (x)",
+            [100 * UM, 20 * MM],
+            1_185_000,
+            "lands",
+        ),
+        length(
+            "land_length",
+            "Land length (x)",
+            [200 * UM, 15 * MM],
+            980_000,
+            "lands",
+        ),
+        length(
+            "land_width",
+            "Land width (y)",
+            [200 * UM, 30 * MM],
+            3_400_000,
+            "lands",
+        ),
     ];
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
@@ -131,7 +179,13 @@ fn description_with(presets: Vec<Preset>) -> Description {
     let rules = vec![
         rule(
             "gap + 2 × terminal length ≤ body length (shielded: =); terminal width ≤ body width",
-            &["terminal_gap", "terminal_length", "body_length", "terminal_width", "body_width"],
+            &[
+                "terminal_gap",
+                "terminal_length",
+                "body_length",
+                "terminal_width",
+                "body_width",
+            ],
         ),
         rule(
             "The lands are apart: land x > land length / 2",

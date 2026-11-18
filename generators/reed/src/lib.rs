@@ -76,15 +76,69 @@ fn description() -> Description {
 fn description_with(presets: Vec<Preset>) -> Description {
     // The defaults are Littelfuse's MDSM-4.
     let params = vec![
-        length("tube_length", "Envelope length", [3 * MM, 60 * MM], 15_240_000, "envelope"),
-        length("tube_diameter", "Envelope diameter", [MM, 6 * MM], 2_280_000, "envelope"),
-        length("height", "Seated height", [MM, 10 * MM], 2_840_000, "envelope"),
-        length("bend_span", "Over the leads' legs", [4 * MM, 70 * MM], 17_520_000, "leads"),
-        length("span", "Overall length", [4 * MM, 75 * MM], 19_300_000, "leads"),
-        length("foot_width", "Foot width", [200 * UM, 3 * MM], 1_000_000, "leads"),
-        length("land_gap", "Gap between the lands", [2 * MM, 70 * MM], 16_000_000, "lands"),
-        length("land_length", "Land length", [300 * UM, 10 * MM], 2_340_000, "lands"),
-        length("land_width", "Land width", [300 * UM, 5 * MM], 1_300_000, "lands"),
+        length(
+            "tube_length",
+            "Envelope length",
+            [3 * MM, 60 * MM],
+            15_240_000,
+            "envelope",
+        ),
+        length(
+            "tube_diameter",
+            "Envelope diameter",
+            [MM, 6 * MM],
+            2_280_000,
+            "envelope",
+        ),
+        length(
+            "height",
+            "Seated height",
+            [MM, 10 * MM],
+            2_840_000,
+            "envelope",
+        ),
+        length(
+            "bend_span",
+            "Over the leads' legs",
+            [4 * MM, 70 * MM],
+            17_520_000,
+            "leads",
+        ),
+        length(
+            "span",
+            "Overall length",
+            [4 * MM, 75 * MM],
+            19_300_000,
+            "leads",
+        ),
+        length(
+            "foot_width",
+            "Foot width",
+            [200 * UM, 3 * MM],
+            1_000_000,
+            "leads",
+        ),
+        length(
+            "land_gap",
+            "Gap between the lands",
+            [2 * MM, 70 * MM],
+            16_000_000,
+            "lands",
+        ),
+        length(
+            "land_length",
+            "Land length",
+            [300 * UM, 10 * MM],
+            2_340_000,
+            "lands",
+        ),
+        length(
+            "land_width",
+            "Land width",
+            [300 * UM, 5 * MM],
+            1_300_000,
+            "lands",
+        ),
     ];
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
@@ -168,7 +222,10 @@ impl Dims {
 
     /// The x of terminal 2's contact: the middle of its foot.
     fn contact_x(&self) -> i64 {
-        part_of(part_of(self.span, 2) + part_of(self.bend_span, 2) - self.wire(), 2)
+        part_of(
+            part_of(self.span, 2) + part_of(self.bend_span, 2) - self.wire(),
+            2,
+        )
     }
 }
 
@@ -276,10 +333,7 @@ fn model(d: &Dims) -> v1::Model {
     set("foot_width", d.foot_width);
     set("foot_thickness", d.foot());
     set("seal_length", SEAL_NM.min(part_of(d.tube_length, 8)));
-    set(
-        "seal_diameter",
-        (2 * wire).min(d.tube_diameter - 200 * UM),
-    );
+    set("seal_diameter", (2 * wire).min(d.tube_diameter - 200 * UM));
     set("wall", part_of(d.tube_diameter - bore, 2));
     set("blade_width", BLADE_WIDTH_NM.min(part_of(2 * bore, 5)));
     set("blade_thickness", BLADE_NM.min(part_of(bore, 8)));
@@ -298,8 +352,11 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let pads = pads(&d);
     let envelope = d.envelope();
     let body = Box2::centred([0, 0], [d.tube_length, d.tube_diameter]);
-    let courtyard = land::courtyard(&pads, Some(Box2::centred([0, 0], [envelope[0], envelope[1]])))
-        .unwrap_or_default();
+    let courtyard = land::courtyard(
+        &pads,
+        Some(Box2::centred([0, 0], [envelope[0], envelope[1]])),
+    )
+    .unwrap_or_default();
     let top = courtyard.iter().map(|p| p[1]).max().unwrap_or(body.max[1]);
     let mut silk = land::silk_outline(&pads, body, land::DEFAULT_MASK_NM);
     silk.push(land::silk_designator(body, top));
