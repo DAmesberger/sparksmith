@@ -122,6 +122,8 @@ Every value carries a source key: `johnson-christy-1972`, `rakic-1998`, `hoffman
 | PBT | (0.030, 0.030, 0.032) | 0 | 0.50 | 1.57 | – | 1530 | **est.** Black 30 % glass-filled body. |
 | LCP | (0.025, 0.025, 0.028) | 0 | 0.35 | 1.60 | – | 1620 | **est.** Black glass-filled body. |
 | PA9T | (0.030, 0.030, 0.030) | 0 | 0.45 | 1.53 | – | 1450 | **est.** Black glass-filled body. |
+| Natural polyamide | (0.72, 0.64, 0.45) | 0 | 0.5 | 1.53 | – | 1450 | **est.** Unpigmented heat-resistant PA, the "natural (ivory)" wire-to-board shroud colour. |
+| White polyamide | (0.80, 0.80, 0.76) | 0 | 0.5 | 1.53 | – | 1450 | **est.** TiO₂-whitened PA shroud. |
 | Clear silicone | (0.90, 0.90, 0.90) | 0 | 0.08 | 1.41 | transmission 1.0, (0.97, 0.97, 0.96) at 1 mm | 1030 | n of PDMS handbook; attenuation **est.** |
 | Diffuse silicone | (0.75, 0.75, 0.72) | 0 | 0.40 | 1.41 | transmission 0.3, (0.80, 0.80, 0.78) at 0.5 mm | 1100 | **est.** Scattering filler. |
 | Polyimide | (0.40, 0.15, 0.02) | 0 | 0.25 | 1.70 | – | 1420 | n and density handbook; amber colour **est.** |

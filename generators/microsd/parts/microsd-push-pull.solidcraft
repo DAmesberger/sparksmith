@@ -1,0 +1,1473 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "MicroSD socket, push-pull",
+  "units": "mm",
+  "params": [
+    {
+      "name": "contacts",
+      "expr": "8",
+      "unit": "",
+      "comment": "contacts in the row (x)",
+      "model": false
+    },
+    {
+      "name": "pitch",
+      "expr": "1.1 mm",
+      "unit": "mm",
+      "comment": "contact pitch",
+      "model": false
+    },
+    {
+      "name": "first_x",
+      "expr": "-4.5 mm",
+      "unit": "mm",
+      "comment": "the −x contact's centre",
+      "model": false
+    },
+    {
+      "name": "shell_x0",
+      "expr": "-5.95 mm",
+      "unit": "mm",
+      "comment": "shell's −x side",
+      "model": false
+    },
+    {
+      "name": "shell_x1",
+      "expr": "6 mm",
+      "unit": "mm",
+      "comment": "shell's +x side",
+      "model": false
+    },
+    {
+      "name": "front",
+      "expr": "-0.55 mm",
+      "unit": "mm",
+      "comment": "shell's front (card entry)",
+      "model": false
+    },
+    {
+      "name": "rear",
+      "expr": "10.9 mm",
+      "unit": "mm",
+      "comment": "shell's rear",
+      "model": false
+    },
+    {
+      "name": "height",
+      "expr": "1.55 mm",
+      "unit": "mm",
+      "comment": "shell's top",
+      "model": false
+    },
+    {
+      "name": "sheet",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "shell sheet thickness",
+      "model": false
+    },
+    {
+      "name": "foot",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "solder feet's thickness; the shell stands on them",
+      "model": false
+    },
+    {
+      "name": "floor_top",
+      "expr": "0.35 mm",
+      "unit": "mm",
+      "comment": "insulator floor's top",
+      "model": false
+    },
+    {
+      "name": "floor_front",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "insulator floor's front edge",
+      "model": false
+    },
+    {
+      "name": "block_front",
+      "expr": "9.3 mm",
+      "unit": "mm",
+      "comment": "insulator's rear block's front face",
+      "model": false
+    },
+    {
+      "name": "lead_width",
+      "expr": "0.4 mm",
+      "unit": "mm",
+      "comment": "contact width",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.1 mm",
+      "unit": "mm",
+      "comment": "contact thickness",
+      "model": false
+    },
+    {
+      "name": "tip_y",
+      "expr": "-0.65 mm",
+      "unit": "mm",
+      "comment": "contact tails' tips",
+      "model": false
+    },
+    {
+      "name": "rise_y",
+      "expr": "0.35 mm",
+      "unit": "mm",
+      "comment": "where a contact rises through the floor",
+      "model": false
+    },
+    {
+      "name": "arm_z",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "spring arms' centreline height",
+      "model": false
+    },
+    {
+      "name": "arm_end",
+      "expr": "4.5 mm",
+      "unit": "mm",
+      "comment": "spring arms' ends",
+      "model": false
+    },
+    {
+      "name": "bend_r",
+      "expr": "0.1 mm",
+      "unit": "mm",
+      "comment": "contact bends' centreline radius",
+      "model": false
+    },
+    {
+      "name": "window_x",
+      "expr": "2 mm",
+      "unit": "mm",
+      "comment": "top windows' half spacing along x",
+      "model": false
+    },
+    {
+      "name": "window_y0",
+      "expr": "5.5 mm",
+      "unit": "mm",
+      "comment": "top windows' front edge",
+      "model": false
+    },
+    {
+      "name": "window_y1",
+      "expr": "7.5 mm",
+      "unit": "mm",
+      "comment": "top windows' rear edge",
+      "model": false
+    },
+    {
+      "name": "window_w",
+      "expr": "1.2 mm",
+      "unit": "mm",
+      "comment": "top windows' width along x",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "(shell_x1 - shell_x0) * 0.5",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "(rear - front) * 0.25",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    },
+    {
+      "name": "g1_x0",
+      "expr": "-6.25 mm",
+      "unit": "mm",
+      "comment": "foot's −x edge",
+      "model": false
+    },
+    {
+      "name": "g1_x1",
+      "expr": "-5.15 mm",
+      "unit": "mm",
+      "comment": "foot's +x edge",
+      "model": false
+    },
+    {
+      "name": "g1_y0",
+      "expr": "-0.525 mm",
+      "unit": "mm",
+      "comment": "foot's front edge",
+      "model": false
+    },
+    {
+      "name": "g1_y1",
+      "expr": "0.775 mm",
+      "unit": "mm",
+      "comment": "foot's rear edge",
+      "model": false
+    },
+    {
+      "name": "g2_x0",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "foot's −x edge",
+      "model": false
+    },
+    {
+      "name": "g2_x1",
+      "expr": "6.3 mm",
+      "unit": "mm",
+      "comment": "foot's +x edge",
+      "model": false
+    },
+    {
+      "name": "g2_y0",
+      "expr": "-0.525 mm",
+      "unit": "mm",
+      "comment": "foot's front edge",
+      "model": false
+    },
+    {
+      "name": "g2_y1",
+      "expr": "0.775 mm",
+      "unit": "mm",
+      "comment": "foot's rear edge",
+      "model": false
+    },
+    {
+      "name": "g3_x0",
+      "expr": "-6.25 mm",
+      "unit": "mm",
+      "comment": "foot's −x edge",
+      "model": false
+    },
+    {
+      "name": "g3_x1",
+      "expr": "-5.65 mm",
+      "unit": "mm",
+      "comment": "foot's +x edge",
+      "model": false
+    },
+    {
+      "name": "g3_y0",
+      "expr": "7.075 mm",
+      "unit": "mm",
+      "comment": "foot's front edge",
+      "model": false
+    },
+    {
+      "name": "g3_y1",
+      "expr": "8.375 mm",
+      "unit": "mm",
+      "comment": "foot's rear edge",
+      "model": false
+    },
+    {
+      "name": "g4_x0",
+      "expr": "5.7 mm",
+      "unit": "mm",
+      "comment": "foot's −x edge",
+      "model": false
+    },
+    {
+      "name": "g4_x1",
+      "expr": "6.3 mm",
+      "unit": "mm",
+      "comment": "foot's +x edge",
+      "model": false
+    },
+    {
+      "name": "g4_y0",
+      "expr": "7.775 mm",
+      "unit": "mm",
+      "comment": "foot's front edge",
+      "model": false
+    },
+    {
+      "name": "g4_y1",
+      "expr": "8.975 mm",
+      "unit": "mm",
+      "comment": "foot's rear edge",
+      "model": false
+    },
+    {
+      "name": "cd_a_x0",
+      "expr": "5.2 mm",
+      "unit": "mm",
+      "comment": "foot's −x edge",
+      "model": false
+    },
+    {
+      "name": "cd_a_x1",
+      "expr": "6 mm",
+      "unit": "mm",
+      "comment": "foot's +x edge",
+      "model": false
+    },
+    {
+      "name": "cd_a_y0",
+      "expr": "10.125 mm",
+      "unit": "mm",
+      "comment": "foot's front edge",
+      "model": false
+    },
+    {
+      "name": "cd_a_y1",
+      "expr": "11.475 mm",
+      "unit": "mm",
+      "comment": "foot's rear edge",
+      "model": false
+    },
+    {
+      "name": "cd_b_x0",
+      "expr": "-6.25 mm",
+      "unit": "mm",
+      "comment": "foot's −x edge",
+      "model": false
+    },
+    {
+      "name": "cd_b_x1",
+      "expr": "-5 mm",
+      "unit": "mm",
+      "comment": "foot's +x edge",
+      "model": false
+    },
+    {
+      "name": "cd_b_y0",
+      "expr": "8.825 mm",
+      "unit": "mm",
+      "comment": "foot's front edge",
+      "model": false
+    },
+    {
+      "name": "cd_b_y1",
+      "expr": "9.625 mm",
+      "unit": "mm",
+      "comment": "foot's rear edge",
+      "model": false
+    },
+    {
+      "name": "d20",
+      "expr": "(bend_r) - (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d21",
+      "expr": "(bend_r) + (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d22",
+      "expr": "(bend_r) + (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d23",
+      "expr": "(bend_r) - (lead_thickness / 2)",
+      "unit": "mm",
+      "model": true
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "shell",
+      "suppressed": false,
+      "body_names": [
+        "shell"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "shell_x0",
+        "front",
+        "foot"
+      ],
+      "length": "(shell_x1) - (shell_x0)",
+      "width": "(rear) - (front)",
+      "height": "(height) - (foot)",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "shell hollow",
+      "suppressed": false,
+      "param_names": [
+        "d4",
+        "d5",
+        "d6"
+      ],
+      "participants": [
+        "shell"
+      ],
+      "type": "box",
+      "corner": [
+        "shell_x0 + sheet",
+        "front - 1 mm",
+        "foot - 1 mm"
+      ],
+      "length": "(shell_x1 - sheet) - (shell_x0 + sheet)",
+      "width": "(rear - sheet) - (front - 1 mm)",
+      "height": "(height - sheet) - (foot - 1 mm)",
+      "operation": "cut"
+    },
+    {
+      "id": 3,
+      "name": "window 1",
+      "suppressed": false,
+      "param_names": [
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "participants": [
+        "shell"
+      ],
+      "type": "box",
+      "corner": [
+        "- window_x - window_w / 2",
+        "window_y0",
+        "height - sheet - 0.1 mm"
+      ],
+      "length": "(- window_x + window_w / 2) - (- window_x - window_w / 2)",
+      "width": "(window_y1) - (window_y0)",
+      "height": "(height + 1 mm) - (height - sheet - 0.1 mm)",
+      "operation": "cut"
+    },
+    {
+      "id": 4,
+      "name": "window 2",
+      "suppressed": false,
+      "param_names": [
+        "d10",
+        "d11",
+        "d12"
+      ],
+      "participants": [
+        "shell"
+      ],
+      "type": "box",
+      "corner": [
+        "window_x - window_w / 2",
+        "window_y0",
+        "height - sheet - 0.1 mm"
+      ],
+      "length": "(window_x + window_w / 2) - (window_x - window_w / 2)",
+      "width": "(window_y1) - (window_y0)",
+      "height": "(height + 1 mm) - (height - sheet - 0.1 mm)",
+      "operation": "cut"
+    },
+    {
+      "id": 5,
+      "name": "insulator",
+      "suppressed": false,
+      "body_names": [
+        "insulator"
+      ],
+      "param_names": [
+        "d13",
+        "d14",
+        "d15"
+      ],
+      "type": "box",
+      "corner": [
+        "shell_x0 + sheet",
+        "floor_front",
+        "foot"
+      ],
+      "length": "(shell_x1 - sheet) - (shell_x0 + sheet)",
+      "width": "(rear - sheet) - (floor_front)",
+      "height": "(floor_top) - (foot)",
+      "operation": "new_body"
+    },
+    {
+      "id": 6,
+      "name": "rear block",
+      "suppressed": false,
+      "param_names": [
+        "d16",
+        "d17",
+        "d18"
+      ],
+      "participants": [
+        "insulator"
+      ],
+      "type": "box",
+      "corner": [
+        "shell_x0 + sheet",
+        "block_front",
+        "floor_top - 0.01 mm"
+      ],
+      "length": "(shell_x1 - sheet) - (shell_x0 + sheet)",
+      "width": "(rear - sheet) - (block_front)",
+      "height": "(height - sheet) - (floor_top - 0.01 mm)",
+      "operation": "join"
+    },
+    {
+      "id": 7,
+      "name": "contact sketch",
+      "suppressed": false,
+      "param_names": [
+        "d19"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "first_x - lead_width / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -0.65,
+              0.1
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tip_y",
+              "y": "(lead_thickness / 2) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              0.3,
+              0.1
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(rise_y) - (lead_thickness / 2)",
+              "y": "(lead_thickness / 2) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner3",
+            "pos": [
+              0.3,
+              0.55
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(rise_y) - (lead_thickness / 2)",
+              "y": "(arm_z) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              4.5,
+              0.55
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "arm_end",
+              "y": "(arm_z) + (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              4.5,
+              0.45
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "arm_end",
+              "y": "(arm_z) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner4",
+            "pos": [
+              0.39999999999999997,
+              0.45
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(rise_y) + (lead_thickness / 2)",
+              "y": "(arm_z) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              0.39999999999999997,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "(rise_y) + (lead_thickness / 2)",
+              "y": "(lead_thickness / 2) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p8",
+            "pos": [
+              -0.65,
+              0.0
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "tip_y",
+              "y": "(lead_thickness / 2) - (lead_thickness / 2)"
+            }
+          },
+          {
+            "id": "p9",
+            "pos": [
+              0.24999999999999997,
+              0.1
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              0.3,
+              0.15000000000000002
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              0.25,
+              0.15000000000000002
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              0.39999999999999997,
+              0.15000000000000005
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              0.24999999999999992,
+              0.0
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              0.24999999999999994,
+              0.15000000000000002
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              0.3,
+              0.4
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p14",
+            "pos": [
+              0.45000000000000007,
+              0.55
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              0.45,
+              0.4
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p15",
+            "pos": [
+              0.44999999999999996,
+              0.45
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p16",
+            "pos": [
+              0.39999999999999997,
+              0.4
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              0.44999999999999996,
+              0.4
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 10,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 16,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 5,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 19,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 13,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 8,
+            "b": 1,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 11,
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 14,
+            "a": 13,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 17,
+            "a": 16,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 20,
+            "a": 18,
+            "b": 19,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 8
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 8
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 8,
+            "value": 0.05,
+            "param": "d20"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 5
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 7,
+            "c": 6
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 5,
+            "b": 9
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 6,
+            "b": 9
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 9,
+            "value": 0.15000000000000002,
+            "param": "d21"
+          },
+          {
+            "id": "k11",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 1
+          },
+          {
+            "id": "k12",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 2
+          },
+          {
+            "id": "k13",
+            "type": "tangent",
+            "a": 1,
+            "b": 10
+          },
+          {
+            "id": "k14",
+            "type": "tangent",
+            "a": 2,
+            "b": 10
+          },
+          {
+            "id": "k15",
+            "type": "radius",
+            "c": 10,
+            "value": 0.15000000000000002,
+            "param": "d22"
+          },
+          {
+            "id": "k16",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 4
+          },
+          {
+            "id": "k17",
+            "type": "point_on_curve",
+            "p": 6,
+            "c": 5
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 4,
+            "b": 11
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 5,
+            "b": 11
+          },
+          {
+            "id": "k20",
+            "type": "radius",
+            "c": 11,
+            "value": 0.05,
+            "param": "d23"
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 4,
+          "k": 20,
+          "l": 8,
+          "p": 16
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "contact",
+      "suppressed": false,
+      "body_names": [
+        "contact"
+      ],
+      "param_names": [
+        "d24"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "contact cut",
+      "suppressed": false,
+      "param_names": [
+        "d25"
+      ],
+      "type": "extrude",
+      "sketch": 7,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lead_width",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "insulator"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "contact cuts",
+      "suppressed": false,
+      "param_names": [
+        "d26",
+        "d27"
+      ],
+      "type": "pattern",
+      "features": [
+        9
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "contacts",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 11,
+      "name": "contact pattern",
+      "suppressed": false,
+      "body_names": [
+        "contact (2)",
+        "contact (3)",
+        "contact (4)",
+        "contact (5)",
+        "contact (6)",
+        "contact (7)",
+        "contact (8)"
+      ],
+      "param_names": [
+        "d28",
+        "d29"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "contacts",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "contact"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "foot g1",
+      "suppressed": false,
+      "body_names": [
+        "foot g1"
+      ],
+      "param_names": [
+        "d30",
+        "d31",
+        "d32"
+      ],
+      "type": "box",
+      "corner": [
+        "g1_x0",
+        "g1_y0",
+        "0 mm"
+      ],
+      "length": "(g1_x1) - (g1_x0)",
+      "width": "(g1_y1) - (g1_y0)",
+      "height": "(foot) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 13,
+      "name": "foot g2",
+      "suppressed": false,
+      "body_names": [
+        "foot g2"
+      ],
+      "param_names": [
+        "d33",
+        "d34",
+        "d35"
+      ],
+      "type": "box",
+      "corner": [
+        "g2_x0",
+        "g2_y0",
+        "0 mm"
+      ],
+      "length": "(g2_x1) - (g2_x0)",
+      "width": "(g2_y1) - (g2_y0)",
+      "height": "(foot) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 14,
+      "name": "foot g3",
+      "suppressed": false,
+      "body_names": [
+        "foot g3"
+      ],
+      "param_names": [
+        "d36",
+        "d37",
+        "d38"
+      ],
+      "type": "box",
+      "corner": [
+        "g3_x0",
+        "g3_y0",
+        "0 mm"
+      ],
+      "length": "(g3_x1) - (g3_x0)",
+      "width": "(g3_y1) - (g3_y0)",
+      "height": "(foot) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 15,
+      "name": "foot g4",
+      "suppressed": false,
+      "body_names": [
+        "foot g4"
+      ],
+      "param_names": [
+        "d39",
+        "d40",
+        "d41"
+      ],
+      "type": "box",
+      "corner": [
+        "g4_x0",
+        "g4_y0",
+        "0 mm"
+      ],
+      "length": "(g4_x1) - (g4_x0)",
+      "width": "(g4_y1) - (g4_y0)",
+      "height": "(foot) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 16,
+      "name": "foot cd_a",
+      "suppressed": false,
+      "body_names": [
+        "foot cd_a"
+      ],
+      "param_names": [
+        "d42",
+        "d43",
+        "d44"
+      ],
+      "type": "box",
+      "corner": [
+        "cd_a_x0",
+        "cd_a_y0",
+        "0 mm"
+      ],
+      "length": "(cd_a_x1) - (cd_a_x0)",
+      "width": "(cd_a_y1) - (cd_a_y0)",
+      "height": "(foot) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 17,
+      "name": "foot cd_b",
+      "suppressed": false,
+      "body_names": [
+        "foot cd_b"
+      ],
+      "param_names": [
+        "d45",
+        "d46",
+        "d47"
+      ],
+      "type": "box",
+      "corner": [
+        "cd_b_x0",
+        "cd_b_y0",
+        "0 mm"
+      ],
+      "length": "(cd_b_x1) - (cd_b_x0)",
+      "width": "(cd_b_y1) - (cd_b_y0)",
+      "height": "(foot) - (0 mm)",
+      "operation": "new_body"
+    },
+    {
+      "id": 18,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d48"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "(shell_x0 + shell_x1) / 2",
+            "(front + rear) / 2",
+            "height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 19,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "contact": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (2)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (3)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (4)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (5)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (6)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (7)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "contact (8)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "foot cd_a": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "foot cd_b": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "foot g1": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "foot g2": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "foot g3": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "foot g4": {
+        "name": "tin-bright",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.24,
+          "dielectric_ior": 1.5
+        }
+      },
+      "insulator": {
+        "name": "lcp",
+        "color": [
+          44,
+          44,
+          47
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.35,
+          "dielectric_ior": 1.6
+        }
+      },
+      "shell": {
+        "name": "nickel-silver",
+        "color": [
+          211,
+          208,
+          202
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.25,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

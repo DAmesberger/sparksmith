@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "b2b-dual-row",
+  "title": "Dual-row SMD terminal strip",
+  "summary": "Dual-row SMD terminal strip: a black LCP insulator on its standoff, grooved between positions along both long faces with a square pocket round each post, a gold square post per position in two rows, and per post a tin tail down through the insulator's bottom and out along ±y onto the board (positions, pitch, row_pitch, body_length, body_width, standoff, body_top, post_side, post_top, z_split, tail_tip, bend_r, pocket, pocket_depth, groove_width, groove_depth, corner_round).",
+  "use": "package_body",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 2 × 5 strip of 1.27 mm); the board-to-board generator gives every value. Proportions follow Samtec's public FTSH-1XX-XX-XXX-DV-XXX-MKT and TSM-1XX-XX-XXX-XX-X-XXX-X-MKT prints and catalogue page (retrieved 18 November 2026), compared with Samtec's public product photos; grooves and pockets are estimated. No vendor CAD, image or EDA library data copied."
+}

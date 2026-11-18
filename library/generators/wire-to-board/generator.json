@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "module": {
+    "file": "wire-to-board.wasm",
+    "sha256": "574e1f07bc85aefceba9730acb13e52ef5229c20aeb467a3198edaaecf962460"
+  },
+  "name": "wire-to-board",
+  "parts": [
+    {
+      "file": "parts/wtb-side-black.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm side-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "2a0a41ad3ec51750708d3fe918ad4d86bc6262df330092dbade445dfcf8cccd0",
+      "title": "Wire-to-board header, side entry, black shroud"
+    },
+    {
+      "file": "parts/wtb-side-natural.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm side-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "afbd54cf5fc8949e51d87a60070beb02a864d9dcf9764ee2cc33a71e65fc3d56",
+      "title": "Wire-to-board header, side entry, natural shroud"
+    },
+    {
+      "file": "parts/wtb-side-white.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm side-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "9cc17782c8894de5bf5ba47e2a83f9c33ff0c364bce2047105289a14c93058ad",
+      "title": "Wire-to-board header, side entry, white shroud"
+    },
+    {
+      "file": "parts/wtb-top-black.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm top-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "dacfb2260d80b3f25d4a4833614f5d82850ee6522d6cbdfb2626bca2d7fcd6f3",
+      "title": "Wire-to-board header, top entry, black shroud"
+    },
+    {
+      "file": "parts/wtb-top-natural.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm top-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "969094284a5bd6487d6dab5687720f3e563a2e29751d9ac53adde2c231a5e626",
+      "title": "Wire-to-board header, top entry, natural shroud"
+    },
+    {
+      "file": "parts/wtb-top-white.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at a 4-way 1.0 mm top-entry header); the wire-to-board generator gives every value. Proportions follow the connector makers' public catalogue drawings (JST SH catalogue eSH.pdf p. 3 and PH catalogue ePH.pdf p. 4, https://www.jst-mfg.com/product/pdf/eng/, retrieved 18 November 2026), compared with the makers' public product photos; cavity, walls, latch window, contact section and tab sheet are estimated. No vendor CAD, image or EDA library data copied.",
+      "sha256": "d1ba470ed97bc1a31ea0d1b5f80ba8e4fadb01da2d03ada44b02ce12dda9691b",
+      "title": "Wire-to-board header, top entry, white shroud"
+    }
+  ]
+}
