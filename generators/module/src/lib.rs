@@ -58,7 +58,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Row slots of the part files: two per side.
 pub const ROWS_PER_SIDE: usize = 2;
@@ -85,15 +85,19 @@ const PLATING_NM: i64 = 30_000;
 /// Round of the can's top edges (est.: a drawn can's bend radius), at most
 /// a quarter of the can's height and a tenth of its shorter side.
 const CAN_EDGE_NM: i64 = 300_000;
-/// The antenna meander (est.): trace width, inset in the antenna region,
-/// turns per 10 mm of module width, at most 64.
+/// The antenna meander's defaults (est.): trace width, inset in the
+/// antenna region; turns per 10 mm of module width when the turns are not
+/// given, at most 64.
 const TRACE_WIDTH_NM: i64 = 450_000;
 const ANTENNA_MARGIN_NM: i64 = 800_000;
 const TURNS_PER_10_MM: i64 = 4;
 const MAX_TURNS: i64 = 64;
-/// Twice the meander's bend radius on its centreline: 1.0001 half trace
-/// widths, so 2 × 0.2250225 mm (a bend needs two of them on each segment).
-const TWO_BEND_RADII_NM: i64 = 450_045;
+/// The shield can's stamped emboss (est.): a groove round the label area,
+/// this wide and deep, inset by the `can_emboss_inset` parameter. Without
+/// the emboss the groove shrinks to a micrometre, too small to see, so one
+/// part file serves.
+const EMBOSS_WIDTH_NM: i64 = 300_000;
+const EMBOSS_DEPTH_NM: i64 = 50_000;
 
 /// The pin-1 dot: a filled silkscreen circle of this radius beyond pad 1's
 /// −x edge, clear of its mask opening by the silkscreen clearance (as the
@@ -345,6 +349,40 @@ fn description_with(presets: Vec<Preset>) -> Description {
             [0, MAX_SIZE_NM],
             6 * MM,
             "outline",
+        ),
+        length(
+            "antenna_trace",
+            "Antenna trace width",
+            [100 * UM, 2 * MM],
+            TRACE_WIDTH_NM,
+            "antenna",
+        ),
+        length(
+            "antenna_margin",
+            "Antenna meander inset in its region",
+            [0, 10 * MM],
+            ANTENNA_MARGIN_NM,
+            "antenna",
+        ),
+        count(
+            "antenna_turns",
+            "Antenna meander turns (0: four per 10 mm of width)",
+            [0, MAX_TURNS],
+            0,
+            "antenna",
+        ),
+        flag(
+            "can_emboss",
+            "Emboss groove round the can's label area",
+            true,
+            "can",
+        ),
+        length(
+            "can_emboss_inset",
+            "Emboss groove inset from the can's sides",
+            [100 * UM, 20 * MM],
+            MM,
+            "can",
         ),
         length(
             "can_width",
@@ -652,6 +690,13 @@ struct Dims {
     height: i64,
     board: i64,
     antenna: i64,
+    /// The meander's trace width and inset, and its turns (0: from the
+    /// width).
+    trace: i64,
+    margin: i64,
+    turns: i64,
+    /// The emboss groove's inset from the can's sides, when it has one.
+    emboss: Option<i64>,
     can: [i64; 2],
     can_at: Point2,
     pitch: i64,
@@ -896,6 +941,14 @@ fn dims(args: &Args<'_>, request: &Request) -> Result<Dims, Vec<Problem>> {
         height: int("height")?,
         board: int("board_thickness")?,
         antenna: int("antenna_length")?,
+        trace: int("antenna_trace")?,
+        margin: int("antenna_margin")?,
+        turns: int("antenna_turns")?,
+        emboss: if args.flag("can_emboss").map_err(one)? {
+            Some(int("can_emboss_inset")?)
+        } else {
+            None
+        },
         can: [int("can_width")?, int("can_length")?],
         can_at: [int("can_x")?, int("can_y")?],
         pitch: int("pitch")?,
@@ -978,6 +1031,15 @@ fn dims(args: &Args<'_>, request: &Request) -> Result<Dims, Vec<Problem>> {
         "can_y",
         "The shield can must lie within the module, clear of the antenna region.".into(),
     );
+    if let Some(inset) = d.emboss {
+        rule(
+            2 * (inset + EMBOSS_WIDTH_NM) + MM <= cw.min(cl),
+            "can_emboss_inset",
+            "The emboss groove must leave at least 1 mm of label area inside the can \
+             (2 × (inset + 0.3 mm) + 1 mm ≤ the can's shorter side)."
+                .into(),
+        );
+    }
     if let Some(g) = &d.ground {
         rule(
             g.rows * g.cols <= 256,
@@ -1220,19 +1282,25 @@ mod parts {
 /// The antenna meander as the host's module builder drew it: `None`
 /// without one; else (turns, step).
 fn meander(d: &Dims) -> Option<(i64, i64)> {
-    if d.antenna <= 2 * ANTENNA_MARGIN_NM + TRACE_WIDTH_NM {
+    if d.antenna <= 2 * d.margin + d.trace {
         return None;
     }
-    let span = d.width - 2 * ANTENNA_MARGIN_NM;
-    let turns = (span * TURNS_PER_10_MM / (10 * MM)).clamp(1, MAX_TURNS);
+    let span = d.width - 2 * d.margin;
+    let turns = if d.turns > 0 {
+        d.turns
+    } else {
+        (span * TURNS_PER_10_MM / (10 * MM)).clamp(1, MAX_TURNS)
+    };
     // The step is span / (2 × turns), at least two trace widths.
-    if span < 2 * turns * 2 * TRACE_WIDTH_NM {
+    if span < 2 * turns * 2 * d.trace {
         return None;
     }
     // Every bend needs two bend radii of straight run on each side: the
     // runs are the step and the legs, 0.6 of the region less its margins.
-    let rise = d.antenna - 2 * ANTENNA_MARGIN_NM;
-    if TWO_BEND_RADII_NM * 2 * turns > span || 5 * TWO_BEND_RADII_NM > 3 * rise {
+    // The centreline's bend radius is 1.0001 half trace widths.
+    let two_radii = div_round(d.trace * 10_001, 10_000)?;
+    let rise = d.antenna - 2 * d.margin;
+    if two_radii * 2 * turns > span || 5 * two_radii > 3 * rise {
         return None;
     }
     Some((turns, div_round(span, 2 * turns)?))
@@ -1280,6 +1348,20 @@ fn model(d: &Dims) -> v1::Model {
     set("park_x", park);
     set("antenna_length", d.antenna);
     set("antenna_depth", d.antenna);
+    set("antenna_trace", d.trace);
+    set("antenna_margin", d.margin);
+    match d.emboss {
+        Some(inset) => {
+            set("can_emboss_inset", inset);
+            set("can_emboss_width", EMBOSS_WIDTH_NM);
+            set("can_emboss_depth", EMBOSS_DEPTH_NM);
+        }
+        None => {
+            set("can_emboss_inset", CAN_EDGE_NM + MM);
+            set("can_emboss_width", UM);
+            set("can_emboss_depth", UM);
+        }
+    }
     // Rows into their slots: row k keeps slot k when that slot is on its
     // side (so its bodies keep the builder's names), else the first free
     // slot of its side.
@@ -1389,8 +1471,8 @@ fn model(d: &Dims) -> v1::Model {
         set(&format!("single_{k}_length"), size[0]);
         set(&format!("single_{k}_width"), size[1]);
     }
-    let span = d.width - 2 * ANTENNA_MARGIN_NM;
-    let x0 = -hw + ANTENNA_MARGIN_NM;
+    let span = d.width - 2 * d.margin;
+    let x0 = -hw + d.margin;
     // Parked: the meander centred on park_x.
     let parked = park - half(span) - x0;
     match meander(d) {

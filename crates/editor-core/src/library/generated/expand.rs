@@ -658,10 +658,16 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
         };
         pads.push(Pad {
             id: PadId(ids.id(format!("p:{}", pad.key))?),
+            // A non-plated hole lands no terminal (a mechanical hole beside
+            // the land it belongs to); its generation still names one.
+            terminal: if kind == PadKind::NonPlatedHole {
+                None
+            } else {
+                Some(PackageTerminalId(
+                    terminals.of(&format!("t:{}", pad.terminal), "package terminal")?,
+                ))
+            },
             kind,
-            terminal: Some(PackageTerminalId(
-                terminals.of(&format!("t:{}", pad.terminal), "package terminal")?,
-            )),
             number: pad.number.clone().unwrap_or_else(|| pad.key.clone()),
             position: point(pad.at)?,
             rotation_mdeg: rotation,

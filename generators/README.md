@@ -75,6 +75,19 @@ The tabbed generator (phase C) ships three part files, one per outline class (`t
 
 The module generator (phase C) makes radio and processor modules: pad rows on up to eight sides' slots (castellated or LGA), a ground array turned by any multiple of 45°, single pads and the antenna keep-out as a footprint keep-out. It ships four part files (LGA or castellated, ground array along the axes or turned 45°) that park what a module lacks beyond its −x edge and cut it away; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-module-15-november-2026)).
 
+Since version 2 the module generator's antenna meander (`antenna_trace`, `antenna_margin`, `antenna_turns`) and the shield can's stamped emboss groove round its label area (`can_emboss`, `can_emboss_inset`) are parameters, and it has an ESP32-S3-WROOM-1 preset (datasheet v1.8).
+
+The electromechanical families (18 November 2026) are original parametric recreations saved at the manufacturer drawing each cites (sources and dates in each part file's provenance); their lands are the manufacturer's, taken as parameters, and each lead contact lies on its land:
+
+| Generator | Part files | What it makes | Prefix | Presets |
+| --- | --- | --- | --- | --- |
+| `tactile` | `tactile-mini`, `tactile-mini-ground`, `tactile-square` | Top-push tactile switches: mini (J-bent terminals, white POM push plate, nickel-silver cover, optional ground tab) or square (gull-wing terminals, round plunger, cover with corner studs); `common` says which terminals are joined inside | SW | Panasonic EVQP2 with and without ground terminal, E-Switch TL3305A, Omron B3S-1000 |
+| `reed` | `reed-smd` | Surface-mount reed switches: hollow borosilicate envelope with tapered seals, leads flattened into overlapping reed blades inside, formed feet | SW | Littelfuse MDSM-4 |
+| `buzzer` | `buzzer-smd`, `buzzer-smd-label` | Magnetic buzzers: LCP case with bevelled orientation corner and sound port, gold end terminals, optional polyimide masking label | BZ | CUI Devices CMI-9653S-SMT |
+| `electrolytic` | `electrolytic-smd`, `electrolytic-smd-vent` | Vertical-chip aluminium electrolytics: bevelled PA9T seat plate, terminals in its grooves, aluminium can with seal bead, rounded rim, black negative print and optional vent cross | C | Panasonic FK size codes B–G, 6.3 × 5.4 (CAPAE660X550N), KEMET EDK 6.3 × 7.7 |
+| `power-inductor` | `inductor-molded`, `inductor-shielded`, `inductor-shielded-window` | Power inductors: moulded composite block with inlaid bottom terminals, or a ferrite sleeve round a drum core (epoxy ring, enamelled winding, optional winding windows) | L | Coilcraft XEL4030, Bourns SRR6028, an estimated 6 × 6 × 4.5 mm |
+| `standoff` | `standoff`, `standoff-spigot` | SMD spacers with an internal thread: tin-plated tube, chamfers, optional locating spigot below the board; an annular land round a non-plated hole | H | Würth WA-SMSI M3 (9774015360R … 9774100360R) |
+
 The connector generators (18 November 2026) make surface-mount connectors whose lands are the maker's recommended layout, given as parameters, with each body placed on them by the drawing's offsets, so the lead tips stand on the lands (what a body fitted to an imported board's footprint by its pads relies on):
 
 - **`wire-to-board`**: one-row shrouded headers with a metal tab in each end wall, side or top entry, the shroud natural (ivory), white or black (`pa-natural`, `pa-white`, `pa9t`); six part files (`wtb-side-*`, `wtb-top-*`, one per entry and colour), each with the mating cavity, a latch window, two polarising grooves, bent tin contacts and the tabs. Presets: JST SH (1.0 mm) and PH (2.0 mm) SMD headers, side and top entry.

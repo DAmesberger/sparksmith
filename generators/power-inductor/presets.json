@@ -1,0 +1,85 @@
+[
+ {
+  "key": "power-inductor-xel4030",
+  "name": "Coilcraft XEL4030",
+  "aliases": [
+   "XEL4030",
+   "XFL4030",
+   "4x4 moulded inductor"
+  ],
+  "description": "Coilcraft XEL4030 moulded power inductor: 4.0 × 4.0 × 3.1 mm, bottom terminals 0.82 × 3.25 mm, 1.57 mm apart.",
+  "params": {
+   "style": "molded",
+   "body_length": 4000000,
+   "body_width": 4000000,
+   "height": 3100000,
+   "terminal_length": 820000,
+   "terminal_width": 3250000,
+   "terminal_gap": 1570000,
+   "window": false,
+   "land_x": 1185000,
+   "land_length": 980000,
+   "land_width": 3400000
+  },
+  "citation": {
+   "document": "Coilcraft, XFL4030 Shielded Power Inductors (Document 1048-2, the XEL4030's package): dimensions and Recommended Land Pattern; height from XEL4030 Document 1321-1",
+   "revision": "05/04/26",
+   "page": 2
+  },
+  "basis": "cited",
+  "note": "Body, terminals and lands from the drawing (the 2.37 mm land dimension read as centre to centre; height the -332 and larger dash numbers' 3.10 mm max). Rounds and plating thickness are estimated."
+ },
+ {
+  "key": "power-inductor-srr6028",
+  "name": "Bourns SRR6028",
+  "aliases": [
+   "SRR6028",
+   "6.8x6.8 shielded inductor"
+  ],
+  "description": "Bourns SRR6028 shielded power inductor: 6.8 × 6.8 × 2.8 mm, ferrite sleeve, terminals 2.3 mm at the ends.",
+  "params": {
+   "style": "shielded",
+   "body_length": 6800000,
+   "body_width": 6800000,
+   "height": 2800000,
+   "terminal_length": 2300000,
+   "terminal_width": 5000000,
+   "terminal_gap": 2200000,
+   "window": false,
+   "land_x": 2350000,
+   "land_length": 2600000,
+   "land_width": 7300000
+  },
+  "citation": {
+   "document": "Bourns, SRR6028 Series Shielded SMD Power Inductors datasheet: Product Dimensions and Recommended Layout",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Body, terminal length and gap and the lands (2.60 × 7.30 mm, 2.10 mm apart) from the datasheet; the terminals' width across, the bevels, the flange and the winding are estimated."
+ },
+ {
+  "key": "power-inductor-6x6-shielded",
+  "name": "Shielded power inductor 6 × 6 mm, winding windows",
+  "aliases": [
+   "6x6 inductor",
+   "6x6 shielded inductor",
+   "inductor 6x6"
+  ],
+  "description": "A shielded wound power inductor of the common 6 × 6 × 4.5 mm class, the winding showing through its sleeve's windows.",
+  "params": {
+   "style": "shielded",
+   "body_length": 6000000,
+   "body_width": 6000000,
+   "height": 4500000,
+   "terminal_length": 2000000,
+   "terminal_width": 4400000,
+   "terminal_gap": 2000000,
+   "window": true,
+   "land_x": 2100000,
+   "land_length": 2400000,
+   "land_width": 6400000
+  },
+  "basis": "estimated",
+  "note": "Estimated: an original 6 × 6 × 4.5 mm part in the proportions of the SRR6028 drawing, not any product's. Take the body, terminals and lands from the chosen part's datasheet."
+ }
+]

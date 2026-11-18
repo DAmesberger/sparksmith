@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "module": {
+    "file": "standoff.wasm",
+    "sha256": "fb84a5997bb5098c3e7f9727de74a270b2d085696e3626763014125e8dcc6f5e"
+  },
+  "name": "standoff",
+  "parts": [
+    {
+      "file": "parts/standoff.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); the profile of Würth Elektronik's public WA-SMSI drawing (SMT Steel Spacer with internal Thread, M3, order code 9774015360R, revision 001.002, 2020-05-11; a copy at https://docs.rs-online.com/6ef4/0900766b8166610d.pdf downloaded 18 November 2026) without the spigot; chamfers and the bore (the M3 thread's minor diameter) estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "aefbb64e56ff025f5ee6274cc69236817e000a16162226aac0045ef4899c2d1b",
+      "title": "SMD spacer, internal thread"
+    },
+    {
+      "file": "parts/standoff-spigot.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Würth Elektronik's public WA-SMSI drawing (M3, 9774015360R family drawing, revision 001.002, 2020-05-11; https://docs.rs-online.com/6ef4/0900766b8166610d.pdf downloaded 18 November 2026): Ø6.0 mm, spigot Ø4.2 × 1.4 mm, M3, saved at L = 10 mm (9774100360R); chamfers estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "8418cb68692d6ab99a9f87058e0111f0926c860cc8433e3dd8135595c5f52f0d",
+      "title": "SMD spacer, internal thread, spigot"
+    }
+  ]
+}

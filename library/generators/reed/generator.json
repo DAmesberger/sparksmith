@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "module": {
+    "file": "reed.wasm",
+    "sha256": "2df7bba509c48a585eb5829eb22cc333efdd9747ad9b41a8a63ea16e1f02bc49"
+  },
+  "name": "reed",
+  "parts": [
+    {
+      "file": "parts/reed-smd.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Littelfuse's public MDSM-4 datasheet (MDSM-4 15.3 mm Surface Mount Reed Switch, Dimensions and Recommended Land Pattern; littelfuse.com, a copy at https://cdn.components.ru/media/PDF/3493878.pdf downloaded 18 November 2026): envelope 15.24 × Ø2.28 mm max, 17.52 mm over the legs, 19.30 mm overall, 2.84 mm high, feet 1.00 mm wide; wire, seals, wall and blades estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "9ee4e2cb4201fd493ca0044aa5f059fc678feb5021892bee873f5b868fc75563",
+      "title": "Reed switch, surface mount"
+    }
+  ]
+}

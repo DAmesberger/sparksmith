@@ -127,6 +127,8 @@ Every value carries a source key: `johnson-christy-1972`, `rakic-1998`, `hoffman
 | Clear silicone | (0.90, 0.90, 0.90) | 0 | 0.08 | 1.41 | transmission 1.0, (0.97, 0.97, 0.96) at 1 mm | 1030 | n of PDMS handbook; attenuation **est.** |
 | Diffuse silicone | (0.75, 0.75, 0.72) | 0 | 0.40 | 1.41 | transmission 0.3, (0.80, 0.80, 0.78) at 0.5 mm | 1100 | **est.** Scattering filler. |
 | Polyimide | (0.40, 0.15, 0.02) | 0 | 0.25 | 1.70 | – | 1420 | n and density handbook; amber colour **est.** |
+| White POM | (0.72, 0.72, 0.70) | 0 | 0.40 | 1.48 | – | 1410 | n and density handbook; colour and roughness **est.** A tactile switch's white acetal push plate. |
+| Black marking ink | (0.020, 0.020, 0.022) | 0 | 0.50 | 1.50 | – | – | **est.** Carbon-black ink: an aluminium capacitor's polarity mark. |
 
 Family defaults (`library::default_material`, never from names): chip bodies alumina (resistor), barium titanate (capacitor) or ferrite (inductor); header bodies PBT and pins gold; leads, terminations and exposed pads matte tin; markings laser-marked epoxy; lenses clear silicone; sleeves PVC; every other body epoxy mould compound. A generated model may override a role (`GeneratedMaterials`).
 

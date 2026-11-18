@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "electrolytic-smd-vent",
+  "title": "Aluminium electrolytic capacitor, SMD, vent",
+  "summary": "As electrolytic-smd, with the scored cross of the pressure relief vent on the can's top.",
+  "use": "package_body",
+  "prefix": "C",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at Panasonic's size code D from the public FK series datasheet (06-Dec-19, p. 1; https://static.chipdip.ru/lib/426/DOC042426188.pdf downloaded 18 November 2026); the vent score's size estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

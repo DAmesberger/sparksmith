@@ -1,0 +1,491 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "SMD spacer, internal thread, spigot",
+  "units": "mm",
+  "params": [
+    {
+      "name": "length",
+      "expr": "10 mm",
+      "unit": "mm",
+      "comment": "height above the seating plane (L)",
+      "model": false
+    },
+    {
+      "name": "outer_diameter",
+      "expr": "6 mm",
+      "unit": "mm",
+      "comment": "outer diameter",
+      "model": false
+    },
+    {
+      "name": "bore_diameter",
+      "expr": "2.5 mm",
+      "unit": "mm",
+      "comment": "threaded bore, the thread's minor diameter",
+      "model": false
+    },
+    {
+      "name": "chamfer",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "top outer edge chamfer (est.)",
+      "model": false
+    },
+    {
+      "name": "bore_chamfer",
+      "expr": "0.25 mm",
+      "unit": "mm",
+      "comment": "bore mouth chamfer (est.)",
+      "model": false
+    },
+    {
+      "name": "spigot_diameter",
+      "expr": "4.2 mm",
+      "unit": "mm",
+      "comment": "spigot diameter",
+      "model": false
+    },
+    {
+      "name": "spigot_length",
+      "expr": "1.4 mm",
+      "unit": "mm",
+      "comment": "spigot length below the seating plane",
+      "model": false
+    },
+    {
+      "name": "d2",
+      "expr": "outer_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d5",
+      "expr": "spigot_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d8",
+      "expr": "bore_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.5 * outer_diameter",
+      "unit": "mm",
+      "comment": "marking area along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.5 * outer_diameter",
+      "unit": "mm",
+      "comment": "marking area across it",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "tube sketch",
+      "suppressed": false,
+      "param_names": [
+        "d1"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "0 mm"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 3.0,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 6.0,
+            "param": "d2"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "tube",
+      "suppressed": false,
+      "body_names": [
+        "spacer"
+      ],
+      "param_names": [
+        "d3"
+      ],
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "spigot sketch",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "- spigot_length"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 2.1,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 4.2,
+            "param": "d5"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "spigot",
+      "suppressed": false,
+      "param_names": [
+        "d6"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "spigot_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "join",
+      "targets": [
+        "spacer"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "bore sketch",
+      "suppressed": false,
+      "param_names": [
+        "d7"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "- 3 mm"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 1.25,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 2.5,
+            "param": "d8"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "bore",
+      "suppressed": false,
+      "param_names": [
+        "d9"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "length + 6 mm",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "spacer"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "top chamfer",
+      "suppressed": false,
+      "param_names": [
+        "d10"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.0000000000000004,
+            -3.0000000000000004,
+            -1.4000000000000017
+          ],
+          "max": [
+            3.0,
+            3.0000000000000004,
+            10.000000000000004
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:side:c1|F2:top"
+      ],
+      "type": "chamfer",
+      "edges": [
+        [
+          3.0,
+          0.0,
+          10.0
+        ]
+      ],
+      "distance": "chamfer",
+      "body": "spacer"
+    },
+    {
+      "id": 8,
+      "name": "bore chamfer",
+      "suppressed": false,
+      "param_names": [
+        "d11"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -3.000000000000001,
+            -3.0000000000000004,
+            -1.4000000000000017
+          ],
+          "max": [
+            3.0,
+            3.0000000000000004,
+            10.000000000000007
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:top|F6:side:c1"
+      ],
+      "type": "chamfer",
+      "edges": [
+        [
+          1.25,
+          0.0,
+          10.0
+        ]
+      ],
+      "distance": "bore_chamfer",
+      "body": "spacer"
+    },
+    {
+      "id": 9,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d12"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "length"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 10,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "spacer": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

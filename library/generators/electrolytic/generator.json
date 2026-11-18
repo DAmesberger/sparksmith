@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "module": {
+    "file": "electrolytic.wasm",
+    "sha256": "3b52e9e771e541049f2b5ea289e90d3942ae42d15aeccaaaa6145c2ebb98b8ac"
+  },
+  "name": "electrolytic",
+  "parts": [
+    {
+      "file": "parts/electrolytic-smd.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at Panasonic's size code D from the public FK series datasheet (Aluminum Electrolytic Capacitors (SMD Type), 06-Dec-19, dimensions p. 1; industrial.panasonic.com, a copy at https://static.chipdip.ru/lib/426/DOC042426188.pdf downloaded 18 November 2026): Ø6.3 × 5.8 mm, seat plate 6.6 mm, 7.8 mm over the terminals, terminals 0.65 mm, 1.8 mm apart; seat plate height, bevels, terminal thickness, bead and rim estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "090e519140256f6c40bb234495d77e1aa8e0a77249fa979e9ed1e7311558f1e9",
+      "title": "Aluminium electrolytic capacitor, SMD"
+    },
+    {
+      "file": "parts/electrolytic-smd-vent.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at Panasonic's size code D from the public FK series datasheet (06-Dec-19, p. 1; https://static.chipdip.ru/lib/426/DOC042426188.pdf downloaded 18 November 2026); the vent score's size estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
+      "sha256": "f02b052a0e08bffb5fcce4f78fef65c3169de36852e79c785b196a19d5f7695e",
+      "title": "Aluminium electrolytic capacitor, SMD, vent"
+    }
+  ]
+}

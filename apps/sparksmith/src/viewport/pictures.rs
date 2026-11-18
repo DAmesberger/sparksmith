@@ -1162,3 +1162,156 @@ fn a_generated_part_shows_its_model_in_3d() -> Result<(), Box<dyn std::error::Er
     assert!(!mask_green, "the board shows through the chip: {p:?}");
     Ok(())
 }
+
+/// The electromechanical generator families' parts, each on the demo
+/// board in place of its first part, for comparison with the
+/// manufacturers' photographs:
+/// `SPARKSMITH_PICTURES=dir cargo test -p sparksmith write_family_pictures -- --ignored`.
+#[test]
+#[ignore = "writes generator family pictures"]
+fn write_family_pictures() -> Result<(), Box<dyn std::error::Error>> {
+    use sparksmith_core::library::PackageModel;
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let Some(dir) = std::env::var_os("SPARKSMITH_PICTURES") else {
+        return Err("set SPARKSMITH_PICTURES".into());
+    };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir)?;
+    let Some(mut gpu) = Gpu::new() else {
+        return Err("no GPU adapter".into());
+    };
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    let parts: [(&str, &str, &str, serde_json::Value, f64); 12] = [
+        (
+            "module-wroom-1",
+            "module",
+            "module-esp32-s3-wroom-1",
+            serde_json::json!({}),
+            40.0,
+        ),
+        (
+            "tactile-evqp2",
+            "tactile",
+            "tactile-evqp2-ground",
+            serde_json::json!({}),
+            11.0,
+        ),
+        (
+            "tactile-tl3305",
+            "tactile",
+            "tactile-tl3305a",
+            serde_json::json!({}),
+            14.0,
+        ),
+        (
+            "tactile-b3s",
+            "tactile",
+            "tactile-b3s-1000",
+            serde_json::json!({}),
+            17.0,
+        ),
+        (
+            "reed-mdsm-4",
+            "reed",
+            "reed-mdsm-4",
+            serde_json::json!({}),
+            30.0,
+        ),
+        (
+            "buzzer-cmi-9653s",
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            serde_json::json!({}),
+            20.0,
+        ),
+        (
+            "buzzer-cmi-9653s-label",
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            serde_json::json!({"label": true}),
+            20.0,
+        ),
+        (
+            "electrolytic-6.3x5.4",
+            "electrolytic",
+            "electrolytic-6.3x5.4",
+            serde_json::json!({}),
+            15.0,
+        ),
+        (
+            "inductor-xel4030",
+            "power-inductor",
+            "power-inductor-xel4030",
+            serde_json::json!({}),
+            10.0,
+        ),
+        (
+            "inductor-srr6028",
+            "power-inductor",
+            "power-inductor-srr6028",
+            serde_json::json!({}),
+            14.0,
+        ),
+        (
+            "inductor-6x6-window",
+            "power-inductor",
+            "power-inductor-6x6-shielded",
+            serde_json::json!({}),
+            14.0,
+        ),
+        (
+            "standoff-9774100360r",
+            "standoff",
+            "standoff-wurth-9774100360r",
+            serde_json::json!({}),
+            24.0,
+        ),
+    ];
+    for (name, generator, preset, params, distance) in parts {
+        let mut session = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
+        session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(&root)?);
+        let revision = session.engine().revision();
+        let made = session.dispatch(serde_json::json!({
+            "command": "library.generate_part",
+            "params": {"generator": generator, "scope": "package", "preset": preset,
+                       "params": params, "expected_revision": revision},
+        }));
+        if made["ok"] != true {
+            return Err(format!("{name}: not made: {made}").into());
+        }
+        let mut project = session.engine().project().clone();
+        project.fabrication = Fabrication::default();
+        let generated = project
+            .library
+            .packages
+            .last()
+            .map(|p| p.definition.clone())
+            .ok_or("no package")?;
+        if !matches!(generated.model, PackageModel::PartFile(_)) {
+            return Err(format!("{name}: no part file").into());
+        }
+        let target = &mut project.library.packages[0].definition;
+        target.envelope_nm = generated.envelope_nm;
+        target.model = generated.model.clone();
+        let mut v = viewport(&project)?;
+        // A part all of a lead finish (a tin-plated spacer) has no body.
+        let at = centre(&v, BodyKind::ModelBody)
+            .or_else(|| centre(&v, BodyKind::ModelLead))
+            .ok_or("no body")?;
+        let (w, h) = (1280, 960);
+        for (view, yaw, pitch) in [("a", 35.0, 35.0), ("b", 200.0, 25.0)] {
+            aim(
+                &mut v,
+                Vec3::new(at.x, at.y, at.z / 2.0),
+                distance,
+                yaw,
+                pitch,
+            );
+            let rgba = gpu.draw(&mut v, w, h, 2.0).ok_or("no picture")?;
+            let png = sparksmith_solidcraft::viewport::png(w as usize, h as usize, rgba)
+                .ok_or("png encoding failed")?;
+            std::fs::write(dir.join(format!("{name}-{view}.png")), png)?;
+        }
+    }
+    Ok(())
+}

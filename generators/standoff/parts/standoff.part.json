@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "standoff",
+  "title": "SMD spacer, internal thread",
+  "summary": "Surface-mount spacer with an internal thread: a tin-plated steel tube (length, outer_diameter, bore_diameter, chamfer, bore_chamfer).",
+  "use": "package_body",
+  "prefix": "H",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); the profile of Würth Elektronik's public WA-SMSI drawing (SMT Steel Spacer with internal Thread, M3, order code 9774015360R, revision 001.002, 2020-05-11; a copy at https://docs.rs-online.com/6ef4/0900766b8166610d.pdf downloaded 18 November 2026) without the spigot; chamfers and the bore (the M3 thread's minor diameter) estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

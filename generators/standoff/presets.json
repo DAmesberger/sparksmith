@@ -1,0 +1,132 @@
+[
+ {
+  "key": "standoff-wurth-9774015360r",
+  "name": "Würth WA-SMSI M3 × 1.5 mm (9774015360R)",
+  "aliases": [
+   "9774015360R",
+   "WA-SMSI M3 1.5mm",
+   "SMD spacer M3 1.5 mm"
+  ],
+  "description": "Würth Elektronik WA-SMSI SMT steel spacer, M3 internal thread, 1.5 mm long, Ø6.0 mm with a Ø4.2 × 1.4 mm spigot, tin plated.",
+  "params": {
+   "length": 1500000,
+   "outer_diameter": 6000000,
+   "bore_diameter": 2500000,
+   "spigot_diameter": 4200000,
+   "spigot_length": 1400000,
+   "land_diameter": 7400000,
+   "hole_diameter": 4400000
+  },
+  "citation": {
+   "document": "Würth Elektronik, WA-SMSI SMT Steel Spacer with internal Thread, M3 (order code 9774015360R): Dimensions and Recommended Land Pattern",
+   "revision": "001.002 (2020-05-11)",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Ø6.0, spigot Ø4.2 × 1.4 mm, M3, land Ø7.4 round a Ø4.4 mm non-plated hole from the M3 family drawing; the bore is the M3 thread's minor diameter (ISO 965, 2.46 mm, rounded) and the chamfers are estimated."
+ },
+ {
+  "key": "standoff-wurth-9774060360r",
+  "name": "Würth WA-SMSI M3 × 6 mm (9774060360R)",
+  "aliases": [
+   "9774060360R",
+   "WA-SMSI M3 6mm",
+   "SMD spacer M3 6 mm"
+  ],
+  "description": "Würth Elektronik WA-SMSI SMT steel spacer, M3 internal thread, 6 mm long, Ø6.0 mm with a Ø4.2 × 1.4 mm spigot, tin plated.",
+  "params": {
+   "length": 6000000,
+   "outer_diameter": 6000000,
+   "bore_diameter": 2500000,
+   "spigot_diameter": 4200000,
+   "spigot_length": 1400000,
+   "land_diameter": 7400000,
+   "hole_diameter": 4400000
+  },
+  "citation": {
+   "document": "Würth Elektronik, WA-SMSI SMT Steel Spacer with internal Thread, M3 (order code 9774015360R): Dimensions and Recommended Land Pattern",
+   "revision": "001.002 (2020-05-11)",
+   "page": 1
+  },
+  "basis": "cited_unverified",
+  "note": "Ø6.0, spigot Ø4.2 × 1.4 mm, M3, land Ø7.4 round a Ø4.4 mm non-plated hole from the M3 family drawing, at this order code's length L = 6 mm (the order code's own sheet was not available); the bore is the M3 thread's minor diameter (ISO 965, 2.46 mm, rounded) and the chamfers are estimated."
+ },
+ {
+  "key": "standoff-wurth-9774070360r",
+  "name": "Würth WA-SMSI M3 × 7 mm (9774070360R)",
+  "aliases": [
+   "9774070360R",
+   "WA-SMSI M3 7mm",
+   "SMD spacer M3 7 mm"
+  ],
+  "description": "Würth Elektronik WA-SMSI SMT steel spacer, M3 internal thread, 7 mm long, Ø6.0 mm with a Ø4.2 × 1.4 mm spigot, tin plated.",
+  "params": {
+   "length": 7000000,
+   "outer_diameter": 6000000,
+   "bore_diameter": 2500000,
+   "spigot_diameter": 4200000,
+   "spigot_length": 1400000,
+   "land_diameter": 7400000,
+   "hole_diameter": 4400000
+  },
+  "citation": {
+   "document": "Würth Elektronik, WA-SMSI SMT Steel Spacer with internal Thread, M3 (order code 9774015360R): Dimensions and Recommended Land Pattern",
+   "revision": "001.002 (2020-05-11)",
+   "page": 1
+  },
+  "basis": "cited_unverified",
+  "note": "Ø6.0, spigot Ø4.2 × 1.4 mm, M3, land Ø7.4 round a Ø4.4 mm non-plated hole from the M3 family drawing, at this order code's length L = 7 mm (the order code's own sheet was not available); the bore is the M3 thread's minor diameter (ISO 965, 2.46 mm, rounded) and the chamfers are estimated."
+ },
+ {
+  "key": "standoff-wurth-9774090360r",
+  "name": "Würth WA-SMSI M3 × 9 mm (9774090360R)",
+  "aliases": [
+   "9774090360R",
+   "WA-SMSI M3 9mm",
+   "SMD spacer M3 9 mm"
+  ],
+  "description": "Würth Elektronik WA-SMSI SMT steel spacer, M3 internal thread, 9 mm long, Ø6.0 mm with a Ø4.2 × 1.4 mm spigot, tin plated.",
+  "params": {
+   "length": 9000000,
+   "outer_diameter": 6000000,
+   "bore_diameter": 2500000,
+   "spigot_diameter": 4200000,
+   "spigot_length": 1400000,
+   "land_diameter": 7400000,
+   "hole_diameter": 4400000
+  },
+  "citation": {
+   "document": "Würth Elektronik, WA-SMSI SMT Steel Spacer with internal Thread, M3 (order code 9774015360R): Dimensions and Recommended Land Pattern",
+   "revision": "001.002 (2020-05-11)",
+   "page": 1
+  },
+  "basis": "cited_unverified",
+  "note": "Ø6.0, spigot Ø4.2 × 1.4 mm, M3, land Ø7.4 round a Ø4.4 mm non-plated hole from the M3 family drawing, at this order code's length L = 9 mm (the order code's own sheet was not available); the bore is the M3 thread's minor diameter (ISO 965, 2.46 mm, rounded) and the chamfers are estimated."
+ },
+ {
+  "key": "standoff-wurth-9774100360r",
+  "name": "Würth WA-SMSI M3 × 10 mm (9774100360R)",
+  "aliases": [
+   "9774100360R",
+   "WA-SMSI M3 10mm",
+   "SMD spacer M3 10 mm"
+  ],
+  "description": "Würth Elektronik WA-SMSI SMT steel spacer, M3 internal thread, 10 mm long, Ø6.0 mm with a Ø4.2 × 1.4 mm spigot, tin plated.",
+  "params": {
+   "length": 10000000,
+   "outer_diameter": 6000000,
+   "bore_diameter": 2500000,
+   "spigot_diameter": 4200000,
+   "spigot_length": 1400000,
+   "land_diameter": 7400000,
+   "hole_diameter": 4400000
+  },
+  "citation": {
+   "document": "Würth Elektronik, WA-SMSI SMT Steel Spacer with internal Thread, M3 (order code 9774015360R): Dimensions and Recommended Land Pattern",
+   "revision": "001.002 (2020-05-11)",
+   "page": 1
+  },
+  "basis": "cited_unverified",
+  "note": "Ø6.0, spigot Ø4.2 × 1.4 mm, M3, land Ø7.4 round a Ø4.4 mm non-plated hole from the M3 family drawing, at this order code's length L = 10 mm (the order code's own sheet was not available); the bore is the M3 thread's minor diameter (ISO 965, 2.46 mm, rounded) and the chamfers are estimated."
+ }
+]

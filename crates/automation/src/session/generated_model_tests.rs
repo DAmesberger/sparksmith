@@ -214,3 +214,174 @@ fn every_tabbed_preset_makes_a_part_with_its_model() -> TestResult {
     }
     Ok(())
 }
+
+/// The electromechanical families and the module's ESP32-S3-WROOM-1 are
+/// made through the session from their shipped bundles at every preset
+/// (and each part-file variant): each part file at the module's values
+/// passes the host's checks (no blocking finding, bounds on the envelope
+/// within 10 µm, every lead contact under a lead body) and binds the
+/// expected lead bodies; the bounds are the datasheet's outline.
+#[test]
+fn every_electromechanical_preset_makes_a_part_with_its_model() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = library(temp.path())?;
+    // (generator, preset, overrides, lead bodies, outline x y z in mm); the
+    // WROOM-1 binds 40 pads, their 40 castellation platings and nine
+    // ground pads.
+    type Case = (&'static str, &'static str, Value, usize, [f64; 3]);
+    let cases: [Case; 18] = [
+        (
+            "tactile",
+            "tactile-evqp2-ground",
+            json!({}),
+            4,
+            [5.5, 4.1, 2.1],
+        ),
+        ("tactile", "tactile-evqp2", json!({}), 4, [5.5, 3.5, 2.1]),
+        ("tactile", "tactile-tl3305a", json!({}), 4, [7.5, 4.5, 3.8]),
+        ("tactile", "tactile-b3s-1000", json!({}), 4, [9.0, 6.6, 4.3]),
+        ("reed", "reed-mdsm-4", json!({}), 2, [19.3, 2.28, 2.84]),
+        (
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            json!({}),
+            2,
+            [10.1, 9.6, 5.0],
+        ),
+        (
+            "buzzer",
+            "buzzer-cmi-9653s-smt",
+            json!({"label": true}),
+            2,
+            [10.1, 9.6, 5.0],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-6.3x5.4",
+            json!({}),
+            2,
+            [7.8, 6.6, 5.5],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-panasonic-d",
+            json!({"vent": false}),
+            2,
+            [7.8, 6.6, 5.8],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-kemet-edk-6.3x7.7",
+            json!({}),
+            2,
+            [7.8, 6.6, 7.7],
+        ),
+        (
+            "electrolytic",
+            "electrolytic-panasonic-g",
+            json!({}),
+            2,
+            [12.0, 10.3, 10.2],
+        ),
+        (
+            "power-inductor",
+            "power-inductor-xel4030",
+            json!({}),
+            2,
+            [4.0, 4.0, 3.1],
+        ),
+        (
+            "power-inductor",
+            "power-inductor-srr6028",
+            json!({}),
+            2,
+            [6.8, 6.8, 2.8],
+        ),
+        (
+            "power-inductor",
+            "power-inductor-6x6-shielded",
+            json!({}),
+            2,
+            [6.0, 6.0, 4.5],
+        ),
+        (
+            "standoff",
+            "standoff-wurth-9774100360r",
+            json!({}),
+            1,
+            [6.0, 6.0, 10.0],
+        ),
+        (
+            "standoff",
+            "standoff-wurth-9774060360r",
+            json!({"spigot_length": 0}),
+            1,
+            [6.0, 6.0, 6.0],
+        ),
+        (
+            "module",
+            "module-esp32-s3-wroom-1",
+            json!({}),
+            89,
+            [18.0, 25.5, 3.1],
+        ),
+        (
+            "module",
+            "module-esp32-s3-wroom-1",
+            json!({"can_emboss": false}),
+            89,
+            [18.0, 25.5, 3.1],
+        ),
+    ];
+    for name in [
+        "tactile",
+        "reed",
+        "buzzer",
+        "electrolytic",
+        "power-inductor",
+        "standoff",
+        "module",
+    ] {
+        copy_dir(
+            &Path::new(BUNDLE).with_file_name(name),
+            &root.join("generators").join(name),
+        )?;
+    }
+    for (generator, preset, params, leads, outline) in cases {
+        let mut made = session(&root)?;
+        let reply = call(
+            &mut made,
+            "library.generate_part",
+            json!({"generator": generator, "scope": "component", "preset": preset,
+                "params": params}),
+        );
+        assert_eq!(reply["ok"], true, "{preset} {params}: {reply}");
+        let library = &made.engine().project().library;
+        let package = library.packages.first().ok_or("no package")?;
+        let PackageModel::PartFile(part) = &package.definition.model else {
+            return Err(format!("{preset}: no part file").into());
+        };
+        assert_eq!(
+            part.derived.leads.len(),
+            leads,
+            "{preset} {params}: lead bodies"
+        );
+        let [lo, hi] = part.derived.bounds_nm;
+        for axis in 0..2 {
+            let size = (hi[axis].to_mm_f64() - lo[axis].to_mm_f64())
+                .max(2.0 * hi[axis].to_mm_f64().abs().max(lo[axis].to_mm_f64().abs()));
+            assert!(
+                (size - outline[axis]).abs() < 0.011,
+                "{preset} {params}: axis {axis} spans {size} mm, the drawing {}",
+                outline[axis]
+            );
+        }
+        assert!(
+            (hi[2].to_mm_f64() - outline[2]).abs() < 0.011,
+            "{preset} {params}: top at {} mm, the drawing {}",
+            hi[2].to_mm_f64(),
+            outline[2]
+        );
+    }
+    Ok(())
+}

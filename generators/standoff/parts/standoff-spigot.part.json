@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "standoff-spigot",
+  "title": "SMD spacer, internal thread, spigot",
+  "summary": "As standoff, with the narrower spigot below the seating plane that locates it in the board's hole (spigot_diameter, spigot_length).",
+  "use": "package_body",
+  "prefix": "H",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Würth Elektronik's public WA-SMSI drawing (M3, 9774015360R family drawing, revision 001.002, 2020-05-11; https://docs.rs-online.com/6ef4/0900766b8166610d.pdf downloaded 18 November 2026): Ø6.0 mm, spigot Ø4.2 × 1.4 mm, M3, saved at L = 10 mm (9774100360R); chamfers estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}

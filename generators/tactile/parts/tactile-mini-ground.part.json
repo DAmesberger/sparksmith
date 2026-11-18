@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tactile-mini-ground",
+  "title": "Tactile switch, mini, top push, ground tab",
+  "summary": "As tactile-mini, with the cover's unplated ground tab down the −y side to the board (EVQP2 with ground terminal).",
+  "use": "package_body",
+  "prefix": "SW",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Panasonic's public catalogue Tactile Switches EVQP2/EVQP9/EVQ3P2 (ANCTB19E 202204, p. 5, EVQP2V02M; https://industrial.panasonic.com/ac/e/, downloaded 18 November 2026), the ground tab 1 × 0.3 mm; sheet thicknesses, J-bend and rounds estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison."
+}
