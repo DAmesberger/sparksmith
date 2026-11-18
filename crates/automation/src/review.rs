@@ -208,6 +208,11 @@ pub fn cell(t: &str) -> String {
 #[serde(deny_unknown_fields)]
 pub struct ReviewCheckParams {
     pub report: ReviewReport,
+    /// The placed part, by designator, whose 3D body the report is of
+    /// (`library.make_body`): the report is held against that body instead
+    /// of the drafts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body: Option<String>,
 }
 
 /// One draft as the check sees it.
@@ -360,6 +365,49 @@ pub fn check(snapshot: &Value, report: &ReviewReport) -> Value {
         "pins": {"unreviewed": unreviewed, "uncertain": uncertain},
         "markdown": md,
         "next": "Show the person the problems (fix them and check again) or, when accepted, the markdown: they review every unreviewed pin in the Pins tab and publish. Never publish for them.",
+    })
+}
+
+/// The body a review report is of, as the check sees it: the placed
+/// part, its package revision and model, the parts that share it, and
+/// whether its provenance records an AI recreation.
+pub struct BodyState {
+    pub part: String,
+    pub package: String,
+    pub model: String,
+    pub parts: Vec<String>,
+    pub recreated: bool,
+}
+
+/// `library.review_check` with `body`: the report's citation problems and
+/// whether the part's body is the recreation the report describes. Like
+/// the drafts' check it changes nothing and never means the body is
+/// verified.
+pub fn check_body(body: &BodyState, report: &ReviewReport) -> Value {
+    let mut problems = report.citation_problems();
+    if !body.recreated {
+        problems.push(format!(
+            "{}'s body is not a recreation from datasheets yet: make it with library.make_body first",
+            body.part
+        ));
+    }
+    problems.truncate(MAX_PROBLEMS);
+    let mut md = String::new();
+    let _ = writeln!(md, "# 3D body review: {}\n", report.part);
+    let _ = writeln!(
+        md,
+        "Status: **recreated by AI, not reviewed**. Compare the body with the datasheet's drawing and photos before relying on it.\n"
+    );
+    md.push_str(&report_markdown(report));
+    let _ = writeln!(md, "\n## Body\n");
+    let _ = writeln!(md, "- Part {}: package {}", body.part, body.package);
+    let _ = writeln!(md, "- Model: {}", body.model);
+    let _ = writeln!(md, "- Parts that use it: {}", body.parts.join(", "));
+    json!({
+        "accepted": problems.is_empty(),
+        "problems": problems,
+        "markdown": md,
+        "next": "Show the person the problems (fix them and check again) or, when accepted, the markdown: they compare the body with the drawing and photos.",
     })
 }
 

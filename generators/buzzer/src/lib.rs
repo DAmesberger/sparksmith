@@ -285,7 +285,6 @@ fn pads(d: &Dims) -> Vec<Pad> {
 /// terminals below it, a + beside terminal 1.
 fn symbol() -> Symbol {
     let mut d = Drawing::default();
-    d.numbered = false;
     let m = |v: i64| v * MM / 1000;
     d.pin("1", [m(-1250), m(-5000)], UP, m(2500));
     d.pin("2", [m(1250), m(-5000)], UP, m(2500));

@@ -1,5 +1,6 @@
 //! Command-line access to Sparksmith's command engine (`sparksmith`). Every subcommand is a
 //! thin transport over `sparksmith_automation::Session`.
+mod design_body;
 mod design_part;
 mod fab;
 mod fab_profile;
@@ -79,6 +80,7 @@ fn usage() -> String {
         firmware::USAGE,
         fab_profile::USAGE,
         design_part::USAGE,
+        design_body::USAGE,
         fab::USAGE,
         review_diff::USAGE,
         part::USAGE,
@@ -352,6 +354,7 @@ fn run() -> Result<()> {
         [command, rest @ ..] if command == "firmware" => firmware::run(rest),
         [command, rest @ ..] if command == "fab-profile" => fab_profile::run(rest),
         [command, rest @ ..] if command == "design-part" => design_part::run(rest),
+        [command, rest @ ..] if command == "design-body" => design_body::run(rest),
         [command, rest @ ..] if command == "llm-key" => design_part::key(rest),
         [command, rest @ ..] if command == "llm-profile" => design_part::profile(rest),
         [command, rest @ ..] if command == "review-diff" => review_diff::run(rest),

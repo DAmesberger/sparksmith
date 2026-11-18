@@ -95,7 +95,7 @@ fn rmcp_client_discovers_and_lists_at_2026_07_28() -> Fallible<()> {
         assert_eq!(code(unknown)?, ErrorCode::INVALID_PARAMS);
         let prompts = client.list_prompts(None).await?;
         let names: Vec<&str> = prompts.prompts.iter().map(|p| p.name.as_str()).collect();
-        assert_eq!(names, ["datasheet_to_component"]);
+        assert_eq!(names, ["datasheet_to_body", "datasheet_to_component"]);
         assert_eq!(prompts.cache_scope, Some(CacheScope::Public));
         assert_eq!(
             code(client.list_resources(None).await)?,
@@ -317,7 +317,7 @@ fn the_wire_matches_the_golden_transcript() -> Fallible<()> {
     assert_eq!(list["_meta"][SERVER_INFO]["name"], NAME);
     assert_eq!(reply(17)["result"], *list, "the list is the same each time");
     assert_eq!(
-        reply(8)["result"]["prompts"][0]["name"],
+        reply(8)["result"]["prompts"][1]["name"],
         "datasheet_to_component"
     );
     for (id, code) in [(3, -32601), (6, -32602), (7, -32602), (9, -32601)] {
@@ -540,7 +540,11 @@ fn the_datasheet_prompt_serves_the_method() -> Fallible<()> {
     missing.insert("part".into(), json!("EXM-48"));
     assert!(prompts::get(&workflows, "datasheet_to_component", Some(&missing)).is_err());
 
-    let skill = &workflows.first().ok_or("a workflow")?.method;
+    let skill = &workflows
+        .iter()
+        .find(|w| w.workflow.id == "datasheet-to-component")
+        .ok_or("the datasheet workflow")?
+        .method;
     for tool in [
         tools::FIND,
         tools::DESCRIBE,

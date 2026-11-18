@@ -184,24 +184,22 @@ fn configure(flags: Flags, shipped: &AssistLibrary) -> Result<(RunConfig, Connec
     Ok((config, connection))
 }
 
-fn parse(args: &[String]) -> Result<Args> {
-    let mut datasheets = Vec::new();
-    let (mut name, mut out, mut notes) = (String::new(), PathBuf::new(), String::new());
-    let (mut record, mut replay) = (None, None);
-    let mut flags = Flags::default();
-    let mut budget = Budget::default();
-    let mut it = args.iter();
-    while let Some(flag) = it.next() {
-        let value = it
-            .next()
-            .ok_or_else(|| format!("{flag} needs a value\nusage: {CLI} {USAGE}"))?
-            .clone();
-        let f = flag.as_str();
+/// The model's flags (provider, key, capabilities, limits, profile) and
+/// `--record`/`--replay`, which `design-part` and `design-body` share.
+#[derive(Default)]
+pub(super) struct ModelFlags {
+    flags: Flags,
+    budget: Budget,
+    pub(super) record: Option<PathBuf>,
+    pub(super) replay: Option<PathBuf>,
+}
+
+impl ModelFlags {
+    /// Take `flag` with its `value` when it is a model flag; `false` when
+    /// it is another command's.
+    pub(super) fn take(&mut self, f: &str, value: String) -> Result<bool> {
+        let (flags, budget) = (&mut self.flags, &mut self.budget);
         match f {
-            "--datasheet" => datasheets.push(Datasheet::parse(&value)),
-            "--name" => name = value,
-            "--out" => out = PathBuf::from(value),
-            "--notes" => notes = value,
             "--provider" => flags.provider = Some(value),
             "--base-url" => flags.base_url = Some(value),
             "--model" => flags.model = Some(value),
@@ -219,22 +217,53 @@ fn parse(args: &[String]) -> Result<Args> {
             "--max-seconds" => {
                 budget.max_duration = Duration::from_secs(count(f, &value)?);
             }
-            "--record" => record = Some(PathBuf::from(value)),
-            "--replay" => replay = Some(PathBuf::from(value)),
+            "--record" => self.record = Some(PathBuf::from(value)),
+            "--replay" => self.replay = Some(PathBuf::from(value)),
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+
+    /// The run's configuration and connection, the shipped defaults filled
+    /// in.
+    pub(super) fn configure(self) -> Result<(RunConfig, Connection)> {
+        if self.record.is_some() && self.replay.is_some() {
+            return Err("--record and --replay exclude each other".into());
+        }
+        let shipped = AssistLibrary::locate()?;
+        let (mut config, connection) = configure(self.flags, &shipped)?;
+        config.budget = self.budget;
+        Ok((config, connection))
+    }
+}
+
+fn parse(args: &[String]) -> Result<Args> {
+    let mut datasheets = Vec::new();
+    let (mut name, mut out, mut notes) = (String::new(), PathBuf::new(), String::new());
+    let mut model = ModelFlags::default();
+    let mut it = args.iter();
+    while let Some(flag) = it.next() {
+        let value = it
+            .next()
+            .ok_or_else(|| format!("{flag} needs a value\nusage: {CLI} {USAGE}"))?
+            .clone();
+        match flag.as_str() {
+            "--datasheet" => datasheets.push(Datasheet::parse(&value)),
+            "--name" => name = value,
+            "--out" => out = PathBuf::from(value),
+            "--notes" => notes = value,
             other => {
-                return Err(format!("unknown option {other}\nusage: {CLI} {USAGE}").into());
+                if !model.take(other, value)? {
+                    return Err(format!("unknown option {other}\nusage: {CLI} {USAGE}").into());
+                }
             }
         }
     }
     if datasheets.is_empty() || name.trim().is_empty() || out.as_os_str().is_empty() {
         return Err(format!("usage: {CLI} {USAGE}").into());
     }
-    if record.is_some() && replay.is_some() {
-        return Err("--record and --replay exclude each other".into());
-    }
-    let shipped = AssistLibrary::locate()?;
-    let (mut config, connection) = configure(flags, &shipped)?;
-    config.budget = budget;
+    let (record, replay) = (model.record.clone(), model.replay.clone());
+    let (config, connection) = model.configure()?;
     Ok(Args {
         datasheets,
         name,
@@ -247,7 +276,7 @@ fn parse(args: &[String]) -> Result<Args> {
     })
 }
 
-fn print_event(event: Event) {
+pub(super) fn print_event(event: Event) {
     match event {
         Event::Request { n, prompt_tokens } => {
             eprintln!("request {n}: ~{prompt_tokens} prompt tokens");
@@ -302,7 +331,7 @@ fn print_event(event: Event) {
 /// is applied (the drafts wait for review in the new project, and nothing
 /// is published); a choice the model made stands.
 #[derive(Default)]
-struct Console {
+pub(super) struct Console {
     /// When the current step (or its retry) began.
     step_started: Option<Instant>,
     /// Seconds spent waiting for model replies, summed over the run.
@@ -410,9 +439,12 @@ fn waited<T: Send + 'static>(
 /// (a new build too) may read it, and nothing moves until that dialog is
 /// answered. So a slow read says what it waits for, and a keychain read
 /// prints its seconds.
-fn connect(args: &Args) -> Result<(Box<dyn ModelBackend>, f64)> {
-    let source = args.connection.key.clone();
-    let endpoint = args.connection.endpoint.clone();
+pub(super) fn connect(
+    config: &RunConfig,
+    connection: &Connection,
+) -> Result<(Box<dyn ModelBackend>, f64)> {
+    let source = connection.key.clone();
+    let endpoint = connection.endpoint.clone();
     let keychain = source == KeySource::Keychain;
     let notice = format!(
         "waiting for the system keychain: allow access to the key for {} in the system's dialog \
@@ -429,24 +461,24 @@ fn connect(args: &Args) -> Result<(Box<dyn ModelBackend>, f64)> {
     if keychain {
         eprintln!("key: read from the system keychain in {seconds:.1} s");
     }
-    let backend = model::connect_with_key(&args.config.profile, &args.connection.endpoint, key)?;
+    let backend = model::connect_with_key(&config.profile, &connection.endpoint, key)?;
     Ok((backend, seconds))
 }
 
-/// The datasheet workflow as this program lists it.
-fn datasheet_workflow() -> Result<Loaded> {
+/// The workflow `id` as this program lists it.
+pub(super) fn installed_workflow(id: &str) -> Result<Loaded> {
     let listed = workflow::load::host();
     let found = listed
         .iter()
-        .find(|l| l.id == WORKFLOW)
-        .ok_or_else(|| format!("the workflow {WORKFLOW} is not installed"))?;
+        .find(|l| l.id == id)
+        .ok_or_else(|| format!("the workflow {id} is not installed"))?;
     if !found.why_not.is_empty() {
-        return Err(format!("{WORKFLOW} cannot run: {}", found.why_not.join("; ")).into());
+        return Err(format!("{id} cannot run: {}", found.why_not.join("; ")).into());
     }
     Ok(found
         .loaded
         .clone()
-        .ok_or_else(|| format!("{WORKFLOW} did not load"))?)
+        .ok_or_else(|| format!("{id} did not load"))?)
 }
 
 /// The workflow's inputs from the flags: the datasheets, the part name and
@@ -484,15 +516,15 @@ pub fn run(args: &[String]) -> Result<()> {
         Some(replay) if replay.workflow.is_none() => return replay_conversation(&args, replay),
         other => other,
     };
-    let loaded = datasheet_workflow()?;
+    let loaded = installed_workflow(WORKFLOW)?;
     let (mut backend, key_seconds): (Box<dyn ModelBackend>, f64) = match (replay, &args.record) {
         (Some(replay), _) => (Box::new(replay), 0.0),
         (None, Some(path)) => {
-            let (inner, seconds) = connect(&args)?;
+            let (inner, seconds) = connect(&args.config, &args.connection)?;
             let recording = Recording::for_workflow(inner, path.clone(), runner::mark(&loaded))?;
             (Box::new(recording), seconds)
         }
-        (None, None) => connect(&args)?,
+        (None, None) => connect(&args.config, &args.connection)?,
     };
     let mut session = super::user_session(sparksmith_io::new_project::profiled_engine(
         &super::context()?,
