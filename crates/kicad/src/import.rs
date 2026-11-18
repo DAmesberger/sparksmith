@@ -129,6 +129,15 @@ pub struct Setup<'a> {
 
 /// Import a KiCad board file into a new project.
 pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> {
+    import_with_models(bytes, setup, None)
+}
+
+/// Import with a host that resolves and evaluates 3D models off the UI thread.
+pub fn import_with_models(
+    bytes: &[u8],
+    setup: &Setup<'_>,
+    mut models: Option<&mut dyn crate::models::Provider>,
+) -> Result<Imported, ImportError> {
     let mut report = Report::default();
     // Check limits before building any part of the imported project, even
     // when no fabrication profile is available to apply the rules to.
@@ -262,6 +271,7 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         if let Some(symbol) = &symbol {
             key.push_str(&format!("{symbol:?}"));
         }
+        key.push_str(&format!("{:?}\0{}", fp.models, prefix_of(&fp.reference)));
         let next = definitions.len();
         let index = *by_key.entry(key).or_insert(next);
         if index == next {
@@ -270,7 +280,9 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         uses.push(index);
         report.add_n(Case::FootprintFabGraphics, fp.fab_graphics);
         report.add_n(Case::FootprintDrawings, fp.drawings);
-        report.add_n(Case::Models, fp.models);
+        if models.is_none() {
+            report.add_n(Case::Models, fp.models.len());
+        }
         if fp.net_tie {
             report.add(Case::NetTie);
         }
@@ -298,17 +310,48 @@ pub fn import(bytes: &[u8], setup: &Setup<'_>) -> Result<Imported, ImportError> 
         let prefix = first
             .map(|fp| prefix_of(&fp.reference))
             .unwrap_or_else(|| "U".to_owned());
-        let name = definition_name(
-            first.map_or("", |fp| fp.lib_id.as_str()),
-            k,
-            &mut names_taken,
-        );
+        let source_id = first.map_or("", |fp| fp.lib_id.as_str());
+        let naming = definition_name(source_id, k, &mut names_taken);
+        if naming.changed {
+            report.add(Case::NameShortened);
+        }
+        if naming.numbered {
+            report.add(Case::NameNumbered);
+        }
+        let name = naming.name;
+        let selection = match (models.as_deref_mut(), first) {
+            (Some(provider), Some(fp)) => Some(
+                provider
+                    .prepare(&mut session.engine, &pads, &prefix, &fp.models)
+                    .map_err(|reason| ImportError::Refused {
+                        step: "3D model",
+                        reason,
+                    })?,
+            ),
+            _ => None,
+        };
+        if let Some(selection) = &selection {
+            for (fp, used) in board.footprints.iter().zip(&uses) {
+                if *used == k {
+                    report.add_model(
+                        selection.case,
+                        &fp.reference,
+                        &selection.reason,
+                        selection.placeholder,
+                    );
+                }
+            }
+        }
         sets.push(session.component_set(
-            &name,
-            pads,
-            &prefix,
-            symbol.as_ref(),
-            value_field,
+            ComponentSource {
+                name: &name,
+                source_id,
+                pads,
+                prefix: &prefix,
+                kicad_symbol: symbol.as_ref(),
+                value_field,
+                model: selection.as_ref().and_then(|s| s.choice.as_ref()),
+            },
             &mut report,
         )?);
     }
@@ -646,6 +689,18 @@ fn value_text(value: &str) -> Option<String> {
     }
     let out = out.trim().to_owned();
     (!out.is_empty() && out != "~").then_some(out)
+}
+
+/// Parsed electrical data and the optional mechanical model for one definition.
+struct ComponentSource<'a> {
+    name: &'a str,
+    /// The KiCad footprint id (`Library:Name`), recorded in the provenance.
+    source_id: &'a str,
+    pads: Vec<Pad>,
+    prefix: &'a str,
+    kicad_symbol: Option<&'a crate::schematic::LibSymbol>,
+    value_field: Option<FieldRef>,
+    model: Option<&'a crate::models::Choice>,
 }
 
 /// The drafts of one imported footprint, published.
@@ -991,13 +1046,18 @@ impl Session<'_> {
 
     fn component_set(
         &mut self,
-        name: &str,
-        pads: Vec<Pad>,
-        prefix: &str,
-        kicad_symbol: Option<&crate::schematic::LibSymbol>,
-        value_field: Option<FieldRef>,
+        source: ComponentSource<'_>,
         report: &mut Report,
     ) -> Result<Set, ImportError> {
+        let ComponentSource {
+            name,
+            source_id,
+            pads,
+            prefix,
+            kicad_symbol,
+            value_field,
+            model,
+        } = source;
         let kinds = [
             DefinitionKind::Component,
             DefinitionKind::Symbol,
@@ -1033,7 +1093,7 @@ impl Session<'_> {
             });
         };
         let mut unpinned = 0;
-        let edits = drafts(
+        let mut edits = drafts(
             name,
             pads,
             prefix,
@@ -1046,6 +1106,30 @@ impl Session<'_> {
             step: "library.edit",
             reason: e.to_string(),
         })?;
+        if !source_id.trim().is_empty() {
+            let id: String = source_id
+                .chars()
+                .filter(|c| !c.is_control())
+                .take(4 * MAX_NAME_CHARS)
+                .collect();
+            for edit in &mut edits {
+                edit.meta
+                    .provenance
+                    .push_str(&format!("\nKiCad footprint: {id}"));
+            }
+        }
+        if let Some(model) = model {
+            for edit in &mut edits {
+                if let Definition::Package(package) = &mut edit.definition {
+                    package.model = model.model.clone();
+                    package.placement = model.placement;
+                    package.envelope_nm = model.envelope_nm;
+                    edit.meta
+                        .provenance
+                        .push_str(&format!("\n{}", model.provenance));
+                }
+            }
+        }
         report.add_n(Case::TerminalWithoutPin, unpinned);
         self.batches(
             "library.publish",
@@ -1069,26 +1153,58 @@ impl Session<'_> {
 /// Longest definition name taken from a footprint's KiCad name, chars.
 const MAX_NAME_CHARS: usize = 120;
 
+/// The name of the `k`th imported definition, and how it was reached.
+struct Naming {
+    name: String,
+    /// The name is not the KiCad id as it is (library nickname dropped,
+    /// control characters or extra whitespace removed).
+    changed: bool,
+    /// An earlier definition took the name: this one is numbered apart.
+    numbered: bool,
+}
+
 /// The name of the `k`th imported definition: its first footprint's KiCad
-/// name (`Library:R_0805`), without control characters and bounded, else
-/// "KiCad footprint {k + 1}". A name an earlier definition took (one KiCad
-/// footprint whose copies differ) gets " (2)", " (3)" and so on.
-fn definition_name(lib_id: &str, k: usize, taken: &mut BTreeMap<String, usize>) -> String {
-    let clean: String = lib_id
+/// footprint name without the library nickname (`R_0805` of
+/// `Library:R_0805`; the full id stays in the provenance), without control
+/// characters, with whitespace runs made one space, trimmed and bounded,
+/// else "KiCad footprint {k + 1}". A name an earlier definition took (two
+/// libraries' footprints of one name, or one footprint whose copies differ)
+/// gets ", 2", ", 3" and so on.
+fn definition_name(lib_id: &str, k: usize, taken: &mut BTreeMap<String, usize>) -> Naming {
+    let short = match lib_id.split_once(':') {
+        Some((nickname, name)) if !nickname.trim().is_empty() && !name.trim().is_empty() => name,
+        _ => lib_id,
+    };
+    let clean = short
         .chars()
         .filter(|c| !c.is_control())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
         .take(MAX_NAME_CHARS)
-        .collect();
-    let base = match clean.trim() {
-        "" => format!("KiCad footprint {}", k + 1),
-        name => name.to_owned(),
+        .collect::<String>();
+    let base = if clean.is_empty() {
+        format!("KiCad footprint {}", k + 1)
+    } else {
+        clean
     };
+    let changed = !lib_id.trim().is_empty() && base != lib_id;
     let seen = taken.entry(base.clone()).or_insert(0);
     *seen += 1;
     if *seen == 1 {
-        base
+        Naming {
+            name: base,
+            changed,
+            numbered: false,
+        }
     } else {
-        format!("{base} ({seen})")
+        Naming {
+            name: format!("{base}, {seen}"),
+            changed,
+            numbered: true,
+        }
     }
 }
 
@@ -1135,6 +1251,10 @@ fn drafts(
     }))
     .unwrap_or(Bounds::point([0.0, 0.0]));
     let size = bounds.size();
+    // The placeholder box is centred on its pads, not on the footprint's
+    // origin (a header's origin is often its pin 1).
+    let centre = bounds.center();
+    let placeholder = ModelPlacement::from_mm([centre[0], centre[1], 0.0], [0.0; 3])?;
     let envelope = [
         Nm::from_mm_f64_rounded(size[0].max(0.1))?,
         Nm::from_mm_f64_rounded(size[1].max(0.1))?,
@@ -1207,7 +1327,7 @@ fn drafts(
                 model: PackageModel::Envelope {
                     material: MaterialId::EpoxyMould,
                 },
-                placement: ModelPlacement::default(),
+                placement: placeholder,
                 mechanical: None,
                 datums: Vec::new(),
                 leads: Vec::new(),
@@ -1250,16 +1370,27 @@ fn drafts(
 mod tests {
     use super::*;
 
-    /// A definition is named by its KiCad footprint; a repeated name is
-    /// numbered, and a footprint without one is numbered by its place.
+    /// A definition is named by its KiCad footprint name without the
+    /// library nickname; a repeated name is numbered, and a footprint
+    /// without one is numbered by its place.
     #[test]
     fn definitions_take_their_kicad_footprint_names() {
         let mut taken = BTreeMap::new();
-        let mut name = |lib_id: &str, k: usize| definition_name(lib_id, k, &mut taken);
-        assert_eq!(name("Lib:R_0805", 0), "Lib:R_0805");
-        assert_eq!(name("Lib:R_0805", 1), "Lib:R_0805 (2)");
-        assert_eq!(name("  ", 2), "KiCad footprint 3");
-        assert_eq!(name("Lib:C\n_0603", 3), "Lib:C_0603");
-        assert_eq!(name(&"x".repeat(500), 4).chars().count(), MAX_NAME_CHARS);
+        let mut name = |lib_id: &str, k: usize| {
+            let n = definition_name(lib_id, k, &mut taken);
+            (n.name, n.changed, n.numbered)
+        };
+        assert_eq!(name("Lib:R_0805", 0), ("R_0805".into(), true, false));
+        assert_eq!(name("Other:R_0805", 1), ("R_0805, 2".into(), true, true));
+        assert_eq!(name("R_0805", 2), ("R_0805, 3".into(), false, true));
+        assert_eq!(name("  ", 3), ("KiCad footprint 4".into(), false, false));
+        assert_eq!(name("Lib:C\n_0603", 4), ("C_0603".into(), true, false));
+        assert_eq!(
+            name("Lib:  Wide   name ", 5),
+            ("Wide name".into(), true, false)
+        );
+        assert_eq!(name(":Bare", 6), (":Bare".into(), false, false));
+        assert_eq!(name("Lib:", 7), ("Lib:".into(), false, false));
+        assert_eq!(name(&"x".repeat(500), 8).0.chars().count(), MAX_NAME_CHARS);
     }
 }

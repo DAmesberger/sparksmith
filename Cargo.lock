@@ -6753,6 +6753,7 @@ dependencies = [
 name = "sparksmith-io"
 version = "0.1.0"
 dependencies = [
+ "cap-std",
  "getrandom 0.3.4",
  "pdf-writer",
  "schemars",

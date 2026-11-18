@@ -1894,7 +1894,7 @@ mod assembly_link;
 pub mod assist;
 pub mod discovery;
 mod firmware;
-mod generated_models;
+pub(crate) mod generated_models;
 pub mod generators;
 mod generic_search;
 mod interface;

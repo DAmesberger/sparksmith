@@ -100,7 +100,8 @@ pub fn import(source: &Path, profile: Option<&str>) -> Result<KicadImport, Strin
     let defaults = sparksmith_io::new_project::shipped().map_err(|e| e.to_string())?;
     let profile =
         sparksmith_io::rule_profiles::for_new_board_from_env(profile).map_err(|e| e.to_string())?;
-    let imported = sparksmith_kicad::import(
+    let mut models = crate::kicad_models::Models::new(board.parent().unwrap_or(Path::new(".")))?;
+    let imported = sparksmith_kicad::import::import_with_models(
         &bytes,
         &sparksmith_kicad::Setup {
             board: &defaults.board,
@@ -112,6 +113,7 @@ pub fn import(source: &Path, profile: Option<&str>) -> Result<KicadImport, Strin
                 .as_ref()
                 .map(|(root, files)| sparksmith_kicad::schematic::SchematicFiles { root, files }),
         },
+        Some(&mut models),
     )
     .map_err(|e| e.to_string())?;
     Ok(KicadImport {

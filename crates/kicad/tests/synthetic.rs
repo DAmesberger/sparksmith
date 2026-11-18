@@ -85,7 +85,7 @@ fn the_showcase_board_imports_through_the_engine() -> Fallible<()> {
     assert!(
         names
             .iter()
-            .all(|n| n.starts_with("Synthetic:") && !n.contains("KiCad footprint")),
+            .all(|n| !n.contains(':') && !n.contains("KiCad footprint")),
         "{names:?}"
     );
     // The import is undoable command history, not a written document.
@@ -429,11 +429,12 @@ fn distinct_footprints_with_equal_pads_stay_distinct() -> Fallible<()> {
             part("Lib:LED_0805", "D1", 15.0),
             part("Lib:C_0805", "C1", 20.0),
             part("Lib:R_0805", "R2", 25.0),
+            part("Other:R_0805", "R3", 30.0),
         ],
         items: String::new(),
     };
     let imported = import(board.text().as_bytes())?;
-    assert_eq!(imported.report.counts.definitions, 3);
+    assert_eq!(imported.report.counts.definitions, 4);
     let project = imported.engine.project();
     let component = |designator: &str| -> Fallible<String> {
         let instance = project
@@ -447,17 +448,37 @@ fn distinct_footprints_with_equal_pads_stay_distinct() -> Fallible<()> {
             .name
             .clone())
     };
-    assert_eq!(component("R1")?, "Lib:R_0805");
-    assert_eq!(component("D1")?, "Lib:LED_0805");
-    assert_eq!(component("C1")?, "Lib:C_0805");
-    assert_eq!(component("R2")?, "Lib:R_0805");
+    // The visible name is the footprint's own; the library nickname and
+    // full id stay in the provenance. Another library's footprint of the
+    // same name is numbered apart, and the report counts both.
+    assert_eq!(component("R1")?, "R_0805");
+    assert_eq!(component("D1")?, "LED_0805");
+    assert_eq!(component("C1")?, "C_0805");
+    assert_eq!(component("R2")?, "R_0805");
+    assert_eq!(component("R3")?, "R_0805, 2");
+    assert_eq!(imported.report.count(Case::NameShortened), 4);
+    assert_eq!(imported.report.count(Case::NameNumbered), 1);
+    let r3 = project.instance_by_designator("R3").ok_or("R3")?;
+    let provenance = &project
+        .library
+        .component(r3.component)
+        .ok_or("component")?
+        .meta
+        .provenance;
+    assert!(
+        provenance.contains("KiCad footprint: Other:R_0805"),
+        "{provenance}"
+    );
     let bom = sparksmith_core::completeness::bom(project)?;
     let lines: Vec<Vec<&str>> = bom
         .lines
         .iter()
         .map(|l| l.designators.iter().map(String::as_str).collect())
         .collect();
-    assert_eq!(lines, [vec!["C1"], vec!["D1"], vec!["R1", "R2"]]);
+    assert_eq!(
+        lines,
+        [vec!["C1"], vec!["D1"], vec!["R1", "R2"], vec!["R3"]]
+    );
     Ok(())
 }
 
@@ -523,6 +544,30 @@ fn kicad_values_become_the_parts_values() -> Fallible<()> {
             (vec!["R2"], vec!["10k"]),
             (vec!["R3"], vec![])
         ]
+    );
+    Ok(())
+}
+
+#[test]
+fn a_placeholder_body_is_centred_on_its_pads_not_on_the_footprint_origin() -> Fallible<()> {
+    // A 1×10 header whose origin is pin 1, as headers commonly are.
+    const NUMBERS: [&str; 10] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+    let pads = NUMBERS
+        .iter()
+        .enumerate()
+        .map(|(k, n)| Pad::tht(n, "oval", [0.0, 2.54 * k as f64, 0.0], [1.7, 1.7], "1.0"))
+        .collect();
+    let imported = import(one_footprint(pads).text().as_bytes())?;
+    let project = imported.engine.project();
+    assert_eq!(project.library.packages.len(), 1);
+    let package = &project.library.packages[0].definition;
+    let [length, width, _] = package.envelope();
+    assert!((length - 1.7).abs() < 1e-6 && (width - (9.0 * 2.54 + 1.7)).abs() < 1e-6);
+    // KiCad's y points down; ours up: the pads run from 0 to -22.86 mm.
+    let [x, y, z] = package.placement.translation();
+    assert!(
+        x.abs() < 1e-6 && (y + 4.5 * 2.54).abs() < 1e-6 && z == 0.0,
+        "{x} {y} {z}"
     );
     Ok(())
 }
