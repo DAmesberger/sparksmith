@@ -152,6 +152,9 @@ pub struct Footprint {
     pub net_tie: bool,
     /// Footprint drawings on copper, mask or paste layers.
     pub fab_graphics: usize,
+    /// Of those, the filled polygons on a mask or paste layer (footprint
+    /// frame, as written): openings a pad may own ([`Opening`]).
+    pub openings: Vec<Opening>,
     /// Other drawings and texts (silkscreen, courtyard, fabrication).
     pub drawings: usize,
     pub models: Vec<crate::models::Reference>,
@@ -471,6 +474,47 @@ fn fab_layer(layer: &str) -> bool {
     layer.ends_with(".Cu") || layer.ends_with(".Mask") || layer.ends_with(".Paste")
 }
 
+/// Most mask and paste polygons one footprint keeps as openings; past
+/// them the rest stay refused drawings.
+pub const MAX_OPENINGS: usize = 1024;
+
+/// A filled footprint polygon on a mask or paste layer: an opening that
+/// may belong to one pad ([`crate::translate::take_openings`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Opening {
+    /// `F.Mask`, `B.Mask`, `F.Paste` or `B.Paste`.
+    pub layer: String,
+    /// Footprint frame, KiCad's axes.
+    pub points: Vec<PointNm>,
+}
+
+/// `item` as an [`Opening`]: a filled `fp_poly` on a mask or paste layer
+/// without arcs; anything else is none.
+fn opening(item: &Node, head: &str, layer: &str) -> Result<Option<Opening>> {
+    if head != "fp_poly" || !(layer.ends_with(".Mask") || layer.ends_with(".Paste")) {
+        return Ok(None);
+    }
+    let filled = item
+        .child("fill")
+        .and_then(|f| f.arg(0))
+        .is_some_and(|f| matches!(f, "solid" | "yes"));
+    let Some(pts) = item.child("pts").filter(|_| filled) else {
+        return Ok(None);
+    };
+    let path = "footprint/fp_poly";
+    let mut points = Vec::new();
+    for xy in pts.args() {
+        if xy.head() != Some("xy") || points.len() >= MAX_POLY_POINTS {
+            return Ok(None);
+        }
+        points.push(point(xy, 0, path)?);
+    }
+    Ok((points.len() >= 3).then(|| Opening {
+        layer: layer.to_owned(),
+        points,
+    }))
+}
+
 fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
     let path = "footprint";
     let (at_point, angle) = at(node, path)?;
@@ -515,6 +559,11 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                     fp.edge_cuts += 1;
                 } else if fab_layer(layer) {
                     fp.fab_graphics += 1;
+                    if fp.openings.len() < MAX_OPENINGS
+                        && let Some(opening) = opening(item, head, layer)?
+                    {
+                        fp.openings.push(opening);
+                    }
                 } else {
                     fp.drawings += 1;
                 }
