@@ -357,6 +357,13 @@ fn trace_model<'a>(
             }
         }
         PackageModel::Envelope { .. } => TraceModel::Package { package },
+        PackageModel::NoBody => {
+            return Err(Error::Unsupported(
+                "layout.dimension_model: the package has no 3D body; dimension to its pads, \
+                 courtyard and anchors"
+                    .into(),
+            ));
+        }
     };
     Ok((model, design_key(&model)?))
 }

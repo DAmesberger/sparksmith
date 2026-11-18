@@ -237,7 +237,7 @@ impl PackageDefinition {
                     ));
                 }
             }
-            PackageModel::Envelope { .. } => {}
+            PackageModel::Envelope { .. } | PackageModel::NoBody => {}
         }
         for problem in super::datum::datum_problems(&self.datums) {
             out.push(issue(

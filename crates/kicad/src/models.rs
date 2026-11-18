@@ -105,6 +105,32 @@ impl Facts {
     }
 }
 
+/// Why `footprint` is no part to draw, as its source has it: it names no 3D
+/// model and nothing is assembled there (KiCad's board-only or exclude
+/// attributes), or it is bare copper (no pad on a net on a board with nets:
+/// a fiducial, a logo;
+/// a net tie; one surface pad: a test or contact pad). `None` for a part
+/// that needs a body.
+pub fn no_body(footprint: &crate::board::Footprint, board_nets: bool) -> Option<&'static str> {
+    use crate::board::PadType;
+    if !footprint.models.is_empty() {
+        return None;
+    }
+    if footprint.board_only || footprint.not_assembled {
+        Some("not assembled (KiCad's board-only or exclude attribute)")
+    } else if footprint.net_tie {
+        Some("a net tie")
+    } else if board_nets && footprint.pads.iter().all(|p| p.net.is_none()) {
+        Some("no pad on a net (a fiducial, a logo or a mark)")
+    } else if let [pad] = footprint.pads.as_slice()
+        && pad.kind == PadType::Smd
+    {
+        Some("one surface pad (a test or contact pad)")
+    } else {
+        None
+    }
+}
+
 /// Host preparation runs while the new engine is still private. Any error
 /// discards it, including staged model assets; no existing document is changed.
 pub trait Provider {

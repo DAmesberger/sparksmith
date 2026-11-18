@@ -164,6 +164,9 @@ pub struct Footprint {
     pub zone: ZoneOverride,
     /// KiCad's "not in schematic" attribute: a part on the board only.
     pub board_only: bool,
+    /// KiCad's "exclude from position files" or "exclude from bill of
+    /// materials" attribute: nothing is assembled there.
+    pub not_assembled: bool,
     /// The bounds of the fabrication-layer drawings (the body outline), in
     /// the footprint frame, when there are any.
     pub fab_bounds: Option<[PointNm; 2]>,
@@ -592,6 +595,9 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                 }
                 if has("board_only") {
                     fp.board_only = true;
+                }
+                if has("exclude_from_pos_files") || has("exclude_from_bom") {
+                    fp.not_assembled = true;
                 }
             }
             "layer"

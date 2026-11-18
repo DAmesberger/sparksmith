@@ -451,4 +451,106 @@ mod tests {
         );
         Ok(())
     }
+
+    /// Footprints that are no part to draw get no body, as their source
+    /// has it: no model reference, and not assembled or bare copper. A part
+    /// with a model reference or with real terminals keeps its placeholder.
+    #[test]
+    fn footprints_that_are_no_part_get_no_body_as_in_the_source() -> Fallible {
+        let context = sparksmith_core::library::standards::Context::fixture()?;
+        let _context = context.enter();
+        let dir = tempfile::tempdir()?;
+        let pad = |n: &str, x: f64, net: &str| {
+            format!(
+                r#"(pad "{n}" smd rect (at {x} 0) (size 0.9 0.9) (layers "F.Cu" "F.Mask") {net})"#
+            )
+        };
+        let net = r#"(net 1 "A")"#;
+        let mut board = String::from(
+            r#"(kicad_pcb (version 20240108) (generator "original no-body fixture")
+            (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
+            (net 0 "") (net 1 "A")
+            (gr_rect (start 0 0) (end 90 30) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#,
+        );
+        for (name, x, attr, pads, model) in [
+            // A solder jumper nothing is placed on.
+            (
+                "JP1",
+                10,
+                "(attr smd exclude_from_pos_files)",
+                format!("{}{}", pad("1", -0.6, net), pad("2", 0.6, net)),
+                "",
+            ),
+            // A contact pad: one surface pad.
+            ("TP1", 20, "(attr smd)", pad("1", 0.0, net), ""),
+            // A fiducial: a pad on no net.
+            ("FID1", 30, "(attr smd)", pad("1", 0.0, ""), ""),
+            // A logo: no pads.
+            ("G1", 40, "(attr board_only)", String::new(), ""),
+            // Near misses: the same jumper with a model reference; a
+            // two-terminal part; a single pad with a model.
+            (
+                "JP2",
+                50,
+                "(attr smd exclude_from_pos_files)",
+                format!("{}{}", pad("1", -0.6, net), pad("2", 0.6, net)),
+                r#"(model "own.step")"#,
+            ),
+            (
+                "X1",
+                60,
+                "(attr smd)",
+                format!("{}{}", pad("1", -1.3, net), pad("2", 1.3, net)),
+                "",
+            ),
+            (
+                "TP2",
+                70,
+                "(attr smd)",
+                pad("1", 0.0, net),
+                r#"(model "pin.step")"#,
+            ),
+        ] {
+            board.push_str(&format!(
+                r#"(footprint "Own:{name}" (layer "F.Cu") (at {x} 10) {attr}
+                (property "Reference" "{name}") {pads} {model})"#
+            ));
+        }
+        board.push(')');
+        let path = dir.path().join("no-body.kicad_pcb");
+        std::fs::write(&path, board)?;
+        let imported = crate::kicad_import::import(&path, None)?;
+        let report = &imported.report;
+        let project = imported.engine.project();
+        let model_of = |designator: &str| -> Result<PackageModel, String> {
+            let instance = project
+                .instance_by_designator(designator)
+                .ok_or(format!("{designator}"))?;
+            sparksmith_core::instances::resolve(&project.library, instance)
+                .ok()
+                .and_then(|r| r.physical)
+                .map(|p| p.package.definition.model.clone())
+                .ok_or(format!("{designator} package"))
+        };
+        for designator in ["JP1", "TP1", "FID1", "G1"] {
+            assert_eq!(model_of(designator)?, PackageModel::NoBody, "{designator}");
+            let detail = report
+                .details()
+                .iter()
+                .find(|d| d.footprint == designator && d.case == Case::NoBody)
+                .ok_or(format!("{designator} detail"))?;
+            assert!(
+                detail.path.starts_with("no body (as in the source)"),
+                "{}",
+                detail.path
+            );
+            assert_eq!(detail.placeholder, None);
+        }
+        for designator in ["JP2", "X1", "TP2"] {
+            assert_ne!(model_of(designator)?, PackageModel::NoBody, "{designator}");
+        }
+        assert_eq!(report.count(Case::NoBody), 4);
+        assert!(report.summary().contains("no body (as in the source"));
+        Ok(())
+    }
 }

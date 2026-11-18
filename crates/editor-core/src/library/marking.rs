@@ -801,6 +801,7 @@ pub fn package_area(
             let [l, w, _] = package.envelope();
             [l, w]
         }
+        PackageModel::NoBody => return None,
     };
     size.iter().all(|s| positive(*s)).then_some(size)
 }
