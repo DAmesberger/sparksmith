@@ -1,71 +1,110 @@
 //! A per-import cache of shipped generator outputs. Pad matching selects a
 //! mechanical approximation only; it never changes terminals, pads or wiring.
+use super::lands::{self, Fit, Lands, Polarity};
 use super::{BTreeMap, Choice, Engine, ModelPlacement, ModelRef, PackageModel, Pad, publish_model};
 use sparksmith_core::ids::ContentHash;
 use sparksmith_core::library::generated::{self, GeneratorRuntime, expand};
 use sparksmith_core::library::model3d::Redistribution;
 use sparksmith_core::library::package_model::PartFileModel;
-use sparksmith_core::library::{Hole, HoleShape, PadShape};
 use sparksmith_generators::abi::v1;
 use sparksmith_io::generator_bundle::GeneratorBundle;
 use sparksmith_io::shipped::ShippedLibrary;
+use sparksmith_kicad::models::Facts;
 use std::sync::Arc;
 
 // A preset identifies the *package*; its lands are one design choice among
 // many (designers size lands and pad spans for their process). Matching
-// therefore holds pad centres to a package-relative bound, the land
+// therefore holds land centres to a package-relative bound, the land
 // pattern's overall extent (which carries the body size) moderately, and
-// single land sizes only loosely.
+// single land sizes only loosely ([`lands`] says how lands pair).
 
-/// Least bound on each pad centre's distance from the preset's, after the
+/// Least bound on each land centre's distance from the preset's, after the
 /// best common translation and quarter turn: 0.15 mm.
 const CENTRE_FLOOR_NM: f64 = 150_000.0;
 /// The bound grows to this fraction of the preset's smallest centre-to-centre
 /// distance (its pitch, or a two-pad part's span) when that is larger. 15%
 /// admits common chip land spans (a 0603 chip's pads 1.3 to 1.65 mm apart).
 const CENTRE_FRACTION: f64 = 0.15;
-/// The lands' bounding box, along each axis, within this fraction of the
-/// preset's: it tells a 0603 chip from an 0805 one whatever their spans.
-const EXTENT_FRACTION: f64 = 0.25;
-/// Each land dimension within this fraction of the preset's (rejects only
-/// absurd matches; the land size is the designer's).
-const LAND_FRACTION: f64 = 0.5;
-/// Pad orientation within 0.1° of the preset's (or a quarter turn from it).
-const ANGLE_TOLERANCE_MDEG: i64 = 100;
-/// Lands of at most this many pads need a preset of the designator's prefix.
+/// Lands of at most this many pads need a preset of the designator's prefix
+/// or the footprint's name.
 const PREFIX_REQUIRED_MAX_PADS: usize = 2;
 /// Presets whose centre errors differ by at most 1 µm are equally near.
 const TIE_NM: f64 = 1_000.0;
+/// A footprint's body outline tells a preset when its extent is within this
+/// fraction of the preset's body along each axis ...
+const BODY_FRACTION: f64 = 0.15;
+/// ... and the next preset's is at least this fraction further off.
+const BODY_MARGIN: f64 = 0.02;
+/// A name or alias names a preset in a footprint's name only when it has
+/// at least this many letters and digits, one of them a digit (so "module"
+/// or "size B" never do).
+const MIN_NAME_CHARS: usize = 4;
 
-fn extent(pads: &[Pad]) -> [f64; 2] {
-    let mut lo = [f64::INFINITY; 2];
-    let mut hi = [f64::NEG_INFINITY; 2];
-    for pad in pads {
-        let b = pad.bounds();
-        for axis in 0..2 {
-            lo[axis] = lo[axis].min(b.min[axis]);
-            hi[axis] = hi[axis].max(b.max[axis]);
-        }
-    }
-    [hi[0] - lo[0], hi[1] - lo[1]]
-}
-fn loose(imported: f64, preset: f64) -> bool {
-    (imported - preset).abs() <= LAND_FRACTION * preset.abs()
-}
 const MAX_PRESETS: usize = 512;
 struct Candidate {
     bundle: Arc<GeneratorBundle>,
     generation: v1::Generation,
-    pads: Vec<Pad>,
+    lands: Lands,
+    tolerance_nm: f64,
     name: String,
+    /// The preset's key and aliases, as letters and digits in upper case.
+    names: Vec<String>,
+    /// The body's length and width (the package envelope), millimetres.
+    body_mm: [f64; 2],
+    /// The courtyard's extent, millimetres.
+    courtyard_mm: Option<[f64; 2]>,
 }
 #[derive(Default)]
 pub(super) struct Presets {
     candidates: Option<Vec<Candidate>>,
     failure: Option<String>,
     chosen: BTreeMap<usize, Choice>,
-    matches: BTreeMap<ContentHash, Result<(usize, ModelPlacement), Miss>>,
+    matches: BTreeMap<ContentHash, Result<Found, Miss>>,
 }
+#[derive(Clone, Debug)]
+struct Found {
+    index: usize,
+    placement: ModelPlacement,
+    /// How the lands paired and the preset was told apart, in words.
+    notes: Vec<String>,
+}
+
+/// Letters and digits only, upper case: how names compare.
+fn plain(text: &str) -> String {
+    text.chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|c| c.to_ascii_uppercase())
+        .collect()
+}
+
+/// The polarity of each of a generation's pads, by label, when the part
+/// names its terminals `+` and `−` (or anode and cathode).
+fn polarities(generation: &v1::Generation) -> BTreeMap<String, Polarity> {
+    let mut out = BTreeMap::new();
+    let Some(component) = &generation.component else {
+        return out;
+    };
+    for pad in &generation.footprint.pads {
+        let polarity = generation
+            .binding
+            .iter()
+            .find(|b| b.package_terminal == pad.terminal)
+            .and_then(|b| component.terminals.iter().find(|t| t.key == b.terminal))
+            .and_then(|t| Polarity::of(&t.name));
+        if let Some(polarity) = polarity {
+            out.insert(
+                pad.number.clone().unwrap_or_else(|| pad.key.clone()),
+                polarity,
+            );
+        }
+    }
+    out
+}
+
+fn mm2(v: [i64; 2]) -> [f64; 2] {
+    v.map(|n| n as f64 / 1e6)
+}
+
 impl Presets {
     fn load(
         &mut self,
@@ -128,11 +167,30 @@ impl Presets {
                     .generation;
                 super::check_time(deadline)?;
                 let pads = expand::land_pattern(&generation).map_err(|e| e.to_string())?;
+                let polarity = polarities(&generation);
+                let lands = Lands::new(&pads, |label| polarity.get(label).copied());
+                let tolerance_nm = lands.tolerance_nm(CENTRE_FLOOR_NM, CENTRE_FRACTION);
+                let envelope = generation.package.geometry.envelope_nm;
+                let courtyard = &generation.footprint.courtyard;
+                let courtyard_mm = (!courtyard.is_empty()).then(|| {
+                    let lo = [0, 1].map(|a| courtyard.iter().map(|p| p[a]).min().unwrap_or(0));
+                    let hi = [0, 1].map(|a| courtyard.iter().map(|p| p[a]).max().unwrap_or(0));
+                    mm2([hi[0] - lo[0], hi[1] - lo[1]])
+                });
+                let names = std::iter::once(&preset.key)
+                    .chain(&preset.aliases)
+                    .map(|n| plain(n))
+                    .filter(|n| n.len() >= MIN_NAME_CHARS && n.bytes().any(|b| b.is_ascii_digit()))
+                    .collect();
                 candidates.push(Candidate {
                     bundle: bundle.clone(),
-                    generation,
-                    pads,
+                    lands,
+                    tolerance_nm,
                     name: format!("{name}/{}", preset.key),
+                    names,
+                    body_mm: mm2([envelope[0], envelope[1]]),
+                    courtyard_mm,
+                    generation,
                 });
             }
         }
@@ -145,11 +203,12 @@ impl Presets {
         engine: &mut Engine,
         pads: &[Pad],
         prefix: &str,
+        facts: &Facts,
         models: &mut BTreeMap<ContentHash, ModelRef>,
         deadline: std::time::Instant,
     ) -> Result<Result<Choice, Miss>, String> {
         super::check_time(deadline)?;
-        if pads.iter().all(|p| p.number.is_empty()) {
+        if pads.iter().all(|p| p.number.trim().is_empty()) {
             return Ok(Err(Miss::NoLands));
         }
         let runtime = engine
@@ -176,16 +235,25 @@ impl Presets {
             .collect();
         geometry.sort_by(|a, b| a.0.cmp(b.0));
         let key = sparksmith_core::library::bundle::asset_hash(
-            &serde_json::to_vec(&(geometry, prefix)).map_err(|e| e.to_string())?,
+            &serde_json::to_vec(&(
+                geometry,
+                prefix,
+                &facts.name,
+                facts.fab_extent_nm,
+                facts.courtyard_extent_nm,
+            ))
+            .map_err(|e| e.to_string())?,
         );
         let found = if let Some(found) = self.matches.get(&key) {
             found.clone()
         } else {
+            let imported = Lands::new(pads, Polarity::of);
             let mut fitting = Vec::new();
             let mut nearest: Option<(usize, Fit)> = None;
             for (index, candidate) in candidates.iter().enumerate() {
                 super::check_time(deadline)?;
-                let Some(fit) = fit(pads, &candidate.pads) else {
+                let Some(fit) = lands::fit(&imported, &candidate.lands, candidate.tolerance_nm)
+                else {
                     continue;
                 };
                 if fit.error_nm <= fit.tolerance_nm {
@@ -207,19 +275,28 @@ impl Presets {
                     None => Miss::NoPreset,
                 })
             } else {
-                choose(candidates, fitting, prefix)
+                choose(candidates, fitting, prefix, facts)
             };
             self.matches.insert(key, found.clone());
             found
         };
-        let (index, placement) = match found {
+        let Found {
+            index,
+            placement,
+            notes,
+        } = match found {
             Ok(found) => found,
             Err(miss) => return Ok(Err(miss)),
         };
-        if let Some(choice) = self.chosen.get(&index) {
-            let mut choice = choice.clone();
+        let with_notes = |mut choice: Choice| {
             choice.placement = placement;
-            return Ok(Ok(choice));
+            if !notes.is_empty() {
+                choice.provenance = format!("{} {}", choice.provenance, notes.join(" "));
+            }
+            choice
+        };
+        if let Some(choice) = self.chosen.get(&index) {
+            return Ok(Ok(with_notes(choice.clone())));
         }
         let candidate = &candidates[index];
         super::check_time(deadline)?;
@@ -233,7 +310,7 @@ impl Presets {
         made.definition.provenance.redistribution = Redistribution::Forbidden;
         let key = made.definition.asset.hash;
         let provenance = format!(
-            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same numbered lands, each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°; the longest declared reference prefix that begins the designator's narrows the candidates (for two-pad lands one is required), the nearest centres decide. No electrical mapping inferred. Project-only.",
+            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same lands (numbers without sub-pad suffixes or leading zeros; split lands as one; thermal vias left out; mechanical and unnamed lands paired by position), each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°; a preset named in the footprint's name, else the longest declared reference prefix that begins the designator's, narrows the candidates (for two-pad lands one is required), the nearest centres decide, then the body outline; a tie chooses none. No electrical mapping inferred. Project-only.",
             candidate.name, candidate.bundle.hash
         );
         let reference = if let Some(reference) = models.get(&key) {
@@ -260,7 +337,7 @@ impl Presets {
         };
         super::check_time(deadline)?;
         self.chosen.insert(index, choice.clone());
-        Ok(Ok(choice))
+        Ok(Ok(with_notes(choice)))
     }
 }
 
@@ -277,10 +354,14 @@ pub(super) enum Miss {
         error_nm: f64,
         tolerance_nm: f64,
     },
-    /// Equally near presets the reference prefix does not tell apart.
-    Ambiguous,
+    /// Equally near presets that neither the name, the reference prefix
+    /// nor the body outline tells apart.
+    Tie { presets: Vec<String> },
     /// Presets fit, but none declares a prefix that begins the designator's.
     PrefixMismatch { nearest: String },
+    /// A plated pad fits a preset's land round a non-plated hole, but the
+    /// footprint's name does not name the preset.
+    Unnamed { nearest: String },
 }
 impl std::fmt::Display for Miss {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -288,7 +369,7 @@ impl std::fmt::Display for Miss {
             Self::NoLands => write!(f, "no numbered lands to match a shipped preset"),
             Self::NoPreset => write!(
                 f,
-                "no shipped preset has these numbered lands (count, numbers, kind, side, hole, shape, sizes and extent)"
+                "no shipped preset has these lands (count, numbers, kind, side, hole, shape, sizes and extent)"
             ),
             Self::NoFit {
                 nearest,
@@ -304,250 +385,222 @@ impl std::fmt::Display for Miss {
                 f,
                 "nearest shipped preset {nearest} fits the lands, but its reference prefix does not begin the designator's"
             ),
-            Self::Ambiguous => write!(
+            Self::Tie { presets } => write!(
                 f,
-                "several shipped presets fit equally and the reference prefix does not choose one"
+                "tie: shipped presets {} fit equally and neither the footprint's name, the reference prefix nor a body outline chooses one",
+                presets.join(", ")
+            ),
+            Self::Unnamed { nearest } => write!(
+                f,
+                "shipped preset {nearest} has a land round a non-plated hole where the footprint has a plated pad; such lands do not tell the part, and the footprint's name does not name it"
             ),
         }
     }
 }
 
-/// The longest declared prefix that begins the designator's narrows the
-/// fitting presets ("RFB" is a resistor's "R", "FB" a ferrite bead's); the
-/// nearest centres decide; a tie is no choice. Two-pad lands (chip
-/// resistors, capacitors, inductors, LEDs, diodes) do not tell the body
-/// type, so there a designator no fitting preset's prefix begins keeps the
-/// placeholder: a wrong-looking body is worse. Multi-pad packages (SOT, SO,
-/// QFN) keep their body whatever the designator.
-fn choose(
-    candidates: &[Candidate],
-    fitting: Vec<(usize, Fit)>,
-    prefix: &str,
-) -> Result<(usize, ModelPlacement), Miss> {
-    // The generator supplies this optional appearance hint. It never
-    // replaces geometry matching or changes electrical definitions.
-    let declared = |index: &usize| {
-        candidates[*index]
-            .generation
-            .component
-            .as_ref()
-            .map(|c| c.prefix.to_ascii_uppercase())
-            .filter(|p| !p.is_empty() && prefix.to_ascii_uppercase().starts_with(p.as_str()))
-            .map_or(0, |p| p.len())
-    };
-    let nearest_of = |pool: &[(usize, Fit)]| {
-        pool.iter()
-            .map(|(_, f)| f.error_nm)
-            .fold(f64::INFINITY, f64::min)
-    };
-    let longest = fitting.iter().map(|(i, _)| declared(i)).max().unwrap_or(0);
-    let two_pad = fitting
-        .first()
-        .is_some_and(|(i, _)| candidates[*i].pads.len() <= PREFIX_REQUIRED_MAX_PADS);
-    if longest == 0 && two_pad {
-        let best = nearest_of(&fitting);
-        let nearest = fitting
-            .iter()
-            .find(|(_, f)| f.error_nm <= best)
-            .map(|(i, _)| candidates[*i].name.clone())
-            .unwrap_or_default();
-        return Err(Miss::PrefixMismatch { nearest });
-    }
-    let pool: Vec<_> = fitting
-        .into_iter()
-        .filter(|(i, _)| declared(i) == longest)
-        .collect();
-    // (With `longest == 0`, every fitting multi-pad preset stays.)
-    let best = nearest_of(&pool);
-    let nearest: Vec<_> = pool
-        .into_iter()
-        .filter(|(_, f)| f.error_nm <= best + TIE_NM)
-        .collect();
-    match nearest.as_slice() {
-        [(index, fit)] => Ok((*index, fit.placement)),
-        _ => Err(Miss::Ambiguous),
-    }
-}
-
-fn shape_class(shape: &PadShape) -> u8 {
-    match shape {
-        PadShape::Rect { .. } | PadShape::RoundRect { .. } => 0,
-        PadShape::Circle { .. } => 1,
-        PadShape::Oblong { .. } => 2,
-        PadShape::Custom { .. } => 3,
-    }
-}
-fn same_hole(a: &Option<Hole>, b: &Option<Hole>) -> bool {
-    match (a, b) {
-        (None, None) => true,
-        (Some(a), Some(b)) => {
-            a.plated == b.plated
-                && match (&a.shape, &b.shape) {
-                    (HoleShape::Round { diameter_nm: x }, HoleShape::Round { diameter_nm: y }) => {
-                        loose(x.to_mm_f64(), y.to_mm_f64())
-                    }
-                    (
-                        HoleShape::Slot {
-                            width_nm: w,
-                            length_nm: l,
-                            ..
-                        },
-                        HoleShape::Slot {
-                            width_nm: v,
-                            length_nm: m,
-                            ..
-                        },
-                    ) => loose(w.to_mm_f64(), v.to_mm_f64()) && loose(l.to_mm_f64(), m.to_mm_f64()),
-                    _ => false,
-                }
-        }
-        _ => false,
-    }
-}
-
-/// How well imported lands fit a preset's at its best pose.
-#[derive(Clone, Copy, Debug)]
-struct Fit {
-    placement: ModelPlacement,
-    /// The largest pad-centre distance from the preset's, nanometres.
-    error_nm: f64,
-    /// The bound on it for this preset, nanometres.
-    tolerance_nm: f64,
-}
-impl Fit {
-    fn excess(&self) -> f64 {
-        self.error_nm - self.tolerance_nm
-    }
-}
-
-/// The preset's bound on centre error: the larger of the floor and a
-/// fraction of its smallest centre-to-centre distance.
-fn tolerance_nm(candidate: &[Pad]) -> f64 {
-    let mut least = f64::INFINITY;
-    for (k, a) in candidate.iter().enumerate() {
-        for b in &candidate[k + 1..] {
-            let [ax, ay] = a.position.to_mm_f64();
-            let [bx, by] = b.position.to_mm_f64();
-            let d = (ax - bx).hypot(ay - by) * 1e6;
-            if d > 0.0 {
-                least = least.min(d);
-            }
-        }
-    }
-    if least.is_finite() {
-        CENTRE_FLOOR_NM.max(CENTRE_FRACTION * least)
-    } else {
-        CENTRE_FLOOR_NM
-    }
-}
-
-/// Fit numbered physical lands at quarter turns and the best common
-/// translation (the centroid's). `None` when the lands are not the same set
-/// (count, numbers, kind, side, hole, shape class, orientation, sizes
-/// within [`LAND_FRACTION`]); otherwise the nearest pose, however far.
-/// Numbering only constrains model orientation; electrical meaning is untouched.
-fn fit(imported: &[Pad], candidate: &[Pad]) -> Option<Fit> {
-    if imported.len() != candidate.len() || imported.iter().any(|p| p.number.is_empty()) {
-        return None;
-    }
-    let mut by_number = BTreeMap::new();
-    for pad in candidate {
-        if by_number.insert(pad.number.as_str(), pad).is_some() {
-            return None;
-        }
-    }
-    let mut imported_numbers = std::collections::BTreeSet::new();
-    let mut pairs = Vec::new();
-    for pad in imported {
-        if !imported_numbers.insert(pad.number.as_str()) {
-            return None;
-        }
-        let other = by_number.get(pad.number.as_str())?;
-        if pad.kind != other.kind
-            || !same_hole(&pad.hole, &other.hole)
-            || pad.side != other.side
-            || shape_class(&pad.shape) == 3
-            || shape_class(&other.shape) == 3
-            // A through-hole land is a ring round its hole, shaped by
-            // convention (a square pin 1); surface land shapes must agree.
-            || (pad.hole.is_none() && shape_class(&pad.shape) != shape_class(&other.shape))
+/// How long a preset name or alias of `candidate` the footprint's name
+/// carries (0 for none). A name ending (or starting) in a digit must not run
+/// on into another digit: "1X1" is not in "1X10".
+fn named(candidate: &Candidate, footprint: &str) -> usize {
+    let footprint = plain(footprint);
+    let bytes = footprint.as_bytes();
+    let mut best = 0;
+    for name in &candidate.names {
+        let mut from = 0;
+        while let Some(at) = footprint
+            .get(from..)
+            .and_then(|rest| rest.find(name.as_str()))
         {
-            return None;
-        }
-        pairs.push((pad, *other));
-    }
-    let count = pairs.len() as f64;
-    let tolerance_nm = tolerance_nm(candidate);
-    let [ix, iy] = extent(imported);
-    let [cx, cy] = extent(candidate);
-    let near = |a: f64, b: f64| (a - b).abs() <= EXTENT_FRACTION * b.abs();
-    let mut best: Option<Fit> = None;
-    for quarter_turn in 0..4 {
-        let angle = f64::from(quarter_turn * 90);
-        let (c, s) = sparksmith_core::geometry::cos_sin(angle);
-        let rotate = |p: [f64; 2]| [c * p[0] - s * p[1], s * p[0] + c * p[1]];
-        let spread = if quarter_turn % 2 == 0 {
-            near(ix, cx) && near(iy, cy)
-        } else {
-            near(ix, cy) && near(iy, cx)
-        };
-        let oriented = spread
-            && pairs.iter().all(|(a, b)| {
-                let ae = a.shape.extent();
-                let be = b.shape.extent();
-                let turn = (i64::from(a.rotation_mdeg.millidegrees())
-                    - i64::from(b.rotation_mdeg.millidegrees())
-                    - i64::from(quarter_turn) * 90_000)
-                    .rem_euclid(180_000);
-                let same = turn.min(180_000 - turn) <= ANGLE_TOLERANCE_MDEG
-                    && loose(ae[0], be[0])
-                    && loose(ae[1], be[1]);
-                let quarter = (turn - 90_000).abs() <= ANGLE_TOLERANCE_MDEG
-                    && loose(ae[0], be[1])
-                    && loose(ae[1], be[0]);
-                same || quarter
-            });
-        if !oriented {
-            continue;
-        }
-        let deltas: Vec<[f64; 2]> = pairs
-            .iter()
-            .map(|(a, b)| {
-                let aa = a.position.to_mm_f64();
-                let bb = rotate(b.position.to_mm_f64());
-                [aa[0] - bb[0], aa[1] - bb[1]]
-            })
-            .collect();
-        let offset = [
-            deltas.iter().map(|d| d[0]).sum::<f64>() / count,
-            deltas.iter().map(|d| d[1]).sum::<f64>() / count,
-        ];
-        let error_nm = deltas
-            .iter()
-            .map(|d| (d[0] - offset[0]).hypot(d[1] - offset[1]) * 1e6)
-            .fold(0.0, f64::max);
-        if best.as_ref().is_none_or(|b| error_nm < b.error_nm) {
-            // Whole nanometres, so a pose round-trips exactly.
-            let offset = offset.map(|v| (v * 1e6).round() / 1e6);
-            let placement =
-                ModelPlacement::from_mm([offset[0], offset[1], 0.0], [0.0, 0.0, angle]).ok()?;
-            best = Some(Fit {
-                placement,
-                error_nm,
-                tolerance_nm,
-            });
+            let start = from + at;
+            let end = start + name.len();
+            let digit =
+                |i: Option<usize>| i.and_then(|i| bytes.get(i)).is_some_and(u8::is_ascii_digit);
+            let runs_on = (name.as_bytes().last().is_some_and(u8::is_ascii_digit)
+                && digit(Some(end)))
+                || (name.as_bytes().first().is_some_and(u8::is_ascii_digit)
+                    && digit(start.checked_sub(1)));
+            if !runs_on {
+                best = best.max(name.len());
+                break;
+            }
+            from = start + 1;
         }
     }
     best
 }
 
+/// How far a body outline of `extent` mm is from the preset's at the fit's
+/// quarter turn, as the larger relative difference of the two axes.
+fn body_distance(extent: [f64; 2], preset: [f64; 2], fit: &Fit) -> f64 {
+    let turn = fit.placement.rotation_deg()[2].round() as i64;
+    let preset = if turn.rem_euclid(180) == 90 {
+        [preset[1], preset[0]]
+    } else {
+        preset
+    };
+    (0..2)
+        .map(|a| {
+            if preset[a] > 0.0 {
+                (extent[a] - preset[a]).abs() / preset[a]
+            } else {
+                f64::INFINITY
+            }
+        })
+        .fold(0.0, f64::max)
+}
+
+/// The fitting presets narrowed, in order, by a preset the footprint's name
+/// names (the longest such name), else by the longest declared prefix that
+/// begins the designator's ("RFB" is a resistor's "R", "FB" a ferrite
+/// bead's); then the nearest centres decide, and among equally near ones
+/// the footprint's body outline (fabrication layer, else courtyard). A tie
+/// is no choice. Two-pad lands (chip resistors, capacitors, inductors,
+/// LEDs, diodes) do not tell the body type, so there a preset neither named
+/// nor of the designator's prefix keeps the placeholder: a wrong-looking
+/// body is worse. Multi-pad packages (SOT, SO, QFN) keep their body
+/// whatever the designator. A plated pad standing for a land round a
+/// non-plated hole needs the name: a plated mounting hole has those lands.
+fn choose(
+    candidates: &[Candidate],
+    fitting: Vec<(usize, Fit)>,
+    prefix: &str,
+    facts: &Facts,
+) -> Result<Found, Miss> {
+    let nearest_name = |pool: &[(usize, Fit)]| {
+        let best = pool
+            .iter()
+            .map(|(_, f)| f.error_nm)
+            .fold(f64::INFINITY, f64::min);
+        pool.iter()
+            .find(|(_, f)| f.error_nm <= best)
+            .map(|(i, _)| candidates[*i].name.clone())
+            .unwrap_or_default()
+    };
+    let mut notes = Vec::new();
+    let by_name = fitting
+        .iter()
+        .map(|(i, _)| named(&candidates[*i], &facts.name))
+        .max()
+        .unwrap_or(0);
+    let pool: Vec<(usize, Fit)> = if by_name > 0 {
+        notes.push(format!("Named by the footprint's name {:?}.", facts.name));
+        fitting
+            .into_iter()
+            .filter(|(i, _)| named(&candidates[*i], &facts.name) == by_name)
+            .collect()
+    } else {
+        let (cross, fitting): (Vec<_>, Vec<_>) =
+            fitting.into_iter().partition(|(_, f)| f.cross_kind);
+        if fitting.is_empty() {
+            return Err(Miss::Unnamed {
+                nearest: nearest_name(&cross),
+            });
+        }
+        // The generator supplies this optional appearance hint. It never
+        // replaces geometry matching or changes electrical definitions.
+        let declared = |index: &usize| {
+            candidates[*index]
+                .generation
+                .component
+                .as_ref()
+                .map(|c| c.prefix.to_ascii_uppercase())
+                .filter(|p| !p.is_empty() && prefix.to_ascii_uppercase().starts_with(p.as_str()))
+                .map_or(0, |p| p.len())
+        };
+        let longest = fitting.iter().map(|(i, _)| declared(i)).max().unwrap_or(0);
+        let two_pad = fitting
+            .first()
+            .is_some_and(|(i, _)| candidates[*i].lands.len() <= PREFIX_REQUIRED_MAX_PADS);
+        if longest == 0 && two_pad {
+            return Err(Miss::PrefixMismatch {
+                nearest: nearest_name(&fitting),
+            });
+        }
+        // (With `longest == 0`, every fitting multi-pad preset stays.)
+        fitting
+            .into_iter()
+            .filter(|(i, _)| declared(i) == longest)
+            .collect()
+    };
+    let best = pool
+        .iter()
+        .map(|(_, f)| f.error_nm)
+        .fold(f64::INFINITY, f64::min);
+    let mut nearest: Vec<_> = pool
+        .into_iter()
+        .filter(|(_, f)| f.error_nm <= best + TIE_NM)
+        .collect();
+    if nearest.len() > 1 {
+        let outline = match (facts.fab_extent_nm, facts.courtyard_extent_nm) {
+            (Some(fab), _) => Some(("fabrication outline", fab, None)),
+            (None, Some(courtyard)) => Some(("courtyard", courtyard, Some(()))),
+            (None, None) => None,
+        };
+        if let Some((what, extent, courtyard)) = outline {
+            let extent = extent.map(|n| n.to_mm_f64());
+            let distance = |(i, fit): &(usize, Fit)| {
+                let c = &candidates[*i];
+                match courtyard {
+                    None => body_distance(extent, c.body_mm, fit),
+                    Some(()) => c
+                        .courtyard_mm
+                        .map_or(f64::INFINITY, |p| body_distance(extent, p, fit)),
+                }
+            };
+            let mut ranked: Vec<(f64, usize)> = nearest
+                .iter()
+                .enumerate()
+                .map(|(k, entry)| (distance(entry), k))
+                .collect();
+            ranked.sort_by(|a, b| a.0.total_cmp(&b.0));
+            if let [(first, k), (second, _), ..] = ranked.as_slice()
+                && *first <= BODY_FRACTION
+                && *second - *first >= BODY_MARGIN
+            {
+                let chosen = nearest.swap_remove(*k);
+                notes.push(format!(
+                    "Told apart by the footprint's {what} ({:.2} × {:.2} mm).",
+                    extent[0], extent[1]
+                ));
+                nearest = vec![chosen];
+            }
+        }
+    }
+    match nearest.as_slice() {
+        [(index, fit)] => {
+            if !fit.pairing.is_empty() {
+                notes.insert(0, format!("Lands paired: {}.", fit.pairing.join(", ")));
+            }
+            Ok(Found {
+                index: *index,
+                placement: fit.placement,
+                notes,
+            })
+        }
+        _ => {
+            let mut presets: Vec<String> = nearest
+                .iter()
+                .map(|(i, _)| candidates[*i].name.clone())
+                .collect();
+            presets.sort();
+            Err(Miss::Tie { presets })
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sparksmith_core::library::CornerMask;
-    use sparksmith_core::units::{Angle, PointNm};
+    use sparksmith_core::library::{CornerMask, PadShape};
+    use sparksmith_core::units::{Angle, Nm, PointNm};
     use sparksmith_core::{PackageTerminalId, PadId};
     type Fallible = Result<(), Box<dyn std::error::Error>>;
+
+    fn fit(imported: &[Pad], preset: &[Pad]) -> Option<Fit> {
+        let preset = Lands::new(preset, |_| None);
+        let tolerance = preset.tolerance_nm(CENTRE_FLOOR_NM, CENTRE_FRACTION);
+        lands::fit(&Lands::new(imported, Polarity::of), &preset, tolerance)
+    }
 
     /// Two numbered lands of `size` mm, `span` mm apart, as round rects.
     fn chip(span: f64, size: [f64; 2]) -> Result<Vec<Pad>, sparksmith_core::Error> {
@@ -577,12 +630,11 @@ mod tests {
             .ok_or_else(|| "No presets".to_owned())
     }
     fn lands_of(presets: &Presets, name: &str) -> Result<Vec<Pad>, String> {
-        Ok(candidates(presets)?
+        candidates(presets)?
             .iter()
             .find(|c| c.name == name)
-            .ok_or_else(|| format!("No {name} preset"))?
-            .pads
-            .clone())
+            .ok_or_else(|| format!("No {name} preset"))
+            .and_then(|c| expand::land_pattern(&c.generation).map_err(|e| e.to_string()))
     }
     fn loaded() -> Result<Presets, String> {
         let mut presets = Presets::default();
@@ -673,7 +725,14 @@ mod tests {
             (chip(1.65, [0.8, 0.95])?, "FB", "chip/ferrite-0603"),
         ] {
             let choice = presets
-                .match_model(&mut engine, &pads, prefix, &mut models, deadline)?
+                .match_model(
+                    &mut engine,
+                    &pads,
+                    prefix,
+                    &Facts::default(),
+                    &mut models,
+                    deadline,
+                )?
                 .map_err(|miss| format!("{preset}: {miss}"))?;
             assert!(choice.provenance.contains(preset), "{}", choice.provenance);
         }
@@ -681,7 +740,14 @@ mod tests {
         // inductor's lands of a 1210 chip's size get no resistor body.
         let r0603 = lands_of(&presets, "chip/resistor-0603")?;
         assert!(matches!(
-            presets.match_model(&mut engine, &r0603, "?", &mut models, deadline)?,
+            presets.match_model(
+                &mut engine,
+                &r0603,
+                "?",
+                &Facts::default(),
+                &mut models,
+                deadline
+            )?,
             Err(Miss::PrefixMismatch { .. })
         ));
         let mut inductor = chip(2.4, [1.0, 3.0])?;
@@ -694,14 +760,28 @@ mod tests {
             accepted(&inductor, &lands_of(&presets, "chip/resistor-1210")?),
             "the lands fit a 1210 chip"
         );
-        match presets.match_model(&mut engine, &inductor, "L", &mut models, deadline)? {
+        match presets.match_model(
+            &mut engine,
+            &inductor,
+            "L",
+            &Facts::default(),
+            &mut models,
+            deadline,
+        )? {
             Err(Miss::PrefixMismatch { nearest }) => assert!(nearest.starts_with("chip/")),
             other => return Err(format!("an L part got {:?}", other.map(|c| c.provenance)).into()),
         }
         // A multi-pad package keeps its body under an unusual designator.
         let sot = lands_of(&presets, "tabbed/tabbed-sot-23-6")?;
         let choice = presets
-            .match_model(&mut engine, &sot, "XQ", &mut models, deadline)?
+            .match_model(
+                &mut engine,
+                &sot,
+                "XQ",
+                &Facts::default(),
+                &mut models,
+                deadline,
+            )?
             .map_err(|miss| format!("SOT-23-6 under XQ: {miss}"))?;
         assert!(choice.provenance.contains("tabbed/tabbed-sot-23-6"));
         for name in [
@@ -711,7 +791,14 @@ mod tests {
         ] {
             let pads = lands_of(&presets, name)?;
             let choice = presets
-                .match_model(&mut engine, &pads, "U", &mut models, deadline)?
+                .match_model(
+                    &mut engine,
+                    &pads,
+                    "U",
+                    &Facts::default(),
+                    &mut models,
+                    deadline,
+                )?
                 .map_err(|miss| format!("{name}: {miss}"))?;
             assert!(choice.provenance.contains(name));
             let PackageModel::PartFile(part) = &choice.model else {
@@ -727,7 +814,14 @@ mod tests {
                 "importer must not infer electrical bindings"
             );
             let repeated = presets
-                .match_model(&mut engine, &pads, "U", &mut models, deadline)?
+                .match_model(
+                    &mut engine,
+                    &pads,
+                    "U",
+                    &Facts::default(),
+                    &mut models,
+                    deadline,
+                )?
                 .map_err(|miss| miss.to_string())?;
             assert_eq!(choice.model, repeated.model);
             // One pad moved a millimetre: another package, not this one.
@@ -736,7 +830,14 @@ mod tests {
             far[0].position = PointNm::from_mm_f64_rounded([x - 1.0, y])?;
             assert!(
                 presets
-                    .match_model(&mut engine, &far, "U", &mut models, deadline)?
+                    .match_model(
+                        &mut engine,
+                        &far,
+                        "U",
+                        &Facts::default(),
+                        &mut models,
+                        deadline
+                    )?
                     .is_err(),
                 "far lands accepted for {name}"
             );
@@ -748,6 +849,310 @@ mod tests {
                 .models
                 .iter()
                 .all(|m| m.definition.provenance.redistribution == Redistribution::Forbidden)
+        );
+        Ok(())
+    }
+
+    fn named(name: &str) -> Facts {
+        Facts {
+            name: name.into(),
+            ..Facts::default()
+        }
+    }
+    fn renamed(pads: &[Pad], names: &[(&str, &str)]) -> Vec<Pad> {
+        pads.iter()
+            .map(|p| {
+                let mut p = p.clone();
+                if let Some((_, to)) = names.iter().find(|(from, _)| *from == p.number) {
+                    p.number = (*to).into();
+                }
+                p
+            })
+            .collect()
+    }
+    fn quarter_turned(pads: &[Pad]) -> Result<Vec<Pad>, sparksmith_core::Error> {
+        pads.iter()
+            .map(|p| {
+                let mut p = p.clone();
+                let [x, y] = p.position.to_mm_f64();
+                p.position = PointNm::from_mm_f64_rounded([-y, x])?;
+                p.rotation_mdeg =
+                    Angle::from_degrees_f64_rounded(p.rotation_mdeg.to_degrees_f64() + 90.0)?;
+                Ok(p)
+            })
+            .collect()
+    }
+    fn setup() -> Result<(Presets, Engine), Box<dyn std::error::Error>> {
+        let presets = loaded()?;
+        let mut engine = Engine::demo()?;
+        engine.set_generators(crate::session::generators::fixture_runtime());
+        Ok((presets, engine))
+    }
+
+    /// Electrolytic size codes share their lands: the footprint's name
+    /// chooses, a name that runs on into another digit does not, and no
+    /// name is a tie that chooses none.
+    #[test]
+    fn footprint_names_choose_among_identical_lands_and_otherwise_a_tie_chooses_none() -> Fallible {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        let (mut presets, mut engine) = setup()?;
+        let mut models = BTreeMap::new();
+        let lands = lands_of(&presets, "electrolytic/electrolytic-panasonic-d")?;
+        for (name, preset) in [
+            ("CAPAE660X550N", "electrolytic/electrolytic-6.3x5.4"),
+            ("CP_Elec_6.3x7.7", "electrolytic/electrolytic-panasonic-d8"),
+        ] {
+            let choice = presets
+                .match_model(
+                    &mut engine,
+                    &lands,
+                    "C",
+                    &named(name),
+                    &mut models,
+                    deadline,
+                )?
+                .map_err(|miss| format!("{name}: {miss}"))?;
+            assert!(choice.provenance.contains(preset), "{}", choice.provenance);
+            assert!(choice.provenance.contains("Named by the footprint's name"));
+        }
+        for name in ["CP_Elec_16.3x7.7", "CP_Own", ""] {
+            match presets.match_model(
+                &mut engine,
+                &lands,
+                "C",
+                &named(name),
+                &mut models,
+                deadline,
+            )? {
+                Err(Miss::Tie { presets: tied }) => {
+                    for preset in [
+                        "electrolytic/electrolytic-6.3x5.4",
+                        "electrolytic/electrolytic-panasonic-d",
+                        "electrolytic/electrolytic-panasonic-d8",
+                    ] {
+                        assert!(tied.iter().any(|t| t == preset), "{name}: {tied:?}");
+                    }
+                    let miss = Miss::Tie { presets: tied }.to_string();
+                    assert!(miss.starts_with("tie: "), "{miss}");
+                }
+                other => {
+                    let got = other.map(|c| c.provenance);
+                    return Err(format!("{name}: {got:?}").into());
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Among equally near presets the footprint's body outline chooses one
+    /// whose body it is near, when no other is about as near.
+    #[test]
+    fn a_body_outline_tells_equally_near_presets_apart_or_leaves_a_tie() -> Fallible {
+        let mut presets = loaded()?;
+        let lands = lands_of(&presets, "electrolytic/electrolytic-panasonic-d")?;
+        let mut all = presets.candidates.take().ok_or("No presets")?;
+        let mut take = |name: &str| {
+            let at = all.iter().position(|c| c.name == name);
+            at.map(|at| all.swap_remove(at))
+                .ok_or_else(|| format!("No {name}"))
+        };
+        let mut two = vec![
+            take("electrolytic/electrolytic-panasonic-d")?,
+            take("electrolytic/electrolytic-panasonic-d8")?,
+        ];
+        let body = two[0].body_mm;
+        let courtyard = two[0].courtyard_mm.ok_or("No courtyard")?;
+        two[1].body_mm = body.map(|v| 1.25 * v);
+        two[1].courtyard_mm = Some(courtyard.map(|v| 1.25 * v));
+        let imported = Lands::new(&lands, Polarity::of);
+        let fitting = || {
+            two.iter()
+                .enumerate()
+                .filter_map(|(i, c)| Some((i, lands::fit(&imported, &c.lands, c.tolerance_nm)?)))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(fitting().len(), 2);
+        let nm = |v: [f64; 2]| -> Result<[Nm; 2], sparksmith_core::Error> {
+            Ok([
+                Nm::from_mm_f64_rounded(v[0])?,
+                Nm::from_mm_f64_rounded(v[1])?,
+            ])
+        };
+        let fab = |scale: f64| -> Result<Facts, sparksmith_core::Error> {
+            Ok(Facts {
+                fab_extent_nm: Some(nm(body.map(|v| scale * v))?),
+                ..Facts::default()
+            })
+        };
+        let found = choose(&two, fitting(), "C", &fab(1.0)?).map_err(|m| m.to_string())?;
+        assert_eq!(found.index, 0);
+        assert!(
+            found
+                .notes
+                .iter()
+                .any(|n| n.contains("fabrication outline"))
+        );
+        let found = choose(&two, fitting(), "C", &fab(1.24)?).map_err(|m| m.to_string())?;
+        assert_eq!(found.index, 1);
+        // Near misses: an outline between the two (12% and 10.4% off) and
+        // one far from both are ties.
+        for scale in [1.12, 1.6] {
+            assert!(
+                matches!(
+                    choose(&two, fitting(), "C", &fab(scale)?),
+                    Err(Miss::Tie { .. })
+                ),
+                "{scale}"
+            );
+        }
+        // Without a fabrication outline, the courtyard against the preset's.
+        let by_courtyard = Facts {
+            courtyard_extent_nm: Some(nm(courtyard)?),
+            ..Facts::default()
+        };
+        let found = choose(&two, fitting(), "C", &by_courtyard).map_err(|m| m.to_string())?;
+        assert_eq!(found.index, 0);
+        assert!(found.notes.iter().any(|n| n.contains("courtyard")));
+        Ok(())
+    }
+
+    /// A standoff's land drawn as one plated pad: the preset named in the
+    /// footprint's name fits; unnamed, a plated mounting hole has the same
+    /// lands, so it keeps the placeholder.
+    #[test]
+    fn a_plated_standoff_land_needs_the_footprint_name() -> Fallible {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        let (mut presets, mut engine) = setup()?;
+        let mut models = BTreeMap::new();
+        let preset = lands_of(&presets, "standoff/standoff-wurth-9774100360r")?;
+        let land = preset.iter().find(|p| p.number == "1").ok_or("No land")?;
+        let plated = |drill: f64| -> Result<Vec<Pad>, sparksmith_core::Error> {
+            let mut pad = land.clone();
+            pad.kind = sparksmith_core::library::PadKind::PlatedThrough;
+            pad.hole = Some(sparksmith_core::library::Hole {
+                shape: sparksmith_core::library::HoleShape::round_mm(drill)?,
+                plated: true,
+                offset: PointNm::from_mm_f64_rounded([0.0, 0.0])?,
+            });
+            Ok(vec![pad])
+        };
+        let choice = presets
+            .match_model(
+                &mut engine,
+                &plated(4.4)?,
+                "U",
+                &named("Own9774100360R"),
+                &mut models,
+                deadline,
+            )?
+            .map_err(|miss| miss.to_string())?;
+        assert!(
+            choice
+                .provenance
+                .contains("standoff/standoff-wurth-9774100360r")
+        );
+        for (drill, name, prefix) in [
+            (4.4, "", "H"),
+            (4.4, "Own_M3_Spacer", "U"),
+            (3.2, "Own9774100360R", "U"),
+        ] {
+            let got = presets.match_model(
+                &mut engine,
+                &plated(drill)?,
+                prefix,
+                &named(name),
+                &mut models,
+                deadline,
+            )?;
+            assert!(
+                got.is_err(),
+                "{drill} {name:?}: {:?}",
+                got.map(|c| c.provenance)
+            );
+        }
+        assert!(matches!(
+            presets.match_model(
+                &mut engine,
+                &plated(4.4)?,
+                "H",
+                &Facts::default(),
+                &mut models,
+                deadline
+            )?,
+            Err(Miss::Unnamed { .. })
+        ));
+        Ok(())
+    }
+
+    /// A buzzer's lands named P and N, positive at the right, and a side
+    /// entry header turned a quarter with its tabs named S1 and S2.
+    #[test]
+    fn polar_names_and_mechanical_tabs_identify_shipped_presets() -> Fallible {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        let (mut presets, mut engine) = setup()?;
+        let mut models = BTreeMap::new();
+        let buzzer = lands_of(&presets, "buzzer/buzzer-cmi-9653s-smt")?;
+        let polar = renamed(&buzzer, &[("1", "N"), ("2", "P")]);
+        let choice = presets
+            .match_model(
+                &mut engine,
+                &polar,
+                "LS",
+                &named("Own_CMI-9653S-SMT"),
+                &mut models,
+                deadline,
+            )?
+            .map_err(|miss| miss.to_string())?;
+        assert!(
+            choice.provenance.contains("P→1 (+)"),
+            "{}",
+            choice.provenance
+        );
+        assert_eq!(choice.placement.rotation_deg()[2], 180.0);
+        assert!(matches!(
+            presets.match_model(
+                &mut engine,
+                &polar,
+                "LS",
+                &Facts::default(),
+                &mut models,
+                deadline
+            )?,
+            Err(Miss::PrefixMismatch { .. })
+        ));
+        let header = lands_of(&presets, "wire-to-board/wtb-sh-side-4")?;
+        let tabs = quarter_turned(&renamed(
+            &header,
+            &[("MP1", "S1"), ("MP2", "S2"), ("1", "01")],
+        ))?;
+        let choice = presets
+            .match_model(
+                &mut engine,
+                &tabs,
+                "J",
+                &Facts::default(),
+                &mut models,
+                deadline,
+            )?
+            .map_err(|miss| miss.to_string())?;
+        assert!(
+            choice.provenance.contains("wire-to-board/wtb-sh-side-4"),
+            "{}",
+            choice.provenance
+        );
+        assert_eq!(choice.placement.rotation_deg()[2], 90.0);
+        let one_tab: Vec<Pad> = tabs.iter().filter(|p| p.number != "S2").cloned().collect();
+        assert!(
+            presets
+                .match_model(
+                    &mut engine,
+                    &one_tab,
+                    "J",
+                    &Facts::default(),
+                    &mut models,
+                    deadline
+                )?
+                .is_err()
         );
         Ok(())
     }
@@ -797,6 +1202,7 @@ mod tests {
                 &mut engine,
                 &chip(1.6, [0.7, 0.8])?,
                 "R",
+                &Facts::default(),
                 &mut models,
                 std::time::Instant::now() + std::time::Duration::from_secs(120),
             )

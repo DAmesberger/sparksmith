@@ -4,6 +4,7 @@
 //! STEP the project holds is never the body: it is recorded in the import
 //! report as a reference source for a later recreation. No guessed geometry
 //! or electrical mapping is written into the imported board.
+mod lands;
 mod presets;
 use sparksmith_core::library::bundle::{AssetBytes, PackedAsset};
 use sparksmith_core::library::model3d::*;
@@ -11,7 +12,7 @@ use sparksmith_core::library::{DraftEdit, ModelPlacement, PackageModel, Pad};
 use sparksmith_core::units::Nm;
 use sparksmith_core::{Engine, LibraryCommand, ModelRef, Operation, Outcome, Revision};
 use sparksmith_io::project_models::{ProjectModels, library_reference};
-use sparksmith_kicad::models::{Choice, Provider, Reference, Selection};
+use sparksmith_kicad::models::{Choice, Facts, Provider, Reference, Selection};
 use sparksmith_kicad::report::{Case, Placeholder};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -66,6 +67,7 @@ impl Provider for Models {
         pads: &[Pad],
         prefix: &str,
         models: &[Reference],
+        footprint: &Facts,
     ) -> Result<Selection, String> {
         self.check_time()?;
         let refs: Vec<_> = models.iter().filter(|r| !r.hidden).collect();
@@ -109,7 +111,14 @@ impl Provider for Models {
         self.check_time()?;
         match self
             .presets
-            .match_model(engine, pads, prefix, &mut self.models, self.deadline)
+            .match_model(
+                engine,
+                pads,
+                prefix,
+                footprint,
+                &mut self.models,
+                self.deadline,
+            )
             .map_err(|error| format!("{note}; preset model unavailable: {error}"))?
         {
             Ok(choice) => Ok(Selection {
@@ -246,7 +255,7 @@ mod tests {
         let mut reference = reference("${KICAD9_3DMODEL_DIR}/never-read.step");
         reference.hidden = true;
         let mut engine = Engine::demo()?;
-        let selected = models.prepare(&mut engine, &[], "R", &[reference])?;
+        let selected = models.prepare(&mut engine, &[], "R", &[reference], &Facts::default())?;
         assert!(selected.choice.is_none());
         assert_eq!(selected.case, Case::NoModel);
         assert_eq!(selected.placeholder, Some(Placeholder::Hidden));
@@ -263,7 +272,13 @@ mod tests {
         let mut engine = Engine::demo()?;
         let before = engine.revision();
         let error = models
-            .prepare(&mut engine, &[], "U", &[reference("own.step")])
+            .prepare(
+                &mut engine,
+                &[],
+                "U",
+                &[reference("own.step")],
+                &Facts::default(),
+            )
             .err()
             .ok_or("expired import succeeded")?;
         assert!(error.contains("time limit"), "{error}");
@@ -283,6 +298,7 @@ mod tests {
             &[],
             "U",
             &[reference("${KICAD9_3DMODEL_DIR}/own.step")],
+            &Facts::default(),
         )?;
         assert!(selected.choice.is_none());
         assert!(models.sources.is_empty(), "never looked up");

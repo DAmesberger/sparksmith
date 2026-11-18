@@ -164,6 +164,11 @@ pub struct Footprint {
     pub zone: ZoneOverride,
     /// KiCad's "not in schematic" attribute: a part on the board only.
     pub board_only: bool,
+    /// The bounds of the fabrication-layer drawings (the body outline), in
+    /// the footprint frame, when there are any.
+    pub fab_bounds: Option<[PointNm; 2]>,
+    /// The bounds of the courtyard drawings, in the footprint frame.
+    pub courtyard_bounds: Option<[PointNm; 2]>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -466,6 +471,45 @@ fn margins(node: &Node, path: &str) -> Result<Margins> {
     })
 }
 
+/// Grows `bounds` by a drawing's points (a circle by its radius). A drawing
+/// whose points do not read is left out: the bounds are only a hint for
+/// telling equally fitting 3D presets apart.
+fn grow_bounds(bounds: &mut Option<[PointNm; 2]>, item: &Node) {
+    let read = |node: &Node| point(node, 0, "footprint/drawing").ok();
+    let mut points: Vec<PointNm> = ["start", "end", "mid", "center"]
+        .iter()
+        .filter_map(|head| item.child(head).and_then(read))
+        .collect();
+    if let Some(pts) = item.child("pts") {
+        points.extend(
+            pts.args()
+                .iter()
+                .filter(|n| n.head() == Some("xy"))
+                .take(4096)
+                .filter_map(read),
+        );
+    }
+    if item.head() == Some("fp_circle")
+        && let (Some(c), Some(e)) = (
+            item.child("center").and_then(read),
+            item.child("end").and_then(read),
+        )
+    {
+        // Both points are within the board's coordinate bound, so the
+        // radius and the corners stay far inside `i64`.
+        let r = ((e[0] - c[0]) as f64).hypot((e[1] - c[1]) as f64).round() as Nm;
+        points.push([c[0] - r, c[1] - r]);
+        points.push([c[0] + r, c[1] + r]);
+    }
+    for p in points {
+        let [lo, hi] = bounds.get_or_insert([p, p]);
+        for axis in 0..2 {
+            lo[axis] = lo[axis].min(p[axis]);
+            hi[axis] = hi[axis].max(p[axis]);
+        }
+    }
+}
+
 /// Drawings on these layers make copper, mask or paste.
 fn fab_layer(layer: &str) -> bool {
     layer.ends_with(".Cu") || layer.ends_with(".Mask") || layer.ends_with(".Paste")
@@ -517,6 +561,14 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                     fp.fab_graphics += 1;
                 } else {
                     fp.drawings += 1;
+                    let outline = match layer {
+                        "F.Fab" | "B.Fab" => Some(&mut fp.fab_bounds),
+                        "F.CrtYd" | "B.CrtYd" => Some(&mut fp.courtyard_bounds),
+                        _ => None,
+                    };
+                    if let Some(outline) = outline {
+                        grow_bounds(outline, item);
+                    }
                 }
             }
             "fp_text" | "fp_text_box" | "dimension" => fp.drawings += 1,

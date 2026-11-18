@@ -322,7 +322,13 @@ pub fn import_with_models(
         let selection = match (models.as_deref_mut(), first) {
             (Some(provider), Some(fp)) => Some(
                 provider
-                    .prepare(&mut session.engine, &pads, &prefix, &fp.models)
+                    .prepare(
+                        &mut session.engine,
+                        &pads,
+                        &prefix,
+                        &fp.models,
+                        &crate::models::Facts::of(fp),
+                    )
                     .map_err(|reason| ImportError::Refused {
                         step: "3D model",
                         reason,
