@@ -1,17 +1,13 @@
 {
-  "format": "solidcraft/52",
+  "format": "solidcraft/57",
   "format_pending": [
-    "3d-wire-point-nodes",
-    "frame-end-caps",
-    "joint-origin-inside",
-    "nested-face-name",
-    "opus-quality",
-    "render-indirect-clamp",
-    "render-quality-controls",
-    "revolve-axis-sketch",
-    "sheet-flange-segments",
-    "sketch-link-construction-point",
-    "two-sided-cut-cap-names"
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
   ],
   "name": "Land grid array with empty positions",
   "units": "mm",
@@ -98,6 +94,13 @@
       "expr": "0.03 mm",
       "unit": "mm",
       "comment": "A1 dimple depth",
+      "model": false
+    },
+    {
+      "name": "land_proud",
+      "expr": "contact_height / 3",
+      "unit": "mm",
+      "comment": "how far the lands stand proud of the body's underside",
       "model": false
     },
     {
@@ -1946,11 +1949,11 @@
       "corner": [
         "- body_length / 2",
         "- body_width / 2",
-        "0 mm"
+        "land_proud"
       ],
       "length": "body_length",
       "width": "body_width",
-      "height": "body_height",
+      "height": "body_height - land_proud",
       "operation": "new_body"
     },
     {
@@ -2027,11 +2030,11 @@
       "corner": [
         "void_1_x",
         "void_1_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_1_length",
       "width": "void_1_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2050,11 +2053,11 @@
       "corner": [
         "void_2_x",
         "void_2_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_2_length",
       "width": "void_2_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2073,11 +2076,11 @@
       "corner": [
         "void_3_x",
         "void_3_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_3_length",
       "width": "void_3_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2096,11 +2099,11 @@
       "corner": [
         "void_4_x",
         "void_4_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_4_length",
       "width": "void_4_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2119,11 +2122,11 @@
       "corner": [
         "void_5_x",
         "void_5_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_5_length",
       "width": "void_5_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2142,11 +2145,11 @@
       "corner": [
         "void_6_x",
         "void_6_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_6_length",
       "width": "void_6_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2165,11 +2168,11 @@
       "corner": [
         "void_7_x",
         "void_7_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_7_length",
       "width": "void_7_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2188,11 +2191,11 @@
       "corner": [
         "void_8_x",
         "void_8_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_8_length",
       "width": "void_8_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2211,11 +2214,11 @@
       "corner": [
         "void_9_x",
         "void_9_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_9_length",
       "width": "void_9_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2234,11 +2237,11 @@
       "corner": [
         "void_10_x",
         "void_10_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_10_length",
       "width": "void_10_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2257,11 +2260,11 @@
       "corner": [
         "void_11_x",
         "void_11_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_11_length",
       "width": "void_11_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2280,11 +2283,11 @@
       "corner": [
         "void_12_x",
         "void_12_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_12_length",
       "width": "void_12_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2303,11 +2306,11 @@
       "corner": [
         "void_13_x",
         "void_13_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_13_length",
       "width": "void_13_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2326,11 +2329,11 @@
       "corner": [
         "void_14_x",
         "void_14_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_14_length",
       "width": "void_14_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2349,11 +2352,11 @@
       "corner": [
         "void_15_x",
         "void_15_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_15_length",
       "width": "void_15_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2372,11 +2375,11 @@
       "corner": [
         "void_16_x",
         "void_16_y",
-        "0 mm"
+        "land_proud"
       ],
       "length": "void_16_length",
       "width": "void_16_width",
-      "height": "contact_height",
+      "height": "contact_height - land_proud",
       "operation": "join"
     },
     {
@@ -2396,7 +2399,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -2413,7 +2416,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -2430,7 +2433,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -2447,7 +2450,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -2503,7 +2506,7 @@
       "base": [
         "- body_length / 2 + 2 * mark_radius",
         "body_width / 2 - 2 * mark_radius",
-        "0 mm + body_height - mark_depth"
+        "body_height - mark_depth"
       ],
       "axis": [
         0.0,

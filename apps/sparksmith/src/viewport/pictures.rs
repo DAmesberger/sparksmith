@@ -297,6 +297,9 @@ mod esp32;
 /// The generators' marking rules on placed parts.
 mod marking_rules;
 
+/// A four-sided gull-wing and the land grids, for review.
+mod lead_rows;
+
 /// The default overview of the showcase board is not flat: the studio's
 /// strip light lies on part of the gloss mask as a lacquer sheen, so the
 /// brightest board pixels stand well above the typical ones, while almost

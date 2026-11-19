@@ -53,7 +53,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// Most rows or columns of one grid (the host's grid form allows as many).
 const MAX_SIDE: i64 = 64;
@@ -702,10 +702,11 @@ mod parts {
 /// The package's 3D model: one of the bundle's four part files (balls or
 /// lands, full or with cut-outs), every parameter given. A body (substrate
 /// and moulding as one block) of `body_length` × `body_width` ×
-/// `body_height` stands on the balls (`contact_height` high) or on the
-/// seating plane over the lands, which are set into its underside
-/// (`contact_height` is then the land's thickness); its top edges are
-/// rounded and a dimple marks the A1 corner.
+/// `body_height` stands on the balls (`contact_height` high) or over the
+/// lands, which are set into its underside (`contact_height` is then the
+/// land's thickness) and stand a third of their thickness proud of it (the
+/// file's `land_proud`), its top `body_height` above the seating plane;
+/// its top edges are rounded and a dimple marks the A1 corner.
 fn model(d: &Dims) -> v1::Model {
     let [bl, bw, bh] = d.body;
     let short = bl.min(bw);

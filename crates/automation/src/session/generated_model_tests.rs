@@ -625,3 +625,113 @@ fn generated_parts_carry_their_presets_marking() -> TestResult {
     assert!(marking(("chip", "capacitor-0603"))?.is_none());
     Ok(())
 }
+
+/// Every gull-wing and grid preset's part file, at the module's values,
+/// draws exactly one lead body per land, each over its own land: the
+/// land's centre lies inside the lead's plan and the lead is centred on it
+/// across its row (a four-sided file once drew one side's leads twice,
+/// 0.25 mm apart along the lead). A land grid's lands stand proud of the
+/// body, its underside clear of the seating plane (flush lands drew both
+/// faces on one plane).
+#[test]
+fn every_gull_wing_and_grid_preset_draws_one_lead_per_land() -> TestResult {
+    use sparksmith_core::library::BodyRole;
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let mut cases = vec![(
+        "gull-wing".to_owned(),
+        "gull-wing-tssop-14-4.4".to_owned(),
+        json!({"pin1_bevel": true}),
+    )];
+    for generator in ["gull-wing", "grid"] {
+        let text = std::fs::read_to_string(
+            Path::new(SHIPPED)
+                .join("../generators")
+                .join(generator)
+                .join("presets.json"),
+        )?;
+        for preset in serde_json::from_str::<Vec<Value>>(&text)? {
+            let key = preset["key"].as_str().ok_or("no key")?;
+            cases.push((generator.to_owned(), key.to_owned(), json!({})));
+        }
+    }
+    for (generator, preset, params) in &cases {
+        let session = made(generator, preset, params)?;
+        let request = serde_json::from_value(json!({"generator": generator,
+            "scope": "component", "preset": preset, "params": params,
+            "expected_revision": session.engine().revision()}))?;
+        let (_, _, generated) = session.run_request(request)?;
+        let generation = generated
+            .map_err(|f| format!("{preset}: {f:?}"))?
+            .generation;
+        let library = &session.engine().project().library;
+        let package = library.packages.first().ok_or("no package")?;
+        let PackageModel::PartFile(part) = &package.definition.model else {
+            return Err(format!("{preset}: no part file").into());
+        };
+        let model = library.model(part.model).ok_or("no model")?;
+        let bytes = library
+            .assets
+            .iter()
+            .find(|a| a.hash == model.definition.asset.hash)
+            .ok_or("the part file is not packed")?;
+        let evaluated = part_file::evaluate(bytes.data.as_slice(), &part.values)?;
+        let leads: Vec<&part_file::PartBody> = evaluated
+            .bodies
+            .iter()
+            .filter(|b| part_file::role_of(b.material) == BodyRole::Termination)
+            .collect();
+        let pads = &generation.footprint.pads;
+        assert_eq!(
+            leads.len(),
+            pads.len(),
+            "{preset} {params}: {} lead bodies for {} lands: {:?}",
+            leads.len(),
+            pads.len(),
+            leads
+                .iter()
+                .map(|b| (&b.name, b.bounds_mm))
+                .collect::<Vec<_>>()
+        );
+        for pad in pads {
+            let at = pad.at.map(|v| v as f64 / 1e6);
+            let over: Vec<&&part_file::PartBody> = leads
+                .iter()
+                .filter(|b| {
+                    let [lo, hi] = b.bounds_mm;
+                    (0..2).all(|k| at[k] > lo[k] && at[k] < hi[k])
+                })
+                .collect();
+            let [lead] = over[..] else {
+                return Err(format!(
+                    "{preset} {params}: land {} at {at:?} under {} lead bodies",
+                    pad.key,
+                    over.len()
+                )
+                .into());
+            };
+            // Across the row: the lead's narrower extent in plan.
+            let [lo, hi] = lead.bounds_mm;
+            let across = usize::from(hi[0] - lo[0] >= hi[1] - lo[1]);
+            let centre = (lo[across] + hi[across]) / 2.0;
+            assert!(
+                (centre - at[across]).abs() < 1e-3,
+                "{preset} {params}: land {} at {at:?}, lead {} centred at {centre}",
+                pad.key,
+                lead.name
+            );
+        }
+        if generator == "grid" && preset.starts_with("grid-lga") {
+            let body = evaluated
+                .bodies
+                .iter()
+                .find(|b| b.name == "body")
+                .ok_or("no body")?;
+            assert!(
+                body.bounds_mm[0][2] > 1e-3,
+                "{preset}: the body's underside at {} mm, on the lands' plane",
+                body.bounds_mm[0][2]
+            );
+        }
+    }
+    Ok(())
+}

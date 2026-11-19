@@ -1801,9 +1801,11 @@ const GRID_VOIDS: usize = 16;
 /// `_width`) removes the contacts inside it whole, before the body exists;
 /// cut-outs a grid does not need repeat the first. The body (substrate and
 /// moulding as one block) of `body_length` × `body_width` × `body_height`
-/// stands on the balls, or on the seating plane over the lands, cut round
-/// each land by a pattern of one cut with the contacts' counts (nothing
-/// names the pattern's bodies) and filled again over every cut-out. Its
+/// stands on the balls, or over the lands, which stand `land_proud` (a
+/// third of their thickness) below its underside so no land shares its
+/// bottom plane, cut round each land by a pattern of one cut with the
+/// contacts' counts (nothing names the pattern's bodies) and filled again
+/// over every cut-out; its top stays at `body_height`. Its
 /// top edges are rounded by `edge_round`, and a dimple of `mark_radius`,
 /// `mark_depth` deep, two radii in from the −x, +y corner marks A1. Saved
 /// at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body (with cut-outs: rows B–C,
@@ -1851,6 +1853,18 @@ pub fn author_grid(balls: bool, voids: bool) -> Vec<u8> {
         param("mark_radius", "0.24 mm", "mm", "A1 dimple radius"),
         param("mark_depth", "0.03 mm", "mm", "A1 dimple depth"),
     ];
+    if !balls {
+        // The plated land's face stands proud of the substrate's underside
+        // (est.), so the part seats on its lands and no land shares the
+        // body's bottom plane (flush, the two faces z-fight round every
+        // land).
+        rows.push(param(
+            "land_proud",
+            "contact_height / 3",
+            "mm",
+            "how far the lands stand proud of the body's underside",
+        ));
+    }
     // The saved cut-out: rows B–C, columns 2–4 (half a pitch outside the
     // contacts there).
     let saved_void = ["-1.2 mm", "-0.8 mm", "2.4 mm", "1.6 mm"];
@@ -1911,12 +1925,18 @@ pub fn author_grid(balls: bool, voids: bool) -> Vec<u8> {
             );
         }
     }
-    let base = if balls { "contact_height" } else { "0 mm" };
+    // On balls the body stands on them; over lands its underside lies
+    // `land_proud` above the seating plane and its top at `body_height`.
+    let (base, height) = if balls {
+        ("contact_height", "body_height")
+    } else {
+        ("land_proud", "body_height - land_proud")
+    };
     run(
         &mut s,
         "solid.box",
         json!({"corner": ["- body_length / 2", "- body_width / 2", base],
-            "length": "body_length", "width": "body_width", "height": "body_height",
+            "length": "body_length", "width": "body_width", "height": height,
             "name": "body", "body_name": "body"}),
     );
     if !balls {
@@ -1937,9 +1957,9 @@ pub fn author_grid(balls: bool, voids: bool) -> Vec<u8> {
                 run(
                     &mut s,
                     "solid.box",
-                    json!({"corner": [void(k, "x"), void(k, "y"), "0 mm"],
+                    json!({"corner": [void(k, "x"), void(k, "y"), "land_proud"],
                         "length": void(k, "length"), "width": void(k, "width"),
-                        "height": "contact_height", "operation": "join", "targets": ["body"],
+                        "height": "contact_height - land_proud", "operation": "join", "targets": ["body"],
                         "name": format!("void {k} fill")}),
                 );
             }
@@ -1959,7 +1979,8 @@ pub fn author_grid(balls: bool, voids: bool) -> Vec<u8> {
         "solid.cylinder",
         json!({"name": "pin 1 mark",
             "base": ["- body_length / 2 + 2 * mark_radius", "body_width / 2 - 2 * mark_radius",
-                format!("{base} + body_height - mark_depth")],
+                if balls { "contact_height + body_height - mark_depth" }
+                    else { "body_height - mark_depth" }],
             "radius": "mark_radius", "height": "2 * mark_depth", "axis": "Z",
             "operation": "cut", "targets": ["body"]}),
     );
