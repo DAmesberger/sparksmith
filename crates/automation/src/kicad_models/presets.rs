@@ -59,6 +59,9 @@ struct Candidate {
 }
 #[derive(Default)]
 pub(super) struct Presets {
+    /// The runtime the importer chose (batch admission); else the
+    /// engine's, else the process's.
+    runtime: Option<Arc<dyn GeneratorRuntime + Send + Sync>>,
     candidates: Option<Vec<Candidate>>,
     failure: Option<String>,
     chosen: BTreeMap<usize, Choice>,
@@ -109,6 +112,13 @@ fn mm2(v: [i64; 2]) -> [f64; 2] {
 }
 
 impl Presets {
+    /// Presets made with `runtime`, whatever runtime the engine has.
+    pub(super) fn with_runtime(runtime: Arc<dyn GeneratorRuntime + Send + Sync>) -> Self {
+        Self {
+            runtime: Some(runtime),
+            ..Self::default()
+        }
+    }
     fn load(
         &mut self,
         runtime: &dyn GeneratorRuntime,
@@ -214,9 +224,10 @@ impl Presets {
         if pads.iter().all(|p| p.number.trim().is_empty()) {
             return Ok(Err(Miss::NoLands));
         }
-        let runtime = engine
-            .generator_runtime()
-            .cloned()
+        let runtime = self
+            .runtime
+            .clone()
+            .or_else(|| engine.generator_runtime().cloned())
             .unwrap_or_else(crate::session::generators::runtime);
         self.load(runtime.as_ref(), deadline)?;
         let Some(candidates) = &self.candidates else {
