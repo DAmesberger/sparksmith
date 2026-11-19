@@ -283,9 +283,6 @@ impl SettingsWindow {
                         require_waiver_reason,
                     );
                 });
-                kit::section(ui, "settings-browser", "Browser", true, None, |ui| {
-                    self.lists_changed = browser_rows(ui, &mut self.lists);
-                });
                 if self.ai.wants_focus() {
                     // Connect a model…: AI's Connection opens at the top.
                     kit::open_section(ui, "settings-ai");
@@ -295,7 +292,10 @@ impl SettingsWindow {
                     self.ai.ui(ui);
                 });
                 kit::section(ui, "settings-lists", "Lists", true, None, |ui| {
-                    self.lists_changed |= lists_rows(ui, &mut self.lists);
+                    self.lists_changed = lists_rows(ui, &mut self.lists);
+                });
+                kit::section(ui, "settings-browser", "Browser", true, None, |ui| {
+                    self.lists_changed |= browser_rows(ui, &mut self.lists);
                 });
                 kit::section(ui, "settings-reveal", "Key reveal", true, None, |ui| {
                     reveal_changed |= reveal_rows(ui, reveal);

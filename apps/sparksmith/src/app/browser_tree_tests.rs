@@ -173,9 +173,13 @@ fn settings_browser_lists_components_flat() -> Fallible {
         let mut ax = browser(size)?;
         ax.app.settings_window.open();
         ax.settle();
-        let check = ax.find(Role::CheckBox, "Group components by category")?;
+        let check = crate::app::settings_ai::tests::scroll_to(
+            &mut ax,
+            Role::CheckBox,
+            "Group components by category",
+        )?;
         assert_eq!(check.toggled, Some(true), "on by default");
-        ax.click(Role::CheckBox, "Group components by category")?;
+        ax.click_at(check.center());
         ax.settle();
         assert!(ax.app.sources.list_settings().flat_components);
         ax.app.settings_window.close();
