@@ -77,9 +77,7 @@
    "width": 800000,
    "height": 450000,
    "termination": 300000,
-   "marking": [
-    "{field:Resistance|code3}"
-   ]
+   "resistor_code": "eia96"
   },
   "citation": {
    "document": "Yageo, General purpose chip resistors, RC_L series datasheet: dimensions table"
@@ -100,10 +98,7 @@
    "length": 2000000,
    "width": 1250000,
    "height": 500000,
-   "termination": 350000,
-   "marking": [
-    "{field:Resistance|code4}"
-   ]
+   "termination": 350000
   },
   "citation": {
    "document": "Yageo, General purpose chip resistors, RC_L series datasheet: dimensions table"
@@ -124,10 +119,7 @@
    "length": 3100000,
    "width": 1600000,
    "height": 550000,
-   "termination": 450000,
-   "marking": [
-    "{field:Resistance|code4}"
-   ]
+   "termination": 450000
   },
   "citation": {
    "document": "Yageo, General purpose chip resistors, RC_L series datasheet: dimensions table"
@@ -148,10 +140,7 @@
    "length": 3100000,
    "width": 2600000,
    "height": 550000,
-   "termination": 500000,
-   "marking": [
-    "{field:Resistance|code4}"
-   ]
+   "termination": 500000
   },
   "citation": {
    "document": "Yageo, General purpose chip resistors, RC_L series datasheet: dimensions table"
@@ -172,10 +161,7 @@
    "length": 5000000,
    "width": 2500000,
    "height": 550000,
-   "termination": 550000,
-   "marking": [
-    "{field:Resistance|code4}"
-   ]
+   "termination": 550000
   },
   "citation": {
    "document": "Yageo, General purpose chip resistors, RC_L series datasheet: dimensions table"
@@ -196,10 +182,7 @@
    "length": 6350000,
    "width": 3200000,
    "height": 550000,
-   "termination": 600000,
-   "marking": [
-    "{field:Resistance|code4}"
-   ]
+   "termination": 600000
   },
   "citation": {
    "document": "Yageo, General purpose chip resistors, RC_L series datasheet: dimensions table"

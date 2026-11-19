@@ -87,7 +87,7 @@ fn every_generic_example_builds_a_part_through_its_generator() -> TestResult {
             made += 1;
         }
     }
-    assert_eq!(made, 16, "every example of the six families");
+    assert_eq!(made, 20, "every example of the eight families");
     Ok(())
 }
 

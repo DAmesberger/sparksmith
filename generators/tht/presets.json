@@ -477,7 +477,8 @@
   "aliases": [
    "radial",
    "CP Ø5",
-   "electrolytic"
+   "electrolytic",
+   "5x11"
   ],
   "description": "Radial-lead can (electrolytic capacitor), Ø5 × 11 mm, leads at 2 mm.",
   "params": {
@@ -499,7 +500,8 @@
   "aliases": [
    "radial",
    "CP Ø6.3",
-   "electrolytic"
+   "electrolytic",
+   "6.3x11"
   ],
   "description": "Radial-lead can (electrolytic capacitor), Ø6.3 × 11 mm, leads at 2.5 mm.",
   "params": {
@@ -521,7 +523,8 @@
   "aliases": [
    "radial",
    "CP Ø8",
-   "electrolytic"
+   "electrolytic",
+   "8x11.5"
   ],
   "description": "Radial-lead can (electrolytic capacitor), Ø8 × 11.5 mm, leads at 3.5 mm.",
   "params": {
@@ -543,7 +546,8 @@
   "aliases": [
    "radial",
    "CP Ø10",
-   "electrolytic"
+   "electrolytic",
+   "10x12.5"
   ],
   "description": "Radial-lead can (electrolytic capacitor), Ø10 × 12.5 mm, leads at 5 mm.",
   "params": {

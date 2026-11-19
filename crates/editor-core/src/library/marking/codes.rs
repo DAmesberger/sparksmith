@@ -472,8 +472,13 @@ fn significant(value: f64, digits: u32, min_exp: i32, max_exp: i32) -> Option<(u
 fn resistor_code(value: f64, sig: u32) -> Option<String> {
     let width = usize::try_from(sig).ok()?;
     if value == 0.0 {
-        // A zero-ohm jumper is printed as zeros.
-        return Some("0".repeat(width + 1));
+        // A zero-ohm jumper: a single 0 in the three-digit scheme, as chip
+        // resistor data sheets mark it, zeros in the four-digit one.
+        return Some(if sig == 2 {
+            "0".into()
+        } else {
+            "0".repeat(width + 1)
+        });
     }
     let threshold = 10f64.powi(i32::try_from(sig).ok()? - 1);
     if value >= threshold {
@@ -601,7 +606,7 @@ mod tests {
         assert_eq!(code(Resistor3Digit, 0.47).as_deref(), Some("R47"));
         assert_eq!(code(Resistor3Digit, 0.05).as_deref(), Some("R05"));
         assert_eq!(code(Resistor3Digit, 1.0).as_deref(), Some("1R0"));
-        assert_eq!(code(Resistor3Digit, 0.0).as_deref(), Some("000"));
+        assert_eq!(code(Resistor3Digit, 0.0).as_deref(), Some("0"));
         assert_eq!(code(Resistor3Digit, 1e6).as_deref(), Some("105"));
         assert_eq!(code(Resistor3Digit, 99e9).as_deref(), Some("999"));
         assert_eq!(code(Resistor3Digit, 1e11), None, "multiplier above 9");

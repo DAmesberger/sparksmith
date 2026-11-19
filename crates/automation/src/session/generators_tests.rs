@@ -602,3 +602,141 @@ fn a_generic_resistors_value_is_set_shown_and_grouped_in_the_bom() -> TestResult
     assert_eq!(lines(&reopened)?, two);
     Ok(())
 }
+
+/// The generators' marking rules end to end: generic parts made from the
+/// shipped modules through the catalog's words, placed with their values,
+/// mark what the rules say (`docs/generator-plugins.md`, "Markings as
+/// generator data"). Every expected code is derived by hand from IEC 60062
+/// and the EIA-96 table.
+#[test]
+fn generated_parts_mark_their_values_by_rule() -> TestResult {
+    use sparksmith_core::library::marking::LaidElement;
+    let _context = sparksmith_core::library::standards::Context::fixture()?.enter();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    let mut session = session(&root)?;
+    let search = |session: &mut Session, words: &str| -> TestResult<Value> {
+        let found = session.dispatch(json!({"command": "project.query", "params":
+            {"query": "library.search", "params": {"query": words}}}));
+        assert_eq!(found["ok"], true, "{found}");
+        Ok(found["result"]["generic"][0].clone())
+    };
+    // (words, designator, tolerance, texts of the marking and its decals,
+    // marks drawn); `None`: no marking at all.
+    type Case<'a> = (
+        &'a str,
+        &'a str,
+        Option<&'a str>,
+        Option<Vec<&'a str>>,
+        usize,
+    );
+    let cases: [Case<'_>; 11] = [
+        ("resistor 0805 10k", "R1", Some("1%"), Some(vec!["1002"]), 0),
+        ("resistor 0805 10k", "R2", Some("5%"), Some(vec!["103"]), 0),
+        ("resistor 0805 10k", "R3", None, Some(vec!["103"]), 0),
+        ("resistor 1206 4.7", "R4", Some("5%"), Some(vec!["4R7"]), 0),
+        (
+            "resistor 1206 49.9",
+            "R5",
+            Some("1%"),
+            Some(vec!["49R9"]),
+            0,
+        ),
+        ("resistor 0603 10k", "R6", Some("1%"), Some(vec!["01C"]), 0),
+        ("resistor 0603 4.7k", "R7", Some("1%"), Some(vec!["472"]), 0),
+        ("resistor 0402 10k", "R8", Some("1%"), None, 0),
+        ("led 0603 red", "D1", None, Some(vec![]), 1),
+        (
+            "electrolytic 6.3x7.7 100u 16V",
+            "C1",
+            None,
+            Some(vec!["100", "16V"]),
+            0,
+        ),
+        (
+            "radial electrolytic 8x11.5 470u 25V",
+            "C2",
+            None,
+            Some(vec!["470", "25V"]),
+            1,
+        ),
+    ];
+    for (words, designator, tolerance, texts, marks) in cases {
+        let hint = search(&mut session, words)?;
+        let component = if hint.get("make").is_some() {
+            let mut params = hint["make"]["params"].clone();
+            params["expected_revision"] = json!(session.engine().revision());
+            let made =
+                session.dispatch(json!({"command": "library.generate_part", "params": params}));
+            assert_eq!(made["ok"], true, "{words}: {made}");
+            search(&mut session, words)?
+        } else {
+            hint
+        };
+        let representation = session
+            .engine()
+            .project()
+            .library
+            .component(serde_json::from_value(component["component"].clone())?)
+            .and_then(|c| c.definition.representations.first().map(|r| r.id))
+            .ok_or("no symbol")?;
+        let placed = call(
+            &mut session,
+            "project.apply",
+            json!({"operation": {"editor": "Instance", "operation": {"command": "component.place",
+                "params": {"component": component["component"], "designator": designator,
+                    "properties": component["properties"], "representation": representation,
+                    "unit": 1, "position": [0.0, 0.0], "physical": component["physical"]}}}}),
+        );
+        assert_eq!(placed["ok"], true, "{words}: {placed}");
+        let instance = placed["result"]["outcome"]["instance"]
+            .as_u64()
+            .ok_or("no instance")?;
+        if let Some(tolerance) = tolerance {
+            let field = sparksmith_core::library::standards::get()?
+                .fields
+                .local(&session.engine().project().library, "Tolerance")
+                .ok_or("no Tolerance field")?;
+            let set = call(
+                &mut session,
+                "project.apply",
+                json!({"operation": {"editor": "Instance", "operation": {"command": "instance.set_properties",
+                    "params": {"instance": instance, "edits": [{"field": field.id,
+                        "input": {"input": "text", "value": tolerance}}]}}}}),
+            );
+            assert_eq!(set["ok"], true, "{words}: {set}");
+        }
+        let layout =
+            sparksmith_core::commands::instance_marking(session.engine().project(), instance)?;
+        let Some(texts) = texts else {
+            assert!(
+                layout
+                    .as_ref()
+                    .is_none_or(|l| l.all().all(|l| l.elements.is_empty())),
+                "{words}: {layout:?}"
+            );
+            continue;
+        };
+        let layout = layout.ok_or_else(|| format!("{words}: not marked"))?;
+        let drawn: Vec<&str> = layout
+            .all()
+            .flat_map(|l| &l.elements)
+            .filter_map(|e| match e {
+                LaidElement::Text(t) => Some(t.text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(drawn, texts, "{words}: {:?}", layout.findings);
+        let drawn_marks = layout
+            .all()
+            .flat_map(|l| &l.elements)
+            .filter(|e| {
+                matches!(
+                    e,
+                    LaidElement::Polarity { .. } | LaidElement::Artwork { .. }
+                )
+            })
+            .count();
+        assert_eq!(drawn_marks, marks, "{words}: {layout:?}");
+    }
+    Ok(())
+}

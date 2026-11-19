@@ -268,11 +268,23 @@ impl PartFileModel {
                         && finite_within(&a.u_axis)
                         && a.size_nm.iter().all(|v| *v > Nm::ZERO)
                 }
-                SurfaceGeometry::Cylinder(_) => false,
+                SurfaceGeometry::Cylinder(c) => {
+                    let unit = |v: &[f64; 3]| {
+                        finite_within(v)
+                            && ((v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt() - 1.0).abs() < 1e-6
+                    };
+                    unit(&c.axis)
+                        && unit(&c.zero)
+                        && (c.axis[0] * c.zero[0] + c.axis[1] * c.zero[1] + c.axis[2] * c.zero[2])
+                            .abs()
+                            < 1e-6
+                        && c.radius_nm > Nm::ZERO
+                        && c.length_nm > Nm::ZERO
+                }
             };
             if !ok {
                 out.push(format!(
-                    "marking surface {} must be a plane with finite axes and a positive size",
+                    "marking surface {} must be a plane or cylinder with finite unit axes and a positive size",
                     s.name
                 ));
             }

@@ -16,7 +16,10 @@
    "span": 3700000,
    "terminal_length": 500000,
    "terminal_width": 600000,
-   "polarised": true
+   "polarised": true,
+   "marking": [
+    "{mpn}"
+   ]
   },
   "basis": "estimated",
   "note": "Estimated: SOD outlines differ between manufacturers; nominal values of the common outline. Confirm against the device's drawing."
@@ -82,7 +85,10 @@
    "span": 5200000,
    "terminal_length": 1100000,
    "terminal_width": 1400000,
-   "polarised": true
+   "polarised": true,
+   "marking": [
+    "{mpn}"
+   ]
   },
   "citation": {
    "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"
@@ -106,7 +112,10 @@
    "span": 5400000,
    "terminal_length": 1100000,
    "terminal_width": 2000000,
-   "polarised": true
+   "polarised": true,
+   "marking": [
+    "{mpn}"
+   ]
   },
   "citation": {
    "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"
@@ -130,7 +139,10 @@
    "span": 7900000,
    "terminal_length": 1100000,
    "terminal_width": 3000000,
-   "polarised": true
+   "polarised": true,
+   "marking": [
+    "{mpn}"
+   ]
   },
   "citation": {
    "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"

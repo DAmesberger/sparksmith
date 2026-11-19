@@ -1,17 +1,13 @@
 {
-  "format": "solidcraft/52",
+  "format": "solidcraft/57",
   "format_pending": [
-    "3d-wire-point-nodes",
-    "frame-end-caps",
-    "joint-origin-inside",
-    "nested-face-name",
-    "opus-quality",
-    "render-indirect-clamp",
-    "render-quality-controls",
-    "revolve-axis-sketch",
-    "sheet-flange-segments",
-    "sketch-link-construction-point",
-    "two-sided-cut-cap-names"
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
   ],
   "name": "Radial through-hole part",
   "units": "mm",
@@ -84,6 +80,27 @@
       "expr": "0.6 * (body_diameter - 2 * top_round)",
       "unit": "mm",
       "comment": "marking-top size across it",
+      "model": false
+    },
+    {
+      "name": "marking_sleeve_r",
+      "expr": "body_diameter / 2",
+      "unit": "mm",
+      "comment": "marking-sleeve radius (the body's)",
+      "model": false
+    },
+    {
+      "name": "marking_sleeve_from",
+      "expr": "standoff + 0.1 * body_height",
+      "unit": "mm",
+      "comment": "marking-sleeve start above the seating plane",
+      "model": false
+    },
+    {
+      "name": "marking_sleeve_l",
+      "expr": "0.8 * body_height",
+      "unit": "mm",
+      "comment": "marking-sleeve length along the axis",
       "model": false
     },
     {
@@ -446,9 +463,34 @@
         },
         "distance": "0 mm"
       }
+    },
+    {
+      "id": 10,
+      "name": "marking-sleeve",
+      "suppressed": false,
+      "type": "construction_axis",
+      "def": {
+        "type": "two_points",
+        "a": {
+          "type": "point",
+          "p": [
+            0.0,
+            0.0,
+            0.0
+          ]
+        },
+        "b": {
+          "type": "point",
+          "p": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      }
     }
   ],
-  "next_id": 10,
+  "next_id": 11,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {
