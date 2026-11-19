@@ -15,6 +15,9 @@
 //! KiCad import making every part's model) asks for a worker with
 //! [`Worker::waiting_until`] instead: it waits for one up to its deadline,
 //! still watching the cancel flag, and its wall time starts once admitted.
+//! A headless session's script or agent, whose calls come one after
+//! another for as long as it runs, uses [`Worker::waiting_for`]: each call
+//! waits up to the same bound from when it is made.
 use crate::{Limits, WasmiRuntime};
 use sparksmith_generator_abi::v1::{Description, Request};
 use sparksmith_generator_abi::{Failure, Generated, GeneratorRuntime};
@@ -95,6 +98,8 @@ enum Admission {
     Refuse,
     /// Wait for a worker until this deadline (batch work).
     WaitUntil(Instant),
+    /// Wait for a worker up to this long from when each call is made.
+    WaitFor(Duration),
 }
 
 /// A [`GeneratorRuntime`] that runs every call on its own thread.
@@ -151,6 +156,14 @@ impl Worker {
         self
     }
 
+    /// This worker for a headless caller's calls: like
+    /// [`Self::waiting_until`], but each call's deadline is `wait` after
+    /// the call is made.
+    pub fn waiting_for(mut self, wait: Duration) -> Self {
+        self.admission = Admission::WaitFor(wait);
+        self
+    }
+
     pub fn limits(&self) -> Limits {
         self.limits
     }
@@ -167,12 +180,17 @@ impl Worker {
 
     /// A permit from the pool, as this worker's admission says.
     fn admit(&self) -> Result<Permit, Failure> {
+        let deadline = match self.admission {
+            Admission::Refuse => None,
+            Admission::WaitUntil(deadline) => Some(deadline),
+            Admission::WaitFor(wait) => Instant::now().checked_add(wait),
+        };
         loop {
             let busy = match self.pool.acquire() {
                 Ok(permit) => return Ok(permit),
                 Err(busy) => busy,
             };
-            let Admission::WaitUntil(deadline) = self.admission else {
+            let Some(deadline) = deadline else {
                 return Err(busy);
             };
             if self.cancelled() {
@@ -466,6 +484,45 @@ mod tests {
 
         let (waiting, waits) = mpsc::channel();
         let patient = worker.clone().waiting_until(later);
+        let caller = std::thread::spawn(move || {
+            let _ = waiting.send(());
+            patient.run(|| |_| Ok(7))
+        });
+        waits
+            .recv_timeout(Duration::from_secs(10))
+            .map_err(|e| e.to_string())?;
+        // Let the caller find the pool full before one worker frees.
+        std::thread::sleep(Duration::from_millis(30));
+        held.pop();
+        let ran = caller.join().map_err(|_| "caller panicked")?;
+        assert_eq!(ran.map_err(|e| e.to_string())?, 7);
+        drop(held);
+        idle(worker.pool.slots())
+    }
+
+    /// A headless caller's admission: each call waits up to its bound from
+    /// when it is made, so a worker made long before still waits its full
+    /// bound, and is refused as busy only past it.
+    #[test]
+    fn each_call_of_a_waiting_for_worker_waits_its_own_bound() -> Result<(), String> {
+        let worker = Worker::fixture();
+        let mut held: Vec<_> = (0..MAX_ACTIVE)
+            .map(|_| worker.pool.acquire())
+            .collect::<Result<_, _>>()
+            .map_err(|e| e.to_string())?;
+        let brief = worker.clone().waiting_for(Duration::from_millis(50));
+        for _ in 0..2 {
+            let called = Instant::now();
+            let refused = brief.run(|| |_| Ok(()));
+            assert_eq!(
+                refused.err().as_ref().and_then(Failure::code),
+                Some("generator.busy")
+            );
+            assert!(called.elapsed() >= Duration::from_millis(50));
+        }
+
+        let (waiting, waits) = mpsc::channel();
+        let patient = worker.clone().waiting_for(Duration::from_secs(60));
         let caller = std::thread::spawn(move || {
             let _ = waiting.send(());
             patient.run(|| |_| Ok(7))

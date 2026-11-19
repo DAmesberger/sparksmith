@@ -223,12 +223,12 @@ impl Session {
         self.descriptions = std::sync::OnceLock::new();
     }
 
-    /// Give the engine a generator runtime when it has none: a worker
-    /// thread per call with the host's limits, a wall time and no state.
+    /// Give the engine a generator runtime when it has none:
+    /// [`session_runtime`], a worker thread per call with the host's
+    /// limits, a wall time and no state, waiting for a busy worker.
     pub fn ensure_generators(&mut self) {
         if !self.engine.has_generators() {
-            self.engine
-                .set_generators(Arc::new(sparksmith_generators::worker::Worker::default()));
+            self.engine.set_generators(session_runtime());
         }
     }
 
@@ -236,7 +236,7 @@ impl Session {
         self.engine
             .generator_runtime()
             .cloned()
-            .unwrap_or_else(runtime)
+            .unwrap_or_else(session_runtime)
     }
 
     fn module_bytes(
@@ -593,6 +593,24 @@ pub fn runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
 /// Interactive callers keep [`runtime`] and its retryable busy reply.
 pub fn batch_runtime(deadline: std::time::Instant) -> Arc<dyn GeneratorRuntime + Send + Sync> {
     Arc::new(sparksmith_generators::worker::Worker::default().waiting_until(deadline))
+}
+
+/// How long one call of a headless session waits for a busy worker.
+/// Every call holds a worker for at most its 2 s wall time, so a minute
+/// covers the whole pool turning over many times; past it the call is
+/// refused as busy.
+pub const SESSION_WAIT: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// The generator runtime of a session whose engine has none
+/// ([`Session::ensure_generators`]): the CLI's scripts and replays
+/// (`stdio --operator`), its MCP and JSON-lines callers, the built-in
+/// agent's headless runs and the tests' sessions. Their calls come one
+/// after another with nobody to retry a refusal, so each call made while
+/// all of the process's workers are busy waits up to [`SESSION_WAIT`]. The
+/// desktop installs [`runtime`] on its engine, which sessions lent it
+/// keep: its UI thread is never held waiting.
+pub fn session_runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
+    Arc::new(sparksmith_generators::worker::Worker::default().waiting_for(SESSION_WAIT))
 }
 
 /// [`batch_runtime`] on a test fixture's own four-worker pool.
