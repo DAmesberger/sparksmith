@@ -698,7 +698,11 @@ impl Anchors {
 /// explicit map (a generated part's terminals carry their own names, and
 /// a pad lands its package terminal, so the pin is never matched by
 /// name). A pad without a terminal, or no such pad, connects nothing.
-fn terminal(project: &sparksmith_core::Project, instance: Id, number: &str) -> Option<TerminalId> {
+pub(crate) fn terminal(
+    project: &sparksmith_core::Project,
+    instance: Id,
+    number: &str,
+) -> Option<TerminalId> {
     let found = project.instance(instance)?;
     let resolved = sparksmith_core::instances::resolve(&project.library, found).ok()?;
     let physical = resolved.physical?;
@@ -736,8 +740,8 @@ pub(crate) fn wire(
         let mut at: BTreeMap<PointNm, Anchors> = BTreeMap::new();
         // Pins of parts with their own symbols, at KiCad's pin point.
         let mut moved: Vec<(PointNm, Endpoint)> = Vec::new();
-        // Those of them a power port went on.
-        let mut on_pin: BTreeSet<Endpoint> = BTreeSet::new();
+        // Those of them a power port goes on, with its kind and name.
+        let mut on_pin: BTreeMap<Endpoint, (LabelKind, String)> = BTreeMap::new();
         // Pins of placed parts; power symbols become power ports.
         let mut power: Vec<(PointNm, String)> = Vec::new();
         // Hidden power inputs: joined to the global net of their name.
@@ -888,19 +892,27 @@ pub(crate) fn wire(
                             .map(|s| WireTarget::SheetPin(SheetPinRef { sheet_pin: *s }))
                     })
             });
-            // A power port on the point of a pin of a part's own symbol goes
-            // on that pin, as it would on KiCad's pin: a port is its net's
-            // name where it stands, and no wire of KiCad's meets it there.
-            let attach = attach.or_else(|| {
-                (rank == Rank::Power)
-                    .then(|| moved.iter().find(|(q, _)| *q == p))
-                    .flatten()
-                    .map(|(_, end)| {
-                        on_pin.insert(*end);
-                        WireTarget::Terminal(*end)
-                    })
-            });
-
+            // A power port on the point of pins of a part's own symbol goes
+            // on each of those pins, as it would on KiCad's pin: a port is
+            // its net's name where it stands. It is placed once KiCad's
+            // wiring is drawn and joined at those pins' KiCad points: the
+            // port draws itself at our pin, and a KiCad wire end still
+            // free at such a point that lies on its drawing would be
+            // joined to its pin (the engine attaches a free end on a
+            // label's drawing).
+            if attach.is_none() && rank == Rank::Power {
+                let ends: Vec<Endpoint> = moved
+                    .iter()
+                    .filter(|(q, _)| *q == p)
+                    .map(|(_, end)| *end)
+                    .collect();
+                if !ends.is_empty() {
+                    for end in ends {
+                        on_pin.insert(end, (kind, name.clone()));
+                    }
+                    continue;
+                }
+            }
             let placed = session.apply(
                 "label.place",
                 Operation::Schematic(SchematicCommand::PlaceLabel {
@@ -918,29 +930,6 @@ pub(crate) fn wire(
                     at.entry(p).or_default().labels.push(label);
                 }
                 _ => report.add(Case::SchematicItemRefused),
-            }
-        }
-        // Hidden power inputs: a power port of their name on the pin.
-        for (end, name) in implicit {
-            let (kind, name, _) = naming.label(index, Rank::Power, &name);
-            let Some(at) = sparksmith_core::schematic::pin_position(session.engine.project(), end)
-            else {
-                continue;
-            };
-            let placed = session.apply(
-                "label.place",
-                Operation::Schematic(SchematicCommand::PlaceLabel {
-                    sheet: Some(sid),
-                    name,
-                    kind,
-                    position: nm_point(at)?,
-                    rotation: Default::default(),
-                    attach: Some(WireTarget::Terminal(end)),
-                }),
-            );
-            match placed {
-                Ok(_) => report.add(Case::HiddenPowerPin),
-                Err(_) => report.add(Case::SchematicItemRefused),
             }
         }
         // Pins that meet nothing (no wire, label, other pin or flag).
@@ -1101,7 +1090,31 @@ pub(crate) fn wire(
             )
             .collect();
         for (p, end) in moved {
-            if on_pin.contains(&end) {
+            if let Some((kind, name)) = on_pin.get(&end) {
+                // Its power port, on the pin; KiCad's wiring at the point
+                // still joins it below.
+                port_on_pin(session, sid, *kind, name.clone(), end, report)?;
+                let target = at
+                    .get(&p)
+                    .and_then(Anchors::target)
+                    .or_else(|| wired(p).then(|| on_sheet(session, sid, p)).flatten());
+                match target {
+                    Some(WireTarget::Label(label)) => {
+                        twin_label(session, sid, label.label, end, report)
+                    }
+                    Some(target) => {
+                        let corners = clear_path(session, end, ours(p), &obstacles);
+                        draw(
+                            session,
+                            sid,
+                            WireTarget::Terminal(end),
+                            &corners,
+                            target,
+                            report,
+                        );
+                    }
+                    None => {}
+                }
                 continue;
             }
             if file.no_connects.contains(&p) {
@@ -1144,6 +1157,62 @@ pub(crate) fn wire(
                 }
             }
         }
+        // Hidden power inputs: a power port of their name on the pin,
+        // once KiCad's wiring is drawn and joined (as above, a port's
+        // drawing over a wire end still free would join it).
+        for (end, name) in implicit {
+            let (kind, name, _) = naming.label(index, Rank::Power, &name);
+            let Some(at) = sparksmith_core::schematic::pin_position(session.engine.project(), end)
+            else {
+                continue;
+            };
+            let placed = session.apply(
+                "label.place",
+                Operation::Schematic(SchematicCommand::PlaceLabel {
+                    sheet: Some(sid),
+                    name,
+                    kind,
+                    position: nm_point(at)?,
+                    rotation: Default::default(),
+                    attach: Some(WireTarget::Terminal(end)),
+                }),
+            );
+            match placed {
+                Ok(_) => report.add(Case::HiddenPowerPin),
+                Err(_) => report.add(Case::SchematicItemRefused),
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A label of `kind` and `name` standing on the pin of `end`.
+fn port_on_pin(
+    session: &mut Session<'_>,
+    sid: SheetId,
+    kind: LabelKind,
+    name: String,
+    end: Endpoint,
+    report: &mut Report,
+) -> Result<(), ImportError> {
+    let Some(at) = sparksmith_core::schematic::pin_position(session.engine.project(), end) else {
+        report.add(Case::SchematicItemRefused);
+        return Ok(());
+    };
+    let placed = session.apply(
+        "label.place",
+        Operation::Schematic(SchematicCommand::PlaceLabel {
+            sheet: Some(sid),
+            name,
+            kind,
+            position: nm_point(at)?,
+            rotation: Default::default(),
+            attach: Some(WireTarget::Terminal(end)),
+        }),
+    );
+    match placed {
+        Ok(_) => report.add(Case::SchematicLabel),
+        Err(_) => report.add(Case::SchematicItemRefused),
     }
     Ok(())
 }
