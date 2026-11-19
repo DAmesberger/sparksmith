@@ -1,14 +1,14 @@
-//! A per-import cache of shipped generator outputs. Pad matching selects a
-//! mechanical approximation only; it never changes terminals, pads or wiring.
+//! The shipped generators' presets, made once per import: which package a
+//! source footprint's lands are ([`Presets::identify`]). The part itself is
+//! made by the preset's generator with the source's lands as its land
+//! pattern ([`super::parts`]), so identifying a package never changes a pad.
 use super::lands::{self, Fit, Lands, Polarity};
-use super::{BTreeMap, Choice, Engine, ModelPlacement, ModelRef, PackageModel, Pad, publish_model};
+use super::{BTreeMap, Engine, ModelPlacement, Pad};
 use sparksmith_core::ids::ContentHash;
 use sparksmith_core::library::PadKind;
 use sparksmith_core::library::generated::{self, GeneratorRuntime, expand};
-use sparksmith_core::library::model3d::Redistribution;
 use sparksmith_core::library::package_fit::land_miss;
-use sparksmith_core::library::package_model::PartFileModel;
-use sparksmith_core::units::{Nm, PointNm};
+use sparksmith_core::units::Nm;
 use sparksmith_generators::abi::v1;
 use sparksmith_io::generator_bundle::GeneratorBundle;
 use sparksmith_io::shipped::ShippedLibrary;
@@ -44,12 +44,18 @@ const BODY_MARGIN: f64 = 0.02;
 const MIN_NAME_CHARS: usize = 4;
 
 const MAX_PRESETS: usize = 512;
-struct Candidate {
-    bundle: Arc<GeneratorBundle>,
-    generation: v1::Generation,
+pub(super) struct Candidate {
+    pub(super) bundle: Arc<GeneratorBundle>,
+    pub(super) generation: v1::Generation,
+    /// The generator's name in the shipped library and the preset's key.
+    pub(super) generator: String,
+    pub(super) preset: String,
+    pub(super) scope: v1::Scope,
+    /// The preset's own parameters.
+    pub(super) params: v1::Params,
     lands: Lands,
     tolerance_nm: f64,
-    name: String,
+    pub(super) name: String,
     /// The preset's key and aliases, as letters and digits in upper case.
     names: Vec<String>,
     /// The body's length and width (the package envelope), millimetres.
@@ -64,15 +70,21 @@ pub(super) struct Presets {
     runtime: Option<Arc<dyn GeneratorRuntime + Send + Sync>>,
     candidates: Option<Vec<Candidate>>,
     failure: Option<String>,
-    chosen: BTreeMap<usize, Choice>,
     matches: BTreeMap<ContentHash, Result<Found, Miss>>,
 }
+/// The package a footprint's lands are: a preset, and how they fit it.
 #[derive(Clone, Debug)]
-struct Found {
-    index: usize,
-    placement: ModelPlacement,
+pub(super) struct Found {
+    pub(super) index: usize,
+    /// The preset's frame in the footprint's: a quarter turn, then an
+    /// offset in whole nanometres.
+    pub(super) placement: ModelPlacement,
     /// How the lands paired and the preset was told apart, in words.
-    notes: Vec<String>,
+    pub(super) notes: Vec<String>,
+    /// Each footprint pad (by index) with the preset pad its land paired.
+    pub(super) pads: Vec<(usize, usize)>,
+    /// The preset (`generator/key`).
+    pub(super) name: String,
 }
 
 /// Letters and digits only, upper case: how names compare.
@@ -196,6 +208,10 @@ impl Presets {
                     .filter(|n| n.len() >= MIN_NAME_CHARS && n.bytes().any(|b| b.is_ascii_digit()))
                     .collect();
                 candidates.push(Candidate {
+                    generator: name.clone(),
+                    preset: preset.key.clone(),
+                    scope,
+                    params: preset.params.clone(),
                     bundle: bundle.clone(),
                     lands,
                     tolerance_nm,
@@ -211,15 +227,15 @@ impl Presets {
         self.candidates = Some(candidates);
         Ok(())
     }
-    pub(super) fn match_model(
+    /// The preset `pads` (a footprint's lands) are, or why none is.
+    pub(super) fn identify(
         &mut self,
-        engine: &mut Engine,
+        engine: &Engine,
         pads: &[Pad],
         prefix: &str,
         facts: &Facts,
-        models: &mut BTreeMap<ContentHash, ModelRef>,
         deadline: std::time::Instant,
-    ) -> Result<Result<Choice, Miss>, String> {
+    ) -> Result<Result<Found, Miss>, String> {
         super::check_time(deadline)?;
         if pads.iter().all(|p| p.number.trim().is_empty()) {
             return Ok(Err(Miss::NoLands));
@@ -310,80 +326,152 @@ impl Presets {
             self.matches.insert(key, found.clone());
             found
         };
-        let Found {
-            index,
-            placement,
-            notes,
-        } = match found {
-            Ok(found) => found,
-            Err(miss) => return Ok(Err(miss)),
-        };
-        let with_notes = |mut choice: Choice| {
-            choice.placement = placement;
-            if !notes.is_empty() {
-                choice.provenance = format!("{} {}", choice.provenance, notes.join(" "));
-            }
-            choice
-        };
-        if let Some(choice) = self.chosen.get(&index) {
-            return Ok(Ok(with_notes(choice.clone())));
-        }
-        let candidate = &candidates[index];
-        super::check_time(deadline)?;
-        let mut made = crate::session::generated_models::generated_model(
-            engine,
-            &candidate.generation,
-            Some(&candidate.bundle),
-        )
-        .map_err(|e| e.to_string())?;
-        super::check_time(deadline)?;
-        made.definition.provenance.redistribution = Redistribution::Forbidden;
-        let key = made.definition.asset.hash;
-        let provenance = format!(
-            "Generated from preset {} (bundle sha256 {}). Mechanical approximation of the package: the same lands (numbers without sub-pad suffixes or leading zeros; split lands as one; thermal vias left out; mechanical and unnamed lands paired by position), each centre within the larger of 0.15 mm and 15% of the preset's pitch, the lands' extent within 25%, each land size within 50%, orientation within 0.1°, every lead contact on its land (the board check's rule); a preset named in the footprint's name, else the longest declared reference prefix that begins the designator's, narrows the candidates (for two-pad lands one is required), the nearest centres decide, then the body outline; a tie chooses none. No electrical mapping inferred. Project-only.",
-            candidate.name, candidate.bundle.hash
-        );
-        let reference = if let Some(reference) = models.get(&key) {
-            *reference
-        } else {
-            let bytes = made.data.take().ok_or("Preset model bytes unavailable")?;
-            let reference = publish_model(engine, &made.name, made.definition, bytes, &provenance)?;
-            models.insert(key, reference);
-            reference
-        };
-        // The model is mechanical only; the import keeps its own terminal IDs.
-        // Do not retain the generator's lead-to-terminal bindings.
-        made.derived.leads.clear();
-        let envelope_nm = super::envelope(made.derived.bounds())?;
-        // Each lead contact by the pad number the lands were matched on:
-        // mechanical contacts for the board check, never a net or mapping.
-        let leads = candidate
-            .generation
-            .package
-            .geometry
-            .leads
-            .iter()
-            .map(|lead| {
-                let [x, y, _] = lead.contact;
-                Ok((lead.key.clone(), PointNm::new(Nm::new(x)?, Nm::new(y)?)))
-            })
-            .collect::<Result<Vec<_>, sparksmith_core::Error>>()
-            .map_err(|e| e.to_string())?;
-        let choice = Choice {
-            leads,
-            model: PackageModel::PartFile(Box::new(PartFileModel {
-                model: reference,
-                values: made.values,
-                derived: made.derived,
-            })),
-            placement,
-            envelope_nm,
-            provenance,
-        };
-        super::check_time(deadline)?;
-        self.chosen.insert(index, choice.clone());
-        Ok(Ok(with_notes(choice)))
+        Ok(found)
     }
+
+    /// The preset `found` names.
+    pub(super) fn candidate(&self, index: usize) -> Option<&Candidate> {
+        self.candidates.as_ref()?.get(index)
+    }
+
+    /// The runtime presets are made with.
+    pub(super) fn runtime(&self, engine: &Engine) -> Arc<dyn GeneratorRuntime + Send + Sync> {
+        self.runtime
+            .clone()
+            .or_else(|| engine.generator_runtime().cloned())
+            .unwrap_or_else(crate::session::generators::runtime)
+    }
+
+    /// When the part number `mpn` names a package other than `found`'s
+    /// (another preset's name or alias, standing apart in it), or carries
+    /// the matched preset's name run on into a variant of it (`…-1U` for a
+    /// `…-1` preset), the finding naming both; the lands are kept as they
+    /// are. `None` when the part number agrees or names no shipped package.
+    pub(super) fn contradiction(&self, mpn: &str, found: Option<&Found>) -> Option<String> {
+        let candidates = self.candidates.as_ref()?;
+        let matched = found.and_then(|f| candidates.get(f.index));
+        let named_apart: Vec<&Candidate> = candidates
+            .iter()
+            .filter(|c| c.names.iter().any(|n| names_apart(mpn, n)))
+            .collect();
+        let lands = |c: &Candidate| c.name.clone();
+        if let Some(matched) = matched {
+            if named_apart.iter().any(|c| std::ptr::eq(*c, matched)) {
+                return None;
+            }
+            // The longest name of another package the part number carries
+            // standing apart (a name the matched package also carries, an
+            // alias several packages share like `QFP-64`, names no other),
+            // against the longest of the matched package's names it runs
+            // on past: the longer tells what the part number names
+            // (`SOT-23-6X` runs on past `SOT-23-6`, though `SOT-23` stands
+            // apart in it).
+            let other = named_apart
+                .iter()
+                .filter_map(|c| {
+                    let n = c
+                        .names
+                        .iter()
+                        .filter(|n| names_apart(mpn, n) && !matched.names.contains(n))
+                        .map(String::len)
+                        .max()?;
+                    Some((*c, n))
+                })
+                .max_by_key(|(_, n)| *n);
+            let variant = matched
+                .names
+                .iter()
+                .filter(|n| runs_on(mpn, n))
+                .max_by_key(|n| n.len());
+            match (other, variant) {
+                (Some((_, n)), Some(name)) if name.len() > n => {
+                    return Some(variant_finding(mpn, name, &lands(matched)));
+                }
+                (Some((other, _)), _) => {
+                    return Some(format!(
+                        "the part number {mpn} names the package {}, but the lands are the package {}; the lands are kept as the source has them",
+                        lands(other),
+                        lands(matched)
+                    ));
+                }
+                (None, Some(name)) => return Some(variant_finding(mpn, name, &lands(matched))),
+                (None, None) => {}
+            }
+            return None;
+        }
+        named_apart.first().map(|c| {
+            format!(
+                "the part number {mpn} names the package {}, but the lands match no shipped package; the lands are kept as the source has them",
+                lands(c)
+            )
+        })
+    }
+}
+
+/// The finding for a part number that runs a matched package's name on.
+fn variant_finding(mpn: &str, name: &str, package: &str) -> String {
+    format!(
+        "the part number {mpn} is a variant of {name}, not the package {package} the lands are (its name runs on past {name}); the lands are kept as the source has them"
+    )
+}
+
+/// Where `name` (a preset name, plain) occurs in `mpn` (plain), each
+/// occurrence's end.
+fn occurrences(mpn: &str, name: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(at) = mpn.get(from..).and_then(|rest| rest.find(name)) {
+        let start = from + at;
+        out.push((start, start + name.len()));
+        from = start + 1;
+    }
+    out
+}
+
+/// Whether `mpn` names `name` standing apart: at its start, ending where a
+/// separator or the end follows in the written part number.
+fn names_apart(mpn: &str, name: &str) -> bool {
+    let written = written_plain(mpn);
+    occurrences(&written.plain, name)
+        .iter()
+        .any(|&(start, end)| start == 0 && written.boundary_after(end))
+}
+
+/// Whether `mpn` begins with `name` run on into more letters or digits
+/// with no separator between (`ESP32-S3-WROOM-1U` past `ESP32-S3-WROOM-1`).
+fn runs_on(mpn: &str, name: &str) -> bool {
+    let written = written_plain(mpn);
+    occurrences(&written.plain, name)
+        .iter()
+        .any(|&(start, end)| {
+            start == 0 && end < written.plain.len() && !written.boundary_after(end)
+        })
+}
+
+/// A part number as letters and digits, with where its separators were.
+struct Written {
+    plain: String,
+    /// For each plain character, whether a separator follows it in the
+    /// written text.
+    separated: Vec<bool>,
+}
+impl Written {
+    fn boundary_after(&self, end: usize) -> bool {
+        end >= self.plain.len() || end == 0 || self.separated.get(end - 1).copied().unwrap_or(true)
+    }
+}
+fn written_plain(text: &str) -> Written {
+    let mut plain = String::new();
+    let mut separated = Vec::new();
+    for c in text.chars() {
+        if c.is_ascii_alphanumeric() {
+            plain.push(c.to_ascii_uppercase());
+            separated.push(false);
+        } else if let Some(last) = separated.last_mut() {
+            *last = true;
+        }
+    }
+    Written { plain, separated }
 }
 
 /// Why no preset model was chosen.
@@ -675,6 +763,8 @@ fn choose(
                 index: *index,
                 placement: fit.placement,
                 notes,
+                pads: fit.pads.clone(),
+                name: candidates[*index].name.clone(),
             })
         }
         _ => {
@@ -815,7 +905,6 @@ mod tests {
         let runtime = crate::session::generators::fixture_runtime();
         let mut engine = Engine::demo()?;
         engine.set_generators(runtime);
-        let mut models = BTreeMap::new();
         // Own variants pick their package by the reference prefix.
         for (pads, prefix, preset) in [
             (chip(1.5, [0.85, 0.95])?, "R", "chip/resistor-0603"),
@@ -825,29 +914,15 @@ mod tests {
             (chip(1.65, [0.8, 0.95])?, "FB", "chip/ferrite-0603"),
         ] {
             let choice = presets
-                .match_model(
-                    &mut engine,
-                    &pads,
-                    prefix,
-                    &Facts::default(),
-                    &mut models,
-                    deadline,
-                )?
+                .identify(&engine, &pads, prefix, &Facts::default(), deadline)?
                 .map_err(|miss| format!("{preset}: {miss}"))?;
-            assert!(choice.provenance.contains(preset), "{}", choice.provenance);
+            assert!(choice.name.contains(preset), "{}", choice.name);
         }
         // A prefix no fitting preset declares keeps the placeholder: a
         // crystal's (Y) lands of a 1210 chip's size get no resistor body.
         let r0603 = lands_of(&presets, "chip/resistor-0603")?;
         assert!(matches!(
-            presets.match_model(
-                &mut engine,
-                &r0603,
-                "?",
-                &Facts::default(),
-                &mut models,
-                deadline
-            )?,
+            presets.identify(&engine, &r0603, "?", &Facts::default(), deadline)?,
             Err(Miss::PrefixMismatch { .. })
         ));
         let mut crystal = chip(2.4, [1.0, 3.0])?;
@@ -860,53 +935,32 @@ mod tests {
             accepted(&crystal, &lands_of(&presets, "chip/resistor-1210")?),
             "the lands fit a 1210 chip"
         );
-        match presets.match_model(
-            &mut engine,
-            &crystal,
-            "Y",
-            &Facts::default(),
-            &mut models,
-            deadline,
-        )? {
+        match presets.identify(&engine, &crystal, "Y", &Facts::default(), deadline)? {
             // Nearest by centres is the XEL4030 (2.39 mm span), which declares L.
             Err(Miss::PrefixMismatch { nearest }) => {
                 assert_eq!(nearest, "power-inductor/power-inductor-xel4030");
             }
-            other => return Err(format!("a Y part got {:?}", other.map(|c| c.provenance)).into()),
+            other => return Err(format!("a Y part got {:?}", other.map(|c| c.name)).into()),
         }
         // The power-inductor family declares L: an inductor on its lands
         // gets its body, not the placeholder.
         let xel4030 = lands_of(&presets, "power-inductor/power-inductor-xel4030")?;
         let choice = presets
-            .match_model(
-                &mut engine,
-                &xel4030,
-                "L",
-                &Facts::default(),
-                &mut models,
-                deadline,
-            )?
+            .identify(&engine, &xel4030, "L", &Facts::default(), deadline)?
             .map_err(|miss| format!("XEL4030 under L: {miss}"))?;
         assert!(
             choice
-                .provenance
+                .name
                 .contains("power-inductor/power-inductor-xel4030"),
             "{}",
-            choice.provenance
+            choice.name
         );
         // A multi-pad package keeps its body under an unusual designator.
         let sot = lands_of(&presets, "tabbed/tabbed-sot-23-6")?;
         let choice = presets
-            .match_model(
-                &mut engine,
-                &sot,
-                "XQ",
-                &Facts::default(),
-                &mut models,
-                deadline,
-            )?
+            .identify(&engine, &sot, "XQ", &Facts::default(), deadline)?
             .map_err(|miss| format!("SOT-23-6 under XQ: {miss}"))?;
-        assert!(choice.provenance.contains("tabbed/tabbed-sot-23-6"));
+        assert!(choice.name.contains("tabbed/tabbed-sot-23-6"));
         for name in [
             "tabbed/tabbed-sot-23-3",
             "gull-wing/gull-wing-soic-8-3.9",
@@ -914,65 +968,26 @@ mod tests {
         ] {
             let pads = lands_of(&presets, name)?;
             let choice = presets
-                .match_model(
-                    &mut engine,
-                    &pads,
-                    "U",
-                    &Facts::default(),
-                    &mut models,
-                    deadline,
-                )?
+                .identify(&engine, &pads, "U", &Facts::default(), deadline)?
                 .map_err(|miss| format!("{name}: {miss}"))?;
-            assert!(choice.provenance.contains(name));
-            let PackageModel::PartFile(part) = &choice.model else {
-                return Err("not a part file".into());
-            };
-            assert!(
-                part.derived.bodies >= 3,
-                "body plus distinct terminals: {name}"
-            );
-            assert!(part.derived.bounds()[1][2] > 0.0);
-            assert!(
-                part.derived.leads.is_empty(),
-                "importer must not infer electrical bindings"
-            );
+            assert!(choice.name.contains(name));
             let repeated = presets
-                .match_model(
-                    &mut engine,
-                    &pads,
-                    "U",
-                    &Facts::default(),
-                    &mut models,
-                    deadline,
-                )?
+                .identify(&engine, &pads, "U", &Facts::default(), deadline)?
                 .map_err(|miss| miss.to_string())?;
-            assert_eq!(choice.model, repeated.model);
+            assert_eq!(choice.index, repeated.index);
+            // Identifying makes nothing.
+            assert!(engine.project().library.models.is_empty());
             // One pad moved a millimetre: another package, not this one.
             let mut far = pads.clone();
             let [x, y] = far[0].position.to_mm_f64();
             far[0].position = PointNm::from_mm_f64_rounded([x - 1.0, y])?;
             assert!(
                 presets
-                    .match_model(
-                        &mut engine,
-                        &far,
-                        "U",
-                        &Facts::default(),
-                        &mut models,
-                        deadline
-                    )?
+                    .identify(&engine, &far, "U", &Facts::default(), deadline)?
                     .is_err(),
                 "far lands accepted for {name}"
             );
         }
-        assert!(
-            engine
-                .project()
-                .library
-                .models
-                .iter()
-                .all(|m| m.definition.provenance.redistribution == Redistribution::Forbidden)
-        );
         Ok(())
     }
 
@@ -1018,35 +1033,25 @@ mod tests {
     #[test]
     fn footprint_names_choose_among_identical_lands_and_otherwise_a_tie_chooses_none() -> Fallible {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-        let (mut presets, mut engine) = setup()?;
-        let mut models = BTreeMap::new();
+        let (mut presets, engine) = setup()?;
         let lands = lands_of(&presets, "electrolytic/electrolytic-panasonic-d")?;
         for (name, preset) in [
             ("CAPAE660X550N", "electrolytic/electrolytic-6.3x5.4"),
             ("CP_Elec_6.3x7.7", "electrolytic/electrolytic-panasonic-d8"),
         ] {
             let choice = presets
-                .match_model(
-                    &mut engine,
-                    &lands,
-                    "C",
-                    &named(name),
-                    &mut models,
-                    deadline,
-                )?
+                .identify(&engine, &lands, "C", &named(name), deadline)?
                 .map_err(|miss| format!("{name}: {miss}"))?;
-            assert!(choice.provenance.contains(preset), "{}", choice.provenance);
-            assert!(choice.provenance.contains("Named by the footprint's name"));
+            assert!(choice.name.contains(preset), "{}", choice.name);
+            assert!(
+                choice
+                    .notes
+                    .join(" ")
+                    .contains("Named by the footprint's name")
+            );
         }
         for name in ["CP_Elec_16.3x7.7", "CP_Own", ""] {
-            match presets.match_model(
-                &mut engine,
-                &lands,
-                "C",
-                &named(name),
-                &mut models,
-                deadline,
-            )? {
+            match presets.identify(&engine, &lands, "C", &named(name), deadline)? {
                 Err(Miss::Tie { presets: tied }) => {
                     for preset in [
                         "electrolytic/electrolytic-6.3x5.4",
@@ -1059,7 +1064,7 @@ mod tests {
                     assert!(miss.starts_with("tie: "), "{miss}");
                 }
                 other => {
-                    let got = other.map(|c| c.provenance);
+                    let got = other.map(|c| c.name);
                     return Err(format!("{name}: {got:?}").into());
                 }
             }
@@ -1145,8 +1150,7 @@ mod tests {
     #[test]
     fn a_plated_standoff_land_needs_the_footprint_name() -> Fallible {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-        let (mut presets, mut engine) = setup()?;
-        let mut models = BTreeMap::new();
+        let (mut presets, engine) = setup()?;
         let preset = lands_of(&presets, "standoff/standoff-wurth-9774100360r")?;
         let land = preset.iter().find(|p| p.number == "1").ok_or("No land")?;
         let plated = |drill: f64| -> Result<Vec<Pad>, sparksmith_core::Error> {
@@ -1160,48 +1164,25 @@ mod tests {
             Ok(vec![pad])
         };
         let choice = presets
-            .match_model(
-                &mut engine,
+            .identify(
+                &engine,
                 &plated(4.4)?,
                 "U",
                 &named("Own9774100360R"),
-                &mut models,
                 deadline,
             )?
             .map_err(|miss| miss.to_string())?;
-        assert!(
-            choice
-                .provenance
-                .contains("standoff/standoff-wurth-9774100360r")
-        );
+        assert!(choice.name.contains("standoff/standoff-wurth-9774100360r"));
         for (drill, name, prefix) in [
             (4.4, "", "H"),
             (4.4, "Own_M3_Spacer", "U"),
             (3.2, "Own9774100360R", "U"),
         ] {
-            let got = presets.match_model(
-                &mut engine,
-                &plated(drill)?,
-                prefix,
-                &named(name),
-                &mut models,
-                deadline,
-            )?;
-            assert!(
-                got.is_err(),
-                "{drill} {name:?}: {:?}",
-                got.map(|c| c.provenance)
-            );
+            let got = presets.identify(&engine, &plated(drill)?, prefix, &named(name), deadline)?;
+            assert!(got.is_err(), "{drill} {name:?}: {:?}", got.map(|c| c.name));
         }
         assert!(matches!(
-            presets.match_model(
-                &mut engine,
-                &plated(4.4)?,
-                "H",
-                &Facts::default(),
-                &mut models,
-                deadline
-            )?,
+            presets.identify(&engine, &plated(4.4)?, "H", &Facts::default(), deadline)?,
             Err(Miss::Unnamed { .. })
         ));
         Ok(())
@@ -1212,35 +1193,20 @@ mod tests {
     #[test]
     fn polar_names_and_mechanical_tabs_identify_shipped_presets() -> Fallible {
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
-        let (mut presets, mut engine) = setup()?;
-        let mut models = BTreeMap::new();
+        let (mut presets, engine) = setup()?;
         let buzzer = lands_of(&presets, "buzzer/buzzer-cmi-9653s-smt")?;
         let polar = renamed(&buzzer, &[("1", "N"), ("2", "P")]);
         let choice = presets
-            .match_model(
-                &mut engine,
-                &polar,
-                "LS",
-                &named("Own_CMI-9653S-SMT"),
-                &mut models,
-                deadline,
-            )?
+            .identify(&engine, &polar, "LS", &named("Own_CMI-9653S-SMT"), deadline)?
             .map_err(|miss| miss.to_string())?;
         assert!(
-            choice.provenance.contains("P→1 (+)"),
-            "{}",
-            choice.provenance
+            choice.notes.join(" ").contains("P→1 (+)"),
+            "{:?}",
+            choice.notes
         );
         assert_eq!(choice.placement.rotation_deg()[2], 180.0);
         assert!(matches!(
-            presets.match_model(
-                &mut engine,
-                &polar,
-                "LS",
-                &Facts::default(),
-                &mut models,
-                deadline
-            )?,
+            presets.identify(&engine, &polar, "LS", &Facts::default(), deadline)?,
             Err(Miss::PrefixMismatch { .. })
         ));
         let header = lands_of(&presets, "wire-to-board/wtb-sh-side-4")?;
@@ -1249,32 +1215,18 @@ mod tests {
             &[("MP1", "S1"), ("MP2", "S2"), ("1", "01")],
         ))?;
         let choice = presets
-            .match_model(
-                &mut engine,
-                &tabs,
-                "J",
-                &Facts::default(),
-                &mut models,
-                deadline,
-            )?
+            .identify(&engine, &tabs, "J", &Facts::default(), deadline)?
             .map_err(|miss| miss.to_string())?;
         assert!(
-            choice.provenance.contains("wire-to-board/wtb-sh-side-4"),
+            choice.name.contains("wire-to-board/wtb-sh-side-4"),
             "{}",
-            choice.provenance
+            choice.name
         );
         assert_eq!(choice.placement.rotation_deg()[2], 90.0);
         let one_tab: Vec<Pad> = tabs.iter().filter(|p| p.number != "S2").cloned().collect();
         assert!(
             presets
-                .match_model(
-                    &mut engine,
-                    &one_tab,
-                    "J",
-                    &Facts::default(),
-                    &mut models,
-                    deadline
-                )?
+                .identify(&engine, &one_tab, "J", &Facts::default(), deadline)?
                 .is_err()
         );
         Ok(())
@@ -1366,14 +1318,12 @@ mod tests {
         });
         engine.set_generators(runtime.clone());
         let revision = engine.revision();
-        let mut models = BTreeMap::new();
         let error = presets
-            .match_model(
-                &mut engine,
+            .identify(
+                &engine,
                 &chip(1.6, [0.7, 0.8])?,
                 "R",
                 &Facts::default(),
-                &mut models,
                 std::time::Instant::now() + std::time::Duration::from_secs(120),
             )
             .err()
@@ -1381,7 +1331,7 @@ mod tests {
         assert!(error.contains("busy"), "{error}");
         assert_eq!(runtime.generations.load(Ordering::Relaxed), 2);
         assert!(presets.candidates.is_none());
-        assert!(presets.matches.is_empty() && presets.chosen.is_empty() && models.is_empty());
+        assert!(presets.matches.is_empty());
         assert_eq!(engine.revision(), revision);
         assert!(engine.project().library.models.is_empty());
         Ok(())

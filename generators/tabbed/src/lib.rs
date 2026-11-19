@@ -46,9 +46,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`): 4 sets the marking
+/// The generator's version (`Description::version`): 5 sets the marking
 /// text at the height its preset gives (`marking_height`).
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 /// Most leads on one side, and most grid positions between neighbours.
 pub const MAX_LEADS_PER_SIDE: i64 = 16;
@@ -832,6 +832,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect()

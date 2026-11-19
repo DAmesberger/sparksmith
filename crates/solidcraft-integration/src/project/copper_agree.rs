@@ -111,6 +111,106 @@ struct Copper {
     fills: Vec<Shape>,
 }
 
+/// The core's copper of `project` on `layer`: every pad, track, via and
+/// computed fill, and what flattening allows the objects and fills to
+/// differ by.
+fn core_copper(
+    project: &Project,
+    pads: &[layout::PlacedPad],
+    layer: CopperLayer,
+    layers: &[CopperLayer],
+) -> (Copper, f64, f64) {
+    let mut allowed = 0.0;
+    let mut fill_allowed = 0.0;
+    let mut core = Copper::default();
+    for pad in pads.iter().filter(|p| p.on_copper(layer)) {
+        let ring = pad.outline().flatten(PAD_ARC_TOLERANCE_MM);
+        if ring.len() >= 3 {
+            allowed += perimeter(&ring) * (PAD_ARC_TOLERANCE_MM + FLATTEN_TOLERANCE_MM);
+            core.objects.push(vec![oriented(ring, true)]);
+        }
+    }
+    for track in project.tracks.iter().filter(|t| t.layer == layer) {
+        let ring = layout::track_shape(track).flatten(PAD_ARC_TOLERANCE_MM);
+        if ring.len() >= 3 {
+            // The plan's caps are chords, eight to a half circle: each
+            // cap's sagitta along its arc.
+            let r = track.width / 2.0;
+            let sagitta = r * (1.0 - (std::f64::consts::PI / 16.0).cos());
+            allowed += std::f64::consts::TAU * r * (sagitta + PAD_ARC_TOLERANCE_MM);
+            core.objects.push(vec![oriented(ring, true)]);
+        }
+    }
+    for via in project.vias.iter().filter(|v| v.on(layer, layers)) {
+        let ring = sparksmith_core::geometry::Shape::Circle {
+            center: via.position,
+            radius: via.diameter / 2.0,
+        }
+        .flatten(PAD_ARC_TOLERANCE_MM);
+        if ring.len() >= 3 {
+            allowed += perimeter(&ring) * (PAD_ARC_TOLERANCE_MM + FLATTEN_TOLERANCE_MM);
+            core.objects.push(vec![oriented(ring, true)]);
+        }
+    }
+    for fill in project.fills.iter().filter(|f| f.layer == layer) {
+        for region in fill.computed.iter().flat_map(|c| &c.regions) {
+            if region.outer.len() < 3 {
+                continue;
+            }
+            let mut shape = vec![oriented(region.outer.clone(), true)];
+            fill_allowed += perimeter(&region.outer) * MODEL_CHORD_MM;
+            for hole in region.holes.iter().filter(|h| h.len() >= 3) {
+                fill_allowed += perimeter(hole) * MODEL_CHORD_MM;
+                shape.push(oriented(hole.clone(), false));
+            }
+            core.fills.push(shape);
+        }
+    }
+    (core, allowed, fill_allowed)
+}
+
+/// One copper layer of two projects compared: where exactly one has
+/// copper, mm² (pads, tracks and vias; fills apart), and what flattening
+/// allows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LayerDifference {
+    pub layer: CopperLayer,
+    pub a_mm2: f64,
+    pub b_mm2: f64,
+    pub objects_differ_mm2: f64,
+    pub fills_differ_mm2: f64,
+    pub allowed_mm2: f64,
+}
+
+/// Each copper layer of `a`'s stackup compared with the same layer of `b`
+/// by the core's copper alone (the copper the checks, the copper graph and
+/// the fabrication output use): two imports of one board, say.
+pub fn between(a: &Project, b: &Project) -> Vec<LayerDifference> {
+    let layers = a.stackup.layers();
+    let other_layers = b.stackup.layers();
+    let (pads_a, pads_b) = (layout::placed_pads(a), layout::placed_pads(b));
+    layers
+        .iter()
+        .copied()
+        .map(|layer| {
+            let (ca, aa, fa) = core_copper(a, &pads_a, layer, &layers);
+            let (cb, ab, fb) = core_copper(b, &pads_b, layer, &other_layers);
+            let all = |c: &Copper| c.objects.iter().chain(&c.fills).cloned().collect();
+            let (a_mm2, b_mm2, _) = compare(all(&ca), all(&cb));
+            let (_, _, objects_differ_mm2) = compare(ca.objects, cb.objects);
+            let (_, _, fills_differ_mm2) = compare(ca.fills, cb.fills);
+            LayerDifference {
+                layer,
+                a_mm2,
+                b_mm2,
+                objects_differ_mm2,
+                fills_differ_mm2,
+                allowed_mm2: aa.max(ab) + fa.max(fb),
+            }
+        })
+        .collect()
+}
+
 /// Each copper layer's agreement between `plan` (the plan of `project`'s
 /// board, its copper at least) and the core's copper of `project`.
 pub fn agreement(project: &Project, plan: &BoardPlan) -> Result<Vec<LayerAgreement>> {
@@ -143,50 +243,9 @@ pub fn agreement(project: &Project, plan: &BoardPlan) -> Result<Vec<LayerAgreeme
             }
         }
         // The core's copper.
-        let mut core = Copper::default();
-        for pad in pads.iter().filter(|p| p.on_copper(layer)) {
-            let ring = pad.outline().flatten(PAD_ARC_TOLERANCE_MM);
-            if ring.len() >= 3 {
-                allowed += perimeter(&ring) * (PAD_ARC_TOLERANCE_MM + FLATTEN_TOLERANCE_MM);
-                core.objects.push(vec![oriented(ring, true)]);
-            }
-        }
-        for track in project.tracks.iter().filter(|t| t.layer == layer) {
-            let ring = layout::track_shape(track).flatten(PAD_ARC_TOLERANCE_MM);
-            if ring.len() >= 3 {
-                // The plan's caps are chords, eight to a half circle: each
-                // cap's sagitta along its arc.
-                let r = track.width / 2.0;
-                let sagitta = r * (1.0 - (std::f64::consts::PI / 16.0).cos());
-                allowed += std::f64::consts::TAU * r * (sagitta + PAD_ARC_TOLERANCE_MM);
-                core.objects.push(vec![oriented(ring, true)]);
-            }
-        }
-        for via in project.vias.iter().filter(|v| v.on(layer, &layers)) {
-            let ring = sparksmith_core::geometry::Shape::Circle {
-                center: via.position,
-                radius: via.diameter / 2.0,
-            }
-            .flatten(PAD_ARC_TOLERANCE_MM);
-            if ring.len() >= 3 {
-                allowed += perimeter(&ring) * (PAD_ARC_TOLERANCE_MM + FLATTEN_TOLERANCE_MM);
-                core.objects.push(vec![oriented(ring, true)]);
-            }
-        }
-        for fill in project.fills.iter().filter(|f| f.layer == layer) {
-            for region in fill.computed.iter().flat_map(|c| &c.regions) {
-                if region.outer.len() < 3 {
-                    continue;
-                }
-                let mut shape = vec![oriented(region.outer.clone(), true)];
-                fill_allowed += perimeter(&region.outer) * MODEL_CHORD_MM;
-                for hole in region.holes.iter().filter(|h| h.len() >= 3) {
-                    fill_allowed += perimeter(hole) * MODEL_CHORD_MM;
-                    shape.push(oriented(hole.clone(), false));
-                }
-                core.fills.push(shape);
-            }
-        }
+        let (core, core_allowed, core_fill_allowed) = core_copper(project, &pads, layer, &layers);
+        allowed += core_allowed;
+        fill_allowed += core_fill_allowed;
         let all = |c: &Copper| c.objects.iter().chain(&c.fills).cloned().collect();
         let (plan_mm2, core_mm2, _) = compare(all(&planned), all(&core));
         let (_, _, objects_differ_mm2) = compare(planned.objects, core.objects);

@@ -132,6 +132,7 @@ fn generation_with(
         mask: Opening::Default,
         paste: Opening::Default,
         number: None,
+        kind: None,
     };
     let edge = x + 700_000;
     let component = scope == Scope::Component;
@@ -890,5 +891,83 @@ fn regenerating_with_an_inserted_pad_keeps_every_other_id_and_the_tracks() -> Te
     engine.apply_update(engine.revision(), change, false)?;
     assert_eq!(engine.project().tracks.len(), 1);
     assert_eq!(net_of(&engine, ep(r1, 2))?, net);
+    Ok(())
+}
+
+/// A given land's details (an arc outline, an offset slot, paste windows,
+/// a mechanical pad and an unnumbered hole that land no terminal) expand to
+/// the footprint's pads exactly; mask windows are refused.
+#[test]
+fn given_land_details_expand_exactly() -> TestResult {
+    use crate::library::{HoleShape as CoreHole, PadKind as CoreKind, PasteRule, Segment};
+    let mut g = generation_with(1_600_000, 0, Scope::Component, b"part", false);
+    let first = g.footprint.pads.first().cloned().ok_or("a pad")?;
+    g.footprint.pads[0] = Pad {
+        shape: PadShape::Outline {
+            start: [-400_000, -500_000],
+            segments: vec![
+                OutlineSegment {
+                    to: [400_000, -500_000],
+                    bulge_ppb: None,
+                },
+                OutlineSegment {
+                    to: [-400_000, -500_000],
+                    bulge_ppb: Some(1_000_000_000),
+                },
+            ],
+        },
+        hole: Some(Hole {
+            shape: HoleShape::Slot {
+                size: [600_000, 300_000],
+                rot_mdeg: Some(45_000),
+            },
+            plated: true,
+            offset: Some([50_000, -20_000]),
+        }),
+        paste: Opening::Windows(vec![Window::Circle {
+            center: [0, 0],
+            radius_nm: 100_000,
+        }]),
+        ..first.clone()
+    };
+    g.footprint.pads.push(Pad {
+        key: "tab".into(),
+        terminal: String::new(),
+        number: Some("MP".into()),
+        kind: Some(PadKind::Mechanical),
+        ..first.clone()
+    });
+    g.footprint.pads.push(Pad {
+        key: "hole".into(),
+        terminal: String::new(),
+        number: Some(String::new()),
+        hole: Some(Hole {
+            shape: HoleShape::Round {
+                diameter_nm: 500_000,
+            },
+            plated: false,
+            offset: None,
+        }),
+        ..first
+    });
+    let pads = super::expand::land_pattern(&g)?;
+    let outline = &pads[0];
+    let crate::library::PadShape::Custom { outline: shape } = &outline.shape else {
+        return Err("not an outline".into());
+    };
+    assert!(matches!(shape.segments[1], Segment::Arc { bulge, .. } if (bulge - 1.0).abs() < 1e-12));
+    let hole = outline.hole.ok_or("a hole")?;
+    assert_eq!(hole.offset.to_mm_f64(), [0.05, -0.02]);
+    assert!(
+        matches!(hole.shape, CoreHole::Slot { angle_mdeg, .. } if angle_mdeg.millidegrees() == 45_000)
+    );
+    assert_eq!(outline.kind, CoreKind::PlatedThrough);
+    assert!(matches!(&outline.paste, PasteRule::Windows(w) if w.len() == 1));
+    assert_eq!(pads[2].kind, CoreKind::Mechanical);
+    assert_eq!((pads[2].terminal, pads[2].number.as_str()), (None, "MP"));
+    assert_eq!(pads[3].kind, CoreKind::NonPlatedHole);
+    assert_eq!((pads[3].terminal, pads[3].number.as_str()), (None, ""));
+    g.footprint.pads[0].mask = Opening::Windows(Vec::new());
+    assert!(super::expand::land_pattern(&g).is_err());
     Ok(())
 }

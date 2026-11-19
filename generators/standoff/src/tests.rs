@@ -67,7 +67,8 @@ fn the_wa_smsi_land_and_spigot() -> Result<(), Vec<Problem>> {
             shape: HoleShape::Round {
                 diameter_nm: 4_400_000
             },
-            plated: false
+            plated: false,
+            offset: None,
         })
     );
     assert_eq!(g.package.geometry.leads[0].contact, [2_125_000, 0, 0]);

@@ -29,9 +29,7 @@ use sparksmith_core::model::import_review::{
     RefusedTrack, TrackRefusal,
 };
 use sparksmith_core::schematic::SchematicCommand;
-use sparksmith_core::{
-    CopperLayer, Endpoint, Id, Operation, PackageTerminalId, TerminalId, ViaSpan,
-};
+use sparksmith_core::{CopperLayer, Endpoint, Id, Operation, TerminalId, ViaSpan};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Largest distance of an arc track's chords from the arc, mm.
@@ -106,7 +104,7 @@ fn names(board: &Board, numbers: &BTreeSet<u32>, report: &mut Report) -> BTreeMa
 pub(crate) fn connect(
     session: &mut Session<'_>,
     board: &Board,
-    nets: &[Vec<(PackageTerminalId, u32)>],
+    nets: &[Vec<(TerminalId, u32)>],
     instances: &[Id],
     labelled: Option<&BTreeSet<Id>>,
     report: &mut Report,
@@ -117,7 +115,7 @@ pub(crate) fn connect(
         for (terminal, net) in pads {
             let end = Endpoint {
                 instance: *instance,
-                terminal: TerminalId(terminal.0),
+                terminal: *terminal,
             };
             match terminal_net.get(&end) {
                 Some(other) if other != net => {

@@ -28,8 +28,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 mod models;
+mod replace;
 mod review;
 pub use models::model_details;
+pub use replace::{Replacement, TerminalPair, UnitPair, suggest_by_name};
 pub use review::{
     ChangeArea, ChangeKind, ChangeObject, ConflictReason, FindingRow, FindingsDiff, PlanChange,
     PlanLine, TrackConflict, summarize,
@@ -60,6 +62,12 @@ pub enum Change {
         objects: Vec<schematic::ClipObject>,
     },
     SyncPcb {},
+    /// Replace instances' component by a component of another lineage,
+    /// every old terminal mapped explicitly (`project.replace_component`).
+    ReplaceComponent {
+        instances: Vec<Id>,
+        replacement: replace::Replacement,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -255,6 +263,28 @@ pub struct UpdatePlan {
     /// `ApplyUpdate::merge_named_nets`.
     #[serde(default)]
     pub merges_named: Vec<nets::NamedMerge>,
+    /// For a component replacement: per instance, whether the new
+    /// footprint's copper equals the old one's after the placement.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub copper: Vec<CopperIdentity>,
+}
+
+/// Whether a replaced instance's copper stays the same: each pad compared
+/// by shape, position, rotation and layer on the board, whatever its
+/// number or identity.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct CopperIdentity {
+    pub instance: Id,
+    pub designator: String,
+    /// Every old pad has an equal new pad and the other way round.
+    pub identical: bool,
+    /// Old pads with no equal in the new footprint, by number.
+    pub old_only: Vec<String>,
+    /// New pads with no equal in the old footprint, by number.
+    pub new_only: Vec<String>,
+    /// Equal pads whose number changes, as "old → new".
+    pub renumbered: Vec<String>,
 }
 
 /// Area, kind, objects and title of one change; see [`UpdatePlan::detail`].
@@ -306,6 +336,7 @@ impl UpdatePlan {
             findings: FindingsDiff::default(),
             planned_placements: vec![],
             merges_named: vec![],
+            copper: vec![],
         }
     }
 
@@ -395,7 +426,8 @@ fn refusal_line(error: &Error) -> &'static str {
 /// The instances a change names, for locate.
 fn change_refs(change: &Change) -> Vec<ObjectRef> {
     match change {
-        Change::ComponentRevision { instances, .. } => instances
+        Change::ComponentRevision { instances, .. }
+        | Change::ReplaceComponent { instances, .. } => instances
             .iter()
             .map(|id| ObjectRef::Instance { id: *id })
             .collect(),
@@ -891,6 +923,10 @@ fn stage_change(project: &Project, change: &Change) -> Result<Project> {
             }
         }
         Change::SyncPcb {} => layout::apply(&mut next, layout::LayoutCommand::Sync)?,
+        Change::ReplaceComponent {
+            instances,
+            replacement,
+        } => replace::replace(&mut next, instances, replacement)?,
     }
     schematic::tidy(&mut next)?;
     nets::reconcile(&mut next)?;
@@ -2515,6 +2551,9 @@ pub(crate) fn preview(
             return (plan, None);
         }
     };
+    if let Change::ReplaceComponent { instances, .. } = &change {
+        plan.copper = replace::copper_identity(project, &next, instances);
+    }
     let merges = nets::named_merges(project, &next);
     for merge in &merges {
         let refs = merge

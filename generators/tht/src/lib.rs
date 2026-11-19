@@ -43,9 +43,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 2 marks a radial
-/// polarised capacitor's sleeve ([`marking`]); 3 sets its text at the height its preset gives
+/// polarised capacitor's sleeve ([`marking`]); 4 sets its text at the height its preset gives
 /// (`marking_height`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// The share of a radial body's height its part file's `marking-sleeve`
 /// spans (`marking_sleeve_l = 0.8 * body_height`), in tenths.
@@ -831,10 +831,12 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 hole: Some(Hole {
                     shape: HoleShape::Round { diameter_nm: drill },
                     plated: true,
+                    offset: None,
                 }),
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect()

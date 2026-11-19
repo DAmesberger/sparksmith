@@ -36,9 +36,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`): 3 sets the marking
+/// The generator's version (`Description::version`): 4 sets the marking
 /// text at the height its preset gives (`marking_height`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// Most leads on one side: the part files' lead looks are named up to
 /// this count, and four sides of it are the core's 512 leads of a form.
@@ -49,6 +49,8 @@ const MAX_LENGTH_NM: i64 = 1_000 * MM;
 /// Smallest positive length a form stores: 0.01 mm.
 const MIN_LENGTH_NM: i64 = 10 * UM;
 
+/// The farthest a given land may lie from its foot's centre, 5 mm.
+const MAX_LAND_OFFSET_NM: i64 = 5_000_000;
 /// A land is the foot plus this long (the host's estimate).
 const LAND_LENGTH_EXTRA_NM: i64 = 600_000;
 
@@ -131,6 +133,30 @@ fn description_with(presets: Vec<Preset>) -> Description {
     extra.help =
         Some("How much wider than its lead a land is; the project's land rules fill it.".into());
     extra.context = Some("project.land.gull_wing_width_extra".into());
+    let mut land_width = length("land_width", "Land width", 0, 0, "lands");
+    land_width.help = Some(
+        "The recommended land pattern's land width; 0 for the lead plus the land rule's extra."
+            .into(),
+    );
+    let mut land_length = length("land_length", "Land length", 0, 0, "lands");
+    land_length.help =
+        Some("The recommended land pattern's land length; 0 for the foot plus 0.6 mm.".into());
+    let land_offset = Param {
+        key: "land_offset".into(),
+        label: "Land offset outward".into(),
+        help: Some(
+            "How far each land's centre lies outward from its foot's centre, every row alike (the recommended pattern's land span less the lead span, halved); negative is inward."
+                .into(),
+        ),
+        ty: ParamType::Length {
+            min_nm: -MAX_LAND_OFFSET_NM,
+            max_nm: MAX_LAND_OFFSET_NM,
+            step_nm: None,
+        },
+        default: ParamValue::Int(0),
+        group: Some("lands".into()),
+        context: None,
+    };
     let mut short = count("leads_short", "Leads per short side", 0, 0);
     short.help = Some("Four sides only; 0 for two.".into());
     let mut span_x = length("span_x", "Lead span across x", 0, 0, "leads");
@@ -186,6 +212,9 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "leads",
         ),
         extra,
+        land_width,
+        land_length,
+        land_offset,
         Param {
             key: "pin1_bevel".into(),
             label: "Bevelled pin-1 edge".into(),
@@ -263,6 +292,11 @@ struct Dims {
     lead_thickness: i64,
     foot_length: i64,
     land_extra: i64,
+    /// The recommended land pattern's land size and outward offset (0:
+    /// estimated from the leads).
+    land_width: i64,
+    land_length: i64,
+    land_offset: i64,
     /// The pin-1 row's top edge bevelled (two sides).
     bevel: bool,
 }
@@ -327,6 +361,9 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         lead_thickness: args.int("lead_thickness").map_err(one)?,
         foot_length: args.int("foot_length").map_err(one)?,
         land_extra: args.int("land_width_extra").map_err(one)?,
+        land_width: args.int("land_width").map_err(one)?,
+        land_length: args.int("land_length").map_err(one)?,
+        land_offset: args.int("land_offset").map_err(one)?,
         bevel: args.flag("pin1_bevel").map_err(one)?,
     };
     let mut problems = Vec::new();
@@ -435,13 +472,27 @@ fn mm(nm: i64) -> String {
 
 fn pads(d: &Dims) -> Vec<Pad> {
     let land = [
-        d.lead_width + d.land_extra,
-        d.foot_length + LAND_LENGTH_EXTRA_NM,
+        if d.land_width > 0 {
+            d.land_width
+        } else {
+            d.lead_width + d.land_extra
+        },
+        if d.land_length > 0 {
+            d.land_length
+        } else {
+            d.foot_length + LAND_LENGTH_EXTRA_NM
+        },
     ];
     d.feet()
         .into_iter()
         .enumerate()
-        .map(|(k, (at, short_side))| {
+        .map(|(k, (foot, short_side))| {
+            // Outward from the body, along the row's normal.
+            let at = if short_side {
+                [foot[0] + foot[0].signum() * d.land_offset, foot[1]]
+            } else {
+                [foot[0], foot[1] + foot[1].signum() * d.land_offset]
+            };
             let key = (k + 1).to_string();
             Pad {
                 terminal: key.clone(),
@@ -456,6 +507,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect()
@@ -647,9 +699,15 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         model: Some(model(&d)),
         fields: Vec::new(),
         notes: vec![
-            "Lands are estimated from the leads (the foot + 0.6 mm long, the lead plus the land \
+            if d.land_width > 0 || d.land_length > 0 || d.land_offset != 0 {
+                "Lands are the given land size and offset; confirm them against the package's \
+             recommended land pattern."
+                    .into()
+            } else {
+                "Lands are estimated from the leads (the foot + 0.6 mm long, the lead plus the land \
              rule's extra wide); confirm them against the package's recommended land pattern."
-                .into(),
+                .into()
+            },
         ],
     })
 }

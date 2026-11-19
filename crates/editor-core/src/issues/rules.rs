@@ -731,6 +731,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "part.stale_component",
     "part_file.model",
     "part_file.values",
+    "pinout.split_terminal",
     "pinout.uncertain",
     "pinout.unreviewed",
     "pair.gap",

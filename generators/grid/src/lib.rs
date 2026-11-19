@@ -52,9 +52,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`): 3 sets the marking
+/// The generator's version (`Description::version`): 4 sets the marking
 /// text at the height its preset gives (`marking_height`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// Most rows or columns of one grid (the host's grid form allows as many).
 const MAX_SIDE: i64 = 64;
@@ -649,6 +649,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect()

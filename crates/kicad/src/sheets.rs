@@ -83,6 +83,33 @@ pub(crate) fn symbols_by_reference(schematic: &Schematic) -> BTreeMap<String, Li
     out
 }
 
+/// Each part's part number and manufacturer in the schematic, by upper-case
+/// reference (power symbols left out), the first unit's that names one.
+pub(crate) fn parts_by_reference(
+    schematic: &Schematic,
+) -> BTreeMap<String, crate::models::PartNumber> {
+    let mut out: BTreeMap<String, crate::models::PartNumber> = BTreeMap::new();
+    for sheet in &schematic.sheets {
+        let Some(file) = schematic.files.get(&sheet.file) else {
+            continue;
+        };
+        for symbol in &file.symbols {
+            let (reference, _) = schematic.reference(sheet, symbol);
+            if reference.starts_with('#') {
+                continue;
+            }
+            let part = out.entry(reference.to_ascii_uppercase()).or_default();
+            if part.mpn.is_none() {
+                part.mpn = symbol.part.mpn.clone();
+            }
+            if part.manufacturer.is_none() {
+                part.manufacturer = symbol.part.manufacturer.clone();
+            }
+        }
+    }
+    out
+}
+
 /// Each part's Value property in the schematic, by upper-case reference
 /// (power symbols left out), the first unit's where units differ.
 pub(crate) fn values_by_reference(schematic: &Schematic) -> BTreeMap<String, String> {
@@ -666,17 +693,29 @@ impl Anchors {
     }
 }
 
-/// The terminal of `instance` named `number` (the pad number its
-/// package terminal designates).
+/// The terminal of `instance` a KiCad pin numbered `number` connects: the
+/// pad of that number on the part's footprint, through the binding's
+/// explicit map (a generated part's terminals carry their own names, and
+/// a pad lands its package terminal, so the pin is never matched by
+/// name). A pad without a terminal, or no such pad, connects nothing.
 fn terminal(project: &sparksmith_core::Project, instance: Id, number: &str) -> Option<TerminalId> {
     let found = project.instance(instance)?;
-    let component = project.library.component(found.component)?;
-    component
+    let resolved = sparksmith_core::instances::resolve(&project.library, found).ok()?;
+    let physical = resolved.physical?;
+    let landed = physical
+        .footprint
         .definition
-        .terminals
+        .pads
         .iter()
-        .find(|t| t.name == number)
-        .map(|t| t.id)
+        .filter(|p| p.number == number)
+        .find_map(|p| p.terminal)?;
+    physical
+        .binding
+        .definition
+        .mappings
+        .iter()
+        .find(|m| m.package_terminal == landed)
+        .map(|m| m.terminal)
 }
 
 /// Draw every sheet's wiring.
@@ -695,6 +734,10 @@ pub(crate) fn wire(
             continue;
         };
         let mut at: BTreeMap<PointNm, Anchors> = BTreeMap::new();
+        // Pins of parts with their own symbols, at KiCad's pin point.
+        let mut moved: Vec<(PointNm, Endpoint)> = Vec::new();
+        // Those of them a power port went on.
+        let mut on_pin: BTreeSet<Endpoint> = BTreeSet::new();
         // Pins of placed parts; power symbols become power ports.
         let mut power: Vec<(PointNm, String)> = Vec::new();
         // Hidden power inputs: joined to the global net of their name.
@@ -723,6 +766,14 @@ pub(crate) fn wire(
                 report.add(Case::SymbolWithoutFootprint);
                 continue;
             };
+            // A generated part draws its generator's symbol, not KiCad's.
+            let own_symbol = project.instance(instance).is_some_and(|i| {
+                project
+                    .library
+                    .generated
+                    .iter()
+                    .any(|g| g.root.id == i.component.id)
+            });
             for pin in pins.iter().filter(|p| p.unit == 0 || p.unit == unit) {
                 if pin.no_connect {
                     report.add(Case::NoConnectPin);
@@ -742,6 +793,18 @@ pub(crate) fn wire(
                     continue;
                 }
                 match terminal(project, instance, &pin.number) {
+                    // A pin of a symbol drawn as KiCad draws it anchors
+                    // the wiring where KiCad has it; one of a part's own
+                    // symbol (a generated part's) lies elsewhere, so the
+                    // wiring is drawn as KiCad has it and the pin joins it
+                    // afterwards by a wire of its own.
+                    Some(t) if own_symbol => moved.push((
+                        schematic::pin_on_sheet(symbol, pin.at),
+                        Endpoint {
+                            instance,
+                            terminal: t,
+                        },
+                    )),
                     Some(t) => at
                         .entry(schematic::pin_on_sheet(symbol, pin.at))
                         .or_default()
@@ -757,6 +820,7 @@ pub(crate) fn wire(
         for p in &file.no_connects {
             at.entry(*p).or_default().no_connect = true;
         }
+        clear_own_symbols(session, sid, file, &at, &moved, &power)?;
         // Sheet symbols' pins on this sheet.
         for (k, symbol) in file.sheets.iter().enumerate() {
             let Some(&ours_id) = plan.symbols.get(&(index, k)) else {
@@ -824,6 +888,19 @@ pub(crate) fn wire(
                             .map(|s| WireTarget::SheetPin(SheetPinRef { sheet_pin: *s }))
                     })
             });
+            // A power port on the point of a pin of a part's own symbol goes
+            // on that pin, as it would on KiCad's pin: a port is its net's
+            // name where it stands, and no wire of KiCad's meets it there.
+            let attach = attach.or_else(|| {
+                (rank == Rank::Power)
+                    .then(|| moved.iter().find(|(q, _)| *q == p))
+                    .flatten()
+                    .map(|(_, end)| {
+                        on_pin.insert(*end);
+                        WireTarget::Terminal(*end)
+                    })
+            });
+
             let placed = session.apply(
                 "label.place",
                 Operation::Schematic(SchematicCommand::PlaceLabel {
@@ -979,6 +1056,296 @@ pub(crate) fn wire(
             }
             pending = later;
         }
+        // Each pin of a part's own symbol joins what KiCad's pin met: a
+        // pin, label or sheet pin there, else KiCad's wiring at that point
+        // (a junction is placed first where the point is inside a wire, so
+        // the join does not depend on the wires drawn to such pins, whose
+        // paths are ours); another such pin at the same point; a no-connect
+        // flag there marks it. A pin that met nothing stays unconnected,
+        // as in the source.
+        let wired = |p: PointNm| {
+            file.wires
+                .iter()
+                .any(|w| w[0] == p || w[1] == p || schematic::inside(p, w[0], w[1]))
+        };
+        for (p, _) in &moved {
+            if at.get(p).and_then(Anchors::target).is_none()
+                && wired(*p)
+                && matches!(on_sheet(session, sid, *p), Some(WireTarget::OnWire(_)))
+            {
+                let _ = session.apply(
+                    "junction.place",
+                    Operation::Schematic(SchematicCommand::PlaceJunction {
+                        sheet: Some(sid),
+                        position: nm_point(ours(*p))?,
+                    }),
+                );
+            }
+        }
+        let mut alone: BTreeMap<PointNm, Endpoint> = BTreeMap::new();
+        // What a pin's own wire must not pass: every other such pin and
+        // every point of KiCad's drawing (the engine joins what a wire
+        // touches).
+        let obstacles: Vec<(Option<Endpoint>, [f64; 2])> = moved
+            .iter()
+            .filter_map(|(_, e)| {
+                Some((
+                    Some(*e),
+                    sparksmith_core::schematic::pin_position(session.engine.project(), *e)?,
+                ))
+            })
+            .chain(
+                at.keys()
+                    .chain(moved.iter().map(|(p, _)| p))
+                    .map(|p| (None, ours(*p))),
+            )
+            .collect();
+        for (p, end) in moved {
+            if on_pin.contains(&end) {
+                continue;
+            }
+            if file.no_connects.contains(&p) {
+                let _ = session.apply(
+                    "instance.set_no_connect",
+                    Operation::Instance(InstanceCommand::SetNoConnect {
+                        instance: end.instance,
+                        terminals: vec![end.terminal],
+                        no_connect: true,
+                    }),
+                );
+                continue;
+            }
+            let target = at
+                .get(&p)
+                .and_then(Anchors::target)
+                .or_else(|| wired(p).then(|| on_sheet(session, sid, p)).flatten())
+                .or_else(|| alone.get(&p).map(|first| WireTarget::Terminal(*first)));
+            match target {
+                // A label joins by its name: a twin of it on the pin (a
+                // wire to the label would pull it onto the pin, off the
+                // point KiCad's wires meet it at).
+                Some(WireTarget::Label(label)) => {
+                    twin_label(session, sid, label.label, end, report)
+                }
+                Some(target) => {
+                    let corners = clear_path(session, end, ours(p), &obstacles);
+                    draw(
+                        session,
+                        sid,
+                        WireTarget::Terminal(end),
+                        &corners,
+                        target,
+                        report,
+                    )
+                }
+                None => {
+                    // Met only by another such pin, if any comes.
+                    alone.insert(p, end);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A label of `label`'s name and kind on the pin of `end`, joining it to
+/// the label's net by name.
+fn twin_label(
+    session: &mut Session<'_>,
+    sid: SheetId,
+    label: Id,
+    end: Endpoint,
+    report: &mut Report,
+) {
+    let project = session.engine.project();
+    let (Some(source), Some(at)) = (
+        project.label(label).cloned(),
+        sparksmith_core::schematic::pin_position(project, end),
+    ) else {
+        return;
+    };
+    let Ok(position) = nm_point(at) else {
+        return;
+    };
+    let placed = session.apply(
+        "label.place",
+        Operation::Schematic(SchematicCommand::PlaceLabel {
+            sheet: Some(sid),
+            name: source.name,
+            kind: source.kind,
+            position,
+            rotation: source.rotation,
+            attach: Some(WireTarget::Terminal(end)),
+        }),
+    );
+    match placed {
+        Ok(_) => report.add(Case::SchematicLabel),
+        Err(_) => report.add(Case::SchematicItemRefused),
+    }
+}
+
+/// The corners of a wire from the pin of `end` to `to` that passes no
+/// obstacle but its own ends: straight, else one bend either way; none
+/// when every way touches one.
+fn clear_path(
+    session: &Session<'_>,
+    end: Endpoint,
+    to: [f64; 2],
+    obstacles: &[(Option<Endpoint>, [f64; 2])],
+) -> Vec<Corner> {
+    let Some(from) = sparksmith_core::schematic::pin_position(session.engine.project(), end) else {
+        return Vec::new();
+    };
+    let near = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).hypot(a[1] - b[1]) < TOUCH_MM;
+    let clear = |path: &[[f64; 2]]| {
+        obstacles.iter().all(|(owner, q)| {
+            *owner == Some(end)
+                || near(*q, from)
+                || near(*q, to)
+                || path.windows(2).all(|s| {
+                    sparksmith_core::geometry::segment_distance(*q, s[0], s[1]) >= TOUCH_MM
+                })
+        })
+    };
+    // Straight; one bend either way; then out of line by whole grid
+    // steps, across, and in.
+    let mut ways: Vec<Vec<[f64; 2]>> =
+        vec![Vec::new(), vec![[to[0], from[1]]], vec![[from[0], to[1]]]];
+    for k in 1..=4 {
+        let d = f64::from(k) * CLEAR_STEP_MM * 2.0;
+        for d in [d, -d] {
+            ways.push(vec![[from[0], from[1] + d], [to[0], from[1] + d]]);
+            ways.push(vec![[from[0] + d, from[1]], [from[0] + d, to[1]]]);
+        }
+    }
+    for bends in ways {
+        let path: Vec<[f64; 2]> = std::iter::once(from)
+            .chain(bends.iter().copied())
+            .chain([to])
+            .collect();
+        if clear(&path) {
+            return bends
+                .into_iter()
+                .filter_map(|b| Corner::sharp_mm(b).ok())
+                .collect();
+        }
+    }
+    Vec::new()
+}
+
+/// Largest number of grid steps a part's own symbol is moved to keep its
+/// pins off KiCad's drawing.
+const MAX_CLEAR_STEPS: i32 = 12;
+/// The step a part's own symbol moves by, mm (KiCad's 50 mil grid).
+const CLEAR_STEP_MM: f64 = 1.27;
+/// A pin within this of a drawn point or wire touches it, mm.
+const TOUCH_MM: f64 = 0.01;
+
+/// Move each part's own symbol (a generated part's, drawn where KiCad
+/// draws its symbol) until none of its pins touches KiCad's drawing on
+/// the sheet (a wire, a pin, a label or flag point, another such symbol's
+/// pin): the engine joins what touches, and KiCad's drawing never meant
+/// these pins to meet anything but through their own wires.
+fn clear_own_symbols(
+    session: &mut Session<'_>,
+    sid: SheetId,
+    file: &schematic::SheetFile,
+    at: &BTreeMap<PointNm, Anchors>,
+    moved: &[(PointNm, Endpoint)],
+    power: &[(PointNm, String)],
+) -> Result<(), ImportError> {
+    let mut points: Vec<[f64; 2]> = at
+        .keys()
+        .chain(moved.iter().map(|(p, _)| p))
+        .chain(power.iter().map(|(p, _)| p))
+        .chain(file.labels.iter().map(|l| &l.at))
+        .chain(file.junctions.iter())
+        .map(|p| ours(*p))
+        .collect();
+    let segments: Vec<[[f64; 2]; 2]> = file
+        .wires
+        .iter()
+        .map(|w| [ours(w[0]), ours(w[1])])
+        .collect();
+    let instances: BTreeSet<Id> = moved.iter().map(|(_, e)| e.instance).collect();
+    for instance in instances {
+        let project = session.engine.project();
+        let Some(occurrence) = project
+            .occurrences_of(instance)
+            .find(|o| o.sheet == sid)
+            .map(|o| (o.id, o.position))
+        else {
+            continue;
+        };
+        let terminals: Vec<Endpoint> = project
+            .instance(instance)
+            .and_then(|i| project.library.component(i.component))
+            .map(|c| {
+                c.definition
+                    .terminals
+                    .iter()
+                    .map(|t| Endpoint {
+                        instance,
+                        terminal: t.id,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let pins = |session: &Session<'_>| -> Vec<[f64; 2]> {
+            terminals
+                .iter()
+                .filter_map(|e| {
+                    sparksmith_core::schematic::pin_position(session.engine.project(), *e)
+                })
+                .collect()
+        };
+        let touches = |pins: &[[f64; 2]]| {
+            pins.iter().any(|q| {
+                points
+                    .iter()
+                    .any(|p| (p[0] - q[0]).hypot(p[1] - q[1]) < TOUCH_MM)
+                    || segments.iter().any(|[a, b]| {
+                        sparksmith_core::geometry::segment_distance(*q, *a, *b) < TOUCH_MM
+                    })
+            })
+        };
+        let start = occurrence.1.to_mm_f64();
+        let mut placed = pins(session);
+        if touches(&placed) {
+            // A spiral of grid steps round where KiCad draws the symbol.
+            'search: for ring in 1..=MAX_CLEAR_STEPS {
+                for dx in -ring..=ring {
+                    for dy in -ring..=ring {
+                        if dx.abs() != ring && dy.abs() != ring {
+                            continue;
+                        }
+                        let to = [
+                            start[0] + f64::from(dx) * CLEAR_STEP_MM,
+                            start[1] + f64::from(dy) * CLEAR_STEP_MM,
+                        ];
+                        let Ok(position) = nm_point(to) else { continue };
+                        if session
+                            .apply(
+                                "symbol.move_unit",
+                                Operation::Schematic(SchematicCommand::MoveUnit {
+                                    occurrence: occurrence.0,
+                                    position,
+                                }),
+                            )
+                            .is_err()
+                        {
+                            continue;
+                        }
+                        placed = pins(session);
+                        if !touches(&placed) {
+                            break 'search;
+                        }
+                    }
+                }
+            }
+        }
+        // Later symbols keep clear of this one's pins.
+        points.extend(placed);
     }
     Ok(())
 }
@@ -1019,19 +1386,29 @@ fn on_sheet(session: &Session<'_>, sid: SheetId, p: PointNm) -> Option<WireTarge
         let d = sparksmith_core::geometry::segment_distance(at, a, b);
         d < 1e-6
     };
-    project
+    // A wire that ends here first (KiCad's wires end where they meet a
+    // pin), then one that passes through.
+    let near = |q: [f64; 2]| (q[0] - at[0]).hypot(q[1] - at[1]) < 1e-6;
+    let wires: Vec<(Id, Vec<[f64; 2]>)> = project
         .wires
         .iter()
         .filter(|w| w.sheet == sid)
-        .find_map(|w| {
-            let path = sparksmith_core::schematic::wire_path(project, w)?;
-            path.windows(2)
-                .any(|s| on(s[0], s[1]))
-                .then_some(WireTarget::OnWire(WirePoint {
-                    wire: w.id,
-                    at: here,
-                }))
+        .filter_map(|w| Some((w.id, sparksmith_core::schematic::wire_path(project, w)?)))
+        .collect();
+    let ends = wires.iter().find(|(_, path)| {
+        path.first().is_some_and(|q| near(*q)) || path.last().is_some_and(|q| near(*q))
+    });
+    ends.or_else(|| {
+        wires
+            .iter()
+            .find(|(_, path)| path.windows(2).any(|s| on(s[0], s[1])))
+    })
+    .map(|(wire, _)| {
+        WireTarget::OnWire(WirePoint {
+            wire: *wire,
+            at: here,
         })
+    })
 }
 
 fn draw(

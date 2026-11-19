@@ -123,6 +123,7 @@ impl Generator for Fixture {
                     mask: Opening::Default,
                     paste: Opening::Default,
                     number: None,
+                    kind: None,
                 }],
                 courtyard: vec![
                     [-1_250_000, -1_250_000],

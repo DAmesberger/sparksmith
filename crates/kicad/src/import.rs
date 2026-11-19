@@ -1,16 +1,17 @@
 //! A KiCad board's footprints built into a new project through the one
-//! command engine: every footprint shape that differs becomes a
-//! project-local component set (component, symbol, package, footprint and
-//! binding), published; every footprint is placed on a schematic sheet and
-//! on the board where KiCad has it. Nothing is written to a document
+//! command engine: every footprint that differs becomes a real part of the
+//! project, the same kind of part as any other. With a host
+//! [`crate::models::Provider`], a footprint whose lands identify a
+//! generator's package is that generator's part, made by `library.generate`
+//! with the footprint's lands as its land pattern; any other becomes a
+//! project part of its lands (component, symbol, package, footprint and
+//! binding), published. Every footprint is placed on a schematic sheet and
+//! on the board where KiCad has it, its copper exactly the source's. Nothing is written to a document
 //! directly: each step is a typed [`Operation`] applied by [`Engine`], and
 //! any refused step fails the whole import (the engine is dropped).
 use crate::board::{self, Board, Footprint};
 use crate::report::{Case, Report};
 use crate::translate::{self, DefPad, Mapped};
-use sparksmith_core::fields::{
-    FieldDefinition, FieldSelection, FieldValue, PropertyEdit, PropertyInput, ValueType,
-};
 use sparksmith_core::functions::{Direction, TerminalFunctions};
 use sparksmith_core::geometry::Bounds;
 use sparksmith_core::layout::LayoutCommand;
@@ -20,11 +21,9 @@ use sparksmith_core::library::footprint_source::{SketchEdit, SketchRef};
 use sparksmith_core::library::symbol_blocks::named_block_symbol;
 use sparksmith_core::library::{
     BindingDefinition, ComponentDefinition, Definition, DefinitionMeta, DraftEdit,
-    FootprintDefinition, ModelPlacement, PackageDefinition, PackageLead, PackageModel,
-    PackageTerminal, Pad, PadDefaults, PadKind, Terminal, TerminalClass, TerminalMap,
-    designator_prefix_valid,
+    FootprintDefinition, ModelPlacement, PackageDefinition, PackageModel, PackageTerminal, Pad,
+    PadDefaults, PadKind, Terminal, TerminalClass, TerminalMap, designator_prefix_valid,
 };
-use sparksmith_core::materials::MaterialId;
 use sparksmith_core::model::board::BoardShape;
 use sparksmith_core::model::fill::PadFillOverride;
 use sparksmith_core::rules::{
@@ -32,7 +31,7 @@ use sparksmith_core::rules::{
 };
 use sparksmith_core::units::{Nm, PointNm};
 use sparksmith_core::{
-    BindingRef, ComponentRef, DefinitionId, DefinitionKind, FieldRef, FootprintRef, FunctionId, Id,
+    BindingRef, ComponentRef, DefinitionId, DefinitionKind, FootprintRef, FunctionId, Id,
     InstanceCommand, LibraryCommand, Operation, Outcome, PackageRef, PackageTerminalId, PadId,
     PhysicalChoice, Revision, StackupPresets, SymbolRef, TerminalId, UnitId,
 };
@@ -210,12 +209,33 @@ pub fn import_with_models(
         .as_ref()
         .map(crate::sheets::symbols_by_reference)
         .unwrap_or_default();
-    // Each part's KiCad value (the schematic's, else the footprint's),
-    // carried in a project field "Value" every imported component selects.
+    // Each part's KiCad value (the schematic's, else the footprint's) and
+    // part number: the part's typed fields and manufacturer part.
     let schematic_values = schematic
         .as_ref()
         .map(crate::sheets::values_by_reference)
         .unwrap_or_default();
+    let schematic_parts = schematic
+        .as_ref()
+        .map(crate::sheets::parts_by_reference)
+        .unwrap_or_default();
+    let part_numbers: Vec<crate::models::PartNumber> = board
+        .footprints
+        .iter()
+        .map(|fp| {
+            let mut part = schematic_parts
+                .get(&fp.reference.to_ascii_uppercase())
+                .cloned()
+                .unwrap_or_default();
+            if part.mpn.is_none() {
+                part.mpn = fp.part.mpn.clone();
+            }
+            if part.manufacturer.is_none() {
+                part.manufacturer = fp.part.manufacturer.clone();
+            }
+            part
+        })
+        .collect();
     let values: Vec<Option<String>> = board
         .footprints
         .iter()
@@ -226,25 +246,19 @@ pub fn import_with_models(
             value_text(value)
         })
         .collect();
-    let value_field = if values.iter().any(Option::is_some) {
-        Some(session.value_field()?)
-    } else {
-        None
-    };
     // Each footprint's pads in its own definition frame, with its KiCad
     // symbol; copies of one KiCad footprint (by its `library:name`) with
     // equal pads and symbol share a definition. Distinct KiCad footprints
     // never do, however alike their pads: identity is never inferred from
     // geometry.
-    let mut definitions: Vec<(Vec<Pad>, Option<crate::schematic::LibSymbol>)> = Vec::new();
+    let mut definitions: Vec<SourceDefinition> = Vec::new();
     let mut by_key: BTreeMap<String, usize> = BTreeMap::new();
     let mut uses: Vec<usize> = Vec::with_capacity(board.footprints.len());
     let mut per_footprint: Vec<Vec<PadRecord>> = Vec::with_capacity(board.footprints.len());
-    let mut terminal_nets: Vec<Vec<(PackageTerminalId, u32)>> =
-        Vec::with_capacity(board.footprints.len());
+    let mut pad_nets: Vec<Vec<Option<u32>>> = Vec::with_capacity(board.footprints.len());
     let mut zone_overrides: Vec<Vec<(PadId, PadFillOverride)>> =
         Vec::with_capacity(board.footprints.len());
-    for fp in &board.footprints {
+    for (n, fp) in board.footprints.iter().enumerate() {
         let mut records = Vec::new();
         let mut nets = Vec::new();
         let mut overrides = Vec::new();
@@ -259,7 +273,7 @@ pub fn import_with_models(
         // Mask and paste polygons that are a pad's opening become its rule.
         let openings = translate::take_openings(&board, fp, &mut pads);
         per_footprint.push(records);
-        terminal_nets.push(nets);
+        pad_nets.push(nets);
         zone_overrides.push(overrides);
         let symbol = by_reference
             .get(&fp.reference.to_ascii_uppercase())
@@ -275,10 +289,20 @@ pub fn import_with_models(
             key.push_str(&format!("{symbol:?}"));
         }
         key.push_str(&format!("{:?}\0{}", fp.models, prefix_of(&fp.reference)));
+        // A part number, and the value of a part without one, tell parts
+        // apart (a generic part's value is each placed part's own field).
+        let value = values.get(n).cloned().flatten();
+        let part = part_numbers.get(n).cloned().unwrap_or_default();
+        key.push_str(&format!("\0{:?}\0{:?}", part.mpn, value));
         let next = definitions.len();
         let index = *by_key.entry(key).or_insert(next);
         if index == next {
-            definitions.push((pads, symbol));
+            definitions.push(SourceDefinition {
+                pads,
+                symbol,
+                value,
+                mpn: part.mpn,
+            });
         }
         uses.push(index);
         report.add_n(
@@ -310,7 +334,13 @@ pub fn import_with_models(
         .footprints
         .iter()
         .any(|fp| fp.pads.iter().any(|p| p.net.is_some()));
-    for (k, (pads, symbol)) in definitions.into_iter().enumerate() {
+    for (k, definition) in definitions.into_iter().enumerate() {
+        let SourceDefinition {
+            pads,
+            symbol,
+            value,
+            mpn,
+        } = definition;
         // A footprint without electrical pads (a fiducial, a mounting
         // hole) becomes a part without terminals.
         let first = board
@@ -323,56 +353,101 @@ pub fn import_with_models(
             .map(|fp| prefix_of(&fp.reference))
             .unwrap_or_else(|| "U".to_owned());
         let source_id = first.map_or("", |fp| fp.lib_id.as_str());
-        let naming = definition_name(source_id, k, &mut names_taken);
-        if naming.changed {
+        let references: Vec<&str> = board
+            .footprints
+            .iter()
+            .zip(&uses)
+            .filter(|(_, u)| **u == k)
+            .map(|(fp, _)| fp.reference.as_str())
+            .collect();
+        let nets: Vec<Vec<Option<u32>>> = pad_nets
+            .iter()
+            .zip(&uses)
+            .filter(|(_, u)| **u == k)
+            .map(|(n, _)| n.clone())
+            .collect();
+        let no_body = first.and_then(|fp| crate::models::no_body(fp, board_nets));
+        let outcome = match (models.as_deref_mut(), first) {
+            (Some(provider), Some(fp)) if no_body.is_none() => Some(
+                provider
+                    .part(
+                        &mut session.engine,
+                        &crate::models::PartRequest {
+                            pads: &pads,
+                            prefix: &prefix,
+                            models: &fp.models,
+                            facts: &crate::models::Facts::of(fp),
+                            nets: &nets,
+                            mpn: mpn.as_deref(),
+                        },
+                    )
+                    .map_err(|reason| ImportError::Refused {
+                        step: "library.generate",
+                        reason,
+                    })?,
+            ),
+            _ => None,
+        };
+        let (case, reason, placeholder) = match (&outcome, no_body) {
+            (_, Some(why)) => (
+                Some(Case::NoBody),
+                format!("no body (as in the source): {why}"),
+                None,
+            ),
+            (Some(o), None) => match &o.made {
+                crate::models::Made::Generated(g) => {
+                    (Some(Case::GeneratedPart), g.reason.clone(), None)
+                }
+                crate::models::Made::Source {
+                    case,
+                    reason,
+                    placeholder,
+                } => (Some(*case), reason.clone(), *placeholder),
+            },
+            (None, None) => (None, String::new(), None),
+        };
+        if let Some(case) = case {
+            for reference in &references {
+                report.add_model(case, reference, &reason, placeholder);
+            }
+        }
+        if let Some(contradiction) = outcome.as_ref().and_then(|o| o.contradiction.as_ref()) {
+            for reference in &references {
+                report.add_detail(Case::PackageContradiction, reference, "", contradiction);
+            }
+        }
+        if let Some(crate::models::Outcome {
+            made: crate::models::Made::Generated(generated),
+            ..
+        }) = outcome
+        {
+            sets.push(Set {
+                component: generated.component,
+                symbol: generated.symbol.id,
+                footprint: generated.footprint.id,
+                binding: generated.binding.id,
+                frame: Some((generated.turn_deg, generated.offset)),
+                units: generated.units,
+            });
+            continue;
+        }
+        // A project part of the source lands is named as an authored part
+        // is: by its part number, else its footprint and value (a name an
+        // earlier part took is numbered apart).
+        let label = match (&mpn, &value) {
+            (Some(mpn), _) => mpn.replace(':', " "),
+            (None, Some(value)) => format!("{source_id} {value}"),
+            (None, None) => source_id.to_owned(),
+        };
+        let naming = definition_name(&label, k, &mut names_taken);
+        if naming.changed && mpn.is_none() {
             report.add(Case::NameShortened);
         }
         if naming.numbered {
             report.add(Case::NameNumbered);
         }
         let name = naming.name;
-        let no_body = first.and_then(|fp| crate::models::no_body(fp, board_nets));
-        let selection = match (models.as_deref_mut(), first) {
-            (_, Some(_)) if let Some(why) = no_body => Some(crate::models::Selection {
-                choice: Some(crate::models::Choice {
-                    model: PackageModel::NoBody,
-                    placement: ModelPlacement::default(),
-                    envelope_nm: [Nm::ZERO; 3],
-                    provenance: format!("No body, as in the source: {why}."),
-                    leads: Vec::new(),
-                }),
-                case: Case::NoBody,
-                reason: format!("no body (as in the source): {why}"),
-                placeholder: None,
-            }),
-            (Some(provider), Some(fp)) => Some(
-                provider
-                    .prepare(
-                        &mut session.engine,
-                        &pads,
-                        &prefix,
-                        &fp.models,
-                        &crate::models::Facts::of(fp),
-                    )
-                    .map_err(|reason| ImportError::Refused {
-                        step: "3D model",
-                        reason,
-                    })?,
-            ),
-            _ => None,
-        };
-        if let Some(selection) = &selection {
-            for (fp, used) in board.footprints.iter().zip(&uses) {
-                if *used == k {
-                    report.add_model(
-                        selection.case,
-                        &fp.reference,
-                        &selection.reason,
-                        selection.placeholder,
-                    );
-                }
-            }
-        }
+        let no_body_model = no_body.map(|why| format!("No body, as in the source: {why}."));
         sets.push(session.component_set(
             ComponentSource {
                 name: &name,
@@ -380,8 +455,7 @@ pub fn import_with_models(
                 pads,
                 prefix: &prefix,
                 kicad_symbol: symbol.as_ref(),
-                value_field,
-                model: selection.as_ref().and_then(|s| s.choice.as_ref()),
+                no_body: no_body_model.as_deref(),
             },
             &mut report,
         )?);
@@ -405,11 +479,13 @@ pub fn import_with_models(
     let mut placed_nets = Vec::with_capacity(board.footprints.len());
     let mut placed_overrides = Vec::with_capacity(board.footprints.len());
     let mut records = Vec::new();
+    let mut frames = Vec::with_capacity(board.footprints.len());
+    let mut placed_sets = Vec::with_capacity(board.footprints.len());
     for (((fp, (index, recs)), nets), overrides) in board
         .footprints
         .iter()
         .zip(uses.iter().zip(per_footprint))
-        .zip(terminal_nets)
+        .zip(pad_nets)
         .zip(zone_overrides)
     {
         let set = sets.get(*index).ok_or(ImportError::Refused {
@@ -418,6 +494,8 @@ pub fn import_with_models(
         })?;
         let n = placed.len();
         placed.push(fp);
+        frames.push(set.frame);
+        placed_sets.push(*index);
         placed_nets.push(nets);
         placed_overrides.push(overrides);
         records.extend(recs);
@@ -433,7 +511,7 @@ pub fn import_with_models(
             // KiCad's "not in schematic": on the board only.
             report.add(Case::BoardOnly);
             place.push(Operation::Instance(InstanceCommand::PlaceBoardOnly {
-                component: ComponentRef::new(set.component, Revision::FIRST),
+                component: set.component,
                 representation: set.symbol,
                 physical: PhysicalChoice {
                     binding: set.binding,
@@ -453,9 +531,25 @@ pub fn import_with_models(
             report.add(Case::FootprintWithoutSymbol);
             unlabelled_places.push(n);
         }
-        // The first unit with the instance; the others after.
-        let first = units.and_then(|u| u.first()).copied();
-        later_units.push(units.map(|u| u[1..].to_vec()).unwrap_or_default());
+        // The first unit with the instance; the others after. A part with
+        // fewer units than the source's symbol (a generated part's one
+        // symbol) keeps the units it has; its terminals still take every
+        // unit's wiring.
+        let first = units.and_then(|u| u.first()).copied().map(|mut u| {
+            u.unit = u.unit.clamp(1, set.units.max(1));
+            u
+        });
+        let later: Vec<crate::sheets::UnitPlace> = units
+            .map(|u| u[1..].to_vec())
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|u| u.unit <= set.units && Some(u.unit) != first.map(|f| f.unit))
+            .collect();
+        let dropped = units.map_or(0, |u| u.len().saturating_sub(1)) - later.len();
+        if dropped > 0 {
+            report.add_n(Case::UnitMerged, dropped);
+        }
+        later_units.push(later);
         first_units.push(first);
         let (sheet, position, unit) = match first {
             Some(u) => (Some(u.sheet), u.at, UnitId(u.unit.max(1))),
@@ -467,7 +561,7 @@ pub fn import_with_models(
         };
         place.push(Operation::Instance(InstanceCommand::Place(NewInstance {
             sheet,
-            component: ComponentRef::new(set.component, Revision::FIRST),
+            component: set.component,
             designator,
             properties: vec![],
             representation: Some(set.symbol),
@@ -521,7 +615,10 @@ pub fn import_with_models(
     }
     let mut layout = Vec::with_capacity(instances.len());
     for (fp, instance) in placed.iter().zip(&instances) {
-        let (position, rotation_deg, layer) = translate::placement(&board, fp);
+        let (position, rotation_deg, layer) = compose(
+            translate::placement(&board, fp),
+            frames.get(layout.len()).copied().flatten(),
+        );
         layout.push(Operation::Layout(LayoutCommand::Place {
             instance: *instance,
             position,
@@ -530,27 +627,61 @@ pub fn import_with_models(
         }));
     }
     session.batches("layout.place", layout)?;
-    if let Some(field) = value_field {
-        // Every footprint is placed, in board order.
-        let edits = values
-            .into_iter()
-            .zip(&instances)
-            .filter_map(|(value, instance)| {
-                Some(Operation::Instance(InstanceCommand::SetProperties {
-                    instance: *instance,
-                    edits: vec![PropertyEdit {
-                        field: field.id,
-                        input: PropertyInput::Value(FieldValue::Text(value?)),
-                    }],
-                }))
-            })
-            .collect();
-        session.batches("instance.set_properties", edits)?;
+    // Each placed part's value as its typed fields, and its part number as
+    // its manufacturer part.
+    let mut fields = Vec::new();
+    let mut parts: BTreeMap<(ComponentRef, String, String), Option<sparksmith_core::PartRef>> =
+        BTreeMap::new();
+    for ((n, fp), instance) in board.footprints.iter().enumerate().zip(&instances) {
+        let Some(set) = placed_sets.get(n).and_then(|k| sets.get(*k)) else {
+            continue;
+        };
+        if let Some(value) = values.get(n).and_then(Option::as_deref) {
+            fields.push((*instance, set.component, value.to_owned()));
+        }
+        let part = part_numbers.get(n).cloned().unwrap_or_default();
+        match (part.mpn, part.manufacturer) {
+            (Some(mpn), Some(manufacturer)) => {
+                let key = (set.component, manufacturer, mpn);
+                if !parts.contains_key(&key) {
+                    let made = session.manufacturer_part(key.0, set.binding, &key.1, &key.2);
+                    if made.is_none() {
+                        report.add_detail(Case::PartRefused, &fp.reference, "", "");
+                    }
+                    parts.insert(key.clone(), made);
+                }
+                if let Some(Some(part)) = parts.get(&key) {
+                    let _ = session.apply(
+                        "instance.assign_part",
+                        Operation::Instance(InstanceCommand::AssignPart {
+                            instances: vec![*instance],
+                            part: Some(*part),
+                        }),
+                    );
+                }
+            }
+            (Some(_), None) => {
+                report.add_detail(Case::PartWithoutManufacturer, &fp.reference, "", "")
+            }
+            _ => {}
+        }
+    }
+    for (instance, component, value) in fields {
+        crate::values::set(&mut session, instance, component, &value, &mut report)?;
     }
     // Zone connection overrides: the footprint's for the part, each pad's
     // own over it.
     let mut overrides = Vec::new();
-    for ((fp, instance), pads) in placed.iter().zip(&instances).zip(&placed_overrides) {
+    for (((fp, instance), pads), k) in placed
+        .iter()
+        .zip(&instances)
+        .zip(&placed_overrides)
+        .zip(&placed_sets)
+    {
+        let own_pads = sets
+            .get(*k)
+            .and_then(|set| session.footprint_pads(*instance, set))
+            .unwrap_or_default();
         let part = crate::zones::pad_override(&fp.zone, None);
         if !part.is_empty() {
             overrides.push(Operation::Fill(FillCommand::SetPadOverride {
@@ -560,9 +691,13 @@ pub fn import_with_models(
             }));
         }
         for (pad, settings) in pads {
+            // The source's pad by its place; the part's pad at that place.
+            let Some(own) = own_pads.get(pad.0.saturating_sub(1) as usize) else {
+                continue;
+            };
             overrides.push(Operation::Fill(FillCommand::SetPadOverride {
                 instance: *instance,
-                pad: Some(*pad),
+                pad: Some(own.0),
                 settings: *settings,
             }));
         }
@@ -576,10 +711,25 @@ pub fn import_with_models(
             }
         }
     }
+    let terminal_nets: Vec<Vec<(TerminalId, u32)>> = placed_nets
+        .iter()
+        .zip(&instances)
+        .zip(&placed_sets)
+        .map(|((nets, instance), k)| {
+            let own = sets
+                .get(*k)
+                .and_then(|set| session.footprint_pads(*instance, set))
+                .unwrap_or_default();
+            nets.iter()
+                .enumerate()
+                .filter_map(|(i, net)| Some((own.get(i)?.1?, (*net)?)))
+                .collect()
+        })
+        .collect();
     let nets = crate::routing::connect(
         &mut session,
         &board,
-        &placed_nets,
+        &terminal_nets,
         &instances,
         plan.is_some().then_some(&labelled),
         &mut report,
@@ -613,6 +763,40 @@ fn prefix_of(reference: &str) -> String {
     }
 }
 
+/// One distinct source footprint: its pads, KiCad symbol, value and part
+/// number.
+struct SourceDefinition {
+    pads: Vec<Pad>,
+    symbol: Option<crate::schematic::LibSymbol>,
+    value: Option<String>,
+    mpn: Option<String>,
+}
+
+/// The board placement of a source footprint composed with a part's
+/// package frame in it (`(turn, offset)`, [`crate::models::Generated`]):
+/// the placement that puts the part's pads where the source's are. A
+/// back-side placement reflects y before it turns, so the frame's turn
+/// counts the other way there.
+fn compose(
+    (position, rotation_deg, layer): (sparksmith_core::Point, f64, sparksmith_core::Layer),
+    frame: Option<(f64, PointNm)>,
+) -> (sparksmith_core::Point, f64, sparksmith_core::Layer) {
+    let Some((turn, offset)) = frame else {
+        return (position, rotation_deg, layer);
+    };
+    let back = layer == sparksmith_core::Layer::Bottom;
+    let [ox, oy] = offset.to_mm_f64();
+    let oy = if back { -oy } else { oy };
+    let (c, s) = sparksmith_core::geometry::cos_sin(rotation_deg);
+    let moved = [position[0] + c * ox - s * oy, position[1] + s * ox + c * oy];
+    let turned = if back {
+        rotation_deg - turn
+    } else {
+        rotation_deg + turn
+    };
+    (moved, turned.rem_euclid(360.0), layer)
+}
+
 /// A footprint's pads in its definition frame, numbered, with their
 /// package terminals: one per distinct pad number (pads sharing a number
 /// share it), and one each for unnumbered plated pads.
@@ -621,7 +805,7 @@ fn footprint_pads(
     fp: &Footprint,
     report: &mut Report,
     records: &mut Vec<PadRecord>,
-    nets: &mut Vec<(PackageTerminalId, u32)>,
+    nets: &mut Vec<Option<u32>>,
     overrides: &mut Vec<(PadId, PadFillOverride)>,
 ) -> Vec<Pad> {
     let mut pads = Vec::with_capacity(fp.pads.len());
@@ -684,10 +868,13 @@ fn footprint_pads(
                 id
             });
             pad.terminal = Some(id);
-            if let Some((net, _)) = &kpad.net {
-                nets.push((id, *net));
-            }
         }
+        nets.push(
+            kpad.net
+                .as_ref()
+                .filter(|_| pad.terminal.is_some())
+                .map(|(net, _)| *net),
+        );
         records.push(PadRecord { class, world, arcs });
         pads.push(pad);
     }
@@ -730,16 +917,21 @@ struct ComponentSource<'a> {
     pads: Vec<Pad>,
     prefix: &'a str,
     kicad_symbol: Option<&'a crate::schematic::LibSymbol>,
-    value_field: Option<FieldRef>,
-    model: Option<&'a crate::models::Choice>,
+    /// Why the part has no body, when it is no part to draw.
+    no_body: Option<&'a str>,
 }
 
-/// The drafts of one imported footprint, published.
-struct Set {
-    component: DefinitionId,
+/// The part of one source footprint: its component and the lineages a
+/// placed part chooses.
+pub(crate) struct Set {
+    component: ComponentRef,
     symbol: DefinitionId,
     footprint: DefinitionId,
     binding: DefinitionId,
+    /// A generated part's package frame in the source footprint's frame.
+    frame: Option<(f64, PointNm)>,
+    /// The symbol's units.
+    units: u32,
 }
 
 pub(crate) struct Session<'a> {
@@ -1018,30 +1210,78 @@ impl Session<'_> {
         Ok(())
     }
 
-    /// The project field "Value" (text) that carries each imported part's
-    /// KiCad value, published.
-    fn value_field(&mut self) -> Result<FieldRef, ImportError> {
-        let Outcome::DraftCreated { id } = self.apply(
+    /// The pads of `instance`'s footprint in order, each with its
+    /// component terminal (through the part's binding).
+    pub(crate) fn footprint_pads(
+        &self,
+        instance: Id,
+        set: &Set,
+    ) -> Option<Vec<(PadId, Option<TerminalId>)>> {
+        let project = self.engine.project();
+        let found = project.instance(instance)?;
+        let resolved = sparksmith_core::instances::resolve(&project.library, found).ok()?;
+        let physical = resolved.physical?;
+        let _ = set;
+        Some(
+            physical
+                .footprint
+                .definition
+                .pads
+                .iter()
+                .map(|pad| {
+                    let terminal = pad.terminal.and_then(|t| {
+                        physical
+                            .binding
+                            .definition
+                            .mappings
+                            .iter()
+                            .find(|m| m.package_terminal == t)
+                            .map(|m| m.terminal)
+                    });
+                    (pad.id, terminal)
+                })
+                .collect(),
+        )
+    }
+
+    /// A manufacturer part of `component` (through `binding`), published:
+    /// its manufacturer and part number as the source names them.
+    fn manufacturer_part(
+        &mut self,
+        component: ComponentRef,
+        binding: DefinitionId,
+        manufacturer: &str,
+        mpn: &str,
+    ) -> Option<sparksmith_core::PartRef> {
+        // The binding revision the component lists.
+        let binding = self
+            .engine
+            .project()
+            .library
+            .component(component)?
+            .definition
+            .implementations
+            .iter()
+            .find(|b| b.id == binding)
+            .copied()?;
+        let Ok(Outcome::DraftCreated { id }) = self.apply(
             "library.new_draft",
             Operation::Library(LibraryCommand::NewDraft {
                 meta: DefinitionMeta {
-                    name: "Value".into(),
-                    description: "A part's value as its KiCad project gives it.".into(),
-                    provenance: "Imported from a KiCad project.".into(),
+                    name: format!("{manufacturer} {mpn}"),
+                    description: String::new(),
+                    provenance: "Imported from a KiCad project's part number.".into(),
                 },
-                definition: Definition::Field(FieldDefinition {
-                    value_type: ValueType::Text {
-                        max_bytes: sparksmith_core::fields::MAX_TEXT_BYTES,
-                    },
-                    ..FieldDefinition::default()
-                }),
+                definition: Definition::Part(Box::new(sparksmith_core::library::PartDefinition {
+                    manufacturer: manufacturer.to_owned(),
+                    mpn: mpn.to_owned(),
+                    component,
+                    binding,
+                    ..Default::default()
+                })),
             }),
-        )?
-        else {
-            return Err(ImportError::Refused {
-                step: "library.new_draft",
-                reason: "no draft created".into(),
-            });
+        ) else {
+            return None;
         };
         self.apply(
             "library.publish",
@@ -1049,8 +1289,9 @@ impl Session<'_> {
                 drafts: vec![id],
                 close: true,
             }),
-        )?;
-        Ok(FieldRef::new(id, Revision::FIRST))
+        )
+        .ok()?;
+        Some(sparksmith_core::PartRef::new(id, Revision::FIRST))
     }
 
     /// Apply `ops` in batches of at most [`sparksmith_core::MAX_BATCH`].
@@ -1086,8 +1327,7 @@ impl Session<'_> {
             pads,
             prefix,
             kicad_symbol,
-            value_field,
-            model,
+            no_body,
         } = source;
         let kinds = [
             DefinitionKind::Component,
@@ -1129,7 +1369,6 @@ impl Session<'_> {
             pads,
             prefix,
             kicad_symbol,
-            value_field,
             &mut unpinned,
             [component, symbol, package, footprint, binding],
         )
@@ -1149,34 +1388,11 @@ impl Session<'_> {
                     .push_str(&format!("\nKiCad footprint: {id}"));
             }
         }
-        if let Some(model) = model {
+        if let Some(why) = no_body {
             for edit in &mut edits {
-                if let Definition::Package(package) = &mut edit.definition
-                    && matches!(model.model, PackageModel::NoBody)
-                {
+                if let Definition::Package(package) = &mut edit.definition {
                     package.model = PackageModel::NoBody;
-                    edit.meta
-                        .provenance
-                        .push_str(&format!("\n{}", model.provenance));
-                } else if let Definition::Package(package) = &mut edit.definition {
-                    package.model = model.model.clone();
-                    package.placement = model.placement;
-                    package.envelope_nm = model.envelope_nm;
-                    package.leads = model
-                        .leads
-                        .iter()
-                        .filter_map(|(key, contact)| {
-                            let terminal =
-                                package.terminals.iter().find(|t| t.designation == *key)?;
-                            Some(PackageLead {
-                                terminal: terminal.id,
-                                contact: *contact,
-                            })
-                        })
-                        .collect();
-                    edit.meta
-                        .provenance
-                        .push_str(&format!("\n{}", model.provenance));
+                    edit.meta.provenance.push_str(&format!("\n{why}"));
                 }
             }
         }
@@ -1191,11 +1407,22 @@ impl Session<'_> {
                 }),
             ],
         )?;
+        let units = match self
+            .engine
+            .project()
+            .library
+            .symbol(SymbolRef::new(symbol, Revision::FIRST))
+        {
+            Some(symbol) => u32::try_from(symbol.definition.units.len()).unwrap_or(1),
+            None => 1,
+        };
         Ok(Set {
-            component,
+            component: ComponentRef::new(component, Revision::FIRST),
             symbol,
             footprint,
             binding,
+            frame: None,
+            units,
         })
     }
 }
@@ -1266,7 +1493,6 @@ fn drafts(
     pads: Vec<Pad>,
     prefix: &str,
     kicad_symbol: Option<&crate::schematic::LibSymbol>,
-    value_field: Option<FieldRef>,
     unpinned: &mut usize,
     [component, symbol, package, footprint, binding]: [DefinitionId; 5],
 ) -> sparksmith_core::Result<Vec<DraftEdit>> {
@@ -1346,14 +1572,7 @@ fn drafts(
                 constraints: vec![],
                 representations: vec![SymbolRef::new(symbol, Revision::FIRST)],
                 implementations: vec![BindingRef::new(binding, Revision::FIRST)],
-                fields: value_field
-                    .map(|field| FieldSelection {
-                        field,
-                        default: None,
-                        show_on_symbol: true,
-                    })
-                    .into_iter()
-                    .collect(),
+                fields: Vec::new(),
             }),
         },
         DraftEdit {
@@ -1374,9 +1593,10 @@ fn drafts(
                     })
                     .collect(),
                 envelope_nm: envelope,
-                model: PackageModel::Envelope {
-                    material: MaterialId::EpoxyMould,
-                },
+                // No body of its own yet: the package's default, as for any
+                // part authored without a model, until a generator's body
+                // or a recreation from its datasheet replaces it.
+                model: PackageModel::default(),
                 placement: placeholder,
                 mechanical: None,
                 datums: Vec::new(),

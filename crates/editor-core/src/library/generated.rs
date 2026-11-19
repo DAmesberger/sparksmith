@@ -36,6 +36,7 @@ use crate::fields::{FieldSelection, ValueTemplate};
 use crate::ids::{
     BindingRef, ContentHash, DefinitionKind, DefinitionRef, FootprintRef, PackageRef, SymbolRef,
 };
+use crate::units::{Nm, PointNm};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -686,6 +687,43 @@ pub fn select_fields(
     }
 }
 
+/// The lead contacts of `generation`, by the package terminal each names
+/// (its key), in the package frame on the seating plane.
+pub fn generation_leads(generation: &v1::Generation) -> Result<Vec<(String, PointNm)>> {
+    generation
+        .package
+        .geometry
+        .leads
+        .iter()
+        .map(|lead| {
+            let [x, y, _] = lead.contact;
+            Ok((lead.key.clone(), PointNm::new(Nm::new(x)?, Nm::new(y)?)))
+        })
+        .collect()
+}
+
+/// Give the package of `definitions` its lead contacts, each on the
+/// package terminal its designation names, so the board check finds a
+/// lead off its land. Host data beside the expansion, as the fields are:
+/// [`compare`] keeps the stored ones, so a part made before packages
+/// carried them still opens.
+pub fn set_leads(definitions: &mut [(DefinitionRef, Definition)], leads: &[(String, PointNm)]) {
+    for (_, definition) in definitions {
+        if let Definition::Package(package) = definition {
+            package.leads = leads
+                .iter()
+                .filter_map(|(key, contact)| {
+                    let terminal = package.terminals.iter().find(|t| t.designation == *key)?;
+                    Some(super::PackageLead {
+                        terminal: terminal.id,
+                        contact: *contact,
+                    })
+                })
+                .collect();
+        }
+    }
+}
+
 /// Give the component of `definitions` the host's default `marking`
 /// (the generation's, its fields made the project's: [`expand::marking`]).
 pub fn set_marking(
@@ -845,8 +883,23 @@ pub fn compare(library: &Library, check: &Check<'_>, generated: &Generated) -> R
         .filter_map(|r| library.definition(*r).map(|(_, d)| (*r, d)))
         .collect();
     // The fields the host selected are outside the generation
-    // ([`family_fields`]): the stored ones stand.
+    // ([`family_fields`]): the stored ones stand; so do the package's lead
+    // contacts ([`set_leads`]).
     let mut expected = expected;
+    if let Some(package) = stored.iter().find_map(|(_, d)| match d {
+        Definition::Package(p) => Some(p),
+        _ => None,
+    }) {
+        let leads: Vec<(String, PointNm)> = package
+            .leads
+            .iter()
+            .filter_map(|lead| {
+                let terminal = package.terminals.iter().find(|t| t.id == lead.terminal)?;
+                Some((terminal.designation.clone(), lead.contact))
+            })
+            .collect();
+        set_leads(&mut expected, &leads);
+    }
     if let Some(component) = stored.iter().find_map(|(_, d)| match d {
         Definition::Component(c) => Some(c),
         _ => None,
