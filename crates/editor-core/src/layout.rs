@@ -1721,7 +1721,18 @@ pub fn checks_with(
     graph: &CopperGraph,
     settings: &CheckSettings,
 ) -> Vec<Finding> {
-    let mut findings = BoardCopper::of(project).checks(project, graph);
+    checks_on(project, &BoardCopper::of(project), graph, settings)
+}
+
+/// [`checks_with`] on `copper`, the revision's [`BoardCopper`], for a
+/// host that already holds it (the PCB editor's per-revision cache).
+pub fn checks_on(
+    project: &Project,
+    copper: &BoardCopper,
+    graph: &CopperGraph,
+    settings: &CheckSettings,
+) -> Vec<Finding> {
+    let mut findings = copper.checks(project, graph);
     findings.extend(fill::findings(project));
     findings.extend(outline::checks(project));
     findings.extend(dimensions::checks(project));

@@ -889,7 +889,13 @@ impl PcbEditor {
             self.copper = BoardCopper::of(engine.project());
             self.graph = engine.copper_graph();
             self.airwires = self.graph.airwires();
-            self.issues = self.copper.checks(engine.project(), &self.graph);
+            // Every board check, as the core runs them, on this copper.
+            self.issues = layout::checks_on(
+                engine.project(),
+                &self.copper,
+                &self.graph,
+                engine.check_settings(),
+            );
             self.cache_board(engine.project());
             self.cached_revision = Some(engine.revision());
             // An instance without a placement stays selected: the card

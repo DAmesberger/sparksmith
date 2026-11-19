@@ -532,6 +532,22 @@ pub fn runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
     Arc::new(sparksmith_generators::worker::Worker::default())
 }
 
+/// The generator runtime for batch work nobody is there to retry (a
+/// KiCad import's models): the process's workers, but a call made while
+/// all are busy waits for one until `deadline` instead of being refused.
+/// Interactive callers keep [`runtime`] and its retryable busy reply.
+pub fn batch_runtime(deadline: std::time::Instant) -> Arc<dyn GeneratorRuntime + Send + Sync> {
+    Arc::new(sparksmith_generators::worker::Worker::default().waiting_until(deadline))
+}
+
+/// [`batch_runtime`] on a test fixture's own four-worker pool.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn fixture_batch_runtime(
+    deadline: std::time::Instant,
+) -> Arc<dyn GeneratorRuntime + Send + Sync> {
+    Arc::new(sparksmith_generators::worker::Worker::fixture().waiting_until(deadline))
+}
+
 /// A test fixture's isolated four-worker runtime. Install explicitly on
 /// its engine so lending sessions and background forks inherit that pool.
 #[cfg(any(test, feature = "test-fixtures"))]
