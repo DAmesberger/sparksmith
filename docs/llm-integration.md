@@ -83,7 +83,7 @@ Tools are generated from the command catalogue, so nothing is hand-listed and ev
 |---|---|---|
 | Read | Queries, views, checks | Runs |
 | Edit | Route, place, set a value | Runs inside the turn's reviewable change |
-| Ask | Open, save or export files, library publish, anything with a path | Waits for Allow or Deny |
+| Ask | Open, save or export files, library publish, library folders, anything with a path | Waits for Allow or Deny |
 | Never | Keys, settings, crash reports | Refused |
 
 The class lives with the command definition, so a new command can't be added without choosing one. Permission modes (ask every time, auto-allow edits, allow everything except Never) are set in Preferences, per model.

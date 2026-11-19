@@ -437,7 +437,7 @@
                 "required": true
               },
               {
-                "description": "Part name: The manufacturer part number",
+                "description": "Part name: The manufacturer and the complete part number, e.g. Texas Instruments TPS22990DMLR",
                 "name": "part",
                 "required": true
               },

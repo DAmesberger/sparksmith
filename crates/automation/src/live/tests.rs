@@ -426,25 +426,26 @@ fn the_verbs_reach_the_window() -> Fallible {
     Ok(())
 }
 
-/// I-A1: live, `library.source.add` is refused in every mode the window
-/// offers, before it is held for the person, and leaves the sources as they
-/// were.
+/// Live, `library.source.add` changes the person's settings, so it is held
+/// for the person's Allow in the modes that ask, and changes nothing until
+/// then.
 #[test]
-fn the_window_never_adds_a_library_source() -> Fallible {
+fn the_window_asks_before_adding_a_library_source() -> Fallible {
     let session = Session::new(Engine::demo()?);
     let call = envelope(
         "library.source.add",
         json!({"path": std::env::temp_dir().join("lib").display().to_string()}),
         None,
     );
-    for mode in [Mode::AskEveryTime, Mode::AutoAllowEdits, Mode::AllowAll] {
+    for mode in [Mode::AskEveryTime, Mode::AutoAllowEdits] {
         let policy = grant(mode, [std::env::temp_dir()]);
-        let Verdict::Reply(reply) =
+        let Verdict::Ask(admitted, question) =
             admit(&session, &policy, &crate::view::Fake::idle(), CALL, &call)
         else {
-            return Err(format!("{mode:?}: library.source.add was admitted").into());
+            return Err(format!("{mode:?}: library.source.add was not held").into());
         };
-        assert_eq!(code(&reply), "gate.never", "{mode:?}: {reply}");
+        assert_eq!(admitted.class(), Class::Ask, "{mode:?}");
+        assert_eq!(question.command, "library.source.add", "{mode:?}");
     }
     assert!(session.sources().list().is_empty());
     Ok(())

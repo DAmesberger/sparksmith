@@ -552,10 +552,10 @@ sparksmith_core::declare_entries!(Request in project {
     ExportNative "project.export_native" Ask "Export the 3D model" [in model3d, long, needs(Solidcraft)],
     ExportFabrication "project.export_fabrication" Ask "Export fabrication files" [in fab, long, link],
     Sources "library.sources" Read "List library folders" [in library, link, reach(Settings)],
-    SourceAdd "library.source.add" Never "Add a library folder" [in library, reach(Settings)],
-    SourceCreate "library.source.create" Never "Create a library folder" [in library, reach(Settings)],
-    SourceRemove "library.source.remove" Never "Remove a library folder" [in library, reach(Settings)],
-    SourceEnable "library.source.enable" Never "Turn a library folder on or off" [in library, reach(Settings)],
+    SourceAdd "library.source.add" Ask "Add a library folder" [in library, reach(Settings)],
+    SourceCreate "library.source.create" Ask "Create a library folder" [in library, reach(Settings)],
+    SourceRemove "library.source.remove" Ask "Remove a library folder" [in library, reach(Settings)],
+    SourceEnable "library.source.enable" Ask "Turn a library folder on or off" [in library, reach(Settings)],
     Rescan "library.rescan" Read "Rescan library folders" [in library, long, link, reach(Files)],
     Favourite "library.favourite" Never "Mark a favourite" [in library, reach(Settings)],
     Bundle "library.bundle" Read "Read a folder bundle" [in library, link, reach(Files)],
@@ -1309,6 +1309,7 @@ impl Session {
                     Query::Search { query, limit, .. } => Some((query.clone(), *limit)),
                     _ => None,
                 };
+                let summarised = matches!(query, Query::CheckDrafts { detail: false });
                 let mut reply = serde_json::to_value(self.engine.query_using(
                     query,
                     &self.sources.context(),
@@ -1317,6 +1318,9 @@ impl Session {
                 if let Some((text, limit)) = searched {
                     self.add_generic(&text, &mut reply);
                     self.add_online(&text, limit, &mut reply);
+                }
+                if summarised {
+                    reply::summarise_finding_objects(&mut reply["result"]);
                 }
                 return Ok(reply);
             }
@@ -1508,7 +1512,10 @@ impl Session {
             Request::PinoutSchema(_) => return self.pinout_schema(),
             Request::ReviewCheck(params) => {
                 return match &params.body {
-                    None => Ok(crate::review::check(&self.snapshot(), &params.report)),
+                    None => Ok(crate::review::check(
+                        &self.review_snapshot(params.component, &params.report.part)?,
+                        &params.report,
+                    )),
                     Some(part) => Ok(crate::review::check_body(
                         &self.body_state(part)?,
                         &params.report,
@@ -1792,7 +1799,7 @@ impl Session {
     pub fn snapshot(&self) -> Value {
         let project = self.engine.project();
         let items = &self.engine.drafts().items;
-        let drafts: Vec<Value> = match self.engine.query(Query::CheckDrafts {}) {
+        let drafts: Vec<Value> = match self.engine.query(Query::CheckDrafts { detail: true }) {
             Ok(QueryResult::Drafts(reports)) => items
                 .iter()
                 .zip(reports)

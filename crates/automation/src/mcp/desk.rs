@@ -64,6 +64,9 @@ enum Projects {
         projects: BTreeMap<String, Session>,
         policy: Grant,
         new_session: NewSession,
+        /// The current project: the one last opened or named by a call,
+        /// which a call that names none goes to.
+        current: Option<String>,
     },
     /// The project open in the window, under the handle `handle`; its
     /// revision is the last one a reply named.
@@ -130,9 +133,10 @@ impl Desk {
         let first = mint()?;
         Self::spawn(Self {
             projects: Projects::Headless {
-                projects: BTreeMap::from([(first, session)]),
+                projects: BTreeMap::from([(first.clone(), session)]),
                 policy,
                 new_session,
+                current: Some(first),
             },
         })
     }
@@ -174,14 +178,22 @@ impl Desk {
         matches!(self.projects, Projects::Live { .. })
     }
 
-    /// The handle of the project `project` names, or of the only one open
-    /// when it names none. The failure is the transport envelope of an
-    /// error, as [`super::outcome`] reads it.
+    /// The handle of the project `project` names, or, when it names none,
+    /// of the only one open, else of the current one (the project last
+    /// opened or named by a call). The failure is the transport envelope
+    /// of an error, as [`super::outcome`] reads it.
     pub fn project(&self, project: Option<&str>) -> Result<String, Value> {
-        let open: Vec<&String> = match &self.projects {
-            Projects::Headless { projects, .. } => projects.keys().collect(),
-            Projects::Live { handle, .. } => vec![handle],
+        let (open, current): (Vec<&String>, Option<&String>) = match &self.projects {
+            Projects::Headless {
+                projects, current, ..
+            } => (projects.keys().collect(), current.as_ref()),
+            Projects::Live { handle, .. } => (vec![handle], None),
         };
+        if project.is_none()
+            && let Some(current) = current.filter(|c| open.contains(c))
+        {
+            return Ok(current.clone());
+        }
         match project {
             Some(handle) if open.iter().any(|h| h.as_str() == handle) => Ok(handle.to_owned()),
             Some(handle) => Err(failure(
@@ -215,9 +227,15 @@ impl Desk {
         };
         let mut reply = match &mut self.projects {
             Projects::Headless {
-                projects, policy, ..
+                projects,
+                policy,
+                current,
+                ..
             } => match projects.get_mut(&handle) {
-                Some(session) => headless(session, policy, call),
+                Some(session) => {
+                    *current = Some(handle.clone());
+                    headless(session, policy, call)
+                }
                 None => failure("project.unknown", "the project closed".into()),
             },
             Projects::Live {
@@ -263,6 +281,7 @@ impl Desk {
                 projects,
                 policy,
                 new_session,
+                current,
             } => {
                 if projects.len() >= MAX_PROJECTS {
                     return failure(
@@ -285,7 +304,8 @@ impl Desk {
                     Err(why) => return failure("project.handle", why),
                 };
                 stamp(&mut reply, &handle);
-                projects.insert(handle, session);
+                projects.insert(handle.clone(), session);
+                *current = Some(handle);
                 reply
             }
             Projects::Live { window, .. } => {

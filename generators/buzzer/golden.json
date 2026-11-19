@@ -3,7 +3,7 @@
   {
    "name": "CMI-9653S, component",
    "request": {"abi": 1, "scope": "component", "params": {"body_length": 9600000, "body_width": 9600000, "height": 5000000, "label": false, "land_length": 3000000, "land_width": 2500000, "land_x": 3800000, "terminal_out": 250000, "terminal_rise": 2400000, "terminal_width": 1500000}},
-   "result": "3c60606765f3d9c0a461c3b6bb3d07ada304f5de18ae6c26803bd6b016292ae9"
+   "result": "cfb5dc5f920b2a6a90f30e8e012fc81c5f44bc9627ee6387d946b853da9f69b0"
   },
   {
    "name": "CMI-9653S with label, package",

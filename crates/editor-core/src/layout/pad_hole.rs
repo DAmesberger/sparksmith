@@ -69,6 +69,9 @@ struct Hole {
     object: ObjectRef,
     /// How a message names it: "J1 pad 5", "a via on GND".
     name: String,
+    /// What it is within its pad, for a message comparing two holes of one
+    /// pad: "hole", "slot" or "via-in-pad hole".
+    what: &'static str,
 }
 
 /// The annular ring, pad hole clearance and hole spacing findings.
@@ -97,7 +100,16 @@ pub(super) fn findings(
 
     let mut holes = Vec::new();
     for (k, pad) in placed.iter().enumerate() {
-        for hole in pad.holes() {
+        // `holes` lists the pad's own hole first, then its via-in-pad holes.
+        let own = pad.pad.hole.iter().count();
+        for (n, hole) in pad.holes().into_iter().enumerate() {
+            let what = if n >= own {
+                "via-in-pad hole"
+            } else if matches!(hole.shape, Shape::Circle { .. }) {
+                "hole"
+            } else {
+                "slot"
+            };
             holes.push(Hole {
                 ring: CopperRing::of_hole(&hole.shape),
                 kind: CopperObject::hole(hole.plated),
@@ -107,6 +119,7 @@ pub(super) fn findings(
                     pad: pad.pad.id,
                 },
                 name: name(pad),
+                what,
             });
         }
     }
@@ -121,6 +134,7 @@ pub(super) fn findings(
             pad: None,
             object: ObjectRef::Via { id: via.id },
             name: format!("a via on {}", project.net_name(via.net)),
+            what: "hole",
         });
     }
     for mount in &project.board().holes {
@@ -130,6 +144,7 @@ pub(super) fn findings(
             pad: None,
             object: ObjectRef::Board,
             name: "a mounting hole".into(),
+            what: "hole",
         });
     }
 
@@ -201,16 +216,31 @@ pub(super) fn findings(
             } else {
                 format!("are {} mm apart", mm_against(gap, need.mm))
             };
-            issues.push(Finding::new(
-                "board.pad_hole_spacing",
-                format!(
-                    "{} and {}: holes {how}; {}",
-                    hole.name,
-                    other.name,
-                    need.text()
-                ),
-                vec![hole.object, other.object],
-            ));
+            // Two holes of one pad (its slot and a via-in-pad hole) are
+            // named as that, not as the pad against itself.
+            let (text, objects) = if hole.pad.is_some() && hole.pad == other.pad {
+                (
+                    format!(
+                        "{}: its {} and {} {how}; {}",
+                        hole.name,
+                        hole.what,
+                        other.what,
+                        need.text()
+                    ),
+                    vec![hole.object],
+                )
+            } else {
+                (
+                    format!(
+                        "{} and {}: holes {how}; {}",
+                        hole.name,
+                        other.name,
+                        need.text()
+                    ),
+                    vec![hole.object, other.object],
+                )
+            };
+            issues.push(Finding::new("board.pad_hole_spacing", text, objects));
         }
     }
     issues

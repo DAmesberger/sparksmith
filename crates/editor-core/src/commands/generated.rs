@@ -398,7 +398,22 @@ pub(crate) fn generate(
             Some(part) if part.from.version == description.version => {
                 // The same version of the generator, whatever bytes it was
                 // built to: the part it made stands, and nothing changes.
-                return Ok(found(part, key));
+                let same = found(part, key);
+                // Another name asks for another part on the same package
+                // (a second MPN in the same can): its own component.
+                let root = part.root;
+                let other_name = request.name.as_deref().filter(|name| {
+                    scope == GeneratorScope::Component
+                        && document
+                            .project
+                            .library
+                            .definition(root)
+                            .is_some_and(|(meta, _)| meta.name.trim() != name.trim())
+                });
+                return match other_name {
+                    Some(name) => second_part(document, root, name, same),
+                    None => Ok(same),
+                };
             }
             Some(part) if part.from.version > description.version => {
                 refuse_older(document, &description, part)?;
@@ -593,10 +608,30 @@ pub(crate) fn generate(
         &mut definitions,
         &generated::generation_leads(&made.generation)?,
     );
+    // A part of a generic family is named by the family's label
+    // ("Chip resistor 0603", "Pin header 2×5 2.54 mm"), as the Place
+    // palette and the chat name it, so every search reads it alike.
+    let family_label = (scope == GeneratorScope::Component)
+        .then(|| crate::library::standards::get().ok())
+        .flatten()
+        .and_then(|standards| {
+            let family = standards.generic.family_for(&description.id, &complete)?;
+            let size = request.preset.as_deref().and_then(|p| {
+                description
+                    .presets()
+                    .iter()
+                    .find(|x| x.key == p || x.name == p)
+                    .and_then(|x| x.aliases.first().cloned())
+            });
+            standards
+                .generic
+                .label_for(family, &complete, size.as_deref())
+        });
     let base_name = request
         .name
         .clone()
         .or_else(|| replaced.as_ref().and_then(|(_, name, _, _)| name.clone()))
+        .or(family_label)
         .unwrap_or_else(|| {
             made.generation
                 .component
@@ -604,17 +639,40 @@ pub(crate) fn generate(
                 .map(|c| c.name.clone())
                 .unwrap_or_else(|| format!("{} package", description.title))
         });
+    // The preset the parameters started from says what the part is and how
+    // far its values are backed; the generator's notes are remarks for the
+    // reviewer, kept in the provenance, never the part's description.
+    let preset = request.preset.as_deref().and_then(|p| {
+        description
+            .presets()
+            .iter()
+            .find(|x| x.key == p || x.name == p)
+    });
+    let basis_note = preset.and_then(preset_basis_note);
+    let notes: Vec<String> = basis_note
+        .iter()
+        .cloned()
+        .chain(made.generation.notes.iter().cloned())
+        .collect();
     let provenance = bounded(format!(
-        "Made by the generator ‘{}’ ({} version {}, parameters sha256 {}, result sha256 {result}{}).",
+        "Made by the generator ‘{}’ ({} version {}, parameters sha256 {}, result sha256 {result}{}){}.{}",
         description.title,
         description.id,
         description.version,
         key.params,
         bundle
             .map(|b| format!(", bundle sha256 {b}"))
-            .unwrap_or_default()
+            .unwrap_or_default(),
+        preset
+            .map(|p| format!(" from the preset ‘{}’ ({})", p.name, basis_words(p)))
+            .unwrap_or_default(),
+        if notes.is_empty() {
+            String::new()
+        } else {
+            format!(" Generator notes: {}", notes.join(" "))
+        }
     ));
-    let notes_text = bounded(made.generation.notes.join(" "));
+    let part_description = bounded(preset.map(|p| p.description.clone()).unwrap_or_default());
     // The marking's artwork, packed as SVG once per hash.
     for asset in artwork {
         if project.library.assets.iter().any(|a| a.hash == asset.hash) {
@@ -675,7 +733,7 @@ pub(crate) fn generate(
     for ((r, definition), base) in definitions.into_iter().zip(bases) {
         let meta = DefinitionMeta {
             name: label(&base_name, suffix(r.kind)),
-            description: notes_text.clone(),
+            description: part_description.clone(),
             provenance: provenance.clone(),
         };
         drafts::create(drafts_mut, library, r.id, base, meta, definition)?;
@@ -724,9 +782,44 @@ pub(crate) fn generate(
             result,
             created: true,
             replaced: replaced.map(|(_, _, root, _)| root),
-            notes: made.generation.notes,
+            notes,
         },
     })
+}
+
+/// How far a preset's values are backed, in words: its basis and the
+/// document it cites.
+fn basis_words(preset: &v1::Preset) -> String {
+    let cited = preset
+        .citation
+        .as_ref()
+        .map(|c| c.document.clone())
+        .unwrap_or_else(|| "no document named".into());
+    match preset.basis {
+        v1::Basis::Cited => format!("cited: {cited}"),
+        v1::Basis::CitedUnverified => format!("cited, not checked against the source: {cited}"),
+        v1::Basis::Estimated => "estimated".into(),
+    }
+}
+
+/// The reviewer's note a preset that is not plainly cited adds before the
+/// generator's own: that its values are estimated or unverified, with the
+/// preset's note.
+fn preset_basis_note(preset: &v1::Preset) -> Option<String> {
+    let what = match preset.basis {
+        v1::Basis::Cited => return None,
+        v1::Basis::CitedUnverified => "cited but not checked against the source",
+        v1::Basis::Estimated => "estimated",
+    };
+    let note = preset
+        .note
+        .as_deref()
+        .map(|n| format!(" {n}"))
+        .unwrap_or_else(|| " Confirm them against the device's drawing.".into());
+    Some(format!(
+        "The preset ‘{}’ is {what}: its values, lands included, are not the maker's recommended layout until confirmed.{note}",
+        preset.name
+    ))
 }
 
 /// The host's evaluation of the part file `generation` names, checked to
@@ -804,6 +897,89 @@ pub(super) fn model_of(
 }
 
 /// The report for a part the project already holds: nothing changed.
+/// A second part from the parameters of a part the generator already made
+/// (`root`), under another `name`: its component, symbol and binding copied
+/// as new lineages named after it and published, on the same package and
+/// footprint, so each MPN is its own component. The copy is the person's
+/// own (its provenance names the original); the generated record stays the
+/// original's. `same` is what the request found.
+fn second_part(
+    document: &mut Document,
+    root: DefinitionRef,
+    name: &str,
+    same: Outcome,
+) -> Result<Outcome> {
+    let Outcome::Generated { report } = same else {
+        return Ok(same);
+    };
+    let component = crate::ids::ComponentRef::new(root.id, root.revision);
+    let lineages = match super::apply_library(
+        document,
+        super::LibraryCommand::Duplicate {
+            component,
+            name: name.to_owned(),
+        },
+        None,
+    )? {
+        Outcome::Duplicated { lineages } => lineages,
+        _ => {
+            return Err(Error::Invalid(
+                "generated.second_part: nothing was copied".into(),
+            ));
+        }
+    };
+    let published = match super::apply_library(
+        document,
+        super::LibraryCommand::Publish {
+            drafts: lineages,
+            close: true,
+        },
+        None,
+    )? {
+        Outcome::Published { revisions } => revisions,
+        _ => Vec::new(),
+    };
+    let new_root = published
+        .iter()
+        .find(|r| r.kind == crate::ids::DefinitionKind::Component)
+        .copied()
+        .ok_or_else(|| {
+            Error::Invalid("generated.second_part: no component was published".into())
+        })?;
+    let original = document
+        .project
+        .library
+        .definition(root)
+        .map(|(meta, _)| meta.name)
+        .unwrap_or_default();
+    let mut revisions = published;
+    revisions.extend(
+        report
+            .revisions
+            .iter()
+            .filter(|r| {
+                !matches!(
+                    r.kind,
+                    crate::ids::DefinitionKind::Component
+                        | crate::ids::DefinitionKind::Symbol
+                        | crate::ids::DefinitionKind::Binding
+                )
+            })
+            .copied(),
+    );
+    Ok(Outcome::Generated {
+        report: GenerateReport {
+            root: new_root,
+            revisions,
+            created: true,
+            notes: vec![format!(
+                "‘{original}’ is this generator's part for these parameters, so ‘{name}’ is a new component on its package and footprint, with its own symbol and binding."
+            )],
+            ..report
+        },
+    })
+}
+
 fn found(existing: &GeneratedPart, key: PartKey) -> Outcome {
     let key = existing.from.key().unwrap_or(key);
     Outcome::Generated {

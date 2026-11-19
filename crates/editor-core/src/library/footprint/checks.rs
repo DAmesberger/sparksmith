@@ -745,7 +745,14 @@ impl FootprintDefinition {
                 if !shared || !ba.inflated(ga + gb + min_web).intersects(bb) {
                     continue;
                 }
-                let web = ring_gap(ra, rb) - ga - gb;
+                // Pads whose copper overlaps or touches are one land (a
+                // ring round its own drill, a split land): their openings
+                // merge as the copper does, and no web lies between them.
+                let gap = ring_gap(ra, rb);
+                if gap <= 0.0 {
+                    continue;
+                }
+                let web = gap - ga - gb;
                 // A web of exactly the minimum passes: sums of decimal
                 // sizes and positions land a few ulps either side of it.
                 if web < min_web - WEB_TOLERANCE_MM && reported < 64 {
@@ -852,6 +859,13 @@ mod rules_tests {
                     .to_string()
             ]
         );
+        // Pads whose copper overlaps are one land: no web between them,
+        // under any minimum.
+        let mut one_land = f.clone();
+        one_land.pads[1].position = pt([0.3, 0.0]);
+        for rules in [&default, &fine] {
+            assert!(messages(&one_land, rules, "footprint.mask_web").is_empty());
+        }
 
         let mut strict = crate::rules::fixtures::rules()?;
         for (key, mm) in [

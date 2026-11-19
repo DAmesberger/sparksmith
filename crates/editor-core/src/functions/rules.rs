@@ -955,18 +955,53 @@ pub fn publish_findings(
         }
     }
     for outcome in &detailed.evaluation.outcomes {
-        if let RuleVerdict::Forbid { message, .. } = &outcome.verdict {
+        if let RuleVerdict::Forbid {
+            message,
+            terminals: named,
+        } = &outcome.verdict
+        {
+            let conflict = bounded(format!(
+                "Without explicit selections the fixed functions and design defaults break {}: {message}",
+                rule_name(&compiled, outcome.rule).replacen("Pin rule", "pin rule", 1),
+            ));
             out.push(publish_issue(
                 "rule.default_conflict",
-                bounded(format!(
-                    "Without explicit selections the fixed functions and design defaults break {}: {message}",
-                    rule_name(&compiled, outcome.rule).replacen("Pin rule", "pin rule", 1)
-                )),
+                format!("{conflict}{}", fixed_peripheral_hint(terminals, named)),
                 at(outcome.rule),
             ));
         }
     }
     out
+}
+
+/// What to change when a default conflict comes from a pin with a single
+/// function that takes a peripheral, such as a chip select that only
+/// lists its SPI role: that function is fixed, so always active, and its
+/// peripheral is always used. Empty when no such pin is among `named`
+/// (or among every pin when the verdict names none).
+fn fixed_peripheral_hint(terminals: &[TerminalDeclaration<'_>], named: &[TerminalId]) -> String {
+    let fixed: Vec<&str> = terminals
+        .iter()
+        .filter(|t| named.is_empty() || named.contains(&t.terminal))
+        .filter(|t| {
+            t.functions.is_some_and(
+                |f| matches!(f.functions.as_slice(), [only] if only.resource_role.is_some()),
+            )
+        })
+        .map(|t| t.name)
+        .take(4)
+        .collect();
+    let Some(first) = fixed.first() else {
+        return String::new();
+    };
+    format!(
+        " {} {} one function, which takes a peripheral, so it is always active: list \
+         the state the datasheet gives the pin in the other mode as a second function \
+         (a chip select tied high for I2C: an input such as ‘{first} high (I2C)’) and \
+         make it the default.",
+        fixed.join(", "),
+        if fixed.len() == 1 { "has" } else { "each have" },
+    )
 }
 
 /// The view of the assignment without explicit selections (each pin on

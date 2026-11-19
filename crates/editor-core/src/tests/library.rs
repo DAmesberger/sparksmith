@@ -283,7 +283,7 @@ fn checking_a_stale_draft_reports_the_draft_not_the_stored_revision() -> Result<
             .collect::<Vec<_>>(),
         vec![("definition.stale_base", Some(Stage::Publish))]
     );
-    let all = match engine.query(crate::Query::CheckDrafts {})? {
+    let all = match engine.query(crate::Query::CheckDrafts { detail: true })? {
         crate::QueryResult::Drafts(reports) => reports,
         other => return Err(Error::Invalid(format!("{other:?}"))),
     };

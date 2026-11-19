@@ -285,10 +285,10 @@ fn find_and_describe_reach_the_catalog() -> Fallible<()> {
         assert_eq!(exact["hits"][0]["kind"], "action");
         // Never is not in the catalog a model reaches.
         let never = c
-            .ok(FIND, json!({"text": "library.source.remove", "limit": 50}))
+            .ok(FIND, json!({"text": "library.favourite", "limit": 50}))
             .await?;
         let never = never["hits"].as_array().ok_or("hits")?;
-        assert!(never.iter().all(|h| h["name"] != "library.source.remove"));
+        assert!(never.iter().all(|h| h["name"] != "library.favourite"));
         let long = "x".repeat(tools::MAX_TEXT + 1);
         assert_eq!(
             c.refused(FIND, json!({"text": long})).await?,
@@ -346,7 +346,7 @@ fn find_and_describe_reach_the_catalog() -> Fallible<()> {
         assert!(one["schema"].is_object());
 
         assert_eq!(
-            c.refused(DESCRIBE, json!({"name": "library.source.remove"}))
+            c.refused(DESCRIBE, json!({"name": "library.favourite"}))
                 .await?,
             "catalog.unknown"
         );
@@ -525,7 +525,7 @@ fn query_apply_and_act_run_through_the_gate() -> Fallible<()> {
         assert_eq!(
             c.refused(
                 ACT,
-                json!({"name": "library.source.remove", "params": {"path": "/x"}})
+                json!({"name": "library.favourite", "params": {"favourite": true}})
             )
             .await?,
             "catalog.unknown"
@@ -590,10 +590,14 @@ fn projects_are_kept_apart_by_handle() -> Fallible<()> {
         let opened = c.ok(ACT, new.clone()).await?;
         let two = opened["project"].as_str().ok_or("handle")?.to_owned();
         assert_ne!(one, two);
-        assert_eq!(
-            c.refused(QUERY, json!({"name": "project.inspect"})).await?,
-            "project.ambiguous"
-        );
+        // A call that names no project goes to the current one: the one
+        // last opened, then the one a call last named.
+        let current = c.ok(QUERY, json!({"name": "project.inspect"})).await?;
+        assert_eq!(current["project"], two.as_str());
+        c.ok(QUERY, json!({"project": one, "name": "project.inspect"}))
+            .await?;
+        let current = c.ok(QUERY, json!({"name": "project.inspect"})).await?;
+        assert_eq!(current["project"], one.as_str());
         assert_eq!(
             c.refused(
                 QUERY,
@@ -752,6 +756,50 @@ fn generators_are_found_and_called() -> Fallible<()> {
             .collect();
         assert_eq!(names, expected, "{filter}");
     }
+    // One generator: its parameters in full, its presets by key, name and
+    // basis within the budget; one preset or `detail` gives the values.
+    for name in ["no-lead", "gull-wing", "chip"] {
+        let one = tools.ok(
+            QUERY,
+            json!({"name": "library.generators", "params": {"generator": name}}),
+        )?;
+        let size = one.to_string().len();
+        assert!(size <= GENERATORS_BUDGET, "{name}: {size} bytes");
+        let description = &one["shipped"][0]["description"];
+        assert!(description["params"].is_array(), "{one}");
+        let presets = description["presets"].as_array().ok_or("presets")?;
+        assert!(
+            presets
+                .iter()
+                .all(|p| p["key"].is_string() && p.get("params").is_none()),
+            "{name}: presets by key: {one}"
+        );
+    }
+    let preset = tools.ok(
+        QUERY,
+        json!({"name": "library.generators", "params": {"preset": "resistor-0603"}}),
+    )?;
+    let presets = preset["shipped"][0]["description"]["presets"]
+        .as_array()
+        .ok_or("presets")?;
+    let full: Vec<&Value> = presets
+        .iter()
+        .filter(|p| p.get("params").is_some())
+        .collect();
+    assert_eq!(full.len(), 1, "{preset}");
+    assert_eq!(full[0]["key"], "resistor-0603");
+    let all = tools.ok(
+        QUERY,
+        json!({"name": "library.generators", "params": {"generator": "chip", "detail": true}}),
+    )?;
+    assert!(
+        all["shipped"][0]["description"]["presets"]
+            .as_array()
+            .is_some_and(|p| p.iter().all(|p| p.get("params").is_some())),
+        "{all}"
+    );
+    let (failed, missing) = tools.query("library.generators", json!({"preset": "no-such-preset"}));
+    assert!(failed, "{missing}");
     let (failed, unknown) = tools.query("library.generators", json!({"generator": "gullwing"}));
     assert!(failed, "{unknown}");
     assert!(
@@ -800,6 +848,36 @@ fn show_needs_the_window() -> Fallible<()> {
 /// query schema wraps it in its tag (`{command, params}`), and every
 /// example a description gives (its `call` included) is accepted by the
 /// parser `apply` and `query` run, field check and typed read.
+#[test]
+fn no_describe_answers_with_a_bare_top_level_ref() -> Fallible<()> {
+    let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
+    let mut inlined = 0;
+    for entry in super::catalog::reachable() {
+        let name = entry.name.as_str();
+        let described = tools.ok(DESCRIBE, json!({"name": name}))?;
+        let schema = &described["schema"];
+        assert!(
+            schema.get("$ref").is_none(),
+            "{name}: describe's schema is a bare $ref: {schema}"
+        );
+        if name == "library.replace_body" {
+            inlined += 1;
+            assert!(
+                schema["properties"].is_object(),
+                "{name}: the parameters' properties are in the schema: {schema}"
+            );
+            assert!(
+                schema["description"]
+                    .as_str()
+                    .is_some_and(|d| d.starts_with("Give a placed part")),
+                "{name}: the entry's own description stays: {schema}"
+            );
+        }
+    }
+    assert_eq!(inlined, 1, "library.replace_body is reachable");
+    Ok(())
+}
+
 #[test]
 fn every_describe_example_is_what_apply_and_query_accept() -> Fallible<()> {
     let tools = super::testing::Tools::new(Session::default(), Grant::default())?;

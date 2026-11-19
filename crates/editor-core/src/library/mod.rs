@@ -209,6 +209,12 @@ pub struct Library {
     /// person's own.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub generated: Shared<Vec<generated::GeneratedPart>>,
+    /// The import review a published component revision still carries:
+    /// the pins nobody confirmed against the datasheet when it was
+    /// published. Outside revision bodies, so a revision's identity never
+    /// depends on it; drafting the revision again takes it back.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reviews: Shared<Vec<pinout::PublishedReview>>,
 }
 
 /// A field revision with the quantity kind its value type names, if any.
@@ -613,6 +619,22 @@ pub fn validate(library: &Library) -> Result<()> {
         }
     }
     bundle::validate_snapshot(library)?;
+    for review in library.reviews.iter() {
+        let terminals = library.component(review.component).ok_or_else(|| {
+            Error::Invalid(format!(
+                "a pin review names component {} {}, which the library does not hold",
+                review.component.id, review.component.revision
+            ))
+        })?;
+        let known = |t: &crate::ids::TerminalId| terminals.definition.terminal(*t).is_some();
+        if !review.review.unreviewed.iter().all(known) || !review.review.uncertain.iter().all(known)
+        {
+            return Err(Error::Invalid(format!(
+                "the pin review of component {} {} names a terminal it does not have",
+                review.component.id, review.component.revision
+            )));
+        }
+    }
     generated::validate(library)
 }
 

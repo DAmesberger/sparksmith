@@ -117,6 +117,12 @@ impl ReviewReport {
             if v.source.page == 0 {
                 out.push(format!("value {} ({}) needs a page", k + 1, v.item));
             }
+            if v.item.trim().is_empty() || v.value.trim().is_empty() {
+                out.push(format!(
+                    "value {} needs what it is in item and the value as used in value",
+                    k + 1
+                ));
+            }
         }
         out.truncate(MAX_PROBLEMS);
         out
@@ -213,6 +219,13 @@ pub struct ReviewCheckParams {
     /// of the drafts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
+    /// The component lineage the report is of: its draft and the drafts of
+    /// its symbol, binding, package and footprint, or, with no draft open,
+    /// its latest published revision with the pins it was published
+    /// unreviewed. Without it, the component draft named as the report's
+    /// `part`, else every open draft.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component: Option<sparksmith_core::ids::DefinitionId>,
 }
 
 /// One draft as the check sees it.
@@ -227,6 +240,8 @@ struct DraftState {
     uncertain: usize,
     /// Terminal names with an imported function that has no source page.
     unsourced: Vec<String>,
+    /// The pages (with their table) the imported functions cite.
+    pages: std::collections::BTreeMap<u64, String>,
 }
 
 fn drafts(snapshot: &Value) -> Vec<DraftState> {
@@ -259,6 +274,7 @@ fn drafts(snapshot: &Value) -> Vec<DraftState> {
             // Only an import's terminals carry sources; a draft with no
             // review state pending was authored or already confirmed.
             let mut unsourced = Vec::new();
+            let mut pages = std::collections::BTreeMap::new();
             if !review.is_null() {
                 for t in body["terminals"].as_array().into_iter().flatten() {
                     let functions = t["class"]["electrical"]["functions"].as_array();
@@ -268,6 +284,12 @@ fn drafts(snapshot: &Value) -> Vec<DraftState> {
                         .any(|f| f["source"]["page"].as_u64().is_none_or(|p| p == 0));
                     if missing {
                         unsourced.push(t["name"].as_str().unwrap_or("?").to_owned());
+                    }
+                    for source in functions.into_iter().flatten().map(|f| &f["source"]) {
+                        if let Some(page) = source["page"].as_u64().filter(|p| *p > 0) {
+                            let table = source["table"].as_str().unwrap_or_default();
+                            pages.entry(page).or_insert_with(|| table.to_owned());
+                        }
                     }
                 }
             }
@@ -280,6 +302,7 @@ fn drafts(snapshot: &Value) -> Vec<DraftState> {
                 unreviewed: count("unreviewed"),
                 uncertain: count("uncertain"),
                 unsourced,
+                pages,
             }
         })
         .collect()
@@ -326,14 +349,65 @@ pub fn check(snapshot: &Value, report: &ReviewReport) -> Value {
             ));
         }
     }
+    // The pages the imported pinout cites are pages or tables the report
+    // cites, so a reviewer finds each pin's table among the report's
+    // values. Named for the reviewer, not a refusal: the pin rows carry
+    // their own sources.
+    let cited: std::collections::BTreeSet<u64> = report
+        .values
+        .iter()
+        .map(|v| u64::from(v.source.page))
+        .collect();
+    let tables: std::collections::BTreeSet<String> = report
+        .values
+        .iter()
+        .map(|v| v.source.location.trim().to_lowercase())
+        .filter(|l| !l.is_empty())
+        .collect();
+    let uncited: std::collections::BTreeMap<u64, &str> = drafts
+        .iter()
+        .flat_map(|d| d.pages.iter())
+        .filter(|(page, table)| {
+            !cited.contains(page) && !tables.contains(&table.trim().to_lowercase())
+        })
+        .map(|(page, table)| (*page, table.as_str()))
+        .collect();
+    let mut uncited: Vec<String> = uncited
+        .into_iter()
+        .map(|(page, table)| {
+            if table.is_empty() {
+                format!("page {page}")
+            } else {
+                format!("page {page} ({table})")
+            }
+        })
+        .collect();
+    let mut uncited_note = None;
+    if !uncited.is_empty() {
+        let more = uncited.len() > MAX_NAMED;
+        uncited.truncate(MAX_NAMED);
+        uncited_note = Some(format!(
+            "the imported pinout cites {}{}, which no value in the report cites: list each pin table among the values with its document, page and table",
+            uncited.join(", "),
+            if more { ", …" } else { "" }
+        ));
+    }
     problems.truncate(MAX_PROBLEMS);
     let unreviewed: usize = drafts.iter().map(|d| d.unreviewed).sum();
     let mut md = String::new();
     let _ = writeln!(md, "# Datasheet import review: {}\n", report.part);
-    let _ = writeln!(
-        md,
-        "Status: **draft, not published**. Nothing enters a library until a person reviews the rows below and publishes.\n"
-    );
+    if snapshot["published"] == true {
+        let pins: usize = drafts.iter().map(|d| d.unreviewed).sum();
+        let _ = writeln!(
+            md,
+            "Status: **published**, with {pins} imported pins nobody has reviewed yet. A person checks each against the datasheet in the Pins tab.\n"
+        );
+    } else {
+        let _ = writeln!(
+            md,
+            "Status: **draft, not published**. Nothing enters a library until a person reviews the rows below and publishes.\n"
+        );
+    }
     md.push_str(&report_markdown(report));
     let _ = writeln!(md, "\n## Drafts\n");
     for d in &drafts {
@@ -363,6 +437,7 @@ pub fn check(snapshot: &Value, report: &ReviewReport) -> Value {
             "warnings": d.warnings,
         })).collect::<Vec<_>>(),
         "pins": {"unreviewed": unreviewed, "uncertain": uncertain},
+        "uncited": uncited_note,
         "markdown": md,
         "next": "Show the person the problems (fix them and check again) or, when accepted, the markdown: they review every unreviewed pin in the Pins tab and publish. Never publish for them.",
     })
@@ -483,5 +558,30 @@ mod tests {
                 .as_str()
                 .is_some_and(|m| m.contains("| pitch | 1.27 mm | DS p.12 Figure 3 | High |"))
         );
+    }
+
+    /// The pages an imported pinout cites that the report does not are named,
+    /// and every value says what it is and gives its value.
+    #[test]
+    fn the_report_cites_the_pages_the_pinout_cites() {
+        let snapshot = |page: u64| {
+            json!({"drafts": [{"draft": {"id": 1, "meta": {"name": "EX-MOD-1"}, "definition": {
+                "kind": "component", "body": {"review": {"unreviewed": [1], "uncertain": []},
+                "terminals": [{"name": "IO1", "class": {"electrical": {"functions": [
+                    {"label": "gpio", "source": {"page": page, "table": "Table 2"}}]}}}]}}},
+                "check": {"result": {"findings": []}}}]})
+        };
+        let cited = check(&snapshot(12), &report());
+        assert!(cited["uncited"].is_null(), "{cited}");
+        let uncited = check(&snapshot(7), &report());
+        assert!(
+            uncited["uncited"].as_str().is_some_and(
+                |n| n.contains("cites page 7 (Table 2), which no value in the report cites")
+            ),
+            "{uncited}"
+        );
+        let mut r = report();
+        r.values[0].value = " ".into();
+        assert!(r.problems().iter().any(|p| p.contains("value as used")));
     }
 }

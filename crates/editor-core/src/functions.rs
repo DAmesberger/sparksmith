@@ -339,6 +339,17 @@ impl Direction {
             Self::PowerOutput => "power output",
         }
     }
+    /// The direction as the wire spells it (`power_input`).
+    pub fn wire(self) -> &'static str {
+        match self {
+            Self::Input => "input",
+            Self::Output => "output",
+            Self::Bidirectional => "bidirectional",
+            Self::Passive => "passive",
+            Self::PowerInput => "power_input",
+            Self::PowerOutput => "power_output",
+        }
+    }
     fn is_power(self) -> bool {
         matches!(self, Self::PowerInput | Self::PowerOutput)
     }
@@ -379,6 +390,29 @@ impl Function {
             self.drive == Drive::None
         };
         drive_ok && (self.signal == SignalKind::Power) == self.direction.is_power()
+    }
+
+    /// The valid combinations nearest an invalid one, in the wire's words:
+    /// what to change to keep the direction, and the other direction that
+    /// fits the signal and drive given.
+    pub fn combination_alternatives(&self) -> String {
+        let direction = self.direction.wire();
+        if self.signal == SignalKind::Power && !self.direction.is_power() {
+            return format!(
+                "A power signal needs direction power_input or power_output with drive none; a {direction} function takes signal digital, analog or unspecified."
+            );
+        }
+        if self.direction.is_power() {
+            return format!("A {direction} function takes signal power and drive none.");
+        }
+        if self.direction.drives() {
+            return format!(
+                "A {direction} function drives: give it drive push_pull, open_drain or open_source, or make it passive (an analog pin that neither only reads nor drives) or input, with drive none."
+            );
+        }
+        format!(
+            "Only output and bidirectional functions drive: give a {direction} function drive none, or make it output or bidirectional to keep the drive."
+        )
     }
 
     /// The mux selector as people read it: the table and the code ("LP IO
@@ -593,11 +627,12 @@ pub fn declaration_findings(
                 out.push(publish_issue(
                     "function.combination",
                     format!(
-                        "{pin}: function ‘{}’ is {} with {} signal and {} drive, not a valid combination.",
+                        "{pin}: function ‘{}’ is {} with {} signal and {} drive, not a valid combination. {}",
                         function.label,
                         function.direction.label(),
                         function.signal.label(),
-                        function.drive.label()
+                        function.drive.label(),
+                        function.combination_alternatives()
                     ),
                     at.clone(),
                 ));
@@ -1045,5 +1080,71 @@ mod role_limit_tests {
             "{found:?}"
         );
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod combination_tests {
+    use super::{Direction, Drive, Function, SignalKind};
+    use crate::ids::FunctionId;
+
+    fn function(direction: Direction, signal: SignalKind, drive: Drive) -> Function {
+        Function {
+            id: FunctionId(1),
+            label: "f".into(),
+            direction,
+            signal,
+            drive,
+            resource_role: None,
+            mux: None,
+            mux_table: None,
+            source: None,
+        }
+    }
+
+    /// Every invalid combination names a valid one to change to, in the
+    /// wire's words, and that change is valid.
+    #[test]
+    fn a_refused_combination_names_valid_alternatives() {
+        let analog_io = function(Direction::Bidirectional, SignalKind::Analog, Drive::None);
+        assert!(!analog_io.combination_valid());
+        let says = analog_io.combination_alternatives();
+        assert!(
+            says.contains("push_pull") && says.contains("passive"),
+            "{says}"
+        );
+        assert!(function(Direction::Passive, SignalKind::Analog, Drive::None).combination_valid());
+        assert!(
+            function(
+                Direction::Bidirectional,
+                SignalKind::Analog,
+                Drive::PushPull
+            )
+            .combination_valid()
+        );
+
+        let driven_input = function(Direction::Input, SignalKind::Digital, Drive::PushPull);
+        assert!(
+            driven_input
+                .combination_alternatives()
+                .contains("drive none")
+        );
+        assert!(function(Direction::Input, SignalKind::Digital, Drive::None).combination_valid());
+
+        let power_input = function(Direction::Input, SignalKind::Power, Drive::None);
+        assert!(
+            power_input
+                .combination_alternatives()
+                .contains("power_input or power_output")
+        );
+        assert!(
+            function(Direction::PowerInput, SignalKind::Power, Drive::None).combination_valid()
+        );
+        let digital_supply = function(Direction::PowerInput, SignalKind::Digital, Drive::None);
+        assert!(
+            digital_supply
+                .combination_alternatives()
+                .contains("signal power and drive none")
+        );
     }
 }

@@ -45,6 +45,22 @@ pub enum LibraryCommand {
     /// footprint (`Outcome::DraftsCreated`, possibly empty: nothing changes).
     #[serde(rename = "library.draft_closure")]
     DraftClosure { component: ComponentRef },
+    /// Draft a component's manufacturer Part with its manufacturer and
+    /// complete part number. The Part pins the component's
+    /// draft (the revision publishing it makes) or else its latest
+    /// revision, and the binding that revision lists (`binding` names one
+    /// when it lists several). Publish it with the component's drafts in
+    /// one `library.publish`, e.g. `{"component": 2, "manufacturer":
+    /// "Texas Instruments", "mpn": "INA3221AIRGVR"}`. One undo step
+    /// (`Outcome::DraftCreated`).
+    #[serde(rename = "library.draft_part")]
+    DraftPart {
+        component: DefinitionId,
+        manufacturer: String,
+        mpn: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        binding: Option<DefinitionId>,
+    },
     /// "Edit a copy in this project": import a folder bundle of a component or
     /// Part and draft its working set, as one undo step. Revisions the project
     /// holds are reused, as `library.import` does, and the working set is
@@ -275,6 +291,7 @@ declare_entries!(LibraryCommand in library {
     NewDraft "library.new_draft" Edit "New draft",
     DraftFrom "library.draft_from" Edit "Draft from a revision",
     DraftClosure "library.draft_closure" Edit "Draft a definition and its parts",
+    DraftPart "library.draft_part" Edit "Draft a component's manufacturer Part" [since(3, 10)],
     EditCopy "library.edit_copy" Edit "Edit a copy",
     Edit "library.edit" Edit "Edit drafts",
     DiscardDraft "library.discard_draft" Edit "Discard a draft",
@@ -798,6 +815,95 @@ pub(super) fn import_bundle(
 /// the component, its first symbol, its first binding, that binding's
 /// package and first footprint, each from the revision the component
 /// names. Returns the drafted lineages, component first.
+/// `library.draft_part`: a new Part draft named "<manufacturer> <mpn>"
+/// pinning `component`'s draft (its pending revision) or latest revision
+/// and the binding that revision lists.
+fn draft_part(
+    document: &mut Document,
+    component: DefinitionId,
+    manufacturer: &str,
+    mpn: &str,
+    binding: Option<DefinitionId>,
+) -> Result<Outcome> {
+    let (manufacturer, mpn) = (manufacturer.trim(), mpn.trim());
+    if manufacturer.is_empty() || mpn.is_empty() {
+        return Err(Error::Invalid(
+            "library.draft_part: give the manufacturer and the complete part number, e.g. {\"manufacturer\": \"Texas Instruments\", \"mpn\": \"INA3221AIRGVR\"}".into(),
+        ));
+    }
+    let library = &document.project.library;
+    let (pinned, body) = match document.drafts.get(component) {
+        Some(draft) => match (&draft.definition, draft.pending()) {
+            (Definition::Component(body), Some(revision)) => {
+                (ComponentRef::new(component, revision), body.clone())
+            }
+            _ => {
+                return Err(Error::Invalid(format!(
+                    "library.draft_part: draft {component} is not a component"
+                )));
+            }
+        },
+        None => {
+            let latest = library
+                .latest_components()
+                .into_iter()
+                .find(|c| c.id == component)
+                .ok_or_else(|| {
+                    Error::NotFound(format!(
+                        "library.draft_part: no component {component} is drafted or published"
+                    ))
+                })?;
+            (
+                ComponentRef::new(latest.id, latest.revision),
+                latest.definition.clone(),
+            )
+        }
+    };
+    let listed: Vec<String> = body
+        .implementations
+        .iter()
+        .map(|b| b.id.to_string())
+        .collect();
+    let binding = match (binding, body.implementations.as_slice()) {
+        (Some(wanted), all) => all.iter().find(|b| b.id == wanted).copied().ok_or_else(|| {
+            Error::Invalid(format!(
+                "library.draft_part: component {component} lists no binding {wanted}; it lists {}",
+                listed.join(", ")
+            ))
+        })?,
+        (None, [only]) => *only,
+        (None, []) => {
+            return Err(Error::Invalid(format!(
+                "library.draft_part: component {component} lists no binding, so a Part has no package to pin; give it a binding first"
+            )));
+        }
+        (None, _) => {
+            return Err(Error::Invalid(format!(
+                "library.draft_part: component {component} lists the bindings {}: name the Part's with binding",
+                listed.join(", ")
+            )));
+        }
+    };
+    let meta = DefinitionMeta {
+        name: format!("{manufacturer} {mpn}"),
+        description: String::new(),
+        provenance: String::new(),
+    };
+    let definition = Definition::Part(Box::new(library::PartDefinition {
+        manufacturer: manufacturer.to_owned(),
+        mpn: mpn.to_owned(),
+        component: pinned,
+        binding,
+        ..library::PartDefinition::default()
+    }));
+    library::check_bounds(&meta, &definition)?;
+    let project = Arc::make_mut(&mut document.project);
+    let id = DefinitionId(project.allocate()?);
+    let drafts = Arc::make_mut(&mut document.drafts);
+    drafts::create(drafts, &project.library, id, None, meta, definition)?;
+    Ok(Outcome::DraftCreated { id })
+}
+
 fn draft_closure(document: &mut Document, component: ComponentRef) -> Result<Vec<DefinitionId>> {
     let library = &document.project.library;
     let body = &library
@@ -827,11 +933,16 @@ fn draft_closure(document: &mut Document, component: ComponentRef) -> Result<Vec
         if document.drafts.get(revision.id).is_some() {
             continue;
         }
-        let (meta, definition) = document
+        let (meta, mut definition) = document
             .project
             .library
             .definition(revision)
             .ok_or_else(|| Error::NotFound("that revision is not in the project library".into()))?;
+        crate::library::pinout::restore_review(
+            &document.project.library,
+            revision,
+            &mut definition,
+        );
         drafts::create(
             Arc::make_mut(&mut document.drafts),
             &document.project.library,
@@ -918,7 +1029,7 @@ pub(crate) fn apply_library(
             Ok(Outcome::DraftCreated { id })
         }
         LibraryCommand::DraftFrom { revision } => {
-            let (meta, definition) =
+            let (meta, mut definition) =
                 document
                     .project
                     .library
@@ -926,6 +1037,11 @@ pub(crate) fn apply_library(
                     .ok_or_else(|| {
                         Error::NotFound("that revision is not in the project library".into())
                     })?;
+            crate::library::pinout::restore_review(
+                &document.project.library,
+                revision,
+                &mut definition,
+            );
             let drafts = Arc::make_mut(&mut document.drafts);
             drafts::create(
                 drafts,
@@ -941,6 +1057,12 @@ pub(crate) fn apply_library(
             let ids = draft_closure(document, component)?;
             Ok(Outcome::DraftsCreated { ids })
         }
+        LibraryCommand::DraftPart {
+            component,
+            manufacturer,
+            mpn,
+            binding,
+        } => draft_part(document, component, &manufacturer, &mpn, binding),
         LibraryCommand::EditCopy { bundle } => {
             let report = import_bundle(document, &bundle)?;
             let root = report.root;

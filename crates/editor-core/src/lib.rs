@@ -215,9 +215,16 @@ pub enum Query {
     CheckDefinition { target: CheckTarget },
     /// `component.check` of every draft, in draft order, staged once.
     #[serde(rename = "component.check_drafts")]
-    CheckDrafts {},
-    /// Ranked component lineages at their latest published revision for a
-    /// one-line query. The query takes free text, `pkg:`/`has:`/`missing:`
+    CheckDrafts {
+        /// Every object each finding names. Without it, over JSON lines
+        /// and MCP, a finding names its first few objects and counts the
+        /// rest in `objects_more`; the report is otherwise the same.
+        #[serde(default)]
+        detail: bool,
+    },
+    /// List or search library components and Parts, ranked, at their latest
+    /// revision. `src:project kind:component` lists the project's own
+    /// components. The query takes free text, `pkg:`/`has:`/`missing:`
     /// filters and unit-aware field predicates such as `res>=10k`, `tol<=1%` or
     /// `C:1n..100n`. Field keys resolve against the project's field
     /// definitions.
@@ -481,7 +488,7 @@ declare_entries!(Query in project {
     InspectInstance "component.inspect" Read "Inspect an instance" [in schematic, link],
     CheckDefinition "component.check" Read "Check a definition" [in library, link],
     CheckDrafts "component.check_drafts" Read "Check all drafts" [in library, link],
-    Search "library.search" Read "Search the library" [in library, link],
+    Search "library.search" Read "List or search library components" [in library, link],
     Facets "library.facets" Read "List search filters" [in library, link],
     InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link],
     Bom "project.bom" Read "Bill of materials" [link],
@@ -2122,7 +2129,7 @@ impl Engine {
             Query::CheckDefinition { target } => Ok(QueryResult::Definition(
                 completeness::definition(&self.document.project, &self.document.drafts, target)?,
             )),
-            Query::CheckDrafts {} => Ok(QueryResult::Drafts(completeness::drafts(
+            Query::CheckDrafts { .. } => Ok(QueryResult::Drafts(completeness::drafts(
                 &self.document.project,
                 &self.document.drafts,
             )?)),

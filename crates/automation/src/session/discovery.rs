@@ -270,11 +270,12 @@ pub(super) fn schema_reply(params: SchemaParams) -> Result<Value> {
 }
 
 fn describe(entry: &Entry) -> Value {
+    let schema = inline_top_ref(&entry.params, entry.root);
     let mut out = json!({
         "kind": entry.kind,
         "name": entry.name,
         "class": entry.class,
-        "schema": entry.params,
+        "schema": schema,
     });
     let examples = examples(&entry.name);
     if !examples.is_empty() {
@@ -289,7 +290,36 @@ fn describe(entry: &Entry) -> Value {
     if let Some(send) = &entry.send {
         out["send"] = send.clone();
     }
-    add_defs(&mut out, &entry.params, entry.root);
+    add_defs(&mut out, &schema, entry.root);
+    out
+}
+
+/// `schema` with a top-level `$ref` replaced by the definition it names, so
+/// a caller reads the parameters' properties in `schema` itself rather than
+/// a bare reference into `$defs`. The schema's own description wins over the
+/// definition's; a chain of references is followed a few steps.
+pub(super) fn inline_top_ref(schema: &Value, root: &Value) -> Value {
+    let mut out = schema.clone();
+    for _ in 0..4 {
+        let Some(name) = out
+            .get("$ref")
+            .and_then(Value::as_str)
+            .and_then(def_name)
+            .map(str::to_owned)
+        else {
+            break;
+        };
+        let Some(Value::Object(def)) = root["$defs"].get(&name) else {
+            break;
+        };
+        let Some(object) = out.as_object_mut() else {
+            break;
+        };
+        object.remove("$ref");
+        for (key, value) in def {
+            object.entry(key.clone()).or_insert_with(|| value.clone());
+        }
+    }
     out
 }
 

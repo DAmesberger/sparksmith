@@ -698,6 +698,34 @@ fn publish_findings_check_scripts_references_and_the_default() -> Result<()> {
     )]);
     assert_eq!(codes(&default), vec!["rule.default_conflict"]);
     assert!(default[0].message.ends_with("PA9 must not idle as GPIO."));
+    // A pin whose one function takes a peripheral is always active: the
+    // conflict names it and says how to give it its other mode.
+    let mut fixed = Mcu::new();
+    fixed.terminals[2].2 = Some(functions(
+        vec![function(105, "spi_sck", Some((60, 61)))],
+        105,
+    ));
+    let fixed_declarations = fixed.declarations();
+    let found = publish_findings(
+        component,
+        Some((&fixed_declarations, &fixed.resources)),
+        &[rule(
+            1,
+            "one_bus",
+            r#"if used("SPI1") { forbid("SPI1 is off until chosen.", ["P1.2"]) } else { ok() }"#,
+        )],
+    );
+    assert_eq!(codes(&found), vec!["rule.default_conflict"]);
+    assert!(
+        found[0]
+            .message
+            .contains("SPI1 is off until chosen. P1.2 has one function")
+            && found[0].message.contains("‘P1.2 high (I2C)’"),
+        "{}",
+        found[0].message
+    );
+    // A conflict that comes from a design default gets no such hint.
+    assert!(!default[0].message.contains("one function"));
     // A require or warn verdict at the default is allowed.
     assert!(
         check(&[

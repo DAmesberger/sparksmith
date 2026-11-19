@@ -319,6 +319,7 @@ const RESERVED_KEYS: &[&str] = &[
     "tag",
     "shelf",
     "mpn",
+    "gen",
     "life",
     "pins",
     "pitch",

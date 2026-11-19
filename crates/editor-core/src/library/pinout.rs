@@ -90,8 +90,20 @@ pub struct PinoutPeripheral {
 #[serde(deny_unknown_fields)]
 pub struct PinoutFunction {
     pub label: String,
+    /// With `signal` and `drive`, one of the valid combinations (anything
+    /// else is `function.combination`, which blocks publishing):
+    /// `input` or `passive` with signal `digital`, `analog` or
+    /// `unspecified` and drive `none`; `output` or `bidirectional` with
+    /// signal `digital`, `analog` or `unspecified` and drive `push_pull`,
+    /// `open_drain` or `open_source` (only these two directions drive);
+    /// `power_input` or `power_output` with signal `power` and drive
+    /// `none`. An analog pin that neither only reads nor drives (a crystal
+    /// or USB data pin) is `passive`.
     pub direction: Direction,
+    /// `power` exactly for the power directions; see `direction`.
     pub signal: SignalKind,
+    /// `none` unless the direction is `output` or `bidirectional`, which
+    /// need one; see `direction`. Defaults to `none`.
     #[serde(default = "no_drive")]
     pub drive: Drive,
     /// Peripheral and role labels, stated explicitly.
@@ -148,14 +160,28 @@ pub struct PinoutPin {
     /// ("DFN-8" → ["5", "6", "7"]; an exposed pad split into "9", "10").
     pub number: BTreeMap<String, PinNumbers>,
     pub name: String,
+    /// `electrical` for a pin with a use; `device_nc` (not connected
+    /// inside the device) and `reserved` rows list no functions
+    /// (`"functions": []`) and say in `note` how to treat the pin, e.g.
+    /// `{"row": "r3", "class": "reserved", "functions": [], "note":
+    /// "Reserved: connect to ground or leave open."}`.
     pub class: PinoutClass,
     #[serde(default)]
     pub gpio: Option<GpioRef>,
     #[serde(default)]
     pub options: PinoutOptions,
+    /// An electrical row's 1–32 functions; none for `device_nc` and
+    /// `reserved`. A row with one function is fixed: it is always active.
+    /// A pin that takes a peripheral in one mode and is tied off in
+    /// another (a chip select tied high for I2C) lists the tied state the
+    /// datasheet gives as a second function, so the other mode can be
+    /// chosen and made the default.
     #[serde(default)]
     pub functions: Vec<PinoutFunction>,
-    /// Label of the design-default function.
+    /// Label of the design-default function: the one used without an
+    /// explicit selection, for a row with two or more functions. The
+    /// defaults of all rows together must break no rule
+    /// (`rule.default_conflict`).
     #[serde(default)]
     pub default: Option<String>,
     #[serde(default)]
@@ -357,16 +383,16 @@ pub struct PinoutPlan {
     pub review: Vec<ReviewItem>,
     /// Without `detail`: the findings by code, with their count and the
     /// first messages.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub finding_groups: Vec<FindingGroup>,
     /// Without `detail`: the review items by reason, with every row and
     /// the first messages.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub review_groups: Vec<ReviewGroup>,
     /// Each pin rule evaluated without selections and over the samples it
     /// names ([`crate::functions::rules::check_samples`]): what it says
     /// and where it fails. Failures are also blocking findings.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub rules: Vec<crate::functions::rules::RuleCheck>,
     /// Whether changes, findings and review items are listed one by one.
     #[serde(default)]
@@ -500,6 +526,40 @@ pub struct ImportReview {
 impl ImportReview {
     pub fn is_empty(&self) -> bool {
         self.unreviewed.is_empty() && self.uncertain.is_empty()
+    }
+}
+
+/// The import review of one published component revision: the pins still
+/// unreviewed when it was published (`Library::reviews`).
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PublishedReview {
+    pub component: crate::ids::ComponentRef,
+    pub review: ImportReview,
+}
+
+impl Library {
+    /// The import review `component` was published with, if any.
+    pub fn review_of(&self, component: crate::ids::ComponentRef) -> Option<&ImportReview> {
+        self.reviews
+            .iter()
+            .find(|r| r.component == component)
+            .map(|r| &r.review)
+    }
+}
+
+/// `definition` with the import review its revision `at` was published
+/// with, so a draft of it shows the pins still to review.
+pub fn restore_review(
+    library: &Library,
+    at: crate::ids::DefinitionRef,
+    definition: &mut super::Definition,
+) {
+    if let super::Definition::Component(component) = definition
+        && component.review.is_none()
+        && let Some(review) = library.review_of(crate::ids::ComponentRef::new(at.id, at.revision))
+    {
+        component.review = Some(Box::new(review.clone()));
     }
 }
 

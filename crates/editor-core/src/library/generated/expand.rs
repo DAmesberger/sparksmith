@@ -793,9 +793,15 @@ fn footprint(
     let source = &generation.footprint;
     let pads = footprint_pads(generation, terminals, ids)?;
     let mut graphics = Vec::new();
+    // The graphics a generator keys `pin1…` mark pin 1 (a dot, a bevel).
+    let mut markers = Vec::new();
     let mut push = |key: String, layer: DrawingLayer, item: Item| {
+        let id = GraphicId(ids.id(key.clone())?);
+        if key.starts_with("g:pin1") && markers.len() < graphics::MAX_POLARITY_MARKERS {
+            markers.push(id);
+        }
         graphics.push(FootprintGraphic {
-            id: GraphicId(ids.id(key)?),
+            id,
             layer,
             side: graphics::Side::Component,
             item,
@@ -831,16 +837,49 @@ fn footprint(
         };
         push("courtyard".into(), DrawingLayer::Courtyard, courtyard)?;
     }
+    let polarity = polarity(generation, terminals, &pads, markers);
     Ok(FootprintDefinition {
         package,
         next_local: ids.next_local(),
         source: None,
         pads,
         graphics,
-        polarity: None,
+        polarity,
         datum: Default::default(),
         defaults: Default::default(),
         keepouts: source.keepouts.iter().map(keepout).collect::<Result<_>>()?,
+    })
+}
+
+/// The footprint's pin-1 polarity from the generation: the first pad that
+/// lands the package's pin 1, with the graphics the generator keyed
+/// `pin1…`. Given when the generator marks pin 1 or the footprint has more
+/// pads than a two-terminal part (where pin 1 tells a connector's or an
+/// IC's orientation); a two-pad part without a marker (a resistor) has no
+/// polarity.
+fn polarity(
+    generation: &v1::Generation,
+    terminals: &Ids,
+    pads: &[Pad],
+    markers: Vec<GraphicId>,
+) -> Option<graphics::Polarity> {
+    let pin1 = terminals
+        .of(
+            &format!("t:{}", generation.package.geometry.pin1),
+            "package terminal",
+        )
+        .ok()
+        .map(PackageTerminalId)?;
+    let pad = pads
+        .iter()
+        .find(|p| p.terminal == Some(pin1) && p.kind != PadKind::NonPlatedHole)?;
+    let landed = pads
+        .iter()
+        .filter(|p| p.kind != PadKind::NonPlatedHole)
+        .count();
+    (!markers.is_empty() || landed > 2).then_some(graphics::Polarity {
+        pad: pad.id,
+        markers,
     })
 }
 

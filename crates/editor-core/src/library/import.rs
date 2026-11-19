@@ -362,7 +362,7 @@ pub fn project_bundle(source: &Library, root: DefinitionRef, name: &str) -> Resu
         let at = source_revision(*member).ok_or_else(|| {
             Error::Invalid(format!("{} was not mapped", source.describe(*member)))
         })?;
-        let record = bundle::to_record(
+        let mut record = bundle::to_record(
             at.lineage,
             at.revision,
             meta,
@@ -386,6 +386,11 @@ pub fn project_bundle(source: &Library, root: DefinitionRef, name: &str) -> Resu
                 })
             },
         )?;
+        record.generated = super::generated::recipe(source, *member);
+        record.review = source
+            .review_of(crate::ids::ComponentRef::new(member.id, member.revision))
+            .filter(|_| member.kind == DefinitionKind::Component)
+            .cloned();
         assets.extend(record.assets.iter().copied());
         records.push(record);
     }
@@ -572,7 +577,7 @@ pub fn export(
         let at = sources.get(member).copied().ok_or_else(|| {
             Error::Invalid(format!("{} was not mapped", library.describe(*member)))
         })?;
-        let record = bundle::to_record(
+        let mut record = bundle::to_record(
             at.lineage,
             at.revision,
             meta,
@@ -596,6 +601,11 @@ pub fn export(
                 })
             },
         )?;
+        record.generated = super::generated::recipe(library, *member);
+        record.review = library
+            .review_of(crate::ids::ComponentRef::new(member.id, member.revision))
+            .filter(|_| member.kind == DefinitionKind::Component)
+            .cloned();
         assets.extend(record.assets.iter().copied());
         if new.contains(member) {
             origins.push(OriginRecord {
@@ -702,6 +712,7 @@ pub fn duplicate(
         let mut definition = symbol.definition.clone();
         definition.component = copy;
         let meta = DefinitionMeta {
+            name: renamed(&symbol.meta.name, &source.meta.name, name),
             provenance: provenance(&symbol.meta.provenance, &line),
             ..symbol.meta.clone()
         };
@@ -719,6 +730,7 @@ pub fn duplicate(
         let mut definition = binding.definition.clone();
         definition.component = copy;
         let meta = DefinitionMeta {
+            name: renamed(&binding.meta.name, &source.meta.name, name),
             provenance: provenance(&binding.meta.provenance, &line),
             ..binding.meta.clone()
         };
@@ -737,4 +749,14 @@ pub fn duplicate(
         lineages.push(id);
     }
     Ok(lineages)
+}
+
+/// A copied definition's name after its component's: `from`'s name as its
+/// prefix becomes `to` ("A symbol" of "A" becomes "B symbol"); any other
+/// name stays.
+fn renamed(name: &str, from: &str, to: &str) -> String {
+    match name.strip_prefix(from) {
+        Some(rest) if !from.is_empty() => format!("{to}{rest}"),
+        _ => name.to_owned(),
+    }
 }

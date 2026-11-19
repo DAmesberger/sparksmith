@@ -17,7 +17,7 @@ fn publish_op(id: Vec<DefinitionId>, close: bool) -> Operation {
 }
 
 fn all_checks(engine: &Engine) -> Result<Vec<DefinitionReport>> {
-    match engine.query(Query::CheckDrafts {})? {
+    match engine.query(Query::CheckDrafts { detail: true })? {
         QueryResult::Drafts(reports) => Ok(reports),
         other => Err(Error::Invalid(format!("unexpected report {other:?}"))),
     }

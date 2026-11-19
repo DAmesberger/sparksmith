@@ -226,7 +226,33 @@ fn text(key: &str, label: &str, default: &str, group: &str) -> Param {
     }
 }
 
-fn list(key: &str, label: &str, of: ParamType, max: usize, default: Vec<ParamValue>) -> Param {
+/// A list parameter of the pad rows.
+fn row_list(key: &str, label: &str, of: ParamType, max: usize, default: Vec<ParamValue>) -> Param {
+    list("rows", key, label, of, max, default)
+}
+
+/// A list parameter of the single pads.
+fn single_list(
+    key: &str,
+    label: &str,
+    of: ParamType,
+    max: usize,
+    default: Vec<ParamValue>,
+) -> Param {
+    list("single pads", key, label, of, max, default)
+}
+
+/// A list parameter in `group`, named by the caller: choosing the group
+/// from the key inside one function came out of the wasm32 build with the
+/// row lists' group cut to "sing".
+fn list(
+    group: &str,
+    key: &str,
+    label: &str,
+    of: ParamType,
+    max: usize,
+    default: Vec<ParamValue>,
+) -> Param {
     Param {
         key: key.into(),
         label: label.into(),
@@ -236,14 +262,7 @@ fn list(key: &str, label: &str, of: ParamType, max: usize, default: Vec<ParamVal
             max_len: u32::try_from(max).unwrap_or(0),
         },
         default: ParamValue::List(default),
-        group: Some(
-            if key.starts_with("row") {
-                "rows"
-            } else {
-                "single pads"
-            }
-            .into(),
-        ),
+        group: Some(group.into()),
         context: None,
     }
 }
@@ -289,7 +308,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             })
             .collect(),
     };
-    let mut row_sides = list(
+    let mut row_sides = row_list(
         "row_sides",
         "Side of each pad row",
         sides,
@@ -450,7 +469,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "rows",
         ),
         row_sides,
-        list(
+        row_list(
             "row_counts",
             "Pads of each row",
             ParamType::Count {
@@ -460,14 +479,14 @@ fn description_with(presets: Vec<Preset>) -> Description {
             ROW_SLOTS,
             ints(&[14, 10, 14]),
         ),
-        list(
+        row_list(
             "row_x",
             "First pad centre x of each row",
             coord.clone(),
             ROW_SLOTS,
             ints(&[-8_400_000, -5_715_000, 8_400_000]),
         ),
-        list(
+        row_list(
             "row_y",
             "First pad centre y of each row",
             coord.clone(),
@@ -527,7 +546,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         ),
         ground_rotation,
         text("ground_number", "Ground terminal number", "39", "ground"),
-        list(
+        single_list(
             "single_numbers",
             "Number of each single pad",
             ParamType::Text {
@@ -536,28 +555,28 @@ fn description_with(presets: Vec<Preset>) -> Description {
             SINGLE_SLOTS,
             Vec::new(),
         ),
-        list(
+        single_list(
             "single_x",
             "Centre x of each single pad",
             coord.clone(),
             SINGLE_SLOTS,
             Vec::new(),
         ),
-        list(
+        single_list(
             "single_y",
             "Centre y of each single pad",
             coord,
             SINGLE_SLOTS,
             Vec::new(),
         ),
-        list(
+        single_list(
             "single_length",
             "Size x of each single pad",
             size.clone(),
             SINGLE_SLOTS,
             Vec::new(),
         ),
-        list(
+        single_list(
             "single_width",
             "Size y of each single pad",
             size,

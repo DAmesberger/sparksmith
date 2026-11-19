@@ -257,7 +257,9 @@ impl Session {
         if items.is_empty() {
             return Ok(Vec::new());
         }
-        let QueryResult::Drafts(reports) = self.engine.query(Query::CheckDrafts {})? else {
+        let QueryResult::Drafts(reports) =
+            self.engine.query(Query::CheckDrafts { detail: true })?
+        else {
             return Err(sparksmith_core::Error::Invalid(
                 "component.check_drafts gave another report".into(),
             )
@@ -322,8 +324,18 @@ fn nothing_at(snapshot: &Value, at: &str) -> String {
             }
             None => {
                 let place = if matched.is_empty() { "/" } else { &matched };
+                // A path that lives under the project (`/library/…`)
+                // names where it is.
+                let under_project = matched.is_empty() && snapshot["project"].pointer(at).is_some();
+                let hint = if under_project {
+                    format!(
+                        ". It is at /project{at}. To list library components by name, query library.search {{query: \"src:project kind:component\", limit: 200}}."
+                    )
+                } else {
+                    String::new()
+                };
                 return format!(
-                    "nothing at {at} in the snapshot: {raw} is not in {place}, where {}",
+                    "nothing at {at} in the snapshot: {raw} is not in {place}, where {}{hint}",
                     valid_below(here)
                 );
             }
@@ -357,6 +369,33 @@ fn valid_below(value: &Value) -> String {
 
 /// Remove `verbose` from a request and from its parameters; true when either
 /// asked for the snapshot.
+/// Objects one finding names in a summarised report; the rest are counted
+/// in `objects_more`.
+pub(crate) const MAX_FINDING_OBJECTS: usize = 5;
+
+/// `component.check_drafts` without `detail`: each finding of each report
+/// names its first [`MAX_FINDING_OBJECTS`] objects and counts the rest, so
+/// a draft with every pin unreviewed answers in a few hundred bytes.
+pub(crate) fn summarise_finding_objects(reports: &mut Value) {
+    let Some(reports) = reports.as_array_mut() else {
+        return;
+    };
+    for finding in reports
+        .iter_mut()
+        .filter_map(|r| r.get_mut("findings").and_then(Value::as_array_mut))
+        .flatten()
+    {
+        let Some(objects) = finding.get_mut("objects").and_then(Value::as_array_mut) else {
+            continue;
+        };
+        let more = objects.len().saturating_sub(MAX_FINDING_OBJECTS);
+        if more > 0 {
+            objects.truncate(MAX_FINDING_OBJECTS);
+            finding["objects_more"] = json!(more);
+        }
+    }
+}
+
 pub(crate) fn take_verbose(request: &mut Value) -> bool {
     fn take(value: &mut Value) -> bool {
         value

@@ -502,6 +502,26 @@ pub fn record_of(library: &Library, root: DefinitionRef) -> Option<&GeneratedPar
     library.generated.iter().find(|g| g.root == root)
 }
 
+/// The recipe a library record of `root` carries when a generator made
+/// it: generator, version, preset, complete parameters and the generic
+/// family those read as (from the current standards; none outside an
+/// engine call).
+pub fn recipe(library: &Library, root: DefinitionRef) -> Option<super::bundle::GeneratedRecipe> {
+    let part = record_of(library, root)?;
+    let family = crate::library::standards::get().ok().and_then(|s| {
+        s.generic
+            .family_for(&part.from.generator, &part.from.params)
+            .map(|f| f.family.name().to_owned())
+    });
+    Some(super::bundle::GeneratedRecipe {
+        generator: part.from.generator.clone(),
+        version: part.from.version,
+        preset: part.from.preset.clone(),
+        params: part.from.params.clone(),
+        family,
+    })
+}
+
 /// The newest record with `key` (highest version, then revision), if the
 /// project holds that part.
 pub fn find<'a>(library: &'a Library, key: &PartKey) -> Option<&'a GeneratedPart> {
@@ -910,6 +930,15 @@ pub fn compare(library: &Library, check: &Check<'_>, generated: &Generated) -> R
             component.value_template.as_ref(),
         );
         set_marking(&mut expected, component.marking.as_deref());
+    }
+    // The pin-1 polarity is the host's reading of the generation (its
+    // pin-1 terminal and `pin1…` graphics), not the module's output: the
+    // stored one stands, so a part made before the host read it opens as
+    // it was made.
+    for ((_, wanted), (_, kept)) in expected.iter_mut().zip(stored.iter()) {
+        if let (Definition::Footprint(wanted), Definition::Footprint(kept)) = (wanted, kept) {
+            wanted.polarity.clone_from(&kept.polarity);
+        }
     }
     if stored != expected {
         return Err(Error::Invalid(format!(

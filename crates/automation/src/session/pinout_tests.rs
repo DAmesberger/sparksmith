@@ -441,7 +441,7 @@ pub(super) fn import_reviewed(s: &mut Scenario) -> Fallible<Imported> {
     assert!(counts.get("terminal added").is_none(), "{plan}");
     assert!(counts.get("terminal removed").is_none(), "{plan}");
     assert!(
-        plan.get("review").is_none() && plan.get("review_groups").is_none(),
+        plan.get("review").is_none() && plan["review_groups"] == json!([]),
         "{plan}"
     );
     s.apply(
@@ -754,6 +754,74 @@ fn exm48_imports_through_review_before_it_publishes() -> Fallible<()> {
     let imported = import_reviewed(&mut s)?;
     let placed = publish_and_place(&mut s, imported)?;
     assert_eq!(placed.designator, "U1");
+    Ok(())
+}
+
+/// `library.review_check` holds a report against one part: the component
+/// draft its `part` names (or `component`) and that part's drafts only;
+/// with no draft of it open, its latest published revision, with the pins
+/// it was published unreviewed and a published status.
+#[test]
+fn a_review_check_is_scoped_to_its_part() -> Fallible<()> {
+    let mut session = Session::new(Engine::demo()?);
+    let report = |part: &str| {
+        json!({"part": part, "summary": "A part.", "sources": [{"name": "DS", "title": "Datasheet", "revision": "A"}],
+            "values": [{"item": "pitch", "value": "1.27 mm", "source": {"document": "DS", "page": 3, "location": "Figure 1"}, "confidence": "high"}]})
+    };
+    let drafts = session.engine().drafts().items.clone();
+    let components: Vec<_> = drafts
+        .iter()
+        .filter(|d| {
+            matches!(
+                d.definition,
+                sparksmith_core::library::Definition::Component(_)
+            )
+        })
+        .collect();
+    let first = components.first().ok_or("a component draft in the demo")?;
+    let checked = session.dispatch(json!({"command": "library.review_check", "params": {
+        "report": report(&first.meta.name)}}));
+    assert_eq!(checked["ok"], true, "{checked}");
+    let listed = checked["result"]["drafts"].as_array().ok_or("drafts")?;
+    let components_listed = listed.iter().filter(|d| d["kind"] == "component").count();
+    assert_eq!(
+        components_listed, 1,
+        "only the part's component: {listed:?}"
+    );
+    assert!(
+        listed.len() < drafts.len() || drafts.len() <= 5,
+        "{listed:?}"
+    );
+
+    // A published component without a draft is checked as published.
+    let published = session
+        .engine()
+        .project()
+        .library
+        .latest_components()
+        .first()
+        .map(|c| (c.id, c.meta.name.clone()))
+        .ok_or("a published component")?;
+    if session.engine().drafts().get(published.0).is_some() {
+        let discarded = session.dispatch(json!({"command": "project.apply", "params": {
+            "expected_revision": session.engine().revision(),
+            "operation": {"editor": "Library", "operation": {
+                "command": "library.discard_draft", "params": {"id": published.0}}}}}));
+        assert_eq!(discarded["ok"], true, "{discarded}");
+    }
+    let checked = session.dispatch(json!({"command": "library.review_check", "params": {
+        "report": report(&published.1), "component": published.0}}));
+    assert_eq!(checked["ok"], true, "{checked}");
+    assert_eq!(
+        checked["result"]["drafts"][0]["kind"], "component",
+        "{checked}"
+    );
+    assert!(
+        checked["result"]["markdown"]
+            .as_str()
+            .is_some_and(|m| m.contains("Status: **published**")),
+        "{checked}"
+    );
     Ok(())
 }
 
