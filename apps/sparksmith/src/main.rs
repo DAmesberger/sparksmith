@@ -28,6 +28,9 @@ mod open_documents;
 mod palette;
 mod part_chooser;
 mod part_editor;
+// Wired into the Place palette by the registry slice.
+#[allow(dead_code)]
+mod part_preview;
 mod pcb_editor;
 mod pin_mux;
 mod place_palette;
