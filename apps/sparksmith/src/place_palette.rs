@@ -3628,7 +3628,7 @@ mod tests {
             let name = palette.highlighted_hit().ok_or("hit")?.entry.name.clone();
             let (spent, shown) = run(&mut palette);
             let key = palette.preview_key(&engine).ok_or("a preview key")?;
-            assert!(shown.iter().any(|t| *t == name), "{shown:?}");
+            assert!(shown.contains(&name), "{shown:?}");
             assert!(
                 shown.iter().any(|t| t == "In this project"),
                 "the preview footer says where it comes from: {shown:?}"
