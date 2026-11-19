@@ -2,47 +2,47 @@
  "cases": [
   {
    "name": "QFN-16 3x3 0.5 EP 1.7, component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "9efa421c77abe7099df74c03f6c6ed1c369c55d4a1009d255d6ff2fc2926f800"
   },
   {
    "name": "QFN-16 3x3 0.5 EP 1.7, package",
-   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "0dc624da437d83c687d689ee4ce571f35daf5687f679ea91e535e87c49168d16"
   },
   {
    "name": "QFN-16 3x3 0.5 without exposed pad (corner lands cleared), component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 280000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 500000, "terminal_length": 400000, "terminal_width": 280000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "f3181dbbdb6b2ed23d5f3fd3abedef8085cea11d9e2e2948b0a48fee7d9bf292"
   },
   {
    "name": "DFN-8 2x2 0.5 without exposed pad, component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "terminals": 4, "terminals_short": 0, "pitch": 500000, "terminal_length": 350000, "terminal_width": 250000, "body_length": 2000000, "body_width": 2000000, "body_height": 750000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "terminals": 4, "terminals_short": 0, "pitch": 500000, "terminal_length": 350000, "terminal_width": 250000, "body_length": 2000000, "body_width": 2000000, "body_height": 750000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "ce4bd16816291a36208891224ed2f6350afcc2c8ffd0b566c060e03d937fee45"
   },
   {
    "name": "DFN-10 3x3 0.5 EP 2.4x1.65 (two-digit pin numbers), component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "terminals": 5, "terminals_short": 0, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 2400000, "pad_width": 1650000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "two", "terminals": 5, "terminals_short": 0, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 3000000, "body_width": 3000000, "body_height": 900000, "exposed_pad": true, "pad_length": 2400000, "pad_width": 1650000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "4b5a2ebb837bbd486105888aa0257d7edb05673986ed49e24f85ace230cd8343"
   },
   {
    "name": "QFN-64 9x9 0.5 EP 7.15 (largest row), component",
-   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 16, "terminals_short": 16, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 9000000, "body_width": 9000000, "body_height": 900000, "exposed_pad": true, "pad_length": 7150000, "pad_width": 7150000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "component", "params": {"sides": "four", "terminals": 16, "terminals_short": 16, "pitch": 500000, "terminal_length": 400000, "terminal_width": 250000, "body_length": 9000000, "body_width": 9000000, "body_height": 900000, "exposed_pad": true, "pad_length": 7150000, "pad_width": 7150000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "e48af16efe0bf0de6e1065160cfbef0b39a13c4bf5dc6870cb0b32a918c0de5a"
   },
   {
    "name": "QFN-16 RGV wettable flanks, package",
-   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 650000, "terminal_length": 550000, "terminal_width": 305000, "body_length": 4000000, "body_width": 4000000, "body_height": 900000, "exposed_pad": true, "pad_length": 2160000, "pad_width": 2160000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": true, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "terminals": 4, "terminals_short": 4, "pitch": 650000, "terminal_length": 550000, "terminal_width": 305000, "body_length": 4000000, "body_width": 4000000, "body_height": 900000, "exposed_pad": true, "pad_length": 2160000, "pad_width": 2160000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sawn", "wettable_flank": true, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "1df2c413b9d3a3676c8a7722250a4cd089ecc0559194e2698494753440d917c5"
   },
   {
    "name": "LGA-14 3x5 CC-14-1, package",
-   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "terminals": 6, "terminals_short": 1, "pitch": 800000, "terminal_length": 813000, "terminal_width": 500000, "body_length": 5000000, "body_width": 3000000, "body_height": 950000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": ["343B"], "construction": "lga", "wettable_flank": false, "pullback": 83500, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "four", "terminals": 6, "terminals_short": 1, "pitch": 800000, "terminal_length": 813000, "terminal_width": 500000, "body_length": 5000000, "body_width": 3000000, "body_height": 950000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": ["343B"], "construction": "lga", "wettable_flank": false, "pullback": 83500, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "2c6341741c8a88ce744a89e7bf6719be3805f1cafcf560b86f02d4a6afc86dee"
   },
   {
    "name": "DFN-4 SHT4x sensor opening, package",
-   "request": {"abi": 1, "scope": "package", "params": {"sides": "two", "terminals": 2, "terminals_short": 0, "pitch": 800000, "terminal_length": 300000, "terminal_width": 300000, "body_length": 1500000, "body_width": 1500000, "body_height": 540000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sensor_window", "wettable_flank": false, "pullback": 0, "window_diameter": 600000}},
+   "request": {"abi": 1, "scope": "package", "params": {"sides": "two", "terminals": 2, "terminals_short": 0, "pitch": 800000, "terminal_length": 300000, "terminal_width": 300000, "body_length": 1500000, "body_width": 1500000, "body_height": 540000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sensor_window", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0}},
    "result": "e52f1e0c23b684e2a6826a473727d1fad942063ee11d6fd36478de772b1f98e9"
   }
  ]

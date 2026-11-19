@@ -18,7 +18,9 @@ pub mod schematic;
 pub mod sexpr;
 pub mod shape;
 mod sheets;
+
 pub mod translate;
+mod values;
 mod zones;
 
 pub use import::{ImportError, Imported, PadRecord, Setup, import};

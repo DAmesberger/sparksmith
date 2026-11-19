@@ -58,7 +58,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Row slots of the part files: two per side.
 pub const ROWS_PER_SIDE: usize = 2;
@@ -1134,6 +1134,7 @@ fn rect(
         mask: Opening::Default,
         paste: Opening::Default,
         number,
+        kind: None,
     }
 }
 

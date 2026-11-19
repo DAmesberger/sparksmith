@@ -96,7 +96,8 @@ fn dip_8_runs_counter_clockwise_with_a_square_pin_one() -> Result<(), Vec<Proble
             shape: HoleShape::Round {
                 diameter_nm: 850_000
             },
-            plated: true
+            plated: true,
+            offset: None,
         })));
     // Envelope: the body, the rows' outer faces (7.62 + 0.25) and the
     // estimated 0.5 mm standoff under the 3.3 mm body.

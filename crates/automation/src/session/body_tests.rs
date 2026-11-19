@@ -204,3 +204,122 @@ fn a_body_whose_leads_miss_the_pads_is_refused_and_changes_nothing() -> Fallible
     assert_eq!(session.engine().revision(), before);
     Ok(())
 }
+
+/// Friction #11: each lead says where its contact sits on its land: the
+/// contact and the land's centre in the datum frame, and its offset along
+/// the lead and across it, with the land's size.
+#[test]
+fn each_lead_reports_where_it_touches_its_land() -> Fallible {
+    let mut session = session()?;
+    let plan = call(
+        &mut session,
+        "library.body_fit",
+        body("chip", "resistor-0603"),
+    );
+    assert_eq!(plan["ok"], true, "{plan}");
+    let leads = plan["result"]["leads"].as_array().ok_or("leads")?;
+    assert_eq!(leads.len(), 2);
+    let f = |v: &Value| v.as_f64().ok_or("a number");
+    for lead in leads {
+        let on = &lead["on_land"];
+        let (along, across) = (f(&on["along_mm"])?, f(&on["across_mm"])?);
+        // The pads are 0.95 mm along the lead (x) and 1.0 mm across it.
+        assert!((f(&on["length_mm"])? - 0.95).abs() < 1e-6, "{lead}");
+        assert!((f(&on["width_mm"])? - 1.0).abs() < 1e-6, "{lead}");
+        assert!(along.abs() <= 0.475 && across.abs() <= 0.5, "{lead}");
+        // The offset is the contact's distance from the land's centre.
+        let off = f(&lead["off_centre_mm"])?;
+        assert!((along.hypot(across) - off).abs() < 2e-3, "{lead}");
+        let (contact, centre) = (&on["contact_mm"], &on["centre_mm"]);
+        let dx = f(&contact[0])? - f(&centre[0])?;
+        let dy = f(&contact[1])? - f(&centre[1])?;
+        assert!((dx.hypot(dy) - off).abs() < 2e-3, "{lead}");
+        assert!(
+            on["summary"]
+                .as_str()
+                .is_some_and(|s| s.contains("along the lead")),
+            "{lead}"
+        );
+    }
+    // Pad 1 lies at −x: outward is −x, so a contact at smaller x than the
+    // pad's centre is outward of it, and the other way round.
+    let lead1 = leads.iter().find(|l| l["pad"] == "1").ok_or("lead 1")?;
+    let on = &lead1["on_land"];
+    let dx = f(&on["contact_mm"][0])? - f(&on["centre_mm"][0])?;
+    assert!((f(&on["along_mm"])? + dx).abs() < 2e-3, "{lead1}");
+    Ok(())
+}
+
+/// Friction #12: a lead lands an unnumbered non-plated hole, by its id or
+/// by where it falls; the hole never gets a terminal or a net.
+#[test]
+fn a_mechanical_lead_lands_an_unnumbered_hole() -> Fallible {
+    let mut session = session()?;
+    let target = call(
+        &mut session,
+        "library.body_fit",
+        json!({"designator": "J1"}),
+    );
+    let pads = target["result"]["target"]["footprint"]["pads"]
+        .as_array()
+        .ok_or("pads")?
+        .clone();
+    let hole = pads
+        .iter()
+        .find(|p| p["kind"] == "non_plated_hole")
+        .ok_or_else(|| format!("no hole: {target}"))?;
+    assert_eq!(hole["number"], "");
+    let pad1 = pads.iter().find(|p| p["number"] == "1").ok_or("pad 1")?;
+    let j1 = |pins: Value| json!({"designator": "J1", "generator": "chip", "preset": "resistor-0603", "pins": pins});
+    // By position: lead 2 has no pad 2, and falls in the hole.
+    let auto = call(&mut session, "library.body_fit", j1(json!([])));
+    assert_eq!(auto["result"]["accepted"], true, "{auto}");
+    let pegs: Vec<&Value> = auto["result"]["leads"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter(|l| l["hole"] == hole["id"])
+        .collect();
+    assert_eq!(pegs.len(), 1, "{auto}");
+    assert_eq!(pegs[0]["lead"], "2");
+    // By id.
+    let named = call(
+        &mut session,
+        "library.body_fit",
+        j1(json!([{"lead": "2", "hole": hole["id"]}])),
+    );
+    assert_eq!(named["result"]["accepted"], true, "{named}");
+    // A copper pad is no hole; a pad and a hole together are refused.
+    let before = session.engine().revision();
+    for pins in [
+        json!([{"lead": "2", "hole": pad1["id"]}]),
+        json!([{"lead": "2", "pad": "1", "hole": hole["id"]}]),
+    ] {
+        let refused = call(&mut session, "library.body_fit", j1(pins));
+        assert_eq!(refused["ok"], false, "{refused}");
+    }
+    assert_eq!(session.engine().revision(), before);
+    // Applied: the package keeps one lead contact, on its one terminal;
+    // the hole keeps no terminal.
+    let made = call(
+        &mut session,
+        "library.make_body",
+        json!({"designator": "J1", "generator": "chip", "preset": "resistor-0603",
+               "pins": [{"lead": "2", "hole": hole["id"]}], "sources": "peg.pdf: drawing 1"}),
+    );
+    assert_eq!(made["ok"], true, "{made}");
+    let package = sparksmith_core::commands::body::package_of(session.engine().document(), "J1")?;
+    let library = &session.engine().project().library;
+    let published = library.package(package).ok_or("package")?;
+    assert_eq!(published.definition.leads.len(), 1);
+    assert_eq!(published.definition.terminals.len(), 1);
+    let holes: Vec<_> = library
+        .footprints
+        .iter()
+        .filter(|f| f.definition.package == package)
+        .flat_map(|f| f.definition.pads.iter())
+        .filter(|p| p.kind == sparksmith_core::library::PadKind::NonPlatedHole)
+        .collect();
+    assert!(!holes.is_empty() && holes.iter().all(|p| p.terminal.is_none()));
+    Ok(())
+}

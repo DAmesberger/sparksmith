@@ -1,18 +1,20 @@
-//! 3D bodies for the shared desktop/CLI importer. Sparksmith shows its own
-//! parametric recreations only: a footprint whose lands identify the package
-//! of a shipped generator preset gets that preset's generated model. A vendor
-//! STEP the project holds is never the body: it is recorded in the import
-//! report as a reference source for a later recreation. No guessed geometry
-//! or electrical mapping is written into the imported board.
+//! The parts of the shared desktop/CLI importer. A source footprint whose
+//! lands identify the package of a shipped generator preset becomes that
+//! generator's part, made through `library.generate` with the source's lands
+//! as its land pattern ([`parts`]), so it is generated exactly as a part from
+//! the palette or the AI is, and the board's copper stays the source's. Any
+//! other footprint becomes a project part of its lands, whose body comes
+//! later from a recreation from datasheets. A vendor STEP the project holds is
+//! never the body: it is recorded in the import report as a reference source
+//! for that recreation.
 mod lands;
+mod parts;
 mod presets;
-use sparksmith_core::library::bundle::{AssetBytes, PackedAsset};
-use sparksmith_core::library::model3d::*;
-use sparksmith_core::library::{DraftEdit, ModelPlacement, PackageModel, Pad};
-use sparksmith_core::units::Nm;
-use sparksmith_core::{Engine, LibraryCommand, ModelRef, Operation, Outcome, Revision};
+use sparksmith_core::Engine;
+use sparksmith_core::library::bundle::AssetBytes;
+use sparksmith_core::library::{ModelPlacement, Pad};
 use sparksmith_io::project_models::{ProjectModels, library_reference};
-use sparksmith_kicad::models::{Choice, Facts, Provider, Reference, Selection};
+use sparksmith_kicad::models::{Made, Outcome, PartRequest, Provider};
 use sparksmith_kicad::report::{Case, Placeholder};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -24,20 +26,18 @@ pub(crate) struct Models {
     /// Each project reference's resolved source ("path (sha256 …)"), or why
     /// it did not resolve.
     sources: BTreeMap<String, Result<String, String>>,
-    models: BTreeMap<sparksmith_core::ids::ContentHash, ModelRef>,
 }
 impl Models {
-    /// The models of the project at `root`, made by generator workers
-    /// that `runtime` gives for the import's deadline: batch admission, so
-    /// a busy pool delays the import instead of costing it its parts.
+    /// The parts of the project at `root`, made by generator workers that
+    /// `runtime` gives for the import's deadline: batch admission, so a busy
+    /// pool delays the import instead of costing it its parts.
     pub(crate) fn new(root: &Path, runtime: crate::kicad_import::Runtime) -> Result<Self, String> {
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(300);
         Ok(Self {
             deadline,
             files: ProjectModels::new(root).map_err(|e| e.to_string())?,
             presets: presets::Presets::with_runtime(runtime(deadline)),
             sources: BTreeMap::new(),
-            models: BTreeMap::new(),
         })
     }
     fn check_time(&self) -> Result<(), String> {
@@ -65,24 +65,13 @@ impl Models {
     }
 }
 impl Provider for Models {
-    fn prepare(
-        &mut self,
-        engine: &mut Engine,
-        pads: &[Pad],
-        prefix: &str,
-        models: &[Reference],
-        footprint: &Facts,
-    ) -> Result<Selection, String> {
+    fn part(&mut self, engine: &mut Engine, request: &PartRequest<'_>) -> Result<Outcome, String> {
         self.check_time()?;
-        let refs: Vec<_> = models.iter().filter(|r| !r.hidden).collect();
-        if !models.is_empty() && refs.is_empty() {
-            return Ok(Selection {
-                choice: None,
-                case: Case::NoModel,
-                reason: "All source model references are hidden; no generated replacement. The import retains its labelled placeholder because invisible package models are not supported.".into(),
-                placeholder: Some(Placeholder::Hidden),
-            });
+        let runtime = self.presets.runtime(engine);
+        if engine.generator_runtime().is_none() {
+            engine.set_generators(runtime.clone());
         }
+        let refs: Vec<_> = request.models.iter().filter(|r| !r.hidden).collect();
         let library = refs.iter().any(|r| library_reference(&r.path));
         let mut found = Vec::new();
         let mut missing = Vec::new();
@@ -94,7 +83,11 @@ impl Provider for Models {
         }
         let mut notes = Vec::new();
         if refs.is_empty() {
-            notes.push("No model reference".to_owned());
+            notes.push(if request.models.is_empty() {
+                "No model reference".to_owned()
+            } else {
+                "All model references hidden".to_owned()
+            });
         }
         if library {
             notes.push("KiCad library reference is never resolved".to_owned());
@@ -113,457 +106,77 @@ impl Provider for Models {
         }
         let note = notes.join("; ");
         self.check_time()?;
-        match self
+        let identified = self
             .presets
-            .match_model(
+            .identify(
                 engine,
-                pads,
-                prefix,
-                footprint,
-                &mut self.models,
+                request.pads,
+                request.prefix,
+                request.facts,
                 self.deadline,
             )
-            .map_err(|error| format!("{note}; preset model unavailable: {error}"))?
-        {
-            Ok(choice) => Ok(Selection {
-                reason: format!("{note}; {}", choice.provenance),
-                choice: Some(choice),
-                case: if library {
-                    Case::LibraryModelGenerated
-                } else {
-                    Case::GeneratedModel
-                },
-                placeholder: None,
-            }),
-            Err(miss) => Ok(Selection {
-                choice: None,
-                case: Case::NoModel,
-                placeholder: Some(if matches!(miss, presets::Miss::PrefixMismatch { .. }) {
-                    Placeholder::PrefixMismatch
-                } else if !found.is_empty() {
-                    Placeholder::VendorReferenceFound
-                } else if !missing.is_empty() {
-                    Placeholder::VendorReferenceMissing
-                } else if matches!(miss, presets::Miss::NoLands) {
-                    Placeholder::NoLands
-                } else if library {
-                    Placeholder::KicadLibraryReferenceNoPreset
-                } else {
-                    Placeholder::NoReferenceNoPreset
-                }),
-                reason: format!("{note}; {miss}"),
-            }),
-        }
+            .map_err(|error| format!("{note}; presets unavailable: {error}"))?;
+        let contradiction = request
+            .mpn
+            .and_then(|mpn| self.presets.contradiction(mpn, identified.as_ref().ok()));
+        let source = |reason: String, placeholder: Placeholder| Made::Source {
+            case: Case::SourcePart,
+            reason,
+            placeholder: Some(placeholder),
+        };
+        let fallback = if !found.is_empty() {
+            Placeholder::VendorReferenceFound
+        } else if !missing.is_empty() {
+            Placeholder::VendorReferenceMissing
+        } else if refs.is_empty() && !request.models.is_empty() {
+            Placeholder::Hidden
+        } else if library {
+            Placeholder::KicadLibraryReferenceNoPreset
+        } else {
+            Placeholder::NoReferenceNoPreset
+        };
+        let made = match identified {
+            Err(miss) => {
+                let placeholder = match miss {
+                    presets::Miss::PrefixMismatch { .. } => Placeholder::PrefixMismatch,
+                    presets::Miss::NoLands => Placeholder::NoLands,
+                    _ => fallback,
+                };
+                source(format!("{note}; {miss}"), placeholder)
+            }
+            Ok(identified) => {
+                let candidate = self
+                    .presets
+                    .candidate(identified.index)
+                    .ok_or("the identified preset is missing")?;
+                self.check_time()?;
+                match parts::make(engine, candidate, &identified, request, runtime.as_ref())? {
+                    Ok(mut generated) => {
+                        generated.reason = format!("{note}; {}", generated.reason);
+                        Made::Generated(Box::new(generated))
+                    }
+                    Err(why) => source(
+                        format!("{note}; package {}, but {why}", identified.name),
+                        Placeholder::GeneratorRefused,
+                    ),
+                }
+            }
+        };
+        self.check_time()?;
+        Ok(Outcome {
+            made,
+            contradiction,
+        })
     }
 }
 
 fn check_time(deadline: std::time::Instant) -> Result<(), String> {
     if std::time::Instant::now() >= deadline {
-        Err("3D model import reached its 120 second cooperative time limit".into())
+        Err("the import's parts reached their 300 second cooperative time limit".into())
     } else {
         Ok(())
     }
 }
 
-pub(super) fn envelope([lo, hi]: [[f64; 3]; 2]) -> Result<[Nm; 3], String> {
-    triple_nm(
-        [
-            2.0 * lo[0].abs().max(hi[0].abs()),
-            2.0 * lo[1].abs().max(hi[1].abs()),
-            hi[2].max(hi[2] - lo[2]),
-        ]
-        .map(|v| v.max(0.001)),
-    )
-    .map_err(|e| e.to_string())
-}
-pub(super) fn publish_model(
-    engine: &mut Engine,
-    name: &str,
-    definition: ModelDefinition,
-    bytes: AssetBytes,
-    provenance: &str,
-) -> Result<ModelRef, String> {
-    let mut staged = engine.fork();
-    let candidate = &mut staged;
-    let assets = vec![PackedAsset {
-        hash: bytes.hash(),
-        media_type: definition.format.media_type().into(),
-        data: bytes,
-    }];
-    let outcome = candidate
-        .apply(
-            candidate.revision(),
-            Operation::Library(LibraryCommand::ImportModel(Box::new(ImportModel {
-                name: name.into(),
-                assets,
-                definition: Box::new(definition),
-                assign: None,
-            }))),
-        )
-        .map_err(|e| e.to_string())?;
-    let Outcome::DraftCreated { id } = outcome else {
-        return Err("Model import produced no draft".into());
-    };
-    let draft = candidate
-        .document()
-        .drafts
-        .get(id)
-        .ok_or("Model draft is missing")?;
-    let mut meta = draft.meta.clone();
-    meta.provenance = provenance.into();
-    let definition = draft.definition.clone();
-    candidate
-        .apply(
-            candidate.revision(),
-            Operation::Library(LibraryCommand::Edit {
-                edits: vec![DraftEdit {
-                    id,
-                    meta,
-                    definition,
-                }],
-            }),
-        )
-        .map_err(|e| e.to_string())?;
-    candidate
-        .apply(
-            candidate.revision(),
-            Operation::Library(LibraryCommand::Publish {
-                drafts: vec![id],
-                close: true,
-            }),
-        )
-        .map_err(|e| e.to_string())?;
-    *engine = staged;
-    Ok(ModelRef::new(id, Revision::FIRST))
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-    type Fallible = Result<(), Box<dyn std::error::Error>>;
-    const VENDOR: &[u8] = b"Original synthetic vendor bytes; never parsed.";
-
-    fn reference(path: &str) -> Reference {
-        Reference {
-            path: path.into(),
-            offset_nm: [Nm::ZERO; 3],
-            rotation_deg: [0.0; 3],
-            scale: [1.0; 3],
-            hidden: false,
-        }
-    }
-    #[test]
-    fn all_hidden_references_do_not_read_files_or_generate_replacement_bodies() -> Fallible {
-        let dir = tempfile::tempdir()?;
-        let mut models = Models::new(
-            dir.path(),
-            crate::session::generators::fixture_batch_runtime,
-        )?;
-        let mut reference = reference("${KICAD9_3DMODEL_DIR}/never-read.step");
-        reference.hidden = true;
-        let mut engine = Engine::demo()?;
-        let selected = models.prepare(&mut engine, &[], "R", &[reference], &Facts::default())?;
-        assert!(selected.choice.is_none());
-        assert_eq!(selected.case, Case::NoModel);
-        assert_eq!(selected.placeholder, Some(Placeholder::Hidden));
-        assert!(selected.reason.contains("hidden"));
-        assert!(models.sources.is_empty() && models.models.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn expired_import_refuses_without_publishing_any_model() -> Fallible {
-        let dir = tempfile::tempdir()?;
-        let mut models = Models::new(
-            dir.path(),
-            crate::session::generators::fixture_batch_runtime,
-        )?;
-        models.deadline = std::time::Instant::now();
-        let mut engine = Engine::demo()?;
-        let before = engine.revision();
-        let error = models
-            .prepare(
-                &mut engine,
-                &[],
-                "U",
-                &[reference("own.step")],
-                &Facts::default(),
-            )
-            .err()
-            .ok_or("expired import succeeded")?;
-        assert!(error.contains("time limit"), "{error}");
-        assert_eq!(engine.revision(), before);
-        assert!(engine.project().library.models.is_empty());
-        Ok(())
-    }
-
-    #[test]
-    fn a_kicad_library_reference_is_not_resolved_even_with_a_same_name_local_file() -> Fallible {
-        let dir = tempfile::tempdir()?;
-        std::fs::write(dir.path().join("own.step"), VENDOR)?;
-        let mut models = Models::new(
-            dir.path(),
-            crate::session::generators::fixture_batch_runtime,
-        )?;
-        let mut engine = Engine::demo()?;
-        let selected = models.prepare(
-            &mut engine,
-            &[],
-            "U",
-            &[reference("${KICAD9_3DMODEL_DIR}/own.step")],
-            &Facts::default(),
-        )?;
-        assert!(selected.choice.is_none());
-        assert!(models.sources.is_empty(), "never looked up");
-        assert!(!selected.reason.contains("sha256"), "{}", selected.reason);
-        assert!(engine.project().library.models.is_empty());
-        Ok(())
-    }
-
-    /// Vendor files are reference sources only: never a body, never packed;
-    /// each placeholder instance is counted under its reason.
-    #[test]
-    fn vendor_files_are_recorded_as_sources_never_used_and_placeholders_are_categorised() -> Fallible
-    {
-        let context = sparksmith_core::library::standards::Context::fixture()?;
-        let _context = context.enter();
-        let dir = tempfile::tempdir()?;
-        std::fs::write(dir.path().join("own.step"), VENDOR)?;
-        let mut board = String::from(
-            r#"(kicad_pcb (version 20240108) (generator "original placeholder reason fixture")
-            (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
-            (gr_rect (start 0 0) (end 60 30) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#,
-        );
-        for (name, x, model) in [
-            ("U1", 10, r#"(model "${KIPRJMOD}/own.step")"#),
-            ("U2", 20, r#"(model "own.step")"#),
-            ("U3", 30, r#"(model "missing.step")"#),
-            (
-                "U4",
-                40,
-                r#"(model "${KICAD9_3DMODEL_DIR}/Synthetic.3dshapes/x.wrl")"#,
-            ),
-            ("U5", 50, ""),
-        ] {
-            board.push_str(&format!(
-                r#"(footprint "Original:Odd" (layer "F.Cu") (at {x} 10)
-                (property "Reference" "{name}")
-                (pad "1" smd rect (at 0 0) (size 1.3 0.7) (layers "F.Cu" "F.Mask" "F.Paste"))
-                (pad "2" smd rect (at 3.1 0.9) (size 0.4 2.2) (layers "F.Cu" "F.Mask" "F.Paste"))
-                (pad "3" smd rect (at -2.2 1.7) (size 0.9 0.9) (layers "F.Cu" "F.Mask" "F.Paste"))
-                {model})"#
-            ));
-        }
-        board.push(')');
-        let path = dir.path().join("reasons.kicad_pcb");
-        std::fs::write(&path, board)?;
-        let imported = crate::kicad_import::import_in_fixture_pool(&path, None)?;
-        let report = &imported.report;
-        assert_eq!(report.count(Case::NoModel), 5);
-        assert!(imported.engine.project().library.models.is_empty());
-        assert!(imported.engine.project().library.assets.is_empty());
-        let counts = report.placeholders();
-        assert_eq!(counts.get(&Placeholder::VendorReferenceFound), Some(&2));
-        assert_eq!(counts.get(&Placeholder::VendorReferenceMissing), Some(&1));
-        assert_eq!(
-            counts.get(&Placeholder::KicadLibraryReferenceNoPreset),
-            Some(&1)
-        );
-        assert_eq!(counts.get(&Placeholder::NoReferenceNoPreset), Some(&1));
-        let u1 = report
-            .details()
-            .iter()
-            .find(|d| d.footprint == "U1" && d.case == Case::NoModel)
-            .ok_or("U1 detail")?;
-        assert_eq!(u1.placeholder, Some(Placeholder::VendorReferenceFound));
-        assert!(u1.path.contains("own.step (sha256 "), "{}", u1.path);
-        assert!(u1.path.contains("never used as the body"), "{}", u1.path);
-        let summary = report.summary();
-        assert!(summary.contains(Placeholder::VendorReferenceFound.describe()));
-        Ok(())
-    }
-    /// A six-lead SOT land pattern as the shipped preset draws it, written
-    /// as KiCad stores it (y down): pins 1–3 along +y in +x, 4–6 along −y
-    /// in −x. A back-side footprint's pads are stored as seen from the top
-    /// (mirrored in local y); every pad's angle includes the footprint's.
-    fn sot_footprint(name: &str, at: [f64; 2], angle: f64, back: bool) -> String {
-        let flip = if back { -1.0 } else { 1.0 };
-        let (cu, paste, mask) = if back {
-            ("B.Cu", "B.Paste", "B.Mask")
-        } else {
-            ("F.Cu", "F.Paste", "F.Mask")
-        };
-        let mut out = format!(
-            r#"(footprint "Original:Six" (layer "{cu}") (at {} {} {angle})
-            (property "Reference" "{name}")"#,
-            at[0], at[1]
-        );
-        for (number, x, y) in [
-            (1, -0.95, 1.3),
-            (2, 0.0, 1.3),
-            (3, 0.95, 1.3),
-            (4, 0.95, -1.3),
-            (5, 0.0, -1.3),
-            (6, -0.95, -1.3),
-        ] {
-            out.push_str(&format!(
-                r#"(pad "{number}" smd rect (at {x} {} {angle}) (size 0.6 1.0) (layers "{cu}" "{paste}" "{mask}"))"#,
-                flip * y
-            ));
-        }
-        out.push(')');
-        out
-    }
-
-    /// Imported parts on both sides at every quarter turn: each generated
-    /// body's stored lead contacts, placed as the 3D view places the body,
-    /// land on their pads as the copper is drawn, and pin 1 lands pad 1;
-    /// the board check finds no body off its pads.
-    #[test]
-    fn imported_bodies_land_their_leads_on_both_sides_at_every_rotation() -> Fallible {
-        let context = sparksmith_core::library::standards::Context::fixture()?;
-        let _context = context.enter();
-        let dir = tempfile::tempdir()?;
-        let mut board = String::from(
-            r#"(kicad_pcb (version 20240108) (generator "original body landing fixture")
-            (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
-            (gr_rect (start 0 0) (end 90 30) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#,
-        );
-        let mut n = 0;
-        for back in [false, true] {
-            for angle in [0.0, 90.0, 180.0, 270.0] {
-                n += 1;
-                let at = [10.0 * f64::from(n), if back { 20.0 } else { 10.0 }];
-                board.push_str(&sot_footprint(&format!("U{n}"), at, angle, back));
-            }
-        }
-        board.push(')');
-        let path = dir.path().join("bodies.kicad_pcb");
-        std::fs::write(&path, board)?;
-        let imported = crate::kicad_import::import_in_fixture_pool(&path, None)?;
-        let project = imported.engine.project();
-        let report = sparksmith_core::layout::bodies::bodies(project);
-        assert_eq!(report.parts.len(), 8, "{:?}", report.without_leads);
-        for part in &report.parts {
-            assert_eq!(part.off_pads, 0, "{}: {:?}", part.designator, part.leads);
-            assert_eq!(
-                part.pin_one,
-                sparksmith_core::layout::bodies::PinOne::Agrees,
-                "{}",
-                part.designator
-            );
-            assert!(part.seat_mm.is_some_and(|z| z.abs() < 1e-6));
-            // The body sits between its rows: over the pads' box.
-            let pads = part.pads.ok_or("pad box")?;
-            let c = part.body.center();
-            assert!(pads.contains(c), "{}: body off its pads", part.designator);
-        }
-        assert!(
-            sparksmith_core::layout::bodies::checks(project).is_empty(),
-            "no body off its pads"
-        );
-        Ok(())
-    }
-
-    /// Footprints that are no part to draw get no body, as their source
-    /// has it: no model reference, and not assembled or bare copper. A part
-    /// with a model reference or with real terminals keeps its placeholder.
-    #[test]
-    fn footprints_that_are_no_part_get_no_body_as_in_the_source() -> Fallible {
-        let context = sparksmith_core::library::standards::Context::fixture()?;
-        let _context = context.enter();
-        let dir = tempfile::tempdir()?;
-        let pad = |n: &str, x: f64, net: &str| {
-            format!(
-                r#"(pad "{n}" smd rect (at {x} 0) (size 0.9 0.9) (layers "F.Cu" "F.Mask") {net})"#
-            )
-        };
-        let net = r#"(net 1 "A")"#;
-        let mut board = String::from(
-            r#"(kicad_pcb (version 20240108) (generator "original no-body fixture")
-            (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
-            (net 0 "") (net 1 "A")
-            (gr_rect (start 0 0) (end 90 30) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))"#,
-        );
-        for (name, x, attr, pads, model) in [
-            // A solder jumper nothing is placed on.
-            (
-                "JP1",
-                10,
-                "(attr smd exclude_from_pos_files)",
-                format!("{}{}", pad("1", -0.6, net), pad("2", 0.6, net)),
-                "",
-            ),
-            // A contact pad: one surface pad.
-            ("TP1", 20, "(attr smd)", pad("1", 0.0, net), ""),
-            // A fiducial: a pad on no net.
-            ("FID1", 30, "(attr smd)", pad("1", 0.0, ""), ""),
-            // A logo: no pads.
-            ("G1", 40, "(attr board_only)", String::new(), ""),
-            // Near misses: the same jumper with a model reference; a
-            // two-terminal part; a single pad with a model.
-            (
-                "JP2",
-                50,
-                "(attr smd exclude_from_pos_files)",
-                format!("{}{}", pad("1", -0.6, net), pad("2", 0.6, net)),
-                r#"(model "own.step")"#,
-            ),
-            (
-                "X1",
-                60,
-                "(attr smd)",
-                format!("{}{}", pad("1", -1.3, net), pad("2", 1.3, net)),
-                "",
-            ),
-            (
-                "TP2",
-                70,
-                "(attr smd)",
-                pad("1", 0.0, net),
-                r#"(model "pin.step")"#,
-            ),
-        ] {
-            board.push_str(&format!(
-                r#"(footprint "Own:{name}" (layer "F.Cu") (at {x} 10) {attr}
-                (property "Reference" "{name}") {pads} {model})"#
-            ));
-        }
-        board.push(')');
-        let path = dir.path().join("no-body.kicad_pcb");
-        std::fs::write(&path, board)?;
-        let imported = crate::kicad_import::import_in_fixture_pool(&path, None)?;
-        let report = &imported.report;
-        let project = imported.engine.project();
-        let model_of = |designator: &str| -> Result<PackageModel, String> {
-            let instance = project
-                .instance_by_designator(designator)
-                .ok_or(designator.to_string())?;
-            sparksmith_core::instances::resolve(&project.library, instance)
-                .ok()
-                .and_then(|r| r.physical)
-                .map(|p| p.package.definition.model.clone())
-                .ok_or(format!("{designator} package"))
-        };
-        for designator in ["JP1", "TP1", "FID1", "G1"] {
-            assert_eq!(model_of(designator)?, PackageModel::NoBody, "{designator}");
-            let detail = report
-                .details()
-                .iter()
-                .find(|d| d.footprint == designator && d.case == Case::NoBody)
-                .ok_or(format!("{designator} detail"))?;
-            assert!(
-                detail.path.starts_with("no body (as in the source)"),
-                "{}",
-                detail.path
-            );
-            assert_eq!(detail.placeholder, None);
-        }
-        for designator in ["JP2", "X1", "TP2"] {
-            assert_ne!(model_of(designator)?, PackageModel::NoBody, "{designator}");
-        }
-        assert_eq!(report.count(Case::NoBody), 4);
-        assert!(report.summary().contains("no body (as in the source"));
-        Ok(())
-    }
-}
+mod tests;

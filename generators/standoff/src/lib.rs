@@ -32,7 +32,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// The top outer chamfer and the bore's mouth chamfer (est.), each at most
 /// an eighth of the wall.
@@ -298,6 +298,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mask: Opening::Default,
         paste: Opening::Default,
         number: None,
+        kind: None,
     }];
     if d.hole > 0 {
         pads.push(Pad {
@@ -314,10 +315,12 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     diameter_nm: d.hole,
                 },
                 plated: false,
+                offset: None,
             }),
             mask: Opening::Default,
             paste: Opening::None,
             number: None,
+            kind: None,
         });
     }
     let envelope = [d.od, d.od, d.length];

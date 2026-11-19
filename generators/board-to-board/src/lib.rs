@@ -39,7 +39,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most positions per row.
 const MAX_POSITIONS: i64 = 50;
@@ -534,6 +534,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect();
@@ -552,10 +553,12 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 hole: Some(Hole {
                     shape: HoleShape::Round { diameter_nm: hole },
                     plated: true,
+                    offset: None,
                 }),
                 mask: Opening::Default,
                 paste: Opening::None,
                 number: None,
+                kind: None,
             });
         }
     }

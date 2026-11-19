@@ -3,8 +3,8 @@
 //! drafts; the command layer allocates lineages and stores the result.
 use super::{
     ChangeKind, MAX_PINOUT_NOTE, MAX_PINOUT_PERIPHERALS, MAX_PINOUT_PINS, MAX_PINOUT_RULES,
-    MAX_PINOUT_VARIANTS, PINOUT_FORMAT, PinoutAccept, PinoutChange, PinoutClass, PinoutDocument,
-    PinoutPin, PinoutTarget, RULE_ROW_PREFIX, ReviewItem, ReviewReason,
+    MAX_PINOUT_VARIANTS, MAX_ROW_NUMBERS, PINOUT_FORMAT, PinoutAccept, PinoutChange, PinoutClass,
+    PinoutDocument, PinoutPin, PinoutTarget, RULE_ROW_PREFIX, ReviewItem, ReviewReason,
 };
 use crate::diagnostics::{Error, Finding, ObjectRef, Result, Stage};
 use crate::functions::rules::{MAX_RULE_SOURCE, PinRule, PinRuleScript};
@@ -158,16 +158,29 @@ pub fn check_document(document: &PinoutDocument, accept: &PinoutAccept) -> Resul
                 "pinout.document: row ‘{row}’ has a name or note that is too long"
             )));
         }
-        for (variant, number) in &pin.number {
+        for (variant, numbers) in &pin.number {
             if !variants.contains(variant.as_str()) {
                 return Err(invalid(format!(
                     "row ‘{row}’ numbers variant ‘{variant}’, which the document does not declare"
                 )));
             }
-            if !text_ok(number, MAX_LABEL) {
+            if numbers.is_empty() || numbers.len() > MAX_ROW_NUMBERS {
                 return Err(invalid(format!(
-                    "row ‘{row}’ needs a number of 1–256 bytes in variant ‘{variant}’"
+                    "row ‘{row}’ gives 1–{MAX_ROW_NUMBERS} numbers in variant ‘{variant}’"
                 )));
+            }
+            let mut seen = BTreeSet::new();
+            for number in numbers.iter() {
+                if !text_ok(number, MAX_LABEL) {
+                    return Err(invalid(format!(
+                        "row ‘{row}’ needs numbers of 1–256 bytes in variant ‘{variant}’"
+                    )));
+                }
+                if !seen.insert(number.as_str()) {
+                    return Err(invalid(format!(
+                        "row ‘{row}’ gives number {number} twice in variant ‘{variant}’"
+                    )));
+                }
             }
         }
         if pin.class != PinoutClass::Electrical && !pin.functions.is_empty() {
@@ -288,40 +301,61 @@ fn numbered_terminals(
     map
 }
 
-/// Row → existing terminal: by number through the component's bindings,
-/// or, for a component with no binding at all, by exact terminal name.
-/// Each terminal matches at most one row, the first.
+/// Rows matched to existing terminals.
+#[derive(Default)]
+struct Matches {
+    /// Row → existing terminal.
+    matched: BTreeMap<String, TerminalId>,
+    /// A row whose number lands, through a binding, a terminal an earlier
+    /// row already matched (VOUT on pads 8, 9 and 10 written as three
+    /// rows): row → (the earlier row, the terminal). Such a row adds no
+    /// terminal, so the terminal is never split.
+    split: BTreeMap<String, (String, TerminalId)>,
+}
+
+/// Row → existing terminal: by any of its numbers through the component's
+/// bindings, or, for a component with no binding at all, by exact terminal
+/// name. Each terminal matches at most one row, the first.
 fn match_rows(
     library: &Library,
     drafts: &Drafts,
     component: DefinitionId,
     existing: &ComponentDefinition,
     document: &PinoutDocument,
-) -> BTreeMap<String, TerminalId> {
+) -> Matches {
     let numbers = numbered_terminals(library, drafts, component, existing);
-    let mut used = BTreeSet::new();
-    let mut matched = BTreeMap::new();
+    let mut used: BTreeMap<TerminalId, String> = BTreeMap::new();
+    let mut out = Matches::default();
     for pin in &document.pins {
         let found = if numbers.is_empty() {
             existing
                 .terminals
                 .iter()
-                .find(|t| t.name == pin.name && !used.contains(&t.id))
+                .find(|t| t.name == pin.name && !used.contains_key(&t.id))
                 .map(|t| t.id)
         } else {
             document.variants.iter().find_map(|v| {
-                pin.number
-                    .get(&v.name)
-                    .and_then(|n| numbers.get(n).copied().flatten())
-                    .filter(|t| !used.contains(t) && existing.terminal(*t).is_some())
+                pin.number.get(&v.name).and_then(|list| {
+                    list.iter()
+                        .find_map(|n| numbers.get(n).copied().flatten())
+                        .filter(|t| existing.terminal(*t).is_some())
+                })
             })
         };
-        if let Some(terminal) = found {
-            used.insert(terminal);
-            matched.insert(pin.row.clone(), terminal);
+        let Some(terminal) = found else {
+            continue;
+        };
+        match used.get(&terminal) {
+            Some(first) => {
+                out.split.insert(pin.row.clone(), (first.clone(), terminal));
+            }
+            None => {
+                used.insert(terminal, pin.row.clone());
+                out.matched.insert(pin.row.clone(), terminal);
+            }
         }
     }
-    matched
+    out
 }
 
 fn class_kind(class: &TerminalClass) -> u8 {
@@ -627,15 +661,17 @@ fn terminal_differs(old: &Terminal, new: &Terminal) -> bool {
 }
 
 /// The component an import produces, with its changes against `existing`
-/// and the review items. `matched` maps rows to existing terminals.
+/// and the review items. `matches` maps rows to existing terminals; a row
+/// that only numbers more pads of an earlier row's terminal adds none.
 fn build_component(
     id: DefinitionId,
     document: &PinoutDocument,
     accept: &PinoutAccept,
     existing: Option<&ComponentDefinition>,
-    matched: &BTreeMap<String, TerminalId>,
+    matches: &Matches,
     out: &mut StagedImport,
 ) -> Result<ComponentDefinition> {
+    let matched = &matches.matched;
     let mut builder = Builder {
         id,
         document,
@@ -649,6 +685,9 @@ fn build_component(
         .and_then(|c| c.review.as_deref().cloned())
         .unwrap_or_default();
     for pin in &document.pins {
+        if matches.split.contains_key(&pin.row) {
+            continue;
+        }
         let old = matched
             .get(&pin.row)
             .and_then(|t| existing.and_then(|c| c.terminal(*t)));
@@ -856,20 +895,23 @@ fn number_findings(document: &PinoutDocument, component: DefinitionId, out: &mut
         let mut seen: BTreeMap<&str, &str> = BTreeMap::new();
         let mut count = 0usize;
         for pin in &document.pins {
-            let Some(number) = pin.number.get(&variant.name) else {
+            let Some(numbers) = pin.number.get(&variant.name) else {
                 continue;
             };
-            count += 1;
-            if let Some(first) = seen.insert(number, &pin.row) {
-                out.findings.push(Finding::blocking(
-                    "package.designation",
-                    format!(
-                        "Rows ‘{first}’ and ‘{}’ both use number {number} in {}.",
-                        pin.row, variant.name
-                    ),
-                    this.clone(),
-                    Stage::Publish,
-                ));
+            // Each number is a package terminal.
+            count += numbers.len();
+            for number in numbers.iter() {
+                if let Some(first) = seen.insert(number, &pin.row) {
+                    out.findings.push(Finding::blocking(
+                        "package.designation",
+                        format!(
+                            "Rows ‘{first}’ and ‘{}’ both use number {number} in {}.",
+                            pin.row, variant.name
+                        ),
+                        this.clone(),
+                        Stage::Publish,
+                    ));
+                }
             }
         }
         if count != variant.terminal_count as usize {
@@ -939,7 +981,7 @@ pub fn stage(
                 for pin in document
                     .pins
                     .iter()
-                    .filter(|p| matched.contains_key(&p.row))
+                    .filter(|p| matched.matched.contains_key(&p.row))
                 {
                     out.review.push(ReviewItem {
                         row: pin.row.clone(),
@@ -950,6 +992,19 @@ pub fn stage(
                         ),
                     });
                 }
+            }
+            for (row, (first, terminal)) in &matched.split {
+                let name = existing
+                    .terminal(*terminal)
+                    .map_or_else(|| terminal.to_string(), |t| t.name.clone());
+                out.findings.push(Finding::blocking(
+                    "pinout.split_terminal",
+                    format!(
+                        "Row ‘{row}’ numbers a pad of terminal ‘{name}’, which row ‘{first}’ already describes; the terminal is kept whole and the row adds nothing. List every number of the terminal in one row (number: {{variant: [\"8\", \"9\"]}})."
+                    ),
+                    vec![local(*id, terminal.0)],
+                    Stage::Publish,
+                ));
             }
             number_findings(document, *id, &mut out);
             document_review(document, accept, &mut out);
@@ -1011,7 +1066,7 @@ pub fn stage(
             number_findings(document, id, &mut out);
             document_review(document, accept, &mut out);
             let mut component =
-                build_component(id, document, accept, None, &BTreeMap::new(), &mut out)?;
+                build_component(id, document, accept, None, &Matches::default(), &mut out)?;
             let symbol = SymbolRef::new(symbol_id, Revision::FIRST);
             component.representations = vec![symbol];
             component.implementations = lineages
@@ -1049,28 +1104,39 @@ pub fn stage(
                 let mut terminals = Vec::new();
                 let mut mappings = Vec::new();
                 for (pin, terminal) in &rows {
-                    let Some(number) = pin.number.get(&variant.name) else {
+                    let Some(numbers) = pin.number.get(&variant.name) else {
                         continue;
                     };
-                    let next = PackageTerminalId(
-                        u32::try_from(terminals.len() + 1)
-                            .map_err(|_| Error::Limit("too many package terminals".into()))?,
-                    );
-                    terminals.push(PackageTerminal {
-                        id: next,
-                        designation: number.clone(),
-                    });
-                    mappings.push(TerminalMap {
-                        package_terminal: next,
-                        terminal: terminal.id,
-                    });
-                    out.changes.push(change(
-                        ChangeKind::Added,
-                        "package_terminal",
-                        Some(&pin.row),
-                        Some(terminal.id),
-                        format!("{} terminal {number} carries ‘{}’", variant.name, pin.name),
-                    ));
+                    // One package terminal per number, each carrying the
+                    // row's one terminal.
+                    for number in numbers.iter() {
+                        if terminals.len() >= crate::library::MAX_PACKAGE_TERMINALS {
+                            return Err(Error::Limit(format!(
+                                "pinout.document: {} has more than {} package terminals",
+                                variant.name,
+                                crate::library::MAX_PACKAGE_TERMINALS
+                            )));
+                        }
+                        let next = PackageTerminalId(
+                            u32::try_from(terminals.len() + 1)
+                                .map_err(|_| Error::Limit("too many package terminals".into()))?,
+                        );
+                        terminals.push(PackageTerminal {
+                            id: next,
+                            designation: number.clone(),
+                        });
+                        mappings.push(TerminalMap {
+                            package_terminal: next,
+                            terminal: terminal.id,
+                        });
+                        out.changes.push(change(
+                            ChangeKind::Added,
+                            "package_terminal",
+                            Some(&pin.row),
+                            Some(terminal.id),
+                            format!("{} terminal {number} carries ‘{}’", variant.name, pin.name),
+                        ));
+                    }
                 }
                 let next_local = u32::try_from(terminals.len() + 1)
                     .map_err(|_| Error::Limit("too many package terminals".into()))?;

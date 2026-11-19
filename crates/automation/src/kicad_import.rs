@@ -33,6 +33,8 @@ pub struct KicadImport {
     pub report: Report,
     /// The board file read.
     pub board: PathBuf,
+    /// Each source pad's board box, for difference reports.
+    pub pads: Vec<sparksmith_kicad::PadRecord>,
 }
 
 /// The one board file of `source`: a `.kicad_pcb` itself, the board of a
@@ -80,7 +82,11 @@ pub fn board_file(source: &Path) -> Result<PathBuf, String> {
 /// Import the KiCad project at `source` into a new project, on the fab
 /// profile `profile` names (else the user's default).
 pub fn import(source: &Path, profile: Option<&str>) -> Result<KicadImport, String> {
-    import_with(source, profile, crate::session::generators::batch_runtime)
+    import_with(
+        source,
+        profile,
+        Some(crate::session::generators::batch_runtime),
+    )
 }
 
 /// The generator runtime an import's models are made with, for its deadline.
@@ -97,14 +103,22 @@ pub fn import_in_fixture_pool(source: &Path, profile: Option<&str>) -> Result<Ki
     import_with(
         source,
         profile,
-        crate::session::generators::fixture_batch_runtime,
+        Some(crate::session::generators::fixture_batch_runtime),
     )
+}
+
+/// [`import`] with no parts made by generators: every footprint a project
+/// part of its lands. The reference a test compares generated parts'
+/// copper with.
+#[cfg(test)]
+pub(crate) fn import_source_lands(source: &Path) -> Result<KicadImport, String> {
+    import_with(source, None, None)
 }
 
 fn import_with(
     source: &Path,
     profile: Option<&str>,
-    runtime: Runtime,
+    runtime: Option<Runtime>,
 ) -> Result<KicadImport, String> {
     let board = board_file(source)?;
     let size = |path: &Path| std::fs::metadata(path).map(|m| m.len());
@@ -126,8 +140,11 @@ fn import_with(
     let defaults = sparksmith_io::new_project::shipped().map_err(|e| e.to_string())?;
     let profile =
         sparksmith_io::rule_profiles::for_new_board_from_env(profile).map_err(|e| e.to_string())?;
-    let mut models =
-        crate::kicad_models::Models::new(board.parent().unwrap_or(Path::new(".")), runtime)?;
+    let mut models = runtime
+        .map(|runtime| {
+            crate::kicad_models::Models::new(board.parent().unwrap_or(Path::new(".")), runtime)
+        })
+        .transpose()?;
     let imported = sparksmith_kicad::import::import_with_models(
         &bytes,
         &sparksmith_kicad::Setup {
@@ -140,13 +157,16 @@ fn import_with(
                 .as_ref()
                 .map(|(root, files)| sparksmith_kicad::schematic::SchematicFiles { root, files }),
         },
-        Some(&mut models),
+        models
+            .as_mut()
+            .map(|m| m as &mut dyn sparksmith_kicad::models::Provider),
     )
     .map_err(|e| e.to_string())?;
     Ok(KicadImport {
         engine: imported.engine,
         report: imported.report,
         board,
+        pads: imported.pads,
     })
 }
 

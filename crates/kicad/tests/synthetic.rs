@@ -561,9 +561,12 @@ fn distinct_footprints_with_equal_pads_stay_distinct() -> Fallible<()> {
     Ok(())
 }
 
-/// Run 7, finding 2: each footprint's KiCad Value becomes its part's
-/// value, which the BOM's Value column and the parts' groups read; two
-/// copies of one footprint keep their own values, and "~" is no value.
+/// Run 7, finding 2: without a generator (this importer alone) each
+/// footprint is a project part of its lands, named as an authored part is,
+/// by its footprint and value; two copies of one footprint with other
+/// values are two parts, and "~" is no value. No import-only field is
+/// made (a generated part's value is its typed fields:
+/// `kicad_models::tests::values_become_the_generated_parts_typed_fields`).
 #[test]
 fn kicad_values_become_the_parts_values() -> Fallible<()> {
     let part = |reference: &str, x: f64, value: &str| {
@@ -593,37 +596,24 @@ fn kicad_values_become_the_parts_values() -> Fallible<()> {
     };
     let imported = import(board.text().as_bytes())?;
     let project = imported.engine.project();
-    let value = |designator: &str| -> Fallible<Option<String>> {
+    let name = |designator: &str| -> Fallible<String> {
         let instance = project
             .instance_by_designator(designator)
             .ok_or(designator.to_owned())?;
-        Ok(sparksmith_core::instances::value_text(
-            &project.library,
-            instance,
-        )?)
+        Ok(project
+            .library
+            .component(instance.component)
+            .ok_or("component")?
+            .meta
+            .name
+            .clone())
     };
-    assert_eq!(value("R1")?.as_deref(), Some("330"));
-    assert_eq!(value("R2")?.as_deref(), Some("10k"));
-    assert_eq!(value("R3")?, None);
+    assert_eq!(name("R1")?, "R_0805 330");
+    assert_eq!(name("R2")?, "R_0805 10k");
+    assert_eq!(name("R3")?, "R_0805");
+    assert!(project.library.fields.is_empty(), "no import-only field");
     let bom = sparksmith_core::completeness::bom(project)?;
-    let lines: Vec<(Vec<&str>, Vec<&str>)> = bom
-        .lines
-        .iter()
-        .map(|l| {
-            (
-                l.designators.iter().map(String::as_str).collect(),
-                l.values.iter().map(|v| v.text.as_str()).collect(),
-            )
-        })
-        .collect();
-    assert_eq!(
-        lines,
-        [
-            (vec!["R1"], vec!["330"]),
-            (vec!["R2"], vec!["10k"]),
-            (vec!["R3"], vec![])
-        ]
-    );
+    assert_eq!(bom.lines.len(), 3);
     Ok(())
 }
 

@@ -88,7 +88,8 @@ fn header_2x5_lands_number_across_the_rows() -> Result<(), Vec<Problem>> {
             shape: HoleShape::Round {
                 diameter_nm: 1_005_097
             },
-            plated: true
+            plated: true,
+            offset: None,
         })));
     assert_eq!(
         g.package.geometry.envelope_nm,
