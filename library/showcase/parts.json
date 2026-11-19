@@ -3199,8 +3199,8 @@
         "name": "QFN package with exposed pad",
         "definition": {
           "asset": {
-            "hash": "e889292ab1a3b83e95004af6dc9c325c2a39b541ccb8d9871779ae654e6eb818",
-            "bytes": 164083,
+            "hash": "369daa44dc74a816675613c67032fbbb2f108e035817c3b62eeb828e386fc33b",
+            "bytes": 164087,
             "media_type": "application/x-solidcraft",
             "file_name": "qfn-ep.solidcraft"
           },
