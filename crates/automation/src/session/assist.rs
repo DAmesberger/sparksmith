@@ -708,7 +708,13 @@ fn document_summary(doc: &Map<String, Value>) -> Value {
         let total = v["terminal_count"].as_u64().unwrap_or(0);
         let mut listed: BTreeMap<String, usize> = BTreeMap::new();
         for p in &pins {
-            if let Some(n) = p["number"][name].as_str() {
+            // One number, or every number of a terminal on several pads.
+            let numbers: Vec<&str> = match &p["number"][name] {
+                Value::String(n) => vec![n.as_str()],
+                Value::Array(list) => list.iter().filter_map(Value::as_str).collect(),
+                _ => Vec::new(),
+            };
+            for n in numbers {
                 *listed.entry(n.to_owned()).or_default() += 1;
             }
         }

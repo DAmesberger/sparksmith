@@ -469,6 +469,7 @@ fn title(change: &Change, project: &Project) -> String {
     match change {
         Change::SyncPcb {} => "Update PCB".into(),
         Change::ComponentRevision { .. } => "Update instances".into(),
+        Change::ReplaceComponent { .. } => "Replace component".into(),
         Change::Instance {
             edit: InstanceChange::Remove { instance },
         } => format!("Remove {}", name(instance)),
@@ -515,6 +516,7 @@ pub(crate) fn applied_line(plan: &UpdatePlan) -> String {
     let done = match &plan.change {
         Change::SyncPcb {} => "Updated PCB",
         Change::ComponentRevision { .. } => "Updated instances",
+        Change::ReplaceComponent { .. } => "Replaced the component",
         Change::Instance {
             edit: InstanceChange::Remove { .. },
         } => "Removed the instance",

@@ -143,8 +143,10 @@ pub struct PinoutOptions {
 pub struct PinoutPin {
     /// The document's own row key, stable across re-imports ("r12").
     pub row: String,
-    /// Package designation per variant name ("QFN-48" → "12").
-    pub number: BTreeMap<String, String>,
+    /// Package designation per variant name ("QFN-48" → "12"), or every
+    /// designation of a terminal on several differently numbered pads
+    /// ("DFN-8" → ["5", "6", "7"]; an exposed pad split into "9", "10").
+    pub number: BTreeMap<String, PinNumbers>,
     pub name: String,
     pub class: PinoutClass,
     #[serde(default)]
@@ -163,6 +165,61 @@ pub struct PinoutPin {
     pub uncertain: bool,
     #[serde(default)]
     pub note: Option<String>,
+}
+
+/// Most package numbers one row gives one variant.
+pub const MAX_ROW_NUMBERS: usize = 256;
+
+/// A row's package numbers in one variant: one (`"12"`) or, for a terminal
+/// on several differently numbered pads, each of them (`["5", "6", "7"]`).
+/// Every number becomes a package terminal carrying the row's one terminal.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(untagged)]
+pub enum PinNumbers {
+    One(String),
+    Several(Vec<String>),
+}
+
+impl PinNumbers {
+    /// Each number, in the document's order.
+    pub fn iter(&self) -> std::slice::Iter<'_, String> {
+        match self {
+            Self::One(number) => std::slice::from_ref(number).iter(),
+            Self::Several(numbers) => numbers.iter(),
+        }
+    }
+
+    /// How many numbers.
+    pub fn len(&self) -> usize {
+        match self {
+            Self::One(_) => 1,
+            Self::Several(numbers) => numbers.len(),
+        }
+    }
+
+    /// Whether no number is given (an empty list).
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+impl From<String> for PinNumbers {
+    fn from(number: String) -> Self {
+        Self::One(number)
+    }
+}
+
+impl From<&str> for PinNumbers {
+    fn from(number: &str) -> Self {
+        Self::One(number.to_owned())
+    }
+}
+
+impl std::fmt::Display for PinNumbers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let numbers: Vec<&str> = self.iter().map(String::as_str).collect();
+        f.write_str(&numbers.join(", "))
+    }
 }
 
 /// One rule as a Rhai pin-rule script (C1).
