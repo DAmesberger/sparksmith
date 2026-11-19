@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Standoff</title>
+  <path d="M27.5 48L36.5 48A1.5 1.5 0 0 1 38 49.5L38 58.5A1.5 1.5 0 0 1 36.5 60L27.5 60A1.5 1.5 0 0 1 26 58.5L26 49.5A1.5 1.5 0 0 1 27.5 48Z" fill="#b8c3cf" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M18 8L26 8L26 50L18 50Z" fill="#b8c3cf"/>
+  <path d="M26 8L38 8L38 50L26 50Z" fill="#e2e8ef"/>
+  <path d="M38 8L46 8L46 50L38 50Z" fill="#8e9faf"/>
+  <path d="M26 8L26 50" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M38 8L38 50" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20 8L44 8A2 2 0 0 1 46 10L46 48A2 2 0 0 1 44 50L20 50A2 2 0 0 1 18 48L18 10A2 2 0 0 1 20 8Z" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

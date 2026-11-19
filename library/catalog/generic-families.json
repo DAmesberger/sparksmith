@@ -1,10 +1,11 @@
 {
   "format": 1,
-  "about": "The words that ask the part catalog for a generic part, made by a generator. Each family names its generator (the description's id) and declares its patterns with typed slots: {name} a count; {name:length} a length (mm unless it says); {name:code} a size code; {name:ohm}, {name:farad}, {name:henry}, {name:volt} a quantity of a value slot below; {colour:list} a colour of the colour field; {package:list} a preset of the generator named by its first word or an alias. A trailing ? makes a step optional. Patterns match the whole text, word by word, with no reordering. A size code or a listed package chooses a preset among those whose parameters include `presets` (a generator's only family may leave `presets` out and serve every part it makes); count and length slots fill the parameters `slots` names (else the parameter of the slot's name), starting from a preset that has them all, else one with the same lengths; `params` are given on top. `label` names the part, `body` the two lengths its badge shows. `fields` are the standard fields a part of the family selects, each placed part holding its own values; `value_template` is what a placed part shows as its value, alternatives over those fields with {Field} placeholders, the first filled one winning. Examples must each build a part through the family's generator.",
+  "about": "The words that ask the part catalog for a generic part, made by a generator. Each family names its generator (the description's id) and declares its patterns with typed slots: {name} a count; {name:length} a length (mm unless it says); {name:code} a size code; {name:ohm}, {name:farad}, {name:henry}, {name:volt} a quantity of a value slot below; {colour:list} a colour of the colour field; {package:list} a preset of the generator named by its first word or an alias. A trailing ? makes a step optional. Patterns match the whole text, word by word, with no reordering. A size code or a listed package chooses a preset among those whose parameters include `presets` (a generator's only family may leave `presets` out and serve every part it makes); count and length slots fill the parameters `slots` names (else the parameter of the slot's name), starting from a preset that has them all, else one with the same lengths; `params` are given on top. `category` is the path in categories.json a part of the family is filed under; `label` names the part, `body` the two lengths its badge shows. `fields` are the standard fields a part of the family selects, each placed part holding its own values; `value_template` is what a placed part shows as its value, alternatives over those fields with {Field} placeholders, the first filled one winning. Examples must each build a part through the family's generator.",
   "families": [
     {
       "family": "header",
       "generator": "header",
+      "category": "connectors/headers",
       "slots": { "pitch": ["pitch", "row_pitch"] },
       "label": "Pin header {rows}×{columns} {pitch} mm",
       "patterns": [
@@ -16,6 +17,7 @@
     {
       "family": "resistor",
       "generator": "chip",
+      "category": "passives/resistors",
       "presets": { "part": "resistor" },
       "label": "Chip resistor {size}",
       "body": ["length", "width"],
@@ -27,6 +29,7 @@
     {
       "family": "capacitor",
       "generator": "chip",
+      "category": "passives/capacitors",
       "presets": { "part": "capacitor" },
       "label": "Chip capacitor {size}",
       "body": ["length", "width"],
@@ -41,6 +44,7 @@
     {
       "family": "inductor",
       "generator": "chip",
+      "category": "magnetics/inductors",
       "presets": { "part": "ferrite" },
       "params": { "part": "inductor" },
       "label": "Chip inductor {size}",
@@ -53,6 +57,7 @@
     {
       "family": "led",
       "generator": "chip",
+      "category": "opto/leds",
       "presets": { "part": "led" },
       "label": "Chip LED {size}",
       "body": ["length", "width"],
@@ -64,6 +69,7 @@
     {
       "family": "diode",
       "generator": "molded",
+      "category": "discretes/diodes",
       "presets": { "part": "diode" },
       "label": "Diode {package}",
       "body": ["body_length", "body_width"],
@@ -73,6 +79,7 @@
     {
       "family": "electrolytic",
       "generator": "electrolytic",
+      "category": "passives/capacitors",
       "label": "Aluminium electrolytic {package}",
       "body": ["can_diameter", "height"],
       "patterns": ["electrolytic {package:list} {value:farad}? {voltage:volt}?"],
@@ -83,6 +90,7 @@
     {
       "family": "electrolytic",
       "generator": "tht",
+      "category": "passives/capacitors",
       "presets": { "construction": "radial", "symbol": "polarised_capacitor" },
       "label": "Radial electrolytic {package}",
       "body": ["body_diameter", "body_height"],

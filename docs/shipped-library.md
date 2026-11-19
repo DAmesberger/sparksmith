@@ -23,7 +23,7 @@ If none is found, the message lists every folder searched and names the variable
 | Materials | `materials/` | Body, board, finish and mask materials |
 | Standards | `standards/` | Published standards and conventions: preferred number series, marking codes, schematic symbol drawings (`symbols/`) |
 | Standard fields | `standard-fields/` | Standard quantity fields, as a bundle `library.import` takes, and what each is for |
-| Catalog | `catalog/` | The part catalog's search vocabulary: the generic-part families, their patterns and defaults |
+| Catalog | `catalog/` | The part catalog's search vocabulary: the generic-part families, their patterns and defaults; the part categories by function and the designator prefixes that file a part under them (`categories.json`) |
 | Assist | `assist/` | Assistant run profiles and prompts; workflows, `workflows/<id>/` ([workflow format](workflow-format.md)) |
 | Parts | `parts/` | Part files (`.solidcraft`), each with a sidecar; a shipped component (the USB-C receptacle) also with its revision records, `NAME.component.json` ([shipped part files](../library/parts/README.md)) |
 | Templates | `templates/` | Package templates and starter rows |

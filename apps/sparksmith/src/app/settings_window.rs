@@ -69,6 +69,26 @@ pub(crate) struct SettingsWindow {
     pub impedance_changed: bool,
     /// The AI section (Settings › AI), read when the window opens.
     pub ai: super::settings_ai::AiPage,
+    /// The Libraries section: the app sets it before [`Self::show`] and
+    /// applies it when `changed`.
+    pub libraries: LibrariesPage,
+}
+
+/// Settings › Libraries: the online parts registry, off until turned on.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct LibrariesPage {
+    /// The URL as typed; kept while focused.
+    pub url: String,
+    pub enabled: bool,
+    /// How the running registry stands, in words, and whether that is a
+    /// problem.
+    pub status: Option<(String, bool)>,
+    /// Why the typed URL was refused.
+    pub error: Option<String>,
+    /// Turned on or off, or a URL committed.
+    pub changed: bool,
+    /// The URL field has focus: the app keeps the typed text.
+    pub editing: bool,
 }
 
 impl Default for SettingsWindow {
@@ -86,6 +106,7 @@ impl Default for SettingsWindow {
             impedance_tolerance: Err(String::new()),
             impedance_changed: false,
             ai: Default::default(),
+            libraries: LibrariesPage::default(),
         }
     }
 }
@@ -276,6 +297,9 @@ impl SettingsWindow {
                         }
                     }
                 });
+                kit::section(ui, "settings-libraries", "Libraries", true, None, |ui| {
+                    libraries_rows(ui, &mut self.libraries);
+                });
                 kit::section(ui, "settings-production", "Production", true, None, |ui| {
                     waiver_changed = kit::check_row(
                         ui,
@@ -293,6 +317,9 @@ impl SettingsWindow {
                 });
                 kit::section(ui, "settings-lists", "Lists", true, None, |ui| {
                     self.lists_changed = lists_rows(ui, &mut self.lists);
+                });
+                kit::section(ui, "settings-browser", "Browser", true, None, |ui| {
+                    self.lists_changed |= browser_rows(ui, &mut self.lists);
                 });
                 kit::section(ui, "settings-reveal", "Key reveal", true, None, |ui| {
                     reveal_changed |= reveal_rows(ui, reveal);
@@ -574,6 +601,37 @@ impl super::App {
         self.system_windows = [messages, shortcuts, settings, live, report];
     }
 
+    /// Settings › Libraries from the user settings and the running registry.
+    fn libraries_page(&mut self) {
+        use crate::online_library::OnlineStatus;
+        let page = &mut self.settings_window.libraries;
+        page.changed = false;
+        if !page.editing && page.error.is_none() {
+            let setting = self.sources.registry_setting();
+            page.url = setting.url;
+            page.enabled = setting.enabled;
+        }
+        page.status = match (self.sources.online(), self.sources.online_problem()) {
+            (_, Some(problem)) => Some((problem.to_owned(), true)),
+            (Some(online), None) => {
+                let name = online.name();
+                Some(match online.status() {
+                    OnlineStatus::Syncing => (format!("Reading the index of {name}…"), false),
+                    OnlineStatus::Ready {
+                        entries,
+                        offline: None,
+                    } => (format!("{name}: {entries} parts"), false),
+                    OnlineStatus::Ready {
+                        offline: Some(date),
+                        ..
+                    } => (format!("{name} is offline: searching its {date}"), false),
+                    OnlineStatus::Failed(error) => (format!("{name}: {error}"), true),
+                })
+            }
+            (None, None) => None,
+        };
+    }
+
     /// The Settings window while open.
     pub(super) fn settings(&mut self, ctx: &egui::Context) {
         let mut keyboard = self.sources.keyboard().clone();
@@ -586,6 +644,7 @@ impl super::App {
             .impedance_tolerance()
             .map_err(|e| e.to_string());
         self.settings_window.impedance_changed = false;
+        self.libraries_page();
         let (action, reveal_changed, waiver_changed, profile_changed) = self.settings_window.show(
             ctx,
             &self.registry,
@@ -596,6 +655,13 @@ impl super::App {
         );
         if profile_changed {
             self.sources.set_default_rule_profile(default_profile);
+        }
+        let libraries = &mut self.settings_window.libraries;
+        if libraries.changed {
+            libraries.error = self
+                .sources
+                .set_registry(&libraries.url, libraries.enabled)
+                .err();
         }
         if self.settings_window.lists_changed {
             let lists = std::mem::take(&mut self.settings_window.lists);
@@ -676,6 +742,15 @@ fn lists_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSettin
     changed
 }
 
+/// The Browser section: whether components are grouped by category.
+/// Returns whether it changed.
+fn browser_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSettings) -> bool {
+    let mut grouped = !lists.flat_components;
+    let changed = kit::check_row(ui, "Group components by category", &mut grouped);
+    lists.flat_components = !grouped;
+    changed
+}
+
 /// The Default fab profile choices: none, then every readable profile of
 /// the user's library by name, then the shipped ones none of them replaces.
 fn profile_choices() -> Vec<(Option<String>, String)> {
@@ -694,6 +769,42 @@ fn profile_choices() -> Vec<(Option<String>, String)> {
     };
     out.extend(profiles.into_iter().map(|p| (Some(p.id), p.name)));
     out
+}
+
+/// The online library: on or off, its URL, how it stands.
+fn libraries_rows(ui: &mut egui::Ui, page: &mut LibrariesPage) {
+    page.changed |= kit::check_row(ui, "Search the online library", &mut page.enabled);
+    let field = kit::checked_text_row(
+        ui,
+        "Online library",
+        &mut page.url,
+        sparksmith_io::settings::DEFAULT_REGISTRY_URL,
+        page.error.is_some(),
+    );
+    page.editing = field.has_focus();
+    if field.lost_focus() {
+        page.changed = true;
+    }
+    if let Some(error) = &page.error {
+        kit::field_error(ui, &field, error, true);
+    }
+    if let Some((status, problem)) = &page.status {
+        kit::status(
+            ui,
+            status,
+            if *problem {
+                kit::Tone::Error
+            } else {
+                kit::Tone::Dim
+            },
+        );
+    }
+    kit::hint(
+        ui,
+        "Placing a part copies it into the project; nothing needs the network later",
+        "Online rows come after your project and library folders and say whether a person \
+         reviewed them. Use parts.sparksmith.io once it is live, or a registry on this computer.",
+    );
 }
 
 #[cfg(test)]

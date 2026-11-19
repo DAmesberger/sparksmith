@@ -49,7 +49,7 @@ Upstream SolidCraft put `crates/ui-kit`, `crates/look` and `crates/theme` under 
 - `src/kit/`: `crates/ui-kit/src/` (controls, `Container`, `Window`, menus, type faces, icon rendering and the panel blur), with `preferences.rs`, `preferences_cards.rs` and `preferences_small.rs` cut to the helpers the controls call.
 - `src/tokens/`: `crates/theme/src/` (`Tokens`, palettes, light and dark).
 - `src/font_setup.rs`: `crates/ui-egui/src/fonts.rs` without the interface-font preference and the web shell.
-- `src/icon_paint.rs`, `src/icon_set.rs`, `build.rs` and `assets/icons/`: `crates/ui-egui/src/icons.rs`, `icon_svg.rs`, the icon part of `build.rs`, and the icon masters, `palette.toml` and `aliases.toml` of `assets/icons/ui/design/`.
+- `src/icon_paint.rs`, `src/icon_set.rs`, `build.rs` and `assets/icons/`: `crates/ui-egui/src/icons.rs`, `icon_svg.rs`, the icon part of `build.rs`, and the icon masters, `palette.toml` and `aliases.toml` of `assets/icons/ui/design/`. The part-category masters (`assets/icons/svg/{model,small}/part_*.svg`) are original Sparksmith artwork drawn on the same 64-unit grid, stroke widths and palette roles.
 - `src/glyph_art/glyphs.rs`: `assets/icons/ui/source/glyphs.rs`, without the window caption marks and the brand mark.
 - `src/triad.rs`: `crates/ui-egui/src/gizmo.rs`; a drag always snaps, since Sparksmith has no free-drag modifier preference.
 - `src/proj.rs`, `src/box_select.rs`: `Proj` from `crates/ui-egui/src/viewport.rs` and `BoxSel` from `selection.rs`.

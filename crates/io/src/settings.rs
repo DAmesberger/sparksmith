@@ -48,6 +48,57 @@ const APP_DIR: &str = sparksmith_core::product::SHORT_NAME;
 /// The recovery folder's parent on macOS and Windows: the product name.
 const APP_NAME: &str = sparksmith_core::product::NAME;
 
+/// Online registries configured.
+pub const MAX_REGISTRIES: usize = 4;
+/// Bytes of a registry URL.
+pub const MAX_REGISTRY_URL: usize = 256;
+/// The registry URL Settings › Libraries offers until the hosted registry
+/// is deployed: a registry server on this machine.
+pub const DEFAULT_REGISTRY_URL: &str = "http://localhost:8787";
+
+/// One online parts registry (part-search §6, registry R0 §10), searched
+/// after every local source. Off unless the person turns it on.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct RegistrySetting {
+    /// `http://` or `https://`, host and optional port, no path.
+    pub url: String,
+    pub enabled: bool,
+}
+
+impl RegistrySetting {
+    /// The URL's shape: a scheme, a host, an optional port and nothing
+    /// else, within [`MAX_REGISTRY_URL`].
+    pub fn check(&self) -> Result<()> {
+        check_registry_url(&self.url)
+    }
+}
+
+/// [`RegistrySetting::check`] of a typed URL.
+pub fn check_registry_url(url: &str) -> Result<()> {
+    let bad = |why: &str| Err(Error::Invalid(format!("registry URL {url}: {why}")));
+    if url.len() > MAX_REGISTRY_URL {
+        return bad("too long");
+    }
+    let Some(rest) = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+    else {
+        return bad("it starts with http:// or https://");
+    };
+    let host = rest.trim_end_matches('/');
+    if host.is_empty() || host.contains(['/', '?', '#', '@', ' ']) {
+        return bad("give the host and an optional port only, as parts.sparksmith.io");
+    }
+    if !host
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':' | '[' | ']'))
+    {
+        return bad("the host has a character a host name cannot have");
+    }
+    crate::registry_mirror::host_key(url).map(|_| ())
+}
+
 /// One configured library folder.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -114,6 +165,9 @@ pub struct UserSettings {
     /// The main window as last left; `None`: the default frame.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub window: Option<WindowState>,
+    /// Online parts registries (Settings › Libraries); none by default.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub registries: Vec<RegistrySetting>,
 }
 
 /// Saved list filters kept.
@@ -154,6 +208,10 @@ pub struct ListSettings {
     pub reduced_motion: Option<bool>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub saved_filters: Vec<SavedFilter>,
+    /// The Browser lists components flat, not grouped by category
+    /// (Settings › Browser; grouped by default).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub flat_components: bool,
 }
 
 impl ListSettings {
@@ -309,6 +367,7 @@ impl Default for UserSettings {
             selection_filter: SelectionFilter::default(),
             lists: ListSettings::default(),
             window: None,
+            registries: Vec::new(),
         }
     }
 }
@@ -699,6 +758,14 @@ impl UserSettings {
             )));
         }
         self.keyboard.check()?;
+        if self.registries.len() > MAX_REGISTRIES {
+            return Err(Error::TooLarge(format!(
+                "at most {MAX_REGISTRIES} online registries"
+            )));
+        }
+        for registry in &self.registries {
+            registry.check()?;
+        }
         if self.part_files.len() > MAX_RECENT_PART_FILES {
             return Err(Error::TooLarge(format!(
                 "at most {MAX_RECENT_PART_FILES} recent part files"
@@ -1023,6 +1090,35 @@ mod tests {
                 ..UserSettings::default()
             };
             assert!(bad.check().is_err(), "{position:?} {size:?}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn registries_are_off_by_default_round_trip_and_refuse_bad_urls() -> Result<()> {
+        assert!(UserSettings::default().registries.is_empty());
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join(SETTINGS_FILE);
+        let settings = UserSettings {
+            registries: vec![RegistrySetting {
+                url: DEFAULT_REGISTRY_URL.into(),
+                enabled: true,
+            }],
+            ..UserSettings::default()
+        };
+        write_settings(&path, &settings)?;
+        assert_eq!(read_settings(&path)?, settings);
+        for url in [
+            "parts.sparksmith.io",
+            "http://",
+            "http://host/path",
+            "http://user@host",
+            "ftp://parts.sparksmith.io",
+        ] {
+            assert!(check_registry_url(url).is_err(), "{url}");
+        }
+        for url in ["https://parts.sparksmith.io", "http://127.0.0.1:8787/"] {
+            check_registry_url(url)?;
         }
         Ok(())
     }

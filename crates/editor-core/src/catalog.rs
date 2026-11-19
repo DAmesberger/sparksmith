@@ -60,6 +60,21 @@ pub enum Source {
     Project,
     /// A local library folder (S3), by its manifest identity.
     Library(LibraryId),
+    /// An online registry's library (part-search §6, registry R0): its
+    /// entries are searched by the registry with this same index and
+    /// ranked after every local source. Placing one imports an exact
+    /// snapshot, as a folder's does.
+    Online(LibraryId),
+}
+
+impl Source {
+    /// The library a folder or online entry comes from.
+    pub fn library(self) -> Option<LibraryId> {
+        match self {
+            Self::Project => None,
+            Self::Library(library) | Self::Online(library) => Some(library),
+        }
+    }
 }
 
 /// A lineage's identity across sources: how favourites and recents are
@@ -483,7 +498,7 @@ impl CatalogEntry {
     /// other project.
     pub fn user_key(&self) -> Option<EntryKey> {
         match (self.source, self.origin) {
-            (Source::Library(_), _) => Some(self.key()),
+            (Source::Library(_) | Source::Online(_), _) => Some(self.key()),
             (Source::Project, Some(origin)) => Some(EntryKey::Library {
                 library: origin.library,
                 lineage: origin.lineage,
@@ -497,8 +512,8 @@ impl CatalogEntry {
     }
     /// The lineage's identity across sources.
     pub fn key(&self) -> EntryKey {
-        match (self.source, self.source_lineage) {
-            (Source::Library(library), Some(lineage)) => EntryKey::Library { library, lineage },
+        match (self.source.library(), self.source_lineage) {
+            (Some(library), Some(lineage)) => EntryKey::Library { library, lineage },
             _ => EntryKey::Project {
                 lineage: self.lineage,
             },
@@ -1056,6 +1071,18 @@ fn tier(entry: &CatalogEntry, folded: &Folded, query: &CatalogQuery) -> Option<M
             }
             Term::Project => {
                 if entry.source != Source::Project {
+                    return None;
+                }
+                None
+            }
+            Term::Library => {
+                if !matches!(entry.source, Source::Library(_)) {
+                    return None;
+                }
+                None
+            }
+            Term::Online => {
+                if !matches!(entry.source, Source::Online(_)) {
                     return None;
                 }
                 None

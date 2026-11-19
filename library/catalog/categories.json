@@ -1,0 +1,214 @@
+{
+  "format": 1,
+  "about": "The part categories, by function: the one tree the Browser, the Place palette and part search file parts under (docs/design/part-search-and-package-picker.md §1.3, §3.1). A category is named by its path of ids (passives/resistors): lower-case ASCII slugs, at most 3 levels. `other` holds every part no category takes and is always last. `designators` files a part that names no category by its designator prefix (an imported board's R, C, U, …): each prefix once, onto a category of this file. `icon` names the icon of the category's rows and of the parts in it (a category without one shows its parent's). A part made by a generator is filed by its family's category (generic-families.json) first.",
+  "categories": [
+    {
+      "id": "passives",
+      "title": "Passives",
+      "icon": "part_resistor",
+      "children": [
+        { "id": "resistors", "title": "Resistors" },
+        { "id": "capacitors", "title": "Capacitors", "icon": "part_capacitor" },
+        { "id": "potentiometers", "title": "Potentiometers and trimmers" },
+        { "id": "arrays", "title": "Resistor and capacitor arrays" }
+      ]
+    },
+    {
+      "id": "magnetics",
+      "title": "Magnetics",
+      "icon": "part_inductor",
+      "children": [
+        { "id": "inductors", "title": "Inductors" },
+        { "id": "ferrite-beads", "title": "Ferrite beads" },
+        { "id": "chokes", "title": "Common-mode chokes" },
+        { "id": "transformers", "title": "Transformers" }
+      ]
+    },
+    {
+      "id": "frequency",
+      "title": "Frequency control",
+      "icon": "part_crystal",
+      "children": [
+        { "id": "crystals", "title": "Crystals" },
+        { "id": "oscillators", "title": "Oscillators" },
+        { "id": "resonators", "title": "Resonators" }
+      ]
+    },
+    {
+      "id": "protection",
+      "title": "Protection",
+      "icon": "part_fuse",
+      "children": [
+        { "id": "fuses", "title": "Fuses and PTC fuses" },
+        { "id": "tvs", "title": "TVS and ESD diodes", "icon": "part_diode" },
+        { "id": "varistors", "title": "Varistors" },
+        { "id": "gas-discharge", "title": "Gas discharge tubes" }
+      ]
+    },
+    {
+      "id": "discretes",
+      "title": "Discretes",
+      "icon": "part_diode",
+      "children": [
+        { "id": "diodes", "title": "Diodes and rectifiers" },
+        { "id": "zeners", "title": "Zener diodes" },
+        { "id": "bipolar", "title": "Bipolar transistors", "icon": "part_transistor" },
+        { "id": "mosfets", "title": "MOSFETs", "icon": "part_transistor" },
+        { "id": "thyristors", "title": "Thyristors", "icon": "part_transistor" }
+      ]
+    },
+    {
+      "id": "opto",
+      "title": "Optoelectronics",
+      "icon": "part_led",
+      "children": [
+        { "id": "leds", "title": "LEDs" },
+        { "id": "displays", "title": "Displays" },
+        { "id": "optocouplers", "title": "Optocouplers" },
+        { "id": "photodetectors", "title": "Photodiodes and phototransistors" },
+        { "id": "infrared", "title": "Infrared" }
+      ]
+    },
+    {
+      "id": "ics",
+      "title": "ICs",
+      "icon": "part_ic",
+      "children": [
+        { "id": "power", "title": "Power management" },
+        { "id": "interface", "title": "Interface" },
+        { "id": "logic", "title": "Logic" },
+        { "id": "processors", "title": "MCUs and processors" },
+        { "id": "memory", "title": "Memory" },
+        { "id": "analogue", "title": "Analogue" },
+        { "id": "timing", "title": "Clock and timing" },
+        { "id": "audio", "title": "Audio" }
+      ]
+    },
+    {
+      "id": "sensors",
+      "title": "Sensors",
+      "icon": "part_sensor",
+      "children": [
+        { "id": "temperature", "title": "Temperature" },
+        { "id": "motion", "title": "Motion and position" },
+        { "id": "pressure", "title": "Pressure" },
+        { "id": "current", "title": "Current" },
+        { "id": "light", "title": "Light" },
+        { "id": "humidity", "title": "Humidity" },
+        { "id": "magnetic", "title": "Magnetic" },
+        { "id": "microphones", "title": "Microphones" }
+      ]
+    },
+    {
+      "id": "rf",
+      "title": "RF and wireless",
+      "icon": "part_antenna",
+      "children": [
+        { "id": "antennas", "title": "Antennas" },
+        { "id": "modules", "title": "RF modules", "icon": "part_module" },
+        { "id": "ics", "title": "RF ICs", "icon": "part_ic" },
+        { "id": "filters", "title": "Baluns and filters" },
+        { "id": "shields", "title": "Shields" }
+      ]
+    },
+    {
+      "id": "power",
+      "title": "Power",
+      "icon": "part_battery",
+      "children": [
+        { "id": "converters", "title": "Converters and power modules", "icon": "part_module" },
+        { "id": "batteries", "title": "Batteries" },
+        { "id": "battery-holders", "title": "Battery holders and contacts" }
+      ]
+    },
+    {
+      "id": "electromech",
+      "title": "Electromechanical",
+      "icon": "part_switch",
+      "children": [
+        { "id": "switches", "title": "Switches and buttons" },
+        { "id": "relays", "title": "Relays" },
+        { "id": "sounders", "title": "Buzzers and speakers", "icon": "part_sounder" },
+        { "id": "motors", "title": "Motors" },
+        { "id": "fans", "title": "Fans" }
+      ]
+    },
+    {
+      "id": "connectors",
+      "title": "Connectors and cables",
+      "icon": "part_connector",
+      "children": [
+        { "id": "headers", "title": "Headers and sockets" },
+        { "id": "usb", "title": "USB" },
+        { "id": "board-to-board", "title": "Board-to-board" },
+        { "id": "wire-to-board", "title": "Wire-to-board" },
+        { "id": "terminal-blocks", "title": "Terminal blocks" },
+        { "id": "card-sockets", "title": "Card sockets" },
+        { "id": "rf", "title": "RF connectors" },
+        { "id": "cables", "title": "Cables and jumpers" }
+      ]
+    },
+    {
+      "id": "mechanical",
+      "title": "Mechanical and hardware",
+      "icon": "part_standoff",
+      "children": [
+        { "id": "fasteners", "title": "Fasteners" },
+        { "id": "standoffs", "title": "Standoffs and spacers" },
+        { "id": "thermal", "title": "Heatsinks and thermal pads" },
+        { "id": "enclosure", "title": "Enclosure hardware" }
+      ]
+    },
+    {
+      "id": "board",
+      "title": "Board features",
+      "icon": "part_fiducial",
+      "children": [
+        { "id": "test-points", "title": "Test points" },
+        { "id": "fiducials", "title": "Fiducials" },
+        { "id": "mounting-holes", "title": "Mounting holes", "icon": "hole" },
+        { "id": "jumpers", "title": "Net ties and solder jumpers" },
+        { "id": "marks", "title": "Logos and marks" }
+      ]
+    },
+    { "id": "other", "title": "Other", "icon": "part_other" }
+  ],
+  "designators": [
+    { "prefix": "R", "category": "passives/resistors" },
+    { "prefix": "C", "category": "passives/capacitors" },
+    { "prefix": "RV", "category": "passives/potentiometers" },
+    { "prefix": "VR", "category": "passives/potentiometers" },
+    { "prefix": "RN", "category": "passives/arrays" },
+    { "prefix": "L", "category": "magnetics/inductors" },
+    { "prefix": "FB", "category": "magnetics/ferrite-beads" },
+    { "prefix": "T", "category": "magnetics/transformers" },
+    { "prefix": "Y", "category": "frequency/crystals" },
+    { "prefix": "X", "category": "frequency" },
+    { "prefix": "F", "category": "protection/fuses" },
+    { "prefix": "D", "category": "discretes/diodes" },
+    { "prefix": "Q", "category": "discretes" },
+    { "prefix": "LED", "category": "opto/leds" },
+    { "prefix": "DS", "category": "opto/displays" },
+    { "prefix": "U", "category": "ics" },
+    { "prefix": "IC", "category": "ics" },
+    { "prefix": "MK", "category": "sensors/microphones" },
+    { "prefix": "AE", "category": "rf/antennas" },
+    { "prefix": "ANT", "category": "rf/antennas" },
+    { "prefix": "BT", "category": "power/batteries" },
+    { "prefix": "SW", "category": "electromech/switches" },
+    { "prefix": "S", "category": "electromech/switches" },
+    { "prefix": "K", "category": "electromech/relays" },
+    { "prefix": "LS", "category": "electromech/sounders" },
+    { "prefix": "BZ", "category": "electromech/sounders" },
+    { "prefix": "M", "category": "electromech/motors" },
+    { "prefix": "J", "category": "connectors" },
+    { "prefix": "P", "category": "connectors" },
+    { "prefix": "TP", "category": "board/test-points" },
+    { "prefix": "FID", "category": "board/fiducials" },
+    { "prefix": "H", "category": "board/mounting-holes" },
+    { "prefix": "MH", "category": "board/mounting-holes" },
+    { "prefix": "JP", "category": "board/jumpers" },
+    { "prefix": "NT", "category": "board/jumpers" },
+    { "prefix": "LOGO", "category": "board/marks" }
+  ]
+}

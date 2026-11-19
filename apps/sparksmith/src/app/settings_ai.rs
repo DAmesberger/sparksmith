@@ -1700,4 +1700,4 @@ fn workflow_row(listed: &Listed) -> (String, String) {
 
 #[cfg(test)]
 #[path = "settings_ai_tests.rs"]
-mod tests;
+pub(crate) mod tests;
