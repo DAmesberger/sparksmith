@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Crystal</title>
+  <path d="M24 44L24 58" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M40 44L40 58" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22 16L42 16A14 14 0 0 1 56 30L56 30A14 14 0 0 1 42 44L22 44A14 14 0 0 1 8 30L8 30A14 14 0 0 1 22 16Z" fill="#e2e8ef" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M23 23L41 23A7 7 0 0 1 48 30L48 30A7 7 0 0 1 41 37L23 37A7 7 0 0 1 16 30L16 30A7 7 0 0 1 23 23Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

@@ -777,10 +777,25 @@ impl App {
         }
         let updates = self.sources.updates(&self.engine);
         self.schematic.set_updates(updates);
+        // The online registry: its name, the palette's newest reply, and
+        // the chat's and live MCP's sessions reaching it with src:online.
+        if let Some(online) = self.sources.take_online_change() {
+            self.assistant.session.set_online(online.clone());
+            self.live.set_online(online);
+        }
+        let online_name = self.sources.online().map(|o| o.name());
+        self.schematic.palette_mut().set_online(online_name);
+        for search in self.sources.take_online_searches() {
+            self.schematic.palette_mut().set_online_reply(search);
+        }
         let sources = &self.sources;
         self.schematic
             .palette_mut()
             .set_context(sources.generation(), || sources.context());
+        self.schematic.palette_mut().set_bundle_loader(
+            sources.generation() ^ (sources.online_generation() << 32),
+            || sources.bundle_loader(),
+        );
         let loading = sources.loading();
         self.schematic.palette_mut().set_loading(loading);
         // The part-file chooser's recent files are kept per user.
@@ -796,6 +811,12 @@ impl App {
     /// bundles are read on a worker; the engine work happens when they
     /// arrive (see `library_bundles`).
     fn library_requests(&mut self, ctx: &egui::Context) {
+        let palette = self.schematic.palette_mut();
+        if let Some((generation, text)) = palette.take_online_request() {
+            self.sources.online_search(generation, &text);
+        } else if !palette.is_open() {
+            self.sources.online_cancel(palette.online_generation());
+        }
         let events = self.schematic.palette_mut().take_events();
         let action = library_sources::take_component_action(ctx);
         let instance_update = self.schematic.take_library_update();
@@ -1810,6 +1831,9 @@ pub(crate) fn sheet_rows(
         .collect()
 }
 
+#[cfg(test)]
+#[path = "app/browser_tree_tests.rs"]
+mod browser_tree_tests;
 #[cfg(test)]
 #[path = "app/dimension_2d_tests.rs"]
 mod dimension_2d_tests;

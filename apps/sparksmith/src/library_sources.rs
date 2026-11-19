@@ -589,6 +589,16 @@ pub struct LibrarySources {
     bundles: Vec<ReadBundle>,
     /// `library.updates_available` at (project, document revision, generation).
     updates: Option<(usize, u64, u64, Arc<Vec<UpdateAvailable>>)>,
+    /// The turned-on online registry (Settings › Libraries), if any.
+    online: Option<crate::online_library::OnlineLibrary>,
+    /// Why the configured registry could not start.
+    online_problem: Option<String>,
+    /// Bumped whenever the registry starts or stops.
+    online_generation: u64,
+    /// The generation sessions were last given.
+    online_installed: u64,
+    /// Palette searches the registry answered since the last take.
+    online_searches: Vec<crate::online_library::OnlineSearch>,
 }
 
 impl LibrarySources {
@@ -611,7 +621,139 @@ impl LibrarySources {
         };
         sources.repaint = Some(ctx.clone());
         sources.rescan();
+        sources.start_online();
         sources
+    }
+
+    /// (Re)start the first turned-on registry of the settings; none stops it.
+    pub fn start_online(&mut self) {
+        self.online = None;
+        self.online_problem = None;
+        self.online_generation = self.online_generation.wrapping_add(1);
+        let Some(setting) = self.settings.registries.iter().find(|r| r.enabled).cloned() else {
+            return;
+        };
+        let cache = self.dirs.as_ref().map(|d| d.cache.clone());
+        match crate::online_library::OnlineLibrary::start(
+            &setting.url,
+            cache.as_deref(),
+            self.repaint.clone(),
+        ) {
+            Ok(online) => self.online = Some(online),
+            Err(error) => self.online_problem = Some(error),
+        }
+    }
+
+    /// The running online registry.
+    pub fn online(&self) -> Option<&crate::online_library::OnlineLibrary> {
+        self.online.as_ref()
+    }
+
+    /// Changes whenever the registry starts or stops.
+    pub fn online_generation(&self) -> u64 {
+        self.online_generation
+    }
+
+    /// Reads a palette row's bundle for its preview, off the UI thread: a
+    /// shipped component, a ready folder's, else the registry's (checked
+    /// and mirrored as for placing).
+    pub fn bundle_loader(&self) -> crate::place_palette::BundleLoader {
+        let folders: Vec<Folder> = self
+            .sources
+            .iter()
+            .filter_map(|s| match &s.status {
+                Status::Ready { folder, .. } => Some(folder.clone()),
+                _ => None,
+            })
+            .collect();
+        let online = self.online.as_ref().map(|o| o.client());
+        Arc::new(move |pick: FolderPick| {
+            let root = SourceRevision {
+                lineage: pick.lineage,
+                revision: pick.revision,
+            };
+            if let Some(bundle) = sparksmith_automation::part_files::builtin_parts()
+                .ok()
+                .and_then(|parts| parts.component(pick.library, root))
+            {
+                return Ok(Bundle::clone(bundle));
+            }
+            if let Some(folder) = folders.iter().find(|f| f.manifest.library == pick.library) {
+                return folder::read_bundle(folder, root).map_err(|e| e.to_string());
+            }
+            match &online {
+                Some(client) => client.bundle(pick.library, root),
+                None => Err("That library source is not available any more".into()),
+            }
+        })
+    }
+
+    /// The registry sessions should search with `src:online`, when it
+    /// started or stopped since the last call: `Some(None)` when stopped.
+    pub fn take_online_change(
+        &mut self,
+    ) -> Option<Option<Arc<dyn sparksmith_automation::session::online::OnlineSource>>> {
+        if self.online_installed == self.online_generation {
+            return None;
+        }
+        self.online_installed = self.online_generation;
+        Some(
+            self.online.as_ref().map(|o| {
+                o.client() as Arc<dyn sparksmith_automation::session::online::OnlineSource>
+            }),
+        )
+    }
+
+    /// Why the configured registry is not running.
+    pub fn online_problem(&self) -> Option<&str> {
+        self.online_problem.as_deref()
+    }
+
+    /// The registry Settings › Libraries shows: the configured one, else
+    /// the default URL, turned off.
+    pub fn registry_setting(&self) -> settings::RegistrySetting {
+        self.settings
+            .registries
+            .first()
+            .cloned()
+            .unwrap_or_else(|| settings::RegistrySetting {
+                url: settings::DEFAULT_REGISTRY_URL.into(),
+                enabled: false,
+            })
+    }
+
+    /// Keep `url` as the registry and turn it on or off; it restarts when
+    /// either changed. A URL the settings would refuse is refused here.
+    pub fn set_registry(&mut self, url: &str, enabled: bool) -> Result<(), String> {
+        let url = url.trim().trim_end_matches('/').to_owned();
+        settings::check_registry_url(&url).map_err(|e| e.to_string())?;
+        let next = settings::RegistrySetting { url, enabled };
+        if self.settings.registries.first() == Some(&next) {
+            return Ok(());
+        }
+        self.settings.registries = vec![next];
+        self.persist();
+        self.start_online();
+        Ok(())
+    }
+
+    /// Ask the registry for a palette search.
+    pub fn online_search(&self, generation: u64, text: &str) {
+        if let Some(online) = &self.online {
+            online.search(generation, text);
+        }
+    }
+
+    /// Drop the palette's searches up to `generation` (it closed).
+    pub fn online_cancel(&self, generation: u64) {
+        if let Some(online) = &self.online {
+            online.cancel(generation);
+        }
+    }
+
+    /// Palette searches answered since the last call.
+    pub fn take_online_searches(&mut self) -> Vec<crate::online_library::OnlineSearch> {
+        std::mem::take(&mut self.online_searches)
     }
 
     /// Sources from `dirs` (or in-memory only), not yet scanned.
@@ -667,6 +809,11 @@ impl LibrarySources {
             session_recent: Vec::new(),
             bundles: Vec::new(),
             updates: None,
+            online: None,
+            online_problem: None,
+            online_generation: 0,
+            online_installed: 0,
+            online_searches: Vec::new(),
         }
     }
 
@@ -1122,6 +1269,12 @@ impl LibrarySources {
             changed = true;
             self.handle(event);
         }
+        if let Some(online) = &mut self.online {
+            let (searches, bundles) = online.receive();
+            changed |= !searches.is_empty() || !bundles.is_empty();
+            self.online_searches.extend(searches);
+            self.bundles.extend(bundles);
+        }
         changed
     }
 
@@ -1220,6 +1373,14 @@ impl LibrarySources {
                 purpose,
                 result: Ok(Bundle::clone(bundle)),
             });
+            return;
+        }
+        // Not a folder's: an online registry's root, fetched and checked
+        // on the registry's worker.
+        if self.folder(pick.library).is_err()
+            && let Some(online) = &mut self.online
+        {
+            online.bundle(pick, purpose);
             return;
         }
         let folder = match self.folder(pick.library) {

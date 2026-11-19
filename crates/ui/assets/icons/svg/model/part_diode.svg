@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Diode</title>
+  <path d="M4 32L14 32" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50 32L60 32" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M18 22L46 22A4 4 0 0 1 50 26L50 38A4 4 0 0 1 46 42L18 42A4 4 0 0 1 14 38L14 26A4 4 0 0 1 18 22Z" fill="#b8c3cf"/>
+  <path d="M38 22L44 22L44 42L38 42Z" fill="#236ead"/>
+  <path d="M18 22L46 22A4 4 0 0 1 50 26L50 38A4 4 0 0 1 46 42L18 42A4 4 0 0 1 14 38L14 26A4 4 0 0 1 18 22Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

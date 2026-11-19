@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Resistor</title>
+  <path d="M4 32L14 32" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50 32L60 32" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20 22L44 22A6 6 0 0 1 50 28L50 36A6 6 0 0 1 44 42L20 42A6 6 0 0 1 14 36L14 28A6 6 0 0 1 20 22Z" fill="#e2e8ef"/>
+  <path d="M21 22L25 22L25 42L21 42Z" fill="#328bd3"/>
+  <path d="M29 22L33 22L33 42L29 42Z" fill="#328bd3"/>
+  <path d="M37 22L41 22L41 42L37 42Z" fill="#236ead"/>
+  <path d="M20 22L44 22A6 6 0 0 1 50 28L50 36A6 6 0 0 1 44 42L20 42A6 6 0 0 1 14 36L14 28A6 6 0 0 1 20 22Z" fill="none" stroke="#34465b" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

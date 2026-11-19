@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Switch</title>
+  <path d="M14 50L14 58" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M50 50L50 58" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M12 16L52 16A4 4 0 0 1 56 20L56 46A4 4 0 0 1 52 50L12 50A4 4 0 0 1 8 46L8 20A4 4 0 0 1 12 16Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="33" r="11" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

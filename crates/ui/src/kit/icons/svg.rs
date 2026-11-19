@@ -47,6 +47,19 @@ pub mod audit {
         static REQUESTS: RefCell<BTreeMap<String, Requested>> = const { RefCell::new(BTreeMap::new()) };
     }
 
+    /// Record the icons this thread resolves from now on, forgetting
+    /// earlier ones.
+    pub fn start() {
+        REQUESTS.with(|requests| requests.borrow_mut().clear());
+        ACTIVE.set(true);
+    }
+
+    /// Stop recording; the icons resolved since [`start`], by id.
+    pub fn finish() -> Vec<Requested> {
+        ACTIVE.set(false);
+        REQUESTS.with(|requests| std::mem::take(&mut *requests.borrow_mut()).into_values().collect())
+    }
+
     pub(super) fn record(name: &str, resolved: super::Resolved) {
         if ACTIVE.get() {
             REQUESTS.with(|requests| {

@@ -19,6 +19,7 @@ pub mod persistence;
 pub mod plugin_approvals;
 pub mod project_models;
 pub mod recovery;
+pub mod registry_mirror;
 pub mod rule_profiles;
 pub mod schematic_pdf;
 pub mod settings;

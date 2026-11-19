@@ -125,7 +125,9 @@ impl Item {
                 }),
                 _ => None,
             },
-            Source::Library(_) => FolderPick::of(entry).map(|pick| Self::Folder { pick, key }),
+            Source::Library(_) | Source::Online(_) => {
+                FolderPick::of(entry).map(|pick| Self::Folder { pick, key })
+            }
         }
     }
 
