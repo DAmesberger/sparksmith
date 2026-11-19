@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "tabbed-plcc-led",
+  "title": "PLCC LED package",
+  "summary": "PLCC LED with its driver (5050 addressable LED): a white housing standing on the leads' feet, a round cavity in its top filled with clear encapsulant over the leadframe, the driver die and three LED chips, the pin-3 corner cut; each lead leaves the housing's side, runs down it and folds under the housing to its foot; the −y and +y rows each a pattern with its own count and grid step (pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length, row_s_leads, row_s_step, row_n_leads, row_n_step, corner_round, edge_round; the cavity, chips and notch derived).",
+  "use": "package_body",
+  "prefix": "D",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the WS2812B's values; the tabbed generator gives every input its value. Outline, lead form, cavity and cut corner after Worldsemi's WS2812B datasheet (mechanical dimensions, page 3: 5.0 × 5.0 × 1.57 mm, leads 0.9 mm wide, 5.4 mm over the leads); lead height, cavity depth and the chips' sizes and places are estimated. Looked at, never copied: no vendor drawing, CAD model or EDA library data copied."
+}

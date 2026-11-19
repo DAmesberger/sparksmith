@@ -404,6 +404,53 @@ fn made(generator: &str, preset: &str, params: &Value) -> TestResult<Session> {
     Ok(session)
 }
 
+/// The made part's package with the module's lead contacts (a generated
+/// package stores none until a body is fitted to a footprint; these are
+/// the contacts `library.make_body` stores), and its footprint.
+fn landed(
+    session: &Session,
+    generator: &str,
+    preset: &str,
+    params: &Value,
+) -> TestResult<(
+    sparksmith_core::library::PackageDefinition,
+    sparksmith_core::library::FootprintDefinition,
+)> {
+    use sparksmith_core::library::PackageLead;
+    use sparksmith_core::units::{Nm, PointNm};
+    let request = serde_json::from_value(json!({"generator": generator,
+        "scope": "component", "preset": preset, "params": params,
+        "expected_revision": session.engine().revision()}))?;
+    let (_, _, made) = session.run_request(request)?;
+    let generation = made.map_err(|f| format!("{preset}: {f:?}"))?.generation;
+    let library = &session.engine().project().library;
+    let mut package = library
+        .packages
+        .first()
+        .ok_or("no package")?
+        .definition
+        .clone();
+    for lead in &generation.package.geometry.leads {
+        let terminal = package
+            .terminals
+            .iter()
+            .find(|t| t.designation == lead.key)
+            .ok_or_else(|| format!("{preset}: no terminal {}", lead.key))?
+            .id;
+        package.leads.push(PackageLead {
+            terminal,
+            contact: PointNm::new(Nm::new(lead.contact[0])?, Nm::new(lead.contact[1])?),
+        });
+    }
+    let footprint = library
+        .footprints
+        .first()
+        .ok_or("no footprint")?
+        .definition
+        .clone();
+    Ok((package, footprint))
+}
+
 /// Every preset of the IC and discrete generators, and each part-file
 /// variant, placed on either side of the board at every quarter turn: each
 /// lead contact of the body, placed as the 3D view places it, lands on its
@@ -454,13 +501,8 @@ fn every_ic_preset_lands_its_leads_at_every_quarter_turn() -> TestResult {
     for (generator, preset, params) in &cases {
         let session = made(generator, preset, params)?;
         let project = session.engine().project();
-        let library = &project.library;
-        let package = &library.packages.first().ok_or("no package")?.definition;
-        let footprint = &library
-            .footprints
-            .first()
-            .ok_or("no footprint")?
-            .definition;
+        let (package, footprint) = landed(&session, generator, preset, params)?;
+        let (package, footprint) = (&package, &footprint);
         for layer in ["Top", "Bottom"] {
             for rotation in [0.0, 90.0, 180.0, 270.0] {
                 let placement = serde_json::from_value(json!({"instance": 1,
@@ -473,10 +515,12 @@ fn every_ic_preset_lands_its_leads_at_every_quarter_turn() -> TestResult {
                     "{preset} {params} {layer} {rotation}°: {:?}",
                     body.leads
                 );
-                assert_eq!(
-                    body.pin_one,
-                    PinOne::Agrees,
-                    "{preset} {params} {layer} {rotation}°"
+                // A grid array has no terminal 1 (its first ball is A1).
+                assert!(
+                    matches!(body.pin_one, PinOne::Agrees)
+                        || (generator == "grid" && body.pin_one == PinOne::Unknown),
+                    "{preset} {params} {layer} {rotation}°: {:?}",
+                    body.pin_one
                 );
                 assert!(
                     body.seat_mm.is_some_and(|z| z.abs() < 1e-6),
@@ -520,8 +564,7 @@ fn real_part_presets_match_their_drawings() -> TestResult {
     ];
     for (preset, outline, land1) in cases {
         let session = made("no-lead", preset, &json!({}))?;
-        let library = &session.engine().project().library;
-        let package = &library.packages.first().ok_or("no package")?.definition;
+        let (package, _) = landed(&session, "no-lead", preset, &json!({}))?;
         let PackageModel::PartFile(part) = &package.model else {
             return Err(format!("{preset}: no part file").into());
         };

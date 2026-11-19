@@ -2483,6 +2483,279 @@ fn author_tabbed(side: TabbedSide) -> Vec<u8> {
     finish_part(s, "standoff + body_height")
 }
 
+/// A part file of the `tabbed` generator's bundle: a PLCC LED with its
+/// driver (Worldsemi's WS2812B, 5050), as the datasheet's drawing shows it:
+/// a white housing on the leads' feet, a round cavity in its top filled
+/// with clear encapsulant over the leadframe, the driver die and three LED
+/// chips, the pin-3 corner cut; each lead leaves the housing's side,
+/// runs down it and folds under the housing to its foot. The −y and +y
+/// rows are patterns with their own counts and grid steps, as the other
+/// tabbed files. Saved at the WS2812B's values; the generator gives every
+/// input value.
+fn author_plcc_led() -> Vec<u8> {
+    let mut s = Session::default();
+    run(&mut s, "file.new", json!({"name": "PLCC LED package"}));
+    let rows = vec![
+        param("pitch", "3.3 mm", "mm", "the lead grid's pitch along x"),
+        param("body_length", "5 mm", "mm", "housing length (x)"),
+        param("body_width", "5 mm", "mm", "housing width (y)"),
+        param(
+            "body_height",
+            "1.42 mm",
+            "mm",
+            "housing height above the standoff",
+        ),
+        param(
+            "standoff",
+            "0.15 mm",
+            "mm",
+            "housing bottom above the seating plane: the feet under it",
+        ),
+        param("span", "5.4 mm", "mm", "lead tip to lead tip across y"),
+        param("lead_width", "0.9 mm", "mm", "lead width along x"),
+        param("lead_thickness", "0.15 mm", "mm", "lead thickness"),
+        param(
+            "foot_length",
+            "1 mm",
+            "mm",
+            "a lead's foot under the housing, from its outer face",
+        ),
+        param("row_s_leads", "2", "", "leads on the −y side"),
+        param("row_s_step", "1", "", "grid positions between −y leads"),
+        param("row_n_leads", "2", "", "leads on the +y side"),
+        param("row_n_step", "1", "", "grid positions between +y leads"),
+        param(
+            "corner_round",
+            "0.1 mm",
+            "mm",
+            "round of the housing's upright corners",
+        ),
+        param(
+            "edge_round",
+            "0.05 mm",
+            "mm",
+            "round of the housing's top edges",
+        ),
+        param(
+            "lead_exit",
+            "standoff + min(0.5 mm, body_height / 3)",
+            "mm",
+            "height of the lead's centreline where it leaves the housing (est.)",
+        ),
+        param(
+            "lens_diameter",
+            "0.78 * min(body_length, body_width)",
+            "mm",
+            "the cavity's diameter at the top (WS2812B drawing: about 3.9 of 5 mm)",
+        ),
+        param(
+            "lens_depth",
+            "0.45 * body_height",
+            "mm",
+            "the cavity's depth to the leadframe (est.)",
+        ),
+        param(
+            "notch",
+            "0.4 mm",
+            "mm",
+            "the cut corner over pin 3 (WS2812B drawing)",
+        ),
+        param(
+            "marking_top_u",
+            "0.5 * body_length",
+            "mm",
+            "marking-top size along its u axis",
+        ),
+        param(
+            "marking_top_v",
+            "0.1 * body_width",
+            "mm",
+            "marking-top size across it",
+        ),
+    ];
+    import(&mut s, &rows);
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", "standoff"],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "housing", "body_name": "body"}),
+    );
+    let (l, w, h0, h) = (5.0, 5.0, 0.15, 1.42);
+    let top = h0 + h;
+    run(
+        &mut s,
+        "solid.chamfer",
+        json!({"name": "pin 3 corner", "body": "body", "distance": "notch",
+            "edges": [[l / 2.0, w / 2.0, h0 + h / 2.0]]}),
+    );
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "corner round", "body": "body", "radius": "corner_round",
+            "tangent_chain": false,
+            "edges": [[-l / 2.0, -w / 2.0, h0 + h / 2.0], [l / 2.0, -w / 2.0, h0 + h / 2.0],
+                [-l / 2.0, w / 2.0, h0 + h / 2.0]]}),
+    );
+    // The cavity and what lies in it: the leadframe, the driver die and
+    // three LED chips, under the encapsulant.
+    let floor = "standoff + body_height - lens_depth";
+    // Round outlines are sketched circles, extruded, so the bodies' bounds
+    // are their outlines.
+    let circle = |s: &mut Session, name: &str| {
+        run(
+            s,
+            "sketch.create",
+            json!({"plane": "XY", "offset": floor, "name": name}),
+        );
+        run(
+            s,
+            "sketch.draw.dimensioned",
+            json!({"command": "sketch.circle.center",
+                "params": {"center": ["0 mm", "0 mm"], "radius": 0.5},
+                "dimensions": {"diameter": "lens_diameter"}}),
+        );
+        run(s, "sketch.finish", json!({}));
+    };
+    circle(&mut s, "cavity outline");
+    run(
+        &mut s,
+        "solid.extrude",
+        json!({"sketch": "cavity outline", "distance": "lens_depth + 0.1 mm",
+            "operation": "cut", "targets": ["body"], "name": "cavity"}),
+    );
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- 0.3 * lens_diameter", "- 0.2 * lens_diameter", floor],
+            "length": "0.6 * lens_diameter", "width": "0.4 * lens_diameter",
+            "height": "0.02 mm", "name": "leadframe", "body_name": "leadframe"}),
+    );
+    let chips = [
+        ("driver die", "-0.12 * lens_diameter", "0 mm", "0.18 * lens_diameter", "0.15 mm"),
+        ("red chip", "0.1 * lens_diameter", "-0.1 * lens_diameter", "0.07 * lens_diameter", "0.12 mm"),
+        ("green chip", "0.1 * lens_diameter", "0 mm", "0.07 * lens_diameter", "0.12 mm"),
+        ("blue chip", "0.1 * lens_diameter", "0.1 * lens_diameter", "0.07 * lens_diameter", "0.12 mm"),
+    ];
+    for (name, x, y, side, height) in chips {
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [format!("{x} - {side} / 2"), format!("{y} - {side} / 2"),
+                    format!("{floor} + 0.02 mm")],
+                "length": side, "width": side, "height": height, "name": name,
+                "body_name": name}),
+        );
+    }
+    circle(&mut s, "encapsulant outline");
+    run(
+        &mut s,
+        "solid.extrude",
+        json!({"sketch": "encapsulant outline", "distance": "lens_depth",
+            "operation": "new", "name": "encapsulant", "body_name": "lens"}),
+    );
+    run(
+        &mut s,
+        "solid.combine",
+        json!({"target": "lens", "tools": ["leadframe", "driver die", "red chip", "green chip",
+                "blue chip"], "operation": "cut", "keep_tools": true, "name": "lens around the dies"}),
+    );
+    // Each row's first lead: out of the housing's side, down it and under
+    // it, as three joined boxes; then the row's pattern.
+    for (row, plus) in [("row_s", false), ("row_n", true)] {
+        let lead = format!("{row} lead");
+        let x = format!("- ({row}_leads - 1) / 2 * {row}_step * pitch - lead_width / 2");
+        let y = |from: &str, to: &str| -> (String, String) {
+            if plus {
+                (from.to_owned(), format!("({to}) - ({from})"))
+            } else {
+                (format!("- ({to})"), format!("({to}) - ({from})"))
+            }
+        };
+        let (y0, dy) = y("body_width / 2", "span / 2 - lead_thickness");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [x, y0, "lead_exit - lead_thickness / 2"], "length": "lead_width",
+                "width": dy, "height": "lead_thickness", "name": format!("{row} lead stub"),
+                "body_name": lead}),
+        );
+        let (y0, dy) = y("span / 2 - lead_thickness", "span / 2");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [x, y0, "0 mm"], "length": "lead_width", "width": dy,
+                "height": "lead_exit + lead_thickness / 2", "operation": "join",
+                "targets": [lead], "name": format!("{row} lead side")}),
+        );
+        let (y0, dy) = y("span / 2 - foot_length", "span / 2 - lead_thickness");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": [x, y0, "0 mm"], "length": "lead_width", "width": dy,
+                "height": "lead_thickness", "operation": "join", "targets": [lead],
+                "name": format!("{row} lead foot")}),
+        );
+        run(
+            &mut s,
+            "solid.pattern.rectangular",
+            json!({"bodies": [lead], "dir1": [1, 0, 0], "count1": format!("{row}_leads"),
+                "spacing1": format!("{row}_step * pitch"), "name": format!("{row} pattern")}),
+        );
+    }
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round", "fit": "reduce",
+            "edges": [[0.0, -w / 2.0, top]]}),
+    );
+    // Looks: every lead at the most leads a side (16), then back.
+    let mut changes = serde_json::Map::new();
+    for row in ["row_s", "row_n"] {
+        changes.insert(format!("{row}_leads"), json!("16"));
+        changes.insert(format!("{row}_step"), json!("1"));
+    }
+    changes.insert("pitch".into(), json!("1 mm"));
+    changes.insert("lead_width".into(), json!("0.5 mm"));
+    changes.insert("body_length".into(), json!("20 mm"));
+    run(&mut s, "parameters.change", json!({ "changes": changes }));
+    s.refresh();
+    let leads: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .filter(|n| n.contains(" lead"))
+        .collect();
+    assert_eq!(leads.len(), 32, "{leads:?}");
+    let leads: Vec<&str> = leads.iter().map(String::as_str).collect();
+    assign_look(&mut s, &["body"], MaterialId::PaWhite);
+    assign_look(&mut s, &["lens"], MaterialId::SiliconeClear);
+    assign_look(
+        &mut s,
+        &["leadframe", "driver die"],
+        MaterialId::Aluminium,
+    );
+    assign_look(
+        &mut s,
+        &["red chip", "green chip", "blue chip"],
+        MaterialId::Lcp,
+    );
+    assign_look(&mut s, &leads, MaterialId::TinMatte);
+    let mut changes = serde_json::Map::new();
+    for row in ["row_s", "row_n"] {
+        changes.insert(format!("{row}_leads"), json!("2"));
+        changes.insert(format!("{row}_step"), json!("1"));
+    }
+    changes.insert("pitch".into(), json!("3.3 mm"));
+    changes.insert("lead_width".into(), json!("0.9 mm"));
+    changes.insert("body_length".into(), json!("5 mm"));
+    run(&mut s, "parameters.change", json!({ "changes": changes }));
+    s.refresh();
+    finish_part(s, "standoff + body_height")
+}
+
 fn author_tabbed_rows() -> Vec<u8> {
     author_tabbed(TabbedSide::Rows)
 }
@@ -5121,7 +5394,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 69] = [
+    let parts: [(&str, &str, Author); 70] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -5236,6 +5509,11 @@ fn author_parts() {
             "generators/tabbed/parts",
             "tabbed-flange",
             author_tabbed_flange,
+        ),
+        (
+            "generators/tabbed/parts",
+            "tabbed-plcc-led",
+            author_plcc_led,
         ),
         // The module generator's bundle (`generators/module/parts/`): LGA
         // pads or castellated, the ground array along the axes or turned

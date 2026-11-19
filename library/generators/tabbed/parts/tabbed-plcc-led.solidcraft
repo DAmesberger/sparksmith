@@ -1,0 +1,1476 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "PLCC LED package",
+  "units": "mm",
+  "params": [
+    {
+      "name": "pitch",
+      "expr": "3.3 mm",
+      "unit": "mm",
+      "comment": "the lead grid's pitch along x",
+      "model": false
+    },
+    {
+      "name": "body_length",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "housing length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "5 mm",
+      "unit": "mm",
+      "comment": "housing width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "1.42 mm",
+      "unit": "mm",
+      "comment": "housing height above the standoff",
+      "model": false
+    },
+    {
+      "name": "standoff",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "housing bottom above the seating plane: the feet under it",
+      "model": false
+    },
+    {
+      "name": "span",
+      "expr": "5.4 mm",
+      "unit": "mm",
+      "comment": "lead tip to lead tip across y",
+      "model": false
+    },
+    {
+      "name": "lead_width",
+      "expr": "0.9 mm",
+      "unit": "mm",
+      "comment": "lead width along x",
+      "model": false
+    },
+    {
+      "name": "lead_thickness",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "lead thickness",
+      "model": false
+    },
+    {
+      "name": "foot_length",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "a lead's foot under the housing, from its outer face",
+      "model": false
+    },
+    {
+      "name": "row_s_leads",
+      "expr": "2",
+      "unit": "",
+      "comment": "leads on the −y side",
+      "model": false
+    },
+    {
+      "name": "row_s_step",
+      "expr": "1",
+      "unit": "",
+      "comment": "grid positions between −y leads",
+      "model": false
+    },
+    {
+      "name": "row_n_leads",
+      "expr": "2",
+      "unit": "",
+      "comment": "leads on the +y side",
+      "model": false
+    },
+    {
+      "name": "row_n_step",
+      "expr": "1",
+      "unit": "",
+      "comment": "grid positions between +y leads",
+      "model": false
+    },
+    {
+      "name": "corner_round",
+      "expr": "0.1 mm",
+      "unit": "mm",
+      "comment": "round of the housing's upright corners",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.05 mm",
+      "unit": "mm",
+      "comment": "round of the housing's top edges",
+      "model": false
+    },
+    {
+      "name": "lead_exit",
+      "expr": "standoff + min(0.5 mm, body_height / 3)",
+      "unit": "mm",
+      "comment": "height of the lead's centreline where it leaves the housing (est.)",
+      "model": false
+    },
+    {
+      "name": "lens_diameter",
+      "expr": "0.78 * min(body_length, body_width)",
+      "unit": "mm",
+      "comment": "the cavity's diameter at the top (WS2812B drawing: about 3.9 of 5 mm)",
+      "model": false
+    },
+    {
+      "name": "lens_depth",
+      "expr": "0.45 * body_height",
+      "unit": "mm",
+      "comment": "the cavity's depth to the leadframe (est.)",
+      "model": false
+    },
+    {
+      "name": "notch",
+      "expr": "0.4 mm",
+      "unit": "mm",
+      "comment": "the cut corner over pin 3 (WS2812B drawing)",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.5 * body_length",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.1 * body_width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    },
+    {
+      "name": "d7",
+      "expr": "lens_diameter",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d25",
+      "expr": "lens_diameter",
+      "unit": "mm",
+      "model": true
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "housing",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "standoff"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "pin 3 corner",
+      "suppressed": false,
+      "param_names": [
+        "d4"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.5,
+            -2.5,
+            0.15
+          ],
+          "max": [
+            2.5,
+            2.5,
+            1.5699999999999998
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+x|F1:+y"
+      ],
+      "type": "chamfer",
+      "edges": [
+        [
+          2.5,
+          2.5,
+          0.86
+        ]
+      ],
+      "distance": "notch",
+      "body": "body"
+    },
+    {
+      "id": 3,
+      "name": "corner round",
+      "suppressed": false,
+      "param_names": [
+        "d5"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.5,
+            -2.5,
+            0.15
+          ],
+          "max": [
+            2.5,
+            2.5,
+            1.57
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.5,
+            -2.5,
+            0.15
+          ],
+          "max": [
+            2.5,
+            2.5,
+            1.57
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -2.5,
+            -2.5,
+            0.15
+          ],
+          "max": [
+            2.5,
+            2.5,
+            1.57
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:-x|F1:-y",
+        "F1:+x|F1:-y",
+        "F1:+y|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          -2.5,
+          -2.5,
+          0.86
+        ],
+        [
+          2.5,
+          -2.5,
+          0.86
+        ],
+        [
+          -2.5,
+          2.5,
+          0.86
+        ]
+      ],
+      "radius": "corner_round",
+      "body": "body",
+      "tangent_chain": false
+    },
+    {
+      "id": 4,
+      "name": "cavity outline",
+      "suppressed": false,
+      "param_names": [
+        "d6"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "standoff + body_height - lens_depth"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 1.9500000000000002,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 3.9000000000000004,
+            "param": "d7"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "cavity",
+      "suppressed": false,
+      "param_names": [
+        "d8"
+      ],
+      "type": "extrude",
+      "sketch": 4,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lens_depth + 0.1 mm",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "body"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "leadframe",
+      "suppressed": false,
+      "body_names": [
+        "leadframe"
+      ],
+      "param_names": [
+        "d9",
+        "d10",
+        "d11"
+      ],
+      "type": "box",
+      "corner": [
+        "- 0.3 * lens_diameter",
+        "- 0.2 * lens_diameter",
+        "standoff + body_height - lens_depth"
+      ],
+      "length": "0.6 * lens_diameter",
+      "width": "0.4 * lens_diameter",
+      "height": "0.02 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "driver die",
+      "suppressed": false,
+      "body_names": [
+        "driver die"
+      ],
+      "param_names": [
+        "d12",
+        "d13",
+        "d14"
+      ],
+      "type": "box",
+      "corner": [
+        "-0.12 * lens_diameter - 0.18 * lens_diameter / 2",
+        "0 mm - 0.18 * lens_diameter / 2",
+        "standoff + body_height - lens_depth + 0.02 mm"
+      ],
+      "length": "0.18 * lens_diameter",
+      "width": "0.18 * lens_diameter",
+      "height": "0.15 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 8,
+      "name": "red chip",
+      "suppressed": false,
+      "body_names": [
+        "red chip"
+      ],
+      "param_names": [
+        "d15",
+        "d16",
+        "d17"
+      ],
+      "type": "box",
+      "corner": [
+        "0.1 * lens_diameter - 0.07 * lens_diameter / 2",
+        "-0.1 * lens_diameter - 0.07 * lens_diameter / 2",
+        "standoff + body_height - lens_depth + 0.02 mm"
+      ],
+      "length": "0.07 * lens_diameter",
+      "width": "0.07 * lens_diameter",
+      "height": "0.12 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "green chip",
+      "suppressed": false,
+      "body_names": [
+        "green chip"
+      ],
+      "param_names": [
+        "d18",
+        "d19",
+        "d20"
+      ],
+      "type": "box",
+      "corner": [
+        "0.1 * lens_diameter - 0.07 * lens_diameter / 2",
+        "0 mm - 0.07 * lens_diameter / 2",
+        "standoff + body_height - lens_depth + 0.02 mm"
+      ],
+      "length": "0.07 * lens_diameter",
+      "width": "0.07 * lens_diameter",
+      "height": "0.12 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 10,
+      "name": "blue chip",
+      "suppressed": false,
+      "body_names": [
+        "blue chip"
+      ],
+      "param_names": [
+        "d21",
+        "d22",
+        "d23"
+      ],
+      "type": "box",
+      "corner": [
+        "0.1 * lens_diameter - 0.07 * lens_diameter / 2",
+        "0.1 * lens_diameter - 0.07 * lens_diameter / 2",
+        "standoff + body_height - lens_depth + 0.02 mm"
+      ],
+      "length": "0.07 * lens_diameter",
+      "width": "0.07 * lens_diameter",
+      "height": "0.12 mm",
+      "operation": "new_body"
+    },
+    {
+      "id": 11,
+      "name": "encapsulant outline",
+      "suppressed": false,
+      "param_names": [
+        "d24"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "standoff + body_height - lens_depth"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "c1.center",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "c1",
+            "type": "circle",
+            "c": 1,
+            "r": 1.9500000000000002,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "coincident",
+            "p": 0,
+            "q": 1
+          },
+          {
+            "id": "k2",
+            "type": "diameter",
+            "c": 0,
+            "value": 3.9000000000000004,
+            "param": "d25"
+          }
+        ],
+        "counters": {
+          "c": 1,
+          "k": 2
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "encapsulant",
+      "suppressed": false,
+      "body_names": [
+        "lens"
+      ],
+      "param_names": [
+        "d26"
+      ],
+      "type": "extrude",
+      "sketch": 11,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "lens_depth",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 13,
+      "name": "lens around the dies",
+      "suppressed": false,
+      "type": "combine",
+      "target": "lens",
+      "tools": [
+        "leadframe",
+        "driver die",
+        "red chip",
+        "green chip",
+        "blue chip"
+      ],
+      "operation": "cut",
+      "keep_tools": true
+    },
+    {
+      "id": 14,
+      "name": "row_s lead stub",
+      "suppressed": false,
+      "body_names": [
+        "row_s lead"
+      ],
+      "param_names": [
+        "d27",
+        "d28",
+        "d29"
+      ],
+      "type": "box",
+      "corner": [
+        "- (row_s_leads - 1) / 2 * row_s_step * pitch - lead_width / 2",
+        "- (span / 2 - lead_thickness)",
+        "lead_exit - lead_thickness / 2"
+      ],
+      "length": "lead_width",
+      "width": "(span / 2 - lead_thickness) - (body_width / 2)",
+      "height": "lead_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 15,
+      "name": "row_s lead side",
+      "suppressed": false,
+      "param_names": [
+        "d30",
+        "d31",
+        "d32"
+      ],
+      "participants": [
+        "row_s lead"
+      ],
+      "type": "box",
+      "corner": [
+        "- (row_s_leads - 1) / 2 * row_s_step * pitch - lead_width / 2",
+        "- (span / 2)",
+        "0 mm"
+      ],
+      "length": "lead_width",
+      "width": "(span / 2) - (span / 2 - lead_thickness)",
+      "height": "lead_exit + lead_thickness / 2",
+      "operation": "join"
+    },
+    {
+      "id": 16,
+      "name": "row_s lead foot",
+      "suppressed": false,
+      "param_names": [
+        "d33",
+        "d34",
+        "d35"
+      ],
+      "participants": [
+        "row_s lead"
+      ],
+      "type": "box",
+      "corner": [
+        "- (row_s_leads - 1) / 2 * row_s_step * pitch - lead_width / 2",
+        "- (span / 2 - lead_thickness)",
+        "0 mm"
+      ],
+      "length": "lead_width",
+      "width": "(span / 2 - lead_thickness) - (span / 2 - foot_length)",
+      "height": "lead_thickness",
+      "operation": "join"
+    },
+    {
+      "id": 17,
+      "name": "row_s pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_s lead (2)",
+        "row_s lead (3)",
+        "row_s lead (4)",
+        "row_s lead (5)",
+        "row_s lead (6)",
+        "row_s lead (7)",
+        "row_s lead (8)",
+        "row_s lead (9)",
+        "row_s lead (10)",
+        "row_s lead (11)",
+        "row_s lead (12)",
+        "row_s lead (13)",
+        "row_s lead (14)",
+        "row_s lead (15)",
+        "row_s lead (16)"
+      ],
+      "param_names": [
+        "d36",
+        "d37"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "row_s_leads",
+        "spacing1": "row_s_step * pitch"
+      },
+      "bodies": [
+        "row_s lead"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "row_n lead stub",
+      "suppressed": false,
+      "body_names": [
+        "row_n lead"
+      ],
+      "param_names": [
+        "d38",
+        "d39",
+        "d40"
+      ],
+      "type": "box",
+      "corner": [
+        "- (row_n_leads - 1) / 2 * row_n_step * pitch - lead_width / 2",
+        "body_width / 2",
+        "lead_exit - lead_thickness / 2"
+      ],
+      "length": "lead_width",
+      "width": "(span / 2 - lead_thickness) - (body_width / 2)",
+      "height": "lead_thickness",
+      "operation": "new_body"
+    },
+    {
+      "id": 19,
+      "name": "row_n lead side",
+      "suppressed": false,
+      "param_names": [
+        "d41",
+        "d42",
+        "d43"
+      ],
+      "participants": [
+        "row_n lead"
+      ],
+      "type": "box",
+      "corner": [
+        "- (row_n_leads - 1) / 2 * row_n_step * pitch - lead_width / 2",
+        "span / 2 - lead_thickness",
+        "0 mm"
+      ],
+      "length": "lead_width",
+      "width": "(span / 2) - (span / 2 - lead_thickness)",
+      "height": "lead_exit + lead_thickness / 2",
+      "operation": "join"
+    },
+    {
+      "id": 20,
+      "name": "row_n lead foot",
+      "suppressed": false,
+      "param_names": [
+        "d44",
+        "d45",
+        "d46"
+      ],
+      "participants": [
+        "row_n lead"
+      ],
+      "type": "box",
+      "corner": [
+        "- (row_n_leads - 1) / 2 * row_n_step * pitch - lead_width / 2",
+        "span / 2 - foot_length",
+        "0 mm"
+      ],
+      "length": "lead_width",
+      "width": "(span / 2 - lead_thickness) - (span / 2 - foot_length)",
+      "height": "lead_thickness",
+      "operation": "join"
+    },
+    {
+      "id": 21,
+      "name": "row_n pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_n lead (2)",
+        "row_n lead (3)",
+        "row_n lead (4)",
+        "row_n lead (5)",
+        "row_n lead (6)",
+        "row_n lead (7)",
+        "row_n lead (8)",
+        "row_n lead (9)",
+        "row_n lead (10)",
+        "row_n lead (11)",
+        "row_n lead (12)",
+        "row_n lead (13)",
+        "row_n lead (14)",
+        "row_n lead (15)",
+        "row_n lead (16)"
+      ],
+      "param_names": [
+        "d47",
+        "d48"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "row_n_leads",
+        "spacing1": "row_n_step * pitch"
+      },
+      "bodies": [
+        "row_n lead"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d49"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -2.5,
+            -2.5,
+            0.15
+          ],
+          "max": [
+            2.5,
+            2.5,
+            1.5700000000000003
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -2.5,
+          1.5699999999999998
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body",
+      "fit": "reduce"
+    },
+    {
+      "id": 23,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d50"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "standoff + body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 24,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "blue chip": {
+        "name": "lcp",
+        "color": [
+          44,
+          44,
+          47
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.35,
+          "dielectric_ior": 1.6
+        }
+      },
+      "body": {
+        "name": "pa-white",
+        "color": [
+          231,
+          231,
+          226
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.5,
+          "dielectric_ior": 1.53
+        }
+      },
+      "driver die": {
+        "name": "aluminium",
+        "color": [
+          245,
+          246,
+          246
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "green chip": {
+        "name": "lcp",
+        "color": [
+          44,
+          44,
+          47
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.35,
+          "dielectric_ior": 1.6
+        }
+      },
+      "leadframe": {
+        "name": "aluminium",
+        "color": [
+          245,
+          246,
+          246
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "lens": {
+        "name": "silicone-clear",
+        "color": [
+          243,
+          243,
+          243
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.08,
+          "dielectric_ior": 1.41
+        }
+      },
+      "red chip": {
+        "name": "lcp",
+        "color": [
+          44,
+          44,
+          47
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.35,
+          "dielectric_ior": 1.6
+        }
+      },
+      "row_n lead": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n lead (9)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s lead (9)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

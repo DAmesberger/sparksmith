@@ -2,43 +2,48 @@
  "cases": [
   {
    "name": "SOT-23-5 (rows 3 + 2, +y step 2), component",
-   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false}},
-   "result": "415a9ed62e600fc7d3da61c55fd6826b9ddb032d681ae9422fe943a7d4aa515c"
+   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "moulded"}},
+   "result": "f3793e6b06c042f63667cbb5d9ebdba1d10fa03846878538f26bb8802efff42a"
   },
   {
    "name": "SOT-23-5, package",
-   "request": {"abi": 1, "scope": "package", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false}},
-   "result": "2e8dc4b6253e7226823b2d16f8d7c2924755316375bc2fb17e60b247355c061d"
+   "request": {"abi": 1, "scope": "package", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "moulded"}},
+   "result": "312c6d33f14e2baa7ed1a1bb1eddefd7d9f94674a45e910a615cc97bbd2aa4f2"
   },
   {
    "name": "SOT-23-5 on a given land pattern (TI DBV0005A: 0.6 × 1.1 mm, rows 2.6 mm apart), component",
-   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "explicit", "land_width": 600000, "land_length": 1100000, "land_span": 2600000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false}},
-   "result": "656ea5f64c04ba0bc4bd0e3038442468c0524136d2630ff409a8c60c1afbbf09"
+   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "explicit", "land_width": 600000, "land_length": 1100000, "land_span": 2600000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "moulded"}},
+   "result": "d9c3a13216cfa433de47775a25bb5aa757e674ff36da12e7e22c03cd9a737b9e"
   },
   {
    "name": "SOT-23-3 (one +y lead, no pattern), component",
-   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 2, "leads_n": 1, "step_s": 2, "step_n": 1, "pitch": 950000, "body_length": 2900000, "body_width": 1300000, "body_height": 950000, "standoff": 50000, "span": 2400000, "lead_width": 400000, "lead_thickness": 120000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false}},
-   "result": "6cb2f8d3147f6c1cc64749c1cd92a26f1823356730b1760084722e02d1376ae0"
+   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 2, "leads_n": 1, "step_s": 2, "step_n": 1, "pitch": 950000, "body_length": 2900000, "body_width": 1300000, "body_height": 950000, "standoff": 50000, "span": 2400000, "lead_width": 400000, "lead_thickness": 120000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "moulded"}},
+   "result": "d2b2e19fce34b978deb8ebb7f2c26327bfb94046d7a5e88c12bb25b017577954"
   },
   {
    "name": "SOT-223 (tab lead), component",
-   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 0, "step_s": 1, "step_n": 1, "pitch": 2300000, "body_length": 6500000, "body_width": 3500000, "body_height": 1600000, "standoff": 60000, "span": 7000000, "lead_width": 700000, "lead_thickness": 300000, "foot_length": 900000, "tab": "lead", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false}},
-   "result": "87e6ee357fcede63da539cd9ce4f0f576372e2c258f4c3bb9c18e21e6c8065a9"
+   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 0, "step_s": 1, "step_n": 1, "pitch": 2300000, "body_length": 6500000, "body_width": 3500000, "body_height": 1600000, "standoff": 60000, "span": 7000000, "lead_width": 700000, "lead_thickness": 300000, "foot_length": 900000, "tab": "lead", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "moulded"}},
+   "result": "17cc149b48d8999fd46288f993de6a705790d383420d76a9a947f506c07f5abb"
   },
   {
    "name": "SOT-89 (reduced shoulder bend), component",
-   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 0, "step_s": 1, "step_n": 1, "pitch": 1500000, "body_length": 4500000, "body_width": 2300000, "body_height": 1500000, "standoff": 0, "span": 4250000, "lead_width": 440000, "lead_thickness": 350000, "foot_length": 600000, "tab": "lead", "tab_width": 1700000, "tab_length": 600000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false}},
-   "result": "c0717c6deef2048874f718718344e93e0dc96a69a5fd0c8836f42fe20a142217"
+   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 3, "leads_n": 0, "step_s": 1, "step_n": 1, "pitch": 1500000, "body_length": 4500000, "body_width": 2300000, "body_height": 1500000, "standoff": 0, "span": 4250000, "lead_width": 440000, "lead_thickness": 350000, "foot_length": 600000, "tab": "lead", "tab_width": 1700000, "tab_length": 600000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "moulded"}},
+   "result": "4712ff46b03b407f7096d768cb7954aaf2d4c9dd764e80af1872628a769e58d8"
   },
   {
    "name": "DPAK (flange, envelope wider than the flange side), component",
-   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 2, "leads_n": 0, "step_s": 2, "step_n": 1, "pitch": 2285000, "body_length": 6600000, "body_width": 6100000, "body_height": 2300000, "standoff": 0, "span": 11700000, "lead_width": 760000, "lead_thickness": 500000, "foot_length": 1500000, "tab": "flange", "tab_width": 5300000, "tab_length": 5300000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false}},
-   "result": "acf300397c358f7da024580661de1faed9a098d47e98d6a09935e4ed784dd03d"
+   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 2, "leads_n": 0, "step_s": 2, "step_n": 1, "pitch": 2285000, "body_length": 6600000, "body_width": 6100000, "body_height": 2300000, "standoff": 0, "span": 11700000, "lead_width": 760000, "lead_thickness": 500000, "foot_length": 1500000, "tab": "flange", "tab_width": 5300000, "tab_length": 5300000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "moulded"}},
+   "result": "dfabd399f5c6f3fd657c2612689d742fac4e69675ae83e1149c008e9b71b33d7"
   },
   {
    "name": "SOT-23-5 marked with a pin-1 dot, package",
-   "request": {"abi": 1, "scope": "package", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": ["C6BK"], "marking_pin1_dot": true}},
-   "result": "7068cfa6a10a9b57b7e06bafa55181e1a701acfcde13396cc697685915af8908"
+   "request": {"abi": 1, "scope": "package", "params": {"leads_s": 3, "leads_n": 2, "step_s": 1, "step_n": 2, "pitch": 950000, "body_length": 2900000, "body_width": 1600000, "body_height": 1100000, "standoff": 75000, "span": 2800000, "lead_width": 400000, "lead_thickness": 150000, "foot_length": 400000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "estimated", "land_width": 600000, "land_length": 1000000, "land_span": 2200000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": ["C6BK"], "marking_pin1_dot": true, "housing": "moulded"}},
+   "result": "0362b1eaabc94bcee98a52ce1fe73869b8905c1369ce187166f212c9069d2e65"
+  },
+  {
+   "name": "PLCC4 5050 LED (WS2812B), component",
+   "request": {"abi": 1, "scope": "component", "params": {"leads_s": 2, "leads_n": 2, "step_s": 1, "step_n": 1, "pitch": 3300000, "body_length": 5000000, "body_width": 5000000, "body_height": 1420000, "standoff": 150000, "span": 5400000, "lead_width": 900000, "lead_thickness": 150000, "foot_length": 1000000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "explicit", "land_width": 900000, "land_length": 1500000, "land_span": 4900000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "housing": "led_plcc"}},
+   "result": "16841425c853d22cbd81975fc6b3935c0fb5ba6a4b098790506daa81d0256d38"
   }
  ]
 }

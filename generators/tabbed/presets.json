@@ -334,5 +334,44 @@
   },
   "basis": "estimated",
   "note": "Estimated: the nominal lead pitch, body and span of the TO-243 (SOT-89) outline; its flat leads are modelled as short gull-wing feet and the centre lead's wide tab under the body as a tab foot opposite the leads. Confirm against the device's drawing."
+ },
+ {
+  "key": "tabbed-plcc4-5050-ws2812b",
+  "name": "PLCC4 5050 addressable LED (WS2812B)",
+  "aliases": [
+   "WS2812B",
+   "SK6812",
+   "PLCC4 5050",
+   "5050 RGB LED",
+   "SMD5050-4P"
+  ],
+  "description": "Addressable RGB LED with its driver in a white 5.0 × 5.0 × 1.57 mm PLCC housing, 4 leads 0.9 mm wide at 3.3 mm folded under it, 5.4 mm over the leads; lands 0.9 × 1.5 mm, 4.9 mm apart centre to centre.",
+  "params": {
+   "leads_s": 2,
+   "leads_n": 2,
+   "step_s": 1,
+   "step_n": 1,
+   "pitch": 3300000,
+   "body_length": 5000000,
+   "body_width": 5000000,
+   "body_height": 1420000,
+   "standoff": 150000,
+   "span": 5400000,
+   "lead_width": 900000,
+   "lead_thickness": 150000,
+   "foot_length": 1000000,
+   "tab": "none",
+   "housing": "led_plcc",
+   "lands": "explicit",
+   "land_width": 900000,
+   "land_length": 1500000,
+   "land_span": 4900000
+  },
+  "citation": {
+   "document": "Worldsemi WS2812B datasheet, mechanical dimensions",
+   "page": 3
+  },
+  "basis": "cited_unverified",
+  "note": "Pins 1–4 (VDD, DOUT, VSS, DIN) counter-clockwise from above; the drawing's left column is the −y row here. The lead thickness and the feet's reach under the housing are estimated."
  }
 ]

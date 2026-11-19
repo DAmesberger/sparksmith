@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tabbed.wasm",
-    "sha256": "14d2c9a6a6ddea147dfbb63a3f84ea3993d18ffd0230f94a4435ab46255c95c5"
+    "sha256": "389e0f16415c339f76e30e48c131838c261224d567b287b4d3f646f9ab52e329"
   },
   "name": "tabbed",
   "parts": [
@@ -12,6 +12,13 @@
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at the DPAK starter values; the tabbed generator gives every input its value. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); rounds and lead bends are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
       "sha256": "0f1b33c3131300a86de356ce1559f00a5dbe64ccc09f45f2550e96267b2fce17",
       "title": "DPAK and D2PAK package"
+    },
+    {
+      "file": "parts/tabbed-plcc-led.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the WS2812B's values; the tabbed generator gives every input its value. Outline, lead form, cavity and cut corner after Worldsemi's WS2812B datasheet (mechanical dimensions, page 3: 5.0 × 5.0 × 1.57 mm, leads 0.9 mm wide, 5.4 mm over the leads); lead height, cavity depth and the chips' sizes and places are estimated. Looked at, never copied: no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "f128794374aff42ab2eca1f460ecd0e9af08ddbc37748c1d63dd5bdaa90e8a04",
+      "title": "PLCC LED package"
     },
     {
       "file": "parts/tabbed-rows.solidcraft",

@@ -75,6 +75,9 @@ const PIN_ONE_DOT_RADIUS_NM: i64 = 200_000;
 /// room above the leads.
 const CORNER_ROUND_NM: i64 = 200_000;
 const TOP_EDGE_ROUND_NM: i64 = 120_000;
+/// tan 8°, the part files' mould draft (Microchip's SOT-23 and SOIC
+/// drawings give 5–15°), as a fraction.
+const DRAFT_TAN: [i64; 2] = [14_054, 100_000];
 
 /// How far a lead root reaches into the moulding (at most a third of the
 /// half body), and the shoulder's share of the room for the bend: the lead
@@ -141,6 +144,23 @@ fn description_with(presets: Vec<Preset>) -> Description {
         },
         default: ParamValue::Text("estimated".into()),
         group: Some("lands".into()),
+        context: None,
+    };
+    let housing = Param {
+        key: "housing".into(),
+        label: "Housing".into(),
+        help: Some(
+            "A moulded body with gull-wing leads, or a PLCC LED's white housing with a clear-filled cavity over its chips, its leads folded down the sides and under it (5050 addressable LEDs)."
+                .into(),
+        ),
+        ty: ParamType::Enum {
+            choices: vec![
+                choice("moulded", "Moulded, gull-wing leads"),
+                choice("led_plcc", "PLCC LED, leads folded under"),
+            ],
+        },
+        default: ParamValue::Text("moulded".into()),
+        group: Some("body".into()),
         context: None,
     };
     // The defaults: an original SOT-23-3 in round numbers, from no drawing
@@ -275,6 +295,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "lands",
         ),
     ];
+    params.push(housing);
     params.push(sparksmith_generator_sdk::marking::param());
     params.push(sparksmith_generator_sdk::marking::dot_param());
     let rules = vec![
@@ -393,6 +414,8 @@ struct Dims {
     flange: i64,
     /// The datasheet's land pattern, when given.
     lands: Option<Lands>,
+    /// A PLCC LED's housing, its leads folded under it.
+    plcc: bool,
 }
 
 /// A given land pattern: the lead land `[across the lead, along it]`, the
@@ -481,8 +504,9 @@ impl Dims {
         [self.body_length, width, self.standoff + self.body_height]
     }
 
-    /// The moulding's rounds: (upright corners, top edges).
-    fn rounds(&self) -> (i64, i64) {
+    /// The room the leads leave at the body's ends for its corner rounds:
+    /// a quarter of what the widest row (or the tab) leaves of the length.
+    fn corner_room(&self) -> i64 {
         let widest = self
             .row_length(0)
             .max(self.row_length(1))
@@ -491,17 +515,28 @@ impl Dims {
             } else {
                 self.tab_width
             });
+        div_round(self.body_length - widest, 4).unwrap_or(0)
+    }
+
+    /// The moulding's rounds: (upright corners, top edges).
+    fn rounds(&self) -> (i64, i64) {
         let short = self.body_length.min(self.body_width);
+        // The mould draft draws the top face's outline in by this much from
+        // the parting line's (half the body height × tan 8°, the part
+        // file's `draft`); the corners keep a round of at least 0.04 mm
+        // there.
+        let inset = div_round(self.body_height * DRAFT_TAN[0], 2 * DRAFT_TAN[1]).unwrap_or(0);
         let corner = CORNER_ROUND_NM
             .min(div_round(6 * short, 100).unwrap_or(0))
-            .min(div_round(self.body_length - widest, 4).unwrap_or(0));
+            .min(self.corner_room())
+            .max(inset + 40 * UM);
         // Room above the leads: (top − lead exit − t / 2) / 2, the lead
         // leaving at mid-height of the moulding.
         let above = div_round(self.body_height - self.lead_thickness, 4).unwrap_or(0);
         let edge = TOP_EDGE_ROUND_NM
             .min(div_round(self.body_height, 10).unwrap_or(0))
             .min(above)
-            .min(corner.max(0));
+            .min(div_round(6 * (corner - inset), 10).unwrap_or(0));
         (corner, edge)
     }
 }
@@ -549,6 +584,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
             }),
             _ => None,
         },
+        plcc: args.text("housing").map_err(one)? == "led_plcc",
     };
     let problems = problems(&d);
     if problems.is_empty() {
@@ -594,25 +630,38 @@ fn problems(d: &Dims) -> Vec<Problem> {
         "span",
         "The lead span must reach past the body width.",
     );
-    rule(
-        2 * d.foot_length <= d.span - d.body_width,
-        "foot_length",
-        "The foot must lie outside the body (foot length ≤ (span − body width) / 2).",
-    );
     let t = d.lead_thickness;
-    rule(
-        // Lead exit (standoff + height / 2) − t / 2 > t, doubled.
-        2 * d.standoff + d.body_height - t > 2 * t && t < d.body_height,
-        "lead_thickness",
-        "Leads must fit the body height: thinner than the body, and leaving it (at mid-height) \
-         more than 1.5 × lead thickness above the seating plane.",
-    );
-    rule(
-        d.span - 2 * d.foot_length - d.body_width > 2 * t,
-        "span",
-        "The span must leave more than a lead thickness outside the body for the lead to bend \
-         down to its foot ((span − body width) / 2 − foot length > lead thickness).",
-    );
+    if d.plcc {
+        rule(
+            d.tab == Tab::None,
+            "tab",
+            "A PLCC LED has leads on both sides and no tab.",
+        );
+        rule(
+            d.standoff >= t && d.span - d.body_width >= 2 * t && 2 * d.foot_length <= d.span,
+            "foot_length",
+            "A PLCC LED's leads fold under its housing: the standoff holds their feet (standoff ≥ lead thickness), the span leaves a lead thickness beside the housing, and each foot ends before the middle (foot length ≤ span / 2).",
+        );
+    } else {
+        rule(
+            2 * d.foot_length <= d.span - d.body_width,
+            "foot_length",
+            "The foot must lie outside the body (foot length ≤ (span − body width) / 2).",
+        );
+        rule(
+            // Lead exit (standoff + height / 2) − t / 2 > t, doubled.
+            2 * d.standoff + d.body_height - t > 2 * t && t < d.body_height,
+            "lead_thickness",
+            "Leads must fit the body height: thinner than the body, and leaving it (at mid-height) \
+             more than 1.5 × lead thickness above the seating plane.",
+        );
+        rule(
+            d.span - 2 * d.foot_length - d.body_width > 2 * t,
+            "span",
+            "The span must leave more than a lead thickness outside the body for the lead to bend \
+             down to its foot ((span − body width) / 2 − foot length > lead thickness).",
+        );
+    }
     match d.tab {
         Tab::None => {}
         Tab::Lead | Tab::Flange => {
@@ -659,7 +708,7 @@ fn problems(d: &Dims) -> Vec<Problem> {
         }
     }
     if out.is_empty() {
-        if d.rounds().0 <= 0 {
+        if d.corner_room() <= 0 {
             out.push(problem(
                 "param.inconsistent",
                 "body_length",
@@ -672,7 +721,7 @@ fn problems(d: &Dims) -> Vec<Problem> {
         if d.tab == Tab::Lead {
             feet.push(d.tab_length);
         }
-        if feet.into_iter().any(|foot| !bends_fit(d, foot)) {
+        if !d.plcc && feet.into_iter().any(|foot| !bends_fit(d, foot)) {
             out.push(problem(
                 "param.inconsistent",
                 "lead_thickness",
@@ -863,7 +912,11 @@ fn model(d: &Dims) -> v1::Model {
         Tab::None => {
             set("row_n_leads", d.leads[1]);
             set("row_n_step", d.step[1]);
-            parts::TABBED_ROWS
+            if d.plcc {
+                parts::TABBED_PLCC_LED
+            } else {
+                parts::TABBED_ROWS
+            }
         }
         Tab::Lead => {
             set("tab_width", d.tab_width);
