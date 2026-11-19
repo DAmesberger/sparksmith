@@ -27,11 +27,15 @@ pub(crate) struct Models {
     models: BTreeMap<sparksmith_core::ids::ContentHash, ModelRef>,
 }
 impl Models {
-    pub(crate) fn new(root: &Path) -> Result<Self, String> {
+    /// The models of the project at `root`, made by generator workers
+    /// that `runtime` gives for the import's deadline: batch admission, so
+    /// a busy pool delays the import instead of costing it its parts.
+    pub(crate) fn new(root: &Path, runtime: crate::kicad_import::Runtime) -> Result<Self, String> {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
         Ok(Self {
-            deadline: std::time::Instant::now() + std::time::Duration::from_secs(120),
+            deadline,
             files: ProjectModels::new(root).map_err(|e| e.to_string())?,
-            presets: presets::Presets::default(),
+            presets: presets::Presets::with_runtime(runtime(deadline)),
             sources: BTreeMap::new(),
             models: BTreeMap::new(),
         })
@@ -251,7 +255,10 @@ mod tests {
     #[test]
     fn all_hidden_references_do_not_read_files_or_generate_replacement_bodies() -> Fallible {
         let dir = tempfile::tempdir()?;
-        let mut models = Models::new(dir.path())?;
+        let mut models = Models::new(
+            dir.path(),
+            crate::session::generators::fixture_batch_runtime,
+        )?;
         let mut reference = reference("${KICAD9_3DMODEL_DIR}/never-read.step");
         reference.hidden = true;
         let mut engine = Engine::demo()?;
@@ -267,7 +274,10 @@ mod tests {
     #[test]
     fn expired_import_refuses_without_publishing_any_model() -> Fallible {
         let dir = tempfile::tempdir()?;
-        let mut models = Models::new(dir.path())?;
+        let mut models = Models::new(
+            dir.path(),
+            crate::session::generators::fixture_batch_runtime,
+        )?;
         models.deadline = std::time::Instant::now();
         let mut engine = Engine::demo()?;
         let before = engine.revision();
@@ -291,7 +301,10 @@ mod tests {
     fn a_kicad_library_reference_is_not_resolved_even_with_a_same_name_local_file() -> Fallible {
         let dir = tempfile::tempdir()?;
         std::fs::write(dir.path().join("own.step"), VENDOR)?;
-        let mut models = Models::new(dir.path())?;
+        let mut models = Models::new(
+            dir.path(),
+            crate::session::generators::fixture_batch_runtime,
+        )?;
         let mut engine = Engine::demo()?;
         let selected = models.prepare(
             &mut engine,
@@ -344,7 +357,7 @@ mod tests {
         board.push(')');
         let path = dir.path().join("reasons.kicad_pcb");
         std::fs::write(&path, board)?;
-        let imported = crate::kicad_import::import(&path, None)?;
+        let imported = crate::kicad_import::import_in_fixture_pool(&path, None)?;
         let report = &imported.report;
         assert_eq!(report.count(Case::NoModel), 5);
         assert!(imported.engine.project().library.models.is_empty());
@@ -427,7 +440,7 @@ mod tests {
         board.push(')');
         let path = dir.path().join("bodies.kicad_pcb");
         std::fs::write(&path, board)?;
-        let imported = crate::kicad_import::import(&path, None)?;
+        let imported = crate::kicad_import::import_in_fixture_pool(&path, None)?;
         let project = imported.engine.project();
         let report = sparksmith_core::layout::bodies::bodies(project);
         assert_eq!(report.parts.len(), 8, "{:?}", report.without_leads);
@@ -519,7 +532,7 @@ mod tests {
         board.push(')');
         let path = dir.path().join("no-body.kicad_pcb");
         std::fs::write(&path, board)?;
-        let imported = crate::kicad_import::import(&path, None)?;
+        let imported = crate::kicad_import::import_in_fixture_pool(&path, None)?;
         let report = &imported.report;
         let project = imported.engine.project();
         let model_of = |designator: &str| -> Result<PackageModel, String> {
