@@ -15,5 +15,6 @@
    "request": {"abi": 1, "scope": "component", "params": {"body_length": 6000000, "body_width": 6000000, "height": 4500000, "land_length": 2400000, "land_width": 6400000, "land_x": 2100000, "style": "shielded", "terminal_gap": 2000000, "terminal_length": 2000000, "terminal_width": 4400000, "window": true}},
    "result": "2b9d86f33a644f412ee74b536411aae61350fce5e065e6c592f86f6fa7f2a6aa"
   }
- ]
+ ],
+ "outputs": "e9b9408431eb63a0e92235a71c111c04bcffc5d76017abb8e7939f4e228728c6"
 }

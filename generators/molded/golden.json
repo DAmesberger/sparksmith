@@ -30,5 +30,6 @@
    "request": {"abi": 1, "scope": "package", "params": {"part": "diode", "lead": "flat", "body_length": 1200000, "body_width": 800000, "body_height": 600000, "span": 1600000, "terminal_length": 200000, "terminal_width": 300000, "polarised": false, "marking": [], "marking_height": 0}},
    "result": "a3e7e20ca0b7184db20c69f903cc45634e36267a4d2196ac455c40c5f5ad36fa"
   }
- ]
+ ],
+ "outputs": "1fc95130fbfde08eaf93990c4e1be82fd2ddb36eead53dd7de8eeab765b9bbac"
 }

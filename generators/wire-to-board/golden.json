@@ -30,5 +30,6 @@
    "request": {"abi": 1, "scope": "component", "params": {"pins": 15, "pitch": 1000000, "entry": "side", "colour": "white", "body_length": 17000000, "body_depth": 4250000, "body_height": 2900000, "standoff": 50000, "front": 4575000, "cavity_width": 16100000, "cavity_height": 2350000, "cavity_depth": 3500000, "floor": 300000, "latch_width": 14000000, "latch_length": 1000000, "lead_width": 300000, "lead_thickness": 150000, "lead_reach": 700000, "post_length": 2000000, "land_width": 600000, "land_length": 1550000, "tab_land_width": 1200000, "tab_land_length": 1800000, "tab_land_gap": 700000, "tab_land_offset": 3875000, "tab_thickness": 150000, "tab_height": 2000000}},
    "result": "ad35c29ba792230ce9319f281e0e8d46a075a89e39833ec6e2300f9f8d285820"
   }
- ]
+ ],
+ "outputs": "15d7ccdb84e4db5eea3fdbb1906104bdb9c8d202c03fd18c8ff39d8de4380f3a"
 }
