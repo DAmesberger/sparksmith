@@ -41,7 +41,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Most contacts in the row.
 const MAX_PINS: i64 = 20;
@@ -813,6 +813,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect();
@@ -828,6 +829,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
             mask: Opening::Default,
             paste: Opening::Default,
             number: None,
+            kind: None,
         });
     }
     pads

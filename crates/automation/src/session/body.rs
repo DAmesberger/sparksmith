@@ -237,6 +237,7 @@ impl Session {
                     .map(|p| {
                         let at = to_datum(&f.definition.datum, p.position());
                         json!({
+                            "id": p.id,
                             "number": p.number,
                             "at": [round(at[0]), round(at[1])],
                             "size": p.shape.extent().map(round),
@@ -272,7 +273,8 @@ fn round(v: f64) -> f64 {
 }
 
 /// An imported board for tests of bodies: R1 and R2 share a two-pad chip
-/// footprint (pads 1.6 mm apart, 0.95 × 1.0 mm), U1 has a three-pad one;
+/// footprint (pads 1.6 mm apart, 0.95 × 1.0 mm), U1 has a three-pad one,
+/// J1 one pad and an unnumbered 1.2 mm non-plated hole 1.6 mm from it;
 /// every package keeps the import's placeholder body. Original synthetic
 /// data.
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -295,7 +297,11 @@ pub fn fixture_engine() -> std::result::Result<sparksmith_core::Engine, String> 
             (property "Reference" "U1")
             (pad "1" smd rect (at 0 0) (size 1.3 0.7) (layers "F.Cu" "F.Mask" "F.Paste"))
             (pad "2" smd rect (at 3.1 0.9) (size 0.4 2.2) (layers "F.Cu" "F.Mask" "F.Paste"))
-            (pad "3" smd rect (at -2.2 1.7) (size 0.9 0.9) (layers "F.Cu" "F.Mask" "F.Paste"))))"#,
+            (pad "3" smd rect (at -2.2 1.7) (size 0.9 0.9) (layers "F.Cu" "F.Mask" "F.Paste")))
+        (footprint "Original:Peg" (layer "F.Cu") (at 5 10)
+            (property "Reference" "J1")
+            (pad "1" smd rect (at -0.8 0) (size 0.95 1.0) (layers "F.Cu" "F.Mask" "F.Paste"))
+            (pad "" np_thru_hole circle (at 0.8 0) (size 1.2 1.2) (drill 1.2) (layers "*.Cu" "*.Mask"))))"#,
     );
     let defaults = sparksmith_io::new_project::shipped().map_err(|e| e.to_string())?;
     let imported = sparksmith_kicad::import(

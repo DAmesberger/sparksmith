@@ -33,7 +33,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Lead wire diameter (est.), at most a quarter of the envelope.
 const WIRE_NM: i64 = 500_000;
@@ -285,6 +285,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
             mask: Opening::Default,
             paste: Opening::Default,
             number: None,
+            kind: None,
         })
         .collect()
 }

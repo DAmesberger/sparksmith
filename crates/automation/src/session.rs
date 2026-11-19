@@ -354,6 +354,13 @@ pub enum Request {
     /// Apply a previewed update at its revision.
     #[serde(rename = "project.apply_update")]
     ApplyUpdate(updates::ApplyUpdate),
+    /// Preview replacing placed parts' component by another lineage's.
+    #[serde(rename = "project.preview_replace")]
+    PreviewReplace(replace::PreviewReplaceParams),
+    /// Replace placed parts' component by another lineage's, terminals
+    /// mapped explicitly.
+    #[serde(rename = "project.replace_component")]
+    ReplaceComponent(replace::ReplaceComponentParams),
     /// Write the board as a native, parametric `.solidcraft` model, its
     /// bodies checked against the board plan. Refuses existing files.
     #[serde(rename = "project.export_native")]
@@ -540,6 +547,8 @@ sparksmith_core::declare_entries!(Request in project {
     Save "project.save" Ask "Save the project" [in files],
     PreviewUpdate "project.preview_update" Read "Preview an update" [in library, link],
     ApplyUpdate "project.apply_update" Edit "Apply an update" [in library, review],
+    PreviewReplace "project.preview_replace" Read "Preview replacing a part's component" [in library, link, since(3, 8)],
+    ReplaceComponent "project.replace_component" Edit "Replace a part's component" [in library, review, since(3, 8)],
     ExportNative "project.export_native" Ask "Export the 3D model" [in model3d, long, needs(Solidcraft)],
     ExportFabrication "project.export_fabrication" Ask "Export fabrication files" [in fab, long, link],
     Sources "library.sources" Read "List library folders" [in library, link, reach(Settings)],
@@ -780,6 +789,16 @@ impl Request {
                 "project.apply_update",
                 "Apply a previewed update at its revision, optionally removing the listed conflicting tracks.",
                 "Apply a previewed update at its revision, optionally removing the listed conflicting tracks.",
+            ),
+            info::<replace::PreviewReplaceParams>(
+                "project.preview_replace",
+                "Preview replacing placed parts' component by a component of another lineage, with an explicit terminal mapping.",
+                "Preview replacing the component of the placed parts designators (one component revision) by target, a component revision of another lineage the project holds (import a folder part first with library.import_from_folder), with representation and physical (binding and footprint) when the target offers several. terminals maps every terminal of the current component, by id (a number) or exact name (a string), to a terminal of the target or to null to drop it; units maps placed units when a symbol has several. Returns plan (the project.preview_update plan at this revision: nets, wires, pads, detached tracks and vias kept for rerouting, conflicting copper, findings, blockers such as an incomplete mapping) with copper (per part: identical, the old-only and new-only pads, renumbered pads), both components' terminals, and suggested_terminals by equal names, offered only and never applied by itself. Not a document change.",
+            ),
+            info::<replace::ReplaceComponentParams>(
+                "project.replace_component",
+                "Replace placed parts' component by another lineage's at expected_revision, terminals mapped explicitly; one undo step.",
+                "Apply what project.preview_replace previewed (replace holds the same parameters, terminals complete) at expected_revision as one undo step: the parts pin the target revision with its symbol and footprint at the same placement; wires, nets, no-connect markers and pair ends follow the terminal mapping; dropped terminals lose their wires; field overrides the target does not select, function selections, pin configuration and the exact Part are cleared. Tracks and vias are never moved or rerouted: copper the new pads no longer reach stays for rerouting, listed in warnings. Refused, changing nothing, with an incomplete or ambiguous mapping, a stale revision, a blocker, conflicting copper without remove_conflicting_tracks, or joined named nets without merge_named_nets. The reply adds copper, warnings and summary.",
             ),
             info::<ExportNativeParams>(
                 "project.export_native",
@@ -1369,6 +1388,8 @@ impl Session {
                     self.engine.preview_update_hosted(params.change, hosted()),
                 )?);
             }
+            Request::PreviewReplace(params) => return self.preview_replace(params),
+            Request::ReplaceComponent(params) => return self.replace_component(params),
             Request::ApplyUpdate(update) => {
                 self.engine.apply_hosted(
                     update.expected_revision,
@@ -1941,6 +1962,7 @@ pub mod part_files;
 pub mod paths;
 mod pinout;
 mod preview;
+mod replace;
 mod reply;
 pub use reply::difference;
 pub mod shipped_parts;
@@ -1989,6 +2011,8 @@ mod parts_tests;
 mod pinout_tests;
 #[cfg(test)]
 mod project_import_tests;
+#[cfg(test)]
+mod replace_tests;
 #[cfg(test)]
 mod reply_tests;
 #[cfg(test)]

@@ -39,7 +39,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// A microSD card's eight contacts, by number: their signal names.
 const SIGNALS: [&str; 8] = [
@@ -499,6 +499,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
         mask: Opening::Default,
         paste: Opening::Default,
         number: None,
+        kind: None,
     };
     let mut pads: Vec<Pad> = (1..=8)
         .map(|k| pad(k.to_string(), [d.contact_x(k), 0], d.land))

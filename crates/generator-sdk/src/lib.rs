@@ -28,6 +28,7 @@ pub mod entry;
 pub mod golden;
 pub mod host;
 pub mod land;
+pub mod land_pattern;
 pub mod marking;
 pub mod units;
 

@@ -94,9 +94,30 @@ pub enum Case {
     BoardObjects,
     /// G12: 3D model references.
     Models,
-    GeneratedModel,
-    LibraryModelGenerated,
-    NoModel,
+    /// Footprint instances made as generated parts: a shipped generator's
+    /// part, its land pattern the source's lands.
+    GeneratedPart,
+    /// Footprint instances made as project parts of the source lands: no
+    /// generator fits (the reason in details); their body comes from a
+    /// recreation from datasheets.
+    SourcePart,
+    /// Footprint instances whose part number names another package than
+    /// their lands are (the lands kept as the source has them).
+    PackageContradiction,
+    /// Source symbol units a part's own symbol has no unit for (a
+    /// generated part's one symbol): their wiring joins its terminals.
+    UnitMerged,
+    /// Placed parts whose value set their typed fields.
+    ValueField,
+    /// Placed parts whose value has words no field took.
+    ValueWordUnread,
+    /// Placed parts with a value whose part selects no value field (the
+    /// value is not carried).
+    ValueWithoutField,
+    /// Part numbers without a manufacturer: no manufacturer part made.
+    PartWithoutManufacturer,
+    /// Manufacturer parts the library refused.
+    PartRefused,
     /// Footprint instances that are no part to draw (a jumper, a contact
     /// pad, a fiducial, a logo): no body, as in the source.
     NoBody,
@@ -355,25 +376,47 @@ impl Case {
                 Report,
                 "3D model references (host resolution unavailable)",
             ),
-            Self::GeneratedModel => (
-                "G12G",
-                Approximate,
-                "footprint instances with matched generated models",
+            Self::GeneratedPart => (
+                "P1",
+                Exact,
+                "footprint instances made as generated parts (a shipped generator's part, its land pattern the source's lands)",
             ),
-            Self::LibraryModelGenerated => (
-                "G12K",
-                Approximate,
-                "footprint instances using generated models instead of KiCad library references",
+            Self::PackageContradiction => (
+                "P3",
+                Report,
+                "footprint instances whose part number names another package than their lands (lands kept as in the source)",
             ),
+            Self::UnitMerged => (
+                "P4",
+                Report,
+                "source symbol units drawn by their part's one symbol (wiring kept on its terminals)",
+            ),
+            Self::ValueField => (
+                "P5",
+                Exact,
+                "placed parts whose value set their typed fields",
+            ),
+            Self::ValueWordUnread => ("P5", Report, "placed parts with value words no field took"),
+            Self::ValueWithoutField => (
+                "P5",
+                Report,
+                "placed parts with a value their part has no value field for (not carried)",
+            ),
+            Self::PartWithoutManufacturer => (
+                "P6",
+                Report,
+                "part numbers without a manufacturer (no manufacturer part made)",
+            ),
+            Self::PartRefused => ("P6", Refused, "manufacturer parts the library refused"),
             Self::NoBody => (
                 "G12B",
                 Exact,
                 "footprint instances with no body (as in the source: no model, and not an assembled part)",
             ),
-            Self::NoModel => (
-                "G12N",
+            Self::SourcePart => (
+                "P2",
                 Report,
-                "footprint instances without a generated model (placeholder; reason below and in details)",
+                "footprint instances made as project parts of the source lands: no generator fits (reason below and in details)",
             ),
             Self::PadOutOfRange => (
                 "-",
@@ -601,7 +644,7 @@ impl Case {
 }
 
 /// Why a footprint instance keeps its labelled placeholder body
-/// ([`Case::NoModel`]) and needs a recreation, counted per instance in the
+/// ([`Case::SourcePart`]) and needs a recreation, counted per instance in the
 /// summary.
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
@@ -623,6 +666,9 @@ pub enum Placeholder {
     KicadLibraryReferenceNoPreset,
     /// No model reference at all; no preset matched.
     NoReferenceNoPreset,
+    /// The lands are a preset's package, but its generator cannot take
+    /// them as its land pattern (the reason in details).
+    GeneratorRefused,
 }
 
 impl Placeholder {
@@ -640,6 +686,9 @@ impl Placeholder {
                 "needs recreation (KiCad library reference, no matching preset)"
             }
             Self::NoReferenceNoPreset => "needs recreation (no reference, no matching preset)",
+            Self::GeneratorRefused => {
+                "needs recreation (the package's generator cannot take these lands)"
+            }
         }
     }
 }
@@ -662,7 +711,7 @@ pub struct Detail {
     pub footprint: String,
     pub pad: String,
     pub path: String,
-    /// For [`Case::NoModel`]: why the placeholder stays.
+    /// For [`Case::SourcePart`]: why the placeholder stays.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub placeholder: Option<Placeholder>,
 }
@@ -836,7 +885,7 @@ impl Report {
     }
 
     /// One footprint instance's 3D model outcome with its reason; a
-    /// placeholder ([`Case::NoModel`]) is also counted under its category.
+    /// placeholder ([`Case::SourcePart`]) is also counted under its category.
     pub fn add_model(
         &mut self,
         case: Case,
@@ -981,7 +1030,7 @@ impl Report {
                 "  {fidelity:<11} {:>3}  {:>6}  {}\n",
                 row.code, row.count, row.title
             ));
-            if row.case == Case::NoModel {
+            if row.case == Case::SourcePart {
                 for (placeholder, count) in &self.placeholders {
                     out.push_str(&format!(
                         "  {:<11} {:>3}  {count:>6}    {}\n",

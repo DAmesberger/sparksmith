@@ -139,46 +139,73 @@ pub fn fit_leads(
     rotation: FitRotation,
 ) -> Result<LeadFit> {
     validate_pairs(pairs)?;
+    let leads: Vec<Point3> = pairs.iter().map(LeadPair::lead).collect();
+    let targets: Vec<Point> = pairs.iter().map(LeadPair::pad_centre).collect();
+    let (placement, errors, mirrored_better) = fit_points(current, &leads, &targets, rotation)?;
+    let residuals: Vec<LeadResidual> = pairs
+        .iter()
+        .zip(errors)
+        .map(|(p, error_mm)| LeadResidual {
+            terminal: p.terminal,
+            error_mm,
+        })
+        .collect();
+    Ok(LeadFit {
+        placement,
+        rms_mm: rms(residuals.iter().map(|r| r.error_mm)),
+        residuals,
+        mirrored_better,
+    })
+}
+
+/// [`fit_leads`] over bare points: lead contacts (model frame) and the
+/// centres they land (datum frame), paired by index, such as a locating
+/// peg and its unnumbered hole, which land no terminal. Returns the
+/// placement, each point's error (mm) and whether a mirrored assignment
+/// fits better.
+pub fn fit_points(
+    current: &ModelPlacement,
+    leads: &[Point3],
+    targets: &[Point],
+    rotation: FitRotation,
+) -> Result<(ModelPlacement, Vec<f64>, bool)> {
+    if leads.is_empty() || leads.len() > MAX_LEAD_PAIRS || leads.len() != targets.len() {
+        return Err(Error::Invalid(format!(
+            "package.fit_pairs: fitting takes 1–{MAX_LEAD_PAIRS} lead/pad pairs"
+        )));
+    }
     // The z turn is solved from scratch; only the tilt is kept, so a
     // quarter-turn fit of an untilted model is exact.
     let [rx, ry, _] = current.rotation_deg();
     let base = Transform3::intrinsic_xyz([rx, ry, 0.0]);
-    let turned: Vec<Point3> = pairs.iter().map(|p| base.apply(p.lead())).collect();
-    let targets: Vec<Point> = pairs.iter().map(LeadPair::pad_centre).collect();
+    let turned: Vec<Point3> = leads.iter().map(|p| base.apply(*p)).collect();
     let flat: Vec<Point> = turned.iter().map(|q| [q[0], q[1]]).collect();
-    let (angle, shift) = solve_2d(&flat, &targets, rotation);
+    let (angle, shift) = solve_2d(&flat, targets, rotation);
     let lowest = turned.iter().map(|q| q[2]).fold(f64::INFINITY, f64::min);
     let outer = Transform3::translation([shift[0], shift[1], -lowest])
         .then(&Transform3::rot_z(angle))
         .then(&base);
     let placement = placement_of(&outer)?;
     let frame = placement.transform();
-    let residuals: Vec<LeadResidual> = pairs
+    let errors: Vec<f64> = leads
         .iter()
-        .map(|p| {
-            let q = frame.apply(p.lead());
-            let c = p.pad_centre();
-            LeadResidual {
-                terminal: p.terminal,
-                error_mm: (q[0] - c[0]).hypot(q[1] - c[1]),
-            }
+        .zip(targets)
+        .map(|(lead, c)| {
+            let q = frame.apply(*lead);
+            (q[0] - c[0]).hypot(q[1] - c[1])
         })
         .collect();
-    let rms_mm = rms(residuals.iter().map(|r| r.error_mm));
+    let rms_mm = rms(errors.iter().copied());
     // The same leads mirrored across the x axis: what a reversed (clockwise)
     // pin order would land.
     let mirrored: Vec<Point> = flat.iter().map(|q| [q[0], -q[1]]).collect();
-    let (m_angle, m_shift) = solve_2d(&mirrored, &targets, rotation);
-    let m_rms = rms(mirrored.iter().zip(&targets).map(|(q, p)| {
+    let (m_angle, m_shift) = solve_2d(&mirrored, targets, rotation);
+    let m_rms = rms(mirrored.iter().zip(targets).map(|(q, p)| {
         let r = rotate(*q, m_angle);
         (r[0] + m_shift[0] - p[0]).hypot(r[1] + m_shift[1] - p[1])
     }));
-    Ok(LeadFit {
-        placement,
-        rms_mm,
-        residuals,
-        mirrored_better: rms_mm > MIRROR_MIN_RMS_MM && m_rms < MIRROR_SHARE * rms_mm,
-    })
+    let mirrored_better = rms_mm > MIRROR_MIN_RMS_MM && m_rms < MIRROR_SHARE * rms_mm;
+    Ok((placement, errors, mirrored_better))
 }
 
 /// Pairs and the placement hold whole nanometres within ±2 m: finite and in
@@ -378,6 +405,12 @@ pub fn to_datum(datum: &Datum, p: Point) -> Point {
         [p[0] - datum.offset()[0], p[1] - datum.offset()[1]],
         -datum.rotation_deg(),
     )
+}
+
+/// Datum frame → footprint frame: [`to_datum`] undone.
+pub fn from_datum(datum: &Datum, p: Point) -> Point {
+    let q = rotate(p, datum.rotation_deg());
+    [q[0] + datum.offset()[0], q[1] + datum.offset()[1]]
 }
 
 fn copper(kind: PadKind) -> bool {
@@ -714,6 +747,67 @@ pub struct LeadState {
     /// `None` when no copper pad lands the terminal.
     pub miss_mm: Option<f64>,
     pub pads: Vec<PadId>,
+    /// Where the contact sits on that best land.
+    pub spot: Option<LandSpot>,
+}
+
+/// Where a lead contact sits on a land, in the land's own axes: along the
+/// lead (its direction from the package's centre) and across it, the axes
+/// [`land_miss`] reads. A lead at the package's centre (an exposed pad) has
+/// no direction: along is then the land's longer side, positive along the
+/// pad's own axis.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LandSpot {
+    pub pad: PadId,
+    /// The contact's offset from the land's centre along the lead, mm:
+    /// positive outward, away from the package's centre.
+    pub along_mm: f64,
+    /// Its offset across the lead, mm: positive to the left of outward
+    /// (counter-clockwise, seen from the top).
+    pub across_mm: f64,
+    /// The land's size along the lead and across it, mm.
+    pub length_mm: f64,
+    pub width_mm: f64,
+}
+
+/// The index of the land axis across the lead (0: the pad's x, 1: its y)
+/// and the sign of outward along the other axis, in the pad's frame.
+fn land_axes(pad: &Pad, outward: Point) -> (usize, f64) {
+    let extent = pad.shape.extent();
+    let along = rotate(outward, -pad.rotation_deg());
+    if along[0].hypot(along[1]) < OUTWARD_MIN_MM {
+        (if extent[0] <= extent[1] { 0 } else { 1 }, 1.0)
+    } else if along[0].abs() >= along[1].abs() {
+        (1, if along[0] < 0.0 { -1.0 } else { 1.0 })
+    } else {
+        (0, if along[1] < 0.0 { -1.0 } else { 1.0 })
+    }
+}
+
+/// `q` (footprint frame, mm) in `pad`'s frame, from its centre.
+fn pad_local(pad: &Pad, q: Point) -> Point {
+    rotate(
+        [q[0] - pad.position()[0], q[1] - pad.position()[1]],
+        -pad.rotation_deg(),
+    )
+}
+
+/// Where a lead contact at `q` (footprint frame, mm) running along
+/// `outward` sits on `pad`'s land.
+pub fn land_spot(pad: &Pad, q: Point, outward: Point) -> LandSpot {
+    let local = pad_local(pad, q);
+    let extent = pad.shape.extent();
+    let (across, sign) = land_axes(pad, outward);
+    let along = 1 - across;
+    // Left of outward: a quarter turn counter-clockwise of the along axis.
+    let left = if along == 0 { local[1] } else { -local[0] };
+    LandSpot {
+        pad: pad.id,
+        along_mm: sign * local[along],
+        across_mm: sign * left,
+        length_mm: extent[along],
+        width_mm: extent[across],
+    }
 }
 
 /// How far a lead contact at `q` (footprint frame, mm) misses `pad`'s
@@ -726,19 +820,9 @@ pub struct LeadState {
 /// is often the land's longer side). A lead at the centre (an exposed pad)
 /// has no direction: across is then the land's narrower side.
 pub fn land_miss(pad: &Pad, q: Point, outward: Point) -> f64 {
-    let local = rotate(
-        [q[0] - pad.position()[0], q[1] - pad.position()[1]],
-        -pad.rotation_deg(),
-    );
+    let local = pad_local(pad, q);
     let extent = pad.shape.extent();
-    let along = rotate(outward, -pad.rotation_deg());
-    let across = if along[0].hypot(along[1]) < OUTWARD_MIN_MM {
-        if extent[0] <= extent[1] { 0 } else { 1 }
-    } else if along[0].abs() >= along[1].abs() {
-        1
-    } else {
-        0
-    };
+    let (across, _) = land_axes(pad, outward);
     let lateral = local[across].abs() - LEAD_OFF_LAND_FRACTION * extent[across];
     let outside = pad.land(PAD_ARC_TOLERANCE_MM).distance(q, true);
     lateral.max(outside)
@@ -761,20 +845,22 @@ pub fn lead_states(
         .map(|(terminal, lead)| {
             let q = frame.apply(lead);
             let o = frame.apply_vector(lead);
+            let (q, o) = ([q[0], q[1]], [o[0], o[1]]);
             let pads: Vec<_> = footprint
                 .pads
                 .iter()
                 .filter(|p| p.terminal == Some(terminal) && copper(p.kind))
                 .collect();
-            let miss_mm = pads
+            let best = pads
                 .iter()
-                .map(|pad| land_miss(pad, [q[0], q[1]], [o[0], o[1]]))
-                .reduce(f64::min);
+                .map(|pad| (land_miss(pad, q, o), *pad))
+                .reduce(|a, b| if b.0 < a.0 { b } else { a });
             LeadState {
                 terminal,
                 at: datum.apply(lead),
-                miss_mm,
+                miss_mm: best.map(|(miss, _)| miss),
                 pads: pads.iter().map(|p| p.id).collect(),
+                spot: best.map(|(_, pad)| land_spot(pad, q, o)),
             }
         })
         .collect()

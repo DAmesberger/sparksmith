@@ -604,6 +604,10 @@ pub(crate) fn generate(
         None => (None, Vec::new()),
     };
     generated::set_marking(&mut definitions, host_marking.as_ref());
+    generated::set_leads(
+        &mut definitions,
+        &generated::generation_leads(&made.generation)?,
+    );
     // A part of a generic family is named by the family's label
     // ("Chip resistor 0603", "Pin header 2×5 2.54 mm"), as the Place
     // palette and the chat name it, so every search reads it alike.

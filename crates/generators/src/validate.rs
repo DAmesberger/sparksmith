@@ -5,7 +5,8 @@
 use sparksmith_generator_abi::Failure;
 use sparksmith_generator_abi::v1::{
     self as v1, Description, Effect, Footprint, GENERATE_PART, Generation, Graphic, HoleShape,
-    Model, PadShape, ParamType, ParamValue, Point, Primitive, Scope, Symbol, limits,
+    Model, Opening, PadKind, PadShape, ParamType, ParamValue, Point, Primitive, Scope, Symbol,
+    Window, limits,
 };
 use std::collections::BTreeSet;
 
@@ -199,15 +200,26 @@ fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Resul
     count("pads", footprint.pads.len(), limits::PADS)?;
     unique("pad", footprint.pads.iter().map(|p| p.key.as_str()))?;
     for pad in &footprint.pads {
-        if !package_terminals.contains(pad.terminal.as_str()) {
+        // A non-plated hole, a mechanical pad or a fiducial may land none.
+        let free = pad.kind.is_some() || pad.hole.as_ref().is_some_and(|h| !h.plated);
+        if pad.kind == Some(PadKind::Fiducial) && !pad.terminal.is_empty() {
+            return Err(invalid(format!(
+                "The generator's fiducial {} lands terminal \"{}\"; a fiducial lands none.",
+                pad.key, pad.terminal
+            )));
+        }
+        let lands_none = free && pad.terminal.is_empty();
+        if !(lands_none || package_terminals.contains(pad.terminal.as_str())) {
             return Err(invalid(format!(
                 "The generator's pad {} lands terminal \"{}\", which the package does not have.",
                 pad.key, pad.terminal
             )));
         }
         point(&pad.at)?;
+        // An empty number is an unnumbered pad (a hole of a given land
+        // pattern).
         if let Some(number) = &pad.number {
-            key("pad number", number)?;
+            text("pad number", number)?;
         }
         match &pad.shape {
             PadShape::Rect { size } | PadShape::Oval { size } => {
@@ -235,13 +247,69 @@ fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Resul
                 count("points in one pad", points.len(), limits::POINTS)?;
                 points.iter().try_for_each(point)?;
             }
+            PadShape::Outline { start, segments } => {
+                if segments.len() < 2 {
+                    return Err(invalid(format!(
+                        "The generator's pad {} is an outline of fewer than two segments.",
+                        pad.key
+                    )));
+                }
+                count("segments in one pad", segments.len(), limits::POINTS)?;
+                point(start)?;
+                for segment in segments {
+                    point(&segment.to)?;
+                    if segment
+                        .bulge_ppb
+                        .is_some_and(|b| b.checked_abs().is_none_or(|b| b > MAX_BULGE_PPB))
+                    {
+                        return Err(invalid(format!(
+                            "The generator's pad {} has an arc of a bulge beyond 1000.",
+                            pad.key
+                        )));
+                    }
+                }
+            }
         }
         if let Some(hole) = &pad.hole {
-            match hole.shape {
-                HoleShape::Round { diameter_nm } => positive("hole diameter", diameter_nm)?,
-                HoleShape::Slot { size } => {
+            match &hole.shape {
+                HoleShape::Round { diameter_nm } => positive("hole diameter", *diameter_nm)?,
+                HoleShape::Slot { size, .. } => {
                     positive("slot size", size[0])?;
                     positive("slot size", size[1])?;
+                }
+            }
+            if let Some(offset) = &hole.offset {
+                point(offset)?;
+            }
+        }
+        if matches!(pad.mask, Opening::Windows(_)) {
+            return Err(invalid(format!(
+                "The generator's pad {} gives its solder mask windows; only paste has windows.",
+                pad.key
+            )));
+        }
+        if let Opening::Windows(windows) = &pad.paste {
+            count("paste windows of one pad", windows.len(), MAX_PASTE_WINDOWS)?;
+            for w in windows {
+                match w {
+                    Window::Rect {
+                        min,
+                        max,
+                        radius_nm,
+                    } => {
+                        point(min)?;
+                        point(max)?;
+                        coordinate(*radius_nm)?;
+                    }
+                    Window::Circle { center, radius_nm } => {
+                        point(center)?;
+                        positive("paste window radius", *radius_nm)?;
+                    }
+                    Window::Polygon { points, radii_nm } => {
+                        count("points in one paste window", points.len(), limits::POINTS)?;
+                        points.iter().try_for_each(point)?;
+                        radii_nm.iter().try_for_each(|r| coordinate(*r))?;
+                    }
                 }
             }
         }
@@ -291,6 +359,11 @@ fn footprint(footprint: &Footprint, package_terminals: &BTreeSet<&str>) -> Resul
     )?;
     Ok(())
 }
+
+/// Most |bulge| of an outline arc, parts per billion (a bulge of 1000).
+const MAX_BULGE_PPB: i64 = 1_000_000_000_000;
+/// Most paste windows of one pad (the core's bound).
+const MAX_PASTE_WINDOWS: usize = 64;
 
 /// Longest part-file parameter name (as the document bounds it).
 const PART_PARAMETER: usize = 64;

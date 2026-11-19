@@ -102,6 +102,7 @@ impl Session {
                 | Request::Undo(_)
                 | Request::Redo(_)
                 | Request::ApplyUpdate(_)
+                | Request::ReplaceComponent(_)
         );
         if !pure || request.effective_class() != Class::Edit {
             return Err(sparksmith_core::Error::Invalid(format!(

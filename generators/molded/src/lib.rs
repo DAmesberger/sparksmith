@@ -35,7 +35,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Estimated land: terminal length plus this along x…
 const LAND_EXTRA_LENGTH_NM: i64 = 600_000;
@@ -521,6 +521,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
             mask: Opening::Default,
             paste: Opening::Default,
             number: None,
+            kind: None,
         })
         .collect()
 }

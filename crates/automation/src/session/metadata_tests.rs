@@ -32,8 +32,9 @@ fn the_catalog_has_its_272_entries() {
     // the window's view.context, view.select and view.open (S5a); then
     // assist.workflows and assist.step_result (W1); then assist.offer (C2);
     // then layout.pads; then assist.ask; then library.replace_body,
-    // library.body_fit and library.make_body; then library.draft_part.
-    assert_eq!(metadata::entries().len(), 277);
+    // library.body_fit and library.make_body; then project.preview_replace
+    // and project.replace_component; then library.draft_part.
+    assert_eq!(metadata::entries().len(), 279);
 }
 
 /// A title is short, says more than the wire name, and is unique within its

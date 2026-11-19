@@ -43,7 +43,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Estimates. Mini: the cover sheet, the J's tab height
 /// (a third of the cover's), foot length, root in the base, the opening's
@@ -483,6 +483,7 @@ fn pad(key: &str, at: [i64; 2], size: [i64; 2]) -> Pad {
         mask: Opening::Default,
         paste: Opening::Default,
         number: None,
+        kind: None,
     }
 }
 

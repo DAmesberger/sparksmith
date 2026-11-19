@@ -1,0 +1,642 @@
+//! The importer's parts on original synthetic boards: generated parts
+//! whose copper is the source's, typed values, part numbers, project parts
+//! of source lands, and the findings.
+use super::*;
+use sparksmith_core::instances;
+use sparksmith_core::layout::bodies;
+use sparksmith_core::library::PackageModel;
+use sparksmith_core::units::Nm;
+use sparksmith_kicad::models::Reference;
+type Fallible = Result<(), Box<dyn std::error::Error>>;
+
+const VENDOR: &[u8] = b"Original synthetic vendor bytes; never parsed.";
+
+fn reference(path: &str) -> Reference {
+    Reference {
+        path: path.into(),
+        offset_nm: [Nm::ZERO; 3],
+        rotation_deg: [0.0; 3],
+        scale: [1.0; 3],
+        hidden: false,
+    }
+}
+
+/// A board of `footprints` (KiCad text) on two layers with nets A–D.
+fn board(name: &str, footprints: &str) -> String {
+    format!(
+        r#"(kicad_pcb (version 20240108) (generator "{name}")
+        (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
+        (net 0 "") (net 1 "A") (net 2 "B") (net 3 "C") (net 4 "D")
+        (gr_rect (start 0 0) (end 120 40) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))
+        {footprints})"#
+    )
+}
+
+fn import(dir: &Path, name: &str, text: &str) -> Result<crate::kicad_import::KicadImport, String> {
+    let path = dir.join(format!("{name}.kicad_pcb"));
+    std::fs::write(&path, text).map_err(|e| e.to_string())?;
+    crate::kicad_import::import_in_fixture_pool(&path, None)
+}
+
+/// A six-lead SOT land pattern written as KiCad stores it (y down): pins
+/// 1–3 along +y, 4–6 along −y. A back-side footprint's pads are stored as
+/// seen from the top; every pad's angle includes the footprint's.
+fn sot_footprint(name: &str, at: [f64; 2], angle: f64, back: bool, extra: &str) -> String {
+    let flip = if back { -1.0 } else { 1.0 };
+    let (cu, paste, mask) = if back {
+        ("B.Cu", "B.Paste", "B.Mask")
+    } else {
+        ("F.Cu", "F.Paste", "F.Mask")
+    };
+    let mut out = format!(
+        r#"(footprint "Original:Six" (layer "{cu}") (at {} {} {angle})
+        (property "Reference" "{name}") {extra}"#,
+        at[0], at[1]
+    );
+    for (number, x, y, net) in [
+        (1, -0.95, 1.3, 1),
+        (2, 0.0, 1.3, 2),
+        (3, 0.95, 1.3, 3),
+        (4, 0.95, -1.3, 4),
+        (5, 0.0, -1.3, 1),
+        (6, -0.95, -1.3, 2),
+    ] {
+        out.push_str(&format!(
+            r#"(pad "{number}" smd roundrect (at {x} {} {angle}) (size 0.6 1.0) (roundrect_rratio 0.25) (layers "{cu}" "{paste}" "{mask}") (net {net} "{}"))"#,
+            flip * y,
+            ["", "A", "B", "C", "D"][net]
+        ));
+    }
+    out.push(')');
+    out
+}
+
+/// Two chip lands 1.5 mm apart (a 0603 chip's), with `value`.
+fn chip_footprint(name: &str, x: f64, value: &str) -> String {
+    format!(
+        r#"(footprint "Original:Chip" (layer "F.Cu") (at {x} 30)
+        (property "Reference" "{name}") (property "Value" "{value}")
+        (pad "1" smd roundrect (at -0.75 0) (size 0.85 0.95) (roundrect_rratio 0.25) (layers "F.Cu" "F.Paste" "F.Mask") (net 1 "A"))
+        (pad "2" smd roundrect (at 0.75 0) (size 0.85 0.95) (roundrect_rratio 0.25) (layers "F.Cu" "F.Paste" "F.Mask") (net 2 "B")))"#
+    )
+}
+
+fn generated_root(project: &sparksmith_core::Project, designator: &str) -> Option<String> {
+    let instance = project.instance_by_designator(designator)?;
+    project
+        .library
+        .generated
+        .iter()
+        .find(|g| g.root.id == instance.component.id)
+        .map(|g| g.from.generator.clone())
+}
+
+/// The founder's rule: an import makes real generated parts, the same
+/// way the palette does, its land pattern the source's lands, so the
+/// board's copper is the source's on both sides at every rotation, and
+/// each body's leads land their pads.
+#[test]
+fn source_lands_become_generated_parts_with_the_sources_copper() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let mut footprints = String::new();
+    let mut n = 0;
+    for back in [false, true] {
+        for angle in [0.0, 90.0, 180.0, 270.0, 30.0] {
+            n += 1;
+            let at = [10.0 * f64::from(n), if back { 25.0 } else { 10.0 }];
+            footprints.push_str(&sot_footprint(&format!("U{n}"), at, angle, back, ""));
+        }
+    }
+    let imported = import(
+        dir.path(),
+        "generated",
+        &board("generated parts", &footprints),
+    )?;
+    let project = imported.engine.project();
+    assert_eq!(imported.report.count(Case::GeneratedPart), 10);
+    assert_eq!(imported.report.count(Case::SourcePart), 0);
+    for k in 1..=n {
+        let designator = format!("U{k}");
+        assert_eq!(
+            generated_root(project, &designator).as_deref(),
+            Some("tabbed"),
+            "{designator}"
+        );
+    }
+    // One generated part serves every copy; no import-only definitions.
+    assert_eq!(project.library.generated.len(), 1);
+    assert!(project.library.fields.is_empty(), "no import-only field");
+    // The copper: on every layer exactly the copper of the source's lands
+    // imported as they are.
+    let path = dir.path().join("generated.kicad_pcb");
+    let lands = crate::kicad_import::import_source_lands(&path)?;
+    assert_eq!(lands.report.count(Case::GeneratedPart), 0);
+    for layer in
+        sparksmith_solidcraft::project::copper_agree::between(lands.engine.project(), project)
+    {
+        assert!(
+            layer.objects_differ_mm2 < 1e-9 && layer.fills_differ_mm2 < 1e-9,
+            "{layer:?}"
+        );
+    }
+    // Every body's leads land their pads (the board check).
+    let report = bodies::bodies(project);
+    assert_eq!(report.parts.len(), 10, "{:?}", report.without_leads);
+    for part in &report.parts {
+        assert_eq!(part.off_pads, 0, "{}: {:?}", part.designator, part.leads);
+        assert_eq!(part.pin_one, bodies::PinOne::Agrees, "{}", part.designator);
+    }
+    assert!(bodies::checks(project).is_empty());
+    Ok(())
+}
+
+/// A generated part reopens: the check on load runs its generator with
+/// the recorded parameters (the land pattern among them) and finds it.
+#[test]
+fn an_imported_generated_part_passes_the_check_on_load() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let imported = import(
+        dir.path(),
+        "reopen",
+        &board(
+            "reopen",
+            &sot_footprint("U1", [10.0, 10.0], 90.0, false, ""),
+        ),
+    )?;
+    let path = dir.path().join("reopen.sparksmith");
+    sparksmith_io::write_project(&path, &imported.engine.to_file())?;
+    let reopened = sparksmith_io::read_project(&path)?;
+    assert_eq!(reopened.project.library.generated.len(), 1);
+    Ok(())
+}
+
+/// KiCad values become the generated part's typed fields, parsed as a
+/// value typed into a palette part is: a resistor's Resistance, a
+/// capacitor's Capacitance and Rated voltage.
+#[test]
+fn values_become_the_generated_parts_typed_fields() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let footprints = [
+        chip_footprint("R1", 10.0, "4k7"),
+        chip_footprint("R2", 20.0, "10k"),
+        chip_footprint("C1", 30.0, "100n 16V"),
+    ]
+    .concat();
+    let imported = import(dir.path(), "values", &board("values", &footprints))?;
+    let project = imported.engine.project();
+    let fields = |designator: &str| -> Result<Vec<(String, String)>, String> {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or(designator.to_owned())?;
+        Ok(instances::effective_fields(&project.library, instance)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter_map(|f| Some((f.label, f.text?)))
+            .collect())
+    };
+    assert_eq!(generated_root(project, "R1").as_deref(), Some("chip"));
+    assert!(
+        fields("R1")?.contains(&("Resistance".into(), "4.7 kΩ".into())),
+        "{:?}",
+        fields("R1")?
+    );
+    assert!(
+        fields("R2")?.contains(&("Resistance".into(), "10 kΩ".into())),
+        "{:?}",
+        fields("R2")?
+    );
+    let c1 = fields("C1")?;
+    assert!(c1.iter().any(|(f, _)| f == "Capacitance"), "{c1:?}");
+    assert!(c1.iter().any(|(f, _)| f == "Rated voltage"), "{c1:?}");
+    // R1 and R2 are one generated resistor, each with its own value.
+    let r1 = project.instance_by_designator("R1").ok_or("R1")?;
+    let r2 = project.instance_by_designator("R2").ok_or("R2")?;
+    assert_eq!(r1.component, r2.component);
+    assert_eq!(imported.report.count(Case::ValueField), 3);
+    Ok(())
+}
+
+/// A part number with a manufacturer becomes the placed part's
+/// manufacturer part; one naming another package than the lands are, or
+/// a variant of the matched package's name, is a finding naming both, and
+/// the lands stay as the source has them.
+#[test]
+fn a_part_number_naming_another_package_is_a_finding() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let props = |mpn: &str| {
+        format!(r#"(property "MPN" "{mpn}") (property "Manufacturer" "Original Devices")"#)
+    };
+    let footprints = [
+        // Agrees: the matched package's alias, standing apart.
+        sot_footprint("U1", [10.0, 10.0], 0.0, false, &props("SOT-23-6-TR")),
+        // Another package's name.
+        sot_footprint("U2", [20.0, 10.0], 0.0, false, &props("SOIC-8-TR")),
+        // The matched package's name run on into a variant.
+        sot_footprint("U3", [30.0, 10.0], 0.0, false, &props("SOT-23-6X")),
+    ]
+    .concat();
+    let imported = import(dir.path(), "mpn", &board("mpn", &footprints))?;
+    let found: Vec<_> = imported
+        .report
+        .details()
+        .iter()
+        .filter(|d| d.case == Case::PackageContradiction)
+        .map(|d| (d.footprint.clone(), d.path.clone()))
+        .collect();
+    assert_eq!(found.len(), 2, "{found:?}");
+    let u2 = found.iter().find(|(f, _)| f == "U2").ok_or("U2 finding")?;
+    assert!(
+        u2.1.contains("gull-wing/gull-wing-soic-8") && u2.1.contains("tabbed/tabbed-sot-23-6"),
+        "{}",
+        u2.1
+    );
+    let u3 = found.iter().find(|(f, _)| f == "U3").ok_or("U3 finding")?;
+    assert!(
+        u3.1.contains("variant") && u3.1.contains("tabbed/tabbed-sot-23-6"),
+        "{}",
+        u3.1
+    );
+    // The lands are kept: every copy is the generated SOT part.
+    let project = imported.engine.project();
+    for designator in ["U1", "U2", "U3"] {
+        assert_eq!(
+            generated_root(project, designator).as_deref(),
+            Some("tabbed")
+        );
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or(designator)?;
+        let part = instance
+            .part
+            .and_then(|p| project.library.part(p))
+            .ok_or("part")?;
+        assert_eq!(part.definition.manufacturer, "Original Devices");
+    }
+    Ok(())
+}
+
+/// A footprint no generator fits is a project part of its lands, the same
+/// kind of part as an authored one: no import-only field, the package's
+/// default model until a recreation, named by its value.
+#[test]
+fn a_footprint_no_generator_fits_is_a_project_part_of_its_lands() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    std::fs::write(dir.path().join("own.step"), VENDOR)?;
+    let footprint = r#"(footprint "Original:Odd" (layer "F.Cu") (at 20 10)
+        (property "Reference" "X1") (property "Value" "Odd part")
+        (pad "1" smd rect (at 0 0) (size 1.3 0.7) (layers "F.Cu" "F.Mask" "F.Paste") (net 1 "A"))
+        (pad "2" smd rect (at 3.1 0.9) (size 0.4 2.2) (layers "F.Cu" "F.Mask" "F.Paste") (net 2 "B"))
+        (pad "3" smd rect (at -2.2 1.7) (size 0.9 0.9) (layers "F.Cu" "F.Mask" "F.Paste") (net 3 "C"))
+        (model "own.step"))"#;
+    let imported = import(dir.path(), "odd", &board("odd", footprint))?;
+    let project = imported.engine.project();
+    assert_eq!(imported.report.count(Case::SourcePart), 1);
+    let instance = project.instance_by_designator("X1").ok_or("X1")?;
+    let resolved = instances::resolve(&project.library, instance)?;
+    assert_eq!(resolved.component.meta.name, "Odd Odd part");
+    assert!(resolved.component.definition.fields.is_empty());
+    let physical = resolved.physical.ok_or("physical")?;
+    assert_eq!(physical.package.definition.model, PackageModel::default());
+    assert!(project.library.fields.is_empty(), "no import-only field");
+    assert!(
+        project.library.models.is_empty(),
+        "the vendor file is never the body"
+    );
+    let detail = imported
+        .report
+        .details()
+        .iter()
+        .find(|d| d.footprint == "X1" && d.case == Case::SourcePart)
+        .ok_or("X1 detail")?;
+    assert_eq!(detail.placeholder, Some(Placeholder::VendorReferenceFound));
+    assert!(
+        detail.path.contains("never used as the body"),
+        "{}",
+        detail.path
+    );
+    Ok(())
+}
+
+/// A generator terminal never joins pads the board keeps on different
+/// nets: an exposed pad split in two numbered alike but on two nets stays
+/// a project part of its lands.
+#[test]
+fn a_generator_never_joins_pads_on_different_nets() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    // Pads 1–6 of the SOT pattern, and pad 6 again beside it on net C.
+    let footprint = sot_footprint("U1", [10.0, 10.0], 0.0, false, "").replace(
+        "(pad \"6\"",
+        "(pad \"6\" smd rect (at -0.95 -1.9) (size 0.2 0.2) (layers \"F.Cu\") (net 3 \"C\")) (pad \"6\"",
+    );
+    let imported = import(dir.path(), "nets", &board("nets", &footprint))?;
+    assert_eq!(imported.report.count(Case::GeneratedPart), 0);
+    let detail = imported
+        .report
+        .details()
+        .iter()
+        .find(|d| d.case == Case::SourcePart)
+        .ok_or("detail")?;
+    assert!(
+        detail.path.contains("different nets") || detail.path.contains("no shipped preset"),
+        "{}",
+        detail.path
+    );
+    Ok(())
+}
+
+/// Footprints that are no part to draw get no body, as their source has
+/// it: no model reference, and not assembled or bare copper.
+#[test]
+fn footprints_that_are_no_part_get_no_body_as_in_the_source() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let pad = |n: &str, x: f64, net: &str| {
+        format!(r#"(pad "{n}" smd rect (at {x} 0) (size 0.9 0.9) (layers "F.Cu" "F.Mask") {net})"#)
+    };
+    let net = r#"(net 1 "A")"#;
+    let mut footprints = String::new();
+    for (name, x, attr, pads) in [
+        (
+            "JP1",
+            10,
+            "(attr smd exclude_from_pos_files)",
+            format!("{}{}", pad("1", -0.6, net), pad("2", 0.6, net)),
+        ),
+        ("TP1", 20, "(attr smd)", pad("1", 0.0, net)),
+        ("FID1", 30, "(attr smd)", pad("1", 0.0, "")),
+        ("G1", 40, "(attr board_only)", String::new()),
+    ] {
+        footprints.push_str(&format!(
+            r#"(footprint "Own:{name}" (layer "F.Cu") (at {x} 10) {attr}
+            (property "Reference" "{name}") {pads})"#
+        ));
+    }
+    let imported = import(dir.path(), "no-body", &board("no body", &footprints))?;
+    let project = imported.engine.project();
+    for designator in ["JP1", "TP1", "FID1", "G1"] {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or(designator)?;
+        let model = instances::resolve(&project.library, instance)?
+            .physical
+            .map(|p| p.package.definition.model.clone());
+        assert_eq!(model, Some(PackageModel::NoBody), "{designator}");
+    }
+    assert_eq!(imported.report.count(Case::NoBody), 4);
+    Ok(())
+}
+
+/// A KiCad library model reference is never resolved, even beside a
+/// same-named project file; an expired import changes nothing.
+#[test]
+fn library_references_stay_unresolved_and_an_expired_import_refuses() -> Fallible {
+    let dir = tempfile::tempdir()?;
+    std::fs::write(dir.path().join("own.step"), VENDOR)?;
+    let mut models = Models::new(
+        dir.path(),
+        crate::session::generators::fixture_batch_runtime,
+    )?;
+    let mut engine = Engine::demo()?;
+    let facts = sparksmith_kicad::models::Facts::default();
+    let refs = [reference("${KICAD9_3DMODEL_DIR}/own.step")];
+    let outcome = models.part(
+        &mut engine,
+        &PartRequest {
+            pads: &[],
+            prefix: "U",
+            models: &refs,
+            facts: &facts,
+            nets: &[],
+            mpn: None,
+        },
+    )?;
+    assert!(matches!(outcome.made, Made::Source { .. }));
+    assert!(models.sources.is_empty(), "never looked up");
+    models.deadline = std::time::Instant::now();
+    let before = engine.revision();
+    let error = models
+        .part(
+            &mut engine,
+            &PartRequest {
+                pads: &[],
+                prefix: "U",
+                models: &[reference("own.step")],
+                facts: &facts,
+                nets: &[],
+                mpn: None,
+            },
+        )
+        .err()
+        .ok_or("expired import succeeded")?;
+    assert!(error.contains("time limit"), "{error}");
+    assert_eq!(engine.revision(), before);
+    Ok(())
+}
+
+/// Two imports of one board have the same copper on every layer; a moved
+/// pad does not.
+#[test]
+fn the_copper_of_two_imports_is_compared_layer_by_layer() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let text = board("twice", &sot_footprint("U1", [10.0, 10.0], 30.0, true, ""));
+    let a = import(dir.path(), "a", &text)?;
+    let b = import(dir.path(), "b", &text)?;
+    for layer in sparksmith_solidcraft::project::copper_agree::between(
+        a.engine.project(),
+        b.engine.project(),
+    ) {
+        assert_eq!(layer.objects_differ_mm2, 0.0, "{layer:?}");
+        assert_eq!(layer.fills_differ_mm2, 0.0, "{layer:?}");
+    }
+    let moved = import(dir.path(), "c", &text.replace("(at 0 1.3", "(at 0.1 1.3"))?;
+    let differs: f64 = sparksmith_solidcraft::project::copper_agree::between(
+        a.engine.project(),
+        moved.engine.project(),
+    )
+    .iter()
+    .map(|l| l.objects_differ_mm2)
+    .sum();
+    assert!(differs > 0.01, "{differs}");
+    Ok(())
+}
+
+/// Each placed pad's net name by (designator, pad number, pad place).
+fn pad_nets(project: &sparksmith_core::Project) -> BTreeMap<(String, String, [i64; 2]), String> {
+    sparksmith_core::layout::placed_pads(project)
+        .iter()
+        .filter_map(|p| {
+            let instance = project.instance(p.instance)?;
+            let at = p
+                .transform
+                .apply(p.pad.position())
+                .map(|v| (v * 1e4).round() as i64);
+            Some((
+                (instance.designator.clone(), p.pad.number.clone(), at),
+                p.net
+                    .map(|n| project.net_name(n).to_owned())
+                    .unwrap_or_default(),
+            ))
+        })
+        .collect()
+}
+
+/// The acceptance measure on a real design, run by hand with
+/// `SPARKSMITH_KICAD_DESIGN` (a board, project or folder) and optionally
+/// `SPARKSMITH_KICAD_PREVIOUS` (an earlier import's project file):
+/// imports the design with generated parts and with every footprint a
+/// project part of its lands, and prints counts and areas only (never a
+/// name from the design): parts by generator, project parts by reason,
+/// each layer's copper difference, the body check, pad nets and values.
+#[test]
+#[ignore = "needs a design named by SPARKSMITH_KICAD_DESIGN"]
+fn acceptance_on_a_design() -> Fallible {
+    let Some(design) = std::env::var_os("SPARKSMITH_KICAD_DESIGN") else {
+        return Ok(());
+    };
+    let context = sparksmith_io::standards::shipped_context()?;
+    let _context = context.enter();
+    let design = std::path::PathBuf::from(design);
+    let made = crate::kicad_import::import(&design, None)?;
+    let lands = crate::kicad_import::import_source_lands(&design)?;
+    let project = made.engine.project();
+    let reference = lands.engine.project();
+    // Parts by generator family (placed instances) and project parts by reason.
+    let mut by_generator: BTreeMap<String, usize> = BTreeMap::new();
+    for instance in &project.instances {
+        let family = project
+            .library
+            .generated
+            .iter()
+            .find(|g| g.root.id == instance.component.id)
+            .map(|g| g.from.generator.clone());
+        *by_generator
+            .entry(family.unwrap_or_else(|| "(project part of its lands)".into()))
+            .or_default() += 1;
+    }
+    println!("instances by generator: {by_generator:?}");
+    println!(
+        "generated: {}, project parts of their lands: {}, no body: {}",
+        made.report.count(Case::GeneratedPart),
+        made.report.count(Case::SourcePart),
+        made.report.count(Case::NoBody)
+    );
+    println!("project parts by reason: {:?}", made.report.placeholders());
+    let mut refused: BTreeMap<String, usize> = BTreeMap::new();
+    for detail in made
+        .report
+        .details()
+        .iter()
+        .filter(|d| d.case == Case::SourcePart)
+    {
+        // The reason's fixed words only (after the preset name).
+        let why = detail
+            .path
+            .rsplit_once(", but ")
+            .map(|(_, why)| why.split(['(', '"']).next().unwrap_or("").trim().to_owned())
+            .unwrap_or_else(|| "no preset".into());
+        *refused.entry(why).or_default() += 1;
+    }
+    println!("project-part reasons in words: {refused:?}");
+    println!(
+        "package contradictions: {}",
+        made.report.count(Case::PackageContradiction)
+    );
+    let show =
+        |what: &str, layers: Vec<sparksmith_solidcraft::project::copper_agree::LayerDifference>| {
+            for l in layers {
+                println!(
+                    "{what} {:?}: objects differ {:.3e} mm², fills differ {:.3e} mm² (copper {:.3} / {:.3} mm², flattening allows {:.3e})",
+                    l.layer,
+                    l.objects_differ_mm2,
+                    l.fills_differ_mm2,
+                    l.a_mm2,
+                    l.b_mm2,
+                    l.allowed_mm2
+                );
+            }
+        };
+    show(
+        "vs the source lands",
+        sparksmith_solidcraft::project::copper_agree::between(reference, project),
+    );
+    if let Some(previous) = std::env::var_os("SPARKSMITH_KICAD_PREVIOUS") {
+        match sparksmith_io::read_project(std::path::Path::new(&previous)) {
+            Ok(file) => show(
+                "vs the previous import",
+                sparksmith_solidcraft::project::copper_agree::between(&file.project, project),
+            ),
+            Err(error) => println!(
+                "the previous import does not open: {}",
+                error.to_string().len()
+            ),
+        }
+    }
+    let body = bodies::bodies(project);
+    println!(
+        "body check: {} bodies with leads, {} leads off their pads, {} parts without leads, {} findings",
+        body.parts.len(),
+        body.parts.iter().map(|p| p.off_pads).sum::<usize>(),
+        body.without_leads.len(),
+        bodies::checks(project).len()
+    );
+    // Nets compared as groups of pads (an unnamed net's generated name may
+    // differ between two imports): the partition of the pads into nets.
+    type PadKey = (String, String, [i64; 2]);
+    let groups = |nets: &BTreeMap<PadKey, String>| {
+        let mut out: BTreeMap<String, std::collections::BTreeSet<PadKey>> = BTreeMap::new();
+        for (k, v) in nets.iter().filter(|(_, v)| !v.is_empty()) {
+            out.entry(v.clone()).or_default().insert(k.clone());
+        }
+        out.into_values().collect::<std::collections::BTreeSet<_>>()
+    };
+    let (before, after) = (pad_nets(reference), pad_nets(project));
+    let (a, b) = (groups(&before), groups(&after));
+    let equal = a.intersection(&b).count();
+    println!(
+        "pad nets: {} nets before, {} now, {} equal (same pads), {} pads before, {} now",
+        a.len(),
+        b.len(),
+        equal,
+        before.len(),
+        after.len()
+    );
+    let mut resistors = 0;
+    let mut valued = 0;
+    for instance in project
+        .instances
+        .iter()
+        .filter(|i| i.designator.starts_with('R'))
+    {
+        resistors += 1;
+        let fields = instances::effective_fields(&project.library, instance)?;
+        if fields
+            .iter()
+            .any(|f| f.label == "Resistance" && f.value.is_some())
+        {
+            valued += 1;
+        }
+    }
+    println!("resistors: {resistors}, with a Resistance value: {valued}");
+    println!(
+        "values: {} set fields, {} with unread words, {} without a field",
+        made.report.count(Case::ValueField),
+        made.report.count(Case::ValueWordUnread),
+        made.report.count(Case::ValueWithoutField)
+    );
+    Ok(())
+}
