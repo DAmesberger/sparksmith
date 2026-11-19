@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "molded.wasm",
-    "sha256": "75ed181f120ae4500884dae4377b2a18be19ac13dda10c08eae16c5c744e5355"
+    "sha256": "286ff45f488a0006e5634fc20de70cbc595939ebb15f10434faf0f02e9eb44b3"
   },
   "name": "molded",
   "parts": [

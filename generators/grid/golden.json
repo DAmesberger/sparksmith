@@ -2,32 +2,32 @@
  "cases": [
   {
    "name": "BGA-64 0.8 8x8 7x7, component",
-   "request": {"abi": 1, "scope": "component", "params": {"contact": "ball", "rows": 8, "columns": 8, "pitch": 800000, "row_pitch": 800000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 7000000, "body_width": 7000000, "body_height": 1000000, "contact_diameter": 450000, "contact_height": 300000, "marking": []}},
+   "request": {"abi": 1, "scope": "component", "params": {"contact": "ball", "rows": 8, "columns": 8, "pitch": 800000, "row_pitch": 800000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 7000000, "body_width": 7000000, "body_height": 1000000, "contact_diameter": 450000, "contact_height": 300000, "marking": [], "marking_height": 0}},
    "result": "fc936526836a18a85372c258fa2aa79595890f9b2375fafa6d46e3e78a071b3d"
   },
   {
    "name": "BGA-64 0.8 8x8 7x7, package",
-   "request": {"abi": 1, "scope": "package", "params": {"contact": "ball", "rows": 8, "columns": 8, "pitch": 800000, "row_pitch": 800000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 7000000, "body_width": 7000000, "body_height": 1000000, "contact_diameter": 450000, "contact_height": 300000, "marking": []}},
+   "request": {"abi": 1, "scope": "package", "params": {"contact": "ball", "rows": 8, "columns": 8, "pitch": 800000, "row_pitch": 800000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 7000000, "body_width": 7000000, "body_height": 1000000, "contact_diameter": 450000, "contact_height": 300000, "marking": [], "marking_height": 0}},
    "result": "f62534bda22ae5513963c2b82d7c93f46320a39ddc5503dd2a716adfcfdc6f97"
   },
   {
    "name": "LGA-64 0.65 8x8 6x6, component",
-   "request": {"abi": 1, "scope": "component", "params": {"contact": "land", "rows": 8, "columns": 8, "pitch": 650000, "row_pitch": 650000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 6000000, "body_width": 6000000, "body_height": 900000, "contact_diameter": 350000, "contact_height": 0, "marking": []}},
+   "request": {"abi": 1, "scope": "component", "params": {"contact": "land", "rows": 8, "columns": 8, "pitch": 650000, "row_pitch": 650000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 6000000, "body_width": 6000000, "body_height": 900000, "contact_diameter": 350000, "contact_height": 0, "marking": [], "marking_height": 0}},
    "result": "dded4892354b32ed9ae96caee33a9eb0aeced4d3c0a85edc42c6725986c3170c"
   },
   {
    "name": "BGA 10x10 0.5, centre void and A2 empty (cut-outs), component",
-   "request": {"abi": 1, "scope": "component", "params": {"contact": "ball", "rows": 10, "columns": 10, "pitch": 500000, "row_pitch": 500000, "depopulated": ["A2", "E5", "E6", "F5", "F6"], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 5500000, "body_width": 5500000, "body_height": 600000, "contact_diameter": 300000, "contact_height": 200000, "marking": []}},
+   "request": {"abi": 1, "scope": "component", "params": {"contact": "ball", "rows": 10, "columns": 10, "pitch": 500000, "row_pitch": 500000, "depopulated": ["A2", "E5", "E6", "F5", "F6"], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 5500000, "body_width": 5500000, "body_height": 600000, "contact_diameter": 300000, "contact_height": 200000, "marking": [], "marking_height": 0}},
    "result": "6d9891885e2d8918b81231c8f8f0a6992d40c6984e60dd3df8427e61223a9458"
   },
   {
    "name": "LGA 4x5 0.8, row B empty (cut-out), package",
-   "request": {"abi": 1, "scope": "package", "params": {"contact": "land", "rows": 4, "columns": 5, "pitch": 800000, "row_pitch": 800000, "depopulated": ["B1", "B2", "B3", "B4", "B5"], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 5000000, "body_width": 4000000, "body_height": 800000, "contact_diameter": 400000, "contact_height": 0, "marking": []}},
+   "request": {"abi": 1, "scope": "package", "params": {"contact": "land", "rows": 4, "columns": 5, "pitch": 800000, "row_pitch": 800000, "depopulated": ["B1", "B2", "B3", "B4", "B5"], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 5000000, "body_width": 4000000, "body_height": 800000, "contact_diameter": 400000, "contact_height": 0, "marking": [], "marking_height": 0}},
    "result": "d64d1c5e18c2fb0d6b7dcc94e781a86ec86bc351cd2ea9f1433bf7c0a6d69e71"
   },
   {
    "name": "one ball (no pin-1 dot), component",
-   "request": {"abi": 1, "scope": "component", "params": {"contact": "ball", "rows": 1, "columns": 1, "pitch": 800000, "row_pitch": 800000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 1000000, "body_width": 1000000, "body_height": 500000, "contact_diameter": 400000, "contact_height": 300000, "marking": []}},
+   "request": {"abi": 1, "scope": "component", "params": {"contact": "ball", "rows": 1, "columns": 1, "pitch": 800000, "row_pitch": 800000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 1000000, "body_width": 1000000, "body_height": 500000, "contact_diameter": 400000, "contact_height": 300000, "marking": [], "marking_height": 0}},
    "result": "ded84f9d4262d58c54204f1560448a55c0d7b94edd6a7974bcf7f2653341c7fc"
   }
  ]

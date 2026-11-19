@@ -1295,8 +1295,18 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
                 "mm",
                 "vent score length (est.)",
             ),
-            ("vent_width", "0.15 mm", "mm", "vent score width (est.)"),
-            ("vent_depth", "0.06 mm", "mm", "vent score depth (est.)"),
+            (
+                "vent_width",
+                "0.3 mm",
+                "mm",
+                "vent score width at the top (est.)",
+            ),
+            (
+                "vent_depth",
+                "0.12 mm",
+                "mm",
+                "vent score depth, a V (est.)",
+            ),
         ],
     );
     let (d, h, a, bh) = (6.3, 5.8, 6.6, 1.0);
@@ -1383,20 +1393,39 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
     );
     cut_keep(&mut s, "print inlay", "can", &["print"]);
     if vent {
-        for (k, size) in [
-            (1, ["vent_length", "vent_width"]),
-            (2, ["vent_width", "vent_length"]),
-        ] {
-            bx(
+        // Each arm a V-groove, `vent_width` open at the top and
+        // `vent_depth` deep, swept along its axis: its sloped walls shade
+        // apart from the flat top seen from any side, as the stamped
+        // score does. The YZ plane draws (y, z) as is, normal +x; the XZ
+        // plane draws (x, −z), normal +y.
+        for (k, plane, flip) in [(1, "YZ", ""), (2, "XZ", "-")] {
+            let sketch = format!("vent score {k} sketch");
+            run(
                 &mut s,
-                &format!("vent score {k}"),
-                Op::Cut(&["can", "print"]),
-                [
-                    &format!("- ({}) / 2", size[0]),
-                    &format!("- ({}) / 2", size[1]),
-                    "height - vent_depth",
-                ],
-                [size[0], size[1], "vent_depth + 1 mm"],
+                "sketch.create",
+                json!({"plane": plane, "offset": "- vent_length / 2", "name": sketch}),
+            );
+            let z = |e: &str| format!("{flip}({e})");
+            run(
+                &mut s,
+                "sketch.line",
+                json!({"points": [
+                    ["- vent_width / 2", z("height")],
+                    ["0 mm", z("height - vent_depth")],
+                    ["vent_width / 2", z("height")],
+                    ["vent_width / 2", z("height + 1 mm")],
+                    ["- vent_width / 2", z("height + 1 mm")],
+                ], "closed": true}),
+            );
+            run(&mut s, "sketch.finish", json!({}));
+            run(
+                &mut s,
+                "solid.extrude",
+                with_op(
+                    json!({"sketch": sketch, "distance": "vent_length"}),
+                    &format!("vent score {k}"),
+                    &Op::Cut(&["can", "print"]),
+                ),
             );
         }
     }

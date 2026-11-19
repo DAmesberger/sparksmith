@@ -313,6 +313,44 @@ fn no_area_draws_nothing_and_non_finite_sizes_are_errors() -> Fallible<()> {
 }
 
 #[test]
+fn a_text_height_sets_lines_at_it_and_shrinks_long_ones_to_fit() -> Fallible<()> {
+    let text = |t: &str| MarkingItem::Text {
+        template: Template(t.into()),
+        height_nm: None,
+        align: Align::Centre,
+    };
+    let heights = |spec: &MarkingSpec| -> Fallible<Vec<f64>> {
+        Ok(layout(spec, &inputs([4.0, 3.0], None))?
+            .elements
+            .iter()
+            .filter_map(|e| match e {
+                LaidElement::Text(t) => Some(t.height_mm),
+                _ => None,
+            })
+            .collect())
+    };
+    let mut spec = MarkingSpec {
+        items: vec![text("LM358")],
+        ..Default::default()
+    };
+    // Fitted to the area, at most the default cap.
+    assert_eq!(heights(&spec)?, [layout::MAX_AUTO_TEXT_HEIGHT_MM]);
+    // At the part's own height.
+    spec.text_height_nm = Some(nm(0.65));
+    assert_eq!(heights(&spec)?, [0.65]);
+    // A line too long for the area at it is set smaller, not dropped.
+    spec.items = vec![text("TPS7A0233PDBVR")];
+    let [h] = heights(&spec)?[..] else {
+        return Err("one line".into());
+    };
+    assert!((DEFAULT_MIN_TEXT_HEIGHT_MM..0.65).contains(&h), "{h}");
+    // A text height is a positive size.
+    spec.text_height_nm = Some(nm(0.0));
+    assert!(!one_spec_problems(&spec).is_empty());
+    Ok(())
+}
+
+#[test]
 fn spec_findings_check_templates_schemes_and_sizes() {
     let owner = DefinitionId(1);
     let good = MarkingSpec {

@@ -11,6 +11,12 @@ use crate::args::Args;
 pub const KEY: &str = "marking";
 /// The pin-1 dot parameter's key.
 pub const DOT_KEY: &str = "marking_pin1_dot";
+/// The text height parameter's key.
+pub const HEIGHT_KEY: &str = "marking_height";
+
+/// The tallest marking text height a part may ask for: 5 mm, beyond any
+/// component's print.
+pub const MAX_HEIGHT_NM: i64 = 5_000_000;
 
 /// Most characters in one line: a top mark of a few short codes.
 pub const LINE_CHARS: u32 = 32;
@@ -55,11 +61,41 @@ pub fn dot_param() -> Param {
     }
 }
 
+/// The `marking_height` parameter: the capital height of the marking's
+/// text as the part carries it. The presets give it per package (data:
+/// estimates from manufacturers' photographs and marking drawings); 0, the
+/// default, fits the text to the marking area.
+pub fn height_param() -> Param {
+    Param {
+        key: HEIGHT_KEY.into(),
+        label: "Marking text height".into(),
+        help: Some(
+            "The capital height of the marking's text as the part carries it; a line too long for the marking area is set smaller. 0 fits the text to the area."
+                .into(),
+        ),
+        ty: ParamType::Length {
+            min_nm: 0,
+            max_nm: MAX_HEIGHT_NM,
+            step_nm: None,
+        },
+        default: ParamValue::Int(0),
+        group: Some("marking".into()),
+        context: None,
+    }
+}
+
+/// The text height `marking_height` asks for: `None` at 0 (fit the area).
+pub fn height(args: &Args<'_>) -> Result<Option<i64>, Problem> {
+    Ok(Some(args.int(HEIGHT_KEY)?).filter(|h| *h > 0))
+}
+
 /// The marking the parameters ask for: the non-blank lines of `marking`
-/// and, where the generator declares it, `marking_pin1_dot`; `ink` when
-/// the part's marking is printed rather than laser-etched. `None` when
-/// there is nothing to mark.
+/// at `marking_height` and, where the generator declares it,
+/// `marking_pin1_dot`; `ink` when the part's marking is printed rather
+/// than laser-etched. `None` when there is nothing to mark. A generator
+/// calling it declares [`param`] and [`height_param`].
 pub fn of(args: &Args<'_>, ink: bool) -> Result<Option<v1::Marking>, Problem> {
+    let text_height = height(args)?;
     let pin1_dot = args.flag(DOT_KEY).unwrap_or(false);
     let lines: Vec<String> = args
         .list(KEY)?
@@ -73,6 +109,7 @@ pub fn of(args: &Args<'_>, ink: bool) -> Result<Option<v1::Marking>, Problem> {
         lines,
         ink,
         pin1_dot,
+        text_height,
         ..v1::Marking::default()
     }))
 }
@@ -131,8 +168,8 @@ pub fn stripe_svg(width_nm: i64, height_nm: i64) -> String {
 /// A polarised can's sleeve marking on the part file's `sleeve` cylinder
 /// of `radius_nm`, `along_nm` long: the value lines round the side
 /// opposite the negative lead, and the negative stripe facing it (angle 0)
-/// as SVG artwork.
-pub fn electrolytic_sleeve(radius_nm: i64, along_nm: i64) -> v1::Marking {
+/// as SVG artwork; the value lines at `text_height` ([`height`]).
+pub fn electrolytic_sleeve(radius_nm: i64, along_nm: i64, text_height: Option<i64>) -> v1::Marking {
     // The stripe's arc: radius × span in radians (π / 180 000 per
     // millidegree, as 3 141 593 / 180 000 000 000).
     let round = radius_nm.saturating_mul(STRIPE_SPAN_MDEG) / 1_000 * 3_141_593 / 180_000_000;
@@ -154,6 +191,7 @@ pub fn electrolytic_sleeve(radius_nm: i64, along_nm: i64) -> v1::Marking {
     };
     v1::Marking {
         lines: electrolytic_lines(),
+        text_height,
         colour: Some(SLEEVE_INK),
         surface: Some(String::from("sleeve")),
         wrap: Some([180_000 - SLEEVE_TEXT_SPAN_MDEG / 2, SLEEVE_TEXT_SPAN_MDEG]),

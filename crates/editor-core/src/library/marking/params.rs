@@ -341,6 +341,10 @@ pub struct MarkingSpecParams {
     /// Smallest legible text height, mm.
     #[serde(default)]
     pub min_text_height_mm: Option<Length>,
+    /// The height lines without their own are set at, mm; fitted to the
+    /// area when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_height_mm: Option<Length>,
     #[serde(default, skip_serializing_if = "PlacementParams::is_default")]
     pub placement: PlacementParams,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -354,6 +358,7 @@ impl From<MarkingSpec> for MarkingSpecParams {
             area: s.area.into(),
             finish: s.finish,
             min_text_height_mm: s.min_text_height_nm.map(Length),
+            text_height_mm: s.text_height_nm.map(Length),
             placement: s.placement.into(),
             decals: s.decals.into_iter().map(MarkingSpecParams::from).collect(),
         }
@@ -367,6 +372,7 @@ impl From<MarkingSpecParams> for MarkingSpec {
             area: s.area.into(),
             finish: s.finish,
             min_text_height_nm: s.min_text_height_mm.map(|l| l.0),
+            text_height_nm: s.text_height_mm.map(|l| l.0),
             placement: s.placement.into(),
             decals: s.decals.into_iter().map(MarkingSpec::from).collect(),
         }

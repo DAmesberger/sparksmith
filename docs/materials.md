@@ -101,7 +101,7 @@ Every value carries a source key: `johnson-christy-1972`, `rakic-1998`, `hoffman
 | Material | Base colour (linear) | Metallic | Rough | IOR | Extra | Density kg/m³ | Source |
 |---|---|---|---|---|---|---|---|
 | Epoxy mould compound | (0.022, 0.022, 0.024) | 0 | 0.45 | 1.55 | EDM texture 1.0 | 1950 | **est.** As `package_body` above. |
-| Laser-marked epoxy | (0.10, 0.10, 0.105) | 0 | 0.75 | 1.55 | – | 1950 | **est.** Ablation exposes lighter silica filler and roughens the surface. |
+| Laser-marked epoxy | (0.24, 0.24, 0.25) | 0 | 0.75 | 1.55 | – | 1950 | **est.** Ablation exposes lighter silica filler and roughens the surface: product photographs show a light grey on the black moulding (0.10 read as a dim grey at close zoom). |
 | White marking ink | (0.80, 0.80, 0.78) | 0 | 0.60 | 1.50 | – | – | **est.** TiO₂-pigmented ink, as legend ink. |
 | Resistor overcoat | (0.025, 0.025, 0.027) | 0 | 0.30 | 1.55 | – | – | **est.** As `overcoat` above. |
 | 96 % alumina | (0.78, 0.77, 0.73) | 0 | 0.55 | 1.77 | – | 3720 | **est.** colour as `chip_resistor` above; n from sapphire. |

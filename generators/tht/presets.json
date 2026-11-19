@@ -489,7 +489,8 @@
    "lead_pitch": 2000000,
    "lead_diameter": 500000,
    "lead_below": 3000000,
-   "symbol": "polarised_capacitor"
+   "symbol": "polarised_capacitor",
+   "marking_height": 1000000
   },
   "basis": "estimated",
   "note": "Estimated: radial can sizes and lead spacings are the common series values; heights vary by series. Confirm against the capacitor's drawing."
@@ -512,7 +513,8 @@
    "lead_pitch": 2500000,
    "lead_diameter": 500000,
    "lead_below": 3000000,
-   "symbol": "polarised_capacitor"
+   "symbol": "polarised_capacitor",
+   "marking_height": 1200000
   },
   "basis": "estimated",
   "note": "Estimated: radial can sizes and lead spacings are the common series values; heights vary by series. Confirm against the capacitor's drawing."
@@ -535,7 +537,8 @@
    "lead_pitch": 3500000,
    "lead_diameter": 600000,
    "lead_below": 3000000,
-   "symbol": "polarised_capacitor"
+   "symbol": "polarised_capacitor",
+   "marking_height": 1500000
   },
   "basis": "estimated",
   "note": "Estimated: radial can sizes and lead spacings are the common series values; heights vary by series. Confirm against the capacitor's drawing."
@@ -558,7 +561,8 @@
    "lead_pitch": 5000000,
    "lead_diameter": 600000,
    "lead_below": 3000000,
-   "symbol": "polarised_capacitor"
+   "symbol": "polarised_capacitor",
+   "marking_height": 1800000
   },
   "basis": "estimated",
   "note": "Estimated: radial can sizes and lead spacings are the common series values; heights vary by series. Confirm against the capacitor's drawing."

@@ -11,6 +11,7 @@ pub mod board;
 pub mod import;
 pub mod items;
 pub mod models;
+mod netlist;
 pub mod project;
 pub mod report;
 mod routing;

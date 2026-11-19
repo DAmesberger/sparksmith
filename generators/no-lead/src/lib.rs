@@ -44,8 +44,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`).
-const VERSION: u32 = 4;
+/// The generator's version (`Description::version`): 5 sets the marking
+/// text at the height its preset gives (`marking_height`).
+const VERSION: u32 = 5;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.
@@ -290,6 +291,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         ),
     ];
     params.push(sparksmith_generator_sdk::marking::param());
+    params.push(sparksmith_generator_sdk::marking::height_param());
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),

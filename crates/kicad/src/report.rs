@@ -182,6 +182,12 @@ pub enum Case {
     BoardSplitsNet,
     /// Disagreements past the project's bound, not recorded.
     NetDisagreementOverLimit,
+    /// Source schematic nets the imported schematic has apart: an import
+    /// fault, each named in the details.
+    SchematicNetSplit,
+    /// Imported schematic nets that join source schematic nets: an import
+    /// fault, each named in the details.
+    SchematicNetJoined,
     /// No schematic, or one that could not be read: pins labelled.
     SchematicUnreadable,
     /// Sheet symbols drawn (one per sheet instance).
@@ -532,6 +538,16 @@ impl Case {
                 Refused,
                 "net disagreements past the project's bound, not recorded as findings",
             ),
+            Self::SchematicNetSplit => (
+                "N3",
+                Refused,
+                "source schematic nets the imported schematic splits (import fault; pins in the details)",
+            ),
+            Self::SchematicNetJoined => (
+                "N3",
+                Refused,
+                "imported schematic nets joining source schematic nets (import fault; pins in the details)",
+            ),
             Self::SchematicUnreadable => (
                 "K5",
                 Refused,
@@ -840,6 +856,10 @@ pub struct Counts {
     pub schematic_nets_equal: usize,
     pub schematic_nets_split: usize,
     pub schematic_nets_merged: usize,
+    /// Source schematic nets with a pin on a placed part, and those the
+    /// imported schematic has exactly.
+    pub source_nets: usize,
+    pub source_nets_equal: usize,
 }
 
 /// Most private details kept (the rows still count every case).
@@ -1004,6 +1024,10 @@ impl Report {
             out.push_str(&format!(
                 "  schematic: {} sheets; board nets equal {}, split {}, joined with another {}\n",
                 c.sheets, c.schematic_nets_equal, c.schematic_nets_split, c.schematic_nets_merged
+            ));
+            out.push_str(&format!(
+                "  imported schematic nets equal to the source schematic's: {} of {}\n",
+                c.source_nets_equal, c.source_nets
             ));
         }
         let looser = self.count(Case::RuleLooserThanFab);
