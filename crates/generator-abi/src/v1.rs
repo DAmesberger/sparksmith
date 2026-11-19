@@ -598,6 +598,12 @@ pub struct Marking {
     /// SC-70 whose moulding carries no pin-1 feature).
     #[serde(default, skip_serializing_if = "is_false")]
     pub pin1_dot: bool,
+    /// The capital height of the text lines, nm, as the part carries it
+    /// (data from the generator's presets); a line too long for the area
+    /// at that height is set smaller to fit. The host fits the lines to
+    /// the area when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_height: Option<i64>,
     /// The ink's sRGB colour where the print is not white (an aluminium
     /// can's black print, a sleeve's pale print). Implies ink.
     #[serde(default, skip_serializing_if = "Option::is_none")]

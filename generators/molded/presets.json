@@ -19,7 +19,8 @@
    "polarised": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 450000
   },
   "basis": "estimated",
   "note": "Estimated: SOD outlines differ between manufacturers; nominal values of the common outline. Confirm against the device's drawing."
@@ -88,7 +89,8 @@
    "polarised": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 750000
   },
   "citation": {
    "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"
@@ -115,7 +117,8 @@
    "polarised": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 850000
   },
   "citation": {
    "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"
@@ -142,7 +145,8 @@
    "polarised": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 1000000
   },
   "citation": {
    "document": "JEDEC DO-214, SMA (AC), SMB (AA) and SMC (AB) molded surface-mount diode outlines"

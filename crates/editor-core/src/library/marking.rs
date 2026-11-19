@@ -292,6 +292,13 @@ pub struct MarkingSpec {
     /// `None`.
     #[serde(default)]
     pub min_text_height_nm: Option<Nm>,
+    /// The height lines without their own height are set at, as the part
+    /// carries its print (a generator preset's `marking_height`); a line
+    /// too long for the area at it is set smaller, never below the
+    /// minimum. Fitted to the area, at most
+    /// [`layout::MAX_AUTO_TEXT_HEIGHT_MM`], when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_height_nm: Option<Nm>,
     /// The surface the marking maps onto and how it is placed there
     /// ([`surface`]); the model's top marking area when default.
     #[serde(default, skip_serializing_if = "Placement::is_default")]
@@ -308,6 +315,12 @@ impl MarkingSpec {
     pub fn min_text_height_mm(&self) -> f64 {
         self.min_text_height_nm
             .map_or(DEFAULT_MIN_TEXT_HEIGHT_MM, Nm::to_mm_f64)
+    }
+
+    /// The tallest an auto-fitted line is set, mm.
+    pub fn text_height_mm(&self) -> f64 {
+        self.text_height_nm
+            .map_or(layout::MAX_AUTO_TEXT_HEIGHT_MM, Nm::to_mm_f64)
     }
 
     /// Persistence bounds.
@@ -711,6 +724,9 @@ fn one_spec_problems(spec: &MarkingSpec) -> Vec<String> {
     }
     if spec.min_text_height_nm.is_some_and(|h| !positive_nm(h)) {
         problems.push("the minimum text height must be a positive size".into());
+    }
+    if spec.text_height_nm.is_some_and(|h| !positive_nm(h)) {
+        problems.push("the text height must be a positive size".into());
     }
     if let AreaChoice::Explicit { centre, size_nm } = spec.area
         && (!size_nm.iter().all(|s| positive_nm(*s))

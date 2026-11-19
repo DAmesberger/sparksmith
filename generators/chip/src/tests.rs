@@ -333,7 +333,13 @@ fn resistors_carry_the_value_code_their_size_and_preset_ask_for() -> Result<(), 
         ParamValue::List(vec![ParamValue::Text("R100".into())]),
     ));
     let g = Chip::generate(&request(Scope::Component, &given))?;
-    assert_eq!(g.marking.map(|m| m.lines), Some(vec![String::from("R100")]));
+    assert_eq!(
+        g.marking.map(|m| (m.lines, m.text_height)),
+        Some((vec![String::from("R100")], Some(650_000)))
+    );
+    // The preset's text height reaches the rule's marking.
+    let g = Chip::generate(&request(Scope::Component, &preset("resistor-0603")))?;
+    assert_eq!(g.marking.and_then(|m| m.text_height), Some(400_000));
     // An LED's cathode (pin 1, −x) carries a bar; a capacitor nothing.
     let g = Chip::generate(&request(Scope::Component, &preset("led-0603")))?;
     let polarity = g.marking.and_then(|m| m.polarity);

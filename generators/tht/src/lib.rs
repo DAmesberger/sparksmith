@@ -43,8 +43,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 2 marks a radial
-/// polarised capacitor's sleeve ([`marking`]).
-const VERSION: u32 = 2;
+/// polarised capacitor's sleeve ([`marking`]); 3 sets its text at the height its preset gives
+/// (`marking_height`).
+const VERSION: u32 = 3;
 
 /// The share of a radial body's height its part file's `marking-sleeve`
 /// spans (`marking_sleeve_l = 0.8 * body_height`), in tenths.
@@ -52,11 +53,12 @@ const SLEEVE_TENTHS: i64 = 8;
 
 /// The marking a part carries: a radial polarised capacitor's sleeve
 /// print (its values and the negative stripe facing lead 2); none else.
-fn marking(d: &Dims) -> Option<v1::Marking> {
+fn marking(d: &Dims, text_height: Option<i64>) -> Option<v1::Marking> {
     (d.construction == Construction::Radial && d.symbol == Sym::PolarisedCapacitor).then(|| {
         sparksmith_generator_sdk::marking::electrolytic_sleeve(
             d.body_diameter / 2,
             d.body_height * SLEEVE_TENTHS / 10,
+            text_height,
         )
     })
 }
@@ -378,6 +380,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         ),
         enumeration("symbol", "Symbol", &symbols, "box", "symbol"),
         style,
+        sparksmith_generator_sdk::marking::height_param(),
     ];
     let rules = vec![
         Rule {
@@ -1224,7 +1227,10 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         two_lead_symbol(d.symbol, args.text("resistor_style").map_err(|p| vec![p])?)
     };
     Ok(Generation {
-        marking: marking(&d),
+        marking: marking(
+            &d,
+            sparksmith_generator_sdk::marking::height(&args).map_err(|p| vec![p])?,
+        ),
         component: component_part.then(|| Component {
             terminals: terminals(&d),
             prefix: d.symbol.prefix().into(),

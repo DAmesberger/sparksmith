@@ -40,8 +40,9 @@ const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 /// The generator's version (`Description::version`): 1, the first with a
 /// 3D model; 2 marks an LED's pin 1 (its cathode) with a silkscreen dot;
 /// 4 marks a resistor's value by the resistor code rule
-/// ([`resistor_marking`]) and an LED's cathode on its top.
-const VERSION: u32 = 4;
+/// ([`resistor_marking`]) and an LED's cathode on its top; 5 sets it at the height its preset gives
+/// (`marking_height`).
+const VERSION: u32 = 5;
 
 /// The longest chip left unmarked by the size rule: 0402 (1.0 mm) and
 /// smaller chips carry no value code, as the chip-resistor data sheet the
@@ -270,6 +271,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         style,
     ];
     params.push(sparksmith_generator_sdk::marking::param());
+    params.push(sparksmith_generator_sdk::marking::height_param());
     let mut code = enumeration(
         "resistor_code",
         "Resistor value code",
@@ -700,12 +702,14 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let mut marking = sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor)
         .map_err(|p| vec![p])?;
     if marking.is_none() {
+        let text_height = sparksmith_generator_sdk::marking::height(&args).map_err(|p| vec![p])?;
         marking = match d.part {
             Part::Resistor => {
                 resistor_marking(args.text("resistor_code").map_err(|p| vec![p])?, d.length).map(
                     |line| v1::Marking {
                         lines: vec![line],
                         ink: true,
+                        text_height,
                         ..v1::Marking::default()
                     },
                 )

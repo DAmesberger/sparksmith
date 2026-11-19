@@ -316,6 +316,7 @@ impl Session {
                         area: decal.area.into(),
                         finish: decal.finish,
                         min_text_height_nm: decal.min_text_height_mm.map(|l| l.0),
+                        text_height_nm: None,
                         placement: decal.placement.into(),
                         decals: Vec::new(),
                     });
@@ -325,6 +326,7 @@ impl Session {
                     area: input.area.into(),
                     finish: input.finish,
                     min_text_height_nm: input.min_text_height_mm.map(|l| l.0),
+                    text_height_nm: None,
                     placement: input.placement.into(),
                     decals,
                 };

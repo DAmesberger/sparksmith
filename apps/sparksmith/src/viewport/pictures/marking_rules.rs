@@ -7,8 +7,9 @@ use super::*;
 use serde_json::{Value, json};
 
 /// One part: picture name, catalog words or a generator preset, the
-/// tolerance to set, the manufacturer part number its Part gives, and the
-/// close-up distance (mm).
+/// tolerance to set, the manufacturer part number its Part gives, the
+/// close-up distance and the part's height over the board (mm): the top
+/// view aims at its top, the angled view at its middle.
 struct Case {
     name: &'static str,
     words: Option<&'static str>,
@@ -16,6 +17,7 @@ struct Case {
     tolerance: Option<&'static str>,
     mpn: Option<&'static str>,
     distance: f64,
+    top: f64,
 }
 
 const CASES: [Case; 9] = [
@@ -26,6 +28,7 @@ const CASES: [Case; 9] = [
         tolerance: Some("1%"),
         mpn: None,
         distance: 6.0,
+        top: 0.5,
     },
     Case {
         name: "resistor-0603-4k7",
@@ -34,6 +37,7 @@ const CASES: [Case; 9] = [
         tolerance: Some("5%"),
         mpn: None,
         distance: 5.0,
+        top: 0.45,
     },
     Case {
         name: "resistor-1206-4r7",
@@ -42,6 +46,7 @@ const CASES: [Case; 9] = [
         tolerance: None,
         mpn: None,
         distance: 8.0,
+        top: 0.55,
     },
     Case {
         name: "led-0603",
@@ -50,6 +55,7 @@ const CASES: [Case; 9] = [
         tolerance: None,
         mpn: None,
         distance: 5.0,
+        top: 0.75,
     },
     Case {
         name: "diode-sma",
@@ -58,6 +64,7 @@ const CASES: [Case; 9] = [
         tolerance: None,
         mpn: Some("SS34"),
         distance: 12.0,
+        top: 2.2,
     },
     Case {
         name: "sot-23",
@@ -66,6 +73,7 @@ const CASES: [Case; 9] = [
         tolerance: None,
         mpn: Some("BC847"),
         distance: 8.0,
+        top: 1.1,
     },
     Case {
         name: "soic-8",
@@ -74,6 +82,7 @@ const CASES: [Case; 9] = [
         tolerance: None,
         mpn: Some("LM358"),
         distance: 13.0,
+        top: 1.6,
     },
     Case {
         name: "electrolytic-6.3x7.7",
@@ -82,6 +91,7 @@ const CASES: [Case; 9] = [
         tolerance: None,
         mpn: None,
         distance: 18.0,
+        top: 7.7,
     },
     Case {
         name: "radial-8x11.5",
@@ -89,7 +99,8 @@ const CASES: [Case; 9] = [
         preset: None,
         tolerance: None,
         mpn: None,
-        distance: 40.0,
+        distance: 20.0,
+        top: 11.5,
     },
 ];
 
@@ -232,24 +243,32 @@ fn write_marking_rule_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
     let mut session = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
     session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(&root)?);
-    // In a row above the demo board's parts, 15 mm apart.
+    // In a row clear of the demo board's parts, [`PITCH`] apart, the
+    // board grown to hold the row with a margin round it.
+    const PITCH: f64 = 30.0;
+    const MARGIN: f64 = 40.0;
     let origin = {
         let p = session.engine().project();
-        let xs: Vec<f64> = p.placements.iter().map(|p| p.position[0]).collect();
         let ys: Vec<f64> = p.placements.iter().map(|p| p.position[1]).collect();
         [
-            xs.iter().copied().fold(f64::INFINITY, f64::min),
-            ys.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+            MARGIN,
+            ys.iter().copied().fold(f64::NEG_INFINITY, f64::max) + PITCH,
         ]
     };
     let mut placed = Vec::new();
     for (k, case) in CASES.iter().enumerate() {
-        let at = [origin[0] + 15.0 * k as f64, origin[1] + 15.0];
+        let at = [origin[0] + PITCH * k as f64, origin[1]];
         let instance = place(&mut session, case, at)?;
         placed.push((case, instance, at));
     }
     let mut project = session.engine().project().clone();
     project.fabrication = Fabrication::default();
+    let row_end = origin[0] + PITCH * (CASES.len() - 1) as f64;
+    project.board_size = [
+        project.board_size[0].max(row_end + MARGIN),
+        project.board_size[1].max(origin[1] + MARGIN),
+    ];
+    eprintln!("board {:?}, row from {origin:?}", project.board_size);
     // A Part gives the ICs and the diode their part numbers (made here as
     // a published Part revision would be; the marking reads its MPN).
     for (case, instance, _) in &placed {
@@ -303,6 +322,18 @@ fn write_marking_rule_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let mut v = Viewport::detached();
     v.set_model(crate::model_scene::build(geometry, &model.stack)?);
     v.fit_to(4.0 / 3.0);
+    // The board's top face, which the parts stand on.
+    let board_top = v
+        .model
+        .as_ref()
+        .and_then(|m| {
+            m.geometry
+                .iter()
+                .filter(|g| g.kind == BodyKind::Substrate)
+                .map(|g| g.max[2])
+                .reduce(f64::max)
+        })
+        .ok_or("no board")?;
     let (w, h) = (1280, 960);
     for (case, instance, at) in &placed {
         let laid = sparksmith_core::commands::instance_marking(&project, *instance)?;
@@ -328,16 +359,16 @@ fn write_marking_rule_pictures() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             &[("top", 0.0, 89.0), ("angle", 30.0, 45.0)]
         };
-        let height = if case.name.starts_with("radial") {
-            6.0
-        } else {
-            1.0
-        };
         for (view, yaw, pitch) in views.iter().copied() {
+            let (height, distance) = if view == "top" {
+                (board_top + case.top, case.distance)
+            } else {
+                (board_top + case.top / 2.0, case.distance * 1.2)
+            };
             aim(
                 &mut v,
                 Vec3::new(at[0], at[1], height),
-                case.distance,
+                distance,
                 yaw,
                 pitch,
             );
