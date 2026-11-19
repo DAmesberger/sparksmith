@@ -259,6 +259,8 @@ enum Slot {
     Template(usize),
     /// A shipped part file (`Results::builtins`).
     Builtin(usize),
+    /// An online registry row (`Online::reply`).
+    Online(usize),
 }
 
 /// The captioned groups of the result list.
@@ -269,6 +271,7 @@ enum Group {
     Generic,
     Template,
     Builtin,
+    Online,
 }
 
 /// The list's order: the project's parts (a generic part it holds first), the
@@ -305,6 +308,55 @@ fn row_order(
     );
     order.extend((0..builtins).map(Slot::Builtin));
     order
+}
+
+/// The online registry's side of the palette: what was asked, as which
+/// generation, and the newest reply (registry R0 §10).
+#[derive(Default)]
+struct Online {
+    /// The registry's name while one is turned on.
+    name: Option<String>,
+    generation: u64,
+    /// The text last asked.
+    asked: Option<String>,
+    reply: Option<crate::online_library::OnlineSearch>,
+}
+
+impl Online {
+    /// The reply's rows when it answers `text`.
+    fn rows(&self, text: &str) -> &[sparksmith_automation::session::online::OnlineHit] {
+        match &self.reply {
+            Some(reply) if reply.text == text => {
+                reply.result.as_ref().map_or(&[], |r| r.results.as_slice())
+            }
+            _ => &[],
+        }
+    }
+    /// The registry's line under the list: searching, offline with the
+    /// index date, or why it did not answer.
+    fn status_line(&self, text: &str) -> Option<String> {
+        let name = self.name.as_ref()?;
+        if text.trim().is_empty() {
+            return None;
+        }
+        if self.pending(text) {
+            return Some(format!("Searching {name}…"));
+        }
+        match &self.reply.as_ref()?.result {
+            Ok(report) => report
+                .offline
+                .as_ref()
+                .map(|date| format!("{name} is offline: results from the {date}")),
+            Err(error) => Some(format!("{name}: {error}")),
+        }
+    }
+
+    /// Asked and not yet answered.
+    fn pending(&self, text: &str) -> bool {
+        self.name.is_some()
+            && !text.trim().is_empty()
+            && self.reply.as_ref().is_none_or(|r| r.text != text)
+    }
 }
 
 #[derive(Default)]
@@ -356,7 +408,21 @@ pub struct PlacePalette {
     submitted: Option<(u64, String)>,
     /// Choose part: the engine's refusal of the last Choose.
     refusal: Option<String>,
+    /// The online registry's rows, merged after every local one.
+    online: Online,
+    /// The highlighted part's turning 3D body, footprint and symbol, read
+    /// and rendered off the UI thread (`crate::part_preview`).
+    previews: crate::part_preview::PartPreviews,
+    /// Reads a folder's or the registry's bundle on the preview worker;
+    /// set by the app with the sources it has.
+    bundles: Option<(u64, BundleLoader)>,
 }
+
+/// Reads one library root's bundle (folder, shipped or registry); runs off
+/// the UI thread.
+pub type BundleLoader = std::sync::Arc<
+    dyn Fn(FolderPick) -> Result<sparksmith_core::library::Bundle, String> + Send + Sync,
+>;
 
 /// What the Choose part dialog returned.
 #[derive(Clone, Debug, PartialEq)]
@@ -445,6 +511,102 @@ impl PlacePalette {
         self.open = false;
         self.focus = false;
         self.choice = None;
+        // Replies still on the way are for a closed sheet.
+        self.online.generation = self.online.generation.wrapping_add(1);
+        self.online.asked = None;
+        self.online.reply = None;
+    }
+
+    /// How the preview reads library bundles; `generation` changes with
+    /// the sources, and `loader` is only built then.
+    pub fn set_bundle_loader(&mut self, generation: u64, loader: impl FnOnce() -> BundleLoader) {
+        if self.bundles.as_ref().is_none_or(|(g, _)| *g != generation) {
+            self.bundles = Some((generation, loader()));
+        }
+    }
+
+    /// The highlighted row's preview key, asking the worker for it the
+    /// first time: a project component at this document revision, or a
+    /// folder's or the registry's root revision. Generic, template and
+    /// shipped-file rows have none.
+    fn preview_key(&mut self, engine: &Engine) -> Option<crate::part_preview::PreviewKey> {
+        use crate::part_preview::{PreviewKey, PreviewSource, PreviewState};
+        let entry = self.highlighted_hit()?.entry.clone();
+        match entry.source {
+            Source::Project => {
+                let component = entry.component().or(entry.implements)?;
+                let key = PreviewKey::Project {
+                    component,
+                    revision: engine.revision(),
+                };
+                if self.previews.state(&key) == PreviewState::Unknown {
+                    let source = PreviewSource::from_project(engine.project(), component);
+                    self.previews.request(key, move || source);
+                }
+                Some(key)
+            }
+            Source::Library(_) | Source::Online(_) => {
+                let pick = FolderPick::of(&entry)?;
+                // A source revision never changes: its identity is the key.
+                let key = PreviewKey::Record(sparksmith_core::library::bundle::asset_hash(
+                    format!("{}/{}/{}", pick.library, pick.lineage, pick.revision).as_bytes(),
+                ));
+                if self.previews.state(&key) == PreviewState::Unknown {
+                    let loader = self.bundles.as_ref()?.1.clone();
+                    self.previews.request(key, move || {
+                        loader(pick).and_then(|bundle| PreviewSource::from_bundle(&bundle))
+                    });
+                }
+                Some(key)
+            }
+        }
+    }
+
+    /// The turned-on online registry's name, or `None`; set every frame.
+    pub fn set_online(&mut self, name: Option<String>) {
+        if self.online.name != name {
+            self.online = Online {
+                name,
+                generation: self.online.generation.wrapping_add(1),
+                ..Online::default()
+            };
+            self.local_generation = self.local_generation.wrapping_add(1);
+        }
+    }
+
+    /// The registry search the typed text needs, once per text: its
+    /// generation and text. Place mode only; an empty text asks nothing.
+    pub fn take_online_request(&mut self) -> Option<(u64, String)> {
+        self.online.name.as_ref()?;
+        if !self.open || !matches!(self.mode, Mode::Place) {
+            return None;
+        }
+        let text = self.search_text();
+        if text.trim().is_empty() {
+            if self.online.asked.take().is_some() || self.online.reply.take().is_some() {
+                self.local_generation = self.local_generation.wrapping_add(1);
+            }
+            return None;
+        }
+        if self.online.asked.as_deref() == Some(text.as_str()) {
+            return None;
+        }
+        self.online.generation = self.online.generation.wrapping_add(1);
+        self.online.asked = Some(text.clone());
+        Some((self.online.generation, text))
+    }
+
+    /// The newest registry search generation asked.
+    pub fn online_generation(&self) -> u64 {
+        self.online.generation
+    }
+
+    /// A registry reply: kept only when it answers the newest search.
+    pub fn set_online_reply(&mut self, search: crate::online_library::OnlineSearch) {
+        if search.generation == self.online.generation && self.open {
+            self.online.reply = Some(search);
+            self.local_generation = self.local_generation.wrapping_add(1);
+        }
     }
 
     /// Remember a placed, picked or assigned entry for ranking and tell the
@@ -571,13 +733,44 @@ impl PlacePalette {
             builtins,
         } = found;
         let hits = report.as_ref().map_or(&[][..], |r| &r.results[..]);
-        let order = row_order(
+        let mut order = row_order(
             hits,
             &generic,
             &templates.hits,
             builtins.len(),
             &self.context,
         );
+        // The registry's rows last (part-search §1.2), each once: a lineage
+        // a folder or the project already lists is not repeated.
+        if matches!(self.mode, Mode::Place) {
+            let local: std::collections::BTreeSet<SourceLineageId> = hits
+                .iter()
+                .filter_map(|h| match h.entry.source {
+                    Source::Project => h.entry.origin.map(|o| o.lineage),
+                    _ => h.entry.source_lineage,
+                })
+                .collect();
+            let held: std::collections::BTreeSet<SourceLineageId> = engine
+                .project()
+                .library
+                .origins
+                .iter()
+                .map(|o| o.origin.lineage)
+                .collect();
+            order.extend(
+                self.online
+                    .rows(&self.search_text())
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, r)| {
+                        r.hit
+                            .entry
+                            .source_lineage
+                            .is_some_and(|l| !local.contains(&l) && !held.contains(&l))
+                    })
+                    .map(|(i, _)| Slot::Online(i)),
+            );
+        }
         if !new_text
             && let Some(key) = kept
             && let Some(at) = order.iter().position(
@@ -737,6 +930,11 @@ impl PlacePalette {
     fn highlighted_hit(&self) -> Option<&Hit> {
         match self.slot()? {
             Slot::Hit(i) => self.hits().get(i),
+            Slot::Online(i) => self
+                .online
+                .rows(&self.results.as_ref()?.query)
+                .get(i)
+                .map(|r| &r.hit),
             _ => None,
         }
     }
@@ -979,8 +1177,20 @@ impl PlacePalette {
             });
         }
         let t = Tokens::get();
-        let width = (t.form_card_width * 2.0 - t.space_8).min(area.width() - t.space_16);
-        let top = pos2(area.center().x - width / 2.0, area.top() + t.space_12);
+        // The preview pane sits beside the sheet when the canvas has room
+        // for both; the sheet narrows first, down to one and a half cards.
+        let preview = self.preview_key(engine);
+        let pane = t.form_card_width;
+        let room = area.width() - t.space_16;
+        let full = t.form_card_width * 2.0 - t.space_8;
+        let beside = preview.is_some() && room >= t.form_card_width * 1.5 + t.space_8 + pane;
+        let width = if beside {
+            full.min(room - t.space_8 - pane)
+        } else {
+            full.min(room)
+        };
+        let total = width + if beside { t.space_8 + pane } else { 0.0 };
+        let top = pos2(area.center().x - total / 2.0, area.top() + t.space_12);
         let list_height = (area.height() - t.space_24 * 7.0).max(kit::search_row_height() * 2.0);
         // Focus is requested until the field holds it: a new sheet's first
         // frame only measures its size.
@@ -1031,7 +1241,19 @@ impl PlacePalette {
         );
         let groups = self.group_names();
         let mut manage = false;
-        kit::search_sheet(&ctx, "place-palette", top, width, footer, |ui| {
+        // The pane's footer says where the part comes from; the row names it.
+        let preview_source = self.highlighted_hit().map(|h| match h.entry.source {
+            Source::Project => "In this project".to_owned(),
+            Source::Library(_) => self
+                .group_names()
+                .get(self.group(&h.entry).wrapping_sub(1))
+                .map_or_else(|| "Library".to_owned(), |n| format!("Library · {n}")),
+            Source::Online(_) => format!(
+                "Online · {}",
+                self.online.name.as_deref().unwrap_or_default()
+            ),
+        });
+        let sheet = kit::search_sheet(&ctx, "place-palette", top, width, footer, |ui| {
             let invalid = matches!(self.results.as_ref().map(|r| &r.report), Some(Err(_)));
             let field = kit::search_field(
                 ui,
@@ -1079,7 +1301,12 @@ impl PlacePalette {
                     let generic = self.results.as_ref().map_or(&[][..], |r| &r.generic[..]);
                     let builtins = self.results.as_ref().map_or(&[][..], |r| &r.builtins[..]);
                     let order = self.results.as_ref().map_or(&[][..], |r| &r.order[..]);
-                    if order.is_empty() {
+                    let online_rows = self.online.rows(&self.query);
+                    let online_name = self.online.name.clone().unwrap_or_default();
+                    let online_pending = self.online.pending(&self.query);
+                    if order.is_empty() && online_pending {
+                        kit::search_message(ui, &format!("Searching {online_name}…"), false);
+                    } else if order.is_empty() {
                         kit::search_message(ui, empty, false);
                     } else {
                         // One caption per group; a lone project group keeps
@@ -1112,6 +1339,7 @@ impl PlacePalette {
                                         Slot::Generic(_) => Group::Generic,
                                         Slot::Template(_) => Group::Template,
                                         Slot::Builtin(_) => Group::Builtin,
+                                        Slot::Online(_) => Group::Online,
                                     };
                                     if shown != Some(caption) {
                                         shown = Some(caption);
@@ -1149,6 +1377,13 @@ impl PlacePalette {
                                             Group::Builtin => {
                                                 (BUILTIN_HEADING.to_owned(), builtins.len())
                                             }
+                                            Group::Online => (
+                                                format!("Online · {online_name}"),
+                                                order
+                                                    .iter()
+                                                    .filter(|s| matches!(s, Slot::Online(_)))
+                                                    .count(),
+                                            ),
                                         };
                                         kit::search_heading(ui, &label, count);
                                     }
@@ -1187,6 +1422,18 @@ impl PlacePalette {
                                         Slot::Builtin(i) => builtins
                                             .get(i)
                                             .map(|part| builtin_row(ui, i, part, &self.query, lit)),
+                                        Slot::Online(i) => online_rows.get(i).map(|online| {
+                                            let favourite =
+                                                online.hit.entry.named_by(&self.context.favourites);
+                                            online_row(
+                                                ui,
+                                                online,
+                                                &self.query,
+                                                lit,
+                                                favourite,
+                                                &self.rows,
+                                            )
+                                        }),
                                     };
                                     if let Some(response) = response {
                                         if scroll && lit {
@@ -1204,6 +1451,9 @@ impl PlacePalette {
                                 }
                             });
                     }
+                    if let Some(line) = self.online.status_line(&self.query) {
+                        kit::note(ui, &line);
+                    }
                 }
                 None => {}
             }
@@ -1216,6 +1466,23 @@ impl PlacePalette {
                 }
             });
         });
+        if beside && let Some(key) = preview {
+            // Settings › Lists' reduced motion holds the body still.
+            self.previews
+                .set_motion(!kit::list::tokens::prefs(&ctx).reduced_motion);
+            let inner = pane - t.space_6 * 2.0;
+            let size = egui::vec2(inner, inner * 1.3);
+            kit::search_sheet(
+                &ctx,
+                "place-palette-preview",
+                pos2(sheet.right() + t.space_8, sheet.top()),
+                pane,
+                preview_source.as_deref().unwrap_or_default(),
+                |ui| {
+                    self.previews.pane(ui, &key, size);
+                },
+            );
+        }
         if manage {
             self.events.push(PaletteEvent::ManageSources);
         }
@@ -1585,10 +1852,13 @@ impl PlacePalette {
             .highlighted_hit()
             .filter(|h| h.entry.source != Source::Project)
         {
-            let source = self
-                .group_names()
-                .get(self.group(&hit.entry).wrapping_sub(1))
-                .cloned();
+            let source = match hit.entry.source {
+                Source::Online(_) => self.online.name.as_ref().map(|n| format!("Online · {n}")),
+                _ => self
+                    .group_names()
+                    .get(self.group(&hit.entry).wrapping_sub(1))
+                    .cloned(),
+            };
             folder_preview(ui, &hit.entry, source.as_deref().unwrap_or("Library"));
             return None;
         }
@@ -2077,6 +2347,52 @@ fn row(
         Some(tip) => response.on_hover_text(tip),
         None => response,
     }
+}
+
+/// An online registry row: a folder row with the registry's chip, its
+/// review state in words ("online · not reviewed" stands out).
+fn online_row(
+    ui: &mut Ui,
+    online: &sparksmith_automation::session::online::OnlineHit,
+    query: &str,
+    highlighted: bool,
+    favourite: bool,
+    rows: &RowContext,
+) -> egui::Response {
+    let entry = &online.hit.entry;
+    let badges = badges(entry);
+    let detail = detail(entry, rows);
+    let chip = format!("online · {}", online.review_label());
+    let id = egui::Id::unique(("place-palette-online", entry.key()));
+    let shown = kit::SearchRow {
+        icon: if entry.kind == DefinitionKind::Part {
+            "library"
+        } else {
+            "component"
+        },
+        label: &entry.name,
+        query,
+        detail: &detail,
+        badges: &badges,
+        highlighted,
+    };
+    kit::search_row_marked(
+        ui,
+        id,
+        &shown,
+        kit::RowMarks {
+            star: favourite,
+            chip: Some(kit::RowChip {
+                label: &chip,
+                warning: !online.reviewed(),
+            }),
+        },
+    )
+    .on_hover_text(if online.reviewed() {
+        "From the online library; a person reviewed it. Placing it imports an exact copy."
+    } else {
+        "From the online library; nobody has reviewed it yet. Placing it imports an exact copy."
+    })
 }
 
 /// The LIBRARY row of a project entry whose source moved on: the newer
@@ -2703,6 +3019,7 @@ mod tests {
                 Slot::Generic(_) => "generic",
                 Slot::Template(_) => "template",
                 Slot::Builtin(_) => "builtin",
+                Slot::Online(_) => "online",
             })
             .collect();
         kinds.dedup();
@@ -3107,6 +3424,245 @@ mod tests {
             (pick.library, pick.lineage, pick.revision),
             (bundle.library, bundle.root.lineage, bundle.root.revision)
         );
+        Ok(())
+    }
+
+    /// An online search reply of `count` registry rows for `text`.
+    fn online_reply(
+        library: sparksmith_core::ids::LibraryId,
+        generation: u64,
+        text: &str,
+        count: usize,
+    ) -> Result<crate::online_library::OnlineSearch, Box<dyn std::error::Error>> {
+        let catalog = folder_catalog(library, "Registry", count)?;
+        let results = catalog
+            .entries
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut entry)| {
+                entry.name = format!("ONLINE-{i}");
+                entry.source = Source::Online(library);
+                entry.source_lineage = Some(sparksmith_core::ids::SourceLineageId(i as u128 + 900));
+                sparksmith_automation::session::online::OnlineHit {
+                    hit: Hit {
+                        entry,
+                        tier: catalog::MatchTier::Prefix,
+                        favourite: false,
+                    },
+                    id: format!("sparksmith/online-{i}"),
+                    review: if i == 0 {
+                        "reviewed".into()
+                    } else {
+                        "unreviewed".into()
+                    },
+                }
+            })
+            .collect::<Vec<_>>();
+        Ok(crate::online_library::OnlineSearch {
+            generation,
+            text: text.into(),
+            result: Ok(sparksmith_automation::session::online::OnlineReport {
+                source: "localhost:8787".into(),
+                total: results.len(),
+                results,
+                ..Default::default()
+            }),
+        })
+    }
+
+    /// Online rows arrive after the local ones, at both window sizes: the
+    /// sheet says it is searching, keeps only the newest reply, badges
+    /// each row with its source and review, and places one like a folder
+    /// row (the app fetches, checks and imports its bundle).
+    #[test]
+    fn online_rows_merge_after_local_ones_and_stale_replies_are_dropped()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for size in [egui::vec2(1024.0, 640.0), egui::vec2(1920.0, 1080.0)] {
+            let ctx = egui::Context::default();
+            sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+            let engine = Engine::demo()?;
+            let folder_library = sparksmith_core::ids::LibraryId(0xabc);
+            let online_library = sparksmith_core::ids::LibraryId(0x0e1);
+            let folder = folder_catalog(folder_library, "Team parts", 2)?;
+            let mut palette = PlacePalette::default();
+            palette.set_context(1, || CatalogContext {
+                sources: vec![std::sync::Arc::new(folder)],
+                ..Default::default()
+            });
+            palette.set_online(Some("localhost:8787".into()));
+            palette.open();
+            let run = |palette: &mut PlacePalette, events: Vec<egui::Event>| {
+                let mut action = None;
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
+                        events,
+                        ..Default::default()
+                    },
+                    |ui| {
+                        let area = ui.max_rect();
+                        action = palette.show(ui, area, &engine, &|_| true);
+                    },
+                );
+                output.textures_delta.clear();
+                (action, texts(&output))
+            };
+            run(&mut palette, vec![]);
+            // An empty text asks the registry nothing.
+            assert_eq!(palette.take_online_request(), None);
+            palette.query = "FOLDER".into();
+            let (first, text) = palette.take_online_request().ok_or("a request")?;
+            assert_eq!(text, "FOLDER");
+            assert_eq!(palette.take_online_request(), None, "asked once per text");
+            let (_, shown) = run(&mut palette, vec![]);
+            assert!(
+                shown.iter().any(|t| t == "Searching localhost:8787…"),
+                "{shown:?}"
+            );
+            // The text changes before the first reply lands: that reply is
+            // dropped, the newest kept.
+            palette.query = "FOLDER-".into();
+            let (second, _) = palette.take_online_request().ok_or("a second request")?;
+            assert!(second > first);
+            palette.set_online_reply(online_reply(online_library, first, "FOLDER", 3)?);
+            let (_, shown) = run(&mut palette, vec![]);
+            assert!(
+                !shown.iter().any(|t| t.starts_with("ONLINE-")),
+                "stale: {shown:?}"
+            );
+            palette.set_online_reply(online_reply(online_library, second, "FOLDER-", 3)?);
+            let (_, shown) = run(&mut palette, vec![]);
+            assert!(
+                shown.iter().any(|t| t == "ONLINE · LOCALHOST:8787  3"),
+                "{size:?}: {shown:?}"
+            );
+            assert!(shown.iter().any(|t| t == "online · reviewed"), "{shown:?}");
+            assert!(
+                shown.iter().any(|t| t == "online · not reviewed"),
+                "{shown:?}"
+            );
+            // Local rows come first: the folder's, then the registry's.
+            let order: Vec<&str> = palette
+                .results
+                .as_ref()
+                .ok_or("results")?
+                .order
+                .iter()
+                .map(|slot| match slot {
+                    Slot::Online(_) => "online",
+                    _ => "local",
+                })
+                .collect();
+            assert_eq!(order, ["local", "local", "online", "online", "online"]);
+            // Down to the first online row; Enter places it like a folder row.
+            for _ in 0..2 {
+                run(
+                    &mut palette,
+                    vec![key_event(egui::Key::ArrowDown, egui::Modifiers::NONE)],
+                );
+            }
+            let pick = palette.highlighted_folder().ok_or("an online row")?;
+            assert_eq!(pick.library, online_library);
+            assert_eq!(pick.name, "ONLINE-0");
+            let (action, _) = run(
+                &mut palette,
+                vec![key_event(egui::Key::Enter, egui::Modifiers::NONE)],
+            );
+            assert_eq!(action, Some(PaletteAction::Close));
+            let events = palette.take_events();
+            assert!(
+                matches!(events.first(), Some(PaletteEvent::PlaceFrom { pick: p, .. }) if *p == pick),
+                "{events:?}"
+            );
+            // Closed: replies still on the way are not shown next time.
+            let late = online_reply(online_library, second, "FOLDER-", 3)?;
+            palette.set_online_reply(late);
+            assert!(palette.online.reply.is_none());
+        }
+        Ok(())
+    }
+
+    /// The highlighted part's preview pane sits beside the sheet at both
+    /// window sizes: pending first (a frame never waits for the worker),
+    /// then its turning body, from the cache at once the next time.
+    #[test]
+    fn the_preview_pane_turns_the_highlighted_part_beside_the_sheet()
+    -> Result<(), Box<dyn std::error::Error>> {
+        use crate::part_preview::PreviewState;
+        for size in [egui::vec2(1024.0, 640.0), egui::vec2(1920.0, 1080.0)] {
+            let ctx = egui::Context::default();
+            sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+            let engine = Engine::demo()?;
+            let mut palette = PlacePalette::default();
+            palette.open();
+            let run = |palette: &mut PlacePalette| {
+                let started = std::time::Instant::now();
+                let mut output = ctx.run_ui(
+                    egui::RawInput {
+                        screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, size)),
+                        ..Default::default()
+                    },
+                    |ui| {
+                        let area = ui.max_rect();
+                        palette.show(ui, area, &engine, &|_| true);
+                    },
+                );
+                output.textures_delta.clear();
+                (started.elapsed(), texts(&output))
+            };
+            run(&mut palette);
+            // The first project component with a package.
+            let at = palette
+                .results
+                .as_ref()
+                .ok_or("results")?
+                .order
+                .iter()
+                .position(|slot| {
+                    matches!(slot, Slot::Hit(i) if palette.hits().get(*i).is_some_and(|h| {
+                        h.entry.source == Source::Project && h.entry.badges.footprint
+                    }))
+                })
+                .ok_or("a project component")?;
+            palette.highlighted = at;
+            let name = palette.highlighted_hit().ok_or("hit")?.entry.name.clone();
+            let (spent, shown) = run(&mut palette);
+            let key = palette.preview_key(&engine).ok_or("a preview key")?;
+            assert!(shown.iter().any(|t| *t == name), "{shown:?}");
+            assert!(
+                shown.iter().any(|t| t == "In this project"),
+                "the preview footer says where it comes from: {shown:?}"
+            );
+            assert!(
+                spent.as_millis() < 250,
+                "a frame took {spent:?} while the preview was read"
+            );
+            let started = std::time::Instant::now();
+            let stats = loop {
+                run(&mut palette);
+                match palette.previews.state(&key) {
+                    PreviewState::Ready(stats) => break stats,
+                    PreviewState::Failed(why) => return Err(why.into()),
+                    _ if started.elapsed().as_secs() > 30 => return Err("no preview".into()),
+                    _ => std::thread::sleep(std::time::Duration::from_millis(10)),
+                }
+            };
+            assert!(
+                stats.bodies >= 1 || stats.label.contains("Envelope"),
+                "{stats:?}"
+            );
+            println!(
+                "{size:?}: preview {} in {:.1} ms ({} bodies)",
+                stats.label, stats.first_frame_ms, stats.bodies
+            );
+            // Shown again: from the cache, no worker round trip.
+            let (spent, _) = run(&mut palette);
+            assert!(palette.previews.has_frame(&key));
+            assert!(
+                spent.as_millis() < 150,
+                "cached preview frame took {spent:?}"
+            );
+        }
         Ok(())
     }
 }

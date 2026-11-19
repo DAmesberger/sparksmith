@@ -61,11 +61,7 @@ fn the_shipped_usb_receptacle_previews_its_body_footprint_and_symbol() -> TestRe
     let _context = context();
     let bundle = usb4105()?;
     let source = PreviewSource::from_bundle(&bundle)?;
-    assert!(
-        matches!(source.body, Body::PartFile { .. }),
-        "{:?}",
-        source.name
-    );
+    assert!(matches!(source.body, Body::PartFile { .. }));
     assert!(
         source
             .footprint

@@ -68,6 +68,8 @@ pub(super) struct LiveMcp {
     /// Revisions assistant edits made, newest last.
     edits: VecDeque<u64>,
     place: Place,
+    /// The online registry, kept for a session made when listening starts.
+    online: Option<std::sync::Arc<dyn sparksmith_automation::session::online::OnlineSource>>,
 }
 
 impl Default for LiveMcp {
@@ -85,6 +87,7 @@ impl Default for LiveMcp {
                 listen: live::Listen::Default,
                 user_sources: true,
             },
+            online: None,
         }
     }
 }
@@ -101,6 +104,14 @@ impl LiveMcp {
     }
     pub fn is_on(&self) -> bool {
         self.endpoint.is_some()
+    }
+    /// The online registry `library.search` reaches with `src:online`.
+    pub fn set_online(
+        &mut self,
+        online: Option<std::sync::Arc<dyn sparksmith_automation::session::online::OnlineSource>>,
+    ) {
+        self.online = online.clone();
+        self.session.set_online(online);
     }
     /// Connections open now.
     pub fn connections(&self) -> usize {
@@ -151,6 +162,7 @@ impl LiveMcp {
                             Err(_) => Session::lending(),
                         };
                 }
+                self.session.set_online(self.online.clone());
                 self.endpoint = Some(endpoint);
             }
             Err(error) => self.failure = Some(format!("Could not start listening: {error}")),

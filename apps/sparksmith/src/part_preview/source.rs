@@ -53,8 +53,6 @@ pub struct FootprintDrawing {
 /// Everything one preview needs.
 #[derive(Clone, Debug)]
 pub struct PreviewSource {
-    /// The part's name, for the pane's caption.
-    pub name: String,
     pub body: Body,
     pub footprint: Option<FootprintDrawing>,
     pub symbol: Option<PlacedUnit>,
@@ -142,7 +140,6 @@ impl PreviewSource {
                 .ok()
             });
         Ok(Self {
-            name: comp.meta.name.clone(),
             body,
             footprint: footprint.map(|f| drawing(&f.definition)),
             symbol,

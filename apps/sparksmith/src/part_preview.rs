@@ -107,7 +107,6 @@ struct Shared {
 /// Drawn from the records: what the 2D thumbnails paint.
 #[derive(Clone, Debug, Default)]
 pub struct Drawings {
-    pub name: String,
     pub footprint: Option<FootprintDrawing>,
     pub symbol: Option<PlacedUnit>,
 }
@@ -289,6 +288,7 @@ impl PartPreviews {
     }
 
     /// Whether `key` has a frame to show (uploaded or waiting to be).
+    #[cfg(test)]
     pub fn has_frame(&self, key: &PreviewKey) -> bool {
         self.entries
             .get(key)
@@ -559,7 +559,6 @@ impl Worker {
         self.send(Message::Loaded(
             key,
             Arc::new(Drawings {
-                name: source.name.clone(),
                 footprint: source.footprint.clone(),
                 symbol: source.symbol.clone(),
             }),
