@@ -43,7 +43,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most pins of a DIP (both rows) and of a TO row.
 const MAX_DIP_PINS: i64 = 128;
@@ -812,10 +812,12 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 hole: Some(Hole {
                     shape: HoleShape::Round { diameter_nm: drill },
                     plated: true,
+                    offset: None,
                 }),
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect()

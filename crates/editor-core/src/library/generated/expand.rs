@@ -616,6 +616,68 @@ fn pad_shape(shape: &v1::PadShape) -> Result<PadShape> {
                 outline: Outline { start, segments },
             }
         }
+        v1::PadShape::Outline { start, segments } => {
+            let mm = |p: &v1::Point| point(*p).map(PointNm::to_mm_f64);
+            let segments = segments
+                .iter()
+                .map(|s| {
+                    let to = mm(&s.to)?;
+                    Ok(match s.bulge_ppb {
+                        Some(b) if b != 0 => Segment::Arc {
+                            to,
+                            bulge: bulge(b)?,
+                        },
+                        _ => Segment::Line { to },
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
+            PadShape::Custom {
+                outline: Outline {
+                    start: mm(start)?,
+                    segments,
+                },
+            }
+        }
+    })
+}
+
+/// Most |bulge| of an outline arc, in parts per billion (the core's
+/// [`crate::library::footprint::MAX_BULGE`]).
+const MAX_BULGE_PPB: i64 = 1_000_000_000_000;
+
+/// A bulge in parts per billion as the outline's bulge.
+fn bulge(ppb: i64) -> Result<f64> {
+    if ppb.checked_abs().is_none_or(|b| b > MAX_BULGE_PPB) {
+        return Err(refused(format!(
+            "an outline arc's bulge of {ppb} parts per billion is beyond the bound"
+        )));
+    }
+    Ok(ppb as f64 / 1e9)
+}
+
+/// A paste window of a pad.
+fn window(w: &v1::Window) -> Result<ShapeNm> {
+    Ok(match w {
+        v1::Window::Rect {
+            min,
+            max,
+            radius_nm,
+        } => ShapeNm::Rect {
+            a: point(*min)?,
+            b: point(*max)?,
+            radius_nm: Nm::new(*radius_nm)?,
+        },
+        v1::Window::Circle { center, radius_nm } => ShapeNm::Circle {
+            center: point(*center)?,
+            radius_nm: nm(*radius_nm)?,
+        },
+        v1::Window::Polygon { points, radii_nm } => ShapeNm::Polygon {
+            points: points.iter().map(|p| point(*p)).collect::<Result<_>>()?,
+            radii_nm: radii_nm
+                .iter()
+                .map(|r| Nm::new(*r))
+                .collect::<Result<_>>()?,
+        },
     })
 }
 
@@ -624,15 +686,15 @@ fn hole(hole: &v1::Hole) -> Result<Hole> {
         v1::HoleShape::Round { diameter_nm } => HoleShape::Round {
             diameter_nm: nm(*diameter_nm)?,
         },
-        v1::HoleShape::Slot { size } => {
+        v1::HoleShape::Slot { size, rot_mdeg } => {
             let along_y = size[1] > size[0];
             HoleShape::Slot {
                 width_nm: nm(size[0].min(size[1]))?,
                 length_nm: nm(size[0].max(size[1]))?,
-                angle_mdeg: if along_y {
-                    Angle::normalized(90_000)
-                } else {
-                    Angle::ZERO
+                angle_mdeg: match rot_mdeg {
+                    Some(turn) => Angle::normalized(*turn),
+                    None if along_y => Angle::normalized(90_000),
+                    None => Angle::ZERO,
                 },
             }
         }
@@ -640,7 +702,10 @@ fn hole(hole: &v1::Hole) -> Result<Hole> {
     Ok(Hole {
         shape,
         plated: hole.plated,
-        offset: PointNm::ORIGIN,
+        offset: match hole.offset {
+            Some(at) => point(at)?,
+            None => PointNm::ORIGIN,
+        },
     })
 }
 
@@ -651,16 +716,21 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
         let shape = pad_shape(&pad.shape)?;
         let rotation = shape.canonical_rotation(Angle::normalized(pad.rot_mdeg));
         let hole = pad.hole.as_ref().map(hole).transpose()?;
-        let kind = match &hole {
-            None => PadKind::Smd,
-            Some(h) if h.plated => PadKind::PlatedThrough,
-            Some(_) => PadKind::NonPlatedHole,
+        let kind = match (&hole, pad.kind) {
+            (None, Some(v1::PadKind::Mechanical)) => PadKind::Mechanical,
+            (None, Some(v1::PadKind::Fiducial)) => PadKind::Fiducial,
+            (None, None) => PadKind::Smd,
+            (Some(h), _) if h.plated => PadKind::PlatedThrough,
+            (Some(_), _) => PadKind::NonPlatedHole,
         };
         pads.push(Pad {
             id: PadId(ids.id(format!("p:{}", pad.key))?),
             // A non-plated hole lands no terminal (a mechanical hole beside
             // the land it belongs to); its generation still names one.
-            terminal: if kind == PadKind::NonPlatedHole {
+            terminal: if kind == PadKind::NonPlatedHole
+                || kind == PadKind::Fiducial
+                || pad.terminal.is_empty()
+            {
                 None
             } else {
                 Some(PackageTerminalId(
@@ -677,15 +747,35 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
             },
             shape,
             hole,
-            mask: match pad.mask {
+            mask: match &pad.mask {
                 v1::Opening::Default => MaskRule::Inherit,
-                v1::Opening::Expansion(by) => MaskRule::Expansion(nm(by)?),
+                v1::Opening::Expansion(by) => MaskRule::Expansion(nm(*by)?),
                 v1::Opening::None => MaskRule::Tented,
+                v1::Opening::Windows(_) => {
+                    return Err(refused(format!(
+                        "pad {} gives its solder mask windows; only paste has windows",
+                        pad.key
+                    )));
+                }
             },
-            paste: match pad.paste {
+            paste: match &pad.paste {
                 v1::Opening::Default => PasteRule::Inherit,
                 v1::Opening::Expansion(by) => PasteRule::Reduction(nm(by.saturating_neg())?),
                 v1::Opening::None => PasteRule::None,
+                v1::Opening::Windows(windows) => PasteRule::Windows(
+                    windows
+                        .iter()
+                        .enumerate()
+                        .map(|(k, w)| {
+                            Ok(crate::library::PasteWindow {
+                                id: crate::library::ApertureId(
+                                    u32::try_from(k + 1).unwrap_or(u32::MAX),
+                                ),
+                                shape: window(w)?,
+                            })
+                        })
+                        .collect::<Result<_>>()?,
+                ),
             },
             vias: Vec::new(),
         });

@@ -3,8 +3,9 @@
 use crate::board::BoardError;
 use crate::sexpr::Node;
 use sparksmith_core::Engine;
-use sparksmith_core::library::{ModelPlacement, PackageModel, Pad};
+use sparksmith_core::library::Pad;
 use sparksmith_core::units::{Nm, PointNm};
+use sparksmith_core::{BindingRef, ComponentRef, FootprintRef, SymbolRef};
 
 pub const MAX_MODELS: usize = 32;
 #[derive(Clone, Debug, PartialEq)]
@@ -62,17 +63,55 @@ impl Reference {
     }
 }
 
-#[derive(Clone)]
-pub struct Choice {
-    pub model: PackageModel,
-    pub placement: ModelPlacement,
-    pub envelope_nm: [Nm; 3],
-    pub provenance: String,
-    /// The model's lead contacts (model frame, on the seating plane), each
-    /// by the pad number it was matched to: stored as the package's lead
-    /// contacts on the terminal of that designation, so the board check
-    /// can find a lead off its pad. Mechanical only.
-    pub leads: Vec<(String, PointNm)>,
+/// The manufacturer part number and manufacturer a part's properties
+/// name, by the conventional property names (any letter case, spaces,
+/// `_` and `-` ignored): `MPN`, `Manufacturer Part Number`, `MFR PN`,
+/// `Part Number` …; `Manufacturer`, `MFR`, `Manf`. Empty values and KiCad's
+/// `~` name nothing.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PartNumber {
+    pub mpn: Option<String>,
+    pub manufacturer: Option<String>,
+}
+
+/// Longest part number or manufacturer kept, bytes.
+const MAX_PART_TEXT: usize = 256;
+
+impl PartNumber {
+    /// Take `name`'s `value` when it is a part number or manufacturer
+    /// property (the first of each wins).
+    pub fn read(&mut self, name: &str, value: &str) {
+        let key: String = name
+            .chars()
+            .filter(|c| c.is_ascii_alphanumeric())
+            .map(|c| c.to_ascii_uppercase())
+            .collect();
+        let value = value.trim();
+        if value.is_empty()
+            || value == "~"
+            || value.len() > MAX_PART_TEXT
+            || value.contains(char::is_control)
+        {
+            return;
+        }
+        let slot = match key.as_str() {
+            "MPN"
+            | "MANUFACTURERPARTNUMBER"
+            | "MANUFACTURERPN"
+            | "MFRPN"
+            | "MFRPARTNUMBER"
+            | "MFGPN"
+            | "MFGPARTNUMBER"
+            | "MANFPARTNUMBER"
+            | "MANFPN"
+            | "PARTNUMBER" => &mut self.mpn,
+            "MANUFACTURER" | "MANUFACTURERNAME" | "MFR" | "MFG" | "MANF" => &mut self.manufacturer,
+            _ => return,
+        };
+        if slot.is_none() {
+            *slot = Some(value.to_owned());
+        }
+    }
 }
 
 /// What the source footprint says of its package besides its lands: hints
@@ -131,24 +170,71 @@ pub fn no_body(footprint: &crate::board::Footprint, board_nets: bool) -> Option<
     }
 }
 
-/// Host preparation runs while the new engine is still private. Any error
-/// discards it, including staged model assets; no existing document is changed.
-pub trait Provider {
-    fn prepare(
-        &mut self,
-        engine: &mut Engine,
-        pads: &[Pad],
-        prefix: &str,
-        models: &[Reference],
-        footprint: &Facts,
-    ) -> Result<Selection, String>;
+/// One source footprint, as the host is asked to make its part.
+pub struct PartRequest<'a> {
+    /// Its pads in the footprint's frame, numbered, each landing its
+    /// source terminal.
+    pub pads: &'a [Pad],
+    /// The designator prefix of its first reference.
+    pub prefix: &'a str,
+    /// Its model references (sources for a recreation, never a body).
+    pub models: &'a [Reference],
+    pub facts: &'a Facts,
+    /// The board net of each pad (by index into `pads`), for every
+    /// placed copy of the footprint: a generator terminal may never join
+    /// pads a copy keeps on different nets.
+    pub nets: &'a [Vec<Option<u32>>],
+    /// The manufacturer part number the source names, when it names one.
+    pub mpn: Option<&'a str>,
 }
-pub struct Selection {
-    pub choice: Option<Choice>,
-    pub case: crate::report::Case,
+
+/// A part a generator made for a source footprint, through the same
+/// `library.generate` as any generated part: its land pattern is the
+/// source footprint's lands, so the board's copper is unchanged.
+#[derive(Clone, Debug)]
+pub struct Generated {
+    pub component: ComponentRef,
+    pub symbol: SymbolRef,
+    pub binding: BindingRef,
+    pub footprint: FootprintRef,
+    /// The part's package frame in the source footprint's frame: turned
+    /// counter-clockwise by `turn_deg` (a quarter turn), then moved by
+    /// `offset`. A placement of the source footprint composed with it
+    /// places the part's copper exactly where the source's is.
+    pub turn_deg: f64,
+    pub offset: PointNm,
+    /// The symbol's units.
+    pub units: u32,
+    /// The generator and preset, and how the lands were paired, in words.
     pub reason: String,
-    /// Why no model was chosen, when none was.
-    pub placeholder: Option<crate::report::Placeholder>,
+    /// The generator family's name (`chip`, `gull-wing`, …).
+    pub generator: String,
+}
+
+/// What one source footprint becomes.
+pub enum Made {
+    Generated(Box<Generated>),
+    /// No generator makes it: a project part of the source lands, with
+    /// its case, the reason and why no generator fits.
+    Source {
+        case: crate::report::Case,
+        reason: String,
+        placeholder: Option<crate::report::Placeholder>,
+    },
+}
+
+/// What the host found besides the part: the package the source's part
+/// number names, when it is not the package the lands are (the lands are
+/// kept as the source has them).
+pub struct Outcome {
+    pub made: Made,
+    pub contradiction: Option<String>,
+}
+
+/// The host makes parts while the new engine is still private. Any error
+/// discards it; no existing document is changed.
+pub trait Provider {
+    fn part(&mut self, engine: &mut Engine, request: &PartRequest<'_>) -> Result<Outcome, String>;
 }
 
 #[cfg(test)]

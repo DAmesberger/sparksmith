@@ -52,7 +52,7 @@ pub(crate) fn take_reply(address: usize, len: usize) -> Option<Vec<u8>> {
 
 /// `sparksmith_describe`.
 pub fn describe<G: Generator>() -> u64 {
-    match codec::encode(&G::describe()) {
+    match codec::encode(&crate::land_pattern::declare(G::describe())) {
         Ok(bytes) => reply(bytes),
         // An undescribable generator is a bug: report nothing, which the
         // host refuses as an invalid description.
@@ -105,7 +105,7 @@ pub fn invoke<G: Generator>(ptr: u32, len: u32) -> u64 {
             ),
         });
     }
-    match G::generate(&request) {
+    match crate::land_pattern::generate::<G>(&request) {
         Ok(generation) => match codec::encode(&generation) {
             Ok(body) => {
                 let mut bytes = Vec::with_capacity(body.len() + 1);

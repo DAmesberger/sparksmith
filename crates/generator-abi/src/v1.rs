@@ -835,16 +835,61 @@ pub struct Pad {
     /// when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub number: Option<String>,
+    /// Copper that lands no terminal on purpose (a mounting tab, a
+    /// fiducial): its [`Pad::terminal`] may then be empty. Absent for a
+    /// land of its terminal (or a hole, which the hole tells).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<PadKind>,
+}
+
+/// A pad that is not a land of a terminal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PadKind {
+    /// Copper with an explicit decision not to land a terminal.
+    Mechanical,
+    /// An optical alignment mark: copper, no terminal, no paste.
+    Fiducial,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum PadShape {
-    Rect { size: Point },
-    RoundRect { size: Point, radius_nm: i64 },
-    Circle { diameter_nm: i64 },
-    Oval { size: Point },
-    Polygon { points: Vec<Point> },
+    Rect {
+        size: Point,
+    },
+    RoundRect {
+        size: Point,
+        radius_nm: i64,
+    },
+    Circle {
+        diameter_nm: i64,
+    },
+    Oval {
+        size: Point,
+    },
+    Polygon {
+        points: Vec<Point>,
+    },
+    /// An exact closed outline of lines and arcs (a manufacturer's custom
+    /// land): from `start`, each segment runs to its `to`; the last ends
+    /// at `start`.
+    Outline {
+        start: Point,
+        segments: Vec<OutlineSegment>,
+    },
+}
+
+/// One segment of a [`PadShape::Outline`]: a line, or with `bulge_ppb` a
+/// circular arc of bulge `tan(sweep / 4)` in parts per billion, positive
+/// counter-clockwise (the integer form of the bulge, so the module does no
+/// trigonometry).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OutlineSegment {
+    pub to: Point,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bulge_ppb: Option<i64>,
 }
 
 /// The copper side of a surface pad, or the side a through-hole pad is
@@ -861,13 +906,26 @@ pub enum Side {
 pub struct Hole {
     pub shape: HoleShape,
     pub plated: bool,
+    /// The hole's centre from the pad's, in the pad frame; on the pad's
+    /// centre when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub offset: Option<Point>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case", deny_unknown_fields)]
 pub enum HoleShape {
-    Round { diameter_nm: i64 },
-    Slot { size: Point },
+    Round {
+        diameter_nm: i64,
+    },
+    /// A milled slot of `size` (round ends across its short side), along
+    /// the pad frame's longer axis, or, with `rot_mdeg`, its length (the
+    /// larger size) turned that far from the pad frame's x axis.
+    Slot {
+        size: Point,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        rot_mdeg: Option<i64>,
+    },
 }
 
 /// A mask or paste opening relative to the pad.
@@ -880,6 +938,32 @@ pub enum Opening {
     Expansion(i64),
     /// No opening.
     None,
+    /// Explicit paste apertures in the pad frame (an exposed pad's paste
+    /// array); paste only.
+    Windows(Vec<Window>),
+}
+
+/// One paste aperture of [`Opening::Windows`], in the pad frame.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum Window {
+    /// Between two opposite corners, every corner rounded by `radius_nm`.
+    Rect {
+        min: Point,
+        max: Point,
+        radius_nm: i64,
+    },
+    Circle {
+        center: Point,
+        radius_nm: i64,
+    },
+    /// A closed polygon; `radii_nm` rounds its corners (empty, or one per
+    /// point).
+    Polygon {
+        points: Vec<Point>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        radii_nm: Vec<i64>,
+    },
 }
 
 /// Package terminal to component terminal.

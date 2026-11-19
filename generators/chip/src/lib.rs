@@ -39,7 +39,7 @@ const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 
 /// The generator's version (`Description::version`): 1, the first with a
 /// 3D model; 2 marks an LED's pin 1 (its cathode) with a silkscreen dot.
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// The pin-1 dot of a polarised chip (an LED): a filled silkscreen circle
 /// of this radius beyond pad 1's −x edge, clear of its mask opening by the
@@ -374,6 +374,7 @@ fn pad(key: &str, at: [i64; 2], size: [i64; 2]) -> Pad {
         mask: Opening::Default,
         paste: Opening::Default,
         number: None,
+        kind: None,
     }
 }
 

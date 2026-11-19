@@ -101,6 +101,22 @@ pub fn pad_box(pad: &Pad) -> Box2 {
                 .unwrap_or(0);
             [2 * reach, 2 * reach]
         }
+        PadShape::Outline { start, segments } => {
+            // Every vertex, and an arc's bulge at most its chord beyond
+            // them (a bulge of 1 is a half circle; larger ones are rare).
+            let mut reach = start[0].abs().max(start[1].abs());
+            let mut from = *start;
+            for segment in segments {
+                let to = segment.to;
+                reach = reach.max(to[0].abs().max(to[1].abs()));
+                if segment.bulge_ppb.is_some_and(|b| b != 0) {
+                    let chord = (to[0] - from[0]).abs() + (to[1] - from[1]).abs();
+                    reach = reach.max(from[0].abs().max(from[1].abs()) + chord);
+                }
+                from = to;
+            }
+            [2 * reach, 2 * reach]
+        }
     };
     let quarter = pad.rot_mdeg.rem_euclid(90_000) == 0;
     let size = if !quarter {
@@ -139,7 +155,7 @@ fn keep_out(pad: &Pad, default_mask_nm: i64) -> Box2 {
     let grow = match pad.mask {
         Opening::Expansion(e) => e,
         Opening::Default => default_mask_nm,
-        Opening::None => 0,
+        Opening::None | Opening::Windows(_) => 0,
     };
     pad_box(pad).inflated(grow.max(0) + SILK_PAD_CLEARANCE_NM + SILK_STROKE_NM / 2)
 }
@@ -270,6 +286,7 @@ mod tests {
             mask: Opening::Default,
             paste: Opening::Default,
             number: None,
+            kind: None,
         }
     }
 

@@ -101,6 +101,8 @@ pub struct KSymbol {
     pub unit: u32,
     pub reference: String,
     pub value: String,
+    /// The part number and manufacturer its properties name.
+    pub part: crate::models::PartNumber,
     /// `(path, reference, unit)` per sheet instance.
     pub instances: Vec<(String, String, u32)>,
 }
@@ -297,6 +299,15 @@ fn symbol(node: &Node) -> Result<KSymbol> {
             .unwrap_or(1),
         reference: property(node, "Reference").unwrap_or_default().to_owned(),
         value: property(node, "Value").unwrap_or_default().to_owned(),
+        part: {
+            let mut part = crate::models::PartNumber::default();
+            for p in node.children("property") {
+                if let (Some(name), Some(value)) = (p.arg(0), p.arg(1)) {
+                    part.read(name, value);
+                }
+            }
+            part
+        },
         instances,
     })
 }

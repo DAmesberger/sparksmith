@@ -106,6 +106,9 @@ pub(super) struct Land {
     pad: Pad,
     ring: Ring,
     polarity: Option<Polarity>,
+    /// The pads (indices into the pads the lands were made of) this land
+    /// stands for: the pad, and a hole merged into its ring.
+    sources: Vec<usize>,
 }
 
 /// The lands of a footprint (imported or a preset's), ready to fit.
@@ -122,7 +125,10 @@ impl Lands {
         for pad in pads.iter().filter(|p| p.kind == PadKind::Smd) {
             surface.entry(Key::of(&pad.number)).or_default().push(pad);
         }
-        let kept: Vec<&Pad> = pads.iter().filter(|p| !thermal_via(p, &surface)).collect();
+        let kept_at: Vec<usize> = (0..pads.len())
+            .filter(|&i| !thermal_via(&pads[i], &surface))
+            .collect();
+        let kept: Vec<&Pad> = kept_at.iter().map(|&i| &pads[i]).collect();
         let holes: Vec<usize> = (0..kept.len())
             .filter(|&j| kept[j].kind == PadKind::NonPlatedHole)
             .collect();
@@ -134,6 +140,7 @@ impl Lands {
             }
             let mut pad = (*pad).clone();
             let mut ring = Ring::No;
+            let mut sources = vec![kept_at[i]];
             if is_round(&pad) && pad.hole.is_none() && pad.kind != PadKind::NonPlatedHole {
                 // A surface land and the non-plated hole through its centre.
                 if let Some(&j) = holes
@@ -142,6 +149,7 @@ impl Lands {
                 {
                     pad.hole = concentric_hole(kept[j], &pad);
                     used[j] = true;
+                    sources.push(kept_at[j]);
                     ring = Ring::Unplated;
                 }
             } else if pad.kind == PadKind::PlatedThrough
@@ -164,6 +172,7 @@ impl Lands {
                 polarity: polarity(&pad.number),
                 pad,
                 ring,
+                sources,
             });
         }
         let extent = extent(lands.iter().map(|l| &l.pad));
@@ -398,6 +407,10 @@ pub(super) struct Fit {
     pub cross_kind: bool,
     /// Lands paired other than by equal labels, in words ("P→1 (+)").
     pub pairing: Vec<String>,
+    /// Each imported pad (by its index among the pads the lands were made
+    /// of) with the preset pad (by index) its land paired with. A thermal
+    /// via, which is no land, is not listed.
+    pub pads: Vec<(usize, usize)>,
 }
 impl Fit {
     pub(super) fn excess(&self) -> f64 {
@@ -437,6 +450,7 @@ fn labels(lands: &Lands, group: &[usize]) -> String {
 
 /// One pose's pairs: (imported centre, preset centre turned) per pair.
 struct Posed {
+    pads: Vec<(usize, usize)>,
     deltas: Vec<[f64; 2]>,
     cross: bool,
     pairing: Vec<String>,
@@ -529,6 +543,7 @@ pub(super) fn fit(imported: &Lands, preset: &Lands, tolerance_nm: f64) -> Option
                 tolerance_nm,
                 cross_kind: posed.cross,
                 pairing: posed.pairing,
+                pads: posed.pads,
             });
         }
     }
@@ -576,6 +591,7 @@ fn pose(
         [sum[0] / n, sum[1] / n]
     };
     let mut posed = Posed {
+        pads: Vec::new(),
         deltas: Vec::new(),
         cross: false,
         pairing: Vec::new(),
@@ -621,6 +637,13 @@ fn pose(
             let ac = [0.5 * (alo[0] + ahi[0]), 0.5 * (alo[1] + ahi[1])];
             let bc = rotate([0.5 * (blo[0] + bhi[0]), 0.5 * (blo[1] + bhi[1])]);
             posed.deltas.push([ac[0] - bc[0], ac[1] - bc[1]]);
+            // Every pad of the group lands the terminal of the preset's
+            // first land of the number (they share it).
+            for &i in gi.iter() {
+                for &source in &imported.lands[i].sources {
+                    posed.pads.push((source, preset.lands[gp[0]].sources[0]));
+                }
+            }
             posed.pairing.push(format!(
                 "{} as one land {} ({} pads for {})",
                 labels(imported, gi),
@@ -698,6 +721,9 @@ fn assign(
         taken_i.insert(i);
         taken_j.insert(j);
         posed.deltas.push(delta);
+        for &source in &imported.lands[i].sources {
+            posed.pads.push((source, preset.lands[j].sources[0]));
+        }
         if let Pairing::Ring { cross: true } = how {
             posed.cross = true;
         }

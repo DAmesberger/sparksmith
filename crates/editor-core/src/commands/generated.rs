@@ -581,6 +581,10 @@ pub(crate) fn generate(
         generated::select_fields(&mut definitions, fields, template.as_ref());
     }
     generated::set_marking(&mut definitions, host_marking.as_ref());
+    generated::set_leads(
+        &mut definitions,
+        &generated::generation_leads(&made.generation)?,
+    );
     let base_name = request
         .name
         .clone()

@@ -45,7 +45,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.
@@ -96,6 +96,16 @@ fn length(key: &str, label: &str, range: [i64; 2], default: i64, group: &str) ->
         group: Some(group.into()),
         context: None,
     }
+}
+
+/// The largest given land size or offset, 10 mm.
+const MAX_LAND_NM: i64 = 10_000_000;
+
+/// A parameter of a given land pattern (0: estimated).
+fn given(key: &str, label: &str, range: [i64; 2], help: &str) -> Param {
+    let mut param = length(key, label, range, 0, "lands");
+    param.help = Some(help.into());
+    param
 }
 
 fn count(key: &str, label: &str, min: i64, default: i64) -> Param {
@@ -228,6 +238,9 @@ fn description_with(presets: Vec<Preset>) -> Description {
         ),
         web,
         clearance,
+        given("land_width", "Land width", [0, MAX_LAND_NM], "The recommended land pattern's land width; 0 for the estimate from the terminal."),
+        given("land_length", "Land length", [0, MAX_LAND_NM], "The recommended land pattern's land length; 0 for the estimate from the terminal."),
+        given("land_offset", "Land offset outward", [-MAX_LAND_NM, MAX_LAND_NM], "How far each land's centre lies outward from its terminal's centre, every side alike; negative is inward. With a given width or length the lands are as given: no heel is trimmed for the exposed pad and no corner cleared."),
         Param {
             key: "construction".into(),
             label: "Construction".into(),
@@ -358,6 +371,11 @@ struct Dims {
     construction: Construction,
     wettable: bool,
     window: i64,
+    /// The recommended land pattern's land size and outward offset (0:
+    /// estimated).
+    land_width: i64,
+    land_length: i64,
+    land_offset: i64,
 }
 
 /// How the package is built (the part file it uses).
@@ -447,6 +465,9 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         },
         wettable: args.flag("wettable_flank").map_err(one)?,
         window: args.int("window_diameter").map_err(one)?,
+        land_width: args.int("land_width").map_err(one)?,
+        land_length: args.int("land_length").map_err(one)?,
+        land_offset: args.int("land_offset").map_err(one)?,
     };
     let mut problems = Vec::new();
     let mut rule = |ok: bool, field: &str, text: String| {
@@ -632,16 +653,37 @@ fn gap_squared(a: &Pm, b: &Pm) -> i128 {
 /// The estimated lands, in lead order, then the exposed pad.
 fn pads(d: &Dims) -> Vec<Pad> {
     let gap = d.copper_gap();
-    let width = (d.terminal_width + LAND_WIDTH_EXTRA_NM)
-        .min(d.pitch - gap)
-        .max(d.terminal_width);
-    let land_length = d.terminal_length + LAND_LENGTH_EXTRA_NM;
+    let given = d.land_width > 0 || d.land_length > 0;
+    let width = if d.land_width > 0 {
+        d.land_width
+    } else {
+        (d.terminal_width + LAND_WIDTH_EXTRA_NM)
+            .min(d.pitch - gap)
+            .max(d.terminal_width)
+    };
+    let land_length = if d.land_length > 0 {
+        d.land_length
+    } else {
+        d.terminal_length + LAND_LENGTH_EXTRA_NM
+    };
     let mut pads: Vec<Pad> = d
         .lead_points()
         .into_iter()
         .enumerate()
-        .map(|(k, at)| {
+        .map(|(k, terminal)| {
             let k = i64::try_from(k).unwrap_or(0);
+            // Outward from the body, across the land's side.
+            let at = if d.across_x(k) {
+                [
+                    terminal[0] + terminal[0].signum() * d.land_offset,
+                    terminal[1],
+                ]
+            } else {
+                [
+                    terminal[0],
+                    terminal[1] + terminal[1].signum() * d.land_offset,
+                ]
+            };
             let size = if d.across_x(k) {
                 [land_length, width]
             } else {
@@ -653,9 +695,11 @@ fn pads(d: &Dims) -> Vec<Pad> {
     let leads = pads.len();
     if let Some(pad) = d.pad {
         pads.push(land("EP", [0, 0], pad));
-        trim_heels(&mut pads[..leads], d, pad, land_length);
+        if !given {
+            trim_heels(&mut pads[..leads], d, pad, land_length);
+        }
     }
-    if d.four {
+    if d.four && !given {
         clear_corners(&mut pads[..leads], gap);
     }
     pads
@@ -673,6 +717,7 @@ fn land(key: &str, at: Point2, size: Point2) -> Pad {
         mask: Opening::Default,
         paste: Opening::Default,
         number: None,
+        kind: None,
     }
 }
 
@@ -988,9 +1033,15 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         model: Some(model(&d)),
         fields: Vec::new(),
         notes: vec![
-            "Lands are estimated from the terminals; confirm them, and the exposed pad, against \
+            if d.land_width > 0 || d.land_length > 0 || d.land_offset != 0 {
+                "Lands are the given land size and offset; confirm them, and the exposed pad, \
+             against the device's recommended land pattern."
+                    .into()
+            } else {
+                "Lands are estimated from the terminals; confirm them, and the exposed pad, against \
              the device's recommended land pattern."
-                .into(),
+                .into()
+            },
         ],
     })
 }

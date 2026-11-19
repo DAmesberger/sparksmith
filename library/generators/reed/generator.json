@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "reed.wasm",
-    "sha256": "7f4fbd2d9a9b6af159ffbe22e7271da6562529414197e85d658ad44b5a5debf5"
+    "sha256": "19174727b502d364285d1682a3611b5e71fc9b81f1603e730ef547c3340a4579"
   },
   "name": "reed",
   "parts": [

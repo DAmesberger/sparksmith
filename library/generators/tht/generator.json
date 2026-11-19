@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tht.wasm",
-    "sha256": "d6f38ce69d5e6be82912e3fd1b1211be8f2a73b85b5226764897a90c8eb78757"
+    "sha256": "1c0fe40347b14c43b60ba7de04188b3dfe89ba6c3b592143799afd422d239df5"
   },
   "name": "tht",
   "parts": [

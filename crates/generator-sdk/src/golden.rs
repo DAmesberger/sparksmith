@@ -47,7 +47,7 @@ pub fn check<G: Generator>(json: &str) -> Result<usize, String> {
     }
     let mut problems = Vec::new();
     for case in &file.cases {
-        match G::generate(&case.request) {
+        match crate::land_pattern::generate::<G>(&case.request) {
             Ok(generation) => match codec::encode(&generation) {
                 Ok(bytes) => {
                     let actual = hex(&result_hash(&bytes));

@@ -93,6 +93,7 @@ fn generation() -> Generation {
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }],
             courtyard: vec![
                 [-750_000, -750_000],
