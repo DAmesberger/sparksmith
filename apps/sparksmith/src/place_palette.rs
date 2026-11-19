@@ -1729,6 +1729,7 @@ fn detail(entry: &CatalogEntry, rows: &RowContext) -> String {
         parts.push(match entry.source {
             Source::Project => format!("project {revision}"),
             Source::Library(_) => format!("library {revision}"),
+            Source::Online(_) => format!("online {revision}"),
         });
     }
     // The project row and the folder row of one lineage name each other.
@@ -1736,7 +1737,7 @@ fn detail(entry: &CatalogEntry, rows: &RowContext) -> String {
         (Source::Project, Some(origin), _) => {
             parts.push(format!("from {}", rows.name(origin.library)));
         }
-        (Source::Library(library), _, Some(lineage)) => {
+        (Source::Library(library) | Source::Online(library), _, Some(lineage)) => {
             if let Some(copy) = rows.copies.get(&(library, lineage)) {
                 parts.push(format!("in project {copy}"));
             }
@@ -1806,6 +1807,8 @@ fn group_of(entry: &CatalogEntry, context: &CatalogContext) -> usize {
             .iter()
             .position(|s| s.library == library)
             .map_or(context.sources.len() + 1, |i| i + 1),
+        // After every local source (part-search §1.2).
+        Source::Online(_) => context.sources.len() + 2,
     }
 }
 

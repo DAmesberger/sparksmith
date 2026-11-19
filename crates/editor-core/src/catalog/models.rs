@@ -304,7 +304,9 @@ impl Candidate<'_> {
             Filter::Redistribution(r) => model.is_some_and(|m| m.provenance.redistribution == *r),
             Filter::Licence(text) => model.is_some() && self.licence.contains(text.as_str()),
             Filter::Source(SourceFilter::Project) => self.source == Source::Project,
-            Filter::Source(SourceFilter::Library) => matches!(self.source, Source::Library(_)),
+            Filter::Source(SourceFilter::Library) => {
+                matches!(self.source, Source::Library(_) | Source::Online(_))
+            }
             Filter::Has(flag, present) => {
                 let has = model.is_some_and(|m| match flag {
                     Flag::Leads => !m.leads.is_empty(),
@@ -526,6 +528,7 @@ fn facets(hits: &[ModelHit]) -> ModelFacets {
             match hit.source {
                 Source::Project => "project".into(),
                 Source::Library(_) => "library".into(),
+                Source::Online(_) => "online".into(),
             },
         );
         match &hit.kind {
