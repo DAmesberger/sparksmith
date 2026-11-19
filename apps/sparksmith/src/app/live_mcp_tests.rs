@@ -311,22 +311,29 @@ fn turning_access_off_closes_the_channel() -> Fallible {
     Ok(())
 }
 
-/// I-A1: over live MCP, `library.source.add` is refused in every mode the
-/// window offers, with nothing held for the person and the sources as they
-/// were.
+/// Over live MCP, `library.source.add` changes the person's settings, so
+/// it waits for the person; Deny answers the assistant and leaves the
+/// sources as they were.
 #[test]
-fn live_mcp_never_adds_a_library_source() -> Fallible {
+fn live_mcp_asks_before_adding_a_library_source() -> Fallible {
     let mut h = Harness::new()?;
     let dir = tempfile::tempdir_in(std::env::temp_dir())?;
     let add = json!({"entry": "library.source.add",
         "params": {"path": dir.path().display().to_string()}});
-    for mode in [Mode::AskEveryTime, Mode::AutoAllowEdits, Mode::AllowAll] {
-        h.app.live.mode = mode;
-        let reply = h.call(live::CALL, add.clone())?;
-        assert_eq!(code(&reply), "gate.never", "{mode:?}: {reply}");
-        assert!(h.app.live_held().is_none(), "{mode:?}");
-        assert!(h.app.live.session.sources().list().is_empty(), "{mode:?}");
+    let mut client = h.client()?;
+    let asked = std::thread::spawn(move || client.call(live::CALL, add));
+    for _ in 0..5000 {
+        if h.app.live_held().is_some() {
+            break;
+        }
+        h.frame(Vec::new());
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
+    assert_eq!(h.app.live_held(), Some("library.source.add"));
+    h.app.live_answer(false);
+    let denied = asked.join().map_err(|_| "client thread")??;
+    assert_eq!(code(&denied), "gate.denied", "{denied}");
+    assert!(h.app.live.session.sources().list().is_empty());
     Ok(())
 }
 

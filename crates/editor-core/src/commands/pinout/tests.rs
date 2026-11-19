@@ -777,6 +777,14 @@ fn a_component_gets_its_manufacturer_part_as_a_draft() -> Fallible<()> {
             _ => None,
         })
         .ok_or("a demo component with one binding")?;
+    // Its published revision, not a draft of it, is what the Part pins
+    // here, so the Part publishes on its own.
+    if engine.drafts().get(id).is_some() {
+        engine.apply(
+            engine.revision(),
+            Operation::Library(LibraryCommand::DiscardDraft { id }),
+        )?;
+    }
     let before = Snapshot::of(&engine);
     let empty = engine.apply(
         engine.revision(),
@@ -807,7 +815,14 @@ fn a_component_gets_its_manufacturer_part_as_a_draft() -> Fallible<()> {
         return Err("not a Part".into());
     };
     assert_eq!(body.mpn, "EX-DEMO-1");
-    assert_eq!(body.component, crate::ids::ComponentRef::new(id, revision));
+    // The component's draft, when it has one, is what the Part pins: the
+    // revision publishing the draft makes.
+    let pinned = engine
+        .drafts()
+        .get(id)
+        .and_then(|d| d.pending())
+        .unwrap_or(revision);
+    assert_eq!(body.component, crate::ids::ComponentRef::new(id, pinned));
     assert_eq!(body.binding, binding);
     engine.apply(
         engine.revision(),

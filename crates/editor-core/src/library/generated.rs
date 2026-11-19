@@ -931,6 +931,15 @@ pub fn compare(library: &Library, check: &Check<'_>, generated: &Generated) -> R
         );
         set_marking(&mut expected, component.marking.as_deref());
     }
+    // The pin-1 polarity is the host's reading of the generation (its
+    // pin-1 terminal and `pin1…` graphics), not the module's output: the
+    // stored one stands, so a part made before the host read it opens as
+    // it was made.
+    for ((_, wanted), (_, kept)) in expected.iter_mut().zip(stored.iter()) {
+        if let (Definition::Footprint(wanted), Definition::Footprint(kept)) = (wanted, kept) {
+            wanted.polarity.clone_from(&kept.polarity);
+        }
+    }
     if stored != expected {
         return Err(Error::Invalid(format!(
             "generated.expansion_changed: {name} stored in this project differs from what its generator makes from the recorded parameters: the stored part hashes to sha256 {}, the generator's expansion to sha256 {}. The project was not opened.",

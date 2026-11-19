@@ -553,7 +553,8 @@ mod mcp_option_tests {
         let replies = replies(
             &[],
             &[
-                json!({"command": "library.source.add", "params": {"path": folder}}),
+                json!({"command": "library.favourite", "params": {
+                    "key": {"source": "project", "lineage": 1}, "favourite": true}}),
                 json!({"command": "project.save", "params": {"path": "board.sparksmith"}}),
                 json!({"command": "project.apply", "params": {"expected_revision": 0, "operation": {
                     "editor": "Schematic",
@@ -569,7 +570,8 @@ mod mcp_option_tests {
     }
 
     fn replies_of_allow_all(folder: &str) -> Result<Value> {
-        let request = json!({"command": "library.source.add", "params": {"path": folder}});
+        let request = json!({"command": "library.favourite", "params": {
+            "key": {"source": "project", "lineage": 1}, "favourite": true}});
         let mut replies = replies(
             &["--permission-mode", "allow-all", "--allow-folder", folder],
             &[request],
