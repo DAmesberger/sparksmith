@@ -15,7 +15,7 @@
 use super::bundle::{self, Bundle};
 use super::{Definition, Library, standards};
 use crate::diagnostics::{Error, Result};
-use crate::fields::ValueType;
+use crate::fields::{FieldSelection, ValueType};
 use crate::ids::{DefinitionKind, FieldRef, LibraryId, SourceLineageId};
 use crate::quantity::UnitSet;
 use schemars::JsonSchema;
@@ -33,6 +33,11 @@ pub struct FieldRoles {
     /// frequency and an LED's colour. Ratings and tolerances qualify a
     /// value.
     pub value_fields: Vec<SourceLineageId>,
+    /// The text field a part selects when its family selects no fields (a
+    /// generated IC, connector or module, an imported project part), so
+    /// every part can hold its value as a design states it. Not a value
+    /// field: such a part's BOM Value falls back to its part number.
+    pub part_value: SourceLineageId,
 }
 
 /// Fields one role lists.
@@ -70,6 +75,16 @@ impl StandardFields {
         if let Some(missing) = roles.value_fields.iter().find(|l| !is_field(l)) {
             return Err(Error::Invalid(format!(
                 "the standard field roles name {missing}, which is not a field of the standard fields bundle"
+            )));
+        }
+        let part_value_is_text = bundle.records.iter().any(|r| {
+            r.lineage == roles.part_value
+                && matches!(&r.definition, Definition::Field(f) if matches!(f.value_type, ValueType::Text { .. }))
+        });
+        if !part_value_is_text {
+            return Err(Error::Invalid(format!(
+                "the standard field roles name {} as the part value field, which is not a text field of the standard fields bundle",
+                roles.part_value
             )));
         }
         let mut units = Vec::new();
@@ -137,7 +152,11 @@ impl StandardFields {
     /// The project's copy of a standard field, by its name: the field
     /// whose recorded origin is that standard field.
     pub fn local(&self, library: &Library, field: &str) -> Option<FieldRef> {
-        let lineage = self.lineage(field)?;
+        self.local_of(library, self.lineage(field)?)
+    }
+
+    /// The project's copy of the standard field of `lineage`.
+    fn local_of(&self, library: &Library, lineage: SourceLineageId) -> Option<FieldRef> {
         let source = self.library();
         library
             .origins
@@ -148,6 +167,22 @@ impl StandardFields {
                     && o.origin.lineage == lineage
             })
             .map(|o| FieldRef::new(o.local.id, o.local.revision))
+    }
+
+    /// The project's copy of the part value field
+    /// ([`FieldRoles::part_value`]); `None` until the bundle is imported.
+    pub fn part_value(&self, library: &Library) -> Option<FieldRef> {
+        self.local_of(library, self.roles.part_value)
+    }
+
+    /// The selection of the part value field a component without fields
+    /// of its family takes, shown on its symbol.
+    pub fn part_value_selection(&self, library: &Library) -> Option<FieldSelection> {
+        self.part_value(library).map(|field| FieldSelection {
+            field,
+            default: None,
+            show_on_symbol: true,
+        })
     }
 
     /// The units of a standard quantity field, by its name.

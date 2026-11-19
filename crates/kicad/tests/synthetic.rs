@@ -611,7 +611,41 @@ fn kicad_values_become_the_parts_values() -> Fallible<()> {
     assert_eq!(name("R1")?, "R_0805 330");
     assert_eq!(name("R2")?, "R_0805 10k");
     assert_eq!(name("R3")?, "R_0805");
-    assert!(project.library.fields.is_empty(), "no import-only field");
+    // The part selects the standard part value field, which holds each
+    // part's value; every field is a standard one: no import-only field.
+    let standard = imported
+        .engine
+        .context()
+        .ok_or("standards")?
+        .standards()
+        .fields
+        .library();
+    let names: Vec<&str> = project
+        .library
+        .fields
+        .iter()
+        .map(|f| f.meta.name.as_str())
+        .collect();
+    assert!(names.contains(&"Value"), "{names:?}");
+    assert!(
+        project.library.fields.iter().all(|f| project
+            .library
+            .origins
+            .iter()
+            .any(|o| o.local.id == f.id && o.origin.library == standard)),
+        "no import-only field"
+    );
+    let value = |designator: &str| -> Fallible<Option<String>> {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or(designator.to_owned())?;
+        Ok(sparksmith_core::instances::value_text(
+            &project.library,
+            instance,
+        )?)
+    };
+    assert_eq!(value("R1")?.as_deref(), Some("330"));
+    assert_eq!(value("R2")?.as_deref(), Some("10k"));
     let bom = sparksmith_core::completeness::bom(project)?;
     assert_eq!(bom.lines.len(), 3);
     Ok(())

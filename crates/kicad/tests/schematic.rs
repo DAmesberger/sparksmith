@@ -407,7 +407,34 @@ fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
         .meta
         .name;
     assert!(name.ends_with(" 1k"), "{name}");
-    assert!(project.library.fields.is_empty(), "no import-only field");
+    // The standard part value field holds the value; every field is a
+    // standard one: no import-only field.
+    let standard = imported
+        .engine
+        .context()
+        .ok_or("standards")?
+        .standards()
+        .fields
+        .library();
+    let names: Vec<&str> = project
+        .library
+        .fields
+        .iter()
+        .map(|f| f.meta.name.as_str())
+        .collect();
+    assert!(names.contains(&"Value"), "{names:?}");
+    assert!(
+        project.library.fields.iter().all(|f| project
+            .library
+            .origins
+            .iter()
+            .any(|o| o.local.id == f.id && o.origin.library == standard)),
+        "no import-only field"
+    );
+    assert_eq!(
+        sparksmith_core::instances::value_text(&project.library, r1)?.as_deref(),
+        Some("1k")
+    );
     Ok(())
 }
 

@@ -5,13 +5,18 @@
 //! step. Terminal identity is lineage-local, so every terminal of the old
 //! component is mapped explicitly to one of the new component's, or to
 //! nothing; nothing is inferred from matching names or numbers. Wires,
-//! nets, no-connect markers and pair endpoints follow the mapping; the
-//! placement keeps its position, side and rotation, and copper the new
-//! footprint no longer reaches stays where it is, listed by the preview.
+//! nets, no-connect markers and pair endpoints follow the mapping. The
+//! placement keeps its side; by default it moves (and turns by quarter
+//! turns) so the new footprint's mapped pads best fit the old ones, since
+//! two footprints of one package may put their origins in different
+//! places ([`Alignment`]); `keep_origin` keeps position and rotation.
+//! Copper the new footprint no longer reaches stays where it is, listed by
+//! the preview.
 use super::{invalid, not_found};
 use crate::diagnostics::{Error, Result};
 use crate::fields::FieldOverride;
 use crate::fields::{PropertyEdit, PropertyInput};
+use crate::geometry::Point;
 use crate::ids::{ComponentRef, DefinitionId, Endpoint, Id, TerminalId, UnitId};
 use crate::instances::{self, Regroup, UnitCarry, UnitTarget};
 use crate::layout;
@@ -60,6 +65,254 @@ pub struct Replacement {
     /// and the new symbol have one unit each.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub units: Vec<UnitPair>,
+    /// Where a placed part's new footprint goes: fitted to its mapped
+    /// pads (the default) or at the old origin.
+    #[serde(default, skip_serializing_if = "Alignment::is_fit")]
+    pub alignment: Alignment,
+}
+
+/// Where a replaced part's new footprint is placed on the board.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Alignment {
+    /// Moved, and turned by quarter turns, so the pads of each mapped
+    /// terminal best fit the old pads mapped to it (least squares over
+    /// each terminal's pad centres); the side stays.
+    #[default]
+    FitPads,
+    /// The old placement's origin, rotation and side, whatever the new
+    /// footprint's origin.
+    KeepOrigin,
+}
+
+impl Alignment {
+    fn is_fit(&self) -> bool {
+        *self == Self::FitPads
+    }
+}
+
+/// How far one mapped terminal's new pads lie from the old pads mapped to
+/// it, centroid to centroid, after the placement.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PadResidual {
+    /// The old pads, by number.
+    pub old: Vec<String>,
+    /// The new pads, by number.
+    pub new: Vec<String>,
+    pub residual_mm: f64,
+}
+
+/// How a replaced part is placed: the move and turn the alignment chose
+/// and the residual of every mapped terminal with pads on both footprints.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PlacementFit {
+    pub instance: Id,
+    pub designator: String,
+    pub alignment: Alignment,
+    /// The placement's move on the board, mm.
+    pub moved_mm: [f64; 2],
+    /// The placement's turn, degrees, in (−180, 180].
+    pub turned_deg: f64,
+    /// Largest residual first.
+    pub pads: Vec<PadResidual>,
+    pub max_residual_mm: f64,
+}
+
+impl PlacementFit {
+    /// "U3 is placed so its mapped pads fit the old ones: moves (0.000,
+    /// 3.150) mm, turns 0°; largest pad residual 0.000 mm (41 → 41)."
+    pub fn line(&self) -> String {
+        let how = match self.alignment {
+            Alignment::FitPads => "is placed so its mapped pads fit the old ones",
+            Alignment::KeepOrigin => "keeps its origin",
+        };
+        let worst = self
+            .pads
+            .first()
+            .map(|p| format!(" ({} → {})", p.old.join(", "), p.new.join(", ")))
+            .unwrap_or_default();
+        format!(
+            "{} {how}: moves ({:.3}, {:.3}) mm, turns {}°; largest pad residual {:.3} mm{worst}.",
+            self.designator,
+            self.moved_mm[0],
+            self.moved_mm[1],
+            self.turned_deg,
+            self.max_residual_mm
+        )
+    }
+}
+
+/// One mapped terminal's pads on both footprints, as centroids: `from` the
+/// new pads', `to` the old pads'.
+struct Correspondence {
+    old: Vec<String>,
+    new: Vec<String>,
+    from: Point,
+    to: Point,
+}
+
+type PadsOf<'a> = (
+    Vec<&'a layout::PlacedPadCentre>,
+    Vec<&'a layout::PlacedPadCentre>,
+);
+
+/// Each new terminal's pads paired with the old pads of every terminal
+/// mapped to it; a terminal without pads on either side is left out.
+fn correspondences(
+    mapping: &TerminalMapping,
+    old: &[layout::PlacedPadCentre],
+    new: &[layout::PlacedPadCentre],
+) -> Vec<Correspondence> {
+    let mut by_new: BTreeMap<TerminalId, PadsOf<'_>> = BTreeMap::new();
+    for pad in old {
+        if let Some(Some(to)) = mapping.get(&pad.terminal) {
+            by_new.entry(*to).or_default().0.push(pad);
+        }
+    }
+    for pad in new {
+        if let Some(entry) = by_new.get_mut(&pad.terminal) {
+            entry.1.push(pad);
+        }
+    }
+    by_new
+        .into_values()
+        .filter_map(|(olds, news)| {
+            Some(Correspondence {
+                from: centroid(news.iter().map(|p| p.position))?,
+                to: centroid(olds.iter().map(|p| p.position))?,
+                old: olds.iter().map(|p| p.label.clone()).collect(),
+                new: news.iter().map(|p| p.label.clone()).collect(),
+            })
+        })
+        .collect()
+}
+
+fn centroid(points: impl Iterator<Item = Point>) -> Option<Point> {
+    let (mut sum, mut n) = ([0.0, 0.0], 0.0);
+    for p in points {
+        sum = [sum[0] + p[0], sum[1] + p[1]];
+        n += 1.0;
+    }
+    (n > 0.0).then(|| [sum[0] / n, sum[1] / n])
+}
+
+fn turn(point: Point, deg: f64) -> Point {
+    let (s, c) = deg.to_radians().sin_cos();
+    [c * point[0] - s * point[1], s * point[0] + c * point[1]]
+}
+
+/// The rigid move that best carries each `from` onto its `to`, as a turn
+/// (degrees) and then a shift: the least-squares rotation (2D Kabsch)
+/// rounded to the nearest quarter turn, as footprints of one package are
+/// drawn on the same axes, then the least-squares shift for that turn. A
+/// misfit of any other angle shows in the residuals. `None` without a
+/// pair.
+fn fit(pairs: &[(Point, Point)]) -> Option<(f64, Point)> {
+    let from = centroid(pairs.iter().map(|(a, _)| *a))?;
+    let to = centroid(pairs.iter().map(|(_, b)| *b))?;
+    let (mut cross, mut dot) = (0.0, 0.0);
+    for (a, b) in pairs {
+        let a = [a[0] - from[0], a[1] - from[1]];
+        let b = [b[0] - to[0], b[1] - to[1]];
+        cross += a[0] * b[1] - a[1] * b[0];
+        dot += a[0] * b[0] + a[1] * b[1];
+    }
+    let free = if cross == 0.0 && dot == 0.0 {
+        0.0
+    } else {
+        cross.atan2(dot).to_degrees()
+    };
+    let quarter = ((free / 90.0).round() * 90.0).rem_euclid(360.0);
+    let turned = turn(from, quarter);
+    Some((quarter, [to[0] - turned[0], to[1] - turned[1]]))
+}
+
+/// A length on the nanometre grid the board stores.
+fn on_grid(mm: f64) -> f64 {
+    (mm * 1e6).round() / 1e6
+}
+
+/// Move `id`'s placement so its mapped pads fit `before`, the old
+/// footprint's pads on the board.
+fn align(
+    next: &mut Project,
+    id: Id,
+    mapping: &TerminalMapping,
+    before: &[layout::PlacedPadCentre],
+) -> Result<()> {
+    let after = layout::placed_pad_centres(next, id);
+    let pairs: Vec<(Point, Point)> = correspondences(mapping, before, &after)
+        .into_iter()
+        .map(|c| (c.from, c.to))
+        .collect();
+    let Some((quarter, shift)) = fit(&pairs) else {
+        return Ok(());
+    };
+    let placement = next
+        .placements
+        .iter_mut()
+        .find(|p| p.instance == id)
+        .ok_or_else(|| not_found("The replaced part's placement is missing."))?;
+    let moved = turn(placement.position, quarter);
+    let position = [on_grid(moved[0] + shift[0]), on_grid(moved[1] + shift[1])];
+    if !position.iter().all(|v| v.is_finite()) {
+        return Err(invalid("The fitted placement is not a finite position."));
+    }
+    placement.position = position;
+    placement.rotation_deg = (placement.rotation_deg + quarter).rem_euclid(360.0);
+    Ok(())
+}
+
+/// Per replaced, placed instance: how it is placed and how far each mapped
+/// terminal's new pads lie from the old ones; `project` before and `next`
+/// after the replacement.
+pub(super) fn placement_fits(
+    project: &Project,
+    next: &Project,
+    ids: &[Id],
+    replacement: &Replacement,
+) -> Vec<PlacementFit> {
+    let mapping: TerminalMapping = replacement
+        .terminals
+        .iter()
+        .map(|p| (p.from, p.to))
+        .collect();
+    ids.iter()
+        .filter_map(|id| {
+            let a = project.placements.iter().find(|p| p.instance == *id)?;
+            let b = next.placements.iter().find(|p| p.instance == *id)?;
+            let before = layout::placed_pad_centres(project, *id);
+            let after = layout::placed_pad_centres(next, *id);
+            let mut pads: Vec<PadResidual> = correspondences(&mapping, &before, &after)
+                .into_iter()
+                .map(|c| PadResidual {
+                    old: c.old,
+                    new: c.new,
+                    residual_mm: on_grid((c.from[0] - c.to[0]).hypot(c.from[1] - c.to[1])),
+                })
+                .collect();
+            pads.sort_by(|x, y| y.residual_mm.total_cmp(&x.residual_mm));
+            let turned = (b.rotation_deg - a.rotation_deg).rem_euclid(360.0);
+            Some(PlacementFit {
+                instance: *id,
+                designator: next.instance(*id)?.designator.clone(),
+                alignment: replacement.alignment,
+                moved_mm: [
+                    on_grid(b.position[0] - a.position[0]),
+                    on_grid(b.position[1] - a.position[1]),
+                ],
+                turned_deg: if turned > 180.0 {
+                    turned - 360.0
+                } else {
+                    turned
+                },
+                max_residual_mm: pads.first().map_or(0.0, |p| p.residual_mm),
+                pads,
+            })
+        })
+        .collect()
 }
 
 /// The checked terminal mapping: old → new (or dropped).
@@ -268,6 +521,7 @@ fn replace_instance(
         .cloned()
         .ok_or_else(|| not_found("The replacement names an unknown instance."))?;
     let name = old.designator.clone();
+    let before = layout::placed_pad_centres(next, id);
     if old.physical.is_some() && physical.is_none() {
         return Err(invalid(&format!(
             "{name} is on the board, but the target offers no footprint."
@@ -420,6 +674,8 @@ fn replace_instance(
     instance.pin_config = Default::default();
     if physical.is_none() {
         layout::detach_instance(next, id, EditPolicy::Consequential)?;
+    } else if replacement.alignment == Alignment::FitPads {
+        align(next, id, mapping, &before)?;
     }
     Ok(())
 }
@@ -513,4 +769,78 @@ pub(super) fn copper_identity(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pad(terminal: u32, label: &str, position: Point) -> layout::PlacedPadCentre {
+        layout::PlacedPadCentre {
+            terminal: TerminalId(terminal),
+            label: label.into(),
+            position,
+        }
+    }
+
+    fn near(a: Point, b: Point) -> bool {
+        (a[0] - b[0]).abs() < 1e-9 && (a[1] - b[1]).abs() < 1e-9
+    }
+
+    /// A pure shift is found as a shift, without a turn.
+    #[test]
+    fn a_shift_fits_without_turning() -> Result<()> {
+        let pairs = [([0.0, 0.0], [3.15, 0.0]), ([4.0, 1.0], [7.15, 1.0])];
+        let (quarter, shift) = fit(&pairs).ok_or_else(|| invalid("no fit"))?;
+        assert_eq!(quarter, 0.0);
+        assert!(near(shift, [3.15, 0.0]), "{shift:?}");
+        Ok(())
+    }
+
+    /// A quarter turn with a shift is found; a slightly skewed fit rounds
+    /// to no turn, its misfit left to the residuals.
+    #[test]
+    fn a_quarter_turn_fits_by_turning() -> Result<()> {
+        let from = [[0.0, 0.0], [4.0, 0.0], [2.0, 3.0]];
+        let pairs: Vec<(Point, Point)> = from
+            .iter()
+            .map(|p| {
+                let t = turn(*p, 90.0);
+                (*p, [t[0] + 10.0, t[1] - 2.0])
+            })
+            .collect();
+        let (quarter, shift) = fit(&pairs).ok_or_else(|| invalid("no fit"))?;
+        assert_eq!(quarter, 90.0);
+        assert!(near(shift, [10.0, -2.0]), "{shift:?}");
+        let skewed: Vec<(Point, Point)> = from.iter().map(|p| (*p, turn(*p, 3.0))).collect();
+        assert_eq!(fit(&skewed).map(|f| f.0), Some(0.0));
+        assert_eq!(fit(&[]), None);
+        Ok(())
+    }
+
+    /// Several old terminals mapped to one new terminal (a thermal pad's
+    /// windows to one pad) are one correspondence: their centroid against
+    /// the new pad's. A dropped terminal takes no part.
+    #[test]
+    fn terminals_mapped_together_fit_by_their_centroid() {
+        let mapping: TerminalMapping = [
+            (TerminalId(1), Some(TerminalId(1))),
+            (TerminalId(2), Some(TerminalId(9))),
+            (TerminalId(3), Some(TerminalId(9))),
+            (TerminalId(4), None),
+        ]
+        .into_iter()
+        .collect();
+        let old = [
+            pad(1, "1", [-5.0, 0.0]),
+            pad(2, "41_1", [-1.0, 0.0]),
+            pad(3, "41_2", [1.0, 0.0]),
+            pad(4, "NC", [9.0, 9.0]),
+        ];
+        let new = [pad(1, "1", [-5.0, 0.0]), pad(9, "41", [0.0, 0.0])];
+        let found = correspondences(&mapping, &old, &new);
+        assert_eq!(found.len(), 2);
+        let thermal = found.iter().find(|c| c.new == ["41"]);
+        assert!(thermal.is_some_and(|c| c.old == ["41_1", "41_2"] && near(c.to, [0.0, 0.0])));
+    }
 }

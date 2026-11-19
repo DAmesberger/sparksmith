@@ -1,11 +1,12 @@
 {
   "format": 1,
-  "about": "What the fields of standard-fields.json are for, by lineage. Value fields are a part's value as a BOM's Value column states it; ratings and tolerances only qualify a value. The fields a generic part selects are its family's (catalog/generic-families.json).",
+  "about": "What the fields of standard-fields.json are for, by lineage. Value fields are a part's value as a BOM's Value column states it; ratings and tolerances only qualify a value. The fields a generic part selects are its family's (catalog/generic-families.json). The part value field is the text field every other part selects (a generated part whose family selects no fields, an imported project part), so it can hold its value as a design states it; it is not a value field, since such a part's BOM Value falls back to its part number.",
   "value_fields": [
     "6be14d0ac2f7493d9b05e8a13c72d690",
     "17ac95e3f06b4d28b3e4d172a9c05f86",
     "c02e7a941db8436fa86f15d3b07e92c4",
     "ad406f7b39e1425c91f7c2d85e06b3a9",
     "b2387bbf96b94b0495552e4d79c1645a"
-  ]
+  ],
+  "part_value": "449aa3b394194bf398d61965afd3ac8f"
 }

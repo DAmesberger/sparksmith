@@ -127,7 +127,18 @@ fn source_lands_become_generated_parts_with_the_sources_copper() -> Fallible {
     }
     // One generated part serves every copy; no import-only definitions.
     assert_eq!(project.library.generated.len(), 1);
-    assert!(project.library.fields.is_empty(), "no import-only field");
+    // Its fields are the standard fields' copies, none of the import's.
+    let standard = context.standards().fields.library();
+    assert!(
+        project.library.fields.iter().all(|f| {
+            project
+                .library
+                .origins
+                .iter()
+                .any(|o| o.local.id == f.id && o.origin.library == standard)
+        }),
+        "no import-only field"
+    );
     // The copper: on every layer exactly the copper of the source's lands
     // imported as they are.
     let path = dir.path().join("generated.kicad_pcb");
@@ -186,6 +197,13 @@ fn values_become_the_generated_parts_typed_fields() -> Fallible {
         chip_footprint("R1", 10.0, "4k7"),
         chip_footprint("R2", 20.0, "10k"),
         chip_footprint("C1", 30.0, "100n 16V"),
+        sot_footprint(
+            "U1",
+            [40.0, 10.0],
+            0.0,
+            false,
+            r#"(property "Value" "ORIG-REG 3.3V")"#,
+        ),
     ]
     .concat();
     let imported = import(dir.path(), "values", &board("values", &footprints))?;
@@ -218,7 +236,26 @@ fn values_become_the_generated_parts_typed_fields() -> Fallible {
     let r1 = project.instance_by_designator("R1").ok_or("R1")?;
     let r2 = project.instance_by_designator("R2").ok_or("R2")?;
     assert_eq!(r1.component, r2.component);
-    assert_eq!(imported.report.count(Case::ValueField), 3);
+    // A generated part of no family holds its value whole in the standard
+    // part value field: the schematic and the BOM show it.
+    assert_eq!(
+        fields("U1")?,
+        vec![("Value".to_owned(), "ORIG-REG 3.3V".to_owned())]
+    );
+    let u1 = project.instance_by_designator("U1").ok_or("U1")?;
+    assert_eq!(
+        instances::value_text(&project.library, u1)?.as_deref(),
+        Some("ORIG-REG 3.3V")
+    );
+    let bom = sparksmith_core::completeness::bom(project)?;
+    assert!(
+        bom.lines
+            .iter()
+            .any(|l| l.designators == ["U1"] && l.values.iter().any(|v| v.text == "ORIG-REG 3.3V")),
+        "{bom:?}"
+    );
+    assert_eq!(imported.report.count(Case::ValueField), 4);
+    assert_eq!(imported.report.count(Case::ValueWithoutField), 0);
     Ok(())
 }
 
@@ -304,10 +341,22 @@ fn a_footprint_no_generator_fits_is_a_project_part_of_its_lands() -> Fallible {
     let instance = project.instance_by_designator("X1").ok_or("X1")?;
     let resolved = instances::resolve(&project.library, instance)?;
     assert_eq!(resolved.component.meta.name, "Odd Odd part");
-    assert!(resolved.component.definition.fields.is_empty());
+    // The part selects the standard part value field, which holds its
+    // value: no import-only field.
+    let value = context
+        .standards()
+        .fields
+        .part_value_selection(&project.library)
+        .ok_or("the part value field is imported")?;
+    assert_eq!(resolved.component.definition.fields, vec![value]);
+    assert_eq!(
+        instances::value_text(&project.library, instance)?.as_deref(),
+        Some("Odd part")
+    );
+    assert_eq!(imported.report.count(Case::ValueField), 1);
+    assert_eq!(imported.report.count(Case::ValueWithoutField), 0);
     let physical = resolved.physical.ok_or("physical")?;
     assert_eq!(physical.package.definition.model, PackageModel::default());
-    assert!(project.library.fields.is_empty(), "no import-only field");
     assert!(
         project.library.models.is_empty(),
         "the vendor file is never the body"

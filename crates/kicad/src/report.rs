@@ -107,7 +107,8 @@ pub enum Case {
     /// Source symbol units a part's own symbol has no unit for (a
     /// generated part's one symbol): their wiring joins its terminals.
     UnitMerged,
-    /// Placed parts whose value set their typed fields.
+    /// Placed parts whose value set their fields (typed, or the part value
+    /// text field).
     ValueField,
     /// Placed parts whose value has words no field took.
     ValueWordUnread,
@@ -397,11 +398,7 @@ impl Case {
                 Report,
                 "source symbol units drawn by their part's one symbol (wiring kept on its terminals)",
             ),
-            Self::ValueField => (
-                "P5",
-                Exact,
-                "placed parts whose value set their typed fields",
-            ),
+            Self::ValueField => ("P5", Exact, "placed parts whose value set their fields"),
             Self::ValueWordUnread => ("P5", Report, "placed parts with value words no field took"),
             Self::ValueWithoutField => (
                 "P5",

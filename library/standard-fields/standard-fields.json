@@ -549,6 +549,29 @@
         }
       },
       "links": []
+    },
+    {
+      "lineage": "449aa3b394194bf398d61965afd3ac8f",
+      "revision": 1,
+      "kind": "field",
+      "meta": {
+        "name": "Value",
+        "description": "Built-in field: a part's value as text, as a design states it, for a part whose family selects no typed value field (an IC, a connector, a module).",
+        "provenance": "Built into Sparksmith."
+      },
+      "definition": {
+        "kind": "field",
+        "body": {
+          "next_local": 1,
+          "value_type": {
+            "type": "text",
+            "max_bytes": 256
+          },
+          "default": null,
+          "required_at": null
+        }
+      },
+      "links": []
     }
   ],
   "assets": []
