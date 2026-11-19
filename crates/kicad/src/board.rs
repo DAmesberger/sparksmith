@@ -147,6 +147,8 @@ pub struct Footprint {
     pub reference: String,
     /// Its Value property ("330", "1u"), as written.
     pub value: String,
+    /// The part number and manufacturer its properties name.
+    pub part: crate::models::PartNumber,
     pub margins: Margins,
     pub pads: Vec<KPad>,
     pub net_tie: bool,
@@ -593,6 +595,11 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
             "property" if item.arg(0) == Some("Value") => {
                 fp.value = item.arg(1).unwrap_or_default().to_owned();
             }
+            "property" => {
+                if let (Some(name), Some(value)) = (item.arg(0), item.arg(1)) {
+                    fp.part.read(name, value);
+                }
+            }
             "fp_text" if item.arg(0) == Some("value") => {
                 fp.value = item.arg(1).unwrap_or_default().to_owned();
                 fp.drawings += 1;
@@ -655,7 +662,6 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
             | "at"
             | "descr"
             | "tags"
-            | "property"
             | "path"
             | "sheetname"
             | "sheetfile"

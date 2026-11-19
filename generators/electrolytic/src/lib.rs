@@ -37,7 +37,7 @@ const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 2 prints the values
 /// on the can top in black ([`marking`]).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// The seat plate's height (est.: 0.9–1.2 mm on 4–10 mm parts), at most a
 /// quarter of the overall height.
@@ -319,6 +319,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
             mask: Opening::Default,
             paste: Opening::Default,
             number: None,
+            kind: None,
         })
         .collect()
 }

@@ -53,7 +53,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Most rows or columns of one grid (the host's grid form allows as many).
 const MAX_SIDE: i64 = 64;
@@ -647,6 +647,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
                 mask: Opening::Default,
                 paste: Opening::Default,
                 number: None,
+                kind: None,
             }
         })
         .collect()

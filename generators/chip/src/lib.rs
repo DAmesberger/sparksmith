@@ -41,7 +41,7 @@ const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 /// 3D model; 2 marks an LED's pin 1 (its cathode) with a silkscreen dot;
 /// 4 marks a resistor's value by the resistor code rule
 /// ([`resistor_marking`]) and an LED's cathode on its top.
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 /// The longest chip left unmarked by the size rule: 0402 (1.0 mm) and
 /// smaller chips carry no value code, as the chip-resistor data sheet the
@@ -438,6 +438,7 @@ fn pad(key: &str, at: [i64; 2], size: [i64; 2]) -> Pad {
         mask: Opening::Default,
         paste: Opening::Default,
         number: None,
+        kind: None,
     }
 }
 

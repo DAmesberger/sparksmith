@@ -589,6 +589,10 @@ pub(crate) fn generate(
         None => (None, Vec::new()),
     };
     generated::set_marking(&mut definitions, host_marking.as_ref());
+    generated::set_leads(
+        &mut definitions,
+        &generated::generation_leads(&made.generation)?,
+    );
     let base_name = request
         .name
         .clone()

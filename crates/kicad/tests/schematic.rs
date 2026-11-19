@@ -383,7 +383,9 @@ fn board_and_schematic_disagreements_are_findings() -> Fallible<()> {
 }
 
 /// Run 7, finding 2: where the schematic and the board both give a value,
-/// the part takes the schematic's.
+/// the part takes the schematic's. A project part of its lands (no
+/// generator here) is named by its footprint and value, as an authored
+/// part is, and selects no import-only field.
 #[test]
 fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
     let mut board = row_board(&[("R1", &[("1", Some((1, "A"))), ("2", Some((2, "B")))])]);
@@ -393,10 +395,14 @@ fn the_schematics_value_is_the_parts_value() -> Fallible<()> {
     let imported = import_sheet(&board, sheet(&[("R1", "50 50 0")], ""))?;
     let project = imported.engine.project();
     let r1 = project.instance_by_designator("R1").ok_or("R1")?;
-    assert_eq!(
-        sparksmith_core::instances::value_text(&project.library, r1)?.as_deref(),
-        Some("1k")
-    );
+    let name = &project
+        .library
+        .component(r1.component)
+        .ok_or("component")?
+        .meta
+        .name;
+    assert!(name.ends_with(" 1k"), "{name}");
+    assert!(project.library.fields.is_empty(), "no import-only field");
     Ok(())
 }
 

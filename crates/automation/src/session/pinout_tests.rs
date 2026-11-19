@@ -756,3 +756,140 @@ fn exm48_imports_through_review_before_it_publishes() -> Fallible<()> {
     assert_eq!(placed.designator, "U1");
     Ok(())
 }
+
+/// An original four-row regulator pinout whose output spans pads 3, 4 and
+/// 5 and whose thermal pad spans pads 6 and 7.
+fn spanning_document(vout: Value, thermal: Value) -> Value {
+    json!({
+        "format": 1,
+        "device": {"name": "Original LDO", "reference": {"title": "Original LDO sheet"}},
+        "variants": [{"name": "DFN-7", "terminal_count": 7}],
+        "pins": [
+            {"row": "vin", "number": {"DFN-7": "1"}, "name": "VIN", "class": "electrical",
+             "functions": [{"label": "vin", "direction": "power_input", "signal": "power"}]},
+            {"row": "gnd", "number": {"DFN-7": "2"}, "name": "GND", "class": "electrical",
+             "functions": [{"label": "gnd", "direction": "power_input", "signal": "power"}]},
+            {"row": "vout", "number": {"DFN-7": vout}, "name": "VOUT", "class": "electrical",
+             "functions": [{"label": "vout", "direction": "power_output", "signal": "power"}]},
+            {"row": "ep", "number": {"DFN-7": thermal}, "name": "EP", "class": "electrical",
+             "functions": [{"label": "ep", "direction": "power_input", "signal": "power"}]}
+        ]
+    })
+}
+
+/// The package terminals of the binding of `imported`, by designation, with
+/// the component terminal each carries.
+fn binding_numbers(s: &mut Scenario, imported: &Imported) -> Fallible<BTreeMap<String, u64>> {
+    let binding = s.draft(imported.binding)?["draft"]["definition"]["body"].clone();
+    let package = binding["package"]["id"].as_u64().ok_or("package")?;
+    let terminals = s.draft(package)?["draft"]["definition"]["body"]["terminals"].clone();
+    let mut out = BTreeMap::new();
+    for mapping in binding["mappings"].as_array().ok_or("mappings")? {
+        let designation = terminals
+            .as_array()
+            .into_iter()
+            .flatten()
+            .find(|t| t["id"] == mapping["package_terminal"])
+            .and_then(|t| t["designation"].as_str())
+            .ok_or("designation")?;
+        out.insert(
+            designation.to_owned(),
+            mapping["terminal"].as_u64().ok_or("terminal")?,
+        );
+    }
+    Ok(out)
+}
+
+/// Friction #3: a terminal on several differently numbered pads (VOUT on
+/// 3, 4, 5; the thermal pad on 6 and 7) stays one terminal through a new
+/// import and a re-import onto the draft, and is never split by rows that
+/// number its pads one by one.
+#[test]
+fn a_terminal_spanning_several_numbered_pads_is_kept_whole() -> Fallible<()> {
+    let mut s = Scenario::demo()?;
+    let document = spanning_document(json!(["3", "4", "5"]), json!(["6", "7"]));
+    let target = json!({"target": "new", "name": "Original LDO"});
+    let plan = s.query(
+        "preview",
+        "library.pinout_preview",
+        preview_params(target.clone(), &document),
+    )?;
+    assert_eq!(
+        rows_of(&plan["changes"], "terminal", "added").len(),
+        4,
+        "{plan}"
+    );
+    assert_eq!(
+        count(&plan["changes"], "package_terminal", "added"),
+        7,
+        "{plan}"
+    );
+    assert!(
+        !plan["findings"]
+            .to_string()
+            .contains("package.terminal_count"),
+        "seven pads, seven numbers: {plan}"
+    );
+    let applied = s.apply(
+        "apply",
+        apply_op(target, &document, &plan["base"], json!({"accept": "all"})),
+    )?;
+    let component = applied["outcome"]["report"]["drafts"][0]
+        .as_u64()
+        .ok_or("component")?;
+    let imported = Imported::read(&s.draft(component)?)?;
+    assert_eq!(imported.terminals.len(), 4);
+    let vout = imported.terminal("VOUT")?;
+    let ep = imported.terminal("EP")?;
+    let numbers = binding_numbers(&mut s, &imported)?;
+    assert_eq!(numbers.len(), 7, "{numbers:?}");
+    for pad in ["3", "4", "5"] {
+        assert_eq!(numbers.get(pad), Some(&vout), "pad {pad}: {numbers:?}");
+    }
+    for pad in ["6", "7"] {
+        assert_eq!(numbers.get(pad), Some(&ep), "pad {pad}: {numbers:?}");
+    }
+
+    // Re-imported onto the draft as written: nothing changes.
+    let draft = json!({"target": "draft", "id": component});
+    let plan = s.query(
+        "re-import",
+        "library.pinout_preview",
+        preview_params(draft.clone(), &document),
+    )?;
+    assert_eq!(plan["change_counts"], json!({}), "{plan}");
+
+    // A document numbering VOUT's pads in rows of their own does not split
+    // the terminal: those rows add nothing, a finding names the terminal,
+    // and the draft keeps one VOUT.
+    let mut split = spanning_document(json!("3"), json!(["6", "7"]));
+    let pins = split["pins"].as_array_mut().ok_or("pins")?;
+    for (row, pad) in [("vout4", "4"), ("vout5", "5")] {
+        pins.push(json!({"row": row, "number": {"DFN-7": pad}, "name": "VOUT",
+            "class": "electrical",
+            "functions": [{"label": "vout", "direction": "power_output", "signal": "power"}]}));
+    }
+    let plan = s.query(
+        "split re-import",
+        "library.pinout_preview",
+        preview_params(draft.clone(), &split),
+    )?;
+    assert_eq!(
+        rows_of(&plan["changes"], "terminal", "added"),
+        Vec::<String>::new(),
+        "{plan}"
+    );
+    assert_eq!(count(&plan["changes"], "terminal", "removed"), 0, "{plan}");
+    let text = plan["findings"].to_string();
+    assert!(
+        text.contains("pinout.split_terminal") && text.contains("VOUT"),
+        "{plan}"
+    );
+    s.apply(
+        "apply split",
+        apply_op(draft, &split, &plan["base"], json!({"accept": "all"})),
+    )?;
+    let after = Imported::read(&s.draft(component)?)?;
+    assert_eq!(after.terminals, imported.terminals, "one VOUT, one EP");
+    Ok(())
+}
