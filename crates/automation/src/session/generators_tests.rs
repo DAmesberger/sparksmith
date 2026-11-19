@@ -602,3 +602,134 @@ fn a_generic_resistors_value_is_set_shown_and_grouped_in_the_bom() -> TestResult
     assert_eq!(lines(&reopened)?, two);
     Ok(())
 }
+
+/// F2: a generic family's part is named by the family's label and found
+/// as the family reads: by a value each placed part sets ("4.7k 0603"), by
+/// `gen:` (generator, family or preset), in the project and, published to
+/// a library folder with its recipe, in the folder too.
+#[test]
+fn a_generated_generic_part_is_found_by_value_and_generator() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = library(temp.path())?;
+    let mut session = session(&root)?;
+    let made = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "chip", "scope": "component", "preset": "resistor-0603"}),
+    );
+    assert_eq!(made["ok"], true, "{made}");
+    let component = made["result"]["outcome"]["report"]["root"].clone();
+    let names = |session: &mut Session, text: &str| -> TestResult<Vec<String>> {
+        let found = session.dispatch(json!({"command": "project.query", "params": {
+            "query": "library.search", "params": {"query": text, "limit": 50}}}));
+        assert_eq!(found["ok"], true, "{text}: {found}");
+        Ok(found["result"]["result"]["results"]
+            .as_array()
+            .ok_or("results")?
+            .iter()
+            .filter_map(|r| r["entry"]["name"].as_str().map(str::to_owned))
+            .collect())
+    };
+    for text in ["4.7k 0603", "10k", "gen:resistor", "gen:chip", "src:project gen:chip resistor"] {
+        assert!(
+            names(&mut session, text)?.contains(&"Chip resistor 0603".to_owned()),
+            "{text} finds the part by its family label"
+        );
+    }
+    assert!(names(&mut session, "gen:header")?.is_empty());
+
+    // Published to a folder: the record carries the recipe, and the
+    // folder's entry is found the same way.
+    let folder = temp.path().join("generic-library");
+    let created = session.dispatch(json!({"command": "library.source.create", "params": {
+        "path": folder.display().to_string(), "name": "Generic"}}));
+    assert_eq!(created["ok"], true, "{created}");
+    let library = created["result"]["created"]["library"].clone();
+    let published = call(
+        &mut session,
+        "library.publish_to_folder",
+        json!({"library": library, "root": component}),
+    );
+    assert_eq!(published["ok"], true, "{published}");
+    let mut recipes = 0;
+    for entry in walk(&folder.join("lineages"))? {
+        let record: Value = serde_json::from_str(&std::fs::read_to_string(&entry)?)?;
+        if record["kind"] == "component" {
+            assert_eq!(record["generated"]["generator"], "chip", "{record}");
+            assert_eq!(record["generated"]["family"], "resistor", "{record}");
+            assert!(record["generated"]["preset"].is_string(), "{record}");
+            recipes += 1;
+        }
+    }
+    assert_eq!(recipes, 1);
+    for text in ["src:library 4.7k 0603", "src:library gen:resistor"] {
+        assert!(
+            names(&mut session, text)?.contains(&"Chip resistor 0603".to_owned()),
+            "{text} finds the folder's part"
+        );
+    }
+    Ok(())
+}
+
+/// Every file below `dir`.
+fn walk(dir: &Path) -> TestResult<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            out.extend(walk(&path)?);
+        } else {
+            out.push(path);
+        }
+    }
+    Ok(out)
+}
+
+/// A second part from the same parameters under another name is its own
+/// component on the shared package, its symbol and binding named after it;
+/// the same name again finds the existing part and changes nothing.
+#[test]
+fn a_second_name_on_the_same_package_makes_its_own_component() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = library(temp.path())?;
+    let mut session = session(&root)?;
+    let params = |name: &str| {
+        json!({"generator": "chip", "scope": "component", "preset": "resistor-0603", "name": name})
+    };
+    let first = call(&mut session, "library.generate_part", params("ExampleCo EX-R1"));
+    assert_eq!(first["ok"], true, "{first}");
+    let first_root = first["result"]["outcome"]["report"]["root"].clone();
+    let revision = session.engine().revision();
+    let again = call(&mut session, "library.generate_part", params("ExampleCo EX-R1"));
+    assert_eq!(again["result"]["outcome"]["report"]["created"], false, "{again}");
+    assert_eq!(session.engine().revision(), revision, "nothing changed");
+    let second = call(&mut session, "library.generate_part", params("ExampleCo EX-R2"));
+    assert_eq!(second["ok"], true, "{second}");
+    let report = &second["result"]["outcome"]["report"];
+    assert_eq!(report["created"], true, "{report}");
+    assert_ne!(report["root"]["id"], first_root["id"], "{report}");
+    assert_eq!(session.engine().revision(), revision + 1, "one undo step");
+    let library = &session.engine().project().library;
+    let names: Vec<String> = library
+        .components
+        .iter()
+        .map(|c| c.meta.name.clone())
+        .chain(library.symbols.iter().map(|s| s.meta.name.clone()))
+        .chain(library.bindings.iter().map(|b| b.meta.name.clone()))
+        .collect();
+    for name in ["ExampleCo EX-R2", "ExampleCo EX-R2 symbol", "ExampleCo EX-R2 binding"] {
+        assert!(names.iter().any(|n| n == name), "{name} in {names:?}");
+    }
+    let packages = |c: &str| {
+        library
+            .components
+            .iter()
+            .find(|x| x.meta.name == c)
+            .and_then(|x| x.definition.implementations.first().copied())
+            .and_then(|b| library.binding(b))
+            .map(|b| b.definition.package)
+    };
+    assert_eq!(packages("ExampleCo EX-R1"), packages("ExampleCo EX-R2"));
+    assert!(packages("ExampleCo EX-R1").is_some());
+    Ok(())
+}

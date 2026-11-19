@@ -47,6 +47,7 @@ fn library(library: &mut Library) {
     by_key(&mut library.origins, |o| o.local);
     by_key(&mut library.assets, |a| a.hash);
     by_key(&mut library.generated, |g| g.root);
+    by_key(&mut library.reviews, |r| r.component);
 }
 
 /// Published revisions by lineage, then revision.

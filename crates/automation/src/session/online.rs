@@ -92,6 +92,52 @@ pub fn asks_online(text: &str) -> bool {
     })
 }
 
+/// The query text of a `library.search` a verb call sends (`query`
+/// `{name: "library.search", params: {query}}`) when it asks the registry
+/// (`src:online`): what a host fetches off the thread that runs the
+/// session, then answers with [`Prefetched`].
+pub fn online_search(verb: &str, input: &Value) -> Option<String> {
+    if verb != "query" || input["name"] != "library.search" {
+        return None;
+    }
+    let text = input["params"]["query"].as_str()?;
+    asks_online(text).then(|| text.to_owned())
+}
+
+/// A registry answer fetched ahead, off the thread that runs the session:
+/// the search of `text` answers with `report` at once, and everything else
+/// goes to `source`. A host that must never wait on the network (the
+/// window) installs it for the one call it fetched for.
+pub struct Prefetched {
+    pub source: Arc<dyn OnlineSource>,
+    pub text: String,
+    pub report: Result<OnlineReport, String>,
+}
+
+impl OnlineSource for Prefetched {
+    fn name(&self) -> String {
+        self.source.name()
+    }
+
+    fn search(&self, text: &str, limit: usize) -> Result<OnlineReport, String> {
+        if text != self.text {
+            return Err("the registry was not asked for this search".into());
+        }
+        let mut report = self.report.clone()?;
+        report.results.truncate(limit);
+        Ok(report)
+    }
+
+    fn bundle(
+        &self,
+        library: LibraryId,
+        lineage: SourceLineageId,
+        revision: Option<Revision>,
+    ) -> Result<Option<Bundle>, String> {
+        self.source.bundle(library, lineage, revision)
+    }
+}
+
 impl Session {
     /// Install (or remove) the online registry `library.search` reaches
     /// with `src:online`.
@@ -324,6 +370,49 @@ mod tests {
                 .any(|o| o.origin.library == REGISTRY),
             "the copy records the registry as its origin"
         );
+        Ok(())
+    }
+
+    /// F1: a host that fetched the registry's answer off its own thread
+    /// runs the search with it: the session asks the registry nothing, the
+    /// reply carries the fetched rows, and only the fetched text answers.
+    #[test]
+    fn a_prefetched_answer_serves_its_search_without_asking_again() -> TestResult {
+        let input = json!({"name": "library.search", "params": {"query": "usb src:online"}});
+        assert_eq!(
+            online_search("query", &input).as_deref(),
+            Some("usb src:online")
+        );
+        assert_eq!(online_search("apply", &input), None);
+        let local = json!({"name": "library.search", "params": {"query": "usb"}});
+        assert_eq!(online_search("query", &local), None);
+
+        let fake = Arc::new(fake()?);
+        let report = fake.search("usb src:online", MAX_ONLINE_ROWS);
+        assert_eq!(fake.searches.load(Ordering::SeqCst), 1);
+        let mut session = Session::new(Engine::demo()?);
+        session.set_online(Some(Arc::new(Prefetched {
+            source: fake.clone(),
+            text: "usb src:online".into(),
+            report,
+        })));
+        let found = call(
+            &mut session,
+            "project.query",
+            json!({"query": "library.search", "params": {"query": "usb src:online"}}),
+        );
+        assert_eq!(found["result"]["online"]["total"], 1, "{found}");
+        assert_eq!(
+            fake.searches.load(Ordering::SeqCst),
+            1,
+            "the session did not ask the registry again"
+        );
+        let other = call(
+            &mut session,
+            "project.query",
+            json!({"query": "library.search", "params": {"query": "led src:online"}}),
+        );
+        assert!(other["result"]["online"]["error"].is_string(), "{other}");
         Ok(())
     }
 

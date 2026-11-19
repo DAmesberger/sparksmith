@@ -564,8 +564,9 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
 }
 
 /// `describe` of a shipped generator's name (`gull-wing`): its
-/// `library.generators` entry in full, with the call that makes a part
-/// with it. `None` when no shipped generator has that name.
+/// `library.generators {generator}` entry (parameters and rules in full,
+/// presets by key), with the call that makes a part with it. `None` when
+/// no shipped generator has that name.
 fn generator(desk: &mut dyn Calls, name: &str) -> Option<Value> {
     let mut reply = desk.catalog(envelope(
         "library.generators",

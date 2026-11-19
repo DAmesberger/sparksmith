@@ -403,7 +403,11 @@ fn the_desk_runs_every_request_through_the_gate() -> Fallible<()> {
         let refused = desk.run(move |d| d.call(None, save)).await?;
         assert_eq!(refused["error"]["code"], "gate.needs_person", "{refused}");
 
-        let never = call("library.source.remove", json!({"path": "/x"}), None);
+        let never = call(
+            "library.favourite",
+            json!({"key": {"source": "project", "lineage": 1}, "favourite": true}),
+            None,
+        );
         let refused = desk.run(move |d| d.call(None, never)).await?;
         assert_eq!(refused["error"]["code"], "gate.never", "{refused}");
         Fallible::Ok(())

@@ -501,6 +501,26 @@ pub fn record_of(library: &Library, root: DefinitionRef) -> Option<&GeneratedPar
     library.generated.iter().find(|g| g.root == root)
 }
 
+/// The recipe a library record of `root` carries when a generator made
+/// it: generator, version, preset, complete parameters and the generic
+/// family those read as (from the current standards; none outside an
+/// engine call).
+pub fn recipe(library: &Library, root: DefinitionRef) -> Option<super::bundle::GeneratedRecipe> {
+    let part = record_of(library, root)?;
+    let family = crate::library::standards::get().ok().and_then(|s| {
+        s.generic
+            .family_for(&part.from.generator, &part.from.params)
+            .map(|f| f.family.name().to_owned())
+    });
+    Some(super::bundle::GeneratedRecipe {
+        generator: part.from.generator.clone(),
+        version: part.from.version,
+        preset: part.from.preset.clone(),
+        params: part.from.params.clone(),
+        family,
+    })
+}
+
 /// The newest record with `key` (highest version, then revision), if the
 /// project holds that part.
 pub fn find<'a>(library: &'a Library, key: &PartKey) -> Option<&'a GeneratedPart> {

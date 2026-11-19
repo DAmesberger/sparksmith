@@ -41,7 +41,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most contacts in the row.
 const MAX_PINS: i64 = 20;
@@ -1072,7 +1072,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         model: Some(model(&d)),
         fields: Vec::new(),
         notes: vec![
-            "Lands are the maker's recommended layout as given; the cavity, walls, contact section and tab sheet are estimated where the drawing gives none."
+            "Lands are the land parameters as given: the maker's recommended layout only where they were taken from it. The cavity, walls, contact section and tab sheet are estimated where the drawing gives none."
                 .into(),
         ],
     })

@@ -19,6 +19,8 @@ pub(crate) fn field(lineage: u128, revision: u32, name: &str) -> RevisionRecord 
         definition: Definition::Field(FieldDefinition::default()),
         links: Vec::new(),
         assets: Vec::new(),
+        generated: None,
+        review: None,
     }
 }
 
@@ -525,6 +527,8 @@ fn read_bundle_follows_links_dependencies_first() -> Result<()> {
         }),
         links: Vec::new(),
         assets: Vec::new(),
+        generated: None,
+        review: None,
     };
     let older = RevisionRecord {
         revision: Revision(1),

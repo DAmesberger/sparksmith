@@ -97,8 +97,8 @@ fn a_batch_takes_its_strictest_member() -> Fallible {
     let edit = request("project.undo", json!({"expected_revision": 0}))?;
     let ask = request("project.new", json!({"expected_revision": 0}))?;
     let never = request(
-        "library.source.remove",
-        json!({"path": "/somewhere/library"}),
+        "library.favourite",
+        json!({"key": {"source": "project", "lineage": 1}, "favourite": true}),
     )?;
     assert!(matches!(
         decide_batch(&policy, &[read.clone(), edit.clone()]),
@@ -502,17 +502,15 @@ fn a_request_from_a_run_cannot_publish_or_write_without_allow() -> Fallible {
 #[test]
 fn edits_run_inside_the_turn_and_settings_are_refused_with_no_way_around() -> Fallible {
     let root = tempfile::tempdir()?;
-    let (mut session, _, _, draft, folder) = host_session(root.path())?;
+    let (mut session, _, _, draft, _folder) = host_session(root.path())?;
     let policy = Grant::new(Mode::AllowAll, [root.path().to_path_buf()]);
     let revision = session.engine().revision();
-    let sources = session.sources().list().len();
     let reply = session.respond(
         Caller::Model(&policy),
-        json!({"command": "library.source.remove",
-            "params": {"path": folder.display().to_string()}}),
+        json!({"command": "library.favourite",
+            "params": {"key": {"source": "project", "lineage": 1}, "favourite": true}}),
     );
     assert_eq!(reply["error"]["code"], "gate.never", "{reply}");
-    assert_eq!(session.sources().list().len(), sources);
 
     let reply = session.respond(
         Caller::Model(&Grant::default()),
@@ -670,7 +668,10 @@ fn mcp_runs_under_each_mode_and_allows_edits_by_default() -> Fallible {
         assert!(failed);
         assert_eq!(reply["code"], "gate.path_outside", "{mode:?}: {reply}");
 
-        let (failed, reply) = tools.act("library.source.remove", json!({"path": file("x")}));
+        let (failed, reply) = tools.act(
+            "library.favourite",
+            json!({"key": {"source": "project", "lineage": 1}, "favourite": true}),
+        );
         assert!(failed);
         assert_eq!(reply["code"], "catalog.unknown", "{mode:?}: {reply}");
     }
@@ -686,20 +687,17 @@ fn mcp_runs_under_each_mode_and_allows_edits_by_default() -> Fallible {
     Ok(())
 }
 
-/// I-A1: `library.source.add` writes the person's own settings, so a model
-/// never runs it: not over a headless MCP server in its default mode or in
-/// allow-all (where the Never class is not in the catalog at all), not
-/// over gated JSON lines, not even after a person's Allow. The settings
-/// stay unwritten and the source list empty. The request itself is valid:
-/// the operator's own script runs it.
+/// Library folders are the person's own settings and files, so adding,
+/// creating, removing or turning one off is Ask: a model reaches them, but
+/// a headless server in its default mode refuses with `gate.needs_person`,
+/// a path outside the run's folders is refused in every mode, and only
+/// allow-all (the operator's explicit choice) or a person's Allow runs one.
+/// Refused, the settings stay unwritten and the source list empty.
 #[test]
-fn a_model_never_adds_a_library_source() -> Fallible {
+fn a_model_adds_a_library_source_only_when_a_person_allows_it() -> Fallible {
     use crate::session::sources::Sources;
     let root = tempfile::tempdir()?;
     let folder = root.path().join("library");
-    let created = Session::default().dispatch(json!({"command": "library.source.create",
-        "params": {"path": folder.display().to_string(), "name": "Shared"}}));
-    assert_eq!(created["ok"], true, "{created}");
     let dirs = sparksmith_io::settings::UserDirs {
         config: root.path().join("config"),
         cache: root.path().join("cache"),
@@ -711,32 +709,52 @@ fn a_model_never_adds_a_library_source() -> Fallible {
         ))
     };
     let settings_written = || dirs.config.exists();
-    let add = json!({"path": folder.display().to_string()});
+    let create = json!({"path": folder.display().to_string(), "name": "Shared"});
     let allow_all = Grant::new(Mode::AllowAll, [root.path().to_path_buf()]);
 
-    for policy in [Grant::default(), allow_all.clone()] {
-        let mode = policy.mode;
-        let tools = Tools::new(user_session()?, policy)?;
-        let (failed, reply) = tools.act("library.source.add", add.clone());
-        assert!(failed, "{mode:?}: {reply}");
-        assert_eq!(reply["code"], "catalog.unknown", "{mode:?}: {reply}");
-        let sources = tools.with_session(|s| s.sources().list().len());
-        assert_eq!(sources, Some(0));
-        assert!(!settings_written(), "{mode:?}");
-    }
+    // Found and described as an action that asks.
+    let edits = Grant::new(Mode::default(), [root.path().to_path_buf()]);
+    let tools = Tools::new(user_session()?, edits.clone())?;
+    let described = tools.ok("describe", json!({"name": "library.source.create"}))?;
+    assert_eq!(described["class"], "ask", "{described}");
+    assert_eq!(described["call"]["tool"], "act", "{described}");
+    // The default mode cannot ask, so it refuses and writes nothing.
+    let (failed, reply) = tools.act("library.source.create", create.clone());
+    assert!(failed, "{reply}");
+    assert_eq!(reply["code"], "gate.needs_person", "{reply}");
+    assert!(!folder.exists());
+    assert!(!settings_written());
+    // Outside the run's folders, refused even in allow-all.
+    let outside = tempfile::tempdir()?;
+    let tools = Tools::new(user_session()?, allow_all)?;
+    let (failed, reply) = tools.act(
+        "library.source.create",
+        json!({"path": outside.path().join("lib").display().to_string(), "name": "Elsewhere"}),
+    );
+    assert!(failed, "{reply}");
+    assert_eq!(reply["code"], "gate.path_outside", "{reply}");
+    assert!(!settings_written());
+    // Allow-all creates the folder and lists it; remove takes it off again.
+    let (failed, reply) = tools.act("library.source.create", create);
+    assert!(!failed, "{reply}");
+    assert!(folder.join("sparksmith-library.json").exists());
+    assert_eq!(tools.with_session(|s| s.sources().list().len()), Some(1));
+    assert!(settings_written());
+    let path = json!({"path": folder.display().to_string()});
+    let (failed, reply) = tools.act("library.source.remove", path.clone());
+    assert!(!failed, "{reply}");
+    assert_eq!(tools.with_session(|s| s.sources().list().len()), Some(0));
 
-    let request = json!({"command": "library.source.add", "params": add});
+    // Over gated JSON lines: refused for a model that cannot be asked, run
+    // after the person's Allow.
+    let request = json!({"command": "library.source.add", "params": path});
     let mut session = user_session()?;
-    for caller in [Caller::Model(&allow_all), Caller::Allowed(&allow_all)] {
-        let reply = session.respond(caller, request.clone());
-        assert_eq!(reply["error"]["code"], "gate.never", "{caller:?}: {reply}");
-        assert!(session.sources().list().is_empty());
-        assert!(!settings_written(), "{caller:?}");
-    }
-    let reply = session.respond(Caller::Operator, request);
+    let reply = session.respond(Caller::Model(&edits), request.clone());
+    assert_eq!(reply["error"]["code"], "gate.needs_person", "{reply}");
+    assert!(session.sources().list().is_empty());
+    let reply = session.respond(Caller::Allowed(&edits), request);
     assert_eq!(reply["ok"], true, "{reply}");
     assert_eq!(session.sources().list().len(), 1);
-    assert!(settings_written());
     Ok(())
 }
 
@@ -752,7 +770,7 @@ fn the_instructions_name_no_never_class_command() {
         .filter(|entry| entry.class == Class::Never)
         .map(|entry| entry.name)
         .collect::<Vec<_>>();
-    assert!(never.contains(&"library.source.add"), "{never:?}");
+    assert!(never.contains(&"library.favourite"), "{never:?}");
     for name in never {
         assert!(
             !instructions.contains(name),

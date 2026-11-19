@@ -302,6 +302,10 @@ pub enum Term {
     /// `mpn:` — a case-folded text match on the manufacturer part number
     /// only.
     Mpn { text: String },
+    /// `gen:header`, `gen:resistor`, `gen:chip`: parts a
+    /// generator made, by the generator's id, the generic family or the
+    /// preset, each matched whole and case-folded.
+    Generator { text: String },
     /// `implements:12/3` or `implements:12`: project Parts pinning that
     /// exact component revision, or any revision of that lineage. Identity,
     /// never a name; a folder entry's ids are catalog-local and never match.
@@ -381,6 +385,7 @@ impl Term {
             Self::Components => "components".into(),
             Self::Parts => "Parts".into(),
             Self::Mpn { text } => format!("MPN: {text}"),
+            Self::Generator { text } => format!("made by {text}"),
             Self::Implements {
                 component,
                 revision,
@@ -442,9 +447,12 @@ impl CatalogQuery {
 }
 
 /// Case folding for matching: lower case, with the micro sign and the Greek
-/// small letter mu treated as one letter.
+/// small letter mu treated as one letter, and the multiplication sign as
+/// the letter x ("2x5" finds "Pin header 2×5").
 pub fn fold(text: &str) -> String {
-    text.to_lowercase().replace('\u{b5}', "\u{3bc}")
+    text.to_lowercase()
+        .replace('\u{b5}', "\u{3bc}")
+        .replace('\u{d7}', "x")
 }
 
 /// Reserved filter keys, checked before field names and units: a field
@@ -458,6 +466,7 @@ pub const RESERVED: &[&str] = &[
     "tag",
     "shelf",
     "mpn",
+    "gen",
     "life",
     "pins",
     "pitch",
@@ -675,6 +684,10 @@ fn predicate(
         "mpn" => {
             filter_op()?;
             return Ok(Term::Mpn { text: fold(value) });
+        }
+        "gen" => {
+            filter_op()?;
+            return Ok(Term::Generator { text: fold(value) });
         }
         "implements" => {
             filter_op()?;

@@ -171,8 +171,15 @@ pub fn check_document(document: &PinoutDocument, accept: &PinoutAccept) -> Resul
             }
         }
         if pin.class != PinoutClass::Electrical && !pin.functions.is_empty() {
-            return Err(invalid(format!(
-                "row ‘{row}’ is device-NC or reserved and cannot list functions"
+            let class = match pin.class {
+                PinoutClass::DeviceNc => "device_nc",
+                _ => "reserved",
+            };
+            return Err(Error::Invalid(format!(
+                "pinout.class_functions: row ‘{row}’ is class {class}, which lists no functions: \
+                 give it \"functions\": [] and say how to treat the pin in its note \
+                 ({{\"row\": \"{row}\", \"class\": \"{class}\", \"functions\": [], \"note\": \"Reserved: connect to ground or leave open.\"}}). \
+                 Only an electrical row lists functions; make it \"class\": \"electrical\" when the datasheet gives the pin a use"
             )));
         }
         if pin.functions.len() > MAX_FUNCTIONS {
@@ -657,7 +664,15 @@ fn build_component(
             terminals.extend(old.cloned());
             continue;
         }
-        let terminal = builder.terminal(pin, old, &resources)?;
+        let mut terminal = builder.terminal(pin, old, &resources)?;
+        // A name typed with an ASCII hyphen is the draft's name written
+        // with a minus sign ("-" for a generator's "−"): the draft's stays.
+        if let Some(old) = old
+            && old.name != terminal.name
+            && same_typed(&old.name, &terminal.name)
+        {
+            terminal.name.clone_from(&old.name);
+        }
         let mut written = false;
         match old {
             None => {
@@ -1117,4 +1132,22 @@ fn refuse_rows(
         ));
     }
     Ok(())
+}
+
+/// Whether two pin names are the same but for how a sign was typed: the
+/// minus sign (U+2212) or dash (U+2013) against an ASCII hyphen.
+fn same_typed(a: &str, b: &str) -> bool {
+    let plain = |s: &str| s.trim().replace(['\u{2212}', '\u{2013}'], "-");
+    plain(a) == plain(b)
+}
+
+#[cfg(test)]
+mod typed_tests {
+    /// A name typed with an ASCII hyphen is the draft's minus sign.
+    #[test]
+    fn a_hyphen_matches_a_minus_sign() {
+        assert!(super::same_typed("\u{2212}", "-"));
+        assert!(super::same_typed(" V\u{2212} ", "V-"));
+        assert!(!super::same_typed("+", "-"));
+    }
 }

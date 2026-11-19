@@ -193,6 +193,16 @@ pub fn source_catalog(
         .map(|c| {
             let mut entry = entry_of(held, c.id, Some(c.revision), &c.meta, &c.definition);
             entry.badges.mpn = implemented.contains(&c.id);
+            // The recipe its newest record carries (a generated part's).
+            let recipe = source_of(c.id).and_then(|lineage| {
+                records
+                    .iter()
+                    .filter(|r| r.lineage == lineage && r.kind == DefinitionKind::Component)
+                    .max_by_key(|r| r.revision)
+                    .and_then(|r| r.generated.as_ref())
+            });
+            entry.takes = unset_fields(&c.definition, &entry.fields);
+            set_generated(&mut entry, recipe);
             entry
         })
         .collect();
@@ -489,6 +499,51 @@ pub struct CatalogEntry {
     /// test.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shapes: Vec<PackageShape>,
+    /// The generator that made the part, its generic family and preset:
+    /// what `gen:` tests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated: Option<EntryGenerator>,
+    /// The fields of a generic family's part that each placed part sets
+    /// (a chip resistor's resistance): a value of one of them matches, as
+    /// the part takes any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub takes: Vec<DefinitionId>,
+}
+
+/// How a generator made an entry's part.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct EntryGenerator {
+    /// The generator's id (`chip`, `header`).
+    pub generator: String,
+    /// The generic family its parameters read as (`resistor`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<String>,
+    /// The preset its parameters started from.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
+}
+
+impl EntryGenerator {
+    fn of(recipe: &crate::library::bundle::GeneratedRecipe) -> Self {
+        Self {
+            generator: recipe.generator.clone(),
+            family: recipe.family.clone(),
+            preset: recipe.preset.clone(),
+        }
+    }
+}
+
+/// Set an entry's generator from `recipe`, and keep the fields it takes
+/// only for a generic family's part.
+fn set_generated(
+    entry: &mut CatalogEntry,
+    recipe: Option<&crate::library::bundle::GeneratedRecipe>,
+) {
+    entry.generated = recipe.map(EntryGenerator::of);
+    if entry.generated.as_ref().is_none_or(|g| g.family.is_none()) {
+        entry.takes.clear();
+    }
 }
 
 impl CatalogEntry {
@@ -556,11 +611,12 @@ fn entry_of(
     meta: &DefinitionMeta,
     component: &ComponentDefinition,
 ) -> CatalogEntry {
-    let fields = component
+    let fields: Vec<EntryField> = component
         .fields
         .iter()
         .filter_map(|selection| entry_field(library, selection))
         .collect();
+    let takes = unset_fields(component, &fields);
     let mut packages = Vec::new();
     let mut shapes = Vec::new();
     let mut badges = Badges {
@@ -595,7 +651,7 @@ fn entry_of(
             }
         }
     }
-    CatalogEntry {
+    let mut entry = CatalogEntry {
         source: Source::Project,
         kind: DefinitionKind::Component,
         lineage,
@@ -614,7 +670,33 @@ fn entry_of(
         update: None,
         origin: None,
         shapes,
-    }
+        generated: None,
+        takes,
+    };
+    let recipe = revision.and_then(|revision| {
+        crate::library::generated::recipe(
+            library,
+            DefinitionRef {
+                kind: DefinitionKind::Component,
+                id: lineage,
+                revision,
+            },
+        )
+    });
+    set_generated(&mut entry, recipe.as_ref());
+    entry
+}
+
+/// The fields `component` selects with no value, which each placed part
+/// sets on its own (kept only for a generic family's part,
+/// [`set_generated`]).
+fn unset_fields(component: &ComponentDefinition, valued: &[EntryField]) -> Vec<DefinitionId> {
+    component
+        .fields
+        .iter()
+        .map(|s| s.field.id)
+        .filter(|id| !valued.iter().any(|f| f.field == *id))
+        .collect()
 }
 
 /// Build the entry of one Part body: its rated values as fields, badges
@@ -692,6 +774,8 @@ fn part_entry(
         update: None,
         origin: None,
         shapes,
+        generated: None,
+        takes: Vec::new(),
     }
 }
 
@@ -950,10 +1034,13 @@ impl Folded {
 }
 
 fn field_hit(entry: &CatalogEntry, test: &FieldTest) -> bool {
-    entry
-        .fields
-        .iter()
-        .any(|f| f.field == test.field && meets(f, test))
+    // A generic family's part takes any value of the fields each placed
+    // part sets: "4.7k 0603" finds the 0603 chip resistor.
+    entry.takes.contains(&test.field)
+        || entry
+            .fields
+            .iter()
+            .any(|f| f.field == test.field && meets(f, test))
 }
 
 /// A test on one entry value. On a Part's rated value an equality (`:` or a
@@ -1125,6 +1212,17 @@ fn tier(entry: &CatalogEntry, folded: &Folded, query: &CatalogQuery) -> Option<M
                 }
                 None
             }
+            Term::Generator { text } => {
+                let made = entry.generated.as_ref().is_some_and(|g| {
+                    fold(&g.generator) == *text
+                        || g.family.as_deref().is_some_and(|f| fold(f) == *text)
+                        || g.preset.as_deref().is_some_and(|p| fold(p) == *text)
+                });
+                if !made {
+                    return None;
+                }
+                None
+            }
             // A component's package carries labels, not size codes: a code
             // in one system matches the label text, as `pkg:` does.
             Term::SizeCode { code, .. } => {
@@ -1273,6 +1371,11 @@ impl Index {
                         }
                     }
                 }
+                entry.takes = entry
+                    .takes
+                    .iter()
+                    .filter_map(|id| merged_field_id(library, source, index, *id))
+                    .collect();
                 all.push(entry);
             }
         }

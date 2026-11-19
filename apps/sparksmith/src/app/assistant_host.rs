@@ -562,6 +562,7 @@ impl App {
     /// What the turn running sent since the last frame: its events, its
     /// tool calls and its end.
     pub(super) fn serve_assistant(&mut self, ctx: &egui::Context) {
+        self.serve_online_waits(ctx);
         for _ in 0..PER_FRAME {
             if self.assistant.held.is_some() {
                 return;
@@ -600,6 +601,12 @@ impl App {
         request: ToolRequest,
         allowed: bool,
     ) {
+        // A search that asks the registry (`src:online`) waits for it on a
+        // thread of its own; the call runs when the answer is in.
+        let request = match self.fetch_online(ctx, request, allowed) {
+            Some(request) => request,
+            None => return,
+        };
         let (chat_grant, reach) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {
@@ -714,6 +721,89 @@ impl App {
             _ => {
                 let _ = request.reply.send(reply);
             }
+        }
+    }
+
+    /// F1: a `library.search` with `src:online` asks the registry on a
+    /// thread of its own and waits in [`crate::assistant::OnlineWait`], so
+    /// the window never waits on the network; `None` then. Any other call,
+    /// a search while no registry runs, or one whose answer is in
+    /// (`prefetched`), comes back to run now.
+    fn fetch_online(
+        &mut self,
+        ctx: &egui::Context,
+        request: ToolRequest,
+        allowed: bool,
+    ) -> Option<ToolRequest> {
+        use sparksmith_automation::session::online::{self as reg, OnlineSource};
+        if self.assistant.prefetched {
+            return Some(request);
+        }
+        let Some(text) = reg::online_search(&request.verb, &request.input) else {
+            return Some(request);
+        };
+        let Some(source) = self
+            .sources
+            .online()
+            .map(|o| o.client() as Arc<dyn OnlineSource>)
+        else {
+            return Some(request);
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let wake = ctx.clone();
+        // A thread that cannot start drops `tx`, so the wait ends at once
+        // and the call says the registry did not answer.
+        let _ = std::thread::Builder::new()
+            .name("chat-online-search".into())
+            .spawn(move || {
+                let _ = tx.send(source.search(&text, reg::MAX_ONLINE_ROWS));
+                wake.request_repaint();
+            });
+        self.assistant.online_waits.push(assistant::OnlineWait {
+            request,
+            allowed,
+            report: rx,
+        });
+        None
+    }
+
+    /// Run each online search whose registry answer came in, with that
+    /// answer installed for its one call (`online::Prefetched`).
+    fn serve_online_waits(&mut self, ctx: &egui::Context) {
+        use sparksmith_automation::session::online::{self as reg, OnlineSource};
+        let mut k = 0;
+        while k < self.assistant.online_waits.len() {
+            let report = match self.assistant.online_waits[k].report.try_recv() {
+                Ok(report) => report,
+                Err(TryRecvError::Empty) => {
+                    k += 1;
+                    continue;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    Err("the registry search stopped without an answer".into())
+                }
+            };
+            let wait = self.assistant.online_waits.remove(k);
+            let real = self
+                .sources
+                .online()
+                .map(|o| o.client() as Arc<dyn OnlineSource>);
+            if let (Some(source), Some(text)) = (
+                real.clone(),
+                reg::online_search(&wait.request.verb, &wait.request.input),
+            ) {
+                self.assistant
+                    .session
+                    .set_online(Some(Arc::new(reg::Prefetched {
+                        source,
+                        text,
+                        report,
+                    })));
+            }
+            self.assistant.prefetched = true;
+            self.run_chat_call(ctx, wait.request, wait.allowed);
+            self.assistant.prefetched = false;
+            self.assistant.session.set_online(real);
         }
     }
 

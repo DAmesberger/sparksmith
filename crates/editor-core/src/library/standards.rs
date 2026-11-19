@@ -419,6 +419,20 @@ pub enum GenericFamily {
     Diode,
 }
 
+impl GenericFamily {
+    /// The family's name as the grammar writes it (`header`).
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Header => "header",
+            Self::Resistor => "resistor",
+            Self::Capacitor => "capacitor",
+            Self::Inductor => "inductor",
+            Self::Led => "led",
+            Self::Diode => "diode",
+        }
+    }
+}
+
 /// One family's declared patterns, and example texts each building a part.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -600,6 +614,70 @@ impl GenericGrammar {
                 && !wanted.is_empty()
                 && wanted.iter().all(|(k, v)| params.get(k) == Some(v))
         })
+    }
+
+    /// The family a part of `generator` made from `params` belongs to:
+    /// [`Self::family_of`], else the one family of that generator that
+    /// asks for no preset or parameter (every part of the header
+    /// generator is a header).
+    pub fn family_for(
+        &self,
+        generator: &str,
+        params: &crate::library::generated::GeneratorParams,
+    ) -> Option<&FamilyPatterns> {
+        self.family_of(generator, params).or_else(|| {
+            let mut open = self.families.iter().filter(|f| {
+                f.generator == generator && f.presets.is_empty() && f.params.is_empty()
+            });
+            match (open.next(), open.next()) {
+                (Some(only), None) => Some(only),
+                _ => None,
+            }
+        })
+    }
+
+    /// The part's name the family's label gives for `params`: each
+    /// `{slot}` filled from the parameter it names (a count as a number, a
+    /// length in mm) and `{size}` from the preset's first alias; `None`
+    /// when a placeholder has no value.
+    pub fn label_for(
+        &self,
+        family: &FamilyPatterns,
+        params: &crate::library::generated::GeneratorParams,
+        size: Option<&str>,
+    ) -> Option<String> {
+        use crate::library::generated::ParamValue;
+        let mut text = family.label.clone();
+        while let Some(start) = text.find('{') {
+            let end = start + text[start..].find('}')?;
+            let slot = text[start + 1..end].to_owned();
+            let key = family
+                .slots
+                .get(&slot)
+                .and_then(|keys| keys.first())
+                .cloned()
+                .unwrap_or_else(|| slot.clone());
+            let word = match (slot.as_str(), params.get(&key)) {
+                ("size", _) => size?.to_owned(),
+                (_, Some(ParamValue::Int(n))) if self.length_slot(family, &slot) => {
+                    crate::quantity::Decimal::from_f64(*n as f64 / 1e6)
+                        .ok()?
+                        .to_string()
+                }
+                (_, Some(ParamValue::Int(n))) => n.to_string(),
+                _ => return None,
+            };
+            text.replace_range(start..=end, &word);
+        }
+        Some(text)
+    }
+
+    /// Whether `slot` reads a length in one of `family`'s patterns.
+    fn length_slot(&self, family: &FamilyPatterns, slot: &str) -> bool {
+        family
+            .patterns
+            .iter()
+            .any(|p| p.contains(&format!("{{{slot}:length}}")))
     }
 
     /// The units a length slot reads, the first being the unit a bare

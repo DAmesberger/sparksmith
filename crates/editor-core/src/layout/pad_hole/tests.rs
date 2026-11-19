@@ -314,6 +314,60 @@ fn a_pad_hole_keeps_its_spacing_to_other_holes() -> Result<()> {
     Ok(())
 }
 
+/// A pad's slot against its own via-in-pad hole is named as the pad's two
+/// holes, never as the pad against itself: a 0.6 × 1.6 mm slot along x and
+/// a 0.3 mm via-in-pad hole 0.6 mm above its centre leave 0.6 − 0.3 − 0.15
+/// = 0.15 mm.
+#[test]
+fn a_slot_and_its_own_via_in_pad_hole_are_named_as_the_pads() -> Result<()> {
+    use crate::library::{ApertureId, PadVia};
+    let mut project = tht(
+        PadKind::PlatedThrough,
+        PadShape::Circle {
+            diameter_nm: nm(3.0),
+        },
+        Hole {
+            shape: HoleShape::Slot {
+                width_nm: nm(0.6),
+                length_nm: nm(1.6),
+                angle_mdeg: mdeg(0.0),
+            },
+            plated: true,
+            offset: pt([0.0, 0.0]),
+        },
+    )?;
+    for footprint in &mut project.library.footprints {
+        for pad in &mut footprint.definition.pads {
+            pad.vias = vec![PadVia {
+                id: ApertureId(1),
+                at: pt([0.0, 0.6]),
+                drill_nm: nm(0.3),
+            }];
+        }
+    }
+    let findings = found(&project, "board.pad_hole_spacing");
+    let own: Vec<&Finding> = findings
+        .iter()
+        .filter(|f| f.message.starts_with("R1 pad 1: its "))
+        .collect();
+    assert_eq!(own.len(), 1, "{findings:#?}");
+    let message = &own[0].message;
+    assert!(
+        message.starts_with("R1 pad 1: its slot and via-in-pad hole are "),
+        "{message}"
+    );
+    let gap = gap_in(message, "via-in-pad hole are ")?;
+    assert!((gap - 0.15).abs() <= 0.01, "{message}");
+    assert_eq!(own[0].objects.len(), 1, "the pad once: {:?}", own[0].objects);
+    assert!(
+        !findings
+            .iter()
+            .any(|f| f.message.starts_with("R1 pad 1 and R1 pad 1")),
+        "{findings:#?}"
+    );
+    Ok(())
+}
+
 /// An unplated hole in a pad with copper keeps the profile's NPTH pad
 /// annular ring (JLCPCB: 0.45 mm, so 0.2 mm can be cleared for the
 /// sealing film): a 1.4 mm land round a 0.6 mm hole leaves 0.4 mm; a

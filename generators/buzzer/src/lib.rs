@@ -33,7 +33,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Estimates: the orientation bevel (at most an eighth of the case), the
 /// top round (a tenth of the height), the sound port (a sixth of the case,
@@ -282,18 +282,19 @@ fn pads(d: &Dims) -> Vec<Pad> {
 }
 
 /// A buzzer (IEC 60617 as published): a dome on its base line, the two
-/// terminals below it, a + beside terminal 1.
+/// terminals below it at the base line's ends, on the 2.5 mm symbol grid,
+/// a + beside terminal 1.
 fn symbol() -> Symbol {
     let mut d = Drawing::default();
     let m = |v: i64| v * MM / 1000;
-    d.pin("1", [m(-1250), m(-5000)], UP, m(2500));
-    d.pin("2", [m(1250), m(-5000)], UP, m(2500));
+    d.pin("1", [m(-2500), m(-5000)], UP, m(2500));
+    d.pin("2", [m(2500), m(-5000)], UP, m(2500));
     d.line([m(-2500), m(-2500)], [m(2500), m(-2500)]);
     if let Some(dome) = draw::arc([0, m(-2500)], m(2500), 0, 180 * DEG) {
         d.open(dome);
     }
-    d.line([m(-2500), m(-3750)], [m(-1750), m(-3750)]);
-    d.line([m(-2125), m(-4125)], [m(-2125), m(-3375)]);
+    d.line([m(-1875), m(-3750)], [m(-1125), m(-3750)]);
+    d.line([m(-1500), m(-4125)], [m(-1500), m(-3375)]);
     d.labels(0, m(-5000));
     Symbol {
         units: vec![d.unit("A")],

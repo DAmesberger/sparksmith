@@ -75,10 +75,17 @@ const MAX_FILTER: usize = 128;
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratorsParams {
-    /// One shipped generator by name or id, e.g. `gull-wing`: listed in
-    /// full, with its parameters, rules and presets with their values.
+    /// One shipped generator by name or id, e.g. `gull-wing`: its
+    /// parameters and rules, and each preset by key, name and basis
+    /// (`cited`, `estimated`, …). `preset` adds one preset's values,
+    /// citation and note; `detail` adds every preset's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generator: Option<String>,
+    /// One preset by key, e.g. `no-lead-qfn-16-3x3-0.5`: only the
+    /// generator that has it, with that preset in full (values, citation,
+    /// basis and note).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
     /// Only generators that make this family, e.g. `no_lead`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub family: Option<String>,
@@ -87,7 +94,7 @@ pub struct GeneratorsParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
     /// Every listed generator in full: parameters, rules and presets with
-    /// their values.
+    /// their values, citations and notes.
     #[serde(default)]
     pub detail: bool,
 }
@@ -96,6 +103,7 @@ impl GeneratorsParams {
     fn check(&self) -> Result<()> {
         for (what, given) in [
             ("generator", &self.generator),
+            ("preset", &self.preset),
             ("family", &self.family),
             ("text", &self.text),
         ] {
@@ -128,7 +136,35 @@ impl GeneratorsParams {
                         })
                 })
         });
-        named && family && text
+        let preset = self
+            .preset
+            .as_ref()
+            .is_none_or(|k| summary.is_some_and(|d| d.presets.iter().any(|p| p.key == *k)));
+        named && preset && family && text
+    }
+}
+
+/// One shipped generator's description as `{generator}` or `{preset}`
+/// gives it without `detail`: its parameters and rules in full, each
+/// preset by key, name and basis, and only the preset `full` names with
+/// its values, citation and note. The presets' values and notes would
+/// outgrow a model's reply budget.
+fn compact_presets(description: &mut Value, full: Option<&str>) {
+    let Some(presets) = description
+        .get_mut("presets")
+        .and_then(Value::as_array_mut)
+    else {
+        return;
+    };
+    for preset in presets.iter_mut() {
+        if full.is_some_and(|k| preset["key"] == k) {
+            continue;
+        }
+        let mut short = serde_json::json!({"key": preset["key"], "name": preset["name"]});
+        if let Some(basis) = preset.get("basis") {
+            short["basis"] = basis.clone();
+        }
+        *preset = short;
     }
 }
 
@@ -404,12 +440,34 @@ impl Session {
                 ),
             )));
         }
+        if let Some(key) = &params.preset
+            && report.shipped.is_empty()
+        {
+            return Err(crate::Error::Document(sparksmith_core::Error::NotFound(
+                format!(
+                    "no shipped generator has preset {key}: library.generators {{text: <part of the key>}} lists the keys that match"
+                ),
+            )));
+        }
         let mut value = serde_json::to_value(&report)?;
-        if !params.detail && params.generator.is_none() {
+        let one = params.generator.is_some() || params.preset.is_some();
+        if !params.detail && one {
+            if let Some(shipped) = value["shipped"].as_array_mut() {
+                for generator in shipped {
+                    if let Some(description) = generator.get_mut("description") {
+                        compact_presets(description, params.preset.as_deref());
+                    }
+                }
+            }
+            value["detail"] = Value::from(
+                "presets by key, name and basis; {preset: <key>} gives one preset's values, citation and note, {detail: true} every preset's",
+            );
+        }
+        if !params.detail && !one {
             let named = params.family.is_some() || params.text.is_some();
             value["shipped"] = report.shipped.iter().map(|g| listed(g, named)).collect();
             value["detail"] = Value::from(
-                "library.generators {generator: <name>} gives one generator's parameters, rules and presets with their values; {family} or {text} adds the presets' names",
+                "library.generators {generator: <name>} gives one generator's parameters, rules and presets by key, name and basis; {preset: <key>} adds one preset's values; {family} or {text} adds the presets' names",
             );
         }
         Ok(value)

@@ -124,6 +124,32 @@ pub struct RevisionRecord {
     /// Assets the body names by hash (a Part reference's attached copy).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub assets: Vec<ContentHash>,
+    /// How a generator made this revision, on the root of a generated
+    /// part: what a library or registry search reads as `gen:` and as the
+    /// values a generic family's part takes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generated: Option<GeneratedRecipe>,
+    /// On a component revision published with pins nobody confirmed
+    /// against the datasheet: those pins, its review status.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub review: Option<super::pinout::ImportReview>,
+}
+
+/// The recipe of a generated part, carried with its root's record: the
+/// generator, the version that made it, the preset its parameters started
+/// from, the complete parameters and the generic family they read as
+/// (`resistor`, `header`). Provenance and search data: importing the record
+/// makes the person's own part, which claims nothing.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct GeneratedRecipe {
+    pub generator: String,
+    pub version: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset: Option<String>,
+    pub params: super::generated::GeneratorParams,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub family: Option<String>,
 }
 
 /// Asset bytes, written as standard base64 with padding. Immutable and
@@ -815,6 +841,8 @@ pub fn to_record(
         assets: named_assets(&definition)?,
         definition,
         links: map.links,
+        generated: None,
+        review: None,
     })
 }
 

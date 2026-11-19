@@ -39,7 +39,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most positions per row.
 const MAX_POSITIONS: i64 = 50;
@@ -734,7 +734,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         });
     }
     let mut notes = vec![
-        "Lands are the maker's recommended layout as given; the insulator's grooves and pockets are drawn to typical proportions."
+        "Lands are the land parameters as given: the maker's recommended layout only where they were taken from it. The insulator's grooves and pockets are drawn to typical proportions."
             .into(),
     ];
     if d.pegs {

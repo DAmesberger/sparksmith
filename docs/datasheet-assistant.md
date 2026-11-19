@@ -16,10 +16,15 @@ Sparksmith provides the commands, the workflow and the checks. The agent brings 
   - source names are distinct, and the report lists at least one value;
   - a low-confidence value, or an imported pin still flagged uncertain, needs an open question;
   - there is a component draft to review;
-  - every imported pin function has its source page; the check names the pins without one.
+  - every imported pin function has its source page; the check names the pins without one;
+  - every value says what it is and gives its value.
+
+  The pages and tables the imported pinout cites that no value of the report cites are named in `uncited`, for the reviewer.
+
+  The check is scoped to one part: `component` (a component lineage) or else the component draft named as the report's `part`: that draft and the drafts of its symbol, binding, package and footprint. With no draft of it open it holds the report against the latest published revision and the pins it was published unreviewed, so a published part is checked again without drafting it.
 
   It returns `accepted`, the problems, each draft's blocking and warning finding codes, the unreviewed and uncertain pin counts, and the report as Markdown for the person. Accepted means ready for a person's review, never verified or publishable. It changes nothing.
-- **Publishing stays a person's step.** The import's review state holds every imported pin as unreviewed, and a row flagged uncertain blocks `library.publish` (`pinout.uncertain`). `library.publish` is in the ask class: a gated MCP server refuses it, and live MCP waits for the person's Allow in the window. The skill tells the agent never to publish or clear the review state.
+- **Publishing stays a person's step.** The import's review state holds every imported pin as unreviewed, and a row flagged uncertain blocks `library.publish` (`pinout.uncertain`). Publishing keeps the pins still unreviewed beside the published revision (`Library::reviews`, outside its identity), carried in its library record (`review`) as the part's review status; drafting the revision again brings them back. `library.publish` is in the ask class: a gated MCP server refuses it, and live MCP waits for the person's Allow in the window. The skill tells the agent never to publish or clear the review state.
 - **The in-app runner refuses the same reports.** Its `submit_review` runs `library.review_check` on the submitted report and drafts and refuses the report with that check's problems, so the model must fix them and submit again; there is one set of rules for both paths. Of the recorded runs, only run 1 (`examples/esp32-s31-wroom-3/run1/`) is now refused: its pinout rows carry no source pages, so 91 imported pins have a function without one. Its replay ends refused, and the test asserts that refusal. The reference replay, the `qwen3.8:27b` run and both Qwen 3.8 Flash Next runs are accepted as recorded.
 
 ### Using it

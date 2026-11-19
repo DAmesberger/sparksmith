@@ -387,9 +387,46 @@ fn uncertain_rows_block_publishing_until_a_person_clears_them() -> Fallible<()> 
     assert_eq!(published.definition.review, None);
     assert_eq!(component(&engine, id)?.review, None);
     assert_eq!(component(&engine, id)?, published.definition);
+    // The pins still unreviewed stay beside the revision, outside it: the
+    // part's review status, which a draft of the revision takes back.
+    let at = crate::ids::ComponentRef::new(id, published.revision);
+    let kept = engine
+        .project()
+        .library
+        .review_of(at)
+        .ok_or("the published review")?;
+    assert_eq!(kept.unreviewed.len(), 49);
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::DiscardDraft { id }),
+    )?;
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::DraftFrom {
+            revision: at.erased(),
+        }),
+    )?;
+    let redrafted = component(&engine, id)?;
+    assert_eq!(
+        redrafted.review.as_deref().map(|r| r.unreviewed.len()),
+        Some(49)
+    );
+    // A Part needs a binding the component lists: this one lists none.
+    let refused = engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::DraftPart {
+            component: id,
+            manufacturer: "ExampleCo".into(),
+            mpn: "EXL-48-QFN".into(),
+            binding: None,
+        }),
+    );
+    assert!(
+        matches!(&refused, Err(Error::Invalid(m)) if m.contains("lists no binding")),
+        "{refused:?}"
+    );
     Ok(())
 }
-
 #[test]
 fn reimporting_into_the_draft_keeps_terminals_by_number() -> Fallible<()> {
     let mut engine = Engine::default();
@@ -675,6 +712,22 @@ fn document_problems_are_findings_and_unreadable_documents_refuse() -> Fallible<
         preview(&engine, &new_target(), &duplicate),
         Err(Error::Invalid(_))
     ));
+    // A reserved row with a function: the refusal names its rule, the
+    // row's class and an example of the row as it should be.
+    let mut reserved = base.clone();
+    if let Some(pin) = reserved.pins.iter_mut().find(|p| !p.functions.is_empty()) {
+        pin.class = crate::library::pinout::PinoutClass::Reserved;
+    }
+    let refused = preview(&engine, &new_target(), &reserved);
+    let Err(error) = refused else {
+        return Err("a reserved row with functions previews".into());
+    };
+    assert_eq!(error.rule(), Some("pinout.class_functions"), "{error}");
+    let text = error.to_string();
+    assert!(
+        text.contains("class reserved") && text.contains("\"functions\": []"),
+        "{text}"
+    );
     let mut undeclared = base.clone();
     if let Some(pin) = undeclared.pins.first_mut() {
         pin.number.insert("SOIC-8".into(), "1".into());
@@ -707,3 +760,63 @@ fn the_fixture_is_its_own_schema_and_a_round_trip() -> Fallible<()> {
     assert!(schema["pinout"]["properties"]["pins"].is_object());
     Ok(())
 }
+
+/// `library.draft_part` drafts a component's manufacturer Part pinning the
+/// component's latest revision and its one binding; it publishes as any
+/// Part, and an empty part number is refused with nothing changed.
+#[test]
+fn a_component_gets_its_manufacturer_part_as_a_draft() -> Fallible<()> {
+    let mut engine = Engine::demo()?;
+    let (id, revision, binding) = engine
+        .project()
+        .library
+        .latest_components()
+        .into_iter()
+        .find_map(|c| match c.definition.implementations.as_slice() {
+            [only] => Some((c.id, c.revision, *only)),
+            _ => None,
+        })
+        .ok_or("a demo component with one binding")?;
+    let before = Snapshot::of(&engine);
+    let empty = engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::DraftPart {
+            component: id,
+            manufacturer: "ExampleCo".into(),
+            mpn: " ".into(),
+            binding: None,
+        }),
+    );
+    assert!(matches!(empty, Err(Error::Invalid(_))), "{empty:?}");
+    before.assert_kept(&engine, "an empty part number");
+    let Outcome::DraftCreated { id: part } = engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::DraftPart {
+            component: id,
+            manufacturer: "ExampleCo".into(),
+            mpn: "EX-DEMO-1".into(),
+            binding: None,
+        }),
+    )?
+    else {
+        return Err("no Part draft".into());
+    };
+    let draft = engine.drafts().get(part).ok_or("the Part draft")?;
+    assert_eq!(draft.meta.name, "ExampleCo EX-DEMO-1");
+    let Definition::Part(body) = &draft.definition else {
+        return Err("not a Part".into());
+    };
+    assert_eq!(body.mpn, "EX-DEMO-1");
+    assert_eq!(body.component, crate::ids::ComponentRef::new(id, revision));
+    assert_eq!(body.binding, binding);
+    engine.apply(
+        engine.revision(),
+        Operation::Library(LibraryCommand::Publish {
+            drafts: vec![part],
+            close: true,
+        }),
+    )?;
+    assert!(engine.project().library.parts.iter().any(|p| p.id == part));
+    Ok(())
+}
+

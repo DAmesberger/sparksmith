@@ -470,7 +470,7 @@ fn placement_findings_reach_draft_checks_as_advisories() -> Result<()> {
             p.placement.translation_nm = crate::tests::support::nm3([0.0, 0.0, -0.5]);
         }
     })?;
-    let Ok(QueryResult::Drafts(reports)) = engine.query(Query::CheckDrafts {}) else {
+    let Ok(QueryResult::Drafts(reports)) = engine.query(Query::CheckDrafts { detail: true }) else {
         return Err(Error::Invalid("expected draft reports".into()));
     };
     let findings: Vec<_> = reports

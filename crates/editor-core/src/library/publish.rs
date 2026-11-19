@@ -384,6 +384,19 @@ pub fn publish(
     // (an uncertain row blocks above) but never becomes revision content,
     // so a revision's identity does not depend on it. The published drafts
     // drop it too, staying equal to their new revisions.
+    // The pins still unreviewed stay recorded beside the published
+    // revision (`Library::reviews`), the part's review status.
+    let pending: Vec<(DefinitionId, super::pinout::ImportReview)> = set
+        .iter()
+        .filter_map(|r| match drafts.get(r.id).map(|d| &d.definition) {
+            Some(Definition::Component(c)) => c
+                .review
+                .as_deref()
+                .filter(|review| !review.is_empty())
+                .map(|review| (r.id, review.clone())),
+            _ => None,
+        })
+        .collect();
     let reviewed = set.iter().any(|r| {
         drafts.get(r.id).is_some_and(
             |d| matches!(&d.definition, Definition::Component(c) if c.review.is_some()),
@@ -403,6 +416,14 @@ pub fn publish(
         (staged, set)
     };
     *library = staged;
+    for (id, review) in pending {
+        if let Some(r) = set.iter().find(|r| r.id == id) {
+            library.reviews.push(super::pinout::PublishedReview {
+                component: crate::ids::ComponentRef::new(r.id, r.revision),
+                review,
+            });
+        }
+    }
     for r in &set {
         drafts.set_base(r.id, r.revision);
     }

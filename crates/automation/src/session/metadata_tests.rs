@@ -32,8 +32,8 @@ fn the_catalog_has_its_272_entries() {
     // the window's view.context, view.select and view.open (S5a); then
     // assist.workflows and assist.step_result (W1); then assist.offer (C2);
     // then layout.pads; then assist.ask; then library.replace_body,
-    // library.body_fit and library.make_body.
-    assert_eq!(metadata::entries().len(), 276);
+    // library.body_fit and library.make_body; then library.draft_part.
+    assert_eq!(metadata::entries().len(), 277);
 }
 
 /// A title is short, says more than the wire name, and is unique within its
@@ -145,7 +145,8 @@ fn kind_and_person_follow_the_class_and_paths() {
     assert_eq!(kind("library.publish"), Some(Kind::Action));
     assert_eq!(kind("library.check_part_file"), Some(Kind::Action));
     assert_eq!(kind("project.issues"), Some(Kind::Query));
-    assert_eq!(kind("library.source.add"), None);
+    assert_eq!(kind("library.source.add"), Some(Kind::Action));
+    assert_eq!(kind("library.favourite"), None);
 }
 
 #[test]

@@ -422,7 +422,32 @@ fn a_scripted_session_completes_the_workflow_through_the_review_gate() -> Fallib
 
     // The agent restores the source and asks about the uncertain row.
     import(&tools, "re-import", target, &complete)?;
-    query(&tools, "check drafts", "component.check_drafts", json!({}))?;
+    // Every imported pin is unreviewed: the summary names a few and counts
+    // the rest; `detail` names them all.
+    let unreviewed = |checked: &Value| -> Option<Value> {
+        checked
+            .as_array()?
+            .iter()
+            .flat_map(|r| r["findings"].as_array().cloned().unwrap_or_default())
+            .find(|f| f["code"] == "pinout.unreviewed")
+    };
+    let checked = query(&tools, "check drafts", "component.check_drafts", json!({}))?;
+    let summary = unreviewed(&checked).ok_or_else(|| format!("unreviewed: {checked}"))?;
+    let listed = summary["objects"].as_array().map_or(0, Vec::len);
+    let more = summary["objects_more"].as_u64().unwrap_or(0);
+    assert!(listed <= 5 && more > 0, "{summary}");
+    let all = query(
+        &tools,
+        "check drafts in detail",
+        "component.check_drafts",
+        json!({"detail": true}),
+    )?;
+    let full = unreviewed(&all).ok_or_else(|| format!("unreviewed: {all}"))?;
+    assert!(full.get("objects_more").is_none(), "{full}");
+    assert_eq!(
+        full["objects"].as_array().map_or(0, Vec::len),
+        listed + usize::try_from(more)?
+    );
 
     let checked = ok(
         "review check again",

@@ -2456,7 +2456,7 @@ impl PartEditor {
             return Vec::new();
         };
         use sparksmith_core::{Stage, completeness::CheckTarget};
-        let Ok(QueryResult::Drafts(reports)) = engine.query(Query::CheckDrafts {}) else {
+        let Ok(QueryResult::Drafts(reports)) = engine.query(Query::CheckDrafts { detail: true }) else {
             return Vec::new();
         };
         let ids = set.ids.all();
