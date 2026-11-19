@@ -37,8 +37,9 @@ const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 2 prints the values
 /// on the can top in black ([`marking`]); 4 at the height its preset gives
-/// (`marking_height`) and the vent scored as a V.
-const VERSION: u32 = 4;
+/// (`marking_height`) and the vent scored as a V; 5 scores it finer and
+/// shallower (the `-vent` part file), a subtle cross under the print.
+const VERSION: u32 = 5;
 
 /// The seat plate's height (est.: 0.9–1.2 mm on 4–10 mm parts), at most a
 /// quarter of the overall height.

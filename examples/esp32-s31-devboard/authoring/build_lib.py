@@ -167,6 +167,11 @@ def build(s):
     comp, sym, pkg, fp, bind = ids
     d = drafts(s)[comp]
     d["definition"]["body"]["designator_prefix"] = "SW"
+    # A push button has no resistance: none of the resistor's fields, so no
+    # resistor-code marking and no value template.
+    d["definition"]["body"]["fields"] = []
+    d["definition"]["body"].pop("marking", None)
+    d["definition"]["body"].pop("value_template", None)
     edit(s, [{"id": comp, "meta": d["meta"], "definition": d["definition"]}], "B3U-1000P prefix")
     s.op("library.restyle_symbol", {"draft": sym, "kind": "pushbutton"}, "B3U-1000P push button")
     replace_pads(s, fp, [([-1.7, 0.0], [0.8, 1.7]), ([1.7, 0.0], [0.8, 1.7])],

@@ -1,22 +1,31 @@
-"""Carry the replay's package snapshot edits onto the current generators.
+"""Carry the replay's snapshot edits of generated parts onto the current generators.
 
-The parts stage renames two generated packages (the SOT-23-5 and SOT-23-3
-of the regulator and the ESD part: build_lib.py, `own(..., package=)`) by
-reading the draft and sending its whole body back, since `library.edit`
-replaces a draft's meta and definition. The replay records that body
-literally, part-file values and the facts the part file evaluated to
-included. After the generator or its part file changes, replaying puts the
-old values back over the new generation, and the board build refuses the
-package (`part_file.stale`: the part file no longer builds what the package
-recorded).
+The parts stage edits generated drafts by reading a draft and sending its
+whole body back, since `library.edit` replaces a draft's meta and
+definition: it renames two generated packages (the SOT-23-5 and SOT-23-3 of
+the regulator and the ESD part: build_lib.py, `own(..., package=)`), types
+the chip resistor's and capacitors' components with this board's fields
+(`set_fields`) and gives the B3U-1000P push button its `SW` prefix. The
+replay records each body literally, as the generator made it then. After the
+generator or its part file changes, replaying puts the old generation back
+over the new one: a package's old part-file values make the board build
+refuse it (`part_file.stale`), and a component loses what the generator now
+adds (its marking and value template).
 
 This tool replays the replay through `sparksmith stdio --operator` and, at
-each such edit, reads the package draft as the current generator made it
-and sends it with only the authored name; the rewritten requests replace
-the replay. The components' field edits are left as recorded: they are the
-authored component bodies (this board's typed fields), not the generator's.
-Run it from the repository root after a generator change, then
-`regenerate.sh`:
+each such edit, reads the draft as the current generator made it and sends
+it with only the authored changes:
+
+- a package: its name;
+- a component: its name, its designator prefix, and this board's fields in
+  place of the generator's fields of the same name (each with the recorded
+  "show on symbol"), the generator's marking and value template naming the
+  board's field instead. The generator's other fields stay. A component
+  recorded with no fields (the push button, which is not a resistor) keeps
+  none of the generator's fields, nor its marking or value template.
+
+The rewritten requests replace the replay. Run it from the repository root
+after a generator change, then `regenerate.sh`:
 
     python3 -B examples/esp32-s31-devboard/authoring/rebase.py
 
@@ -25,6 +34,7 @@ committed example is what the replay builds.
 """
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -35,8 +45,58 @@ GENERATED = "Made by the generator"
 
 
 def snapshot(edit):
-    """Whether `edit` (a `library.edit` item) sends a generated package back."""
-    return edit["definition"].get("kind") == "package" and GENERATED in edit["meta"].get("provenance", "")
+    """Whether `edit` (a `library.edit` item) sends a generated package or component back."""
+    return (edit["definition"].get("kind") in ("package", "component")
+            and GENERATED in edit["meta"].get("provenance", ""))
+
+
+def field_names(inspect):
+    """Each field lineage's name, published or drafted."""
+    names = {f["id"]: f["meta"]["name"] for f in inspect["project"]["library"]["fields"]}
+    for d in inspect["drafts"]:
+        draft = d.get("draft", d)
+        if draft["definition"].get("kind") == "field":
+            names[draft["id"]] = draft["meta"]["name"]
+    return names
+
+
+def renamed(value, swap):
+    """`value` (a marking or value template) naming `swap[old]` for each old field id."""
+    if isinstance(value, dict):
+        return {k: (swap.get(v, v) if k == "field" and isinstance(v, int) else renamed(v, swap))
+                for k, v in value.items()}
+    if isinstance(value, list):
+        return [renamed(v, swap) for v in value]
+    if isinstance(value, str):
+        return re.sub(r"field:D(\d+)", lambda m: f"field:D{swap.get(int(m.group(1)), int(m.group(1)))}", value)
+    return value
+
+
+def component(recorded, current, names):
+    """The current generation of a component with `recorded`'s authored changes."""
+    body = json.loads(json.dumps(current["body"]))
+    authored = recorded["body"]
+    body["designator_prefix"] = authored["designator_prefix"]
+    if not authored["fields"]:
+        # A part redrawn as something else (the push button made from the
+        # 1206 resistor) carries none of the generator's fields, so neither
+        # its marking nor its value template, which can only name them.
+        body["fields"] = []
+        body.pop("marking", None)
+        body.pop("value_template", None)
+        return {"kind": "component", "body": body}
+    generated = {names.get(f["field"]["id"]): i for i, f in enumerate(body["fields"])}
+    swap = {}
+    for f in authored["fields"]:
+        i = generated.get(names.get(f["field"]["id"]))
+        if i is None:
+            sys.exit(f"the generator has no field named {names.get(f['field']['id'])!r} to carry {f} onto")
+        swap[body["fields"][i]["field"]["id"]] = f["field"]["id"]
+        body["fields"][i] = f
+    for key in ("marking", "value_template"):
+        if key in body:
+            body[key] = renamed(body[key], swap)
+    return {"kind": "component", "body": body}
 
 
 def main():
@@ -63,13 +123,17 @@ def main():
         if any(snapshot(e) for e in edits):
             inspect = send({"command": "project.inspect", "params": {}, "verbose": True})["result"]
             drafts = {d["draft"]["id"] if "draft" in d else d["id"]: d["draft"] for d in inspect["drafts"]}
+            names = field_names(inspect)
             for k, e in enumerate(edits):
                 if snapshot(e):
                     draft = drafts[e["id"]]
+                    kind = e["definition"]["kind"]
+                    definition = (component(e["definition"], draft["definition"], names)
+                                  if kind == "component" else draft["definition"])
                     rebuilt = {"id": e["id"], "meta": dict(draft["meta"], name=e["meta"]["name"]),
-                               "definition": draft["definition"]}
+                               "definition": definition}
                     if rebuilt != e:
-                        report.append(f"line {n}: package {e['id']} ({e['meta']['name']}) carried onto the current generator")
+                        report.append(f"line {n}: {kind} {e['id']} ({e['meta']['name']}) carried onto the current generator")
                     edits[k] = rebuilt
             line = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
         out.append(line)

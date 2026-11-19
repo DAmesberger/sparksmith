@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "electrolytic.wasm",
-    "sha256": "828fcc398f972e9790fcbcf67aca4f8c2d9498f43b7c6eaed49ac80fa0737ff4"
+    "sha256": "78011c0f9ba494f33651f0d91f09ebfe45b3711812136459137d6d702fd2230a"
   },
   "name": "electrolytic",
   "parts": [
@@ -17,7 +17,7 @@
       "file": "parts/electrolytic-smd-vent.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); saved at Panasonic's size code D from the public FK series datasheet (06-Dec-19, p. 1; https://static.chipdip.ru/lib/426/DOC042426188.pdf downloaded 18 November 2026); the vent score's size estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
-      "sha256": "59beee5da668ac8780fbfcf3c3a6127b235b999357c716d772c294b35c9caf3a",
+      "sha256": "54f72cb43293712b317a80f301f6f6e30467e2f49499d4853783356a63aeaa08",
       "title": "Aluminium electrolytic capacitor, SMD, vent"
     }
   ]
