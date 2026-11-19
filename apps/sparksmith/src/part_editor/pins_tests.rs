@@ -553,7 +553,14 @@ fn paste_document_follows_the_explicit_mapping() -> TestResult {
     assert_eq!(problems.len(), 2, "{problems:?}");
     assert!(document.peripherals.is_empty(), "nothing split by name");
     let first = document.pins.first().ok_or("no pin")?;
-    assert_eq!(first.number.get("QFN-48").map(String::as_str), Some("1"));
+    assert_eq!(
+        first
+            .number
+            .get("QFN-48")
+            .map(ToString::to_string)
+            .as_deref(),
+        Some("1")
+    );
     assert_eq!(first.functions.len(), 2);
     assert!(first.functions.iter().all(|f| f.peripheral.is_none()));
     assert_eq!(first.source.as_ref().and_then(|s| s.page), Some(41));

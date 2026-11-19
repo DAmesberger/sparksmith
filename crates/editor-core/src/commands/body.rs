@@ -16,14 +16,14 @@ use crate::diagnostics::{Error, Result};
 use crate::geometry::Point;
 use crate::ids::{
     BindingRef, ComponentRef, DefinitionId, DefinitionRef, FootprintRef, Id, ModelRef, PackageRef,
-    PackageTerminalId, Revision,
+    PackageTerminalId, PadId, Revision,
 };
 use crate::library::generated::{self, GeneratorRuntime, GeneratorScope};
 use crate::library::package_fit::{self, FitRotation, LeadPair};
 use crate::library::package_model::{self, ModelPlacement, PartFileModel};
 use crate::library::{
     Definition, DefinitionMeta, FootprintDefinition, MAX_NOTE, PackageDefinition, PackageLead,
-    PackageModel, PadKind, drafts,
+    PackageModel, Pad, PadKind, drafts,
 };
 use crate::model::Document;
 use crate::units::{Length, Nm, PointNm};
@@ -43,15 +43,23 @@ pub const MAX_PINS: usize = crate::library::MAX_PACKAGE_TERMINALS;
 /// Bytes of one pin name in a mapping.
 const MAX_PIN_NAME: usize = 64;
 
-/// One of the body's leads and the pad it lands on.
+/// One of the body's leads and the pad, or the non-plated hole, it lands
+/// on. Give `pad` or `hole`.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct LeadPin {
     /// The generator's package terminal (`1`, `EP`).
     pub lead: String,
     /// The existing package terminal's designation: the footprint's pad
-    /// number (`1`, `A`).
+    /// number (`1`, `A`), or the number of a non-plated hole (`MH1`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub pad: String,
+    /// Instead of `pad`: a non-plated hole of the footprint by its pad id
+    /// (`library.body_fit` lists each pad with its `id`), for a mechanical
+    /// lead such as a locating peg in a hole with no number. Mechanical
+    /// only: the hole never gets a terminal or a net.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hole: Option<PadId>,
 }
 
 /// `library.replace_body`'s parameters.
@@ -88,6 +96,69 @@ pub struct LeadLanding {
     pub miss_mm: f64,
     /// The contact's distance from its pad's centre after the fit, mm.
     pub off_centre_mm: f64,
+    /// The non-plated hole a mechanical lead lands (a locating peg), by
+    /// its pad id: no terminal, no net.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hole: Option<PadId>,
+    /// Where the contact sits on its land (or in its hole).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_land: Option<LandPosition>,
+}
+
+/// Where a lead's contact sits on the land it is measured against, so the
+/// side of the land it lies on can be read.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct LandPosition {
+    /// The contact in the package's datum frame (the frame of
+    /// `library.body_fit`'s pads), mm.
+    pub contact_mm: [f64; 2],
+    /// The land's centre in the same frame, mm.
+    pub centre_mm: [f64; 2],
+    /// The contact's offset from the centre along the lead, mm: positive
+    /// outward, away from the package's centre. A lead at the package's
+    /// centre (an exposed pad) has no direction: along is the land's
+    /// longer side.
+    pub along_mm: f64,
+    /// Its offset across the lead, mm: positive to the left of outward
+    /// (counter-clockwise seen from the top).
+    pub across_mm: f64,
+    /// The land's size along the lead and across it, mm.
+    pub length_mm: f64,
+    pub width_mm: f64,
+    /// The same in words.
+    pub summary: String,
+}
+
+impl LandPosition {
+    fn of(spot: &package_fit::LandSpot, contact: Point, centre: Point) -> Self {
+        let r = |v: f64| (v * 1000.0).round() / 1000.0;
+        let along = if spot.along_mm >= 0.0 {
+            "outward"
+        } else {
+            "inward"
+        };
+        let across = if spot.across_mm >= 0.0 {
+            "left"
+        } else {
+            "right"
+        };
+        Self {
+            contact_mm: contact.map(r),
+            centre_mm: centre.map(r),
+            along_mm: r(spot.along_mm),
+            across_mm: r(spot.across_mm),
+            length_mm: r(spot.length_mm),
+            width_mm: r(spot.width_mm),
+            summary: format!(
+                "{:.3} mm {along} of the land's centre along the lead (the land is {:.3} mm long), {:.3} mm {across} of it across (the land is {:.3} mm wide)",
+                spot.along_mm.abs(),
+                spot.length_mm,
+                spot.across_mm.abs(),
+                spot.width_mm
+            ),
+        }
+    }
 }
 
 /// A body: its model and envelope, for the before/after of a plan.
@@ -307,7 +378,12 @@ fn stage(
         .iter()
         .map(String::as_str)
         .collect();
-    let mut mapped: BTreeMap<&str, &str> = BTreeMap::new();
+    // The fit uses the first part's footprint.
+    let footprint = &library
+        .footprint(first.footprint)
+        .ok_or_else(|| Error::NotFound(format!("body.footprint: {} is missing", first.footprint)))?
+        .definition;
+    let mut mapped: BTreeMap<&str, &LeadPin> = BTreeMap::new();
     for pin in &request.pins {
         if !keys.contains(pin.lead.as_str()) {
             return Err(Error::Invalid(format!(
@@ -316,14 +392,28 @@ fn stage(
                 keys.iter().copied().collect::<Vec<_>>().join(", ")
             )));
         }
-        if mapped.insert(&pin.lead, &pin.pad).is_some() {
+        if pin.pad.is_empty() == pin.hole.is_none() {
+            return Err(Error::Invalid(format!(
+                "body.pins: give lead {} a pad or a hole, not both",
+                pin.lead
+            )));
+        }
+        if let Some(hole) = pin.hole
+            && non_plated(footprint, hole).is_none()
+        {
+            return Err(Error::Invalid(format!(
+                "body.pins: the footprint has no non-plated hole {hole}; its holes are {}",
+                hole_list(footprint)
+            )));
+        }
+        if mapped.insert(&pin.lead, pin).is_some() {
             return Err(Error::Invalid(format!(
                 "body.pins: lead {} is mapped twice",
                 pin.lead
             )));
         }
     }
-    let pad_of = |key: &str| mapped.get(key).copied().unwrap_or(key).to_owned();
+    let pad_of = |key: &str| mapped.get(key).map_or(key, |p| p.pad.as_str()).to_owned();
     let geometry = &generation.package.geometry;
     if geometry.leads.is_empty() {
         return Err(Error::Invalid(
@@ -332,7 +422,23 @@ fn stage(
     }
     let mut leads = Vec::with_capacity(geometry.leads.len());
     let mut named: BTreeMap<PackageTerminalId, String> = BTreeMap::new();
+    // Mechanical leads in non-plated holes, and leads that land neither a
+    // terminal nor a named hole (a hole may still take them by position).
+    let mut pegs: Vec<Peg> = Vec::new();
+    let mut loose: Vec<(String, Point)> = Vec::new();
     for lead in &geometry.leads {
+        let contact = [
+            Nm::new(lead.contact[0])?.to_mm_f64(),
+            Nm::new(lead.contact[1])?.to_mm_f64(),
+        ];
+        if let Some(hole) = mapped.get(lead.key.as_str()).and_then(|p| p.hole) {
+            pegs.push(Peg {
+                lead: lead.key.clone(),
+                hole,
+                contact,
+            });
+            continue;
+        }
         let pad = pad_of(&lead.key);
         match old.terminals.iter().find(|t| t.designation == pad) {
             Some(terminal) => {
@@ -349,13 +455,35 @@ fn stage(
                     ));
                 }
             }
-            None => findings.push(finding(
-                "body.no_pad",
-                format!(
-                    "The body's lead {} lands pad {pad}, which the footprint does not have; map it with pins.",
-                    lead.key
-                ),
-            )),
+            None => {
+                let numbered: Vec<&Pad> = footprint
+                    .pads
+                    .iter()
+                    .filter(|p| p.kind == PadKind::NonPlatedHole && p.number == pad)
+                    .collect();
+                match numbered.as_slice() {
+                    [hole] => pegs.push(Peg {
+                        lead: lead.key.clone(),
+                        hole: hole.id,
+                        contact,
+                    }),
+                    _ => loose.push((lead.key.clone(), contact)),
+                }
+            }
+        }
+    }
+    {
+        let mut seen = BTreeMap::new();
+        for peg in &pegs {
+            if let Some(other) = seen.insert(peg.hole, &peg.lead) {
+                findings.push(finding(
+                    "body.pin_twice",
+                    format!(
+                        "Leads {other} and {} both land hole {}.",
+                        peg.lead, peg.hole
+                    ),
+                ));
+            }
         }
     }
 
@@ -380,27 +508,70 @@ fn stage(
     }));
 
     // The fit on the first part's footprint: each lead terminal's contacts'
-    // centre onto its copper pads' centre, in the datum frame.
-    let footprint = &library
-        .footprint(first.footprint)
-        .ok_or_else(|| Error::NotFound(format!("body.footprint: {} is missing", first.footprint)))?
-        .definition;
+    // centre onto its copper pads' centre, and each peg onto its hole's
+    // centre, in the datum frame.
     let pairs = pairs(&package, footprint, &mut findings)?;
-    let placement = if pairs.is_empty() {
+    let mut points: Vec<[f64; 3]> = pairs.iter().map(LeadPair::lead).collect();
+    let mut targets: Vec<Point> = pairs.iter().map(LeadPair::pad_centre).collect();
+    for peg in &pegs {
+        if let Some(hole) = non_plated(footprint, peg.hole) {
+            points.push([peg.contact[0], peg.contact[1], 0.0]);
+            targets.push(package_fit::to_datum(&footprint.datum, hole_centre(hole)));
+        }
+    }
+    let placement = if points.is_empty() {
         ModelPlacement::default()
     } else {
-        let fit = package_fit::fit_leads(&ModelPlacement::default(), &pairs, FitRotation::Free)?;
-        if fit.mirrored_better {
+        let (fitted, _, mirrored) = package_fit::fit_points(
+            &ModelPlacement::default(),
+            &points,
+            &targets,
+            FitRotation::Free,
+        )?;
+        if mirrored {
             findings.push(finding(
                 "body.mirrored",
                 "The leads land better mirrored: the body's pin order runs the other way round the pads (a bottom view read as a top view?).".into(),
             ));
         }
-        let mut placement = fit.placement;
+        let mut placement = fitted;
         placement.translation_nm[2] = Nm::new(geometry.seating_nm)?;
         placement
     };
     package.placement = placement;
+    // A lead that lands no terminal and no named hole takes the free
+    // non-plated hole its contact lies in, after the fit; otherwise it
+    // has nowhere to land.
+    let to_datum_frame = placement.transform();
+    for (key, contact) in loose {
+        let at = to_datum_frame.apply([contact[0], contact[1], 0.0]);
+        let q = package_fit::from_datum(&footprint.datum, [at[0], at[1]]);
+        let taken: BTreeSet<_> = pegs.iter().map(|p| p.hole).collect();
+        let found = footprint
+            .pads
+            .iter()
+            .filter(|p| p.kind == PadKind::NonPlatedHole && !taken.contains(&p.id))
+            .map(|p| (hole_miss(p, q), p.id))
+            .filter(|(miss, _)| *miss <= tolerance.to_mm_f64() + 1e-9)
+            .min_by(|a, b| a.0.total_cmp(&b.0));
+        match found {
+            Some((_, hole)) => pegs.push(Peg {
+                lead: key,
+                hole,
+                contact,
+            }),
+            None => {
+                let pad = pad_of(&key);
+                findings.push(finding(
+                    "body.no_pad",
+                    format!(
+                        "The body's lead {key} lands pad {pad}, which the footprint does not have, and no non-plated hole under it; map it with pins (a pad, or a hole by id: {}).",
+                        hole_list(footprint)
+                    ),
+                ));
+            }
+        }
+    }
 
     // Every lead on its land, on every footprint the parts use.
     let mut checked = BTreeSet::new();
@@ -413,13 +584,20 @@ fn stage(
         let Some(f) = library.footprint(user.footprint) else {
             continue;
         };
-        let lands = land(
+        let mut lands = land(
             &package,
             &f.definition,
             (tolerance, &f.meta.name),
             &named,
             &mut findings,
         );
+        lands.extend(land_pegs(
+            &package,
+            &f.definition,
+            (tolerance, &f.meta.name),
+            &pegs,
+            &mut findings,
+        ));
         if user.footprint == first.footprint {
             landings = lands;
             unlanded = f
@@ -588,6 +766,11 @@ fn land(
                 ),
             ));
         }
+        let on_land = state.spot.and_then(|spot| {
+            let pad = footprint.pad(spot.pad)?;
+            let centre = package_fit::to_datum(&footprint.datum, pad.position());
+            Some(LandPosition::of(&spot, [at[0], at[1]], centre))
+        });
         out.push(LeadLanding {
             lead,
             pad,
@@ -597,6 +780,132 @@ fn land(
             } else {
                 0.0
             },
+            hole: None,
+            on_land,
+        });
+    }
+    out
+}
+
+/// A mechanical lead (a locating peg) and the non-plated hole it lands.
+struct Peg {
+    lead: String,
+    hole: PadId,
+    /// Its contact in the model frame, mm.
+    contact: Point,
+}
+
+/// The non-plated hole `id` of `footprint`.
+fn non_plated(footprint: &FootprintDefinition, id: PadId) -> Option<&Pad> {
+    footprint
+        .pads
+        .iter()
+        .find(|p| p.id == id && p.kind == PadKind::NonPlatedHole)
+}
+
+/// The footprint's non-plated holes by id and number, for a message.
+fn hole_list(footprint: &FootprintDefinition) -> String {
+    let holes: Vec<String> = footprint
+        .pads
+        .iter()
+        .filter(|p| p.kind == PadKind::NonPlatedHole)
+        .map(|p| {
+            if p.number.is_empty() {
+                format!("{}", p.id)
+            } else {
+                format!("{} ({})", p.id, p.number)
+            }
+        })
+        .collect();
+    if holes.is_empty() {
+        "it has none".into()
+    } else {
+        holes.join(", ")
+    }
+}
+
+/// The drilled centre of a hole pad, footprint frame, mm.
+fn hole_centre(pad: &Pad) -> Point {
+    let p = pad.position();
+    match &pad.hole {
+        Some(hole) => {
+            let o = hole.offset();
+            let (c, s) = crate::geometry::cos_sin(pad.rotation_deg());
+            [p[0] + c * o[0] - s * o[1], p[1] + s * o[0] + c * o[1]]
+        }
+        None => p,
+    }
+}
+
+/// How far a contact at `q` (footprint frame, mm) lies outside the hole
+/// pad's outline; 0 inside. A peg lands its hole when its contact lies in
+/// the drilled outline.
+fn hole_miss(pad: &Pad, q: Point) -> f64 {
+    pad.land(crate::library::PAD_ARC_TOLERANCE_MM)
+        .distance(q, true)
+}
+
+/// Where each peg lands on `footprint` under the package's placement: the
+/// hole it names when this footprint has it, else the nearest non-plated
+/// hole. A peg outside its hole past `tolerance` is a blocking finding.
+fn land_pegs(
+    package: &PackageDefinition,
+    footprint: &FootprintDefinition,
+    (tolerance, name): (Nm, &str),
+    pegs: &[Peg],
+    findings: &mut Vec<BodyFinding>,
+) -> Vec<LeadLanding> {
+    let allowed = tolerance.to_mm_f64();
+    let datum = package.placement.transform();
+    let frame = package_model::model_frame(&footprint.datum, &package.placement);
+    let mut out = Vec::new();
+    for peg in pegs {
+        let lead = [peg.contact[0], peg.contact[1], 0.0];
+        let at = datum.apply(lead);
+        let q = frame.apply(lead);
+        let o = frame.apply_vector(lead);
+        let (q, o) = ([q[0], q[1]], [o[0], o[1]]);
+        let hole = non_plated(footprint, peg.hole).or_else(|| {
+            footprint
+                .pads
+                .iter()
+                .filter(|p| p.kind == PadKind::NonPlatedHole)
+                .min_by(|a, b| hole_miss(a, q).total_cmp(&hole_miss(b, q)))
+        });
+        let Some(hole) = hole else {
+            findings.push(finding(
+                "body.no_hole",
+                format!(
+                    "Lead {} lands no non-plated hole of ‘{name}’, which has none.",
+                    peg.lead
+                ),
+            ));
+            continue;
+        };
+        let label = if hole.number.is_empty() {
+            format!("hole {}", hole.id)
+        } else {
+            hole.number.clone()
+        };
+        let miss = hole_miss(hole, q);
+        if miss > allowed + 1e-9 {
+            findings.push(finding(
+                "body.peg_off_hole",
+                format!(
+                    "Lead {} misses {label} of ‘{name}’ by {miss:.3} mm (its contact outside the drilled hole), more than the {allowed:.3} mm allowed.",
+                    peg.lead
+                ),
+            ));
+        }
+        let centre = package_fit::to_datum(&footprint.datum, hole_centre(hole));
+        let spot = package_fit::land_spot(hole, q, o);
+        out.push(LeadLanding {
+            lead: peg.lead.clone(),
+            pad: label,
+            miss_mm: miss,
+            off_centre_mm: (at[0] - centre[0]).hypot(at[1] - centre[1]),
+            hole: Some(hole.id),
+            on_land: Some(LandPosition::of(&spot, [at[0], at[1]], centre)),
         });
     }
     out

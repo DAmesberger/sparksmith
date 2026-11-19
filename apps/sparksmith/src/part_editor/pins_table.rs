@@ -1280,7 +1280,7 @@ pub fn document(
         }
         pins.push(PinoutPin {
             row: number.to_owned(),
-            number: BTreeMap::from([(variant.to_owned(), number.to_owned())]),
+            number: BTreeMap::from([(variant.to_owned(), number.into())]),
             name: name.to_owned(),
             class,
             gpio,
