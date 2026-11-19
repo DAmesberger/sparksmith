@@ -478,26 +478,25 @@ pub(crate) fn generate(
             .generic
             .family_of(&description.id, &complete)
             .is_some_and(|f| !f.fields.is_empty());
-    let host_fields = if selects_fields {
+    // Any other component selects the standard part value field, so it
+    // holds its value as a design states it ("ESP32-S3", "Conn 2×5").
+    let host_fields = if scope == GeneratorScope::Component {
         super::library::import_bundle(document, &crate::library::standard_fields::bundle()?)?;
-        generated::family_fields(&document.project.library, &description.id, &complete)?
+        if selects_fields {
+            generated::family_fields(&document.project.library, &description.id, &complete)?
+        } else {
+            crate::library::standards::get()?
+                .fields
+                .part_value_selection(&document.project.library)
+                .map(|selection| (vec![selection], None))
+        }
     } else {
         None
     };
     // The generator's default top marking, its standard-field placeholders
     // turned into the project's fields (host data, as the fields are).
     let host_marking = match &made.generation.marking {
-        Some(marking) if scope == GeneratorScope::Component => {
-            let names_fields = std::iter::once(marking)
-                .chain(&marking.decals)
-                .flat_map(|m| &m.lines)
-                .any(|l| l.contains("field:"));
-            if !selects_fields && names_fields {
-                super::library::import_bundle(
-                    document,
-                    &crate::library::standard_fields::bundle()?,
-                )?;
-            }
+        Some(_) if scope == GeneratorScope::Component => {
             let standards = crate::library::standards::get()?;
             let library = &document.project.library;
             expand::marking(&made.generation, &description.licence, |name| {

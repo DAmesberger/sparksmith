@@ -31,7 +31,9 @@ mod models;
 mod replace;
 mod review;
 pub use models::model_details;
-pub use replace::{Replacement, TerminalPair, UnitPair, suggest_by_name};
+pub use replace::{
+    Alignment, PadResidual, PlacementFit, Replacement, TerminalPair, UnitPair, suggest_by_name,
+};
 pub use review::{
     ChangeArea, ChangeKind, ChangeObject, ConflictReason, FindingRow, FindingsDiff, PlanChange,
     PlanLine, TrackConflict, summarize,
@@ -267,6 +269,10 @@ pub struct UpdatePlan {
     /// footprint's copper equals the old one's after the placement.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub copper: Vec<CopperIdentity>,
+    /// For a component replacement: per placed instance, how the new
+    /// footprint is placed and each mapped terminal's pad residual.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fits: Vec<PlacementFit>,
 }
 
 /// Whether a replaced instance's copper stays the same: each pad compared
@@ -337,6 +343,7 @@ impl UpdatePlan {
             planned_placements: vec![],
             merges_named: vec![],
             copper: vec![],
+            fits: vec![],
         }
     }
 
@@ -2551,8 +2558,13 @@ pub(crate) fn preview(
             return (plan, None);
         }
     };
-    if let Change::ReplaceComponent { instances, .. } = &change {
+    if let Change::ReplaceComponent {
+        instances,
+        replacement,
+    } = &change
+    {
         plan.copper = replace::copper_identity(project, &next, instances);
+        plan.fits = replace::placement_fits(project, &next, instances, replacement);
     }
     let merges = nets::named_merges(project, &next);
     for merge in &merges {
@@ -2839,7 +2851,13 @@ pub(crate) fn preview(
                         refs(),
                         format!("{designator} moves on the board"),
                     ),
-                    format!("{designator}: the PCB placement moves."),
+                    plan.fits
+                        .iter()
+                        .find(|f| f.instance == placement.instance)
+                        .map_or_else(
+                            || format!("{designator}: the PCB placement moves."),
+                            PlacementFit::line,
+                        ),
                 );
             }
         }

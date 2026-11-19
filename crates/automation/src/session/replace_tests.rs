@@ -273,3 +273,217 @@ fn an_ambiguous_mapping_is_refused_in_plain_words() -> Fallible {
     assert_eq!(plan["result"]["plan"]["blockers"], json!([]), "{plan}");
     Ok(())
 }
+
+/// An imported board with project parts of one three-pad land pattern
+/// drawn about different origins: U1's footprint has its origin between
+/// pads 1 and 2, U2's at pad 1, and U3's is U2's turned a quarter turn.
+/// U1 is routed: a track from each of pads 1 and 2 outward.
+fn offset_engine() -> Fallible<sparksmith_core::Engine> {
+    let pads = |at: [(f64, f64, f64); 3], nets: [(u32, &str); 3]| -> String {
+        at.iter()
+            .zip(nets)
+            .enumerate()
+            .map(|(k, ((x, y, angle), (net, name)))| {
+                let net = if net == 0 {
+                    String::new()
+                } else {
+                    format!(r#" (net {net} "{name}")"#)
+                };
+                format!(
+                    r#"(pad "{}" smd rect (at {x} {y} {angle}) (size 1.0 1.6) (layers "F.Cu" "F.Mask" "F.Paste"){net})"#,
+                    k + 1
+                )
+            })
+            .collect()
+    };
+    let none = [(0, ""), (0, ""), (0, "")];
+    let board = format!(
+        r#"(kicad_pcb (version 20240108) (generator "original offset fixture")
+        (general (thickness 1.6)) (layers (0 "F.Cu" signal) (31 "B.Cu" signal))
+        (net 0 "") (net 1 "A") (net 2 "B") (net 3 "C")
+        (gr_rect (start 0 0) (end 60 30) (stroke (width 0.1) (type default)) (layer "Edge.Cuts"))
+        (footprint "Original:Centred" (layer "F.Cu") (at 10 10)
+          (property "Reference" "U1") {})
+        (footprint "Original:AtPadOne" (layer "F.Cu") (at 30 10)
+          (property "Reference" "U2") {})
+        (footprint "Original:Turned" (layer "F.Cu") (at 45 10)
+          (property "Reference" "U3") {})
+        (segment (start 8 10) (end 4 10) (width 0.25) (layer "F.Cu") (net 1))
+        (segment (start 12 10) (end 16 10) (width 0.25) (layer "F.Cu") (net 2)))"#,
+        pads(
+            [(-2.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 3.0, 0.0)],
+            [(1, "A"), (2, "B"), (3, "C")]
+        ),
+        pads([(0.0, 0.0, 0.0), (4.0, 0.0, 0.0), (2.0, 3.0, 0.0)], none),
+        pads(
+            [(0.0, 0.0, 90.0), (0.0, -4.0, 90.0), (3.0, -2.0, 90.0)],
+            none
+        ),
+    );
+    let defaults = sparksmith_io::new_project::shipped().map_err(|e| e.to_string())?;
+    let profile =
+        sparksmith_io::rule_profiles::for_new_board_from_env(None).map_err(|e| e.to_string())?;
+    let imported = sparksmith_kicad::import(
+        board.as_bytes(),
+        &sparksmith_kicad::Setup {
+            board: &defaults.board,
+            presets: &defaults.presets,
+            profile: Some(&profile),
+            evaluators: hosted(),
+            project_file: None,
+            schematic: None,
+        },
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(imported.engine)
+}
+
+/// U1 replaced by the component of `by`, its terminals mapped by name.
+fn offset_request(session: &Session, by: &str, alignment: Option<&str>) -> Fallible<Value> {
+    let target = instance(session, by)?.component;
+    let mut request = json!({
+        "designators": ["U1"],
+        "target": {"id": target.id, "revision": target.revision},
+        "terminals": [
+            {"from": "1", "to": "1"}, {"from": "2", "to": "2"}, {"from": "3", "to": "3"}
+        ],
+    });
+    if let Some(alignment) = alignment {
+        request["alignment"] = json!(alignment);
+    }
+    Ok(request)
+}
+
+/// The pad centres of a placed part on the board, by pad number.
+fn pad_positions(session: &Session, designator: &str) -> Fallible<Vec<[f64; 2]>> {
+    let id = instance(session, designator)?.id;
+    let mut pads: Vec<(String, [f64; 2])> =
+        sparksmith_core::layout::placed_pad_centres(session.engine().project(), id)
+            .into_iter()
+            .map(|p| (p.label, p.position))
+            .collect();
+    pads.sort_by(|a, b| a.0.cmp(&b.0));
+    Ok(pads.into_iter().map(|(_, p)| p).collect())
+}
+
+fn close(a: &[[f64; 2]], b: &[[f64; 2]]) -> bool {
+    a.len() == b.len()
+        && a.iter()
+            .zip(b)
+            .all(|(p, q)| (p[0] - q[0]).abs() < 1e-6 && (p[1] - q[1]).abs() < 1e-6)
+}
+
+/// A footprint whose origin lies elsewhere is moved so its mapped pads
+/// land on the old ones: the copper stays the same and the routing stays
+/// connected. `keep_origin` keeps the old origin and moves every pad.
+#[test]
+fn a_replacement_fits_its_pads_to_the_old_ones() -> Fallible {
+    let mut session = Session::fixture(offset_engine()?);
+    let old = pad_positions(&session, "U1")?;
+    assert_eq!(old.len(), 3);
+    let tracks = session.engine().project().tracks.clone();
+    assert_eq!(tracks.len(), 2);
+    let codes_before = board_codes(&session);
+    assert!(!codes_before.iter().any(|c| c == "board.unrouted"));
+
+    // Keep origin: every pad lies 2 mm off; the routing detaches.
+    let keep = offset_request(&session, "U2", Some("keep_origin"))?;
+    let preview = call(&mut session, "project.preview_replace", keep);
+    let plan = &preview["result"]["plan"];
+    assert_eq!(plan["blockers"], json!([]), "{plan}");
+    assert_eq!(plan["copper"][0]["identical"], false, "{plan}");
+    let fit = &plan["fits"][0];
+    assert_eq!(fit["alignment"], "keep_origin", "{plan}");
+    assert_eq!(fit["moved_mm"], json!([0.0, 0.0]), "{plan}");
+    assert!(
+        (fit["max_residual_mm"].as_f64().ok_or("residual")? - 2.0).abs() < 1e-6,
+        "{plan}"
+    );
+    assert!(
+        plan["warnings"].to_string().contains("A track on A"),
+        "{plan}"
+    );
+
+    // Fit pads (the default): moved 2 mm, every residual zero, the copper
+    // identical, no track detached.
+    let request = offset_request(&session, "U2", None)?;
+    let preview = call(&mut session, "project.preview_replace", request.clone());
+    let plan = &preview["result"]["plan"];
+    assert_eq!(plan["blockers"], json!([]), "{plan}");
+    assert_eq!(plan["copper"][0]["identical"], true, "{plan}");
+    let fit = &plan["fits"][0];
+    assert_eq!(fit["alignment"], "fit_pads", "{plan}");
+    assert_eq!(fit["turned_deg"], 0.0, "{plan}");
+    let moved = &fit["moved_mm"];
+    assert!(
+        (moved[0].as_f64().ok_or("x")?.abs() - 2.0).abs() < 1e-6
+            && moved[1].as_f64().ok_or("y")?.abs() < 1e-6,
+        "{plan}"
+    );
+    assert_eq!(fit["pads"].as_array().map(Vec::len), Some(3), "{plan}");
+    assert_eq!(fit["max_residual_mm"], 0.0, "{plan}");
+    assert!(
+        !plan["warnings"].to_string().contains("A track on"),
+        "{plan}"
+    );
+    assert!(
+        plan["changes"]
+            .to_string()
+            .contains("U1 is placed so its mapped pads fit the old ones"),
+        "{plan}"
+    );
+
+    let applied = call(
+        &mut session,
+        "project.replace_component",
+        json!({"replace": request}),
+    );
+    assert_eq!(applied["ok"], true, "{applied}");
+    assert!(close(&pad_positions(&session, "U1")?, &old));
+    assert_eq!(session.engine().project().tracks, tracks);
+    // The board check finds what it found before: the routing still
+    // reaches every pad.
+    assert_eq!(board_codes(&session), codes_before);
+    Ok(())
+}
+
+/// The board check's finding codes, sorted.
+fn board_codes(session: &Session) -> Vec<String> {
+    let mut codes: Vec<String> =
+        sparksmith_core::layout::checks(session.engine().project(), &Default::default())
+            .into_iter()
+            .map(|f| f.code)
+            .collect();
+    codes.sort();
+    codes
+}
+
+/// A footprint drawn a quarter turn from the old one is turned back onto
+/// the old pads.
+#[test]
+fn a_replacement_turned_a_quarter_fits_by_turning() -> Fallible {
+    let mut session = Session::fixture(offset_engine()?);
+    let old = pad_positions(&session, "U1")?;
+    let request = offset_request(&session, "U3", None)?;
+    let preview = call(&mut session, "project.preview_replace", request.clone());
+    let plan = &preview["result"]["plan"];
+    assert_eq!(plan["blockers"], json!([]), "{plan}");
+    let fit = &plan["fits"][0];
+    assert_eq!(
+        fit["turned_deg"].as_f64().map(f64::abs),
+        Some(90.0),
+        "{plan}"
+    );
+    assert!(
+        fit["max_residual_mm"].as_f64().ok_or("residual")? < 1e-6,
+        "{plan}"
+    );
+    let applied = call(
+        &mut session,
+        "project.replace_component",
+        json!({"replace": request}),
+    );
+    assert_eq!(applied["ok"], true, "{applied}");
+    assert!(close(&pad_positions(&session, "U1")?, &old));
+    Ok(())
+}

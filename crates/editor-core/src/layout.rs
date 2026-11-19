@@ -644,6 +644,55 @@ pub fn pads(project: &Project) -> Vec<WorldPad> {
     result
 }
 
+/// One copper pad of a placed part: its component terminal, its label
+/// (number, else ID) and its centre on the board, whatever its net.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PlacedPadCentre {
+    pub terminal: crate::ids::TerminalId,
+    pub label: String,
+    pub position: Point,
+}
+
+/// The copper pads of `instance` on the board that belong to a terminal,
+/// connected or not; empty when it is not placed or has no footprint.
+pub fn placed_pad_centres(project: &Project, instance: Id) -> Vec<PlacedPadCentre> {
+    let Some(placement) = project.placements.iter().find(|p| p.instance == instance) else {
+        return Vec::new();
+    };
+    let Some(physical) = project
+        .instance(instance)
+        .and_then(|i| instances::resolve(&project.library, i).ok())
+        .and_then(|r| r.physical)
+    else {
+        return Vec::new();
+    };
+    let footprint = &physical.footprint.definition;
+    let datum = &footprint.datum;
+    footprint
+        .pads
+        .iter()
+        .filter(|pad| pad.kind.copper() != PadCopper::None)
+        .filter_map(|pad| {
+            let terminal = pad
+                .terminal
+                .and_then(|t| physical.binding.definition.terminal_of(t))?;
+            Some(PlacedPadCentre {
+                terminal,
+                label: if pad.number.is_empty() {
+                    pad.id.to_string()
+                } else {
+                    pad.number.clone()
+                },
+                position: placed_point(
+                    placement,
+                    placed::undo_datum_rotation(pad.position(), datum),
+                    datum.offset(),
+                ),
+            })
+        })
+        .collect()
+}
+
 /// The user's label of a placed pad: its number, or its ID when the number
 /// is empty. Keyed by instance and pad ID; one resolution per placement.
 pub fn pad_labels(project: &Project) -> BTreeMap<(Id, PadId), String> {

@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use sparksmith_core::ids::{ComponentRef, DefinitionId, Id, TerminalId};
 use sparksmith_core::library::ComponentDefinition;
 use sparksmith_core::model::PhysicalChoice;
-use sparksmith_core::updates::{self, Change, Replacement, TerminalPair, UnitPair};
+use sparksmith_core::updates::{self, Alignment, Change, Replacement, TerminalPair, UnitPair};
 use sparksmith_core::{Operation, library::MAX_PACKAGE_TERMINALS};
 
 /// Bytes of a designator or terminal name.
@@ -65,6 +65,12 @@ pub struct PreviewReplaceParams {
     /// symbols have one unit.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub units: Vec<UnitPair>,
+    /// `fit_pads` (the default): the new footprint is moved, and turned by
+    /// quarter turns, so its mapped pads best fit the old ones, each
+    /// terminal's residual in the plan's `fits`. `keep_origin`: it keeps
+    /// the old placement's origin and rotation.
+    #[serde(default)]
+    pub alignment: Alignment,
 }
 
 /// `project.replace_component`. Required: `replace`, `expected_revision`.
@@ -195,6 +201,7 @@ impl Session {
                 physical: params.physical,
                 terminals,
                 units: params.units.clone(),
+                alignment: params.alignment,
             },
         };
         Ok((change, old, target))

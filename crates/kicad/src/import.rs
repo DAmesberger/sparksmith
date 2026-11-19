@@ -957,6 +957,29 @@ impl Session<'_> {
             })
     }
 
+    /// The standard part value field's selection, the standard fields
+    /// imported first; `None` without the host's standards.
+    fn part_value_selection(
+        &mut self,
+    ) -> Result<Option<sparksmith_core::fields::FieldSelection>, ImportError> {
+        let Some(standards) = self.engine.context().map(|c| c.standards().clone()) else {
+            return Ok(None);
+        };
+        if standards
+            .fields
+            .part_value(&self.engine.project().library)
+            .is_none()
+        {
+            self.apply(
+                "library.import_standard_fields",
+                Operation::Library(LibraryCommand::ImportStandardFields {}),
+            )?;
+        }
+        Ok(standards
+            .fields
+            .part_value_selection(&self.engine.project().library))
+    }
+
     /// The fab profile, with the file's board-wide settings over it: the
     /// mask margin vias and inherited pads take, and whether vias are
     /// tented.
@@ -1377,6 +1400,15 @@ impl Session<'_> {
             step: "library.edit",
             reason: e.to_string(),
         })?;
+        // The part holds its value in the standard part value field, as
+        // a generated part of no family does.
+        if let Some(value) = self.part_value_selection()? {
+            for edit in &mut edits {
+                if let Definition::Component(component) = &mut edit.definition {
+                    component.fields = vec![value.clone()];
+                }
+            }
+        }
         if !source_id.trim().is_empty() {
             let id: String = source_id
                 .chars()
