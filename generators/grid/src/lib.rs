@@ -52,8 +52,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+/// The generator's version (`Description::version`): 4 sets the marking
+/// text at the height its preset gives (`marking_height`).
+const VERSION: u32 = 4;
 
 /// Most rows or columns of one grid (the host's grid form allows as many).
 const MAX_SIDE: i64 = 64;
@@ -242,6 +243,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         ),
     ];
     params.push(sparksmith_generator_sdk::marking::param());
+    params.push(sparksmith_generator_sdk::marking::height_param());
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),

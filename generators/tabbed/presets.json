@@ -25,7 +25,8 @@
    "tab": "none",
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 450000
   },
   "citation": {
    "document": "JEDEC TO-236, SOT-23 3-lead small outline transistor package"
@@ -59,7 +60,8 @@
    "marking": [
     "{mpn}"
    ],
-   "marking_pin1_dot": true
+   "marking_pin1_dot": true,
+   "marking_height": 450000
   },
   "citation": {
    "document": "JEDEC MO-178, small outline transistor plastic package, 5 and 6 leads (SOT-23-5/6)"
@@ -93,7 +95,8 @@
    "tab": "lead",
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 700000
   },
   "citation": {
    "document": "JEDEC TO-261, SOT-223 package"
@@ -188,7 +191,8 @@
    "marking": [
     "{mpn}"
    ],
-   "marking_pin1_dot": true
+   "marking_pin1_dot": true,
+   "marking_height": 450000
   },
   "citation": {
    "document": "JEDEC MO-178, small outline transistor plastic package, 5 and 6 leads (SOT-23-5/6)"
@@ -222,7 +226,8 @@
    "tab": "none",
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 350000
   },
   "citation": {
    "document": "JEDEC MO-203, plastic small outline transistor package, 3, 5 and 6 leads (SC-70)"
@@ -257,7 +262,8 @@
    "marking": [
     "{mpn}"
    ],
-   "marking_pin1_dot": true
+   "marking_pin1_dot": true,
+   "marking_height": 350000
   },
   "citation": {
    "document": "JEDEC MO-203, plastic small outline transistor package, 3, 5 and 6 leads (SC-70)"
@@ -293,7 +299,8 @@
    "marking": [
     "{mpn}"
    ],
-   "marking_pin1_dot": true
+   "marking_pin1_dot": true,
+   "marking_height": 350000
   },
   "citation": {
    "document": "JEDEC MO-203, plastic small outline transistor package, 3, 5 and 6 leads (SC-70)"
@@ -330,7 +337,8 @@
    "tab": "lead",
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 550000
   },
   "basis": "estimated",
   "note": "Estimated: the nominal lead pitch, body and span of the TO-243 (SOT-89) outline; its flat leads are modelled as short gull-wing feet and the centre lead's wide tab under the body as a tab foot opposite the leads. Confirm against the device's drawing."

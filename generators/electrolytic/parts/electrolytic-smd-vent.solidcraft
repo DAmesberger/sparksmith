@@ -126,16 +126,16 @@
     },
     {
       "name": "vent_width",
-      "expr": "0.15 mm",
+      "expr": "0.3 mm",
       "unit": "mm",
-      "comment": "vent score width (est.)",
+      "comment": "vent score width at the top (est.)",
       "model": false
     },
     {
       "name": "vent_depth",
-      "expr": "0.06 mm",
+      "expr": "0.12 mm",
       "unit": "mm",
-      "comment": "vent score depth (est.)",
+      "comment": "vent score depth, a V (est.)",
       "model": false
     },
     {
@@ -701,63 +701,321 @@
     },
     {
       "id": 15,
-      "name": "vent score 1",
+      "name": "vent score 1 sketch",
       "suppressed": false,
       "param_names": [
-        "d21",
-        "d22",
-        "d23"
+        "d21"
       ],
-      "participants": [
-        "can",
-        "print"
-      ],
-      "type": "box",
-      "corner": [
-        "- (vent_length) / 2",
-        "- (vent_width) / 2",
-        "height - vent_depth"
-      ],
-      "length": "vent_length",
-      "width": "vent_width",
-      "height": "vent_depth + 1 mm",
-      "operation": "cut"
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "YZ"
+        },
+        "distance": "- vent_length / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -0.15,
+              5.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- vent_width / 2",
+              "y": "(height)"
+            }
+          },
+          {
+            "id": "p2",
+            "pos": [
+              0.0,
+              5.68
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "(height - vent_depth)"
+            }
+          },
+          {
+            "id": "p3",
+            "pos": [
+              0.15,
+              5.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "vent_width / 2",
+              "y": "(height)"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              0.15,
+              6.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "vent_width / 2",
+              "y": "(height + 1 mm)"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              -0.15,
+              6.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- vent_width / 2",
+              "y": "(height + 1 mm)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 2,
+            "b": 3,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 5,
+            "b": 1,
+            "construction": false
+          }
+        ],
+        "constraints": [],
+        "counters": {
+          "l": 5,
+          "p": 5
+        }
+      }
     },
     {
       "id": 16,
-      "name": "vent score 2",
+      "name": "vent score 1",
       "suppressed": false,
       "param_names": [
-        "d24",
-        "d25",
-        "d26"
+        "d22"
       ],
-      "participants": [
+      "type": "extrude",
+      "sketch": 15,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "vent_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
         "can",
         "print"
-      ],
-      "type": "box",
-      "corner": [
-        "- (vent_width) / 2",
-        "- (vent_length) / 2",
-        "height - vent_depth"
-      ],
-      "length": "vent_width",
-      "width": "vent_length",
-      "height": "vent_depth + 1 mm",
-      "operation": "cut"
+      ]
     },
     {
       "id": 17,
+      "name": "vent score 2 sketch",
+      "suppressed": false,
+      "param_names": [
+        "d23"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XZ"
+        },
+        "distance": "- vent_length / 2"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "p1",
+            "pos": [
+              -0.15,
+              -5.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- vent_width / 2",
+              "y": "-(height)"
+            }
+          },
+          {
+            "id": "p2",
+            "pos": [
+              0.0,
+              -5.68
+            ],
+            "fixed": true,
+            "exprs": {
+              "y": "-(height - vent_depth)"
+            }
+          },
+          {
+            "id": "p3",
+            "pos": [
+              0.15,
+              -5.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "vent_width / 2",
+              "y": "-(height)"
+            }
+          },
+          {
+            "id": "p4",
+            "pos": [
+              0.15,
+              -6.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "vent_width / 2",
+              "y": "-(height + 1 mm)"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              -0.15,
+              -6.8
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- vent_width / 2",
+              "y": "-(height + 1 mm)"
+            }
+          }
+        ],
+        "curves": [
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 1,
+            "b": 2,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 2,
+            "b": 3,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 3,
+            "b": 4,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 4,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 5,
+            "b": 1,
+            "construction": false
+          }
+        ],
+        "constraints": [],
+        "counters": {
+          "l": 5,
+          "p": 5
+        }
+      }
+    },
+    {
+      "id": 18,
+      "name": "vent score 2",
+      "suppressed": false,
+      "param_names": [
+        "d24"
+      ],
+      "type": "extrude",
+      "sketch": 17,
+      "profiles": {
+        "type": "all"
+      },
+      "extent": {
+        "distance": "vent_length",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "cut",
+      "targets": [
+        "can",
+        "print"
+      ]
+    },
+    {
+      "id": 19,
       "name": "terminal 1",
       "suppressed": false,
       "body_names": [
         "terminal 1"
       ],
       "param_names": [
-        "d27",
-        "d28",
-        "d29"
+        "d25",
+        "d26",
+        "d27"
       ],
       "type": "box",
       "corner": [
@@ -771,16 +1029,16 @@
       "operation": "new_body"
     },
     {
-      "id": 18,
+      "id": 20,
       "name": "terminal 2",
       "suppressed": false,
       "body_names": [
         "terminal 2"
       ],
       "param_names": [
-        "d30",
-        "d31",
-        "d32"
+        "d28",
+        "d29",
+        "d30"
       ],
       "type": "box",
       "corner": [
@@ -794,7 +1052,7 @@
       "operation": "new_body"
     },
     {
-      "id": 19,
+      "id": 21,
       "name": "terminal grooves",
       "suppressed": false,
       "type": "combine",
@@ -807,11 +1065,11 @@
       "keep_tools": true
     },
     {
-      "id": 20,
+      "id": 22,
       "name": "marking-top",
       "suppressed": false,
       "param_names": [
-        "d33"
+        "d31"
       ],
       "type": "construction_plane",
       "plane": {
@@ -838,7 +1096,7 @@
       }
     }
   ],
-  "next_id": 21,
+  "next_id": 23,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {

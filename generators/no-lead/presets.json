@@ -23,7 +23,8 @@
    "pad_width": 1650000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -55,7 +56,8 @@
    "pad_width": 1700000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -87,7 +89,8 @@
    "pad_width": 1700000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -119,7 +122,8 @@
    "pad_width": 2100000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 450000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -151,7 +155,8 @@
    "pad_width": 2600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 450000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -183,7 +188,8 @@
    "pad_width": 2600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 450000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -215,7 +221,8 @@
    "pad_width": 2600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 450000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -247,7 +254,8 @@
    "pad_width": 3100000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -279,7 +287,8 @@
    "pad_width": 3250000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -311,7 +320,8 @@
    "pad_width": 3450000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -343,7 +353,8 @@
    "pad_width": 3500000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -375,7 +386,8 @@
    "pad_width": 4100000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 550000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -407,7 +419,8 @@
    "pad_width": 4500000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 550000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -439,7 +452,8 @@
    "pad_width": 4400000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 550000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -471,7 +485,8 @@
    "pad_width": 5150000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -503,7 +518,8 @@
    "pad_width": 5300000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -535,7 +551,8 @@
    "pad_width": 6000000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 650000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -567,7 +584,8 @@
    "pad_width": 6400000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 650000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -599,7 +617,8 @@
    "pad_width": 7150000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 650000
   },
   "citation": {
    "document": "JEDEC MO-220, thermally enhanced plastic very thin quad flat no-lead (QFN)"
@@ -631,7 +650,8 @@
    "pad_width": 1000000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 350000
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -663,7 +683,8 @@
    "pad_width": 900000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 350000
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -695,7 +716,8 @@
    "pad_width": 1300000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 350000
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -727,7 +749,8 @@
    "pad_width": 1600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -759,7 +782,8 @@
    "pad_width": 1600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -791,7 +815,8 @@
    "pad_width": 1650000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-229, thermally enhanced plastic very thin dual flat no-lead (DFN)"
@@ -823,7 +848,8 @@
    "pad_width": 2160000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 450000
   },
   "citation": {
    "document": "Texas Instruments RGV0016A package outline (4219037/A, 06/2019), in the INA3221 datasheet"
@@ -855,7 +881,8 @@
    "construction": "lga",
    "marking": [
     "343B"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "Analog Devices ADXL343 data sheet Rev. 0, outline dimensions CC-14-1 (Figure 51)",
