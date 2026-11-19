@@ -1233,7 +1233,11 @@ fn author_chip(kind: Chip) -> Vec<u8> {
         Chip::Led => (MaterialId::Alumina96, "height"),
     };
     assign_look(&mut s, &["body"], body_look);
-    assign_look(&mut s, &["termination 1", "termination 2"], MaterialId::TinMatte);
+    assign_look(
+        &mut s,
+        &["termination 1", "termination 2"],
+        MaterialId::TinMatte,
+    );
     if let Some(o) = overcoat {
         assign_look(&mut s, &[o], MaterialId::ResistorOvercoat);
     }
@@ -1512,7 +1516,10 @@ pub fn author_no_lead(four: bool, pad: bool, kind: NoLead) -> Vec<u8> {
             north,
             Row {
                 name: "row_w",
-                corner: ["- body_length / 2 + pullback".into(), first("terminals_short")],
+                corner: [
+                    "- body_length / 2 + pullback".into(),
+                    first("terminals_short"),
+                ],
                 size: along_y,
                 dir: [0, 1, 0],
                 count: "terminals_short",
@@ -1652,7 +1659,10 @@ pub fn author_no_lead(four: bool, pad: bool, kind: NoLead) -> Vec<u8> {
         );
     }
     // The pin-1 laser dot: a shallow disc of laser-marked moulding.
-    let dot = ["- body_length / 2 + 2 * mark_radius", "- body_width / 2 + 2 * mark_radius"];
+    let dot = [
+        "- body_length / 2 + 2 * mark_radius",
+        "- body_width / 2 + 2 * mark_radius",
+    ];
     run(
         &mut s,
         "solid.cylinder",
@@ -2485,12 +2495,12 @@ fn author_tabbed(side: TabbedSide) -> Vec<u8> {
 
 /// A part file of the `tabbed` generator's bundle: a PLCC LED with its
 /// driver (Worldsemi's WS2812B, 5050), as the datasheet's drawing shows it:
-/// a white housing on the leads' feet, a round cavity in its top over the
+/// a white body on the leads' feet, a round cavity in its top over the
 /// leadframe, the driver die and three LED chips, the pin-3 corner cut.
 /// The cavity's clear encapsulant is left out: the 3D view draws clear
 /// silicone opaque, which would hide the chips a person sees through it;
-/// each lead leaves the housing's side,
-/// runs down it and folds under the housing to its foot. The −y and +y
+/// each lead leaves the body's side,
+/// runs down it and folds under the body to its foot. The −y and +y
 /// rows are patterns with their own counts and grid steps, as the other
 /// tabbed files. Saved at the WS2812B's values; the generator gives every
 /// input value.
@@ -2499,19 +2509,19 @@ fn author_plcc_led() -> Vec<u8> {
     run(&mut s, "file.new", json!({"name": "PLCC LED package"}));
     let rows = vec![
         param("pitch", "3.3 mm", "mm", "the lead grid's pitch along x"),
-        param("body_length", "5 mm", "mm", "housing length (x)"),
-        param("body_width", "5 mm", "mm", "housing width (y)"),
+        param("body_length", "5 mm", "mm", "body length (x)"),
+        param("body_width", "5 mm", "mm", "body width (y)"),
         param(
             "body_height",
             "1.42 mm",
             "mm",
-            "housing height above the standoff",
+            "body height above the standoff",
         ),
         param(
             "standoff",
             "0.15 mm",
             "mm",
-            "housing bottom above the seating plane: the feet under it",
+            "body bottom above the seating plane: the feet under it",
         ),
         param("span", "5.4 mm", "mm", "lead tip to lead tip across y"),
         param("lead_width", "0.9 mm", "mm", "lead width along x"),
@@ -2520,7 +2530,7 @@ fn author_plcc_led() -> Vec<u8> {
             "foot_length",
             "1 mm",
             "mm",
-            "a lead's foot under the housing, from its outer face",
+            "a lead's foot under the body, from its outer face",
         ),
         param("row_s_leads", "2", "", "leads on the −y side"),
         param("row_s_step", "1", "", "grid positions between −y leads"),
@@ -2530,19 +2540,19 @@ fn author_plcc_led() -> Vec<u8> {
             "corner_round",
             "0.1 mm",
             "mm",
-            "round of the housing's upright corners",
+            "round of the body's upright corners",
         ),
         param(
             "edge_round",
             "0.05 mm",
             "mm",
-            "round of the housing's top edges",
+            "round of the body's top edges",
         ),
         param(
             "lead_exit",
             "standoff + min(0.5 mm, body_height / 3)",
             "mm",
-            "height of the lead's centreline where it leaves the housing (est.)",
+            "height of the lead's centreline where it leaves the body (est.)",
         ),
         param(
             "lens_diameter",
@@ -2581,7 +2591,7 @@ fn author_plcc_led() -> Vec<u8> {
         "solid.box",
         json!({"corner": ["- body_length / 2", "- body_width / 2", "standoff"],
             "length": "body_length", "width": "body_width", "height": "body_height",
-            "name": "housing", "body_name": "body"}),
+            "name": "body", "body_name": "body"}),
     );
     let (l, w, h0, h) = (5.0, 5.0, 0.15, 1.42);
     let top = h0 + h;
@@ -2634,10 +2644,34 @@ fn author_plcc_led() -> Vec<u8> {
             "height": "0.02 mm", "name": "leadframe", "body_name": "leadframe"}),
     );
     let chips = [
-        ("driver die", "-0.12 * lens_diameter", "0 mm", "0.18 * lens_diameter", "0.15 mm"),
-        ("red chip", "0.1 * lens_diameter", "-0.1 * lens_diameter", "0.07 * lens_diameter", "0.12 mm"),
-        ("green chip", "0.1 * lens_diameter", "0 mm", "0.07 * lens_diameter", "0.12 mm"),
-        ("blue chip", "0.1 * lens_diameter", "0.1 * lens_diameter", "0.07 * lens_diameter", "0.12 mm"),
+        (
+            "driver die",
+            "-0.12 * lens_diameter",
+            "0 mm",
+            "0.18 * lens_diameter",
+            "0.15 mm",
+        ),
+        (
+            "red chip",
+            "0.1 * lens_diameter",
+            "-0.1 * lens_diameter",
+            "0.07 * lens_diameter",
+            "0.12 mm",
+        ),
+        (
+            "green chip",
+            "0.1 * lens_diameter",
+            "0 mm",
+            "0.07 * lens_diameter",
+            "0.12 mm",
+        ),
+        (
+            "blue chip",
+            "0.1 * lens_diameter",
+            "0.1 * lens_diameter",
+            "0.07 * lens_diameter",
+            "0.12 mm",
+        ),
     ];
     for (name, x, y, side, height) in chips {
         run(
@@ -2649,7 +2683,7 @@ fn author_plcc_led() -> Vec<u8> {
                 "body_name": name}),
         );
     }
-    // Each row's first lead: out of the housing's side, down it and under
+    // Each row's first lead: out of the body's side, down it and under
     // it, as three joined boxes; then the row's pattern.
     for (row, plus) in [("row_s", false), ("row_n", true)] {
         let lead = format!("{row} lead");
@@ -2720,11 +2754,7 @@ fn author_plcc_led() -> Vec<u8> {
     assert_eq!(leads.len(), 32, "{leads:?}");
     let leads: Vec<&str> = leads.iter().map(String::as_str).collect();
     assign_look(&mut s, &["body"], MaterialId::PaWhite);
-    assign_look(
-        &mut s,
-        &["leadframe", "driver die"],
-        MaterialId::Aluminium,
-    );
+    assign_look(&mut s, &["leadframe", "driver die"], MaterialId::Aluminium);
     assign_look(
         &mut s,
         &["red chip", "green chip", "blue chip"],

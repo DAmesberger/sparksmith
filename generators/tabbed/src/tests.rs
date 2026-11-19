@@ -297,7 +297,7 @@ fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
             "standoff",
         ];
         let tab = p.params.get("tab");
-        if p.params.get("housing") == Some(&ParamValue::Text("led_plcc".into())) {
+        if p.params.get("construction") == Some(&ParamValue::Text("led_plcc".into())) {
             assert_eq!(asset, parts::TABBED_PLCC_LED, "{}", p.key);
             want.extend(["row_n_leads", "row_n_step"]);
         } else if tab == Some(&ParamValue::Text("none".into())) {

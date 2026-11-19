@@ -23,28 +23,28 @@
       "name": "body_length",
       "expr": "5 mm",
       "unit": "mm",
-      "comment": "housing length (x)",
+      "comment": "body length (x)",
       "model": false
     },
     {
       "name": "body_width",
       "expr": "5 mm",
       "unit": "mm",
-      "comment": "housing width (y)",
+      "comment": "body width (y)",
       "model": false
     },
     {
       "name": "body_height",
       "expr": "1.42 mm",
       "unit": "mm",
-      "comment": "housing height above the standoff",
+      "comment": "body height above the standoff",
       "model": false
     },
     {
       "name": "standoff",
       "expr": "0.15 mm",
       "unit": "mm",
-      "comment": "housing bottom above the seating plane: the feet under it",
+      "comment": "body bottom above the seating plane: the feet under it",
       "model": false
     },
     {
@@ -72,7 +72,7 @@
       "name": "foot_length",
       "expr": "1 mm",
       "unit": "mm",
-      "comment": "a lead's foot under the housing, from its outer face",
+      "comment": "a lead's foot under the body, from its outer face",
       "model": false
     },
     {
@@ -107,21 +107,21 @@
       "name": "corner_round",
       "expr": "0.1 mm",
       "unit": "mm",
-      "comment": "round of the housing's upright corners",
+      "comment": "round of the body's upright corners",
       "model": false
     },
     {
       "name": "edge_round",
       "expr": "0.05 mm",
       "unit": "mm",
-      "comment": "round of the housing's top edges",
+      "comment": "round of the body's top edges",
       "model": false
     },
     {
       "name": "lead_exit",
       "expr": "standoff + min(0.5 mm, body_height / 3)",
       "unit": "mm",
-      "comment": "height of the lead's centreline where it leaves the housing (est.)",
+      "comment": "height of the lead's centreline where it leaves the body (est.)",
       "model": false
     },
     {
@@ -169,7 +169,7 @@
   "features": [
     {
       "id": 1,
-      "name": "housing",
+      "name": "body",
       "suppressed": false,
       "body_names": [
         "body"

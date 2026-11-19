@@ -1395,7 +1395,9 @@ fn write_ic_pictures() -> Result<(), Box<dyn std::error::Error>> {
             let mut v = marked_preview(&package.definition, library, spec, &inputs)?;
             let b = v.bounds;
             let (w, h) = (1280, 960);
-            for (view, yaw, pitch, far) in [("marked", 30.0, 40.0, 1.5), ("marked-top", 0.0, 89.0, 1.2)] {
+            for (view, yaw, pitch, far) in
+                [("marked", 30.0, 40.0, 1.5), ("marked-top", 0.0, 89.0, 1.2)]
+            {
                 aim(&mut v, b.center(), far * b.diagonal(), yaw, pitch);
                 let rgba = gpu.draw(&mut v, w, h, 2.0).ok_or("no picture")?;
                 let png = sparksmith_solidcraft::viewport::png(w as usize, h as usize, rgba)

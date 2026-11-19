@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "gull-wing.wasm",
-    "sha256": "de371c271e20e2cc85c20976ffe84902a95b64912b72ab9a596db4e02f1a5edf"
+    "sha256": "96f72c6cce4259fbe198328b0759984b5c8e18d8e5e09f6301454c13e589d080"
   },
   "name": "gull-wing",
   "parts": [
@@ -10,21 +10,21 @@
       "file": "parts/gull-wing-four-sided.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a LQFP-48 7 × 7 mm (JEDEC MS-026 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
-      "sha256": "f07a1ca9574b24041fbf23efe3cd003e6cf060a1c6813425ff0f54ebe403e689",
+      "sha256": "a8c37e49767cf6ba718250f6f141fe6ac6aadeb67a1f73fd4225b83db5f908e6",
       "title": "Gull-wing package, four sides"
     },
     {
       "file": "parts/gull-wing-two-sided.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a SOIC-8 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
-      "sha256": "439ef3d275c256d6ae83d8552ba2a456493da7eb39c60ead627fe629f6e8a751",
+      "sha256": "dfe921f3556892f8933228063b5f6afb259bcceb518a10cf69051caba4bf4aea",
       "title": "Gull-wing package, two sides"
     },
     {
       "file": "parts/gull-wing-two-sided-bevel.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a SOIC-8 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
-      "sha256": "2d6b454728ed7f0ba93c19c7a07f5e2b43de25f058524e21d36f7a6e9873fb24",
+      "sha256": "fc94e518c66d51d2612006e58cdd95c37e8f24fc97074858ef3003e050cbf3ac",
       "title": "Gull-wing package, two sides, bevelled pin-1 edge"
     }
   ]

@@ -634,7 +634,8 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         fields.push("colour".into());
     }
     Ok(Generation {
-        marking: sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor).map_err(|p| vec![p])?,
+        marking: sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor)
+            .map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: terminals(d.part),
             prefix: d.part.prefix().into(),

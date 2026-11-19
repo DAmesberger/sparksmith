@@ -146,11 +146,11 @@ fn description_with(presets: Vec<Preset>) -> Description {
         group: Some("lands".into()),
         context: None,
     };
-    let housing = Param {
-        key: "housing".into(),
-        label: "Housing".into(),
+    let construction = Param {
+        key: "construction".into(),
+        label: "Construction".into(),
         help: Some(
-            "A moulded body with gull-wing leads, or a PLCC LED's white housing with a clear-filled cavity over its chips, its leads folded down the sides and under it (5050 addressable LEDs)."
+            "A moulded body with gull-wing leads, or a PLCC LED's white body with a clear-filled cavity over its chips, its leads folded down the sides and under it (5050 addressable LEDs)."
                 .into(),
         ),
         ty: ParamType::Enum {
@@ -295,7 +295,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "lands",
         ),
     ];
-    params.push(housing);
+    params.push(construction);
     params.push(sparksmith_generator_sdk::marking::param());
     params.push(sparksmith_generator_sdk::marking::dot_param());
     let rules = vec![
@@ -414,7 +414,7 @@ struct Dims {
     flange: i64,
     /// The datasheet's land pattern, when given.
     lands: Option<Lands>,
-    /// A PLCC LED's housing, its leads folded under it.
+    /// A PLCC LED's body, its leads folded under it.
     plcc: bool,
 }
 
@@ -584,7 +584,7 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
             }),
             _ => None,
         },
-        plcc: args.text("housing").map_err(one)? == "led_plcc",
+        plcc: args.text("construction").map_err(one)? == "led_plcc",
     };
     let problems = problems(&d);
     if problems.is_empty() {
@@ -640,7 +640,7 @@ fn problems(d: &Dims) -> Vec<Problem> {
         rule(
             d.standoff >= t && d.span - d.body_width >= 2 * t && 2 * d.foot_length <= d.span,
             "foot_length",
-            "A PLCC LED's leads fold under its housing: the standoff holds their feet (standoff ≥ lead thickness), the span leaves a lead thickness beside the housing, and each foot ends before the middle (foot length ≤ span / 2).",
+            "A PLCC LED's leads fold under its body: the standoff holds their feet (standoff ≥ lead thickness), the span leaves a lead thickness beside the body, and each foot ends before the middle (foot length ≤ span / 2).",
         );
     } else {
         rule(

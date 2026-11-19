@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tabbed.wasm",
-    "sha256": "389e0f16415c339f76e30e48c131838c261224d567b287b4d3f646f9ab52e329"
+    "sha256": "df48bceac3bdc5795f176d3798e0f30fdb58a44ed777346afd491f49f2dbb6cd"
   },
   "name": "tabbed",
   "parts": [
@@ -10,28 +10,28 @@
       "file": "parts/tabbed-flange.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at the DPAK starter values; the tabbed generator gives every input its value. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); rounds and lead bends are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
-      "sha256": "0f1b33c3131300a86de356ce1559f00a5dbe64ccc09f45f2550e96267b2fce17",
+      "sha256": "111872d76146c22f31dcbf1f988132d56f3c2ea65ce186e02b5078145335bd83",
       "title": "DPAK and D2PAK package"
     },
     {
       "file": "parts/tabbed-plcc-led.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the WS2812B's values; the tabbed generator gives every input its value. Outline, lead form, cavity and cut corner after Worldsemi's WS2812B datasheet (mechanical dimensions, page 3: 5.0 × 5.0 × 1.57 mm, leads 0.9 mm wide, 5.4 mm over the leads); lead height, cavity depth and the chips' sizes and places are estimated. Looked at, never copied: no vendor drawing, CAD model or EDA library data copied.",
-      "sha256": "f128794374aff42ab2eca1f460ecd0e9af08ddbc37748c1d63dd5bdaa90e8a04",
+      "sha256": "f2ee1a7abc9e1ca62aacb600c3c5205c6438021cc74b58756c71f2a6cbb242c2",
       "title": "PLCC LED package"
     },
     {
       "file": "parts/tabbed-rows.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at the SOT-23-5 starter values; the tabbed generator gives every input its value. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); rounds and lead bends are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
-      "sha256": "d716f4aa619d07c9eed30f8eddb558e3c58008cde089672d247615ac326bcc7a",
+      "sha256": "c2d3539d32a7e7b5b3aa8d34c65847c3e532685fa16405ddaf5b2cd70c76cdd1",
       "title": "SOT-23 and SC-70 package"
     },
     {
       "file": "parts/tabbed-tab-lead.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at the SOT-223 starter values; the tabbed generator gives every input its value. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); rounds and lead bends are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
-      "sha256": "cf94e892342210df4bf881e3fd797df5f07b081f7333650b03ba320ff2729c2b",
+      "sha256": "706c4f8dda4b035702e2cadb57abc827dc887f442f44e50c8dd93d51daa9c862",
       "title": "SOT-223 and SOT-89 package"
     }
   ]

@@ -175,7 +175,7 @@
     },
     {
       "name": "marking_top_v",
-      "expr": "0.7 * (body_width - 2 * draft_inset)",
+      "expr": "0.35 * body_width",
       "unit": "mm",
       "comment": "marking-top size across it",
       "model": false

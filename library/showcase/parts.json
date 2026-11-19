@@ -1166,8 +1166,8 @@
         "name": "Gull-wing package, two sides",
         "definition": {
           "asset": {
-            "hash": "f8b5c813f85664b9f64a96619b7a6151ba6ab8eed2ec28cf62f06ce6bd6103f4",
-            "bytes": 106341,
+            "hash": "dfe921f3556892f8933228063b5f6afb259bcceb518a10cf69051caba4bf4aea",
+            "bytes": 112815,
             "media_type": "application/x-solidcraft",
             "file_name": "gull-wing-two-sided.solidcraft"
           },
@@ -1191,7 +1191,7 @@
             [
               2450000,
               3000000,
-              1625000
+              1550000
             ]
           ],
           "bodies": [],
@@ -1264,7 +1264,34 @@
             ]
           ],
           "bodies": 9,
-          "surfaces": [],
+          "surfaces": [
+            {
+              "description": "the part file's marking plane marking-top",
+              "geometry": {
+                "map": "plane",
+                "normal": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "origin_nm": [
+                  0,
+                  0,
+                  1550000
+                ],
+                "size_nm": [
+                  3522162,
+                  780000
+                ],
+                "u_axis": [
+                  1.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "name": "top"
+            }
+          ],
           "leads": [
             {
               "body": "row_n lead",
@@ -3172,8 +3199,8 @@
         "name": "QFN package with exposed pad",
         "definition": {
           "asset": {
-            "hash": "eaedb747e1c716e2df677f4763954181675dd1a0f520663e912a10c16a1302c7",
-            "bytes": 94182,
+            "hash": "e889292ab1a3b83e95004af6dc9c325c2a39b541ccb8d9871779ae654e6eb818",
+            "bytes": 164083,
             "media_type": "application/x-solidcraft",
             "file_name": "qfn-ep.solidcraft"
           },
@@ -3197,7 +3224,7 @@
             [
               1500000,
               1500000,
-              900000
+              850000
             ]
           ],
           "bodies": [],
@@ -3281,12 +3308,55 @@
               850000
             ]
           ],
-          "bodies": 18,
-          "surfaces": [],
+          "bodies": 35,
+          "surfaces": [
+            {
+              "description": "the part file's marking plane marking-top",
+              "geometry": {
+                "map": "plane",
+                "normal": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "origin_nm": [
+                  0,
+                  0,
+                  850000
+                ],
+                "size_nm": [
+                  2100000,
+                  600000
+                ],
+                "u_axis": [
+                  1.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "name": "top"
+            }
+          ],
           "leads": [
             {
               "body": "exposed pad",
               "terminal": "EP"
+            },
+            {
+              "body": "row_e plating",
+              "terminal": "5"
+            },
+            {
+              "body": "row_e plating (2)",
+              "terminal": "6"
+            },
+            {
+              "body": "row_e plating (3)",
+              "terminal": "7"
+            },
+            {
+              "body": "row_e plating (4)",
+              "terminal": "8"
             },
             {
               "body": "row_e terminal",
@@ -3305,6 +3375,22 @@
               "terminal": "8"
             },
             {
+              "body": "row_n plating",
+              "terminal": "12"
+            },
+            {
+              "body": "row_n plating (2)",
+              "terminal": "11"
+            },
+            {
+              "body": "row_n plating (3)",
+              "terminal": "10"
+            },
+            {
+              "body": "row_n plating (4)",
+              "terminal": "9"
+            },
+            {
               "body": "row_n terminal",
               "terminal": "12"
             },
@@ -3321,6 +3407,22 @@
               "terminal": "9"
             },
             {
+              "body": "row_s plating",
+              "terminal": "1"
+            },
+            {
+              "body": "row_s plating (2)",
+              "terminal": "2"
+            },
+            {
+              "body": "row_s plating (3)",
+              "terminal": "3"
+            },
+            {
+              "body": "row_s plating (4)",
+              "terminal": "4"
+            },
+            {
               "body": "row_s terminal",
               "terminal": "1"
             },
@@ -3335,6 +3437,22 @@
             {
               "body": "row_s terminal (4)",
               "terminal": "4"
+            },
+            {
+              "body": "row_w plating",
+              "terminal": "16"
+            },
+            {
+              "body": "row_w plating (2)",
+              "terminal": "15"
+            },
+            {
+              "body": "row_w plating (3)",
+              "terminal": "14"
+            },
+            {
+              "body": "row_w plating (4)",
+              "terminal": "13"
             },
             {
               "body": "row_w terminal",
@@ -4693,7 +4811,7 @@
             [
               6350000,
               2540000,
-              8540000
+              8500000
             ]
           ],
           "bodies": [],
@@ -5292,8 +5410,8 @@
         "name": "Chip resistor body",
         "definition": {
           "asset": {
-            "hash": "0909b763f3bc0f9d2e53117bc86f84d3e2c63a156eeca3c188c59a309e8b6cf2",
-            "bytes": 9500,
+            "hash": "4ad0f535be5914966bdd76c7b5b358ba55f6a3b33220e0b248dee7213d76120c",
+            "bytes": 14185,
             "media_type": "application/x-solidcraft",
             "file_name": "chip-resistor.solidcraft"
           },
@@ -5381,7 +5499,34 @@
             ]
           ],
           "bodies": 4,
-          "surfaces": [],
+          "surfaces": [
+            {
+              "description": "the part file's marking plane marking-top",
+              "geometry": {
+                "map": "plane",
+                "normal": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "origin_nm": [
+                  0,
+                  0,
+                  435000
+                ],
+                "size_nm": [
+                  860000,
+                  560000
+                ],
+                "u_axis": [
+                  1.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "name": "top"
+            }
+          ],
           "leads": [
             {
               "body": "termination 1",
@@ -5896,8 +6041,8 @@
         "name": "Chip capacitor body",
         "definition": {
           "asset": {
-            "hash": "cfeaa0b8d6f875510cbb9e91ab594474baff6a2468bcacef849de7d7db5094e6",
-            "bytes": 8542,
+            "hash": "4e822b6434c0de90c591e942523da323e289db34322e7eb363600a6cbb484ed3",
+            "bytes": 13010,
             "media_type": "application/x-solidcraft",
             "file_name": "chip-capacitor.solidcraft"
           },
@@ -5914,14 +6059,14 @@
           },
           "bounds_nm": [
             [
-              -800000,
-              -400000,
+              -1000000,
+              -625000,
               0
             ],
             [
-              800000,
-              400000,
-              450000
+              1000000,
+              625000,
+              850000
             ]
           ],
           "bodies": [],
@@ -5982,7 +6127,34 @@
             ]
           ],
           "bodies": 3,
-          "surfaces": [],
+          "surfaces": [
+            {
+              "description": "the part file's marking plane marking-top",
+              "geometry": {
+                "map": "plane",
+                "normal": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "origin_nm": [
+                  0,
+                  0,
+                  835000
+                ],
+                "size_nm": [
+                  1100000,
+                  875000
+                ],
+                "u_axis": [
+                  1.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "name": "top"
+            }
+          ],
           "leads": [
             {
               "body": "termination 1",
@@ -6615,8 +6787,8 @@
         "name": "Chip capacitor body",
         "definition": {
           "asset": {
-            "hash": "cfeaa0b8d6f875510cbb9e91ab594474baff6a2468bcacef849de7d7db5094e6",
-            "bytes": 8542,
+            "hash": "4e822b6434c0de90c591e942523da323e289db34322e7eb363600a6cbb484ed3",
+            "bytes": 13010,
             "media_type": "application/x-solidcraft",
             "file_name": "chip-capacitor.solidcraft"
           },
@@ -6633,14 +6805,14 @@
           },
           "bounds_nm": [
             [
+              -1600000,
               -800000,
-              -400000,
               0
             ],
             [
+              1600000,
               800000,
-              400000,
-              450000
+              1600000
             ]
           ],
           "bodies": [],
@@ -6701,7 +6873,34 @@
             ]
           ],
           "bodies": 3,
-          "surfaces": [],
+          "surfaces": [
+            {
+              "description": "the part file's marking plane marking-top",
+              "geometry": {
+                "map": "plane",
+                "normal": [
+                  0.0,
+                  0.0,
+                  1.0
+                ],
+                "origin_nm": [
+                  0,
+                  0,
+                  1585000
+                ],
+                "size_nm": [
+                  2100000,
+                  1120000
+                ],
+                "u_axis": [
+                  1.0,
+                  0.0,
+                  0.0
+                ]
+              },
+              "name": "top"
+            }
+          ],
           "leads": [
             {
               "body": "termination 1",
