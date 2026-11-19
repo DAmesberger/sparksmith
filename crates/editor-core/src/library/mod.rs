@@ -5,6 +5,7 @@
 //! document decode and `component.check` use.
 mod binding;
 pub mod bundle;
+pub mod categories;
 mod component;
 pub mod datum;
 pub mod drafts;

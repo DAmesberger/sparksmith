@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>IC</title>
+  <path d="M8.5 13L15.5 13A1.5 1.5 0 0 1 17 14.5L17 17.5A1.5 1.5 0 0 1 15.5 19L8.5 19A1.5 1.5 0 0 1 7 17.5L7 14.5A1.5 1.5 0 0 1 8.5 13Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.5 23L15.5 23A1.5 1.5 0 0 1 17 24.5L17 27.5A1.5 1.5 0 0 1 15.5 29L8.5 29A1.5 1.5 0 0 1 7 27.5L7 24.5A1.5 1.5 0 0 1 8.5 23Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.5 35L15.5 35A1.5 1.5 0 0 1 17 36.5L17 39.5A1.5 1.5 0 0 1 15.5 41L8.5 41A1.5 1.5 0 0 1 7 39.5L7 36.5A1.5 1.5 0 0 1 8.5 35Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8.5 45L15.5 45A1.5 1.5 0 0 1 17 46.5L17 49.5A1.5 1.5 0 0 1 15.5 51L8.5 51A1.5 1.5 0 0 1 7 49.5L7 46.5A1.5 1.5 0 0 1 8.5 45Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.5 13L55.5 13A1.5 1.5 0 0 1 57 14.5L57 17.5A1.5 1.5 0 0 1 55.5 19L48.5 19A1.5 1.5 0 0 1 47 17.5L47 14.5A1.5 1.5 0 0 1 48.5 13Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.5 23L55.5 23A1.5 1.5 0 0 1 57 24.5L57 27.5A1.5 1.5 0 0 1 55.5 29L48.5 29A1.5 1.5 0 0 1 47 27.5L47 24.5A1.5 1.5 0 0 1 48.5 23Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.5 35L55.5 35A1.5 1.5 0 0 1 57 36.5L57 39.5A1.5 1.5 0 0 1 55.5 41L48.5 41A1.5 1.5 0 0 1 47 39.5L47 36.5A1.5 1.5 0 0 1 48.5 35Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M48.5 45L55.5 45A1.5 1.5 0 0 1 57 46.5L57 49.5A1.5 1.5 0 0 1 55.5 51L48.5 51A1.5 1.5 0 0 1 47 49.5L47 46.5A1.5 1.5 0 0 1 48.5 45Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M19 7L45 7A3 3 0 0 1 48 10L48 54A3 3 0 0 1 45 57L19 57A3 3 0 0 1 16 54L16 10A3 3 0 0 1 19 7Z" fill="#8e9faf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M27 7A5 5 0 0 0 37 7Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="23" cy="15" r="2.5" fill="#e2e8ef"/>
+</svg>
