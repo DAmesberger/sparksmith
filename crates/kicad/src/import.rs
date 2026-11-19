@@ -705,6 +705,7 @@ pub fn import_with_models(
     session.batches("fill.set_pad_override", overrides)?;
     if let Some((schematic, plan)) = &plan {
         crate::sheets::wire(&mut session, schematic, plan, &mut report)?;
+        crate::netlist::verify(&session, schematic, &mut report);
         for n in unlabelled_places {
             if let Some(id) = instances.get(n) {
                 labelled.insert(*id);

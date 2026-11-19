@@ -99,6 +99,11 @@ fn the_schematic_is_drawn_and_its_nets_equal_the_boards() -> Fallible<()> {
         ),
         (3, 0, 0)
     );
+    // The imported schematic's nets are the source schematic's.
+    assert_eq!(
+        (report.counts.source_nets, report.counts.source_nets_equal),
+        (3, 3)
+    );
     // The wire with its corners, the power port and the label; no
     // labels made up per pin.
     assert_eq!(report.count(Case::SchematicWire), 1);

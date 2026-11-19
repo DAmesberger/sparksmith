@@ -615,6 +615,13 @@ fn acceptance_on_a_design() -> Fallible {
         before.len(),
         after.len()
     );
+    println!(
+        "source schematic nets: {}, equal in the import {}, split by the import {}, joined by the import {}",
+        made.report.counts.source_nets,
+        made.report.counts.source_nets_equal,
+        made.report.count(Case::SchematicNetSplit),
+        made.report.count(Case::SchematicNetJoined)
+    );
     let mut resistors = 0;
     let mut valued = 0;
     for instance in project
@@ -638,5 +645,156 @@ fn acceptance_on_a_design() -> Fallible {
         made.report.count(Case::ValueWordUnread),
         made.report.count(Case::ValueWithoutField)
     );
+    Ok(())
+}
+
+/// A six-pin KiCad symbol for the SOT pattern: pins 1–3 down the left
+/// side, 4–6 up the right (library frame, y up). Pin 2 is off the grid,
+/// where a power port on the generated symbol's pin 1 stands (that symbol
+/// is drawn at KiCad's place, its pin 1 at (−8.77, 1.23) from the origin).
+const SIX_LIB: &str = r#"(symbol "Original:Six" (in_bom yes) (on_board yes)
+  (symbol "Six_0_1" (rectangle (start -3.81 3.81) (end 3.81 -3.81)))
+  (symbol "Six_1_1"
+    (pin passive line (at -6.35 2.54 0) (length 2.54) (name "P1") (number "1"))
+    (pin passive line (at -8.77 2.23 0) (length 2.54) (name "P2") (number "2"))
+    (pin passive line (at -6.35 -2.54 0) (length 2.54) (name "P3") (number "3"))
+    (pin passive line (at 6.35 -2.54 180) (length 2.54) (name "P4") (number "4"))
+    (pin passive line (at 6.35 0 180) (length 2.54) (name "P5") (number "5"))
+    (pin passive line (at 6.35 2.54 180) (length 2.54) (name "P6") (number "6"))))"#;
+
+/// A power symbol: one hidden pin at its origin.
+const POWER_LIB: &str = r#"(symbol "Original:Power" (power) (in_bom yes) (on_board yes)
+  (symbol "Power_1_1" (pin power_in line (at 0 0 270) (length 0) hide (name "P") (number "1"))))"#;
+
+/// A KiCad schematic of `items` with the six-pin symbol at each place
+/// and a power symbol of each value at each point.
+fn six_schematic(places: &[(&str, [f64; 2])], power: &[(&str, [f64; 2])], items: &str) -> String {
+    let symbol = |lib: &str, reference: &str, value: &str, at: [f64; 2]| {
+        format!(
+            r#"(symbol (lib_id "{lib}") (at {} {} 0) (unit 1)
+              (property "Reference" "{reference}" (at 0 0 0))
+              (property "Value" "{value}" (at 0 0 0))
+              (instances (project "nets" (path "/00000000-0000-4000-8000-000000000001" (reference "{reference}") (unit 1)))))"#,
+            at[0], at[1]
+        )
+    };
+    let symbols: String = places
+        .iter()
+        .map(|(reference, at)| symbol("Original:Six", reference, "Six", *at))
+        .chain(
+            power
+                .iter()
+                .enumerate()
+                .map(|(k, (value, at))| symbol("Original:Power", &format!("#PWR{k}"), value, *at)),
+        )
+        .collect();
+    format!(
+        r#"(kicad_sch (version 20231120) (generator "sparksmith_test")
+  (uuid "00000000-0000-4000-8000-000000000001") (paper "A4")
+  (lib_symbols {SIX_LIB} {POWER_LIB}) {symbols} {items})"#
+    )
+}
+
+fn global_label(name: &str, at: [f64; 2]) -> String {
+    format!(
+        r#"(global_label "{name}" (shape input) (at {} {} 180))"#,
+        at[0], at[1]
+    )
+}
+
+fn wires(points: &[[f64; 2]]) -> String {
+    points
+        .windows(2)
+        .map(|w| {
+            format!(
+                "(wire (pts (xy {} {}) (xy {} {})))",
+                w[0][0], w[0][1], w[1][0], w[1][1]
+            )
+        })
+        .collect()
+}
+
+/// The imported schematic's nets equal the source schematic's for
+/// generated parts, whose own symbols are drawn apart from KiCad's wiring
+/// and joined back to it: power ports and labels standing on the source's
+/// pins (a wire meeting one of them there too, KiCad's wires ending at the
+/// next pins), wires whose rejoining paths cross, and the board's pad nets
+/// kept.
+#[test]
+fn generated_parts_keep_the_source_schematics_nets() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    // Board nets of each SOT: 1 A, 2 B, 3 C, 4 D, 5 A, 6 B.
+    let footprints = format!(
+        "{}{}",
+        sot_footprint("U1", [20.0, 10.0], 0.0, false, ""),
+        sot_footprint("U2", [40.0, 10.0], 0.0, false, "")
+    );
+    // U1 at (50, 50) and U2 at (80, 50) on the sheet (y down): pin 1 at
+    // x − 6.35, y − 2.54; pin 2 at x − 8.77, y − 2.23; pin 3 at x − 6.35,
+    // y + 2.54; pins 4–6 at x + 6.35, y + 2.54, y, y − 2.54.
+    let items = [
+        // U1: power ports on pins 1 (A) and 4 (D), KiCad's wires ending
+        // at the other pins (pin 2's point under the port on the generated
+        // symbol's pin 1).
+        wires(&[[41.23, 47.77], [35.0, 47.77]]),
+        global_label("B", [35.0, 47.77]),
+        wires(&[[43.65, 52.54], [35.0, 52.54]]),
+        global_label("C", [35.0, 52.54]),
+        // U1.5 (A) to U2.1 (A), and U1.6 (B) to U2.2 (B), crossing it;
+        // a power port on U1.5 and a label on U1.6 too.
+        global_label("B", [56.35, 47.46]),
+        wires(&[[56.35, 50.0], [65.0, 50.0], [65.0, 47.46], [73.65, 47.46]]),
+        wires(&[
+            [56.35, 47.46],
+            [63.0, 47.46],
+            [63.0, 51.0],
+            [68.0, 51.0],
+            [68.0, 47.77],
+            [71.23, 47.77],
+        ]),
+        // U2's other pins: labels and power ports at the pins.
+        global_label("C", [73.65, 52.54]),
+        global_label("B", [86.35, 47.46]),
+    ]
+    .concat();
+    std::fs::write(
+        dir.path().join("nets.kicad_sch"),
+        six_schematic(
+            &[("U1", [50.0, 50.0]), ("U2", [80.0, 50.0])],
+            &[
+                ("A", [43.65, 47.46]),
+                ("A", [56.35, 50.0]),
+                ("D", [56.35, 52.54]),
+                ("A", [86.35, 50.0]),
+                ("D", [86.35, 52.54]),
+            ],
+            &items,
+        ),
+    )?;
+    let imported = import(dir.path(), "nets", &board("nets", &footprints))?;
+    let report = &imported.report;
+    assert_eq!(report.count(Case::GeneratedPart), 2);
+    // Four source nets (A, B, C, D), each equal; no import fault.
+    assert_eq!(
+        (report.counts.source_nets, report.counts.source_nets_equal),
+        (4, 4),
+        "{:?}",
+        report.details()
+    );
+    assert_eq!(report.count(Case::SchematicNetSplit), 0);
+    assert_eq!(report.count(Case::SchematicNetJoined), 0);
+    // The pads' nets are the board's.
+    let project = imported.engine.project();
+    for (key, net) in pad_nets(project) {
+        let want = match key.1.as_str() {
+            "1" | "5" => "A",
+            "2" | "6" => "B",
+            "3" => "C",
+            _ => "D",
+        };
+        assert!(net.eq_ignore_ascii_case(want), "{}.{}: {net}", key.0, key.1);
+    }
     Ok(())
 }
