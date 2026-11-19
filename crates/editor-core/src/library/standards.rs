@@ -431,6 +431,7 @@ impl GenericFamily {
             Self::Inductor => "inductor",
             Self::Led => "led",
             Self::Diode => "diode",
+            Self::Electrolytic => "electrolytic",
         }
     }
 }

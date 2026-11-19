@@ -871,3 +871,26 @@ fn generated_parts_mark_their_values_by_rule() -> TestResult {
     }
     Ok(())
 }
+
+/// The shipped module generator's row lists are grouped as rows, as its
+/// source says; the wasm32 build once cut the group to "sing".
+#[test]
+fn the_shipped_module_groups_its_row_lists_as_rows() -> TestResult {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    let mut session = session(&root)?;
+    let listed = call(
+        &mut session,
+        "library.generators",
+        json!({"generator": "module"}),
+    );
+    let params = listed["result"]["shipped"][0]["description"]["params"]
+        .as_array()
+        .ok_or("params")?;
+    let rows: Vec<&Value> = params
+        .iter()
+        .filter(|p| p["key"].as_str().is_some_and(|k| k.starts_with("row_")))
+        .collect();
+    assert!(!rows.is_empty(), "{listed}");
+    assert!(rows.iter().all(|p| p["group"] == "rows"), "{rows:?}");
+    Ok(())
+}
