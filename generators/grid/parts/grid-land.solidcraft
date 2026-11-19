@@ -1,17 +1,13 @@
 {
-  "format": "solidcraft/52",
+  "format": "solidcraft/57",
   "format_pending": [
-    "3d-wire-point-nodes",
-    "frame-end-caps",
-    "joint-origin-inside",
-    "nested-face-name",
-    "opus-quality",
-    "render-indirect-clamp",
-    "render-quality-controls",
-    "revolve-axis-sketch",
-    "sheet-flange-segments",
-    "sketch-link-construction-point",
-    "two-sided-cut-cap-names"
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
   ],
   "name": "Land grid array",
   "units": "mm",
@@ -98,6 +94,13 @@
       "expr": "0.03 mm",
       "unit": "mm",
       "comment": "A1 dimple depth",
+      "model": false
+    },
+    {
+      "name": "land_proud",
+      "expr": "contact_height / 3",
+      "unit": "mm",
+      "comment": "how far the lands stand proud of the body's underside",
       "model": false
     }
   ],
@@ -690,11 +693,11 @@
       "corner": [
         "- body_length / 2",
         "- body_width / 2",
-        "0 mm"
+        "land_proud"
       ],
       "length": "body_length",
       "width": "body_width",
-      "height": "body_height",
+      "height": "body_height - land_proud",
       "operation": "new_body"
     },
     {
@@ -772,7 +775,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -789,7 +792,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -806,7 +809,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -823,7 +826,7 @@
           "min": [
             -2.5,
             -2.0,
-            0.0
+            0.01
           ],
           "max": [
             2.5,
@@ -879,7 +882,7 @@
       "base": [
         "- body_length / 2 + 2 * mark_radius",
         "body_width / 2 - 2 * mark_radius",
-        "0 mm + body_height - mark_depth"
+        "body_height - mark_depth"
       ],
       "axis": [
         0.0,
