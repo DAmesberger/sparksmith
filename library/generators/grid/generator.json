@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "grid.wasm",
-    "sha256": "470fe7faffb84fbe3a6950040bd53eb8cbb023d0e7efef23914285d94e6ecded"
+    "sha256": "fa3138fde2a5702364ad0e6e81001b49ff3889ed6240d4329d1cad8eaa0b1267"
   },
   "name": "grid",
   "parts": [
@@ -23,15 +23,15 @@
     {
       "file": "parts/grid-land.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code grid builder's construction (crates/solidcraft-integration/src/models/grid.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body; the grid generator gives every parameter its value. Matrix, pitch, body and contact sizes are the generator's (the grid starter rows: JEDEC fine-pitch BGA conventions, typical values); land thickness, edge round and A1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
-      "sha256": "dc99a0e832fc3c49f66a5284529e5c369c6bb7dd36c31de5b24999da4af46e34",
+      "provenance": "Original work: the in-code grid builder's construction (crates/solidcraft-integration/src/models/grid.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body; the grid generator gives every parameter its value. Matrix, pitch, body and contact sizes are the generator's (the grid starter rows: JEDEC fine-pitch BGA conventions, typical values); land thickness, how far the lands stand proud, edge round and A1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
+      "sha256": "b1e75237e65e14201f5e98a29f0c06a4e676162f8553efb5d988e63aa716f5cd",
       "title": "Land grid array"
     },
     {
       "file": "parts/grid-land-voids.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code grid builder's construction (crates/solidcraft-integration/src/models/grid.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body, rows B–C and columns 2–4 empty; the grid generator gives every parameter its value. Matrix, pitch, body and contact sizes are the generator's (the grid starter rows: JEDEC fine-pitch BGA conventions, typical values); land thickness, edge round and A1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
-      "sha256": "dca5e9e2c2340b9df10dfbb479b6dcd90c8caac4f67242deebec3cc898a2f38f",
+      "provenance": "Original work: the in-code grid builder's construction (crates/solidcraft-integration/src/models/grid.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 4 × 5 grid of 0.8 mm on a 5 × 4 mm body, rows B–C and columns 2–4 empty; the grid generator gives every parameter its value. Matrix, pitch, body and contact sizes are the generator's (the grid starter rows: JEDEC fine-pitch BGA conventions, typical values); land thickness, how far the lands stand proud, edge round and A1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
+      "sha256": "3a827bc51c6a29e4982271063e37f7996804816c299ca3bc4b0e58c7cb7ee933",
       "title": "Land grid array with empty positions"
     }
   ]
