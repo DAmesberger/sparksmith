@@ -45,7 +45,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.
@@ -64,14 +64,19 @@ const PIN_ONE_DOT_RADIUS_NM: i64 = 200_000;
 /// Leadframe thickness (est.: 0.2 mm is the common QFN frame), at most a
 /// third of the body height.
 const FRAME_NM: i64 = 200_000;
+/// An LGA's lands: thin gold over nickel on its substrate (est.).
+const LGA_LAND_NM: i64 = 50_000;
 /// Round of the sawn body's top edges (est.: a saw-singulated moulding
 /// keeps nearly sharp edges; a small round only catches the light), at
 /// most a tenth of the body height.
-const TOP_EDGE_NM: i64 = 60_000;
-/// Pin-1 dimple depth (est.), and its radius: 8 % of the shorter body
-/// side within 0.1–0.4 mm, centred two radii in from the −x, −y corner.
-const DIMPLE_DEPTH_NM: i64 = 30_000;
-const DIMPLE_RADIUS_NM: [i64; 2] = [100_000, 400_000];
+const TOP_EDGE_NM: i64 = 30_000;
+/// The pin-1 mark: a laser-marked dot (sawn packages are moulded as one
+/// block, so they carry no moulded dimple; TI's RGV and DML outlines show
+/// a pin-1 index area and Sensirion's SHT4x a dot), this deep, its radius
+/// 6 % of the shorter body side within 0.1–0.25 mm, centred two radii in
+/// from the −x, −y corner (est.).
+const DOT_DEPTH_NM: i64 = 5_000;
+const DOT_RADIUS_NM: [i64; 2] = [100_000, 250_000];
 
 pub struct NoLead;
 
@@ -134,7 +139,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             .into(),
     );
     clearance.context = Some("project.land.exposed_pad_clearance".into());
-    let params = vec![
+    let mut params = vec![
         Param {
             key: "sides".into(),
             label: "Terminal sides".into(),
@@ -223,7 +228,55 @@ fn description_with(presets: Vec<Preset>) -> Description {
         ),
         web,
         clearance,
+        Param {
+            key: "construction".into(),
+            label: "Construction".into(),
+            help: Some("Sawn moulding with copper bared at the cut (DFN, QFN); a land grid array of gold lands under a laminate substrate (LGA); or a sawn DFN with an opening in its top over the sensor (open-cavity sensors such as Sensirion's SHT4x).".into()),
+            ty: ParamType::Enum {
+                choices: vec![
+                    Choice {
+                        key: "sawn".into(),
+                        label: "Sawn moulding".into(),
+                    },
+                    Choice {
+                        key: "lga".into(),
+                        label: "Land grid array".into(),
+                    },
+                    Choice {
+                        key: "sensor_window".into(),
+                        label: "Sensor opening in the top".into(),
+                    },
+                ],
+            },
+            default: ParamValue::Text("sawn".into()),
+            group: Some("body".into()),
+            context: None,
+        },
+        Param {
+            key: "wettable_flank".into(),
+            label: "Wettable flanks".into(),
+            help: Some("Sawn with an exposed pad: each terminal's outer end has a plated step solder wets, so the joint can be inspected from the side (automotive QFN and DFN).".into()),
+            ty: ParamType::Bool,
+            default: ParamValue::Bool(false),
+            group: Some("terminals".into()),
+            context: None,
+        },
+        length(
+            "pullback",
+            "Terminal pull-back",
+            [0, MM],
+            0,
+            "terminals",
+        ),
+        length(
+            "window_diameter",
+            "Sensor opening diameter",
+            [100 * UM, 5 * MM],
+            600_000,
+            "body",
+        ),
     ];
+    params.push(sparksmith_generator_sdk::marking::param());
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),
@@ -300,6 +353,19 @@ struct Dims {
     pad: Option<Point2>,
     mask_web: i64,
     pad_clearance: i64,
+    /// How far the terminals' outer ends lie in from the body edge.
+    pullback: i64,
+    construction: Construction,
+    wettable: bool,
+    window: i64,
+}
+
+/// How the package is built (the part file it uses).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Construction {
+    Sawn,
+    Lga,
+    SensorWindow,
 }
 
 impl Dims {
@@ -323,8 +389,8 @@ impl Dims {
         let tl = self.terminal_length;
         // Half the body less half the terminal, across y and across x.
         let reach = [
-            div_round(self.body[1] - tl, 2).unwrap_or(0),
-            div_round(self.body[0] - tl, 2).unwrap_or(0),
+            div_round(self.body[1] - tl, 2).unwrap_or(0) - self.pullback,
+            div_round(self.body[0] - tl, 2).unwrap_or(0) - self.pullback,
         ];
         let along = |i: i64, count: i64| centred(i, count, self.pitch);
         let (n, m) = (self.n, self.m);
@@ -373,6 +439,14 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         pad,
         mask_web: args.int("mask_web").map_err(one)?,
         pad_clearance: args.int("pad_clearance").map_err(one)?,
+        pullback: args.int("pullback").map_err(one)?,
+        construction: match args.text("construction").map_err(one)? {
+            "lga" => Construction::Lga,
+            "sensor_window" => Construction::SensorWindow,
+            _ => Construction::Sawn,
+        },
+        wettable: args.flag("wettable_flank").map_err(one)?,
+        window: args.int("window_diameter").map_err(one)?,
     };
     let mut problems = Vec::new();
     let mut rule = |ok: bool, field: &str, text: String| {
@@ -446,6 +520,32 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         );
         [bl, bw - 2 * tl]
     };
+    rule(
+        2 * (tl + d.pullback) < bw.min(if four { bl } else { bw }),
+        "pullback",
+        format!(
+            "Terminals {} mm long pulled back {} mm meet across the body.",
+            mm(tl),
+            mm(d.pullback)
+        ),
+    );
+    match d.construction {
+        Construction::Sawn => rule(
+            !d.wettable || d.pad.is_some(),
+            "wettable_flank",
+            "Wettable flanks are made for packages with an exposed pad.".into(),
+        ),
+        Construction::Lga => rule(
+            four && d.pad.is_none() && !d.wettable && 4 * LGA_LAND_NM < d.body[2],
+            "construction",
+            "An LGA has lands on four sides, no exposed pad or wettable flanks, and a body over 0.2 mm tall.".into(),
+        ),
+        Construction::SensorWindow => rule(
+            !four && d.pad.is_none() && !d.wettable && 2 * d.window < bl.min(bw),
+            "construction",
+            "A sensor opening is made in a two-sided package without an exposed pad or wettable flanks, its diameter under half the body.".into(),
+        ),
+    }
     if let Some([pl, pw]) = d.pad {
         rule(
             pl < inner[0] && pw < inner[1],
@@ -728,17 +828,12 @@ mod parts {
 fn model(d: &Dims) -> v1::Model {
     let [bl, bw, bh] = d.body;
     let short = bl.min(bw);
-    let (lo, hi) = (DIMPLE_RADIUS_NM[0], DIMPLE_RADIUS_NM[1]);
-    let mut radius = div_round(short * 8, 100).unwrap_or(lo).clamp(lo, hi);
-    // On a body too small for it, the dimple shrinks to fit.
+    let (lo, hi) = (DOT_RADIUS_NM[0], DOT_RADIUS_NM[1]);
+    let mut radius = div_round(short * 6, 100).unwrap_or(lo).clamp(lo, hi);
+    // On a body too small for it, the dot shrinks to fit.
     if 6 * radius >= short {
         radius = div_round(short, 8).unwrap_or(0);
     }
-    let depth = if 4 * DIMPLE_DEPTH_NM < bh {
-        DIMPLE_DEPTH_NM
-    } else {
-        div_round(bh, 8).unwrap_or(0)
-    };
     let mut values = v1::Params::new();
     let mut set = |name: &str, v: i64| {
         values.insert(name.into(), ParamValue::Int(v));
@@ -753,22 +848,35 @@ fn model(d: &Dims) -> v1::Model {
     set("body_height", bh);
     set("terminal_length", d.terminal_length);
     set("terminal_width", d.terminal_width);
-    set("frame", FRAME_NM.min(div_round(bh, 3).unwrap_or(0)));
+    set("pullback", d.pullback);
+    let frame = if d.construction == Construction::Lga {
+        LGA_LAND_NM
+    } else {
+        FRAME_NM
+    };
+    set("frame", frame.min(div_round(bh, 3).unwrap_or(0)));
     set(
         "edge_round",
         TOP_EDGE_NM.min(div_round(bh, 10).unwrap_or(0)),
     );
     set("mark_radius", radius);
-    set("mark_depth", depth);
+    set("mark_depth", DOT_DEPTH_NM);
     if let Some([pl, pw]) = d.pad {
         set("pad_length", pl);
         set("pad_width", pw);
     }
-    let asset = match (d.four, d.pad.is_some()) {
-        (false, false) => parts::DFN,
-        (false, true) => parts::DFN_EP,
-        (true, false) => parts::QFN,
-        (true, true) => parts::QFN_EP,
+    if d.construction == Construction::SensorWindow {
+        set("window_diameter", d.window);
+    }
+    let asset = match (d.construction, d.four, d.pad.is_some(), d.wettable) {
+        (Construction::Lga, ..) => parts::LGA,
+        (Construction::SensorWindow, ..) => parts::DFN_WINDOW,
+        (_, false, false, _) => parts::DFN,
+        (_, false, true, false) => parts::DFN_EP,
+        (_, false, true, true) => parts::DFN_EP_WETTABLE,
+        (_, true, false, _) => parts::QFN,
+        (_, true, true, false) => parts::QFN_EP,
+        (_, true, true, true) => parts::QFN_EP_WETTABLE,
     };
     v1::Model::PartFile {
         asset: asset.into(),
@@ -850,6 +958,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         short_mm(d.pitch)
     );
     Ok(Generation {
+        marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

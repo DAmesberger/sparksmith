@@ -283,7 +283,7 @@ impl Session {
     /// `params` as a `library.generate` without its model, the shipped
     /// bundle its module came from, and the module's answer to it.
     #[allow(clippy::type_complexity)]
-    fn run_request(
+    pub(super) fn run_request(
         &self,
         params: GeneratePartParams,
     ) -> Result<(

@@ -777,3 +777,82 @@ fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
         forbid_pads: false,
     })
 }
+
+/// The generation's default top marking as a component marking: each line
+/// one text item, laser-etched or (`ink`) printed in white, stacked top to
+/// bottom on the model's default marking surface, then the pin-1 dot when
+/// asked, with every `{field:<standard field>…}` placeholder
+/// rewritten to the project's field of that name (`field` finds it); a
+/// placeholder already naming a lineage (`{field:D12}`) stays. `None`
+/// without a marking. The text is the generator's data (its parameters);
+/// the template itself is checked when the component is published.
+pub fn marking(
+    generation: &v1::Generation,
+    mut field: impl FnMut(&str) -> Option<DefinitionId>,
+) -> Result<Option<crate::library::marking::MarkingSpec>> {
+    use crate::library::marking::{
+        Align, Anchor, Finish, MAX_MARKING_ITEMS, MAX_TEMPLATE, MarkingItem, MarkingSpec,
+        PolarityMark, Template,
+    };
+    const FIELD: &str = "{field:";
+    let Some(marking) = &generation.marking else {
+        return Ok(None);
+    };
+    if marking.lines.is_empty() && !marking.pin1_dot {
+        return Ok(None);
+    }
+    if marking.lines.len() + usize::from(marking.pin1_dot) > MAX_MARKING_ITEMS {
+        return Err(Error::Limit(
+            "generated.marking: too many marking lines".into(),
+        ));
+    }
+    let mut items = Vec::with_capacity(marking.lines.len());
+    for line in &marking.lines {
+        let mut out = String::with_capacity(line.len());
+        let mut rest = line.as_str();
+        while let Some(at) = rest.find(FIELD) {
+            let (before, after) = rest.split_at(at + FIELD.len());
+            out.push_str(before);
+            let end = after.find(['|', '}']).unwrap_or(after.len());
+            let (name, tail) = after.split_at(end);
+            let digits = name.strip_prefix('D').unwrap_or(name);
+            if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
+                out.push_str(name);
+            } else {
+                let id = field(name).ok_or_else(|| {
+                    Error::NotFound(format!(
+                        "generated.marking: the marking names the field {name}, which this project does not have"
+                    ))
+                })?;
+                out.push_str(&format!("D{}", id.0));
+            }
+            rest = tail;
+        }
+        out.push_str(rest);
+        if out.len() > MAX_TEMPLATE {
+            return Err(Error::Limit(format!(
+                "generated.marking: a marking line is longer than {MAX_TEMPLATE} bytes"
+            )));
+        }
+        items.push(MarkingItem::Text {
+            template: Template(out),
+            height_nm: None,
+            align: Align::Centre,
+        });
+    }
+    if marking.pin1_dot {
+        items.push(MarkingItem::Polarity {
+            mark: PolarityMark::Dot,
+            at: Anchor::Pin1Corner,
+        });
+    }
+    Ok(Some(MarkingSpec {
+        items,
+        finish: if marking.ink {
+            Finish::InkWhite
+        } else {
+            Finish::LaserEtch
+        },
+        ..MarkingSpec::default()
+    }))
+}

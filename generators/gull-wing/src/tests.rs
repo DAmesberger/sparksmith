@@ -248,6 +248,8 @@ fn every_preset_names_its_part_file_with_every_dimension() -> Result<(), String>
             names.extend(["leads_short", "span_x"]);
             names.sort_unstable();
             assert_eq!(asset, parts::GULL_WING_FOUR_SIDED, "{}", p.key);
+        } else if p.params.get("pin1_bevel") == Some(&ParamValue::Bool(true)) {
+            assert_eq!(asset, parts::GULL_WING_TWO_SIDED_BEVEL, "{}", p.key);
         } else {
             assert_eq!(asset, parts::GULL_WING_TWO_SIDED, "{}", p.key);
         }

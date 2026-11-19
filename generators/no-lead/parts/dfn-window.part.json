@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "dfn-window",
+  "title": "DFN sensor package with top opening",
+  "summary": "DFN sensor package with top opening: a sawn moulding with copper terminals bare at the cut and gold-plated underneath, and a round opening centred in the top over the sensing film; terminals on the two long sides; a laser-marked pin-1 dot; a marking-top surface on the top face (terminals, pitch, body_length, body_width, body_height, terminal_length, terminal_width, pullback, frame, plating, edge_round, mark_radius, mark_depth, window_diameter, window_depth).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after Sensirion's SHT4x datasheet v7.3 §5 (open-cavity DFN, 0.6 mm opening centred on top, Ni/Pd/Au contacts, bare copper side walls); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied."
+}

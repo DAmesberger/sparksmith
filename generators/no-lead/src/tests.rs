@@ -49,15 +49,23 @@ fn golden_hashes_match_natively() -> Result<(), String> {
 #[test]
 fn presets_are_the_starter_rows_and_all_generate() -> Result<(), Vec<Problem>> {
     let description = description();
-    assert_eq!(description.presets().len(), 25);
+    // The 25 starter rows, then the rows after a device's drawing.
+    assert_eq!(description.presets().len(), 28);
     for p in description.presets() {
         for scope in [Scope::Component, Scope::Package] {
             let g = NoLead::generate(&request(scope, &preset(&p.key)))?;
             let pads = g.footprint.pads.len();
             assert_eq!(g.package.geometry.leads.len(), pads, "{}", p.key);
             assert_eq!(g.package.terminals.len(), pads, "{}", p.key);
-            // Every starter row has an exposed pad, the last terminal.
-            assert_eq!(g.package.terminals.last().map(String::as_str), Some("EP"));
+            // Every starter row has an exposed pad, the last terminal; the
+            // LGA and the sensor have none.
+            let pad = !(p.key.contains("-lga-") || p.key.contains("sensirion"));
+            assert_eq!(
+                g.package.terminals.last().map(String::as_str) == Some("EP"),
+                pad,
+                "{}",
+                p.key
+            );
         }
     }
     Ok(())
@@ -279,10 +287,17 @@ fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
         let Some(v1::Model::PartFile { asset, values }) = &g.model else {
             return Err(format!("{}: no model", p.key));
         };
-        let four = p.key.contains("qfn");
+        let lga = p.key.contains("-lga-");
+        let window = p.key.contains("sensirion");
+        let four = p.key.contains("qfn") || lga;
         assert_eq!(
             asset,
-            if four { parts::QFN_EP } else { parts::DFN_EP },
+            match (lga, window, four) {
+                (true, ..) => parts::LGA,
+                (_, true, _) => parts::DFN_WINDOW,
+                (_, _, true) => parts::QFN_EP,
+                _ => parts::DFN_EP,
+            },
             "{}",
             p.key
         );
@@ -297,12 +312,19 @@ fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
             "pad_length",
             "pad_width",
             "pitch",
+            "pullback",
             "terminal_length",
             "terminal_width",
             "terminals",
         ];
+        if lga || window {
+            names.retain(|n| !n.starts_with("pad_"));
+        }
         if four {
             names.push("terminals_short");
+        }
+        if window {
+            names.push("window_diameter");
         }
         assert_eq!(
             values.keys().map(String::as_str).collect::<Vec<_>>(),
@@ -310,10 +332,13 @@ fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
             "{}",
             p.key
         );
+        // Every value positive, but the pull-back of a terminal flush with
+        // the edge.
         assert!(
-            values
-                .values()
-                .all(|v| matches!(v, ParamValue::Int(n) if *n > 0)),
+            values.iter().all(|(k, v)| matches!(
+                v,
+                ParamValue::Int(n) if *n > 0 || (k == "pullback" && *n == 0)
+            )),
             "{}",
             p.key
         );

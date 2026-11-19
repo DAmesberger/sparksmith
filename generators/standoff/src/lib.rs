@@ -361,6 +361,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.length).trim_end_matches(" mm"),
     );
     Ok(Generation {
+        marking: None,
         component: component_part.then(|| Component {
             terminals: vec![Terminal {
                 key: "1".into(),

@@ -40,6 +40,14 @@ impl Args<'_> {
         }
     }
 
+    /// A list parameter's items.
+    pub fn list(&self, key: &str) -> Result<&[ParamValue], Problem> {
+        match self.params.get(key) {
+            Some(ParamValue::List(v)) => Ok(v),
+            _ => Err(undeclared(key)),
+        }
+    }
+
     /// A boolean parameter.
     pub fn flag(&self, key: &str) -> Result<bool, Problem> {
         match self.params.get(key) {

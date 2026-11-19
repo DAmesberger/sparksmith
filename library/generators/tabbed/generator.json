@@ -2,29 +2,36 @@
   "format": 1,
   "module": {
     "file": "tabbed.wasm",
-    "sha256": "c3bbeafcee4184afe4d8fa48b65f1d623bb79298345b16fc2c44621b6e1b2c5a"
+    "sha256": "df48bceac3bdc5795f176d3798e0f30fdb58a44ed777346afd491f49f2dbb6cd"
   },
   "name": "tabbed",
   "parts": [
     {
       "file": "parts/tabbed-flange.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the DPAK starter values (estimated from JEDEC TO-252); the tabbed generator gives every input its value. Estimated rounds, lead bends and flange; no vendor drawing or EDA/CAD library data copied.",
-      "sha256": "55aad256e17140a13dec6195bb34b1e2d24bab57d47652027877bde5647f63d0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at the DPAK starter values; the tabbed generator gives every input its value. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); rounds and lead bends are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "111872d76146c22f31dcbf1f988132d56f3c2ea65ce186e02b5078145335bd83",
       "title": "DPAK and D2PAK package"
+    },
+    {
+      "file": "parts/tabbed-plcc-led.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the WS2812B's values; the tabbed generator gives every input its value. Outline, lead form, cavity and cut corner after Worldsemi's WS2812B datasheet (mechanical dimensions, page 3: 5.0 × 5.0 × 1.57 mm, leads 0.9 mm wide, 5.4 mm over the leads); lead height, cavity depth and the chips' sizes and places are estimated. Looked at, never copied: no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "f2ee1a7abc9e1ca62aacb600c3c5205c6438021cc74b58756c71f2a6cbb242c2",
+      "title": "PLCC LED package"
     },
     {
       "file": "parts/tabbed-rows.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the SOT-23-5 starter values (JEDEC MO-178); the tabbed generator gives every input its value. Estimated rounds and lead bends; no vendor drawing or EDA/CAD library data copied.",
-      "sha256": "487454d72a000ff12c902b9928409e48a911b30026790b8c191e21cf703763c9",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at the SOT-23-5 starter values; the tabbed generator gives every input its value. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); rounds and lead bends are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "c2d3539d32a7e7b5b3aa8d34c65847c3e532685fa16405ddaf5b2cd70c76cdd1",
       "title": "SOT-23 and SC-70 package"
     },
     {
       "file": "parts/tabbed-tab-lead.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code tabbed builder's construction (crates/solidcraft-integration/src/models/tabbed.rs, retired with this file) made parametric in its counts and lead profile, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at the SOT-223 starter values (JEDEC TO-261); the tabbed generator gives every input its value. Estimated rounds and lead bends; no vendor drawing or EDA/CAD library data copied.",
-      "sha256": "85926574a8fcdb6e2f8d7ed50554879e2772c6a4d97331990634cea62cec8a8e",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at the SOT-223 starter values; the tabbed generator gives every input its value. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); rounds and lead bends are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "706c4f8dda4b035702e2cadb57abc827dc887f442f44e50c8dd93d51daa9c862",
       "title": "SOT-223 and SOT-89 package"
     }
   ]

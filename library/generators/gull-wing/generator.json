@@ -2,23 +2,30 @@
   "format": 1,
   "module": {
     "file": "gull-wing.wasm",
-    "sha256": "425ea34364131e586bced308921fe805b9c3cd764e4a1b7ea4fde9c6f6db8d45"
+    "sha256": "96f72c6cce4259fbe198328b0759984b5c8e18d8e5e09f6301454c13e589d080"
   },
   "name": "gull-wing",
   "parts": [
     {
       "file": "parts/gull-wing-four-sided.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code gull-wing builder's construction (crates/solidcraft-integration/src/models/gull_wing.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at an LQFP-48 of 7 × 7 mm, 0.5 mm pitch (JEDEC MS-026 proportions); the gull-wing generator gives every dimension. Estimated bends, rounds and dimple; no vendor drawing or EDA/CAD library data copied.",
-      "sha256": "24866fb804f46c31d67d8d2879b575b90ef2480ca79e57df87f870cef898679e",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a LQFP-48 7 × 7 mm (JEDEC MS-026 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "a8c37e49767cf6ba718250f6f141fe6ac6aadeb67a1f73fd4225b83db5f908e6",
       "title": "Gull-wing package, four sides"
     },
     {
       "file": "parts/gull-wing-two-sided.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code gull-wing builder's construction (crates/solidcraft-integration/src/models/gull_wing.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a SOIC-8 of 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. Estimated bends, rounds and dimple; no vendor drawing or EDA/CAD library data copied.",
-      "sha256": "f8b5c813f85664b9f64a96619b7a6151ba6ab8eed2ec28cf62f06ce6bd6103f4",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a SOIC-8 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "dfe921f3556892f8933228063b5f6afb259bcceb518a10cf69051caba4bf4aea",
       "title": "Gull-wing package, two sides"
+    },
+    {
+      "file": "parts/gull-wing-two-sided-bevel.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a SOIC-8 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "fc94e518c66d51d2612006e58cdd95c37e8f24fc97074858ef3003e050cbf3ac",
+      "title": "Gull-wing package, two sides, bevelled pin-1 edge"
     }
   ]
 }

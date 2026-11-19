@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "gull-wing-two-sided-bevel",
+  "title": "Gull-wing package, two sides, bevelled pin-1 edge",
+  "summary": "Gull-wing package with leads on the ±y sides (SOIC, SOP, SSOP, TSSOP, MSOP, QSOP): a transfer-moulded body in two drafted halves meeting at the parting line where the leads leave, its upright corners and top edges rounded, a pin-1 dimple, the top edge along the pin-1 row bevelled at 45°, and formed tin leads that bend down to a flat foot on the seating plane; a marking-top surface on the top face (leads, pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length; the draft, rounds, dimple and marking area derived from them).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a SOIC-8 3.9 mm (JEDEC MS-012 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied."
+}

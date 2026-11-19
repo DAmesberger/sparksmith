@@ -457,6 +457,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.h).trim_end_matches(" mm"),
     );
     Ok(Generation {
+        marking: None,
         component: component_part.then(|| Component {
             terminals: ["1", "2"]
                 .iter()

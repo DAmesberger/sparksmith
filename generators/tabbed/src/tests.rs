@@ -41,7 +41,8 @@ fn golden_hashes_match_natively() -> Result<(), String> {
 #[test]
 fn presets_are_the_starter_rows_and_all_generate() -> Result<(), Vec<Problem>> {
     let description = description();
-    assert_eq!(description.presets().len(), 10);
+    // The ten starter rows and the WS2812B.
+    assert_eq!(description.presets().len(), 11);
     for p in description.presets() {
         for scope in [Scope::Component, Scope::Package] {
             let g = Tabbed::generate(&request(scope, &preset(&p.key)))?;
@@ -296,7 +297,10 @@ fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
             "standoff",
         ];
         let tab = p.params.get("tab");
-        if tab == Some(&ParamValue::Text("none".into())) {
+        if p.params.get("construction") == Some(&ParamValue::Text("led_plcc".into())) {
+            assert_eq!(asset, parts::TABBED_PLCC_LED, "{}", p.key);
+            want.extend(["row_n_leads", "row_n_step"]);
+        } else if tab == Some(&ParamValue::Text("none".into())) {
             assert_eq!(asset, parts::TABBED_ROWS, "{}", p.key);
             want.extend(["row_n_leads", "row_n_step"]);
         } else if tab == Some(&ParamValue::Text("lead".into())) {
@@ -325,6 +329,7 @@ fn the_part_file_hashes_are_the_bundles_files() -> Result<(), String> {
         ("tabbed-rows", parts::TABBED_ROWS),
         ("tabbed-tab-lead", parts::TABBED_TAB_LEAD),
         ("tabbed-flange", parts::TABBED_FLANGE),
+        ("tabbed-plcc-led", parts::TABBED_PLCC_LED),
     ] {
         let path = format!("{}/parts/{stem}.solidcraft", env!("CARGO_MANIFEST_DIR"));
         let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;

@@ -1,17 +1,13 @@
 {
-  "format": "solidcraft/52",
+  "format": "solidcraft/57",
   "format_pending": [
-    "3d-wire-point-nodes",
-    "frame-end-caps",
-    "joint-origin-inside",
-    "nested-face-name",
-    "opus-quality",
-    "render-indirect-clamp",
-    "render-quality-controls",
-    "revolve-axis-sketch",
-    "sheet-flange-segments",
-    "sketch-link-construction-point",
-    "two-sided-cut-cap-names"
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
   ],
   "name": "DFN package with exposed pad",
   "units": "mm",
@@ -55,7 +51,7 @@
       "name": "terminal_length",
       "expr": "0.4 mm",
       "unit": "mm",
-      "comment": "terminal length in from the body edge",
+      "comment": "terminal length in from its outer end",
       "model": false
     },
     {
@@ -66,6 +62,13 @@
       "model": false
     },
     {
+      "name": "pullback",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "how far the terminals' outer ends lie in from the body edge",
+      "model": false
+    },
+    {
       "name": "frame",
       "expr": "0.2 mm",
       "unit": "mm",
@@ -73,24 +76,45 @@
       "model": false
     },
     {
+      "name": "plating",
+      "expr": "0.01 mm",
+      "unit": "mm",
+      "comment": "finish under the terminals (matte tin 7–20 µm, est.)",
+      "model": false
+    },
+    {
       "name": "edge_round",
-      "expr": "0.06 mm",
+      "expr": "0.03 mm",
       "unit": "mm",
       "comment": "round of the body's top edges",
       "model": false
     },
     {
       "name": "mark_radius",
-      "expr": "0.24 mm",
+      "expr": "0.2 mm",
       "unit": "mm",
-      "comment": "pin-1 dimple radius",
+      "comment": "pin-1 laser dot radius",
       "model": false
     },
     {
       "name": "mark_depth",
-      "expr": "0.03 mm",
+      "expr": "0.005 mm",
       "unit": "mm",
-      "comment": "pin-1 dimple depth",
+      "comment": "pin-1 laser dot depth",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.7 * body_length",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.2 * body_width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
       "model": false
     },
     {
@@ -134,35 +158,12 @@
     },
     {
       "id": 2,
-      "name": "row_s terminal",
+      "name": "row_s pocket",
       "suppressed": false,
-      "body_names": [
-        "row_s terminal"
-      ],
       "param_names": [
         "d4",
         "d5",
         "d6"
-      ],
-      "type": "box",
-      "corner": [
-        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
-        "- body_width / 2",
-        "0 mm"
-      ],
-      "length": "terminal_width",
-      "width": "terminal_length",
-      "height": "frame",
-      "operation": "new_body"
-    },
-    {
-      "id": 3,
-      "name": "row_s pocket",
-      "suppressed": false,
-      "param_names": [
-        "d7",
-        "d8",
-        "d9"
       ],
       "participants": [
         "body"
@@ -170,7 +171,7 @@
       "type": "box",
       "corner": [
         "- (terminals - 1) / 2 * pitch - terminal_width / 2",
-        "- body_width / 2",
+        "- body_width / 2 + pullback",
         "0 mm"
       ],
       "length": "terminal_width",
@@ -179,16 +180,62 @@
       "operation": "cut"
     },
     {
+      "id": 3,
+      "name": "row_s terminal",
+      "suppressed": false,
+      "body_names": [
+        "row_s terminal"
+      ],
+      "param_names": [
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "- body_width / 2 + pullback",
+        "plating"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "frame - plating",
+      "operation": "new_body"
+    },
+    {
       "id": 4,
+      "name": "row_s plating",
+      "suppressed": false,
+      "body_names": [
+        "row_s plating"
+      ],
+      "param_names": [
+        "d10",
+        "d11",
+        "d12"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "- body_width / 2 + pullback",
+        "0 mm"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
       "name": "row_s pockets",
       "suppressed": false,
       "param_names": [
-        "d10",
-        "d11"
+        "d13",
+        "d14"
       ],
       "type": "pattern",
       "features": [
-        3
+        2
       ],
       "pattern": {
         "type": "rectangular",
@@ -202,77 +249,20 @@
       }
     },
     {
-      "id": 5,
+      "id": 6,
       "name": "row_s pattern",
       "suppressed": false,
       "body_names": [
         "row_s terminal (2)",
         "row_s terminal (3)",
         "row_s terminal (4)",
-        "row_s terminal (5)",
-        "row_s terminal (6)",
-        "row_s terminal (7)",
-        "row_s terminal (8)",
-        "row_s terminal (9)",
-        "row_s terminal (10)",
-        "row_s terminal (11)",
-        "row_s terminal (12)",
-        "row_s terminal (13)",
-        "row_s terminal (14)",
-        "row_s terminal (15)",
-        "row_s terminal (16)",
-        "row_s terminal (17)",
-        "row_s terminal (18)",
-        "row_s terminal (19)",
-        "row_s terminal (20)",
-        "row_s terminal (21)",
-        "row_s terminal (22)",
-        "row_s terminal (23)",
-        "row_s terminal (24)",
-        "row_s terminal (25)",
-        "row_s terminal (26)",
-        "row_s terminal (27)",
-        "row_s terminal (28)",
-        "row_s terminal (29)",
-        "row_s terminal (30)",
-        "row_s terminal (31)",
-        "row_s terminal (32)",
-        "row_s terminal (33)",
-        "row_s terminal (34)",
-        "row_s terminal (35)",
-        "row_s terminal (36)",
-        "row_s terminal (37)",
-        "row_s terminal (38)",
-        "row_s terminal (39)",
-        "row_s terminal (40)",
-        "row_s terminal (41)",
-        "row_s terminal (42)",
-        "row_s terminal (43)",
-        "row_s terminal (44)",
-        "row_s terminal (45)",
-        "row_s terminal (46)",
-        "row_s terminal (47)",
-        "row_s terminal (48)",
-        "row_s terminal (49)",
-        "row_s terminal (50)",
-        "row_s terminal (51)",
-        "row_s terminal (52)",
-        "row_s terminal (53)",
-        "row_s terminal (54)",
-        "row_s terminal (55)",
-        "row_s terminal (56)",
-        "row_s terminal (57)",
-        "row_s terminal (58)",
-        "row_s terminal (59)",
-        "row_s terminal (60)",
-        "row_s terminal (61)",
-        "row_s terminal (62)",
-        "row_s terminal (63)",
-        "row_s terminal (64)"
+        "row_s plating (2)",
+        "row_s plating (3)",
+        "row_s plating (4)"
       ],
       "param_names": [
-        "d12",
-        "d13"
+        "d15",
+        "d16"
       ],
       "type": "pattern",
       "features": [],
@@ -287,31 +277,9 @@
         "spacing1": "pitch"
       },
       "bodies": [
-        "row_s terminal"
+        "row_s terminal",
+        "row_s plating"
       ]
-    },
-    {
-      "id": 6,
-      "name": "row_n terminal",
-      "suppressed": false,
-      "body_names": [
-        "row_n terminal"
-      ],
-      "param_names": [
-        "d14",
-        "d15",
-        "d16"
-      ],
-      "type": "box",
-      "corner": [
-        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
-        "body_width / 2 - terminal_length",
-        "0 mm"
-      ],
-      "length": "terminal_width",
-      "width": "terminal_length",
-      "height": "frame",
-      "operation": "new_body"
     },
     {
       "id": 7,
@@ -328,7 +296,7 @@
       "type": "box",
       "corner": [
         "- (terminals - 1) / 2 * pitch - terminal_width / 2",
-        "body_width / 2 - terminal_length",
+        "body_width / 2 - pullback - terminal_length",
         "0 mm"
       ],
       "length": "terminal_width",
@@ -338,11 +306,57 @@
     },
     {
       "id": 8,
+      "name": "row_n terminal",
+      "suppressed": false,
+      "body_names": [
+        "row_n terminal"
+      ],
+      "param_names": [
+        "d20",
+        "d21",
+        "d22"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "body_width / 2 - pullback - terminal_length",
+        "plating"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "frame - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "row_n plating",
+      "suppressed": false,
+      "body_names": [
+        "row_n plating"
+      ],
+      "param_names": [
+        "d23",
+        "d24",
+        "d25"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "body_width / 2 - pullback - terminal_length",
+        "0 mm"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 10,
       "name": "row_n pockets",
       "suppressed": false,
       "param_names": [
-        "d20",
-        "d21"
+        "d26",
+        "d27"
       ],
       "type": "pattern",
       "features": [
@@ -360,77 +374,20 @@
       }
     },
     {
-      "id": 9,
+      "id": 11,
       "name": "row_n pattern",
       "suppressed": false,
       "body_names": [
         "row_n terminal (2)",
         "row_n terminal (3)",
         "row_n terminal (4)",
-        "row_n terminal (5)",
-        "row_n terminal (6)",
-        "row_n terminal (7)",
-        "row_n terminal (8)",
-        "row_n terminal (9)",
-        "row_n terminal (10)",
-        "row_n terminal (11)",
-        "row_n terminal (12)",
-        "row_n terminal (13)",
-        "row_n terminal (14)",
-        "row_n terminal (15)",
-        "row_n terminal (16)",
-        "row_n terminal (17)",
-        "row_n terminal (18)",
-        "row_n terminal (19)",
-        "row_n terminal (20)",
-        "row_n terminal (21)",
-        "row_n terminal (22)",
-        "row_n terminal (23)",
-        "row_n terminal (24)",
-        "row_n terminal (25)",
-        "row_n terminal (26)",
-        "row_n terminal (27)",
-        "row_n terminal (28)",
-        "row_n terminal (29)",
-        "row_n terminal (30)",
-        "row_n terminal (31)",
-        "row_n terminal (32)",
-        "row_n terminal (33)",
-        "row_n terminal (34)",
-        "row_n terminal (35)",
-        "row_n terminal (36)",
-        "row_n terminal (37)",
-        "row_n terminal (38)",
-        "row_n terminal (39)",
-        "row_n terminal (40)",
-        "row_n terminal (41)",
-        "row_n terminal (42)",
-        "row_n terminal (43)",
-        "row_n terminal (44)",
-        "row_n terminal (45)",
-        "row_n terminal (46)",
-        "row_n terminal (47)",
-        "row_n terminal (48)",
-        "row_n terminal (49)",
-        "row_n terminal (50)",
-        "row_n terminal (51)",
-        "row_n terminal (52)",
-        "row_n terminal (53)",
-        "row_n terminal (54)",
-        "row_n terminal (55)",
-        "row_n terminal (56)",
-        "row_n terminal (57)",
-        "row_n terminal (58)",
-        "row_n terminal (59)",
-        "row_n terminal (60)",
-        "row_n terminal (61)",
-        "row_n terminal (62)",
-        "row_n terminal (63)",
-        "row_n terminal (64)"
+        "row_n plating (2)",
+        "row_n plating (3)",
+        "row_n plating (4)"
       ],
       "param_names": [
-        "d22",
-        "d23"
+        "d28",
+        "d29"
       ],
       "type": "pattern",
       "features": [],
@@ -445,20 +402,21 @@
         "spacing1": "pitch"
       },
       "bodies": [
-        "row_n terminal"
+        "row_n terminal",
+        "row_n plating"
       ]
     },
     {
-      "id": 10,
+      "id": 12,
       "name": "exposed pad",
       "suppressed": false,
       "body_names": [
         "exposed pad"
       ],
       "param_names": [
-        "d24",
-        "d25",
-        "d26"
+        "d30",
+        "d31",
+        "d32"
       ],
       "type": "box",
       "corner": [
@@ -472,13 +430,13 @@
       "operation": "new_body"
     },
     {
-      "id": 11,
+      "id": 13,
       "name": "exposed pad pocket",
       "suppressed": false,
       "param_names": [
-        "d27",
-        "d28",
-        "d29"
+        "d33",
+        "d34",
+        "d35"
       ],
       "participants": [
         "body"
@@ -495,11 +453,11 @@
       "operation": "cut"
     },
     {
-      "id": 12,
+      "id": 14,
       "name": "edge round",
       "suppressed": false,
       "param_names": [
-        "d30"
+        "d36"
       ],
       "edge_refs": [
         {
@@ -604,12 +562,12 @@
       "body": "body"
     },
     {
-      "id": 13,
+      "id": 15,
       "name": "pin 1 mark",
       "suppressed": false,
       "param_names": [
-        "d31",
-        "d32"
+        "d37",
+        "d38"
       ],
       "participants": [
         "body"
@@ -628,9 +586,66 @@
       "radius": "mark_radius",
       "height": "2 * mark_depth",
       "operation": "cut"
+    },
+    {
+      "id": 16,
+      "name": "pin 1 dot",
+      "suppressed": false,
+      "body_names": [
+        "pin 1 dot"
+      ],
+      "param_names": [
+        "d39",
+        "d40"
+      ],
+      "type": "cylinder",
+      "base": [
+        "- body_length / 2 + 2 * mark_radius",
+        "- body_width / 2 + 2 * mark_radius",
+        "body_height - mark_depth"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "mark_radius",
+      "height": "mark_depth",
+      "operation": "new_body"
+    },
+    {
+      "id": 17,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d41"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
     }
   ],
-  "next_id": 14,
+  "next_id": 18,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {
@@ -662,12 +677,922 @@
           "dielectric_ior": 1.5
         }
       },
-      "row_n terminal": {
+      "pin 1 dot": {
+        "name": "epoxy-laser-marked",
+        "color": [
+          89,
+          89,
+          91
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.75,
+          "dielectric_ior": 1.55
+        }
+      },
+      "row_n plating": {
         "name": "tin-matte",
         "color": [
           229,
           229,
           231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (17)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (18)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (19)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (20)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (21)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (22)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (23)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (24)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (25)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (26)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (27)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (28)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (29)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (30)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (31)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (32)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (33)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (34)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (35)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (36)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (37)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (38)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (39)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (40)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (41)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (42)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (43)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (44)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (45)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (46)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (47)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (48)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (49)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (50)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (51)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (52)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (53)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (54)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (55)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (56)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (57)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (58)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (59)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (60)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (61)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (62)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (63)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (64)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n plating (9)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -677,11 +1602,11 @@
         }
       },
       "row_n terminal (10)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -691,11 +1616,11 @@
         }
       },
       "row_n terminal (11)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -705,11 +1630,11 @@
         }
       },
       "row_n terminal (12)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -719,11 +1644,11 @@
         }
       },
       "row_n terminal (13)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -733,11 +1658,11 @@
         }
       },
       "row_n terminal (14)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -747,11 +1672,11 @@
         }
       },
       "row_n terminal (15)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -761,11 +1686,11 @@
         }
       },
       "row_n terminal (16)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -775,11 +1700,11 @@
         }
       },
       "row_n terminal (17)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -789,11 +1714,11 @@
         }
       },
       "row_n terminal (18)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -803,11 +1728,11 @@
         }
       },
       "row_n terminal (19)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -817,11 +1742,11 @@
         }
       },
       "row_n terminal (2)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -831,11 +1756,11 @@
         }
       },
       "row_n terminal (20)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -845,11 +1770,11 @@
         }
       },
       "row_n terminal (21)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -859,11 +1784,11 @@
         }
       },
       "row_n terminal (22)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -873,11 +1798,11 @@
         }
       },
       "row_n terminal (23)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -887,11 +1812,11 @@
         }
       },
       "row_n terminal (24)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -901,11 +1826,11 @@
         }
       },
       "row_n terminal (25)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -915,11 +1840,11 @@
         }
       },
       "row_n terminal (26)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -929,11 +1854,11 @@
         }
       },
       "row_n terminal (27)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -943,11 +1868,11 @@
         }
       },
       "row_n terminal (28)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -957,11 +1882,11 @@
         }
       },
       "row_n terminal (29)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -971,11 +1896,11 @@
         }
       },
       "row_n terminal (3)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -985,11 +1910,11 @@
         }
       },
       "row_n terminal (30)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -999,11 +1924,11 @@
         }
       },
       "row_n terminal (31)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1013,11 +1938,11 @@
         }
       },
       "row_n terminal (32)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1027,11 +1952,11 @@
         }
       },
       "row_n terminal (33)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1041,11 +1966,11 @@
         }
       },
       "row_n terminal (34)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1055,11 +1980,11 @@
         }
       },
       "row_n terminal (35)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1069,11 +1994,11 @@
         }
       },
       "row_n terminal (36)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1083,11 +2008,11 @@
         }
       },
       "row_n terminal (37)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1097,11 +2022,11 @@
         }
       },
       "row_n terminal (38)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1111,11 +2036,11 @@
         }
       },
       "row_n terminal (39)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1125,11 +2050,11 @@
         }
       },
       "row_n terminal (4)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1139,11 +2064,11 @@
         }
       },
       "row_n terminal (40)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1153,11 +2078,11 @@
         }
       },
       "row_n terminal (41)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1167,11 +2092,11 @@
         }
       },
       "row_n terminal (42)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1181,11 +2106,11 @@
         }
       },
       "row_n terminal (43)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1195,11 +2120,11 @@
         }
       },
       "row_n terminal (44)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1209,11 +2134,11 @@
         }
       },
       "row_n terminal (45)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1223,11 +2148,11 @@
         }
       },
       "row_n terminal (46)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1237,11 +2162,11 @@
         }
       },
       "row_n terminal (47)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1251,11 +2176,11 @@
         }
       },
       "row_n terminal (48)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1265,11 +2190,11 @@
         }
       },
       "row_n terminal (49)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1279,11 +2204,11 @@
         }
       },
       "row_n terminal (5)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1293,11 +2218,11 @@
         }
       },
       "row_n terminal (50)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1307,11 +2232,11 @@
         }
       },
       "row_n terminal (51)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1321,11 +2246,11 @@
         }
       },
       "row_n terminal (52)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1335,11 +2260,11 @@
         }
       },
       "row_n terminal (53)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1349,11 +2274,11 @@
         }
       },
       "row_n terminal (54)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1363,11 +2288,11 @@
         }
       },
       "row_n terminal (55)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1377,11 +2302,11 @@
         }
       },
       "row_n terminal (56)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1391,11 +2316,11 @@
         }
       },
       "row_n terminal (57)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1405,11 +2330,11 @@
         }
       },
       "row_n terminal (58)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1419,11 +2344,11 @@
         }
       },
       "row_n terminal (59)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1433,11 +2358,11 @@
         }
       },
       "row_n terminal (6)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1447,11 +2372,11 @@
         }
       },
       "row_n terminal (60)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1461,11 +2386,11 @@
         }
       },
       "row_n terminal (61)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1475,11 +2400,11 @@
         }
       },
       "row_n terminal (62)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1489,11 +2414,11 @@
         }
       },
       "row_n terminal (63)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1503,11 +2428,11 @@
         }
       },
       "row_n terminal (64)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1517,11 +2442,11 @@
         }
       },
       "row_n terminal (7)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1531,6 +2456,34 @@
         }
       },
       "row_n terminal (8)": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (9)": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating": {
         "name": "tin-matte",
         "color": [
           229,
@@ -1544,7 +2497,875 @@
           "dielectric_ior": 1.5
         }
       },
-      "row_n terminal (9)": {
+      "row_s plating (10)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (11)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (12)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (13)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (14)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (15)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (16)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (17)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (18)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (19)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (2)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (20)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (21)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (22)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (23)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (24)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (25)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (26)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (27)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (28)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (29)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (3)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (30)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (31)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (32)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (33)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (34)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (35)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (36)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (37)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (38)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (39)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (4)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (40)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (41)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (42)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (43)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (44)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (45)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (46)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (47)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (48)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (49)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (5)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (50)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (51)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (52)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (53)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (54)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (55)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (56)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (57)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (58)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (59)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (6)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (60)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (61)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (62)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (63)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (64)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (7)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (8)": {
+        "name": "tin-matte",
+        "color": [
+          229,
+          229,
+          231
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s plating (9)": {
         "name": "tin-matte",
         "color": [
           229,
@@ -1559,11 +3380,11 @@
         }
       },
       "row_s terminal": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1573,11 +3394,11 @@
         }
       },
       "row_s terminal (10)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1587,11 +3408,11 @@
         }
       },
       "row_s terminal (11)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1601,11 +3422,11 @@
         }
       },
       "row_s terminal (12)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1615,11 +3436,11 @@
         }
       },
       "row_s terminal (13)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1629,11 +3450,11 @@
         }
       },
       "row_s terminal (14)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1643,11 +3464,11 @@
         }
       },
       "row_s terminal (15)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1657,11 +3478,11 @@
         }
       },
       "row_s terminal (16)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1671,11 +3492,11 @@
         }
       },
       "row_s terminal (17)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1685,11 +3506,11 @@
         }
       },
       "row_s terminal (18)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1699,11 +3520,11 @@
         }
       },
       "row_s terminal (19)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1713,11 +3534,11 @@
         }
       },
       "row_s terminal (2)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1727,11 +3548,11 @@
         }
       },
       "row_s terminal (20)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1741,11 +3562,11 @@
         }
       },
       "row_s terminal (21)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1755,11 +3576,11 @@
         }
       },
       "row_s terminal (22)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1769,11 +3590,11 @@
         }
       },
       "row_s terminal (23)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1783,11 +3604,11 @@
         }
       },
       "row_s terminal (24)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1797,11 +3618,11 @@
         }
       },
       "row_s terminal (25)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1811,11 +3632,11 @@
         }
       },
       "row_s terminal (26)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1825,11 +3646,11 @@
         }
       },
       "row_s terminal (27)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1839,11 +3660,11 @@
         }
       },
       "row_s terminal (28)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1853,11 +3674,11 @@
         }
       },
       "row_s terminal (29)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1867,11 +3688,11 @@
         }
       },
       "row_s terminal (3)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1881,11 +3702,11 @@
         }
       },
       "row_s terminal (30)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1895,11 +3716,11 @@
         }
       },
       "row_s terminal (31)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1909,11 +3730,11 @@
         }
       },
       "row_s terminal (32)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1923,11 +3744,11 @@
         }
       },
       "row_s terminal (33)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1937,11 +3758,11 @@
         }
       },
       "row_s terminal (34)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1951,11 +3772,11 @@
         }
       },
       "row_s terminal (35)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1965,11 +3786,11 @@
         }
       },
       "row_s terminal (36)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1979,11 +3800,11 @@
         }
       },
       "row_s terminal (37)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -1993,11 +3814,11 @@
         }
       },
       "row_s terminal (38)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2007,11 +3828,11 @@
         }
       },
       "row_s terminal (39)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2021,11 +3842,11 @@
         }
       },
       "row_s terminal (4)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2035,11 +3856,11 @@
         }
       },
       "row_s terminal (40)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2049,11 +3870,11 @@
         }
       },
       "row_s terminal (41)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2063,11 +3884,11 @@
         }
       },
       "row_s terminal (42)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2077,11 +3898,11 @@
         }
       },
       "row_s terminal (43)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2091,11 +3912,11 @@
         }
       },
       "row_s terminal (44)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2105,11 +3926,11 @@
         }
       },
       "row_s terminal (45)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2119,11 +3940,11 @@
         }
       },
       "row_s terminal (46)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2133,11 +3954,11 @@
         }
       },
       "row_s terminal (47)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2147,11 +3968,11 @@
         }
       },
       "row_s terminal (48)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2161,11 +3982,11 @@
         }
       },
       "row_s terminal (49)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2175,11 +3996,11 @@
         }
       },
       "row_s terminal (5)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2189,11 +4010,11 @@
         }
       },
       "row_s terminal (50)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2203,11 +4024,11 @@
         }
       },
       "row_s terminal (51)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2217,11 +4038,11 @@
         }
       },
       "row_s terminal (52)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2231,11 +4052,11 @@
         }
       },
       "row_s terminal (53)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2245,11 +4066,11 @@
         }
       },
       "row_s terminal (54)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2259,11 +4080,11 @@
         }
       },
       "row_s terminal (55)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2273,11 +4094,11 @@
         }
       },
       "row_s terminal (56)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2287,11 +4108,11 @@
         }
       },
       "row_s terminal (57)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2301,11 +4122,11 @@
         }
       },
       "row_s terminal (58)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2315,11 +4136,11 @@
         }
       },
       "row_s terminal (59)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2329,11 +4150,11 @@
         }
       },
       "row_s terminal (6)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2343,11 +4164,11 @@
         }
       },
       "row_s terminal (60)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2357,11 +4178,11 @@
         }
       },
       "row_s terminal (61)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2371,11 +4192,11 @@
         }
       },
       "row_s terminal (62)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2385,11 +4206,11 @@
         }
       },
       "row_s terminal (63)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2399,11 +4220,11 @@
         }
       },
       "row_s terminal (64)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2413,11 +4234,11 @@
         }
       },
       "row_s terminal (7)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2427,11 +4248,11 @@
         }
       },
       "row_s terminal (8)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {
@@ -2441,11 +4262,11 @@
         }
       },
       "row_s terminal (9)": {
-        "name": "tin-matte",
+        "name": "copper-alloy",
         "color": [
-          229,
-          229,
-          231
+          250,
+          209,
+          194
         ],
         "opacity": 1.0,
         "pbr": {

@@ -1,0 +1,4639 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "LGA package",
+  "units": "mm",
+  "params": [
+    {
+      "name": "terminals",
+      "expr": "4",
+      "unit": "",
+      "comment": "terminals per long (±y) side",
+      "model": false
+    },
+    {
+      "name": "terminals_short",
+      "expr": "4",
+      "unit": "",
+      "comment": "terminals per short (±x) side",
+      "model": false
+    },
+    {
+      "name": "pitch",
+      "expr": "0.5 mm",
+      "unit": "mm",
+      "comment": "terminal pitch",
+      "model": false
+    },
+    {
+      "name": "body_length",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "3 mm",
+      "unit": "mm",
+      "comment": "body width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "0.9 mm",
+      "unit": "mm",
+      "comment": "body height above the seating plane",
+      "model": false
+    },
+    {
+      "name": "terminal_length",
+      "expr": "0.4 mm",
+      "unit": "mm",
+      "comment": "terminal length in from its outer end",
+      "model": false
+    },
+    {
+      "name": "terminal_width",
+      "expr": "0.25 mm",
+      "unit": "mm",
+      "comment": "terminal width along the edge",
+      "model": false
+    },
+    {
+      "name": "pullback",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "how far the terminals' outer ends lie in from the body edge",
+      "model": false
+    },
+    {
+      "name": "frame",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "leadframe (terminal) thickness",
+      "model": false
+    },
+    {
+      "name": "plating",
+      "expr": "0.01 mm",
+      "unit": "mm",
+      "comment": "finish under the terminals (matte tin 7–20 µm, est.)",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.03 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edges",
+      "model": false
+    },
+    {
+      "name": "mark_radius",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "pin-1 laser dot radius",
+      "model": false
+    },
+    {
+      "name": "mark_depth",
+      "expr": "0.005 mm",
+      "unit": "mm",
+      "comment": "pin-1 laser dot depth",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.7 * body_length",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.2 * body_width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    },
+    {
+      "name": "substrate",
+      "expr": "0.21 mm",
+      "unit": "mm",
+      "comment": "laminate substrate under the moulded cap (ADXL343 CC-14-1: 0.95 − 0.74)",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "substrate",
+      "suppressed": false,
+      "body_names": [
+        "substrate"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "0 mm"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "substrate",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d4",
+        "d5",
+        "d6"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "substrate"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height - substrate",
+      "operation": "new_body"
+    },
+    {
+      "id": 3,
+      "name": "row_s pocket",
+      "suppressed": false,
+      "param_names": [
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "participants": [
+        "substrate"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "- body_width / 2 + pullback",
+        "0 mm"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "frame",
+      "operation": "cut"
+    },
+    {
+      "id": 4,
+      "name": "row_s terminal",
+      "suppressed": false,
+      "body_names": [
+        "row_s terminal"
+      ],
+      "param_names": [
+        "d10",
+        "d11",
+        "d12"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "- body_width / 2 + pullback",
+        "0 mm"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "frame",
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "row_s pockets",
+      "suppressed": false,
+      "param_names": [
+        "d13",
+        "d14"
+      ],
+      "type": "pattern",
+      "features": [
+        3
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "terminals",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 6,
+      "name": "row_s pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_s terminal (2)",
+        "row_s terminal (3)",
+        "row_s terminal (4)",
+        "row_s terminal (5)",
+        "row_s terminal (6)",
+        "row_s terminal (7)",
+        "row_s terminal (8)",
+        "row_s terminal (9)",
+        "row_s terminal (10)",
+        "row_s terminal (11)",
+        "row_s terminal (12)",
+        "row_s terminal (13)",
+        "row_s terminal (14)",
+        "row_s terminal (15)",
+        "row_s terminal (16)",
+        "row_s terminal (17)",
+        "row_s terminal (18)",
+        "row_s terminal (19)",
+        "row_s terminal (20)",
+        "row_s terminal (21)",
+        "row_s terminal (22)",
+        "row_s terminal (23)",
+        "row_s terminal (24)",
+        "row_s terminal (25)",
+        "row_s terminal (26)",
+        "row_s terminal (27)",
+        "row_s terminal (28)",
+        "row_s terminal (29)",
+        "row_s terminal (30)",
+        "row_s terminal (31)",
+        "row_s terminal (32)",
+        "row_s terminal (33)",
+        "row_s terminal (34)",
+        "row_s terminal (35)",
+        "row_s terminal (36)",
+        "row_s terminal (37)",
+        "row_s terminal (38)",
+        "row_s terminal (39)",
+        "row_s terminal (40)",
+        "row_s terminal (41)",
+        "row_s terminal (42)",
+        "row_s terminal (43)",
+        "row_s terminal (44)",
+        "row_s terminal (45)",
+        "row_s terminal (46)",
+        "row_s terminal (47)",
+        "row_s terminal (48)",
+        "row_s terminal (49)",
+        "row_s terminal (50)",
+        "row_s terminal (51)",
+        "row_s terminal (52)",
+        "row_s terminal (53)",
+        "row_s terminal (54)",
+        "row_s terminal (55)",
+        "row_s terminal (56)",
+        "row_s terminal (57)",
+        "row_s terminal (58)",
+        "row_s terminal (59)",
+        "row_s terminal (60)",
+        "row_s terminal (61)",
+        "row_s terminal (62)",
+        "row_s terminal (63)",
+        "row_s terminal (64)"
+      ],
+      "param_names": [
+        "d15",
+        "d16"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "terminals",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "row_s terminal"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "row_e pocket",
+      "suppressed": false,
+      "param_names": [
+        "d17",
+        "d18",
+        "d19"
+      ],
+      "participants": [
+        "substrate"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 - pullback - terminal_length",
+        "- (terminals_short - 1) / 2 * pitch - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "terminal_length",
+      "width": "terminal_width",
+      "height": "frame",
+      "operation": "cut"
+    },
+    {
+      "id": 8,
+      "name": "row_e terminal",
+      "suppressed": false,
+      "body_names": [
+        "row_e terminal"
+      ],
+      "param_names": [
+        "d20",
+        "d21",
+        "d22"
+      ],
+      "type": "box",
+      "corner": [
+        "body_length / 2 - pullback - terminal_length",
+        "- (terminals_short - 1) / 2 * pitch - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "terminal_length",
+      "width": "terminal_width",
+      "height": "frame",
+      "operation": "new_body"
+    },
+    {
+      "id": 9,
+      "name": "row_e pockets",
+      "suppressed": false,
+      "param_names": [
+        "d23",
+        "d24"
+      ],
+      "type": "pattern",
+      "features": [
+        7
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "count1": "terminals_short",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 10,
+      "name": "row_e pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_e terminal (2)",
+        "row_e terminal (3)",
+        "row_e terminal (4)",
+        "row_e terminal (5)",
+        "row_e terminal (6)",
+        "row_e terminal (7)",
+        "row_e terminal (8)",
+        "row_e terminal (9)",
+        "row_e terminal (10)",
+        "row_e terminal (11)",
+        "row_e terminal (12)",
+        "row_e terminal (13)",
+        "row_e terminal (14)",
+        "row_e terminal (15)",
+        "row_e terminal (16)",
+        "row_e terminal (17)",
+        "row_e terminal (18)",
+        "row_e terminal (19)",
+        "row_e terminal (20)",
+        "row_e terminal (21)",
+        "row_e terminal (22)",
+        "row_e terminal (23)",
+        "row_e terminal (24)",
+        "row_e terminal (25)",
+        "row_e terminal (26)",
+        "row_e terminal (27)",
+        "row_e terminal (28)",
+        "row_e terminal (29)",
+        "row_e terminal (30)",
+        "row_e terminal (31)",
+        "row_e terminal (32)",
+        "row_e terminal (33)",
+        "row_e terminal (34)",
+        "row_e terminal (35)",
+        "row_e terminal (36)",
+        "row_e terminal (37)",
+        "row_e terminal (38)",
+        "row_e terminal (39)",
+        "row_e terminal (40)",
+        "row_e terminal (41)",
+        "row_e terminal (42)",
+        "row_e terminal (43)",
+        "row_e terminal (44)",
+        "row_e terminal (45)",
+        "row_e terminal (46)",
+        "row_e terminal (47)",
+        "row_e terminal (48)",
+        "row_e terminal (49)",
+        "row_e terminal (50)",
+        "row_e terminal (51)",
+        "row_e terminal (52)",
+        "row_e terminal (53)",
+        "row_e terminal (54)",
+        "row_e terminal (55)",
+        "row_e terminal (56)",
+        "row_e terminal (57)",
+        "row_e terminal (58)",
+        "row_e terminal (59)",
+        "row_e terminal (60)",
+        "row_e terminal (61)",
+        "row_e terminal (62)",
+        "row_e terminal (63)",
+        "row_e terminal (64)"
+      ],
+      "param_names": [
+        "d25",
+        "d26"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "count1": "terminals_short",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "row_e terminal"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "row_n pocket",
+      "suppressed": false,
+      "param_names": [
+        "d27",
+        "d28",
+        "d29"
+      ],
+      "participants": [
+        "substrate"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "body_width / 2 - pullback - terminal_length",
+        "0 mm"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "frame",
+      "operation": "cut"
+    },
+    {
+      "id": 12,
+      "name": "row_n terminal",
+      "suppressed": false,
+      "body_names": [
+        "row_n terminal"
+      ],
+      "param_names": [
+        "d30",
+        "d31",
+        "d32"
+      ],
+      "type": "box",
+      "corner": [
+        "- (terminals - 1) / 2 * pitch - terminal_width / 2",
+        "body_width / 2 - pullback - terminal_length",
+        "0 mm"
+      ],
+      "length": "terminal_width",
+      "width": "terminal_length",
+      "height": "frame",
+      "operation": "new_body"
+    },
+    {
+      "id": 13,
+      "name": "row_n pockets",
+      "suppressed": false,
+      "param_names": [
+        "d33",
+        "d34"
+      ],
+      "type": "pattern",
+      "features": [
+        11
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "terminals",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 14,
+      "name": "row_n pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_n terminal (2)",
+        "row_n terminal (3)",
+        "row_n terminal (4)",
+        "row_n terminal (5)",
+        "row_n terminal (6)",
+        "row_n terminal (7)",
+        "row_n terminal (8)",
+        "row_n terminal (9)",
+        "row_n terminal (10)",
+        "row_n terminal (11)",
+        "row_n terminal (12)",
+        "row_n terminal (13)",
+        "row_n terminal (14)",
+        "row_n terminal (15)",
+        "row_n terminal (16)",
+        "row_n terminal (17)",
+        "row_n terminal (18)",
+        "row_n terminal (19)",
+        "row_n terminal (20)",
+        "row_n terminal (21)",
+        "row_n terminal (22)",
+        "row_n terminal (23)",
+        "row_n terminal (24)",
+        "row_n terminal (25)",
+        "row_n terminal (26)",
+        "row_n terminal (27)",
+        "row_n terminal (28)",
+        "row_n terminal (29)",
+        "row_n terminal (30)",
+        "row_n terminal (31)",
+        "row_n terminal (32)",
+        "row_n terminal (33)",
+        "row_n terminal (34)",
+        "row_n terminal (35)",
+        "row_n terminal (36)",
+        "row_n terminal (37)",
+        "row_n terminal (38)",
+        "row_n terminal (39)",
+        "row_n terminal (40)",
+        "row_n terminal (41)",
+        "row_n terminal (42)",
+        "row_n terminal (43)",
+        "row_n terminal (44)",
+        "row_n terminal (45)",
+        "row_n terminal (46)",
+        "row_n terminal (47)",
+        "row_n terminal (48)",
+        "row_n terminal (49)",
+        "row_n terminal (50)",
+        "row_n terminal (51)",
+        "row_n terminal (52)",
+        "row_n terminal (53)",
+        "row_n terminal (54)",
+        "row_n terminal (55)",
+        "row_n terminal (56)",
+        "row_n terminal (57)",
+        "row_n terminal (58)",
+        "row_n terminal (59)",
+        "row_n terminal (60)",
+        "row_n terminal (61)",
+        "row_n terminal (62)",
+        "row_n terminal (63)",
+        "row_n terminal (64)"
+      ],
+      "param_names": [
+        "d35",
+        "d36"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "count1": "terminals",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "row_n terminal"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "row_w pocket",
+      "suppressed": false,
+      "param_names": [
+        "d37",
+        "d38",
+        "d39"
+      ],
+      "participants": [
+        "substrate"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2 + pullback",
+        "- (terminals_short - 1) / 2 * pitch - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "terminal_length",
+      "width": "terminal_width",
+      "height": "frame",
+      "operation": "cut"
+    },
+    {
+      "id": 16,
+      "name": "row_w terminal",
+      "suppressed": false,
+      "body_names": [
+        "row_w terminal"
+      ],
+      "param_names": [
+        "d40",
+        "d41",
+        "d42"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2 + pullback",
+        "- (terminals_short - 1) / 2 * pitch - terminal_width / 2",
+        "0 mm"
+      ],
+      "length": "terminal_length",
+      "width": "terminal_width",
+      "height": "frame",
+      "operation": "new_body"
+    },
+    {
+      "id": 17,
+      "name": "row_w pockets",
+      "suppressed": false,
+      "param_names": [
+        "d43",
+        "d44"
+      ],
+      "type": "pattern",
+      "features": [
+        15
+      ],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "count1": "terminals_short",
+        "spacing1": "pitch"
+      }
+    },
+    {
+      "id": 18,
+      "name": "row_w pattern",
+      "suppressed": false,
+      "body_names": [
+        "row_w terminal (2)",
+        "row_w terminal (3)",
+        "row_w terminal (4)",
+        "row_w terminal (5)",
+        "row_w terminal (6)",
+        "row_w terminal (7)",
+        "row_w terminal (8)",
+        "row_w terminal (9)",
+        "row_w terminal (10)",
+        "row_w terminal (11)",
+        "row_w terminal (12)",
+        "row_w terminal (13)",
+        "row_w terminal (14)",
+        "row_w terminal (15)",
+        "row_w terminal (16)",
+        "row_w terminal (17)",
+        "row_w terminal (18)",
+        "row_w terminal (19)",
+        "row_w terminal (20)",
+        "row_w terminal (21)",
+        "row_w terminal (22)",
+        "row_w terminal (23)",
+        "row_w terminal (24)",
+        "row_w terminal (25)",
+        "row_w terminal (26)",
+        "row_w terminal (27)",
+        "row_w terminal (28)",
+        "row_w terminal (29)",
+        "row_w terminal (30)",
+        "row_w terminal (31)",
+        "row_w terminal (32)",
+        "row_w terminal (33)",
+        "row_w terminal (34)",
+        "row_w terminal (35)",
+        "row_w terminal (36)",
+        "row_w terminal (37)",
+        "row_w terminal (38)",
+        "row_w terminal (39)",
+        "row_w terminal (40)",
+        "row_w terminal (41)",
+        "row_w terminal (42)",
+        "row_w terminal (43)",
+        "row_w terminal (44)",
+        "row_w terminal (45)",
+        "row_w terminal (46)",
+        "row_w terminal (47)",
+        "row_w terminal (48)",
+        "row_w terminal (49)",
+        "row_w terminal (50)",
+        "row_w terminal (51)",
+        "row_w terminal (52)",
+        "row_w terminal (53)",
+        "row_w terminal (54)",
+        "row_w terminal (55)",
+        "row_w terminal (56)",
+        "row_w terminal (57)",
+        "row_w terminal (58)",
+        "row_w terminal (59)",
+        "row_w terminal (60)",
+        "row_w terminal (61)",
+        "row_w terminal (62)",
+        "row_w terminal (63)",
+        "row_w terminal (64)"
+      ],
+      "param_names": [
+        "d45",
+        "d46"
+      ],
+      "type": "pattern",
+      "features": [],
+      "pattern": {
+        "type": "rectangular",
+        "dir1": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "count1": "terminals_short",
+        "spacing1": "pitch"
+      },
+      "bodies": [
+        "row_w terminal"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d47"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -1.5,
+            -1.5,
+            0.21
+          ],
+          "max": [
+            1.5,
+            1.5,
+            0.9
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            -1.5,
+            -1.5,
+            0.21
+          ],
+          "max": [
+            1.5,
+            1.5,
+            0.9
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -1.5,
+            -1.5,
+            0.21
+          ],
+          "max": [
+            1.5,
+            1.5,
+            0.9
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -1.5,
+            -1.5,
+            0.21
+          ],
+          "max": [
+            1.5,
+            1.5,
+            0.9
+          ]
+        }
+      ],
+      "edge_names": [
+        "F2:+z|F2:-y",
+        "F2:+x|F2:+z",
+        "F2:+y|F2:+z",
+        "F2:+z|F2:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -1.5,
+          0.9
+        ],
+        [
+          1.5,
+          0.0,
+          0.9
+        ],
+        [
+          0.0,
+          1.5,
+          0.9
+        ],
+        [
+          -1.5,
+          0.0,
+          0.9
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body"
+    },
+    {
+      "id": 20,
+      "name": "pin 1 mark",
+      "suppressed": false,
+      "param_names": [
+        "d48",
+        "d49"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "cylinder",
+      "base": [
+        "- body_length / 2 + 2 * mark_radius",
+        "- body_width / 2 + 2 * mark_radius",
+        "body_height - mark_depth"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "mark_radius",
+      "height": "2 * mark_depth",
+      "operation": "cut"
+    },
+    {
+      "id": 21,
+      "name": "pin 1 dot",
+      "suppressed": false,
+      "body_names": [
+        "pin 1 dot"
+      ],
+      "param_names": [
+        "d50",
+        "d51"
+      ],
+      "type": "cylinder",
+      "base": [
+        "- body_length / 2 + 2 * mark_radius",
+        "- body_width / 2 + 2 * mark_radius",
+        "body_height - mark_depth"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "mark_radius",
+      "height": "mark_depth",
+      "operation": "new_body"
+    },
+    {
+      "id": 22,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d52"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 23,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "pin 1 dot": {
+        "name": "epoxy-laser-marked",
+        "color": [
+          89,
+          89,
+          91
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.75,
+          "dielectric_ior": 1.55
+        }
+      },
+      "row_e terminal": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (10)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (11)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (12)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (13)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (14)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (15)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (16)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (17)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (18)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (19)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (2)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (20)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (21)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (22)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (23)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (24)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (25)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (26)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (27)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (28)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (29)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (3)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (30)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (31)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (32)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (33)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (34)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (35)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (36)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (37)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (38)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (39)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (4)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (40)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (41)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (42)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (43)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (44)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (45)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (46)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (47)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (48)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (49)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (5)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (50)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (51)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (52)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (53)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (54)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (55)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (56)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (57)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (58)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (59)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (6)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (60)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (61)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (62)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (63)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (64)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (7)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (8)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_e terminal (9)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (10)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (11)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (12)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (13)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (14)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (15)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (16)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (17)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (18)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (19)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (2)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (20)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (21)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (22)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (23)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (24)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (25)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (26)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (27)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (28)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (29)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (3)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (30)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (31)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (32)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (33)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (34)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (35)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (36)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (37)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (38)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (39)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (4)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (40)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (41)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (42)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (43)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (44)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (45)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (46)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (47)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (48)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (49)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (5)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (50)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (51)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (52)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (53)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (54)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (55)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (56)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (57)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (58)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (59)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (6)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (60)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (61)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (62)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (63)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (64)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (7)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (8)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_n terminal (9)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (10)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (11)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (12)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (13)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (14)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (15)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (16)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (17)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (18)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (19)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (2)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (20)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (21)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (22)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (23)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (24)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (25)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (26)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (27)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (28)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (29)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (3)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (30)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (31)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (32)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (33)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (34)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (35)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (36)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (37)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (38)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (39)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (4)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (40)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (41)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (42)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (43)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (44)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (45)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (46)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (47)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (48)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (49)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (5)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (50)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (51)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (52)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (53)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (54)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (55)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (56)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (57)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (58)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (59)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (6)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (60)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (61)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (62)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (63)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (64)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (7)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (8)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_s terminal (9)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (10)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (11)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (12)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (13)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (14)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (15)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (16)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (17)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (18)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (19)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (2)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (20)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (21)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (22)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (23)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (24)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (25)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (26)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (27)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (28)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (29)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (3)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (30)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (31)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (32)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (33)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (34)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (35)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (36)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (37)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (38)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (39)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (4)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (40)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (41)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (42)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (43)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (44)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (45)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (46)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (47)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (48)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (49)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (5)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (50)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (51)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (52)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (53)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (54)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (55)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (56)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (57)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (58)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (59)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (6)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (60)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (61)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (62)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (63)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (64)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (7)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (8)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "row_w terminal (9)": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "substrate": {
+        "name": "solder-mask-green",
+        "color": [
+          28,
+          96,
+          50
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.2,
+          "dielectric_ior": 1.52
+        }
+      }
+    }
+  }
+}

@@ -2,10 +2,10 @@
   "format": 1,
   "name": "gull-wing-four-sided",
   "title": "Gull-wing package, four sides",
-  "summary": "Quad flat gull-wing package (QFP): a moulded body on its standoff and formed leads on all four sides that leave it at mid-height, bend down and end in a flat foot on the seating plane; the body cut round the lead roots, rounded corners and top edges and a pin-1 dimple (leads, leads_short, pitch, body_length, body_width, body_height, standoff, span, span_x, lead_width, lead_thickness, foot_length; the bends, rounds and dimple derived from them).",
+  "summary": "Gull-wing package with leads on all four sides (QFP): a transfer-moulded body in two drafted halves meeting at the parting line where the leads leave, its upright corners and top edges rounded, a pin-1 dimple, and formed tin leads that bend down to a flat foot on the seating plane; a marking-top surface on the top face (leads, leads_short, pitch, body_length, body_width, body_height, standoff, span, span_x, lead_width, lead_thickness, foot_length; the draft, rounds, dimple and marking area derived from them).",
   "use": "package_body",
   "prefix": "U",
   "lands": [],
   "licence": "MIT OR Apache-2.0",
-  "provenance": "Original work: the in-code gull-wing builder's construction (crates/solidcraft-integration/src/models/gull_wing.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at an LQFP-48 of 7 × 7 mm, 0.5 mm pitch (JEDEC MS-026 proportions); the gull-wing generator gives every dimension. Estimated bends, rounds and dimple; no vendor drawing or EDA/CAD library data copied."
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`, at a LQFP-48 7 × 7 mm (JEDEC MS-026 proportions); the gull-wing generator gives every dimension. The moulding follows Microchip's 8-lead SOIC drawing C04-057 (mould draft 5–15° top and bottom, optional pin-1 chamfer h 0.25–0.50 mm) and Fairchild/onsemi's SOIC drawings (pin-1 bevel edge as option A); bends, rounds and dimple size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied."
 }

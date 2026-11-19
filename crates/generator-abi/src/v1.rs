@@ -122,6 +122,10 @@ pub mod limits {
     pub const COORDINATE_NM: i64 = 1_000_000_000;
     /// Most values a model gives its part file.
     pub const MODEL_VALUES: usize = 256;
+    /// Most lines of a default top marking.
+    pub const MARKING_LINES: usize = 4;
+    /// Most bytes in one marking line (the core's text template bound).
+    pub const MARKING_LINE_BYTES: usize = 128;
     /// Most an arc's start and end may differ in their distance from its
     /// centre: each is rounded to the nanometre once.
     pub const ARC_RADIUS_NM: i64 = 1;
@@ -557,6 +561,37 @@ pub struct Generation {
     pub fields: Vec<FieldValue>,
     /// Non-fatal remarks for the person reviewing the part.
     pub notes: Vec<String>,
+    /// The package's default top marking, laser-etched on the model's
+    /// default marking surface; absent when the part carries none (an
+    /// MLCC). Data the generator takes from its parameters, never text of
+    /// its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marking: Option<Marking>,
+}
+
+/// A default top marking: text lines, top to bottom. Each line is literal
+/// text with placeholders the host fills per placed part: `{mpn}`,
+/// `{manufacturer}`, `{designator}`, `{var:<name>}` and
+/// `{field:<standard field>}` with an optional code (`|code3`, `|code4`,
+/// `|eia96`, `|cap3`), the standard field named as the standard fields name it
+/// (`Resistance`). At most [`limits::MARKING_LINES`] lines of at most
+/// [`limits::MARKING_LINE_BYTES`] bytes.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Marking {
+    pub lines: Vec<String>,
+    /// Printed in white ink (a chip resistor's code on its overcoat)
+    /// rather than laser-etched.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ink: bool,
+    /// A dot marks the pin-1 corner of the marking area (a SOT-23-6 or
+    /// SC-70 whose moulding carries no pin-1 feature).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub pin1_dot: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// The electrical component.

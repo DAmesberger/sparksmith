@@ -7,7 +7,16 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 
 /// The part files, by file stem; each becomes `<STEM>` in upper case.
-const PARTS: [&str; 4] = ["dfn", "dfn-ep", "qfn", "qfn-ep"];
+const PARTS: [&str; 8] = [
+    "dfn",
+    "dfn-ep",
+    "dfn-ep-wettable",
+    "dfn-window",
+    "lga",
+    "qfn",
+    "qfn-ep",
+    "qfn-ep-wettable",
+];
 
 fn main() -> Result<(), Box<dyn Error>> {
     let dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?).join("parts");

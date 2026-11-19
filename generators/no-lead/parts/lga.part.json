@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "lga",
+  "title": "LGA package",
+  "summary": "LGA package: gold lands under a laminate substrate with a moulded cap; terminals on all four sides; a laser-marked pin-1 dot; a marking-top surface on the top face (terminals, terminals_short, pitch, body_length, body_width, body_height, terminal_length, terminal_width, pullback, frame, plating, edge_round, mark_radius, mark_depth, substrate).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after ADI's ADXL343 datasheet Rev. 0, outline CC-14-1 (3 × 5 × 0.95 mm, Au over Ni terminations, 0.74 mm cap over the substrate); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied."
+}

@@ -686,6 +686,19 @@ pub fn select_fields(
     }
 }
 
+/// Give the component of `definitions` the host's default `marking`
+/// (the generation's, its fields made the project's: [`expand::marking`]).
+pub fn set_marking(
+    definitions: &mut [(DefinitionRef, Definition)],
+    marking: Option<&super::marking::MarkingSpec>,
+) {
+    for (_, definition) in definitions {
+        if let Definition::Component(component) = definition {
+            component.marking = marking.cloned().map(Box::new);
+        }
+    }
+}
+
 /// The part's name in messages: its root's name and revision.
 pub fn describe(library: &Library, part: &GeneratedPart) -> String {
     let name = library
@@ -843,6 +856,7 @@ pub fn compare(library: &Library, check: &Check<'_>, generated: &Generated) -> R
             &component.fields,
             component.value_template.as_ref(),
         );
+        set_marking(&mut expected, component.marking.as_deref());
     }
     if stored != expected {
         return Err(Error::Invalid(format!(

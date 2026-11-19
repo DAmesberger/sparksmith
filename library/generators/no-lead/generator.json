@@ -2,37 +2,65 @@
   "format": 1,
   "module": {
     "file": "no-lead.wasm",
-    "sha256": "07234846b3b8bc68c5c668426c4732a217edb7c7b020a4986a3d715c3ea898de"
+    "sha256": "3c5d292352bb8e939886fc4be9774debed1aed77cc6cc27a46ff96a871dc5241"
   },
   "name": "no-lead",
   "parts": [
     {
       "file": "parts/dfn.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a DFN-8 3 × 3 mm, 0.65 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
-      "sha256": "23fadde4958452a1c44fccad25f58aadfa77d1be90c79fd0275777929790c977",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "a424f7a0ad3abf7db12cfaca80431023d41548ab70fc0b729c491d3d44d23484",
       "title": "DFN package"
     },
     {
       "file": "parts/dfn-ep.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a DFN-8 3 × 3 mm, 0.65 mm, exposed pad 2.4 × 1.6 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
-      "sha256": "7602cfd5afc5b9eb74e2969915bbb68ac78de8c52567cf6a932afbdc5e108f94",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "bdd43062bc8d5b26a0aa228dd846ef8fad9b7c0edf3dfb1dc5327406eea7555d",
       "title": "DFN package with exposed pad"
+    },
+    {
+      "file": "parts/dfn-ep-wettable.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); the flank step is estimated; leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "5377c807222d57e140cc394bc4985ebf6d2684bb3409be78d91a74aa70f75e26",
+      "title": "DFN package with exposed pad, wettable flanks"
+    },
+    {
+      "file": "parts/dfn-window.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after Sensirion's SHT4x datasheet v7.3 §5 (open-cavity DFN, 0.6 mm opening centred on top, Ni/Pd/Au contacts, bare copper side walls); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "34a918c2c226eeeda2ab53c63858d595cf87a2b4dd6600866d7cf2b7d43b5f0f",
+      "title": "DFN sensor package with top opening"
+    },
+    {
+      "file": "parts/lga.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after ADI's ADXL343 datasheet Rev. 0, outline CC-14-1 (3 × 5 × 0.95 mm, Au over Ni terminations, 0.74 mm cap over the substrate); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "be89ce50e503cfc942384be0894a4b5e70ed7c9f9055a326cb5a74f617fd981b",
+      "title": "LGA package"
     },
     {
       "file": "parts/qfn.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a QFN-16 3 × 3 mm, 0.5 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
-      "sha256": "1295738c1e0b63f266bbbbfb264b660084c8338dc2369c849b5d43fa09d1859c",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "228fa306501ac2180106357b148b70e37fb8cbbc4242f849a078702c1529df71",
       "title": "QFN package"
     },
     {
       "file": "parts/qfn-ep.solidcraft",
       "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work: the in-code no-lead builder's construction (crates/solidcraft-integration/src/models/no_lead.rs, retired with these files) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a QFN-16 3 × 3 mm, 0.5 mm, exposed pad 1.7 × 1.7 mm; the no-lead generator gives every parameter its value. Body, terminal and exposed-pad sizes are the generator's (JEDEC MO-220 / MO-229 starter rows); leadframe thickness, edge round and pin-1 dimple are estimated. No vendor drawing or EDA/CAD library data copied.",
-      "sha256": "eaedb747e1c716e2df677f4763954181675dd1a0f520663e912a10c16a1302c7",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "e889292ab1a3b83e95004af6dc9c325c2a39b541ccb8d9871779ae654e6eb818",
       "title": "QFN package with exposed pad"
+    },
+    {
+      "file": "parts/qfn-ep-wettable.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); the flank step is estimated; leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "f9f04251dfc11d192dc823cf0e3567ddea30061b4ffbbaf1b7431f45410ffa15",
+      "title": "QFN package with exposed pad, wettable flanks"
     }
   ]
 }

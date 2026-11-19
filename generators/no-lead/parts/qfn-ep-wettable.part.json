@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "qfn-ep-wettable",
+  "title": "QFN package with exposed pad, wettable flanks",
+  "summary": "QFN package with exposed pad, wettable flanks: a sawn moulding with square sides, its copper terminals bare at the cut, plated with matte tin underneath, and each terminal's outer end stepped and tin-plated as a wettable flank; terminals on all four sides, a centred exposed pad; a laser-marked pin-1 dot; a marking-top surface on the top face (terminals, terminals_short, pitch, body_length, body_width, body_height, terminal_length, terminal_width, pullback, frame, plating, edge_round, mark_radius, mark_depth, pad_length, pad_width).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); the flank step is estimated; leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied."
+}

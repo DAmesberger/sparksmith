@@ -1,55 +1,78 @@
 {
-  "format": "solidcraft/52",
+  "format": "solidcraft/57",
   "format_pending": [
-    "3d-wire-point-nodes",
-    "frame-end-caps",
-    "joint-origin-inside",
-    "nested-face-name",
-    "opus-quality",
-    "render-indirect-clamp",
-    "render-quality-controls",
-    "revolve-axis-sketch",
-    "sheet-flange-segments",
-    "sketch-link-construction-point",
-    "two-sided-cut-cap-names"
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
   ],
-  "name": "Chip capacitor",
+  "name": "Chip capacitor (MLCC) body",
   "units": "mm",
   "params": [
     {
       "name": "length",
       "expr": "1.6 mm",
       "unit": "mm",
+      "comment": "length over the terminations (x)",
       "model": false
     },
     {
       "name": "width",
       "expr": "0.8 mm",
       "unit": "mm",
+      "comment": "width (y)",
       "model": false
     },
     {
       "name": "height",
       "expr": "0.45 mm",
       "unit": "mm",
+      "comment": "height above the seating plane",
       "model": false
     },
     {
       "name": "termination",
       "expr": "0.3 mm",
       "unit": "mm",
+      "comment": "each termination's length, end cap and band",
       "model": false
     },
     {
       "name": "body_round",
-      "expr": "0.045000000000000005 mm",
+      "expr": "0.045 mm",
       "unit": "mm",
+      "comment": "round of the body's long edges",
       "model": false
     },
     {
       "name": "end_round",
       "expr": "0.0675 mm",
       "unit": "mm",
+      "comment": "round of the terminations' outer edges",
+      "model": false
+    },
+    {
+      "name": "plating",
+      "expr": "min(0.015 mm, 0.04 * height, termination / 10)",
+      "unit": "mm",
+      "comment": "how far the terminations stand proud of the body (est.: tin over nickel over the silver base)",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "length - 2 * termination - 0.1 mm",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.7 * width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
       "model": false
     }
   ],
@@ -69,12 +92,12 @@
       "type": "box",
       "corner": [
         "- length / 2 + termination",
-        "- width / 2",
-        "0 mm"
+        "- width / 2 + plating",
+        "plating"
       ],
       "length": "length - 2 * termination",
-      "width": "width",
-      "height": "height",
+      "width": "width - 2 * plating",
+      "height": "height - plating - plating",
       "operation": "new_body"
     },
     {
@@ -139,13 +162,13 @@
           ],
           "min": [
             -0.5,
-            -0.4,
-            0.0
+            -0.385,
+            0.015
           ],
           "max": [
             0.5,
-            0.4,
-            0.45
+            0.385,
+            0.435
           ]
         },
         {
@@ -156,30 +179,13 @@
           ],
           "min": [
             -0.5,
-            -0.4,
-            0.0
+            -0.385,
+            0.015
           ],
           "max": [
             0.5,
-            0.4,
-            0.45
-          ]
-        },
-        {
-          "dir": [
-            -1.0,
-            0.0,
-            0.0
-          ],
-          "min": [
-            -0.5,
-            -0.4,
-            0.0
-          ],
-          "max": [
-            0.5,
-            0.4,
-            0.45
+            0.385,
+            0.435
           ]
         },
         {
@@ -190,47 +196,65 @@
           ],
           "min": [
             -0.5,
-            -0.4,
-            0.0
+            -0.385,
+            0.015
           ],
           "max": [
             0.5,
-            0.4,
-            0.45
+            0.385,
+            0.435
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -0.5,
+            -0.385,
+            0.015
+          ],
+          "max": [
+            0.5,
+            0.385,
+            0.435
           ]
         }
       ],
       "edge_names": [
         "F1:-y|F1:-z",
         "F1:+y|F1:-z",
-        "F1:+y|F1:+z",
-        "F1:+z|F1:-y"
+        "F1:+z|F1:-y",
+        "F1:+y|F1:+z"
       ],
       "type": "fillet",
       "edges": [
         [
           0.0,
-          -0.4,
-          0.0
+          -0.385,
+          0.015
         ],
         [
           0.0,
-          0.4,
-          0.0
+          0.385,
+          0.015
         ],
         [
           0.0,
-          0.4,
-          0.45
+          -0.385,
+          0.435
         ],
         [
           0.0,
-          -0.4,
-          0.45
+          0.385,
+          0.435
         ]
       ],
       "radius": "body_round",
-      "body": "body"
+      "body": "body",
+      "tangent_chain": false
     },
     {
       "id": 5,
@@ -260,23 +284,6 @@
         {
           "dir": [
             0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -0.8,
-            -0.4,
-            0.0
-          ],
-          "max": [
-            -0.5,
-            0.4,
-            0.45
-          ]
-        },
-        {
-          "dir": [
-            0.0,
             -1.0,
             0.0
           ],
@@ -307,13 +314,102 @@
             0.4,
             0.45
           ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            -0.8,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            -0.5,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -0.8,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            -0.5,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -0.8,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            -0.5,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -0.8,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            -0.5,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -0.8,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            -0.5,
+            0.4,
+            0.45
+          ]
         }
       ],
       "edge_names": [
         "F2:-x|F2:-z",
-        "F2:+y|F2:-x",
         "F2:+z|F2:-x",
-        "F2:-x|F2:-y"
+        "F2:-x|F2:-y",
+        "F2:+y|F2:-x",
+        "F2:-y|F2:-z",
+        "F2:+y|F2:-z",
+        "F2:+z|F2:-y",
+        "F2:+y|F2:+z"
       ],
       "type": "fillet",
       "edges": [
@@ -324,11 +420,6 @@
         ],
         [
           -0.8,
-          0.4,
-          0.225
-        ],
-        [
-          -0.8,
           0.0,
           0.45
         ],
@@ -336,10 +427,36 @@
           -0.8,
           -0.4,
           0.225
+        ],
+        [
+          -0.8,
+          0.4,
+          0.225
+        ],
+        [
+          -0.65,
+          -0.4,
+          0.0
+        ],
+        [
+          -0.65,
+          0.4,
+          0.0
+        ],
+        [
+          -0.65,
+          -0.4,
+          0.45
+        ],
+        [
+          -0.65,
+          0.4,
+          0.45
         ]
       ],
       "radius": "end_round",
-      "body": "termination 1"
+      "body": "termination 1",
+      "tangent_chain": false
     },
     {
       "id": 6,
@@ -369,23 +486,6 @@
         {
           "dir": [
             0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            0.5,
-            -0.4,
-            0.0
-          ],
-          "max": [
-            0.8,
-            0.4,
-            0.45
-          ]
-        },
-        {
-          "dir": [
-            0.0,
             1.0,
             0.0
           ],
@@ -416,13 +516,102 @@
             0.4,
             0.45
           ]
+        },
+        {
+          "dir": [
+            0.0,
+            0.0,
+            1.0
+          ],
+          "min": [
+            0.5,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            0.8,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            0.5,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            0.8,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            0.5,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            0.8,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            0.5,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            0.8,
+            0.4,
+            0.45
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            0.5,
+            -0.4,
+            0.0
+          ],
+          "max": [
+            0.8,
+            0.4,
+            0.45
+          ]
         }
       ],
       "edge_names": [
         "F3:+x|F3:-z",
-        "F3:+x|F3:+y",
         "F3:+x|F3:+z",
-        "F3:+x|F3:-y"
+        "F3:+x|F3:-y",
+        "F3:+x|F3:+y",
+        "F3:-y|F3:-z",
+        "F3:+y|F3:-z",
+        "F3:+z|F3:-y",
+        "F3:+y|F3:+z"
       ],
       "type": "fillet",
       "edges": [
@@ -433,11 +622,6 @@
         ],
         [
           0.8,
-          0.4,
-          0.225
-        ],
-        [
-          0.8,
           0.0,
           0.45
         ],
@@ -445,13 +629,70 @@
           0.8,
           -0.4,
           0.225
+        ],
+        [
+          0.8,
+          0.4,
+          0.225
+        ],
+        [
+          0.65,
+          -0.4,
+          0.0
+        ],
+        [
+          0.65,
+          0.4,
+          0.0
+        ],
+        [
+          0.65,
+          -0.4,
+          0.45
+        ],
+        [
+          0.65,
+          0.4,
+          0.45
         ]
       ],
       "radius": "end_round",
-      "body": "termination 2"
+      "body": "termination 2",
+      "tangent_chain": false
+    },
+    {
+      "id": 7,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d13"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "height - plating"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
     }
   ],
-  "next_id": 7,
+  "next_id": 8,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {

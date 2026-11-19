@@ -53,7 +53,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Most rows or columns of one grid (the host's grid form allows as many).
 const MAX_SIDE: i64 = 64;
@@ -166,7 +166,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
         "The letters rows are named with, in order; after the last, rows run AA, AB, … (JEDEC leaves out I, O, Q, S, X and Z)."
             .into(),
     );
-    let params = vec![
+    let mut params = vec![
         Param {
             key: "contact".into(),
             label: "Contacts".into(),
@@ -241,6 +241,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "contacts",
         ),
     ];
+    params.push(sparksmith_generator_sdk::marking::param());
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),
@@ -849,6 +850,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         ));
     }
     Ok(Generation {
+        marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

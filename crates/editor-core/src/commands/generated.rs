@@ -469,6 +469,24 @@ pub(crate) fn generate(
     } else {
         None
     };
+    // The generator's default top marking, its standard-field placeholders
+    // turned into the project's fields (host data, as the fields are).
+    let host_marking = match &made.generation.marking {
+        Some(marking) if scope == GeneratorScope::Component => {
+            if !selects_fields && marking.lines.iter().any(|l| l.contains("{field:")) {
+                super::library::import_bundle(
+                    document,
+                    &crate::library::standard_fields::bundle()?,
+                )?;
+            }
+            let standards = crate::library::standards::get()?;
+            let library = &document.project.library;
+            expand::marking(&made.generation, |name| {
+                standards.fields.local(library, name).map(|f| f.id)
+            })?
+        }
+        _ => None,
+    };
     let result = ContentHash(made.result_hash);
     let supplied = supplied_model(&request, &made.generation)?;
     let (held, new_model) = model_of(document, supplied)?;
@@ -562,6 +580,7 @@ pub(crate) fn generate(
     if let Some((fields, template)) = &host_fields {
         generated::select_fields(&mut definitions, fields, template.as_ref());
     }
+    generated::set_marking(&mut definitions, host_marking.as_ref());
     let base_name = request
         .name
         .clone()

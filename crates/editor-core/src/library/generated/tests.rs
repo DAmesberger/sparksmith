@@ -136,6 +136,7 @@ fn generation_with(
     let edge = x + 700_000;
     let component = scope == Scope::Component;
     Generation {
+        marking: None,
         component: component.then(|| Component {
             terminals: ["1", "2"]
                 .iter()

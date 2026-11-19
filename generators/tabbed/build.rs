@@ -7,7 +7,12 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 
 /// The part files, by file stem; each becomes `<STEM>` in upper case.
-const PARTS: [&str; 3] = ["tabbed-rows", "tabbed-tab-lead", "tabbed-flange"];
+const PARTS: [&str; 4] = [
+    "tabbed-rows",
+    "tabbed-tab-lead",
+    "tabbed-flange",
+    "tabbed-plcc-led",
+];
 
 fn main() -> Result<(), Box<dyn Error>> {
     let dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR")?).join("parts");
