@@ -45,7 +45,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.

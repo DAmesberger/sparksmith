@@ -1297,7 +1297,8 @@ pub enum NoLead {
 /// bodies; the exposed pad (`pad_length` × `pad_width`, centred) is cut out
 /// the same way. Sawn sides stay square; the top edges are rounded by
 /// `edge_round`. Pin 1 is marked by a laser-marked dot of `mark_radius`,
-/// `mark_depth` deep, two radii in from the −x, −y corner (sawn packages
+/// a recess `mark_depth` deep whose marked floor fills its lower half, two
+/// radii in from the −x, −y corner (sawn packages
 /// have no moulded dimple: TI's RGV and DML outlines show a pin-1 index
 /// area, Sensirion's SHT4x a laser dot). Saved at a QFN-16 3 × 3 mm,
 /// 0.5 mm (four sides) or a DFN-8 3 × 3 mm, 0.65 mm; the generator gives
@@ -1658,7 +1659,10 @@ pub fn author_no_lead(four: bool, pad: bool, kind: NoLead) -> Vec<u8> {
                 "axis": "Z", "body_name": "sensing film"}),
         );
     }
-    // The pin-1 laser dot: a shallow disc of laser-marked moulding.
+    // The pin-1 laser dot: the laser ablates a shallow recess, its floor
+    // the marked moulding. The marked disc fills the recess's lower half,
+    // so its top lies below the package top and no two bodies draw a face
+    // on one plane (a flush inlay z-fights the top round its edge).
     let dot = [
         "- body_length / 2 + 2 * mark_radius",
         "- body_width / 2 + 2 * mark_radius",
@@ -1674,7 +1678,7 @@ pub fn author_no_lead(four: bool, pad: bool, kind: NoLead) -> Vec<u8> {
         &mut s,
         "solid.cylinder",
         json!({"name": "pin 1 dot", "base": [dot[0], dot[1], "body_height - mark_depth"],
-            "radius": "mark_radius", "height": "mark_depth", "axis": "Z",
+            "radius": "mark_radius", "height": "mark_depth / 2", "axis": "Z",
             "body_name": "pin 1 dot"}),
     );
     marking_plane(&mut s, "body_height");
