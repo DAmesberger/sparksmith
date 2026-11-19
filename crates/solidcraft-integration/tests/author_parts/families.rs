@@ -1295,8 +1295,18 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
                 "mm",
                 "vent score length (est.)",
             ),
-            ("vent_width", "0.3 mm", "mm", "vent score width at the top (est.)"),
-            ("vent_depth", "0.12 mm", "mm", "vent score depth, a V (est.)"),
+            (
+                "vent_width",
+                "0.3 mm",
+                "mm",
+                "vent score width at the top (est.)",
+            ),
+            (
+                "vent_depth",
+                "0.12 mm",
+                "mm",
+                "vent score depth, a V (est.)",
+            ),
         ],
     );
     let (d, h, a, bh) = (6.3, 5.8, 6.6, 1.0);

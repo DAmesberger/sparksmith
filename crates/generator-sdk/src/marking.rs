@@ -169,11 +169,7 @@ pub fn stripe_svg(width_nm: i64, height_nm: i64) -> String {
 /// of `radius_nm`, `along_nm` long: the value lines round the side
 /// opposite the negative lead, and the negative stripe facing it (angle 0)
 /// as SVG artwork; the value lines at `text_height` ([`height`]).
-pub fn electrolytic_sleeve(
-    radius_nm: i64,
-    along_nm: i64,
-    text_height: Option<i64>,
-) -> v1::Marking {
+pub fn electrolytic_sleeve(radius_nm: i64, along_nm: i64, text_height: Option<i64>) -> v1::Marking {
     // The stripe's arc: radius × span in radians (π / 180 000 per
     // millidegree, as 3 141 593 / 180 000 000 000).
     let round = radius_nm.saturating_mul(STRIPE_SPAN_MDEG) / 1_000 * 3_141_593 / 180_000_000;
