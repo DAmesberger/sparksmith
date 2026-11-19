@@ -24,7 +24,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO8A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -57,7 +57,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO14A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -90,7 +90,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO16A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -123,7 +123,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO16A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -156,7 +156,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO18A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -189,7 +189,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO20A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -222,7 +222,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO24A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -255,7 +255,7 @@
    "foot_length": 835000,
    "pin1_bevel": true,
    "marking": [
-    "SO28A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -286,7 +286,7 @@
    "lead_thickness": 170000,
    "foot_length": 750000,
    "marking": [
-    "SS14A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -317,7 +317,7 @@
    "lead_thickness": 170000,
    "foot_length": 750000,
    "marking": [
-    "SS16A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -348,7 +348,7 @@
    "lead_thickness": 170000,
    "foot_length": 750000,
    "marking": [
-    "SS20A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -379,7 +379,7 @@
    "lead_thickness": 170000,
    "foot_length": 750000,
    "marking": [
-    "SS24A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -410,7 +410,7 @@
    "lead_thickness": 170000,
    "foot_length": 750000,
    "marking": [
-    "SS28A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -441,7 +441,7 @@
    "lead_thickness": 200000,
    "foot_length": 835000,
    "marking": [
-    "QS16A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -472,7 +472,7 @@
    "lead_thickness": 200000,
    "foot_length": 835000,
    "marking": [
-    "QS20A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -503,7 +503,7 @@
    "lead_thickness": 200000,
    "foot_length": 835000,
    "marking": [
-    "QS24A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -534,7 +534,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS8A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -565,7 +565,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS14A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -596,7 +596,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS16A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -627,7 +627,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS20A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -658,7 +658,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS24A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -689,7 +689,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS28A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -720,7 +720,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS38A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -751,7 +751,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS48A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -782,7 +782,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "TS56A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -814,7 +814,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "MS8A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -845,7 +845,7 @@
    "lead_thickness": 150000,
    "foot_length": 600000,
    "marking": [
-    "MS10A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -876,7 +876,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ32A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -907,7 +907,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ44A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -938,7 +938,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ48A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -969,7 +969,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ52A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1000,7 +1000,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ64A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1031,7 +1031,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ64A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1062,7 +1062,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ64A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1093,7 +1093,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ80A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1124,7 +1124,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ80A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1155,7 +1155,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ100A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1186,7 +1186,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ120A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1217,7 +1217,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ144A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1248,7 +1248,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ176A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1279,7 +1279,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ208A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1310,7 +1310,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "LQ128A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1341,7 +1341,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "TQ32A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1372,7 +1372,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "TQ44A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1403,7 +1403,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "TQ48A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1434,7 +1434,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "TQ64A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1465,7 +1465,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "TQ100A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -1496,7 +1496,7 @@
    "lead_thickness": 145000,
    "foot_length": 600000,
    "marking": [
-    "TQ144A"
+    "{mpn}"
    ]
   },
   "citation": {

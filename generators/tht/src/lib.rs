@@ -42,8 +42,24 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm, with their citations.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+/// The generator's version (`Description::version`): 2 marks a radial
+/// polarised capacitor's sleeve ([`marking`]).
+const VERSION: u32 = 2;
+
+/// The share of a radial body's height its part file's `marking-sleeve`
+/// spans (`marking_sleeve_l = 0.8 * body_height`), in tenths.
+const SLEEVE_TENTHS: i64 = 8;
+
+/// The marking a part carries: a radial polarised capacitor's sleeve
+/// print (its values and the negative stripe facing lead 2); none else.
+fn marking(d: &Dims) -> Option<v1::Marking> {
+    (d.construction == Construction::Radial && d.symbol == Sym::PolarisedCapacitor).then(|| {
+        sparksmith_generator_sdk::marking::electrolytic_sleeve(
+            d.body_diameter / 2,
+            d.body_height * SLEEVE_TENTHS / 10,
+        )
+    })
+}
 
 /// Most pins of a DIP (both rows) and of a TO row.
 const MAX_DIP_PINS: i64 = 128;
@@ -1208,7 +1224,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         two_lead_symbol(d.symbol, args.text("resistor_style").map_err(|p| vec![p])?)
     };
     Ok(Generation {
-        marking: None,
+        marking: marking(&d),
         component: component_part.then(|| Component {
             terminals: terminals(&d),
             prefix: d.symbol.prefix().into(),

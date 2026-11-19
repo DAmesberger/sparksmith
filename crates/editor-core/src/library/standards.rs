@@ -399,6 +399,8 @@ pub enum GenericFamily {
     Inductor,
     Led,
     Diode,
+    /// Aluminium electrolytic capacitors, SMD and radial.
+    Electrolytic,
 }
 
 /// One family's declared patterns, and example texts each building a part.
@@ -565,17 +567,24 @@ impl GenericGrammar {
 
     /// The family a part `generator` made from the complete `params`
     /// belongs to: its generator's, with every parameter of its presets
-    /// (with its own params on top) equal.
+    /// (with its own params on top) equal; a generator's only family that
+    /// names no parameters serves every part it makes.
     pub fn family_of(
         &self,
         generator: &str,
         params: &crate::library::generated::GeneratorParams,
     ) -> Option<&FamilyPatterns> {
+        let only = self
+            .families
+            .iter()
+            .filter(|f| f.generator == generator)
+            .count()
+            == 1;
         self.families.iter().find(|family| {
             let mut wanted = family.presets.clone();
             wanted.extend(family.params.clone());
             family.generator == generator
-                && !wanted.is_empty()
+                && (only || !wanted.is_empty())
                 && wanted.iter().all(|(k, v)| params.get(k) == Some(v))
         })
     }

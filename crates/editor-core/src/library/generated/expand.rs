@@ -29,6 +29,7 @@ use crate::library::graphics::{
     self, FootprintGraphic, Graphic, HAlign, Item, Justify, Pin, PinDirection, Rotation, ShapeNm,
     TextContent, VAlign,
 };
+use crate::library::bundle::{AssetBytes, PackedAsset};
 use crate::library::package_model::PartValue;
 use crate::library::{
     BindingDefinition, ComponentDefinition, CornerMask, Definition, DrawingLayer,
@@ -779,42 +780,194 @@ fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
 }
 
 /// The generation's default top marking as a component marking: each line
-/// one text item, laser-etched or (`ink`) printed in white, stacked top to
-/// bottom on the model's default marking surface, then the pin-1 dot when
-/// asked, with every `{field:<standard field>…}` placeholder
-/// rewritten to the project's field of that name (`field` finds it); a
-/// placeholder already naming a lineage (`{field:D12}`) stays. `None`
-/// without a marking. The text is the generator's data (its parameters);
-/// the template itself is checked when the component is published.
+/// one text item, laser-etched or (`ink`, `colour`) printed, stacked top
+/// to bottom on the model's default marking surface or the part file's
+/// surface it names (wrapped round a cylinder as it says), then its
+/// polarity mark, its artwork (each packed as SVG under `licence`, the
+/// generator's) and the pin-1 dot when asked; each further marking a decal
+/// of its own. Every `field:<standard field>` a placeholder names is
+/// rewritten to the project's field of that name (`field` finds it); one
+/// already naming a lineage (`field:D12`) stays. `None` without a marking.
+/// The text is the generator's data (its parameters); the template itself
+/// is checked when the component is published. Returns the spec and the
+/// artwork to pack with it.
 pub fn marking(
     generation: &v1::Generation,
+    licence: &str,
     mut field: impl FnMut(&str) -> Option<DefinitionId>,
-) -> Result<Option<crate::library::marking::MarkingSpec>> {
-    use crate::library::marking::{
-        Align, Anchor, Finish, MAX_MARKING_ITEMS, MAX_TEMPLATE, MarkingItem, MarkingSpec,
-        PolarityMark, Template,
-    };
-    const FIELD: &str = "{field:";
+) -> Result<Option<(crate::library::marking::MarkingSpec, Vec<PackedAsset>)>> {
+    use crate::library::marking::MAX_DECALS;
     let Some(marking) = &generation.marking else {
         return Ok(None);
     };
-    if marking.lines.is_empty() && !marking.pin1_dot {
+    let mut assets = Vec::new();
+    let Some(mut spec) = one_marking(marking, licence, &mut field, &mut assets)? else {
         return Ok(None);
-    }
-    if marking.lines.len() + usize::from(marking.pin1_dot) > MAX_MARKING_ITEMS {
+    };
+    if marking.decals.len() > MAX_DECALS {
         return Err(Error::Limit(
-            "generated.marking: too many marking lines".into(),
+            "generated.marking: too many further markings".into(),
         ));
     }
-    let mut items = Vec::with_capacity(marking.lines.len());
+    for decal in &marking.decals {
+        if !decal.decals.is_empty() {
+            return Err(Error::Invalid(
+                "generated.marking: a further marking has further markings".into(),
+            ));
+        }
+        if let Some(d) = one_marking(decal, licence, &mut field, &mut assets)? {
+            spec.decals.push(d);
+        }
+    }
+    Ok(Some((spec, assets)))
+}
+
+fn mark_place(at: v1::MarkPlace) -> crate::library::marking::Anchor {
+    use crate::library::marking::Anchor;
+    match at {
+        v1::MarkPlace::Centre => Anchor::Centre,
+        v1::MarkPlace::Pin1 => Anchor::Pin1Corner,
+        v1::MarkPlace::Start => Anchor::Start,
+        v1::MarkPlace::End => Anchor::End,
+    }
+}
+
+/// One marking of a generation without its further markings.
+fn one_marking(
+    marking: &v1::Marking,
+    licence: &str,
+    field: &mut impl FnMut(&str) -> Option<DefinitionId>,
+    assets: &mut Vec<PackedAsset>,
+) -> Result<Option<crate::library::marking::MarkingSpec>> {
+    use crate::library::marking::{
+        ARTWORK_MEDIA_TYPE, Align, Anchor, Finish, MAX_ARTWORK_BYTES, MAX_MARKING_ITEMS,
+        MAX_TEMPLATE, MarkingItem, MarkingSpec, Placement, PolarityMark, SurfaceRef, Template,
+        Wrap,
+    };
+    let items_wanted = marking.lines.len()
+        + usize::from(marking.pin1_dot)
+        + usize::from(marking.polarity.is_some())
+        + marking.artwork.len();
+    if items_wanted == 0 {
+        return Ok(None);
+    }
+    if items_wanted > MAX_MARKING_ITEMS {
+        return Err(Error::Limit(
+            "generated.marking: too many marking lines and marks".into(),
+        ));
+    }
+    let mut items = Vec::with_capacity(items_wanted);
     for line in &marking.lines {
-        let mut out = String::with_capacity(line.len());
-        let mut rest = line.as_str();
-        while let Some(at) = rest.find(FIELD) {
-            let (before, after) = rest.split_at(at + FIELD.len());
-            out.push_str(before);
-            let end = after.find(['|', '}']).unwrap_or(after.len());
+        let out = field_lineages(line, field)?;
+        if out.len() > MAX_TEMPLATE {
+            return Err(Error::Limit(format!(
+                "generated.marking: a marking line is longer than {MAX_TEMPLATE} bytes"
+            )));
+        }
+        items.push(MarkingItem::Text {
+            template: Template(out),
+            height_nm: None,
+            align: Align::Centre,
+        });
+    }
+    if let Some(polarity) = marking.polarity {
+        items.push(MarkingItem::Polarity {
+            mark: match polarity.mark {
+                v1::PolarityShape::Dot => PolarityMark::Dot,
+                v1::PolarityShape::Bar => PolarityMark::Bar,
+                v1::PolarityShape::Band => PolarityMark::Band,
+                v1::PolarityShape::Stripe => PolarityMark::Stripe,
+            },
+            at: mark_place(polarity.at),
+        });
+    }
+    for art in &marking.artwork {
+        let bytes = art.svg.as_bytes().to_vec();
+        if bytes.is_empty() || bytes.len() > MAX_ARTWORK_BYTES {
+            return Err(Error::Limit(
+                "generated.marking: marking artwork is empty or too large".into(),
+            ));
+        }
+        let data = AssetBytes::new(bytes);
+        let hash = data.hash();
+        if assets.iter().all(|a: &PackedAsset| a.hash != hash) {
+            assets.push(PackedAsset {
+                hash,
+                media_type: ARTWORK_MEDIA_TYPE.into(),
+                data,
+            });
+        }
+        items.push(MarkingItem::Artwork {
+            svg: hash,
+            size_nm: [Nm::new(art.size[0])?, Nm::new(art.size[1])?],
+            anchor: mark_place(art.at),
+            licence: Some(licence.chars().take(crate::ids::MAX_LABEL).collect()),
+        });
+    }
+    if marking.pin1_dot {
+        items.push(MarkingItem::Polarity {
+            mark: PolarityMark::Dot,
+            at: Anchor::Pin1Corner,
+        });
+    }
+    let mut placement = Placement::default();
+    if let Some(surface) = &marking.surface {
+        placement.on = SurfaceRef::Anchor {
+            name: surface.replace('-', "_"),
+        };
+    }
+    if let Some([seam, span]) = marking.wrap {
+        placement.wrap = Some(Wrap {
+            seam_mdeg: crate::units::Angle::normalized(seam),
+            wrap_mdeg: i32::try_from(span).map_err(|_| {
+                Error::Limit("generated.marking: a wrap spans more than a turn".into())
+            })?,
+            ..Wrap::default()
+        });
+    }
+    if let Some(problem) = placement.problem() {
+        return Err(Error::Invalid(format!("generated.marking: {problem}")));
+    }
+    Ok(Some(MarkingSpec {
+        items,
+        finish: match (marking.colour, marking.ink) {
+            (Some(colour), _) => Finish::Ink { colour },
+            (None, true) => Finish::InkWhite,
+            (None, false) => Finish::LaserEtch,
+        },
+        placement,
+        ..MarkingSpec::default()
+    }))
+}
+
+/// `line` with every `field:<standard field>` a placeholder names (an
+/// alternative's or a condition's too) turned into the project's field
+/// lineage (`field:D12`); one already naming a lineage stays, and text
+/// outside placeholders is kept as it is.
+fn field_lineages(
+    line: &str,
+    field: &mut impl FnMut(&str) -> Option<DefinitionId>,
+) -> Result<String> {
+    const FIELD: &str = "field:";
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    let mut inside = false;
+    // Whether the next token of a placeholder starts here.
+    let mut token = false;
+    while let Some(c) = rest.chars().next() {
+        if !inside && (rest.starts_with("{{") || rest.starts_with("}}")) {
+            out.push_str(&rest[..2]);
+            rest = &rest[2..];
+            continue;
+        }
+        if inside && token && rest.starts_with(FIELD) {
+            let after = &rest[FIELD.len()..];
+            let end = after
+                .find(['|', '}', '?', ';', '<', '>', '='])
+                .unwrap_or(after.len());
             let (name, tail) = after.split_at(end);
+            let name = name.trim();
+            out.push_str(FIELD);
             let digits = name.strip_prefix('D').unwrap_or(name);
             if !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit()) {
                 out.push_str(name);
@@ -827,32 +980,119 @@ pub fn marking(
                 out.push_str(&format!("D{}", id.0));
             }
             rest = tail;
+            token = false;
+            continue;
         }
-        out.push_str(rest);
-        if out.len() > MAX_TEMPLATE {
-            return Err(Error::Limit(format!(
-                "generated.marking: a marking line is longer than {MAX_TEMPLATE} bytes"
-            )));
+        match c {
+            '{' => {
+                inside = true;
+                token = true;
+            }
+            '}' => inside = false,
+            ';' | '?' if inside => token = true,
+            ' ' if inside => {}
+            _ => token = false,
         }
-        items.push(MarkingItem::Text {
-            template: Template(out),
-            height_nm: None,
-            align: Align::Centre,
-        });
+        out.push(c);
+        rest = &rest[c.len_utf8()..];
     }
-    if marking.pin1_dot {
-        items.push(MarkingItem::Polarity {
-            mark: PolarityMark::Dot,
-            at: Anchor::Pin1Corner,
-        });
+    Ok(out)
+}
+
+#[cfg(test)]
+mod marking_tests {
+    use super::*;
+    use crate::library::marking::{
+        Anchor, Finish, MarkingItem, PolarityMark, SurfaceRef, Template,
+    };
+
+    fn ids(name: &str) -> Option<DefinitionId> {
+        match name {
+            "Resistance" => Some(DefinitionId(7)),
+            "Tolerance" => Some(DefinitionId(8)),
+            _ => None,
+        }
     }
-    Ok(Some(MarkingSpec {
-        items,
-        finish: if marking.ink {
-            Finish::InkWhite
-        } else {
-            Finish::LaserEtch
-        },
-        ..MarkingSpec::default()
-    }))
+
+    #[test]
+    fn every_field_a_placeholder_names_becomes_its_lineage() -> Result<()> {
+        let mut field = ids;
+        assert_eq!(
+            field_lineages(
+                "{field:Resistance|code4?field:Tolerance<=1%;field:Resistance|code3}",
+                &mut field
+            )?,
+            "{field:D7|code4?field:D8<=1%;field:D7|code3}"
+        );
+        assert_eq!(
+            field_lineages("{{field:Resistance}} {mpn; field:D3}", &mut field)?,
+            "{{field:Resistance}} {mpn; field:D3}"
+        );
+        assert!(field_lineages("{field:Colour}", &mut field).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn a_marking_maps_its_ink_surface_wrap_marks_artwork_and_decals() -> Result<()> {
+        let svg = "<svg xmlns=\"http://www.w3.org/2000/svg\"/>".to_owned();
+        let marking = v1::Marking {
+            lines: vec!["{field:Resistance|num:k}k".into()],
+            colour: Some([1, 2, 3]),
+            surface: Some("sleeve".into()),
+            wrap: Some([-40_000, 80_000]),
+            polarity: Some(v1::Polarity {
+                mark: v1::PolarityShape::Bar,
+                at: v1::MarkPlace::Start,
+            }),
+            artwork: vec![v1::Artwork {
+                svg: svg.clone(),
+                size: [1_000_000, 2_000_000],
+                at: v1::MarkPlace::End,
+            }],
+            ..v1::Marking::default()
+        };
+        let mut assets = Vec::new();
+        let spec = one_marking(&marking, "MIT", &mut ids, &mut assets)?
+            .ok_or_else(|| Error::Invalid("unmarked".into()))?;
+        assert_eq!(spec.finish, Finish::Ink { colour: [1, 2, 3] });
+        assert_eq!(
+            spec.placement.on,
+            SurfaceRef::Anchor {
+                name: "sleeve".into()
+            }
+        );
+        let wrap = spec
+            .placement
+            .wrap
+            .ok_or_else(|| Error::Invalid("unwrapped".into()))?;
+        assert_eq!((wrap.seam_mdeg.millidegrees(), wrap.wrap_mdeg), (320_000, 80_000));
+        assert_eq!(assets.len(), 1);
+        assert_eq!(assets[0].data.as_slice(), svg.as_bytes());
+        assert_eq!(
+            spec.items,
+            vec![
+                MarkingItem::Text {
+                    template: Template("{field:D7|num:k}k".into()),
+                    height_nm: None,
+                    align: crate::library::marking::Align::Centre,
+                },
+                MarkingItem::Polarity {
+                    mark: PolarityMark::Bar,
+                    at: Anchor::Start,
+                },
+                MarkingItem::Artwork {
+                    svg: assets[0].hash,
+                    size_nm: [Nm::new(1_000_000)?, Nm::new(2_000_000)?],
+                    anchor: Anchor::End,
+                    licence: Some("MIT".into()),
+                },
+            ]
+        );
+        // Nothing to mark is no marking.
+        assert_eq!(
+            one_marking(&v1::Marking::default(), "MIT", &mut ids, &mut assets)?,
+            None
+        );
+        Ok(())
+    }
 }

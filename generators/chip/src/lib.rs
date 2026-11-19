@@ -38,8 +38,54 @@ const LAND_EXTRA_LENGTH_NM: i64 = 600_000;
 const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 
 /// The generator's version (`Description::version`): 1, the first with a
-/// 3D model; 2 marks an LED's pin 1 (its cathode) with a silkscreen dot.
-const VERSION: u32 = 3;
+/// 3D model; 2 marks an LED's pin 1 (its cathode) with a silkscreen dot;
+/// 4 marks a resistor's value by the resistor code rule
+/// ([`resistor_marking`]) and an LED's cathode on its top.
+const VERSION: u32 = 4;
+
+/// The longest chip left unmarked by the size rule: 0402 (1.0 mm) and
+/// smaller chips carry no value code, as the chip-resistor data sheet the
+/// presets cite marks them (Yageo RC_L: no marking on 0402 and smaller).
+const UNMARKED_MAX_LENGTH_NM: i64 = 1_000_000;
+/// The longest chip the size rule marks with three digits only: 0603
+/// (1.6 mm); longer chips carry four digits at 1 % (the same data sheet).
+const THREE_DIGIT_MAX_LENGTH_NM: i64 = 1_600_000;
+
+/// An LED's cathode mark printed on its top: green, as chip LED data
+/// sheets draw it (est. colour).
+const CATHODE_MARK_COLOUR: [u8; 3] = [0x2e, 0x9e, 0x4f];
+
+/// A resistor's value code as marking data: the IEC 60062 three-digit code
+/// for any tolerance; four digits (`four`) or EIA-96 (`eia96`) where the
+/// part's tolerance is 1 % or better and the value has that code, three
+/// digits otherwise. The host fills the codes from each placed part's
+/// Resistance and Tolerance; a value no code holds draws nothing.
+fn resistor_code_line(code: &str) -> Option<String> {
+    let three = "field:Resistance|code3";
+    match code {
+        "three_digit" => Some(format!("{{{three}}}")),
+        "four_digit" => Some(format!(
+            "{{field:Resistance|code4?field:Tolerance<=1%;{three}}}"
+        )),
+        "eia96" => Some(format!(
+            "{{field:Resistance|eia96?field:Tolerance<=1%;{three}}}"
+        )),
+        _ => None,
+    }
+}
+
+/// The resistor code rule: the `resistor_code` the parameters choose, or
+/// by size (`auto`): none on 0402 and smaller, three digits up to 0603,
+/// four digits at 1 % on larger chips.
+fn resistor_marking(code: &str, length: i64) -> Option<String> {
+    let code = match code {
+        "auto" if length <= UNMARKED_MAX_LENGTH_NM => "none",
+        "auto" if length <= THREE_DIGIT_MAX_LENGTH_NM => "three_digit",
+        "auto" => "four_digit",
+        other => other,
+    };
+    resistor_code_line(code)
+}
 
 /// The pin-1 dot of a polarised chip (an LED): a filled silkscreen circle
 /// of this radius beyond pad 1's −x edge, clear of its mask opening by the
@@ -224,6 +270,24 @@ fn description_with(presets: Vec<Preset>) -> Description {
         style,
     ];
     params.push(sparksmith_generator_sdk::marking::param());
+    let mut code = enumeration(
+        "resistor_code",
+        "Resistor value code",
+        &[
+            ("auto", "By size"),
+            ("none", "None"),
+            ("three_digit", "Three digits"),
+            ("four_digit", "Four digits at 1 %"),
+            ("eia96", "EIA-96 at 1 %"),
+        ],
+        "auto",
+        "marking",
+    );
+    code.help = Some(
+        "The value code a resistor carries (IEC 60062): by size none on 0402 and smaller, three digits up to 0603, four digits at 1 % on larger chips; EIA-96 at 1 % where the maker marks so. Three digits where the chosen code cannot hold the value. Lines in Top marking replace it."
+            .into(),
+    );
+    params.push(code);
     let rules = vec![
         Rule {
             text: "2 × termination < body length".into(),
@@ -633,9 +697,32 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     if d.part == Part::Led {
         fields.push("colour".into());
     }
+    let mut marking =
+        sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor).map_err(|p| vec![p])?;
+    if marking.is_none() {
+        marking = match d.part {
+            Part::Resistor => resistor_marking(
+                args.text("resistor_code").map_err(|p| vec![p])?,
+                d.length,
+            )
+            .map(|line| v1::Marking {
+                lines: vec![line],
+                ink: true,
+                ..v1::Marking::default()
+            }),
+            Part::Led => Some(v1::Marking {
+                colour: Some(CATHODE_MARK_COLOUR),
+                polarity: Some(v1::Polarity {
+                    mark: v1::PolarityShape::Bar,
+                    at: v1::MarkPlace::Start,
+                }),
+                ..v1::Marking::default()
+            }),
+            _ => None,
+        };
+    }
     Ok(Generation {
-        marking: sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor)
-            .map_err(|p| vec![p])?,
+        marking,
         component: component_part.then(|| Component {
             terminals: terminals(d.part),
             prefix: d.part.prefix().into(),
