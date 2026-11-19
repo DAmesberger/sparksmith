@@ -6,7 +6,6 @@ use super::super::*;
 use super::Place;
 use crate::commands::Registry;
 use serde_json::{Value, json};
-use sparksmith_automation::Mode;
 use sparksmith_automation::live::{self, Client, ClientToken};
 use sparksmith_ui::fonts;
 

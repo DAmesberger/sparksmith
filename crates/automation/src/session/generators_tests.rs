@@ -630,7 +630,13 @@ fn a_generated_generic_part_is_found_by_value_and_generator() -> TestResult {
             .filter_map(|r| r["entry"]["name"].as_str().map(str::to_owned))
             .collect())
     };
-    for text in ["4.7k 0603", "10k", "gen:resistor", "gen:chip", "src:project gen:chip resistor"] {
+    for text in [
+        "4.7k 0603",
+        "10k",
+        "gen:resistor",
+        "gen:chip",
+        "src:project gen:chip resistor",
+    ] {
         assert!(
             names(&mut session, text)?.contains(&"Chip resistor 0603".to_owned()),
             "{text} finds the part by its family label"
@@ -693,17 +699,30 @@ fn a_second_name_on_the_same_package_makes_its_own_component() -> TestResult {
     let temp = tempfile::tempdir()?;
     let root = library(temp.path())?;
     let mut session = session(&root)?;
-    let params = |name: &str| {
-        json!({"generator": "chip", "scope": "component", "preset": "resistor-0603", "name": name})
-    };
-    let first = call(&mut session, "library.generate_part", params("ExampleCo EX-R1"));
+    let params = |name: &str| json!({"generator": "chip", "scope": "component", "preset": "resistor-0603", "name": name});
+    let first = call(
+        &mut session,
+        "library.generate_part",
+        params("ExampleCo EX-R1"),
+    );
     assert_eq!(first["ok"], true, "{first}");
     let first_root = first["result"]["outcome"]["report"]["root"].clone();
     let revision = session.engine().revision();
-    let again = call(&mut session, "library.generate_part", params("ExampleCo EX-R1"));
-    assert_eq!(again["result"]["outcome"]["report"]["created"], false, "{again}");
+    let again = call(
+        &mut session,
+        "library.generate_part",
+        params("ExampleCo EX-R1"),
+    );
+    assert_eq!(
+        again["result"]["outcome"]["report"]["created"], false,
+        "{again}"
+    );
     assert_eq!(session.engine().revision(), revision, "nothing changed");
-    let second = call(&mut session, "library.generate_part", params("ExampleCo EX-R2"));
+    let second = call(
+        &mut session,
+        "library.generate_part",
+        params("ExampleCo EX-R2"),
+    );
     assert_eq!(second["ok"], true, "{second}");
     let report = &second["result"]["outcome"]["report"];
     assert_eq!(report["created"], true, "{report}");
@@ -717,7 +736,11 @@ fn a_second_name_on_the_same_package_makes_its_own_component() -> TestResult {
         .chain(library.symbols.iter().map(|s| s.meta.name.clone()))
         .chain(library.bindings.iter().map(|b| b.meta.name.clone()))
         .collect();
-    for name in ["ExampleCo EX-R2", "ExampleCo EX-R2 symbol", "ExampleCo EX-R2 binding"] {
+    for name in [
+        "ExampleCo EX-R2",
+        "ExampleCo EX-R2 symbol",
+        "ExampleCo EX-R2 binding",
+    ] {
         assert!(names.iter().any(|n| n == name), "{name} in {names:?}");
     }
     let packages = |c: &str| {

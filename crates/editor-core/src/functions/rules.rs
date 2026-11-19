@@ -984,9 +984,9 @@ fn fixed_peripheral_hint(terminals: &[TerminalDeclaration<'_>], named: &[Termina
         .iter()
         .filter(|t| named.is_empty() || named.contains(&t.terminal))
         .filter(|t| {
-            t.functions.is_some_and(|f| {
-                matches!(f.functions.as_slice(), [only] if only.resource_role.is_some())
-            })
+            t.functions.is_some_and(
+                |f| matches!(f.functions.as_slice(), [only] if only.resource_role.is_some()),
+            )
         })
         .map(|t| t.name)
         .take(4)

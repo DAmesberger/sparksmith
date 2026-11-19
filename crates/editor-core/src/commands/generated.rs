@@ -922,7 +922,11 @@ fn second_part(
         None,
     )? {
         Outcome::Duplicated { lineages } => lineages,
-        _ => return Err(Error::Invalid("generated.second_part: nothing was copied".into())),
+        _ => {
+            return Err(Error::Invalid(
+                "generated.second_part: nothing was copied".into(),
+            ));
+        }
     };
     let published = match super::apply_library(
         document,
@@ -939,7 +943,9 @@ fn second_part(
         .iter()
         .find(|r| r.kind == crate::ids::DefinitionKind::Component)
         .copied()
-        .ok_or_else(|| Error::Invalid("generated.second_part: no component was published".into()))?;
+        .ok_or_else(|| {
+            Error::Invalid("generated.second_part: no component was published".into())
+        })?;
     let original = document
         .project
         .library

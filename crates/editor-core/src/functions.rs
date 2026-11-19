@@ -403,9 +403,7 @@ impl Function {
             );
         }
         if self.direction.is_power() {
-            return format!(
-                "A {direction} function takes signal power and drive none."
-            );
+            return format!("A {direction} function takes signal power and drive none.");
         }
         if self.direction.drives() {
             return format!(
@@ -1111,15 +1109,26 @@ mod combination_tests {
         let analog_io = function(Direction::Bidirectional, SignalKind::Analog, Drive::None);
         assert!(!analog_io.combination_valid());
         let says = analog_io.combination_alternatives();
-        assert!(says.contains("push_pull") && says.contains("passive"), "{says}");
+        assert!(
+            says.contains("push_pull") && says.contains("passive"),
+            "{says}"
+        );
         assert!(function(Direction::Passive, SignalKind::Analog, Drive::None).combination_valid());
         assert!(
-            function(Direction::Bidirectional, SignalKind::Analog, Drive::PushPull)
-                .combination_valid()
+            function(
+                Direction::Bidirectional,
+                SignalKind::Analog,
+                Drive::PushPull
+            )
+            .combination_valid()
         );
 
         let driven_input = function(Direction::Input, SignalKind::Digital, Drive::PushPull);
-        assert!(driven_input.combination_alternatives().contains("drive none"));
+        assert!(
+            driven_input
+                .combination_alternatives()
+                .contains("drive none")
+        );
         assert!(function(Direction::Input, SignalKind::Digital, Drive::None).combination_valid());
 
         let power_input = function(Direction::Input, SignalKind::Power, Drive::None);

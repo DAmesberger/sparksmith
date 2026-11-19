@@ -771,7 +771,12 @@ fn a_review_check_is_scoped_to_its_part() -> Fallible<()> {
     let drafts = session.engine().drafts().items.clone();
     let components: Vec<_> = drafts
         .iter()
-        .filter(|d| matches!(d.definition, sparksmith_core::library::Definition::Component(_)))
+        .filter(|d| {
+            matches!(
+                d.definition,
+                sparksmith_core::library::Definition::Component(_)
+            )
+        })
         .collect();
     let first = components.first().ok_or("a component draft in the demo")?;
     let checked = session.dispatch(json!({"command": "library.review_check", "params": {
@@ -779,8 +784,14 @@ fn a_review_check_is_scoped_to_its_part() -> Fallible<()> {
     assert_eq!(checked["ok"], true, "{checked}");
     let listed = checked["result"]["drafts"].as_array().ok_or("drafts")?;
     let components_listed = listed.iter().filter(|d| d["kind"] == "component").count();
-    assert_eq!(components_listed, 1, "only the part's component: {listed:?}");
-    assert!(listed.len() < drafts.len() || drafts.len() <= 5, "{listed:?}");
+    assert_eq!(
+        components_listed, 1,
+        "only the part's component: {listed:?}"
+    );
+    assert!(
+        listed.len() < drafts.len() || drafts.len() <= 5,
+        "{listed:?}"
+    );
 
     // A published component without a draft is checked as published.
     let published = session
@@ -801,7 +812,10 @@ fn a_review_check_is_scoped_to_its_part() -> Fallible<()> {
     let checked = session.dispatch(json!({"command": "library.review_check", "params": {
         "report": report(&published.1), "component": published.0}}));
     assert_eq!(checked["ok"], true, "{checked}");
-    assert_eq!(checked["result"]["drafts"][0]["kind"], "component", "{checked}");
+    assert_eq!(
+        checked["result"]["drafts"][0]["kind"], "component",
+        "{checked}"
+    );
     assert!(
         checked["result"]["markdown"]
             .as_str()

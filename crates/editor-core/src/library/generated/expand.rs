@@ -864,14 +864,20 @@ fn polarity(
     markers: Vec<GraphicId>,
 ) -> Option<graphics::Polarity> {
     let pin1 = terminals
-        .of(&format!("t:{}", generation.package.geometry.pin1), "package terminal")
+        .of(
+            &format!("t:{}", generation.package.geometry.pin1),
+            "package terminal",
+        )
         .ok()
         .map(PackageTerminalId)?;
     let pad = pads
         .iter()
         .find(|p| p.terminal == Some(pin1) && p.kind != PadKind::NonPlatedHole)?;
-    let landed = pads.iter().filter(|p| p.kind != PadKind::NonPlatedHole).count();
-    (!markers.is_empty() || landed > 2).then(|| graphics::Polarity {
+    let landed = pads
+        .iter()
+        .filter(|p| p.kind != PadKind::NonPlatedHole)
+        .count();
+    (!markers.is_empty() || landed > 2).then_some(graphics::Polarity {
         pad: pad.id,
         markers,
     })

@@ -358,7 +358,12 @@ fn a_slot_and_its_own_via_in_pad_hole_are_named_as_the_pads() -> Result<()> {
     );
     let gap = gap_in(message, "via-in-pad hole are ")?;
     assert!((gap - 0.15).abs() <= 0.01, "{message}");
-    assert_eq!(own[0].objects.len(), 1, "the pad once: {:?}", own[0].objects);
+    assert_eq!(
+        own[0].objects.len(),
+        1,
+        "the pad once: {:?}",
+        own[0].objects
+    );
     assert!(
         !findings
             .iter()

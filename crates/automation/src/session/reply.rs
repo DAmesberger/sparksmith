@@ -257,7 +257,9 @@ impl Session {
         if items.is_empty() {
             return Ok(Vec::new());
         }
-        let QueryResult::Drafts(reports) = self.engine.query(Query::CheckDrafts { detail: true })? else {
+        let QueryResult::Drafts(reports) =
+            self.engine.query(Query::CheckDrafts { detail: true })?
+        else {
             return Err(sparksmith_core::Error::Invalid(
                 "component.check_drafts gave another report".into(),
             )
@@ -324,10 +326,11 @@ fn nothing_at(snapshot: &Value, at: &str) -> String {
                 let place = if matched.is_empty() { "/" } else { &matched };
                 // A path that lives under the project (`/library/…`)
                 // names where it is.
-                let under_project = matched.is_empty()
-                    && snapshot["project"].pointer(at).is_some();
+                let under_project = matched.is_empty() && snapshot["project"].pointer(at).is_some();
                 let hint = if under_project {
-                    format!(". It is at /project{at}. To list library components by name, query library.search {{query: \"src:project kind:component\", limit: 200}}.")
+                    format!(
+                        ". It is at /project{at}. To list library components by name, query library.search {{query: \"src:project kind:component\", limit: 200}}."
+                    )
                 } else {
                     String::new()
                 };

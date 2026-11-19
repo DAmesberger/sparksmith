@@ -782,7 +782,10 @@ fn generators_are_found_and_called() -> Fallible<()> {
     let presets = preset["shipped"][0]["description"]["presets"]
         .as_array()
         .ok_or("presets")?;
-    let full: Vec<&Value> = presets.iter().filter(|p| p.get("params").is_some()).collect();
+    let full: Vec<&Value> = presets
+        .iter()
+        .filter(|p| p.get("params").is_some())
+        .collect();
     assert_eq!(full.len(), 1, "{preset}");
     assert_eq!(full[0]["key"], "resistor-0603");
     let all = tools.ok(

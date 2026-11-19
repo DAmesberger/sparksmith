@@ -150,10 +150,7 @@ impl GeneratorsParams {
 /// its values, citation and note. The presets' values and notes would
 /// outgrow a model's reply budget.
 fn compact_presets(description: &mut Value, full: Option<&str>) {
-    let Some(presets) = description
-        .get_mut("presets")
-        .and_then(Value::as_array_mut)
-    else {
+    let Some(presets) = description.get_mut("presets").and_then(Value::as_array_mut) else {
         return;
     };
     for preset in presets.iter_mut() {

@@ -550,7 +550,11 @@ impl Library {
 
 /// `definition` with the import review its revision `at` was published
 /// with, so a draft of it shows the pins still to review.
-pub fn restore_review(library: &Library, at: crate::ids::DefinitionRef, definition: &mut super::Definition) {
+pub fn restore_review(
+    library: &Library,
+    at: crate::ids::DefinitionRef,
+    definition: &mut super::Definition,
+) {
     if let super::Definition::Component(component) = definition
         && component.review.is_none()
         && let Some(review) = library.review_of(crate::ids::ComponentRef::new(at.id, at.revision))

@@ -938,7 +938,11 @@ fn draft_closure(document: &mut Document, component: ComponentRef) -> Result<Vec
             .library
             .definition(revision)
             .ok_or_else(|| Error::NotFound("that revision is not in the project library".into()))?;
-        crate::library::pinout::restore_review(&document.project.library, revision, &mut definition);
+        crate::library::pinout::restore_review(
+            &document.project.library,
+            revision,
+            &mut definition,
+        );
         drafts::create(
             Arc::make_mut(&mut document.drafts),
             &document.project.library,
@@ -1033,7 +1037,11 @@ pub(crate) fn apply_library(
                     .ok_or_else(|| {
                         Error::NotFound("that revision is not in the project library".into())
                     })?;
-            crate::library::pinout::restore_review(&document.project.library, revision, &mut definition);
+            crate::library::pinout::restore_review(
+                &document.project.library,
+                revision,
+                &mut definition,
+            );
             let drafts = Arc::make_mut(&mut document.drafts);
             drafts::create(
                 drafts,

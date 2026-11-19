@@ -701,7 +701,10 @@ fn publish_findings_check_scripts_references_and_the_default() -> Result<()> {
     // A pin whose one function takes a peripheral is always active: the
     // conflict names it and says how to give it its other mode.
     let mut fixed = Mcu::new();
-    fixed.terminals[2].2 = Some(functions(vec![function(105, "spi_sck", Some((60, 61)))], 105));
+    fixed.terminals[2].2 = Some(functions(
+        vec![function(105, "spi_sck", Some((60, 61)))],
+        105,
+    ));
     let fixed_declarations = fixed.declarations();
     let found = publish_findings(
         component,
@@ -714,7 +717,9 @@ fn publish_findings_check_scripts_references_and_the_default() -> Result<()> {
     );
     assert_eq!(codes(&found), vec!["rule.default_conflict"]);
     assert!(
-        found[0].message.contains("SPI1 is off until chosen. P1.2 has one function")
+        found[0]
+            .message
+            .contains("SPI1 is off until chosen. P1.2 has one function")
             && found[0].message.contains("‘P1.2 high (I2C)’"),
         "{}",
         found[0].message

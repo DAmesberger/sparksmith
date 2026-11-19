@@ -834,4 +834,3 @@ fn a_component_gets_its_manufacturer_part_as_a_draft() -> Fallible<()> {
     assert!(engine.project().library.parts.iter().any(|p| p.id == part));
     Ok(())
 }
-

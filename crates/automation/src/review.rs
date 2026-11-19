@@ -572,15 +572,12 @@ mod tests {
                 "check": {"result": {"findings": []}}}]})
         };
         let cited = check(&snapshot(12), &report());
-        assert!(
-            cited["uncited"].is_null(),
-            "{cited}"
-        );
+        assert!(cited["uncited"].is_null(), "{cited}");
         let uncited = check(&snapshot(7), &report());
         assert!(
-            uncited["uncited"]
-                .as_str()
-                .is_some_and(|n| n.contains("cites page 7 (Table 2), which no value in the report cites")),
+            uncited["uncited"].as_str().is_some_and(
+                |n| n.contains("cites page 7 (Table 2), which no value in the report cites")
+            ),
             "{uncited}"
         );
         let mut r = report();

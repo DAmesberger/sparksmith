@@ -627,7 +627,8 @@ pub fn validate(library: &Library) -> Result<()> {
             ))
         })?;
         let known = |t: &crate::ids::TerminalId| terminals.definition.terminal(*t).is_some();
-        if !review.review.unreviewed.iter().all(known) || !review.review.uncertain.iter().all(known) {
+        if !review.review.unreviewed.iter().all(known) || !review.review.uncertain.iter().all(known)
+        {
             return Err(Error::Invalid(format!(
                 "the pin review of component {} {} names a terminal it does not have",
                 review.component.id, review.component.revision
