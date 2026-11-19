@@ -52,6 +52,7 @@ impl App {
     pub(super) fn list_prefs(&self, ctx: &egui::Context) {
         let lists = self.sources.list_settings();
         tokens::publish(ctx, prefs_of(lists));
+        super::browser::publish_grouping(ctx, !lists.flat_components);
         filter::publish_saved(
             ctx,
             lists

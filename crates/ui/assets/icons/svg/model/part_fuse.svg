@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Fuse</title>
+  <path d="M3 32L8 32" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M56 32L61 32" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20 24L44 24A4 4 0 0 1 48 28L48 36A4 4 0 0 1 44 40L20 40A4 4 0 0 1 16 36L16 28A4 4 0 0 1 20 24Z" fill="#b9ddf8" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M18 32L46 32" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10 21L18 21A2 2 0 0 1 20 23L20 41A2 2 0 0 1 18 43L10 43A2 2 0 0 1 8 41L8 23A2 2 0 0 1 10 21Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M46 21L54 21A2 2 0 0 1 56 23L56 41A2 2 0 0 1 54 43L46 43A2 2 0 0 1 44 41L44 23A2 2 0 0 1 46 21Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

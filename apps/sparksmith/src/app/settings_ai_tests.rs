@@ -33,7 +33,11 @@ fn settings_at(size: egui::Vec2) -> Fallible<Ax> {
 
 /// Scroll the Settings body until the node of `role` named `name` is well
 /// inside the window; the node.
-fn scroll_to(ax: &mut Ax, role: Role, name: &str) -> Fallible<crate::app::ax_harness::Node> {
+pub(crate) fn scroll_to(
+    ax: &mut Ax,
+    role: Role,
+    name: &str,
+) -> Fallible<crate::app::ax_harness::Node> {
     scroll_to_nth(ax, role, name, false)
 }
 

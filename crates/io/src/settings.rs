@@ -154,6 +154,10 @@ pub struct ListSettings {
     pub reduced_motion: Option<bool>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub saved_filters: Vec<SavedFilter>,
+    /// The Browser lists components flat, not grouped by category
+    /// (Settings › Browser; grouped by default).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub flat_components: bool,
 }
 
 impl ListSettings {

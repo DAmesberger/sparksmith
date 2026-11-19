@@ -78,6 +78,7 @@ pub mod icons {
 /// SolidCraft's icon set (SolidCraft's `ui-egui/src/icon_svg.rs` and `build.rs`).
 pub mod icon_svg {
     pub use crate::icon_set::{install, resolve};
+    pub use crate::kit::icons::audit;
 }
 
 /// The move/rotate triad (SolidCraft's `ui-egui/src/gizmo.rs`).

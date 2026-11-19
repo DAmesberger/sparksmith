@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Inductor</title>
+  <path d="M3 38L8 38" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M56 38L61 38" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M9 42L55 42A3 3 0 0 1 58 45L58 48A3 3 0 0 1 55 51L9 51A3 3 0 0 1 6 48L6 45A3 3 0 0 1 9 42Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M8 38A6 10 0 0 1 20 38A6 10 0 0 1 32 38A6 10 0 0 1 44 38A6 10 0 0 1 56 38Z" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
