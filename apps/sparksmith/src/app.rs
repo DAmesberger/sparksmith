@@ -1811,6 +1811,9 @@ pub(crate) fn sheet_rows(
 }
 
 #[cfg(test)]
+#[path = "app/browser_tree_tests.rs"]
+mod browser_tree_tests;
+#[cfg(test)]
 #[path = "app/dimension_2d_tests.rs"]
 mod dimension_2d_tests;
 #[cfg(test)]

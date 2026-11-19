@@ -8,6 +8,7 @@ use crate::shipped::{Shelf, ShippedLibrary};
 use crate::{Error, Result};
 use serde::de::DeserializeOwned;
 use sparksmith_core::catalog::generic;
+use sparksmith_core::library::categories::Categories;
 use sparksmith_core::library::marking::codes::{
     ColourCode, Eia96Code, MarkingCodes, PreferredSeries, VoltageLetterTables,
 };
@@ -35,6 +36,8 @@ pub const VOLTAGE_LETTERS: (Shelf, &str) = (Shelf::Standards, "voltage-letters.j
 pub const COLOUR_CODE: (Shelf, &str) = (Shelf::Standards, "colour-code.json");
 /// The generic-part search grammar.
 pub const GENERIC_FAMILIES: (Shelf, &str) = (Shelf::Catalog, "generic-families.json");
+/// The part categories.
+pub const CATEGORIES: (Shelf, &str) = (Shelf::Catalog, "categories.json");
 /// The shared sizes of generated symbols.
 pub const SYMBOL_STYLE: (Shelf, &str) = (Shelf::Standards, "symbols/style.json");
 
@@ -110,10 +113,12 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Standards> {
     let style: SymbolStyle = read(shipped, SYMBOL_STYLE)?;
     checked(shipped, SYMBOL_STYLE, style.check())?;
     let symbols = SymbolDrawings::new(style, kinds)?;
+    let categories: Categories = read(shipped, CATEGORIES)?;
+    checked(shipped, CATEGORIES, categories.check())?;
     checked(
         shipped,
         GENERIC_FAMILIES,
-        Standards::new(fields, marking, grammar, symbols),
+        Standards::new(fields, marking, grammar, symbols, categories),
     )
 }
 

@@ -123,11 +123,37 @@ struct ComponentRow {
     name: String,
     revision: Option<u32>,
     draft: bool,
+    /// The category path it is filed under (`categories.json`); empty
+    /// when the engine has no standards to file it by.
+    category: String,
+    /// Its category's icon (`categories.json`), or the plain component
+    /// icon when there are no standards.
+    icon: String,
 }
 
 fn components(engine: &Engine) -> Vec<ComponentRow> {
+    use sparksmith_core::library::categories;
     let library = &engine.project().library;
     let drafts = engine.drafts();
+    let standards = engine.context().map(|c| c.standards());
+    // A draft files by what it now says (a changed prefix moves it).
+    let category = |published: Option<sparksmith_core::ComponentRef>, id: DefinitionId| {
+        let draft = drafts.get(id).and_then(|d| match &d.definition {
+            Definition::Component(c) => Some(c),
+            _ => None,
+        });
+        let definition = draft.or_else(|| {
+            published
+                .and_then(|r| library.component(r))
+                .map(|c| &c.definition)
+        });
+        match (standards, definition) {
+            (Some(standards), Some(definition)) => {
+                categories::file_component(library, standards, published, definition).to_owned()
+            }
+            _ => String::new(),
+        }
+    };
     let mut rows: Vec<ComponentRow> = library
         .latest_components()
         .into_iter()
@@ -140,6 +166,11 @@ fn components(engine: &Engine) -> Vec<ComponentRow> {
             draft: crate::part_editor::WorkingSet::find(drafts, Some(c.id))
                 .filter(|set| set.ids.component == c.id)
                 .is_some_and(|set| set.unpublished(engine)),
+            category: category(
+                Some(sparksmith_core::ComponentRef::new(c.id, c.revision)),
+                c.id,
+            ),
+            icon: String::new(),
         })
         .collect();
     let published: BTreeSet<DefinitionId> = rows.iter().map(|r| r.id).collect();
@@ -150,10 +181,32 @@ fn components(engine: &Engine) -> Vec<ComponentRow> {
                 name: draft.meta.name.clone(),
                 revision: None,
                 draft: true,
+                category: category(None, draft.id),
+                icon: String::new(),
             });
         }
     }
+    for row in &mut rows {
+        row.icon = standards
+            .and_then(|s| s.categories.icon(&row.category))
+            .unwrap_or("component")
+            .to_owned();
+    }
     rows
+}
+
+/// Whether the Browser groups components by category (Settings ›
+/// Browser), as the app publishes it each frame; on unless turned off.
+const GROUPED: &str = "browser-group-components";
+
+/// Publish the grouping setting for this frame's Browser.
+pub(crate) fn publish_grouping(ctx: &egui::Context, grouped: bool) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique(GROUPED), grouped));
+}
+
+fn grouping(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<bool>(egui::Id::unique(GROUPED)))
+        .unwrap_or(true)
 }
 
 /// The Components filter text, kept in egui memory.
@@ -317,6 +370,211 @@ fn folder_row(
         set_open(ui, key, !open);
     }
     (folded(ui, key, default_open), response.menu)
+}
+
+/// What the component rows read.
+struct Rows<'a> {
+    engine: &'a Engine,
+    lit: Lit,
+    updates: &'a [UpdateAvailable],
+    badges: &'a Badges,
+}
+
+/// What the component rows write: the row menu asked for and the pick.
+struct Out<'a> {
+    menu: &'a mut crate::context_menu::State<MenuTarget>,
+    pick: Option<Pick>,
+}
+
+/// One component row at `depth`, with its manufacturer Parts under it.
+fn component_row(
+    ui: &mut egui::Ui,
+    rows: &Rows<'_>,
+    component: &ComponentRow,
+    depth: usize,
+    out: &mut Out<'_>,
+) {
+    let Rows {
+        engine,
+        lit,
+        updates,
+        badges,
+    } = *rows;
+    let project = engine.project();
+    let menu = &mut *out.menu;
+    let pick = &mut out.pick;
+    let update = updates
+        .iter()
+        .find(|u| u.local.id == component.id && u.latest > u.origin.revision);
+    let secondary = match (component.revision, update) {
+        (Some(r), Some(u)) => format!("r{r} · {} available", u.latest),
+        (Some(r), None) => format!("r{r}"),
+        (None, _) => "draft".into(),
+    };
+    let update_tip = update.map(|u| {
+        format!(
+            "{} holds {}; this project has {}",
+            u.source, u.latest, u.local.revision
+        )
+    });
+    let (issue, tip) = issue_mark(
+        badges.components.get(&component.id),
+        match &update_tip {
+            Some(tip) => tip,
+            None if component.draft => "Unpublished draft changes",
+            None => "Published revision",
+        },
+    );
+    let response = kit::tree_row(
+        ui,
+        egui::Id::unique(("browser-component", component.id.0)),
+        &Row {
+            depth,
+            icon: if update.is_some() {
+                "update"
+            } else {
+                &component.icon
+            },
+            label: &component.name,
+            secondary: &secondary,
+            selected: lit.component == Some(component.id),
+            modified: component.draft,
+            issue,
+            tip: &tip,
+            ..Default::default()
+        },
+    );
+    if let Some(row) = component_pick(&response, component.id) {
+        *pick = Some(row);
+    }
+    if let Some(at) = response.menu {
+        menu.open(at, MenuTarget::Component(component.id));
+    }
+    // The component's manufacturer Parts, opened in its Parts editor.
+    for part in project.library.latest_parts() {
+        if part.definition.component.id != component.id {
+            continue;
+        }
+        let label = format!("{} {}", part.definition.manufacturer, part.definition.mpn);
+        let secondary = part.revision.to_string();
+        let response = kit::tree_row(
+            ui,
+            egui::Id::unique(("browser-part", part.id.0)),
+            &Row {
+                depth: depth + 1,
+                icon: "library",
+                label: &label,
+                secondary: &secondary,
+                tip: "Manufacturer part",
+                ..Default::default()
+            },
+        );
+        if let Some(row) = component_pick(&response, component.id) {
+            *pick = Some(row);
+        }
+    }
+}
+
+/// The categories of `level` under `parent` that hold any of `shown`, each
+/// with its count, its subcategories and then its own components. Folds
+/// are remembered per category; while a filter is set every category that
+/// holds a match opens (a fold then lasts until the text changes).
+#[allow(clippy::too_many_arguments)]
+fn category_rows(
+    ui: &mut egui::Ui,
+    level: &[sparksmith_core::library::categories::CategoryDef],
+    parent: &str,
+    depth: usize,
+    shown: &[&ComponentRow],
+    filter: Option<&str>,
+    rows: &Rows<'_>,
+    out: &mut Out<'_>,
+) {
+    for def in level {
+        let path = if parent.is_empty() {
+            def.id.clone()
+        } else {
+            format!("{parent}/{}", def.id)
+        };
+        let inside = |c: &ComponentRow| {
+            c.category == path
+                || c.category
+                    .strip_prefix(path.as_str())
+                    .is_some_and(|rest| rest.starts_with('/'))
+        };
+        let count = shown.iter().filter(|c| inside(c)).count();
+        if count == 0 {
+            continue;
+        }
+        let branch = rows
+            .lit
+            .component
+            .is_some_and(|id| shown.iter().any(|c| c.id == id && inside(c)));
+        let icon = rows
+            .engine
+            .context()
+            .and_then(|c| c.standards().categories.icon(&path).map(str::to_owned))
+            .unwrap_or_else(|| "folder".to_owned());
+        if !category_row(ui, &path, depth, &def.title, &icon, count, branch, filter) {
+            continue;
+        }
+        category_rows(
+            ui,
+            &def.children,
+            &path,
+            depth + 1,
+            shown,
+            filter,
+            rows,
+            out,
+        );
+        for component in shown.iter().filter(|c| c.category == path) {
+            component_row(ui, rows, component, depth + 1, out);
+        }
+    }
+}
+
+/// A category's folder row; whether it is open after this frame.
+#[allow(clippy::too_many_arguments)]
+fn category_row(
+    ui: &mut egui::Ui,
+    path: &str,
+    depth: usize,
+    title: &str,
+    icon: &str,
+    count: usize,
+    branch: bool,
+    filter: Option<&str>,
+) -> bool {
+    let key = format!("components/{path}");
+    let filtered = filter.map(|text| egui::Id::unique(("browser-category-filtered", text, path)));
+    let open = match filtered {
+        Some(id) => ui.ctx().data(|d| d.get_temp::<bool>(id)).unwrap_or(true),
+        None => folded(ui, &key, false),
+    };
+    let response = kit::tree_row(
+        ui,
+        egui::Id::unique(("browser-category", path)),
+        &Row {
+            depth,
+            fold: Some(open),
+            icon,
+            label: title,
+            secondary: &count.to_string(),
+            branch,
+            ..Default::default()
+        },
+    );
+    if response.fold || response.clicked {
+        match filtered {
+            Some(id) => ui.ctx().data_mut(|d| {
+                d.insert_temp(id, !open);
+            }),
+            None => set_open(ui, &key, !open),
+        }
+        return !open;
+    }
+    open
 }
 
 /// The Browser's one-line summary for its title band.
@@ -486,78 +744,41 @@ fn tree(
             }
             _ => {}
         }
-        for component in components {
-            let update = updates
-                .iter()
-                .find(|u| u.local.id == component.id && u.latest > u.origin.revision);
-            let secondary = match (component.revision, update) {
-                (Some(r), Some(u)) => format!("r{r} · {} available", u.latest),
-                (Some(r), None) => format!("r{r}"),
-                (None, _) => "draft".into(),
-            };
-            let update_tip = update.map(|u| {
-                format!(
-                    "{} holds {}; this project has {}",
-                    u.source, u.latest, u.local.revision
-                )
-            });
-            let (issue, tip) = issue_mark(
-                badges.components.get(&component.id),
-                match &update_tip {
-                    Some(tip) => tip,
-                    None if component.draft => "Unpublished draft changes",
-                    None => "Published revision",
-                },
-            );
-            let response = kit::tree_row(
-                ui,
-                egui::Id::unique(("browser-component", component.id.0)),
-                &Row {
-                    depth: 2,
-                    icon: if update.is_some() {
-                        "update"
-                    } else {
-                        "component"
-                    },
-                    label: &component.name,
-                    secondary: &secondary,
-                    selected: lit.component == Some(component.id),
-                    modified: component.draft,
-                    issue,
-                    tip: &tip,
-                    ..Default::default()
-                },
-            );
-            if let Some(row) = component_pick(&response, component.id) {
-                pick = Some(row);
-            }
-            if let Some(at) = response.menu {
-                menu.open(at, MenuTarget::Component(component.id));
-            }
-            // The component's manufacturer Parts, opened in its Parts editor.
-            for part in project.library.latest_parts() {
-                if part.definition.component.id != component.id {
-                    continue;
-                }
-                let label = format!("{} {}", part.definition.manufacturer, part.definition.mpn);
-                let secondary = part.revision.to_string();
-                let response = kit::tree_row(
+        let rows = Rows {
+            engine,
+            lit,
+            updates,
+            badges,
+        };
+        let standards = engine
+            .context()
+            .filter(|_| grouping(ui.ctx()))
+            .map(|c| c.standards());
+        let mut out = Out {
+            menu: &mut *menu,
+            pick: None,
+        };
+        match standards {
+            Some(standards) => {
+                let filter = shown_matches.as_ref().map(|_| filter.as_str());
+                category_rows(
                     ui,
-                    egui::Id::unique(("browser-part", part.id.0)),
-                    &Row {
-                        depth: 3,
-                        icon: "library",
-                        label: &label,
-                        secondary: &secondary,
-                        tip: "Manufacturer part",
-                        ..Default::default()
-                    },
+                    &standards.categories.categories,
+                    "",
+                    2,
+                    &components,
+                    filter,
+                    &rows,
+                    &mut out,
                 );
-                if let Some(row) = component_pick(&response, component.id) {
-                    pick = Some(row);
+            }
+            None => {
+                for component in components {
+                    component_row(ui, &rows, component, 2, &mut out);
                 }
             }
         }
+        pick = out.pick.or(pick);
     }
 
     let schematic_lit = lit.instance.is_some() || lit.net.is_some();
@@ -984,6 +1205,8 @@ mod tests {
         })?;
         let ctx = egui::Context::default();
         sparksmith_ui::fonts::setup_bundled_fonts(&ctx);
+        // Flat, so the rank order shows across categories.
+        publish_grouping(&ctx, false);
         let all = frame(&ctx, &engine, vec![]);
         assert_eq!(all.iter().filter(|t| t.starts_with("EX-")).count(), 24);
 

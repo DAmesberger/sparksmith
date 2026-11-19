@@ -283,6 +283,9 @@ impl SettingsWindow {
                         require_waiver_reason,
                     );
                 });
+                kit::section(ui, "settings-browser", "Browser", true, None, |ui| {
+                    self.lists_changed = browser_rows(ui, &mut self.lists);
+                });
                 if self.ai.wants_focus() {
                     // Connect a model…: AI's Connection opens at the top.
                     kit::open_section(ui, "settings-ai");
@@ -292,7 +295,7 @@ impl SettingsWindow {
                     self.ai.ui(ui);
                 });
                 kit::section(ui, "settings-lists", "Lists", true, None, |ui| {
-                    self.lists_changed = lists_rows(ui, &mut self.lists);
+                    self.lists_changed |= lists_rows(ui, &mut self.lists);
                 });
                 kit::section(ui, "settings-reveal", "Key reveal", true, None, |ui| {
                     reveal_changed |= reveal_rows(ui, reveal);
@@ -673,6 +676,15 @@ fn lists_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSettin
             (Some(true), "Reduced".to_owned()),
         ],
     );
+    changed
+}
+
+/// The Browser section: whether components are grouped by category.
+/// Returns whether it changed.
+fn browser_rows(ui: &mut egui::Ui, lists: &mut sparksmith_io::settings::ListSettings) -> bool {
+    let mut grouped = !lists.flat_components;
+    let changed = kit::check_row(ui, "Group components by category", &mut grouped);
+    lists.flat_components = !grouped;
     changed
 }
 
