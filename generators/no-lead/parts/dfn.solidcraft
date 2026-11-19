@@ -550,7 +550,7 @@
         1.0
       ],
       "radius": "mark_radius",
-      "height": "mark_depth",
+      "height": "mark_depth / 2",
       "operation": "new_body"
     },
     {

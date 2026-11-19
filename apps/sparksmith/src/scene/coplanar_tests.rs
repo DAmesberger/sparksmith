@@ -285,3 +285,92 @@ fn the_check_finds_a_face_shared_by_two_bodies() -> Fallible<()> {
     assert!(coincident(&[copper, lead]).is_empty());
     Ok(())
 }
+
+/// The demo board with its first part's model made by `generator` from
+/// `preset` (with `params`): the shipped bundle's part file, as the 3D
+/// view builds it.
+fn demo_with_generated(
+    generator: &str,
+    preset: &str,
+    params: &serde_json::Value,
+) -> Fallible<sparksmith_core::Project> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    let mut session = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
+    session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(&root)?);
+    let revision = session.engine().revision();
+    let made = session.dispatch(serde_json::json!({
+        "command": "library.generate_part",
+        "params": {"generator": generator, "scope": "package", "preset": preset,
+                   "params": params, "expected_revision": revision},
+    }));
+    if made["ok"] != true {
+        return Err(format!("{generator} {preset} {params}: not made: {made}").into());
+    }
+    let mut project = session.engine().project().clone();
+    let generated = project
+        .library
+        .packages
+        .last()
+        .map(|p| p.definition.clone())
+        .ok_or("no package")?;
+    let target = &mut project
+        .library
+        .packages
+        .first_mut()
+        .ok_or("no demo package")?
+        .definition;
+    target.envelope_nm = generated.envelope_nm;
+    target.model = generated.model;
+    Ok(project)
+}
+
+/// Every preset of the IC and discrete generators, and each part-file
+/// variant a preset does not reach, placed on the demo board: no two of
+/// its bodies, nor a body and the board under it, share a face (a pin-1
+/// laser dot once lay flush with the package top and fought it).
+#[test]
+fn no_generated_part_shares_a_face() -> Fallible<()> {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let generators = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../generators");
+    let mut cases: Vec<(String, String, serde_json::Value)> = [
+        (
+            "no-lead",
+            "no-lead-qfn-16-4x4-0.65-ti-rgv",
+            serde_json::json!({"wettable_flank": true}),
+        ),
+        (
+            "no-lead",
+            "no-lead-dfn-8-2x3-0.5",
+            serde_json::json!({"wettable_flank": true}),
+        ),
+        (
+            "gull-wing",
+            "gull-wing-tssop-14-4.4",
+            serde_json::json!({"pin1_bevel": true}),
+        ),
+    ]
+    .into_iter()
+    .map(|(g, p, v)| (g.to_owned(), p.to_owned(), v))
+    .collect();
+    for generator in ["gull-wing", "tabbed", "no-lead", "chip", "molded", "grid"] {
+        let text = std::fs::read_to_string(generators.join(generator).join("presets.json"))?;
+        for preset in serde_json::from_str::<Vec<serde_json::Value>>(&text)? {
+            let key = preset["key"].as_str().ok_or("a preset without a key")?;
+            cases.push((generator.to_owned(), key.to_owned(), serde_json::json!({})));
+        }
+    }
+    let mut failures = Vec::new();
+    for (generator, preset, params) in &cases {
+        let project = demo_with_generated(generator, preset, params)?;
+        let model = sparksmith_solidcraft::project::build(&project)?;
+        let fights = coincident(&model.geometry);
+        if let Some(first) = fights.first() {
+            failures.push(format!(
+                "{preset} {params}: {} pairs, first {first}",
+                fights.len()
+            ));
+        }
+    }
+    assert!(failures.is_empty(), "{failures:#?}");
+    Ok(())
+}

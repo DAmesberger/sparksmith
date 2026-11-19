@@ -1098,7 +1098,8 @@ fn generated_capacitor_board() -> Result<Project, Box<dyn std::error::Error>> {
 /// GP2: a part a generator module made shows its own model in the 3D view.
 /// The live view's model (the board plan meshed, each part its own design)
 /// holds the generator's part-file bodies at the placement: the
-/// capacitor's ceramic body and both terminations, of the chip's size.
+/// capacitor's ceramic body and both terminations, the terminations of the
+/// chip's size and proud of the body by their plating.
 /// With a GPU, the frame looking down on the part shows the body, not the
 /// board's mask.
 #[test]
@@ -1130,16 +1131,33 @@ fn a_generated_part_shows_its_model_in_3d() -> Result<(), Box<dyn std::error::Er
         .collect();
     assert!(!bodies.is_empty(), "no model body in the 3D view");
     assert_eq!(leads.len(), 2 * bodies.len(), "two terminations a part");
-    // 0805: 2.0 × 1.25 × 1.25 mm, the body between 0.5 mm terminations,
-    // in either orientation on the board.
+    // 0805: 2.0 × 1.25 × 1.25 mm over its 0.5 mm terminations, which stand
+    // proud of the ceramic body by their plating (min(0.015 mm, 4 % of the
+    // height, a tenth of the termination): 0.015 mm), so the body between
+    // them is 1.0 mm long and 0.03 mm smaller across and in height; in
+    // either orientation on the board.
+    let plating = 0.015;
+    let plan_of = |s: [f64; 3]| {
+        let mut plan = [s[0], s[1]];
+        plan.sort_by(f64::total_cmp);
+        plan
+    };
     let body = size(bodies[0]);
-    let mut plan = [body[0], body[1]];
-    plan.sort_by(f64::total_cmp);
+    let plan = plan_of(body);
     assert!(
-        (plan[0] - 1.0).abs() < 1e-3 && (plan[1] - 1.25).abs() < 1e-3,
+        (plan[0] - 1.0).abs() < 1e-3 && (plan[1] - (1.25 - 2.0 * plating)).abs() < 1e-3,
         "{body:?}"
     );
-    assert!((body[2] - 1.25).abs() < 1e-3, "{body:?}");
+    assert!((body[2] - (1.25 - 2.0 * plating)).abs() < 1e-3, "{body:?}");
+    for lead in &leads {
+        let cap = size(lead);
+        let plan = plan_of(cap);
+        assert!(
+            (plan[0] - 0.5).abs() < 1e-3 && (plan[1] - 1.25).abs() < 1e-3,
+            "{cap:?}"
+        );
+        assert!((cap[2] - 1.25).abs() < 1e-3, "{cap:?}");
+    }
 
     let Some(mut gpu) = Gpu::new() else {
         if std::env::var_os("SPARKSMITH_REQUIRE_GPU").is_some() {
