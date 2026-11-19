@@ -401,7 +401,7 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
             // imported model's asset, M4) fails to compile here until it is
             // rewritten.
             match model {
-                PackageModel::Envelope { material: _ } => {}
+                PackageModel::Envelope { material: _ } | PackageModel::NoBody => {}
                 // D1: a library model names an exact Model revision, so
                 // `references` and `closure` carry the model with the
                 // package; the lead map names model leads and package

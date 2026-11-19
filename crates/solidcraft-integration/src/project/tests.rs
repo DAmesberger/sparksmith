@@ -2274,30 +2274,171 @@ fn plan_bodies_lie_in_their_layers() -> Result<()> {
         }
     }
     // The shaped fixture's plated-through stadium: a land each side and a
-    // barrel, on both placements.
-    let project = shaped()?;
+    // barrel, on both placements; on four layers a land on each inner
+    // layer too.
+    for (project, inner) in [(shaped()?, vec![]), (four_layer_shaped()?, inner_layers())] {
+        let plan = plan::of(&project)?;
+        for placed in plan.pads.iter().filter(|p| p.pad == PadId(2)) {
+            let mut parts: Vec<String> = placed
+                .bodies
+                .iter()
+                .map(|b| match b.source {
+                    plan::Origin::Pad { part, .. } => format!("{part:?}"),
+                    _ => String::new(),
+                })
+                .collect();
+            parts.sort();
+            let mut expected: Vec<String> = [
+                plan::PadPart::Land,
+                plan::PadPart::Opposite,
+                plan::PadPart::Barrel(0),
+            ]
+            .into_iter()
+            .chain(inner.iter().map(|l| plan::PadPart::Inner(*l)))
+            .map(|p| format!("{p:?}"))
+            .collect();
+            expected.sort();
+            assert_eq!(parts, expected);
+        }
+    }
+    Ok(())
+}
+
+/// The inner layers of a four-layer stackup.
+fn inner_layers() -> Vec<CopperLayer> {
+    vec![CopperLayer::Inner(1), CopperLayer::Inner(2)]
+}
+
+/// [`shaped`] on a four-layer stackup with a track and a via on each inner
+/// layer: plated pads land copper on every layer.
+pub(super) fn four_layer_shaped() -> Result<Project> {
+    let mut project = shaped()?;
+    let four = showcase()?.stackup;
+    if four.layers().len() != 4 {
+        return Err(Error::Verification("the showcase has four layers".into()));
+    }
+    project.stackup = four;
+    let net = project
+        .nets
+        .first()
+        .map(|n| n.id)
+        .ok_or_else(|| Error::Verification("the fixture has a net".into()))?;
+    let base = project.next_id;
+    project.next_id = base + 3;
+    for (k, layer) in inner_layers().into_iter().enumerate() {
+        let y = 4.0 + 2.0 * k as f64;
+        project.tracks.push(Track {
+            id: base + k as u64,
+            net,
+            start: [4.0, y],
+            end: [12.0, y + 1.0],
+            width: 0.25,
+            layer,
+            locked: false,
+        });
+    }
+    project.vias.push(sparksmith_core::Via {
+        id: base + 2,
+        net,
+        position: [16.0, 4.0],
+        drill: 0.3,
+        diameter: 0.6,
+        span: sparksmith_core::ViaSpan::Through,
+        tented: false,
+        locked: false,
+    });
+    Ok(project)
+}
+
+/// 2D equals 3D, measured: on every layer of every fixture (every pad
+/// kind on both sides and turned, plated pads through four layers, the
+/// showcase's tracks, vias and fills), the board plan's copper (which
+/// Layout draws and the 3D view meshes) covers the core's copper (which
+/// the copper graph joins and fabrication plots) within flattening, and
+/// the 3D view's meshes are the plan's bodies.
+#[test]
+fn every_layers_copper_is_the_cores_in_the_plan_and_its_meshes() -> Result<()> {
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    for project in [shaped()?, four_layer_shaped()?, showcase()?] {
+        let plan = plan::of(&project)?;
+        let copper = plan::copper(&project, &mut plan::Memo::default())?;
+        let all: Vec<_> = plan
+            .bodies()
+            .filter(|b| b.kind != BodyKind::Substrate)
+            .collect();
+        let only: Vec<_> = copper.bodies().collect();
+        assert_eq!(all, only, "the copper plan is the full plan's copper");
+        for layer in copper_agree::agreement(&project, &plan)? {
+            assert!(layer.plan_mm2 > 0.0, "{layer:?}");
+            assert!(layer.agrees(), "{layer:?}");
+        }
+        let sources = mesh::plan_sources(&plan);
+        let (meshed, _) = mesh::bodies(&plan, &sources, &mut mesh::Memo::default())?;
+        let differences = mesh::parity(&plan, &meshed)?;
+        assert!(differences.is_empty(), "{differences:#?}");
+    }
+    Ok(())
+}
+
+/// The measure finds copper the plan lacks: a pad's land dropped from one
+/// layer, and a track drawn wider.
+#[test]
+fn the_copper_measure_finds_missing_and_reshaped_copper() -> Result<()> {
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let project = four_layer_shaped()?;
     let plan = plan::of(&project)?;
-    let parts: Vec<plan::PadPart> = plan
-        .pads
-        .iter()
-        .flat_map(|p| &p.bodies)
-        .filter_map(|b| match b.source {
-            plan::Origin::Pad {
-                pad: PadId(2),
-                part,
-                ..
-            } => Some(part),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(
-        parts,
-        [
-            plan::PadPart::Land,
-            plan::PadPart::Opposite,
-            plan::PadPart::Barrel(0)
-        ]
-        .repeat(2)
+    let mut dropped = plan.clone();
+    for pad in &mut dropped.pads {
+        pad.bodies.retain(|b| {
+            !matches!(
+                b.source,
+                plan::Origin::Pad {
+                    part: plan::PadPart::Inner(CopperLayer::Inner(1)),
+                    ..
+                }
+            )
+        });
+    }
+    let layers = copper_agree::agreement(&project, &dropped)?;
+    let bad: Vec<_> = layers.iter().filter(|l| !l.agrees()).collect();
+    assert_eq!(bad.len(), 1, "{layers:#?}");
+    assert_eq!(bad[0].layer, CopperLayer::Inner(1));
+    let mut wider = project.clone();
+    for track in &mut wider.tracks {
+        track.width += 0.05;
+    }
+    let differing = copper_agree::agreement(&wider, &plan)?;
+    assert!(differing.iter().any(|l| !l.agrees()), "{differing:#?}");
+    Ok(())
+}
+
+/// A package of no body places nothing: neither the live view's parts nor
+/// the export's see it, while the other parts stay.
+#[test]
+fn a_package_of_no_body_places_nothing() -> Result<()> {
+    let mut project = envelope_demo()?;
+    let all = placed_parts(&project)?.len();
+    assert!(all >= 2, "the demo places parts");
+    let (r1, _) = instances(&project)?;
+    let instance = project
+        .instance(r1)
+        .ok_or_else(|| Error::Verification("R1".into()))?;
+    let package = instances::resolve(&project.library, instance)
+        .ok()
+        .and_then(|r| r.physical)
+        .map(|p| p.package.id)
+        .ok_or_else(|| Error::Verification("R1's package".into()))?;
+    for published in &mut project.library.packages {
+        if published.id == package {
+            published.definition.model = PackageModel::NoBody;
+        }
+    }
+    let left = placed_parts(&project)?;
+    assert!(left.len() < all);
+    assert!(left.iter().all(|p| p.instance.id != r1));
+    assert!(
+        left.iter()
+            .all(|p| !matches!(p.package.model, PackageModel::NoBody))
     );
     Ok(())
 }

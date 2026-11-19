@@ -875,9 +875,9 @@ impl PcbEditor {
                 }
             }
             Some(Pick::Via(id)) => {
-                if let Some(via) = project.via(id) {
-                    let r = (via.diameter as f32 * view.view.scale / 2.0).max(4.0) + 3.0;
-                    painter.circle_stroke(view.screen(via.position), r, stroke);
+                if let Some((center, radius)) = self.layout_copper.via_extent(id) {
+                    let r = (radius as f32 * view.view.scale).max(4.0) + 3.0;
+                    painter.circle_stroke(view.screen(center), r, stroke);
                 }
             }
             _ => {}

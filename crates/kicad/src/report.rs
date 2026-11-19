@@ -38,6 +38,9 @@ pub enum Case {
     ProjectOnly,
     /// G2: footprint drawings on copper, mask or paste (slice K7).
     FootprintFabGraphics,
+    /// G2: footprint mask and paste polygons that grow one pad's land
+    /// evenly, imported as that pad's mask or paste rule.
+    FootprintOpenings,
     /// G3: a custom pad whose union is not one outline without holes.
     CustomPadNotOneOutline,
     /// A custom-pad primitive this importer cannot draw (arcs, curves).
@@ -94,6 +97,9 @@ pub enum Case {
     GeneratedModel,
     LibraryModelGenerated,
     NoModel,
+    /// Footprint instances that are no part to draw (a jumper, a contact
+    /// pad, a fiducial, a logo): no body, as in the source.
+    NoBody,
     /// A pad whose size, place or margins are beyond the coordinate bound.
     PadOutOfRange,
     /// No fab profile was given: no rules, so no outline, tracks or fills.
@@ -240,6 +246,11 @@ impl Case {
                 Refused,
                 "footprint drawings on copper, mask or paste (slice K7)",
             ),
+            Self::FootprintOpenings => (
+                "G2",
+                Approximate,
+                "footprint mask and paste polygons imported as their pad's opening (an even growth of its land; corners rounded)",
+            ),
             Self::CustomPadNotOneOutline => (
                 "G3",
                 Refused,
@@ -353,6 +364,11 @@ impl Case {
                 "G12K",
                 Approximate,
                 "footprint instances using generated models instead of KiCad library references",
+            ),
+            Self::NoBody => (
+                "G12B",
+                Exact,
+                "footprint instances with no body (as in the source: no model, and not an assembled part)",
             ),
             Self::NoModel => (
                 "G12N",

@@ -152,6 +152,9 @@ pub struct Footprint {
     pub net_tie: bool,
     /// Footprint drawings on copper, mask or paste layers.
     pub fab_graphics: usize,
+    /// Of those, the filled polygons on a mask or paste layer (footprint
+    /// frame, as written): openings a pad may own ([`Opening`]).
+    pub openings: Vec<Opening>,
     /// Other drawings and texts (silkscreen, courtyard, fabrication).
     pub drawings: usize,
     pub models: Vec<crate::models::Reference>,
@@ -164,6 +167,14 @@ pub struct Footprint {
     pub zone: ZoneOverride,
     /// KiCad's "not in schematic" attribute: a part on the board only.
     pub board_only: bool,
+    /// KiCad's "exclude from position files" or "exclude from bill of
+    /// materials" attribute: nothing is assembled there.
+    pub not_assembled: bool,
+    /// The bounds of the fabrication-layer drawings (the body outline), in
+    /// the footprint frame, when there are any.
+    pub fab_bounds: Option<[PointNm; 2]>,
+    /// The bounds of the courtyard drawings, in the footprint frame.
+    pub courtyard_bounds: Option<[PointNm; 2]>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -466,9 +477,89 @@ fn margins(node: &Node, path: &str) -> Result<Margins> {
     })
 }
 
+/// Grows `bounds` by a drawing's points (a circle by its radius). A drawing
+/// whose points do not read is left out: the bounds are only a hint for
+/// telling equally fitting 3D presets apart.
+fn grow_bounds(bounds: &mut Option<[PointNm; 2]>, item: &Node) {
+    let read = |node: &Node| point(node, 0, "footprint/drawing").ok();
+    let mut points: Vec<PointNm> = ["start", "end", "mid", "center"]
+        .iter()
+        .filter_map(|head| item.child(head).and_then(read))
+        .collect();
+    if let Some(pts) = item.child("pts") {
+        points.extend(
+            pts.args()
+                .iter()
+                .filter(|n| n.head() == Some("xy"))
+                .take(4096)
+                .filter_map(read),
+        );
+    }
+    if item.head() == Some("fp_circle")
+        && let (Some(c), Some(e)) = (
+            item.child("center").and_then(read),
+            item.child("end").and_then(read),
+        )
+    {
+        // Both points are within the board's coordinate bound, so the
+        // radius and the corners stay far inside `i64`.
+        let r = ((e[0] - c[0]) as f64).hypot((e[1] - c[1]) as f64).round() as Nm;
+        points.push([c[0] - r, c[1] - r]);
+        points.push([c[0] + r, c[1] + r]);
+    }
+    for p in points {
+        let [lo, hi] = bounds.get_or_insert([p, p]);
+        for axis in 0..2 {
+            lo[axis] = lo[axis].min(p[axis]);
+            hi[axis] = hi[axis].max(p[axis]);
+        }
+    }
+}
+
 /// Drawings on these layers make copper, mask or paste.
 fn fab_layer(layer: &str) -> bool {
     layer.ends_with(".Cu") || layer.ends_with(".Mask") || layer.ends_with(".Paste")
+}
+
+/// Most mask and paste polygons one footprint keeps as openings; past
+/// them the rest stay refused drawings.
+pub const MAX_OPENINGS: usize = 1024;
+
+/// A filled footprint polygon on a mask or paste layer: an opening that
+/// may belong to one pad ([`crate::translate::take_openings`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Opening {
+    /// `F.Mask`, `B.Mask`, `F.Paste` or `B.Paste`.
+    pub layer: String,
+    /// Footprint frame, KiCad's axes.
+    pub points: Vec<PointNm>,
+}
+
+/// `item` as an [`Opening`]: a filled `fp_poly` on a mask or paste layer
+/// without arcs; anything else is none.
+fn opening(item: &Node, head: &str, layer: &str) -> Result<Option<Opening>> {
+    if head != "fp_poly" || !(layer.ends_with(".Mask") || layer.ends_with(".Paste")) {
+        return Ok(None);
+    }
+    let filled = item
+        .child("fill")
+        .and_then(|f| f.arg(0))
+        .is_some_and(|f| matches!(f, "solid" | "yes"));
+    let Some(pts) = item.child("pts").filter(|_| filled) else {
+        return Ok(None);
+    };
+    let path = "footprint/fp_poly";
+    let mut points = Vec::new();
+    for xy in pts.args() {
+        if xy.head() != Some("xy") || points.len() >= MAX_POLY_POINTS {
+            return Ok(None);
+        }
+        points.push(point(xy, 0, path)?);
+    }
+    Ok((points.len() >= 3).then(|| Opening {
+        layer: layer.to_owned(),
+        points,
+    }))
 }
 
 fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
@@ -515,8 +606,21 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                     fp.edge_cuts += 1;
                 } else if fab_layer(layer) {
                     fp.fab_graphics += 1;
+                    if fp.openings.len() < MAX_OPENINGS
+                        && let Some(opening) = opening(item, head, layer)?
+                    {
+                        fp.openings.push(opening);
+                    }
                 } else {
                     fp.drawings += 1;
+                    let outline = match layer {
+                        "F.Fab" | "B.Fab" => Some(&mut fp.fab_bounds),
+                        "F.CrtYd" | "B.CrtYd" => Some(&mut fp.courtyard_bounds),
+                        _ => None,
+                    };
+                    if let Some(outline) = outline {
+                        grow_bounds(outline, item);
+                    }
                 }
             }
             "fp_text" | "fp_text_box" | "dimension" => fp.drawings += 1,
@@ -540,6 +644,9 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                 }
                 if has("board_only") {
                     fp.board_only = true;
+                }
+                if has("exclude_from_pos_files") || has("exclude_from_bom") {
+                    fp.not_assembled = true;
                 }
             }
             "layer"

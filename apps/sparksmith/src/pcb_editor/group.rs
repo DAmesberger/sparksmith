@@ -357,7 +357,9 @@ impl PcbEditor {
                 .iter()
                 .filter(|v| seen.via(v, &self.stack))
                 .filter(|v| {
-                    let (c, r) = (v.position, v.diameter / 2.0);
+                    let Some((c, r)) = self.layout_copper.via_extent(v.id) else {
+                        return false;
+                    };
                     let square = [
                         [c[0] - r, c[1] - r],
                         [c[0] + r, c[1] - r],

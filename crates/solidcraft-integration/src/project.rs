@@ -814,13 +814,18 @@ fn on_threads<T: Sync>(items: &[T], work: impl Fn(&T) + Sync) {
 }
 
 /// The copper layer of one body of a source on `layer`: a through-hole
-/// pad's opposite land lies on the other side, and its plated barrels on
+/// pad's opposite land lies on the other side, its inner lands on theirs, and its plated barrels on
 /// no single layer (they span the board, like a via's).
 fn body_layer(name: &str, layer: CopperLayer) -> Option<CopperLayer> {
     if name.contains("_barrel_") {
         None
     } else if name.ends_with("_opposite") {
         layer.side().map(|side| other(side).into())
+    } else if let Some(n) = name
+        .rsplit_once("_land_inner_")
+        .and_then(|(_, n)| n.parse::<u8>().ok())
+    {
+        Some(CopperLayer::Inner(n))
     } else {
         Some(layer)
     }
@@ -1106,41 +1111,45 @@ impl<'a> PlacedPart<'a> {
     }
 }
 
-/// Every placed part, in placement order, and what its model is made of;
-/// refused when a placement's instance, physical implementation or model
-/// file is missing.
+/// Every placed part with a body, in placement order, and what its model is
+/// made of; refused when a placement's instance, physical implementation or
+/// model file is missing. A package of no body ([`PackageModel::NoBody`]: a
+/// jumper, a contact pad, a fiducial) places nothing, in the view and the
+/// export alike.
 fn placed_parts(project: &Project) -> Result<Vec<PlacedPart<'_>>> {
     project
         .placements
         .iter()
-        .map(|placement| {
-            let instance = project
-                .instance(placement.instance)
-                .ok_or_else(|| Error::Invalid("missing instance".into()))?;
-            let physical = instances::resolve(&project.library, instance)
-                .ok()
-                .and_then(|r| r.physical)
-                .ok_or_else(|| {
-                    Error::Invalid("placed instance has no physical implementation".into())
-                })?;
-            let package = &physical.package.definition;
-            let model = match &package.model {
-                PackageModel::Library(use_) => PartModel::Library(library_model(project, use_)?),
-                PackageModel::PartFile(use_) => {
-                    PartModel::PartFile(use_, part_bytes(project, use_)?)
-                }
-                _ => PartModel::Envelope,
-            };
-            Ok(PlacedPart {
-                placement,
-                instance,
-                package,
-                footprint: &physical.footprint.definition,
-                stem: models::definition_name(physical.package.id, physical.package.revision.0),
-                model,
-            })
-        })
+        .filter_map(|placement| placed_part(project, placement).transpose())
         .collect()
+}
+
+fn placed_part<'a>(
+    project: &'a Project,
+    placement: &'a Placement,
+) -> Result<Option<PlacedPart<'a>>> {
+    let instance = project
+        .instance(placement.instance)
+        .ok_or_else(|| Error::Invalid("missing instance".into()))?;
+    let physical = instances::resolve(&project.library, instance)
+        .ok()
+        .and_then(|r| r.physical)
+        .ok_or_else(|| Error::Invalid("placed instance has no physical implementation".into()))?;
+    let package = &physical.package.definition;
+    let model = match &package.model {
+        PackageModel::Library(use_) => PartModel::Library(library_model(project, use_)?),
+        PackageModel::PartFile(use_) => PartModel::PartFile(use_, part_bytes(project, use_)?),
+        PackageModel::Envelope { .. } => PartModel::Envelope,
+        PackageModel::NoBody => return Ok(None),
+    };
+    Ok(Some(PlacedPart {
+        placement,
+        instance,
+        package,
+        footprint: &physical.footprint.definition,
+        stem: models::definition_name(physical.package.id, physical.package.revision.0),
+        model,
+    }))
 }
 
 /// The layer on the other side of the board.
@@ -1862,6 +1871,17 @@ fn build_on(mut b: Builder, project: &Project) -> Result<NativeModel> {
                     format!("- board_thickness - {far_copper}").into(),
                     &far_copper,
                 )?,
+                plan::PadPart::Inner(layer) => {
+                    // The component's face is the near copper's base; an
+                    // inner land lies on its layer's base, as a via ring.
+                    let height = copper_param(layer);
+                    let base = inner_base(&project.stackup, layer)?;
+                    let offset = match pad.placed.layer {
+                        Layer::Top => format!("{base} - board_thickness"),
+                        Layer::Bottom => format!("- ({base}) - {height}"),
+                    };
+                    profile(&mut b, body, offset.into(), &height)?
+                }
                 plan::PadPart::Barrel(_) => {
                     profile(&mut b, body, "- board_thickness".into(), "board_thickness")?
                 }
@@ -2679,6 +2699,7 @@ pub fn preview_part(package: &PackageDefinition, bytes: &[u8]) -> Result<NativeM
 /// The definition name of an unpublished (draft) package's model.
 pub const DRAFT_MODEL: &str = "pkgdraft";
 
+pub mod copper_agree;
 pub mod designs;
 mod fill;
 pub mod fit;

@@ -248,7 +248,7 @@ pub fn import_with_models(
         let mut records = Vec::new();
         let mut nets = Vec::new();
         let mut overrides = Vec::new();
-        let pads = footprint_pads(
+        let mut pads = footprint_pads(
             &board,
             fp,
             &mut report,
@@ -256,6 +256,8 @@ pub fn import_with_models(
             &mut nets,
             &mut overrides,
         );
+        // Mask and paste polygons that are a pad's opening become its rule.
+        let openings = translate::take_openings(&board, fp, &mut pads);
         per_footprint.push(records);
         terminal_nets.push(nets);
         zone_overrides.push(overrides);
@@ -279,7 +281,11 @@ pub fn import_with_models(
             definitions.push((pads, symbol));
         }
         uses.push(index);
-        report.add_n(Case::FootprintFabGraphics, fp.fab_graphics);
+        report.add_n(
+            Case::FootprintFabGraphics,
+            fp.fab_graphics.saturating_sub(openings),
+        );
+        report.add_n(Case::FootprintOpenings, openings);
         report.add_n(Case::FootprintDrawings, fp.drawings);
         if models.is_none() {
             report.add_n(Case::Models, fp.models.len());
@@ -299,6 +305,11 @@ pub fn import_with_models(
     report.add_n(Case::ProjectOnly, definitions.len());
     let mut sets: Vec<Set> = Vec::with_capacity(definitions.len());
     let mut names_taken: BTreeMap<String, usize> = BTreeMap::new();
+    // A board without nets says nothing by a footprint's pads having none.
+    let board_nets = board
+        .footprints
+        .iter()
+        .any(|fp| fp.pads.iter().any(|p| p.net.is_some()));
     for (k, (pads, symbol)) in definitions.into_iter().enumerate() {
         // A footprint without electrical pads (a fiducial, a mounting
         // hole) becomes a part without terminals.
@@ -320,10 +331,29 @@ pub fn import_with_models(
             report.add(Case::NameNumbered);
         }
         let name = naming.name;
+        let no_body = first.and_then(|fp| crate::models::no_body(fp, board_nets));
         let selection = match (models.as_deref_mut(), first) {
+            (_, Some(_)) if let Some(why) = no_body => Some(crate::models::Selection {
+                choice: Some(crate::models::Choice {
+                    model: PackageModel::NoBody,
+                    placement: ModelPlacement::default(),
+                    envelope_nm: [Nm::ZERO; 3],
+                    provenance: format!("No body, as in the source: {why}."),
+                    leads: Vec::new(),
+                }),
+                case: Case::NoBody,
+                reason: format!("no body (as in the source): {why}"),
+                placeholder: None,
+            }),
             (Some(provider), Some(fp)) => Some(
                 provider
-                    .prepare(&mut session.engine, &pads, &prefix, &fp.models)
+                    .prepare(
+                        &mut session.engine,
+                        &pads,
+                        &prefix,
+                        &fp.models,
+                        &crate::models::Facts::of(fp),
+                    )
                     .map_err(|reason| ImportError::Refused {
                         step: "3D model",
                         reason,
@@ -1121,7 +1151,14 @@ impl Session<'_> {
         }
         if let Some(model) = model {
             for edit in &mut edits {
-                if let Definition::Package(package) = &mut edit.definition {
+                if let Definition::Package(package) = &mut edit.definition
+                    && matches!(model.model, PackageModel::NoBody)
+                {
+                    package.model = PackageModel::NoBody;
+                    edit.meta
+                        .provenance
+                        .push_str(&format!("\n{}", model.provenance));
+                } else if let Definition::Package(package) = &mut edit.definition {
                     package.model = model.model.clone();
                     package.placement = model.placement;
                     package.envelope_nm = model.envelope_nm;

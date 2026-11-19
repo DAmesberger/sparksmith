@@ -4,11 +4,12 @@
 //! outlines only, and the selected fill's outline with its editing
 //! handles.
 //!
-//! The copper is the core's ([`sparksmith_core::model::fill::FilledCopper`]);
-//! Layout only triangulates it for display (a constrained Delaunay
-//! triangulation of each region's rings, inside by even-odd parity), once
-//! per computed copper, and reuses it across revisions, selection, layer
-//! and camera changes.
+//! The copper is the board plan's ([`super::copper_paint`]): the tiles the
+//! 3D view meshes, from the core's computed copper. Layout only
+//! triangulates them for display (a constrained Delaunay triangulation of
+//! each tile's rings, inside by even-odd parity), once per copper, and
+//! reuses it across revisions, selection, layer and camera changes; the
+//! fill's simplified regions give its edges.
 use super::{BoardInk, BoardView, PcbEditor};
 use egui::{Color32, Pos2, Shape, Stroke};
 use sparksmith_core::library::{Outline, Segment};
@@ -65,25 +66,31 @@ pub(super) struct FillMesh {
 }
 
 impl FillMesh {
-    pub(super) fn of(hash: u64, regions: &[FilledRegion]) -> Self {
+    /// The triangles of `tiles` (the copper), with the rings of `regions`
+    /// (its edges, for outlines, hatching and picking).
+    pub(super) fn of(hash: u64, tiles: &[FilledRegion], regions: &[FilledRegion]) -> Self {
         let mut vertices = Vec::new();
         let mut triangles = Vec::new();
         let mut rings = Vec::with_capacity(regions.len());
         let mut lo = [f64::INFINITY; 2];
         let mut hi = [f64::NEG_INFINITY; 2];
-        for region in regions.iter().filter(|r| r.outer.len() >= 3) {
-            let loops: Vec<Vec<Point>> = std::iter::once(region.outer.clone())
+        let loops_of = |region: &FilledRegion| -> Vec<Vec<Point>> {
+            std::iter::once(region.outer.clone())
                 .chain(region.holes.iter().filter(|h| h.len() >= 3).cloned())
-                .collect();
+                .collect()
+        };
+        for region in tiles.iter().filter(|r| r.outer.len() >= 3) {
+            let (points, tris) = triangulate(&loops_of(region));
+            let base = u32::try_from(vertices.len()).unwrap_or(u32::MAX);
+            vertices.extend(points);
+            triangles.extend(tris.into_iter().map(|t| t.map(|i| base.saturating_add(i))));
+        }
+        for region in regions.iter().filter(|r| r.outer.len() >= 3) {
             for p in &region.outer {
                 lo = [lo[0].min(p[0]), lo[1].min(p[1])];
                 hi = [hi[0].max(p[0]), hi[1].max(p[1])];
             }
-            let (points, tris) = triangulate(&loops);
-            let base = u32::try_from(vertices.len()).unwrap_or(u32::MAX);
-            vertices.extend(points);
-            triangles.extend(tris.into_iter().map(|t| t.map(|i| base.saturating_add(i))));
-            rings.push(loops);
+            rings.push(loops_of(region));
         }
         Self {
             hash,
@@ -251,16 +258,16 @@ pub(super) struct FillCache {
 
 impl FillCache {
     /// Rebuild the meshes of fills whose copper changed; drop the rest.
-    pub(super) fn update(&mut self, project: &Project) {
+    pub(super) fn update(&mut self, project: &Project, layout: &super::copper_paint::LayoutCopper) {
         let mut next = BTreeMap::new();
         for fill in &project.fills {
-            let Some(copper) = &fill.computed else {
+            let Some(copper) = layout.fill(fill.id) else {
                 continue;
             };
-            let hash = copper_hash(&copper.regions);
+            let hash = copper_hash(&copper.tiles);
             let mesh = match self.meshes.remove(&fill.id) {
                 Some(mesh) if mesh.hash == hash => mesh,
-                _ => Arc::new(FillMesh::of(hash, &copper.regions)),
+                _ => Arc::new(FillMesh::of(hash, &copper.tiles, &copper.regions)),
             };
             next.insert(fill.id, mesh);
         }

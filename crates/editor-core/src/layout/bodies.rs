@@ -265,6 +265,10 @@ pub fn bodies(project: &Project) -> BodiesReport {
             continue;
         };
         let package = &physical.package.definition;
+        // A part of no body has nothing to land.
+        if matches!(package.model, PackageModel::NoBody) {
+            continue;
+        }
         if package.leads.is_empty() && matches!(package.model, PackageModel::Envelope { .. }) {
             report.envelopes += 1;
             continue;
