@@ -45,5 +45,6 @@
    "request": {"abi": 1, "scope": "component", "params": {"part": "resistor", "length": 1600000, "width": 800000, "height": 450000, "termination": 300000, "lands": "estimated", "land_length": 900000, "land_width": 1000000, "land_pitch": 1300000, "land_gap_min": 200000, "resistor_style": "iec", "marking": ["{field:Resistance|code3}"], "resistor_code": "auto", "marking_height": 0}},
    "result": "491f6abefe27905b1a4460947cc6abeece1e18c3539779bf72a75a4f015aa798"
   }
- ]
+ ],
+ "outputs": "58621bbe821202d6f2a3445d9f863ca411782a8f482ac6444a92bd681b18b222"
 }

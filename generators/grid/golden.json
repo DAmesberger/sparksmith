@@ -30,5 +30,6 @@
    "request": {"abi": 1, "scope": "component", "params": {"contact": "ball", "rows": 1, "columns": 1, "pitch": 800000, "row_pitch": 800000, "depopulated": [], "row_letters": "ABCDEFGHJKLMNPRTUVWY", "body_length": 1000000, "body_width": 1000000, "body_height": 500000, "contact_diameter": 400000, "contact_height": 300000, "marking": [], "marking_height": 0}},
    "result": "ded84f9d4262d58c54204f1560448a55c0d7b94edd6a7974bcf7f2653341c7fc"
   }
- ]
+ ],
+ "outputs": "466df882a9dff0acb002dfcef33d7cab569a2b7d61621fca9d7001ad0b1ff145"
 }

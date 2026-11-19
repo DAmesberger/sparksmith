@@ -45,5 +45,6 @@
    "request": {"abi": 1, "scope": "package", "params": {"sides": "two", "terminals": 2, "terminals_short": 0, "pitch": 800000, "terminal_length": 300000, "terminal_width": 300000, "body_length": 1500000, "body_width": 1500000, "body_height": 540000, "exposed_pad": false, "pad_length": 1700000, "pad_width": 1700000, "mask_web": 100000, "pad_clearance": 200000, "marking": [], "construction": "sensor_window", "wettable_flank": false, "pullback": 0, "window_diameter": 600000, "land_width": 0, "land_length": 0, "land_offset": 0, "marking_height": 0}},
    "result": "23eedb19683f1d272e1abe265ae13c3b5b884ceea10c1ad5dec721001b9bd5c9"
   }
- ]
+ ],
+ "outputs": "a81bd26efae303ac1ae3feed47a3553045551a69340bfd3699f35a474997b769"
 }

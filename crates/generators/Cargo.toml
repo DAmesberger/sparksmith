@@ -20,8 +20,9 @@ sparksmith-generator-abi = { workspace = true, features = ["nfc"] }
 # parser; `deterministic` canonicalises NaN results; `portable-dispatch`
 # (the loop interpreter) because the tail-call dispatch overflowed the stack
 # on a long-running module in the test profile. Runs natively and when this
-# crate is built for wasm32.
-wasmi = { version = "=2.0.0", default-features = false, features = ["std", "validate", "deterministic", "portable-dispatch"] }
+# crate is built for wasm32. At least 2.0.1: 2.0.0 miscompiled a `select` on
+# a zero test (tests/interpreter.rs).
+wasmi = { version = "=2.0.2", default-features = false, features = ["std", "validate", "deterministic", "portable-dispatch"] }
 
 [dev-dependencies]
 # Hand-written refusal fixtures in the text format (Apache-2.0 WITH

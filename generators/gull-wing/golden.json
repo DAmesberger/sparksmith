@@ -30,5 +30,6 @@
    "request": {"abi": 1, "scope": "package", "params": {"sides": "two", "leads": 4, "leads_short": 0, "pitch": 1270000, "body_length": 4900000, "body_width": 3900000, "body_height": 1450000, "standoff": 175000, "span": 6000000, "span_x": 0, "lead_width": 410000, "lead_thickness": 200000, "foot_length": 835000, "land_width_extra": 200000, "marking": ["SO8A"], "pin1_bevel": true, "land_width": 0, "land_length": 0, "land_offset": 0, "marking_height": 0}},
    "result": "bdbaf8b951085720a9e3cdc26e3c1a315c85db4dc91f0eb65c88a09d28f6ddbf"
   }
- ]
+ ],
+ "outputs": "e755202dd6c65a688d05f59d1a71cf2565ed72eb12fa59998fd9abeaf9acd0d8"
 }

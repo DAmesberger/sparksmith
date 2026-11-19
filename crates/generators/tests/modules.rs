@@ -6,6 +6,7 @@
 //! `cargo test`; `cargo xtask generators check` builds the modules and runs
 //! them with `SPARKSMITH_GENERATOR_MODULES` pointing at the build.
 use serde_json::Value;
+use sparksmith_generator_abi::parity::{self, Outputs};
 use sparksmith_generator_abi::v1::{self, ErrorBody, Request, Scope};
 use sparksmith_generator_abi::{Failure, codec, hex, result_hash};
 use sparksmith_generators::{Limits, WasmiRuntime, config};
@@ -39,6 +40,8 @@ struct Golden {
     name: String,
     module: Vec<u8>,
     cases: Vec<(String, Request, String)>,
+    /// The digest of everything the generator says (`parity`).
+    outputs: String,
 }
 
 /// Every generator crate under `generators/`, and the test plugin
@@ -90,10 +93,16 @@ fn goldens() -> Result<Vec<Golden>, String> {
                 .to_string();
             cases.push((name, request, result));
         }
+        let outputs = golden
+            .get("outputs")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("{}: no outputs", golden_path.display()))?
+            .to_string();
         found.push(Golden {
             name,
             module,
             cases,
+            outputs,
         });
     }
     if found.is_empty() {
@@ -129,6 +138,44 @@ fn golden_hashes_match_under_wasmi() -> TestResult {
         }
     }
     Ok(())
+}
+
+/// Each module says byte for byte what its native build says: its
+/// description and its reply to the defaults and every preset in every
+/// scope give the `outputs` digest of `golden.json`, which the crate's
+/// native golden test checks too (`sparksmith_generator_sdk::golden`).
+#[test]
+#[ignore = "needs built modules: cargo xtask generators check"]
+fn module_outputs_match_the_native_build() -> TestResult {
+    let runtime = WasmiRuntime::new(Limits::DEFAULT);
+    let mut problems = Vec::new();
+    for golden in goldens()? {
+        let loaded = runtime.load(&golden.module).map_err(|f| f.to_string())?;
+        let bytes = loaded.describe_raw().map_err(|f| f.to_string())?;
+        let description = loaded.describe().map_err(|f| f.to_string())?;
+        let mut outputs = Outputs::new(&bytes);
+        for case in parity::cases(&description) {
+            let request = codec::encode(&case.request.invoke()).map_err(|e| e.to_string())?;
+            let raw = loaded
+                .generate_raw(&request)
+                .map_err(|f| format!("{}: {}: {f}", golden.name, case.name))?;
+            outputs.reply(&case.name, raw.status, &raw.body);
+        }
+        if outputs.digest() != golden.outputs {
+            problems.push(format!(
+                "{}: the module's outputs digest {}, golden.json has {}; by entry:\n  {}",
+                golden.name,
+                outputs.digest(),
+                golden.outputs,
+                outputs.lines().join("\n  ")
+            ));
+        }
+    }
+    if problems.is_empty() {
+        Ok(())
+    } else {
+        Err(problems.join("\n"))
+    }
 }
 
 /// The probe's limits: room for the wasmi interpreter itself running the

@@ -15,5 +15,6 @@
    "request": {"abi": 1, "scope": "package", "params": {"base_length": 10300000, "base_width": 10300000, "can_diameter": 10000000, "height": 10200000, "land_gap": 4600000, "land_length": 4100000, "land_width": 2000000, "span": 12000000, "terminal_gap": 4600000, "terminal_width": 900000, "vent": false, "marking_height": 0}},
    "result": "ef146a332e4bc44497527de21ccfe8add5f3bb8a21a1a4691acc205da930e40a"
   }
- ]
+ ],
+ "outputs": "71bdbab3fcb0948c4e6e479610ddd1c264233c6cc9d80d0b2ce51b0ea039d819"
 }

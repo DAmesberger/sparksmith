@@ -525,14 +525,10 @@ impl Loaded<'_> {
 
     /// The module's description, decoded and checked.
     pub fn describe(&self) -> Result<Description, Failure> {
-        let mut call = self.start()?;
-        let describe = call.func::<(), u64>(v1::exports::DESCRIBE)?;
-        let packed = describe
-            .call(&mut call.store, ())
-            .map_err(|e| call_failure(&e, &call.limits))?;
-        let bytes = call.read(packed, call.limits.description_bytes, "description")?;
-        let description: Description = codec::decode(&bytes, call.limits.description_bytes)
-            .map_err(|e| invalid_output("description", &e))?;
+        let limit = self.runtime.limits.description_bytes;
+        let bytes = self.describe_raw()?;
+        let description: Description =
+            codec::decode(&bytes, limit).map_err(|e| invalid_output("description", &e))?;
         validate::description(&description)?;
         if self.imports && description.pure() {
             return Err(fail(
@@ -541,6 +537,17 @@ impl Loaded<'_> {
             ));
         }
         Ok(description)
+    }
+
+    /// Run `sparksmith_describe` and return its bytes as the module wrote
+    /// them, unchecked.
+    pub fn describe_raw(&self) -> Result<Vec<u8>, Failure> {
+        let mut call = self.start()?;
+        let describe = call.func::<(), u64>(v1::exports::DESCRIBE)?;
+        let packed = describe
+            .call(&mut call.store, ())
+            .map_err(|e| call_failure(&e, &call.limits))?;
+        call.read(packed, call.limits.description_bytes, "description")
     }
 
     /// Run `sparksmith_invoke` on raw request bytes and return the raw

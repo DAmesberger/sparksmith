@@ -25,5 +25,6 @@
    "request": {"abi": 1, "scope": "component", "params": {"rows": 2, "columns": 10, "pitch": 1270000, "row_pitch": 1270000, "body_height": 1000000, "pin_side": 400000, "pin_above": 3000000, "pin_below": 2300000}},
    "result": "e416ca505a9ec2f81648f1f618094c71c4bfba96bdac42ee410252196fed5290"
   }
- ]
+ ],
+ "outputs": "4ced6857b5344faa6c19fabd1d0d6234c840ebe6dab6793603a828d014fd85d0"
 }

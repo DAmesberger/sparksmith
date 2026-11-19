@@ -16,7 +16,11 @@
 extern crate alloc;
 
 pub mod codec;
+// Native only: comparing a module with its native build is a host-side
+// test, and the module stays the bytes it was without this code.
 pub mod params;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod parity;
 pub mod runtime;
 pub mod surface;
 pub mod v1;
