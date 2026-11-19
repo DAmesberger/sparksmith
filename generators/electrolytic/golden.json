@@ -3,12 +3,12 @@
   {
    "name": "Size D, vent, component",
    "request": {"abi": 1, "scope": "component", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5800000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
-   "result": "48d71e1a70acd7b79290655bedb5e234c2b512493de896b415298ae8c440602a"
+   "result": "136d10dab8d62d2a266d0566d2cf9e5a2558ebf2adb1635c7b92c5626582e1e5"
   },
   {
    "name": "6.3x5.4, package",
    "request": {"abi": 1, "scope": "package", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5500000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
-   "result": "146d94e7ebf64b9e244ce0c955b03663af1e30f6275054849146aa7e6cf62608"
+   "result": "43ae53132af4c4cba1ef7c19f3b8d15fdf2af072e609b4bf8ec091f296ea5c44"
   },
   {
    "name": "Size G, no vent, package",
@@ -16,5 +16,5 @@
    "result": "ef146a332e4bc44497527de21ccfe8add5f3bb8a21a1a4691acc205da930e40a"
   }
  ],
- "outputs": "71bdbab3fcb0948c4e6e479610ddd1c264233c6cc9d80d0b2ce51b0ea039d819"
+ "outputs": "c791a955069cc49d5c8624b61a421e627ed80f855886096ee341144dc046366b"
 }

@@ -126,14 +126,14 @@
     },
     {
       "name": "vent_width",
-      "expr": "0.3 mm",
+      "expr": "0.12 mm",
       "unit": "mm",
       "comment": "vent score width at the top (est.)",
       "model": false
     },
     {
       "name": "vent_depth",
-      "expr": "0.12 mm",
+      "expr": "0.015 mm",
       "unit": "mm",
       "comment": "vent score depth, a V (est.)",
       "model": false
@@ -728,7 +728,7 @@
           {
             "id": "p1",
             "pos": [
-              -0.15,
+              -0.06,
               5.8
             ],
             "fixed": true,
@@ -741,7 +741,7 @@
             "id": "p2",
             "pos": [
               0.0,
-              5.68
+              5.785
             ],
             "fixed": true,
             "exprs": {
@@ -751,7 +751,7 @@
           {
             "id": "p3",
             "pos": [
-              0.15,
+              0.06,
               5.8
             ],
             "fixed": true,
@@ -763,7 +763,7 @@
           {
             "id": "p4",
             "pos": [
-              0.15,
+              0.06,
               6.8
             ],
             "fixed": true,
@@ -775,7 +775,7 @@
           {
             "id": "p5",
             "pos": [
-              -0.15,
+              -0.06,
               6.8
             ],
             "fixed": true,
@@ -881,7 +881,7 @@
           {
             "id": "p1",
             "pos": [
-              -0.15,
+              -0.06,
               -5.8
             ],
             "fixed": true,
@@ -894,7 +894,7 @@
             "id": "p2",
             "pos": [
               0.0,
-              -5.68
+              -5.785
             ],
             "fixed": true,
             "exprs": {
@@ -904,7 +904,7 @@
           {
             "id": "p3",
             "pos": [
-              0.15,
+              0.06,
               -5.8
             ],
             "fixed": true,
@@ -916,7 +916,7 @@
           {
             "id": "p4",
             "pos": [
-              0.15,
+              0.06,
               -6.8
             ],
             "fixed": true,
@@ -928,7 +928,7 @@
           {
             "id": "p5",
             "pos": [
-              -0.15,
+              -0.06,
               -6.8
             ],
             "fixed": true,

@@ -1297,13 +1297,13 @@ pub fn author_electrolytic(vent: bool) -> Vec<u8> {
             ),
             (
                 "vent_width",
-                "0.3 mm",
+                "0.12 mm",
                 "mm",
                 "vent score width at the top (est.)",
             ),
             (
                 "vent_depth",
-                "0.12 mm",
+                "0.015 mm",
                 "mm",
                 "vent score depth, a V (est.)",
             ),
