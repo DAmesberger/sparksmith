@@ -36,6 +36,7 @@ pub mod legacy;
 pub mod model;
 pub mod pins;
 pub mod profile;
+pub mod registry;
 pub mod report;
 mod request;
 mod run;

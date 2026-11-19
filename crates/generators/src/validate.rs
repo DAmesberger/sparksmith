@@ -4,8 +4,9 @@
 //! rules then apply as to any authored part (slice GP1).
 use sparksmith_generator_abi::Failure;
 use sparksmith_generator_abi::v1::{
-    Description, Effect, Footprint, GENERATE_PART, Generation, Graphic, HoleShape, Model, Opening,
-    PadKind, PadShape, ParamType, ParamValue, Point, Primitive, Scope, Symbol, Window, limits,
+    self as v1, Description, Effect, Footprint, GENERATE_PART, Generation, Graphic, HoleShape,
+    Model, Opening, PadKind, PadShape, ParamType, ParamValue, Point, Primitive, Scope, Symbol,
+    Window, limits,
 };
 use std::collections::BTreeSet;
 
@@ -467,18 +468,7 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
         text("note", note)?;
     }
     if let Some(marking) = &g.marking {
-        count("marking lines", marking.lines.len(), limits::MARKING_LINES)?;
-        for line in &marking.lines {
-            if line.trim().is_empty()
-                || line.len() > limits::MARKING_LINE_BYTES
-                || line.contains('\n')
-            {
-                return Err(invalid(format!(
-                    "The generator returned a marking line that is empty, spans lines or is longer than {} bytes.",
-                    limits::MARKING_LINE_BYTES
-                )));
-            }
-        }
+        self::marking(marking, true)?;
     }
     for field in &g.fields {
         key("field", &field.field)?;
@@ -633,6 +623,67 @@ pub fn description(d: &Description) -> Result<(), Failure> {
 
 /// Most capabilities one plugin offers.
 const MAX_CAPABILITIES: usize = 64;
+
+/// A marking's bounds: its lines, surface name, wrap, artwork and (at the
+/// top level only) further markings.
+fn marking(marking: &v1::Marking, top: bool) -> Result<(), Failure> {
+    count("marking lines", marking.lines.len(), limits::MARKING_LINES)?;
+    for line in &marking.lines {
+        if line.trim().is_empty() || line.len() > limits::MARKING_LINE_BYTES || line.contains('\n')
+        {
+            return Err(invalid(format!(
+                "The generator returned a marking line that is empty, spans lines or is longer than {} bytes.",
+                limits::MARKING_LINE_BYTES
+            )));
+        }
+    }
+    if let Some(surface) = &marking.surface {
+        key("marking surface", surface)?;
+    }
+    if let Some([seam, span]) = marking.wrap
+        && (!(1..=360_000).contains(&span) || seam.abs() > 360_000)
+    {
+        return Err(invalid(
+            "The generator returned a marking wrap that starts beyond a turn or spans no angle or more than a turn.".into(),
+        ));
+    }
+    count(
+        "marking artwork",
+        marking.artwork.len(),
+        limits::MARKING_ARTWORK,
+    )?;
+    for art in &marking.artwork {
+        if art.svg.is_empty() || art.svg.len() > limits::MARKING_SVG_BYTES {
+            return Err(invalid(format!(
+                "The generator returned marking artwork that is empty or larger than {} bytes.",
+                limits::MARKING_SVG_BYTES
+            )));
+        }
+        if !art
+            .size
+            .iter()
+            .all(|s| *s > 0 && *s <= limits::COORDINATE_NM)
+        {
+            return Err(invalid(
+                "The generator returned marking artwork without a positive size.".into(),
+            ));
+        }
+    }
+    if !top && !marking.decals.is_empty() {
+        return Err(invalid(
+            "The generator returned a further marking with further markings of its own.".into(),
+        ));
+    }
+    count(
+        "further markings",
+        marking.decals.len(),
+        limits::MARKING_DECALS,
+    )?;
+    for decal in &marking.decals {
+        self::marking(decal, false)?;
+    }
+    Ok(())
+}
 
 #[cfg(test)]
 mod tests {

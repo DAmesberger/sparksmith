@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Battery</title>
+  <path d="M52 25L56 25A2 2 0 0 1 58 27L58 37A2 2 0 0 1 56 39L52 39A2 2 0 0 1 50 37L50 27A2 2 0 0 1 52 25Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M10 16L48 16A4 4 0 0 1 52 20L52 44A4 4 0 0 1 48 48L10 48A4 4 0 0 1 6 44L6 20A4 4 0 0 1 10 16Z" fill="#e2e8ef"/>
+  <path d="M10 16L28 16L28 48L10 48A4 4 0 0 1 6 44L6 20A4 4 0 0 1 10 16Z" fill="#328bd3"/>
+  <path d="M10 16L48 16A4 4 0 0 1 52 20L52 44A4 4 0 0 1 48 48L10 48A4 4 0 0 1 6 44L6 20A4 4 0 0 1 10 16Z" fill="none" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

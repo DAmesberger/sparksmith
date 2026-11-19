@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Antenna</title>
+  <path d="M32 28L32 52" fill="none" stroke="currentColor" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M22 50L42 50A2 2 0 0 1 44 52L44 56A2 2 0 0 1 42 58L22 58A2 2 0 0 1 20 56L20 52A2 2 0 0 1 22 50Z" fill="#b8c3cf" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M20 10A17 17 0 0 0 20 34" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M44 10A17 17 0 0 1 44 34" fill="none" stroke="#236ead" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="32" cy="22" r="6" fill="#328bd3" stroke="#34465b" stroke-width="2.55" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

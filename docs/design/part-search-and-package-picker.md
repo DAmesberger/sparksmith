@@ -22,7 +22,7 @@ Design for founder approval, 16 November 2026, written against `main` at 0123559
 | 8 | Which generic parts are complete | **No hard-coded list.** A generator declares, as data, which outputs are parts (pins with an explicit pin mapping) | §3.2 |
 | 9 | One ranked list | Yes; groups only when browsing | §1.2 |
 | 10 | Chat entry | The chat **can do everything**: plan, make parts, place, route, check and export ("Claude Code for PCBs"), with the same verbs as every caller, under the person's permissions and review gates. No narrow `view.arm_place`. No turn limits | §5 |
-| 11 | Online sources | Yes. Define the registry format; it will be hosted at `parts.sparkforge.io` | §6 (sketch; follow-up design) |
+| 11 | Online sources | Yes. Define the registry format; it will be hosted at `parts.sparksmith.io` | §6 (sketch; follow-up design) |
 
 - **Founder answers, round 2** (16 November 2026), recorded as decisions in §9: categories are not stored in projects; categories merge by id with name mapping; every pin has a name or the typed no-connect mode, and strict types replace strings wherever automation reasons; publishing a part into the project never asks, publishing to a library asks with harness-style choices; no turn limits, context compaction instead; a default designator prefix per category; modules are nothing special; the registry ships result and recipe; registry accounts, upload and moderation are designed in R0.
 
@@ -177,7 +177,7 @@ This fixes run 11 finding 1: the name is given where the part is made, and the p
 ### 1.7 How folders and online sources slot in
 
 - **Library folders** are built (S3): their `SourceCatalog` entries already pass through the same `Index`. This design adds their Category field and facets to `SourceCatalog` entries (fields on component revisions, so no format change), and lets a folder contribute categories (§3.1).
-- **Online registry** (§6): it implements the same `SourceCatalog` shape, fetched and cached per user (S5 rules: never authoritative, never written into a project except by an import). Its rows read "Online · parts.sparkforge.io". Enter shows the **import preview**, then imports and places. Nothing in §1.2 to §1.5 changes; the registry is one more source with the lowest precedence.
+- **Online registry** (§6): it implements the same `SourceCatalog` shape, fetched and cached per user (S5 rules: never authoritative, never written into a project except by an import). Its rows read "Online · parts.sparksmith.io". Enter shows the **import preview**, then imports and places. Nothing in §1.2 to §1.5 changes; the registry is one more source with the lowest precedence.
 
 ## 2. Package picker for making
 
@@ -413,7 +413,7 @@ What bounds it is the person's, never the design's:
 - The assistant design's slice list is unchanged; this design adds no entry to it. `assist.offer` and the `choice` card are its C2. The datasheet workflow's data changes (K7 below): `make` becomes package scope plus `library.new_part`, `pick` gains **Choose another package…**, and the workflow's version is raised to 1.1.
 - `method.md` gains a short section "Finding and making parts" (search first, then generic, then datasheet, then `new_part`; never place a package), served to external MCP clients as well.
 
-## 6. Online registry: `parts.sparkforge.io` (sketch; follow-up design)
+## 6. Online registry: `parts.sparksmith.io` (sketch; follow-up design)
 
 This section fixes the shape so §1 does not change when the registry arrives. A full design (wire format, publisher accounts, moderation, upload) is a **follow-up document**, slice R0.
 
@@ -610,7 +610,7 @@ At most five agents at once. Every slice ships with its tests. UI evidence is ga
 6. **Default designator prefix per category**, optional, in `categories.json` (§3.1), used as the New part dialog's default.
 7. **Modules are nothing special.** Neither a category nor a package style: a module is a part filed by its function, and its package style is its pad form (castellated, LGA) (§1.3).
 8. **The registry ships result and recipe.** The client accepts the result by digest and signature and, when the generator is approved, regenerates from the recipe and compares result hashes ("verified by generator" in the import preview).
-9. **Registry accounts, upload and moderation are designed in R0**, with read-only anonymous search and blobs at `parts.sparkforge.io`.
+9. **Registry accounts, upload and moderation are designed in R0**, with read-only anonymous search and blobs at `parts.sparksmith.io`.
 
 ## Appendix: category research
 

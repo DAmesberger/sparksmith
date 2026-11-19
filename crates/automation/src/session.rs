@@ -1133,6 +1133,8 @@ pub struct Session {
     /// The shipped generators' descriptions, once read (`library.search`'s
     /// generic parts).
     descriptions: std::sync::OnceLock<Vec<generators::v1::Description>>,
+    /// The online registry the host installed (`online::OnlineSource`).
+    online: Option<std::sync::Arc<dyn online::OnlineSource>>,
 }
 
 /// A test fixture, never in the product: a session on the core's fixture
@@ -1172,6 +1174,7 @@ impl Session {
             assist: assist::Assist::default(),
             turns: turns::Turns::default(),
             descriptions: std::sync::OnceLock::new(),
+            online: None,
         }
     }
     /// A session without a project of its own, for a host that only lends
@@ -1303,7 +1306,7 @@ impl Session {
                     other => other,
                 };
                 let searched = match &query {
-                    Query::Search { query, .. } => Some(query.clone()),
+                    Query::Search { query, limit, .. } => Some((query.clone(), *limit)),
                     _ => None,
                 };
                 let mut reply = serde_json::to_value(self.engine.query_using(
@@ -1311,8 +1314,9 @@ impl Session {
                     &self.sources.context(),
                     Some(&sparksmith_solidcraft::footprint::SketchEvaluator),
                 )?)?;
-                if let Some(text) = searched {
+                if let Some((text, limit)) = searched {
                     self.add_generic(&text, &mut reply);
+                    self.add_online(&text, limit, &mut reply);
                 }
                 return Ok(reply);
             }
@@ -1466,24 +1470,18 @@ impl Session {
                 return Ok(json!({"favourites": self.sources.settings().favourites}));
             }
             Request::Bundle(params) => {
-                let bundle =
-                    self.sources
-                        .bundle(params.library, params.lineage, params.revision)?;
+                let bundle = self.source_bundle(params.library, params.lineage, params.revision)?;
                 return Ok(serde_json::to_value(bundle)?);
             }
             Request::ImportFrom(params) => {
-                let bundle =
-                    self.sources
-                        .bundle(params.library, params.lineage, params.revision)?;
+                let bundle = self.source_bundle(params.library, params.lineage, params.revision)?;
                 let operation = Operation::Library(LibraryCommand::Import {
                     bundle: Box::new(bundle),
                 });
                 return self.apply(params.expected_revision, operation);
             }
             Request::PlaceFrom(params) => {
-                let bundle =
-                    self.sources
-                        .bundle(params.library, params.lineage, params.revision)?;
+                let bundle = self.source_bundle(params.library, params.lineage, params.revision)?;
                 let operation = Operation::Library(LibraryCommand::PlaceFrom {
                     source: PlaceSource::Bundle {
                         bundle: Box::new(bundle),
@@ -1952,6 +1950,7 @@ mod marking;
 pub mod mechanical_parts;
 pub mod metadata;
 mod models;
+pub mod online;
 pub mod part_files;
 pub mod paths;
 mod pinout;

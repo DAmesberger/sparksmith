@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "grid.wasm",
-    "sha256": "6e8735a6678db1aafae6f769b3c83cbf5725aa623c279ae0d668869709d0dde9"
+    "sha256": "b9453e0fd8c9d1067fb00ef2c0e674183da0b4cc71864c2ea9c45f809bb0af92"
   },
   "name": "grid",
   "parts": [

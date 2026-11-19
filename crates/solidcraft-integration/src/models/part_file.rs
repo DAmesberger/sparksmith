@@ -8,7 +8,11 @@
 //! each body's appearance is named after a Sparksmith material
 //! ([`material_of`]); a construction plane `marking-<name>` with the length
 //! parameters `marking_<name>_u` and `marking_<name>_v` is a marking
-//! surface; a construction point `pin1` marks pin 1.
+//! surface, and a construction axis `marking-<name>` with the lengths
+//! `marking_<name>_r` and `marking_<name>_l` (and optionally
+//! `marking_<name>_from`) a cylindrical one (a radial
+//! capacitor's sleeve, [`marking_cylinder`]); a construction point `pin1`
+//! marks pin 1.
 //!
 //! Package datums (slice B2, docs/architecture/board-interface.md) are
 //! declared the same way ([`DATUM_CONVENTION`]): a construction plane
@@ -40,7 +44,7 @@ use sparksmith_core::library::datum::{
     DatumFrame, DatumName, DatumProfile, MAX_PACKAGE_DATUMS, PART_FILE_AXIS, PART_FILE_OPENING,
     PackageDatum, PackageDatumGeometry, PackageDatumOrigin, PackageDatumParams,
 };
-use sparksmith_core::library::marking::surface::{AnchorInfo, SurfaceGeometry};
+use sparksmith_core::library::marking::surface::{AnchorInfo, CylinderArea, SurfaceGeometry};
 use sparksmith_core::library::model3d::MarkingArea;
 use sparksmith_core::library::package_model::{
     LeadBody, MAX_PART_BODIES, MAX_PART_SURFACES, MAX_PART_VALUES, PartDerived, PartValue,
@@ -257,7 +261,16 @@ pub fn matches(stored: &PartDerived, now: &PartDerived) -> bool {
                             && close(&x.u_axis, &y.u_axis)
                             && close(&x.size(), &y.size())
                     }
-                    _ => false,
+                    _ => match (&a.geometry, &b.geometry) {
+                        (SurfaceGeometry::Cylinder(x), SurfaceGeometry::Cylinder(y)) => {
+                            close(&x.base(), &y.base())
+                                && close(&x.axis, &y.axis)
+                                && close(&x.zero, &y.zero)
+                                && close(&[x.radius(), x.length()], &[y.radius(), y.length()])
+                                && x.along_u == y.along_u
+                        }
+                        _ => false,
+                    },
                 }
         })
 }
@@ -739,7 +752,7 @@ fn evaluate_now(bytes: &[u8], values: &PartValues, key: [u8; 32]) -> Result<Eval
                     continue;
                 }
                 if surfaces.iter().any(|s| s.name == stem) {
-                    marking_problems.push(format!("two marking planes are named {stem}"));
+                    marking_problems.push(format!("two marking surfaces are named {stem}"));
                     continue;
                 }
                 let (Some(ux), Some(n)) = (plane.x.normalized(), plane.normal().normalized())
@@ -758,9 +771,23 @@ fn evaluate_now(bytes: &[u8], values: &PartValues, key: [u8; 32]) -> Result<Eval
                     geometry: SurfaceGeometry::Plane(area),
                 });
             }
+            ConstructGeom::Axis { origin, dir } => {
+                let Some(rest) = c.name.strip_prefix(MARKING_PLANE) else {
+                    continue;
+                };
+                match marking_cylinder(rest, arr(*origin), arr(*dir), &length) {
+                    Ok(_) if surfaces.iter().any(|s| s.name == rest.replace('-', "_")) => {
+                        marking_problems.push(format!(
+                            "two marking surfaces are named {}",
+                            rest.replace('-', "_")
+                        ));
+                    }
+                    Ok(anchor) => surfaces.push(anchor),
+                    Err(problem) => marking_problems.push(problem),
+                }
+            }
             ConstructGeom::Point(p) if c.name == PIN1_POINT => pin1 = Some(arr(*p)),
             ConstructGeom::Point(p) => points.push((c.name.clone(), arr(*p))),
-            ConstructGeom::Axis { .. } => {}
         }
     }
     if surfaces.len() > MAX_PART_SURFACES {
@@ -1195,3 +1222,58 @@ pub fn insert_design(
 #[cfg(test)]
 #[path = "part_file_tests.rs"]
 mod tests;
+
+/// A cylindrical marking surface from the construction axis
+/// `marking-<rest>`: the side of radius `marking_<stem>_r` along the
+/// axis' direction for `marking_<stem>_l`, starting `marking_<stem>_from`
+/// (when the file has it, else 0) from the axis' origin. Angle 0 faces +x
+/// (the package's length direction, where a radial part's lead 2 stands),
+/// or +y for an axis along x; the chart's u runs round an upright axis (a
+/// radial sleeve) and along any other (an axial body).
+fn marking_cylinder(
+    rest: &str,
+    origin: [f64; 3],
+    dir: [f64; 3],
+    length: &impl Fn(&str) -> Option<f64>,
+) -> std::result::Result<AnchorInfo, String> {
+    let name = format!("{MARKING_PLANE}{rest}");
+    let stem = rest.replace('-', "_");
+    if !part_parameter_name_ok(&stem) {
+        return Err(format!("‘{name}’ is not a marking name"));
+    }
+    let (r, l) = (format!("marking_{stem}_r"), format!("marking_{stem}_l"));
+    let (Some(radius), Some(along)) = (length(&r), length(&l)) else {
+        return Err(format!("{name} needs the length parameters {r} and {l}"));
+    };
+    if !(radius.is_finite() && along.is_finite() && radius > 0.0 && along > 0.0) {
+        return Err(format!("{name} needs a positive radius and length"));
+    }
+    let norm = (dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]).sqrt();
+    if !(norm.is_finite() && norm > 1e-12) {
+        return Err(format!("{name} has no direction"));
+    }
+    let axis = dir.map(|v| v / norm);
+    let from = length(&format!("marking_{stem}_from")).unwrap_or(0.0);
+    if !from.is_finite() {
+        return Err(format!("{name} needs a finite start"));
+    }
+    let origin: [f64; 3] = std::array::from_fn(|k| origin[k] + from * axis[k]);
+    // +x made square to the axis, or +y when the axis runs along x.
+    let pick = if axis[0].abs() > 0.9 {
+        [0.0, 1.0, 0.0]
+    } else {
+        [1.0, 0.0, 0.0]
+    };
+    let dot = pick[0] * axis[0] + pick[1] * axis[1] + pick[2] * axis[2];
+    let zero: [f64; 3] = std::array::from_fn(|k| pick[k] - dot * axis[k]);
+    let zn = (zero[0] * zero[0] + zero[1] * zero[1] + zero[2] * zero[2]).sqrt();
+    let zero = zero.map(|v| v / zn);
+    let along_u = axis[2].abs() < 0.5;
+    let area = CylinderArea::from_mm(origin, axis, zero, radius, along, along_u)
+        .map_err(|_| format!("{name} lies beyond ±2 m"))?;
+    Ok(AnchorInfo {
+        name: stem,
+        description: format!("the part file's marking cylinder {name}"),
+        geometry: SurfaceGeometry::Cylinder(area),
+    })
+}

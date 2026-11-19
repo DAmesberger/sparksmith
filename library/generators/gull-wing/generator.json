@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "gull-wing.wasm",
-    "sha256": "e5d7646f3085b2c3e42847387ff0c3bb3fcebc4477e0d866d8a459f23a8cd904"
+    "sha256": "36f47c244798009622a095f3b9da2a1a1215446b6a160b46b71f6a186bfeb2db"
   },
   "name": "gull-wing",
   "parts": [

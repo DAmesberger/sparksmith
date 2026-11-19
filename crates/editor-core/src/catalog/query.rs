@@ -289,8 +289,12 @@ pub enum Term {
     Package { text: String },
     /// `has:` and `missing:`.
     Has { badge: Badge, present: bool },
-    /// `src:project` — the only source before library folders exist.
+    /// `src:project`: the open project's own lineages.
     Project,
+    /// `src:library`: local library folders' entries.
+    Library,
+    /// `src:online`: an online registry's entries.
+    Online,
     /// `kind:component` — generic component entries only.
     Components,
     /// `kind:part` — exact manufacturer Part entries only.
@@ -372,6 +376,8 @@ impl Term {
                 )
             }
             Self::Project => "in this project".into(),
+            Self::Library => "in library folders".into(),
+            Self::Online => "online".into(),
             Self::Components => "components".into(),
             Self::Parts => "Parts".into(),
             Self::Mpn { text } => format!("MPN: {text}"),
@@ -651,10 +657,11 @@ fn predicate(
         }
         "src" => {
             filter_op()?;
-            return if fold(value) == "project" {
-                Ok(Term::Project)
-            } else {
-                Err("the only source is ‘project’ until library folders exist".into())
+            return match fold(value).as_str() {
+                "project" => Ok(Term::Project),
+                "library" => Ok(Term::Library),
+                "online" => Ok(Term::Online),
+                _ => Err("the sources are ‘project’, ‘library’ and ‘online’".into()),
             };
         }
         "kind" => {

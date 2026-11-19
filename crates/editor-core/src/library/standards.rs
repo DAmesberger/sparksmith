@@ -13,6 +13,7 @@
 //! rather than falling back to a value written here. A host that draws or
 //! builds outside the engine (a symbol preview, a 3D build on a worker
 //! thread) enters the context it holds first.
+use super::categories::Categories;
 use super::marking::codes::MarkingCodes;
 use super::standard_fields::StandardFields;
 use super::symbol_style::SymbolDrawings;
@@ -46,17 +47,33 @@ pub struct Standards {
     pub marking: MarkingCodes,
     pub generic: GenericGrammar,
     pub symbols: SymbolDrawings,
+    /// The part categories (`catalog/categories.json`).
+    pub categories: Categories,
 }
 
 impl Standards {
     /// The standards, after checking that the grammar's value slots and
-    /// colour list name standard fields that have units and choices.
+    /// colour list name standard fields that have units and choices, and
+    /// that each family's category is one of `categories`.
     pub fn new(
         fields: StandardFields,
         marking: MarkingCodes,
         generic: GenericGrammar,
         symbols: SymbolDrawings,
+        categories: Categories,
     ) -> Result<Self> {
+        categories.check()?;
+        for family in &generic.families {
+            if let Some(path) = &family.category
+                && categories.find(path).is_none()
+            {
+                return Err(Error::Invalid(format!(
+                    "the generic family ‘{}’ names the category ‘{}’, which is not in the category tree",
+                    family.label,
+                    path.chars().take(80).collect::<String>()
+                )));
+            }
+        }
         for slot in &generic.value_slots {
             if fields.units(&slot.field).is_none() {
                 return Err(Error::Invalid(format!(
@@ -103,6 +120,7 @@ impl Standards {
             marking,
             generic,
             symbols,
+            categories,
         })
     }
 }
@@ -399,6 +417,8 @@ pub enum GenericFamily {
     Inductor,
     Led,
     Diode,
+    /// Aluminium electrolytic capacitors, SMD and radial.
+    Electrolytic,
 }
 
 /// One family's declared patterns, and example texts each building a part.
@@ -409,6 +429,10 @@ pub struct FamilyPatterns {
     /// The generator that makes this family's parts: its description's
     /// `id` (slice D1 of the part-generation plan).
     pub generator: String,
+    /// The category path (`categories.json`) a part of the family is
+    /// filed under.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
     /// The parameters a preset of the generator must have to serve this
     /// family: a size code or a listed package chooses among these.
     #[serde(default)]
@@ -565,17 +589,24 @@ impl GenericGrammar {
 
     /// The family a part `generator` made from the complete `params`
     /// belongs to: its generator's, with every parameter of its presets
-    /// (with its own params on top) equal.
+    /// (with its own params on top) equal; a generator's only family that
+    /// names no parameters serves every part it makes.
     pub fn family_of(
         &self,
         generator: &str,
         params: &crate::library::generated::GeneratorParams,
     ) -> Option<&FamilyPatterns> {
+        let only = self
+            .families
+            .iter()
+            .filter(|f| f.generator == generator)
+            .count()
+            == 1;
         self.families.iter().find(|family| {
             let mut wanted = family.presets.clone();
             wanted.extend(family.params.clone());
             family.generator == generator
-                && !wanted.is_empty()
+                && (only || !wanted.is_empty())
                 && wanted.iter().all(|(k, v)| params.get(k) == Some(v))
         })
     }
@@ -865,7 +896,11 @@ pub mod fixture {
             .map(|(kind, text)| parse::<KindDrawing>(kind.label(), text))
             .collect::<Result<Vec<_>>>()?;
         let symbols = SymbolDrawings::new(style, kinds)?;
-        Standards::new(fields, marking, generic, symbols)
+        let categories: Categories = parse(
+            "catalog/categories.json",
+            shipped!("catalog/categories.json"),
+        )?;
+        Standards::new(fields, marking, generic, symbols, categories)
     }
 }
 

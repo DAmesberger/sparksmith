@@ -46,3 +46,17 @@ pub fn install() {
 pub fn resolve(name: &str) -> Resolved {
     SET.resolve(name)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every master, small variants included, parses: none falls back to the placeholder.
+    #[test]
+    fn every_master_parses() -> Result<(), String> {
+        for (id, fam, src) in SET.data().masters {
+            SET.parse(src).map_err(|e| format!("icon {fam}/{id}: {e}"))?;
+        }
+        Ok(())
+    }
+}
