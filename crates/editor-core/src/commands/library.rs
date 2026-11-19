@@ -291,7 +291,7 @@ declare_entries!(LibraryCommand in library {
     NewDraft "library.new_draft" Edit "New draft",
     DraftFrom "library.draft_from" Edit "Draft from a revision",
     DraftClosure "library.draft_closure" Edit "Draft a definition and its parts",
-    DraftPart "library.draft_part" Edit "Draft a component's manufacturer Part" [since(3, 9)],
+    DraftPart "library.draft_part" Edit "Draft a component's manufacturer Part" [since(3, 10)],
     EditCopy "library.edit_copy" Edit "Edit a copy",
     Edit "library.edit" Edit "Edit drafts",
     DiscardDraft "library.discard_draft" Edit "Discard a draft",

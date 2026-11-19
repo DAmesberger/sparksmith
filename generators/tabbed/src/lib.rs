@@ -46,8 +46,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`).
-const VERSION: u32 = 4;
+/// The generator's version (`Description::version`): 5 sets the marking
+/// text at the height its preset gives (`marking_height`).
+const VERSION: u32 = 5;
 
 /// Most leads on one side, and most grid positions between neighbours.
 pub const MAX_LEADS_PER_SIDE: i64 = 16;
@@ -297,6 +298,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     ];
     params.push(construction);
     params.push(sparksmith_generator_sdk::marking::param());
+    params.push(sparksmith_generator_sdk::marking::height_param());
     params.push(sparksmith_generator_sdk::marking::dot_param());
     let rules = vec![
         Rule {

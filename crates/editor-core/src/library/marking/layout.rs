@@ -3,7 +3,8 @@
 //! Text lines (templates and codes) stack top to bottom in item order,
 //! centred vertically in the area minus its margin and minus the room
 //! polarity marks take at the ends. Lines without an explicit height share
-//! one auto-fitted height, at most [`MAX_AUTO_TEXT_HEIGHT_MM`]. A line that
+//! one auto-fitted height, at most the spec's text height
+//! ([`MarkingSpec::text_height_mm`], [`MAX_AUTO_TEXT_HEIGHT_MM`] by default). A line that
 //! does not fit at the minimum legible height is dropped from the end with
 //! a `marking.does_not_fit` finding; text never shrinks below the minimum.
 use super::codes;
@@ -32,6 +33,8 @@ struct Context<'a> {
     findings: Vec<Finding>,
     area: [f64; 2],
     min_height: f64,
+    /// The tallest an auto-fitted line is set ([`MarkingSpec::text_height_mm`]).
+    text_height: f64,
 }
 
 impl Context<'_> {
@@ -375,7 +378,7 @@ fn fit(cx: &mut Context<'_>, lines: &mut Vec<Line>, rect: Rect) -> f64 {
                 .fold(f64::INFINITY, f64::min);
             let height = by_height
                 .min(by_width)
-                .min(MAX_AUTO_TEXT_HEIGHT_MM.max(cx.min_height));
+                .min(cx.text_height.max(cx.min_height));
             (height >= cx.min_height).then_some(height)
         };
         match auto_height {
@@ -402,6 +405,7 @@ pub(super) fn run(spec: &MarkingSpec, inputs: &MarkingInputs) -> Result<MarkingL
         findings: Vec::new(),
         area: inputs.area_mm,
         min_height,
+        text_height: spec.text_height_mm(),
     };
     let mut out = MarkingLayout {
         elements: Vec::new(),

@@ -368,6 +368,10 @@ fn a_stored_key_is_replaced_and_removed() -> Fallible {
         scroll_to(&mut ax, Role::Button, "Replace")?;
         assert!(ax.texts.iter().any(|t| t == STORED));
         assert!(ax.find(Role::Button, "Save")?.disabled, "nothing to save");
+        // The status line under the form's buttons: egui paints only what
+        // the scroll area shows, and where Replace lands depends on the
+        // sections above, so bring the buttons into view first.
+        scroll_to(&mut ax, Role::Button, "Test connection")?;
         assert!(
             ax.texts.iter().any(|t| t == "Set: the chat uses a-model."),
             "{:?}",

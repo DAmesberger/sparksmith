@@ -28,7 +28,7 @@
     {
       "id": "epoxy_laser_marked",
       "name": "Laser-marked epoxy",
-      "base_linear": [0.1, 0.1, 0.105],
+      "base_linear": [0.24, 0.24, 0.25],
       "metallic": 0.0,
       "roughness": 0.75,
       "ior": 1.55,
@@ -36,7 +36,7 @@
       "source": [
         {
           "reference": "est",
-          "note": "laser ablation exposes lighter silica filler and roughens the surface"
+          "note": "laser ablation exposes lighter silica filler and roughens the surface: a light grey on black moulding, as product photographs show (est.)"
         }
       ]
     },

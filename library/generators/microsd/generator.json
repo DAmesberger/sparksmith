@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "microsd.wasm",
-    "sha256": "bf7db42512bf892df2c33e0fcb5e2168a18519071c74ed5f664429eb94850145"
+    "sha256": "49e01214f53aa3aa2796c6300cbe982ad274b2bc10f1abadc753b70e581bd5ef"
   },
   "name": "microsd",
   "parts": [

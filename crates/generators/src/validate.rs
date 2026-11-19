@@ -637,6 +637,13 @@ fn marking(marking: &v1::Marking, top: bool) -> Result<(), Failure> {
             )));
         }
     }
+    if let Some(height) = marking.text_height
+        && !(1..=limits::COORDINATE_NM).contains(&height)
+    {
+        return Err(invalid(
+            "The generator returned a marking text height that is not a positive length.".into(),
+        ));
+    }
     if let Some(surface) = &marking.surface {
         key("marking surface", surface)?;
     }

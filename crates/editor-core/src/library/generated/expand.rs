@@ -1065,6 +1065,7 @@ fn one_marking(
             (None, false) => Finish::LaserEtch,
         },
         placement,
+        text_height_nm: marking.text_height.map(Nm::new).transpose()?,
         ..MarkingSpec::default()
     }))
 }

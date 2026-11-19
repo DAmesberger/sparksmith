@@ -2,17 +2,17 @@
  "cases": [
   {
    "name": "Size D, vent, component",
-   "request": {"abi": 1, "scope": "component", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5800000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true}},
-   "result": "5ad6228a81a36f4bf7f065fc2f0f1cbbcb294f0bcebce75f678d12ac4bfba61c"
+   "request": {"abi": 1, "scope": "component", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5800000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
+   "result": "48d71e1a70acd7b79290655bedb5e234c2b512493de896b415298ae8c440602a"
   },
   {
    "name": "6.3x5.4, package",
-   "request": {"abi": 1, "scope": "package", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5500000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true}},
-   "result": "317f14a509ab279114b4392c3296bf1a9e1d04732d9c383df6896b5af41a3d4a"
+   "request": {"abi": 1, "scope": "package", "params": {"base_length": 6600000, "base_width": 6600000, "can_diameter": 6300000, "height": 5500000, "land_gap": 1800000, "land_length": 3200000, "land_width": 1600000, "span": 7800000, "terminal_gap": 1800000, "terminal_width": 650000, "vent": true, "marking_height": 0}},
+   "result": "146d94e7ebf64b9e244ce0c955b03663af1e30f6275054849146aa7e6cf62608"
   },
   {
    "name": "Size G, no vent, package",
-   "request": {"abi": 1, "scope": "package", "params": {"base_length": 10300000, "base_width": 10300000, "can_diameter": 10000000, "height": 10200000, "land_gap": 4600000, "land_length": 4100000, "land_width": 2000000, "span": 12000000, "terminal_gap": 4600000, "terminal_width": 900000, "vent": false}},
+   "request": {"abi": 1, "scope": "package", "params": {"base_length": 10300000, "base_width": 10300000, "can_diameter": 10000000, "height": 10200000, "land_gap": 4600000, "land_length": 4100000, "land_width": 2000000, "span": 12000000, "terminal_gap": 4600000, "terminal_width": 900000, "vent": false, "marking_height": 0}},
    "result": "ef146a332e4bc44497527de21ccfe8add5f3bb8a21a1a4691acc205da930e40a"
   }
  ]

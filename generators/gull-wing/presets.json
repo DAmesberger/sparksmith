@@ -25,7 +25,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 650000
   },
   "citation": {
    "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
@@ -58,7 +59,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 650000
   },
   "citation": {
    "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
@@ -91,7 +93,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 650000
   },
   "citation": {
    "document": "JEDEC MS-012, plastic dual small outline gull-wing, 1.27 mm pitch, 3.90 mm body (SOIC narrow)"
@@ -124,7 +127,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -157,7 +161,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -190,7 +195,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -223,7 +229,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -256,7 +263,8 @@
    "pin1_bevel": true,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-013, plastic dual small outline gull-wing, 1.27 mm pitch, 7.50 mm body (SOIC wide)"
@@ -287,7 +295,8 @@
    "foot_length": 750000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -318,7 +327,8 @@
    "foot_length": 750000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -349,7 +359,8 @@
    "foot_length": 750000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -380,7 +391,8 @@
    "foot_length": 750000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -411,7 +423,8 @@
    "foot_length": 750000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-150, plastic shrink small outline, 0.65 mm pitch, 5.30 mm body (SSOP)"
@@ -442,7 +455,8 @@
    "foot_length": 835000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 550000
   },
   "citation": {
    "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
@@ -473,7 +487,8 @@
    "foot_length": 835000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 550000
   },
   "citation": {
    "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
@@ -504,7 +519,8 @@
    "foot_length": 835000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 550000
   },
   "citation": {
    "document": "JEDEC MO-137, plastic shrink small outline, 0.635 mm pitch, 3.90 mm body (QSOP)"
@@ -535,7 +551,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -566,7 +583,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -597,7 +615,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -628,7 +647,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -659,7 +679,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -690,7 +711,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -721,7 +743,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 500000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -752,7 +775,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -783,7 +807,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 600000
   },
   "citation": {
    "document": "JEDEC MO-153, plastic thin shrink small outline (TSSOP)"
@@ -815,7 +840,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-187, plastic micro small outline, 3.00 mm body (MSOP)"
@@ -846,7 +872,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 400000
   },
   "citation": {
    "document": "JEDEC MO-187, plastic micro small outline, 3.00 mm body (MSOP)"
@@ -877,7 +904,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 700000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -908,7 +936,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 800000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -939,7 +968,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 700000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -970,7 +1000,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 800000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1001,7 +1032,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 700000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1032,7 +1064,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 800000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1063,7 +1096,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1094,7 +1128,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1125,7 +1160,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1156,7 +1192,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1187,7 +1224,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1218,7 +1256,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 1000000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1249,7 +1288,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 1000000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1280,7 +1320,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 1000000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1311,7 +1352,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1342,7 +1384,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 700000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1373,7 +1416,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 800000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1404,7 +1448,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 700000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1435,7 +1480,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 800000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1466,7 +1512,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 900000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
@@ -1497,7 +1544,8 @@
    "foot_length": 600000,
    "marking": [
     "{mpn}"
-   ]
+   ],
+   "marking_height": 1000000
   },
   "citation": {
    "document": "JEDEC MS-026, low-profile and thin plastic quad flat packages (LQFP, TQFP)"
