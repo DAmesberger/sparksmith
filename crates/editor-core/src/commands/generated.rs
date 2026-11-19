@@ -488,7 +488,11 @@ pub(crate) fn generate(
     // turned into the project's fields (host data, as the fields are).
     let host_marking = match &made.generation.marking {
         Some(marking) if scope == GeneratorScope::Component => {
-            if !selects_fields && marking.lines.iter().any(|l| l.contains("{field:")) {
+            let names_fields = std::iter::once(marking)
+                .chain(&marking.decals)
+                .flat_map(|m| &m.lines)
+                .any(|l| l.contains("field:"));
+            if !selects_fields && names_fields {
                 super::library::import_bundle(
                     document,
                     &crate::library::standard_fields::bundle()?,
@@ -496,7 +500,7 @@ pub(crate) fn generate(
             }
             let standards = crate::library::standards::get()?;
             let library = &document.project.library;
-            expand::marking(&made.generation, |name| {
+            expand::marking(&made.generation, &description.licence, |name| {
                 standards.fields.local(library, name).map(|f| f.id)
             })?
         }
@@ -595,6 +599,10 @@ pub(crate) fn generate(
     if let Some((fields, template)) = &host_fields {
         generated::select_fields(&mut definitions, fields, template.as_ref());
     }
+    let (host_marking, artwork) = match host_marking {
+        Some((spec, artwork)) => (Some(spec), artwork),
+        None => (None, Vec::new()),
+    };
     generated::set_marking(&mut definitions, host_marking.as_ref());
     // A part of a generic family is named by the family's label
     // ("Chip resistor 0603", "Pin header 2×5 2.54 mm"), as the Place
@@ -661,6 +669,18 @@ pub(crate) fn generate(
         }
     ));
     let part_description = bounded(preset.map(|p| p.description.clone()).unwrap_or_default());
+    // The marking's artwork, packed as SVG once per hash.
+    for asset in artwork {
+        if project.library.assets.iter().any(|a| a.hash == asset.hash) {
+            continue;
+        }
+        if project.library.assets.len() >= MAX_ASSETS {
+            return Err(Error::Limit(format!(
+                "a project packs at most {MAX_ASSETS} assets"
+            )));
+        }
+        project.library.assets.push(asset);
+    }
     if embed {
         if project.library.assets.len() >= MAX_ASSETS {
             return Err(Error::Limit(format!(

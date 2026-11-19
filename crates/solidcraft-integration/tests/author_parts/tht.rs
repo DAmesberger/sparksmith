@@ -628,6 +628,39 @@ fn can_top(s: &mut Session) {
     );
 }
 
+/// The sleeve's marking cylinder, as the host's radial form offered it:
+/// the body's side from a tenth of its height for eight tenths of it.
+const SLEEVE: [(&str, &str, &str, &str); 3] = [
+    (
+        "marking_sleeve_r",
+        "body_diameter / 2",
+        "mm",
+        "marking-sleeve radius (the body's)",
+    ),
+    (
+        "marking_sleeve_from",
+        "standoff + 0.1 * body_height",
+        "mm",
+        "marking-sleeve start above the seating plane",
+    ),
+    (
+        "marking_sleeve_l",
+        "0.8 * body_height",
+        "mm",
+        "marking-sleeve length along the axis",
+    ),
+];
+
+/// The `marking-sleeve` axis: the body's axis, up from the origin (angle 0
+/// of the cylinder faces +x, lead 2).
+fn sleeve(s: &mut Session) {
+    run(
+        s,
+        "construct.axis.two_points",
+        json!({"a": {"point": [0, 0, 0]}, "b": {"point": [0, 0, 1]}, "name": "marking-sleeve"}),
+    );
+}
+
 /// A radial part on straight round leads: a round body standing on its
 /// standoff, each lead from `lead_below` under the board up `root` into
 /// the body. Saved at Ø5 × 11 mm, leads 0.5 mm at 2 mm.
@@ -645,6 +678,7 @@ pub fn author_tht_radial() -> Vec<u8> {
         ("top_round", "0.3 mm", "mm", "round of the body's top edge"),
     ]);
     params.extend(CAN_TOP);
+    params.extend(SLEEVE);
     let mut s = design("Radial through-hole part", &params);
     disc(
         &mut s,
@@ -674,6 +708,7 @@ pub fn author_tht_radial() -> Vec<u8> {
         &[[dia / 2.0, 0.0, height]],
     );
     can_top(&mut s);
+    sleeve(&mut s);
     looks(&mut s);
     finish(s)
 }
@@ -756,6 +791,7 @@ pub fn author_tht_radial_formed() -> Vec<u8> {
         ("top_round", "0.3 mm", "mm", "round of the body's top edge"),
     ]);
     params.extend(CAN_TOP);
+    params.extend(SLEEVE);
     let mut s = design("Radial through-hole part, formed leads", &params);
     disc(
         &mut s,
@@ -776,6 +812,7 @@ pub fn author_tht_radial_formed() -> Vec<u8> {
         &[[dia / 2.0, 0.0, 1.5 + height]],
     );
     can_top(&mut s);
+    sleeve(&mut s);
     looks(&mut s);
     finish(s)
 }

@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "header.wasm",
-    "sha256": "432ff0f9b0f7afca2318b921ecf80de72df0b3360c10f224d80c1e16401d4a41"
+    "sha256": "7ae778946871394e151f20d8bacea9d8be954a18ba488ebf769828fd561552ee"
   },
   "name": "header",
   "parts": [

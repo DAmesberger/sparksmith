@@ -22,7 +22,7 @@
    "pad_length": 1650000,
    "pad_width": 1650000,
    "marking": [
-    "QN12A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -54,7 +54,7 @@
    "pad_length": 1700000,
    "pad_width": 1700000,
    "marking": [
-    "QN16A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -86,7 +86,7 @@
    "pad_length": 1700000,
    "pad_width": 1700000,
    "marking": [
-    "QN20A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -118,7 +118,7 @@
    "pad_length": 2100000,
    "pad_width": 2100000,
    "marking": [
-    "QN16A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -150,7 +150,7 @@
    "pad_length": 2600000,
    "pad_width": 2600000,
    "marking": [
-    "QN20A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -182,7 +182,7 @@
    "pad_length": 2600000,
    "pad_width": 2600000,
    "marking": [
-    "QN24A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -214,7 +214,7 @@
    "pad_length": 2600000,
    "pad_width": 2600000,
    "marking": [
-    "QN28A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -246,7 +246,7 @@
    "pad_length": 3100000,
    "pad_width": 3100000,
    "marking": [
-    "QN20A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -278,7 +278,7 @@
    "pad_length": 3250000,
    "pad_width": 3250000,
    "marking": [
-    "QN28A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -310,7 +310,7 @@
    "pad_length": 3450000,
    "pad_width": 3450000,
    "marking": [
-    "QN32A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -342,7 +342,7 @@
    "pad_length": 3500000,
    "pad_width": 3500000,
    "marking": [
-    "QN40A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -374,7 +374,7 @@
    "pad_length": 4100000,
    "pad_width": 4100000,
    "marking": [
-    "QN36A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -406,7 +406,7 @@
    "pad_length": 4500000,
    "pad_width": 4500000,
    "marking": [
-    "QN40A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -438,7 +438,7 @@
    "pad_length": 4400000,
    "pad_width": 4400000,
    "marking": [
-    "QN48A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -470,7 +470,7 @@
    "pad_length": 5150000,
    "pad_width": 5150000,
    "marking": [
-    "QN44A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -502,7 +502,7 @@
    "pad_length": 5300000,
    "pad_width": 5300000,
    "marking": [
-    "QN48A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -534,7 +534,7 @@
    "pad_length": 6000000,
    "pad_width": 6000000,
    "marking": [
-    "QN56A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -566,7 +566,7 @@
    "pad_length": 6400000,
    "pad_width": 6400000,
    "marking": [
-    "QN68A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -598,7 +598,7 @@
    "pad_length": 7150000,
    "pad_width": 7150000,
    "marking": [
-    "QN64A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -630,7 +630,7 @@
    "pad_length": 1600000,
    "pad_width": 1000000,
    "marking": [
-    "DN6A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -662,7 +662,7 @@
    "pad_length": 1600000,
    "pad_width": 900000,
    "marking": [
-    "DN8A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -694,7 +694,7 @@
    "pad_length": 1600000,
    "pad_width": 1300000,
    "marking": [
-    "DN8A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -726,7 +726,7 @@
    "pad_length": 2400000,
    "pad_width": 1600000,
    "marking": [
-    "DN6A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -758,7 +758,7 @@
    "pad_length": 2400000,
    "pad_width": 1600000,
    "marking": [
-    "DN8A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -790,7 +790,7 @@
    "pad_length": 2400000,
    "pad_width": 1650000,
    "marking": [
-    "DN10A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -822,7 +822,7 @@
    "pad_length": 2160000,
    "pad_width": 2160000,
    "marking": [
-    "QN16A"
+    "{mpn}"
    ]
   },
   "citation": {

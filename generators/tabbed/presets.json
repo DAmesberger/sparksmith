@@ -24,7 +24,7 @@
    "foot_length": 400000,
    "tab": "none",
    "marking": [
-    "A7W"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -57,7 +57,7 @@
    "foot_length": 400000,
    "tab": "none",
    "marking": [
-    "C6BK"
+    "{mpn}"
    ],
    "marking_pin1_dot": true
   },
@@ -92,7 +92,7 @@
    "tab_length": 900000,
    "tab": "lead",
    "marking": [
-    "223A"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -186,7 +186,7 @@
    "foot_length": 400000,
    "tab": "none",
    "marking": [
-    "B5AK"
+    "{mpn}"
    ],
    "marking_pin1_dot": true
   },
@@ -221,7 +221,7 @@
    "foot_length": 300000,
    "tab": "none",
    "marking": [
-    "K7"
+    "{mpn}"
    ]
   },
   "citation": {
@@ -255,7 +255,7 @@
    "foot_length": 300000,
    "tab": "none",
    "marking": [
-    "D5A"
+    "{mpn}"
    ],
    "marking_pin1_dot": true
   },
@@ -291,7 +291,7 @@
    "foot_length": 300000,
    "tab": "none",
    "marking": [
-    "E6A"
+    "{mpn}"
    ],
    "marking_pin1_dot": true
   },
@@ -329,7 +329,7 @@
    "tab_length": 600000,
    "tab": "lead",
    "marking": [
-    "89A"
+    "{mpn}"
    ]
   },
   "basis": "estimated",
