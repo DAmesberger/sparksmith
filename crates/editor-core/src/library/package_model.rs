@@ -271,8 +271,7 @@ impl PartFileModel {
                 SurfaceGeometry::Cylinder(c) => {
                     let unit = |v: &[f64; 3]| {
                         finite_within(v)
-                            && ((v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt() - 1.0).abs()
-                                < 1e-6
+                            && ((v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt() - 1.0).abs() < 1e-6
                     };
                     unit(&c.axis)
                         && unit(&c.zero)

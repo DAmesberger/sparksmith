@@ -622,13 +622,25 @@ fn generated_parts_mark_their_values_by_rule() -> TestResult {
     };
     // (words, designator, tolerance, texts of the marking and its decals,
     // marks drawn); `None`: no marking at all.
-    type Case<'a> = (&'a str, &'a str, Option<&'a str>, Option<Vec<&'a str>>, usize);
+    type Case<'a> = (
+        &'a str,
+        &'a str,
+        Option<&'a str>,
+        Option<Vec<&'a str>>,
+        usize,
+    );
     let cases: [Case<'_>; 11] = [
         ("resistor 0805 10k", "R1", Some("1%"), Some(vec!["1002"]), 0),
         ("resistor 0805 10k", "R2", Some("5%"), Some(vec!["103"]), 0),
         ("resistor 0805 10k", "R3", None, Some(vec!["103"]), 0),
         ("resistor 1206 4.7", "R4", Some("5%"), Some(vec!["4R7"]), 0),
-        ("resistor 1206 49.9", "R5", Some("1%"), Some(vec!["49R9"]), 0),
+        (
+            "resistor 1206 49.9",
+            "R5",
+            Some("1%"),
+            Some(vec!["49R9"]),
+            0,
+        ),
         ("resistor 0603 10k", "R6", Some("1%"), Some(vec!["01C"]), 0),
         ("resistor 0603 4.7k", "R7", Some("1%"), Some(vec!["472"]), 0),
         ("resistor 0402 10k", "R8", Some("1%"), None, 0),
@@ -697,7 +709,9 @@ fn generated_parts_mark_their_values_by_rule() -> TestResult {
             sparksmith_core::commands::instance_marking(session.engine().project(), instance)?;
         let Some(texts) = texts else {
             assert!(
-                layout.as_ref().is_none_or(|l| l.all().all(|l| l.elements.is_empty())),
+                layout
+                    .as_ref()
+                    .is_none_or(|l| l.all().all(|l| l.elements.is_empty())),
                 "{words}: {layout:?}"
             );
             continue;
@@ -715,7 +729,12 @@ fn generated_parts_mark_their_values_by_rule() -> TestResult {
         let drawn_marks = layout
             .all()
             .flat_map(|l| &l.elements)
-            .filter(|e| matches!(e, LaidElement::Polarity { .. } | LaidElement::Artwork { .. }))
+            .filter(|e| {
+                matches!(
+                    e,
+                    LaidElement::Polarity { .. } | LaidElement::Artwork { .. }
+                )
+            })
             .count();
         assert_eq!(drawn_marks, marks, "{words}: {layout:?}");
     }

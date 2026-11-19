@@ -5,10 +5,12 @@
 //! the component bodies and highlight with their part.
 //!
 //! Surfaces ([`Placement::on`]):
-//! - **Model**: the outward flat face of the instance's outermost package
-//!   body (the moulding, ceramic or overcoat; never a lead, a termination
-//!   or solder): the top for a part on the top side, the underside's outer
-//!   face for one on the bottom; its u axis the package +x as placed;
+//! - **Model**: a part file's default marking plane (`marking-top`, the
+//!   area the layout was sized for); for any other model the outward flat
+//!   face of the instance's outermost package body (the moulding, ceramic
+//!   or overcoat; never a lead, a termination or solder): the top for a
+//!   part on the top side, the underside's outer face for one on the
+//!   bottom; its u axis the package +x as placed;
 //! - **a box face** of the outermost body along that face's direction in
 //!   the package frame, found in the built mesh, so it follows imported
 //!   models too;
@@ -208,6 +210,21 @@ impl Marked<'_> {
     ) -> Option<(SurfaceMap, Region, Option<OpaqueSurface>)> {
         match &placement.on {
             SurfaceRef::Model => {
+                // A part file's default marking area is its first marking
+                // plane (`marking-top`), the area the layout was sized for
+                // (`PartFileModel::default_area`); other models mark the
+                // outermost top face found.
+                if let Some(name) = self.package.and_then(|p| {
+                    surface::package_anchors(p)
+                        .into_iter()
+                        .find(|a| matches!(a.geometry, SurfaceGeometry::Plane(_)))
+                        .map(|a| a.name)
+                }) {
+                    return self.resolve(&Placement {
+                        on: SurfaceRef::Anchor { name },
+                        ..placement.clone()
+                    });
+                }
                 let s = if self.top { 1.0 } else { -1.0 };
                 let (area, look) =
                     face_towards(&self.bodies, [0.0, 0.0, s], [self.u[0], self.u[1], 0.0])?;

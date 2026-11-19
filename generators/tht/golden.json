@@ -38,7 +38,7 @@
   {
    "name": "Radial Ø5 × 11 (polarised capacitor arc), component",
    "request": {"abi": 1, "scope": "component", "params": {"construction": "radial", "pins": 2, "lead_pitch": 2000000, "lead_diameter": 500000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 11000000, "body_diameter": 5000000, "symbol": "polarised_capacitor", "resistor_style": "iec"}},
-   "result": "cc52a182df74e852064c0ee0c65601e1e0ffddb3013545bc140cc66ae2077506"
+   "result": "8c223016eafee799dbbbf8a5cd2cefed205326a1f6819b9a2283494ac3702c82"
   }
  ]
 }

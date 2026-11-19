@@ -697,19 +697,19 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     if d.part == Part::Led {
         fields.push("colour".into());
     }
-    let mut marking =
-        sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor).map_err(|p| vec![p])?;
+    let mut marking = sparksmith_generator_sdk::marking::of(&args, d.part == Part::Resistor)
+        .map_err(|p| vec![p])?;
     if marking.is_none() {
         marking = match d.part {
-            Part::Resistor => resistor_marking(
-                args.text("resistor_code").map_err(|p| vec![p])?,
-                d.length,
-            )
-            .map(|line| v1::Marking {
-                lines: vec![line],
-                ink: true,
-                ..v1::Marking::default()
-            }),
+            Part::Resistor => {
+                resistor_marking(args.text("resistor_code").map_err(|p| vec![p])?, d.length).map(
+                    |line| v1::Marking {
+                        lines: vec![line],
+                        ink: true,
+                        ..v1::Marking::default()
+                    },
+                )
+            }
             Part::Led => Some(v1::Marking {
                 colour: Some(CATHODE_MARK_COLOUR),
                 polarity: Some(v1::Polarity {

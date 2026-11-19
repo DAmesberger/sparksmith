@@ -36,8 +36,8 @@ const CASES: [Case; 9] = [
         distance: 5.0,
     },
     Case {
-        name: "resistor-1206-0r",
-        words: Some("resistor 1206 0"),
+        name: "resistor-1206-4r7",
+        words: Some("resistor 1206 4.7"),
         preset: None,
         tolerance: None,
         mpn: None,
@@ -89,7 +89,7 @@ const CASES: [Case; 9] = [
         preset: None,
         tolerance: None,
         mpn: None,
-        distance: 30.0,
+        distance: 40.0,
     },
 ];
 
@@ -173,15 +173,17 @@ fn place(
             (
                 json!({"id": refs[0]["id"], "revision": refs[0]["revision"]}),
                 json!([]),
-                json!({"binding": {"id": binding["id"], "revision": binding["revision"]},
-                       "footprint": {"id": footprint["id"], "revision": footprint["revision"]}}),
+                json!({"binding": binding["id"],
+                       "footprint": footprint["id"]}),
             )
         }
         _ => return Err("a case names words or a preset".into()),
     };
     let library = &session.engine().project().library;
+    let reference = serde_json::from_value(component.clone())
+        .map_err(|e| format!("{}: no component ({e}): {component}", case.name))?;
     let symbol = library
-        .component(serde_json::from_value(component.clone())?)
+        .component(reference)
         .and_then(|c| c.definition.representations.first().map(|r| r.id))
         .ok_or("no symbol")?;
     let placed = apply(
@@ -270,9 +272,13 @@ fn write_marking_rule_pictures() -> Result<(), Box<dyn std::error::Error>> {
             .push(sparksmith_core::library::Published {
                 id,
                 revision: sparksmith_core::ids::Revision::FIRST,
-                meta: Default::default(),
+                meta: sparksmith_core::library::DefinitionMeta {
+                    name: mpn.into(),
+                    ..Default::default()
+                },
                 definition: sparksmith_core::library::PartDefinition {
                     mpn: mpn.into(),
+                    manufacturer: "Example".into(),
                     component,
                     binding,
                     ..Default::default()
@@ -310,10 +316,27 @@ fn write_marking_rule_pictures() -> Result<(), Box<dyn std::error::Error>> {
             })
             .collect();
         eprintln!("{}: {texts:?}", case.name);
-        for (view, yaw, pitch) in [("top", 0.0, 89.0), ("angle", 30.0, 45.0)] {
+        // A sleeve is seen from round about, at its middle's height.
+        let views: &[(&str, f64, f64)] = if case.name.starts_with("radial") {
+            &[
+                ("top", 0.0, 89.0),
+                ("side-0", 0.0, 15.0),
+                ("side-90", 90.0, 15.0),
+                ("side-180", 180.0, 15.0),
+                ("side-270", 270.0, 15.0),
+            ]
+        } else {
+            &[("top", 0.0, 89.0), ("angle", 30.0, 45.0)]
+        };
+        let height = if case.name.starts_with("radial") {
+            6.0
+        } else {
+            1.0
+        };
+        for (view, yaw, pitch) in views.iter().copied() {
             aim(
                 &mut v,
-                Vec3::new(at[0], at[1], 1.0),
+                Vec3::new(at[0], at[1], height),
                 case.distance,
                 yaw,
                 pitch,

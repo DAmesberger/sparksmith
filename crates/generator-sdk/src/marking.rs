@@ -104,13 +104,14 @@ pub fn electrolytic_lines() -> Vec<String> {
 
 /// The negative stripe as SVG artwork `width_nm` round by `height_nm`
 /// along: a pale band with a column of minus signs left open in it (the
-/// sleeve shows through), one per band width.
+/// sleeve shows through), each two fifths of the band wide, one every
+/// three fifths of its width (est., as sleeves print them).
 pub fn stripe_svg(width_nm: i64, height_nm: i64) -> String {
     // In micrometres.
     let (w, h) = ((width_nm / 1_000).max(1), (height_nm / 1_000).max(1));
     let [r, g, b] = SLEEVE_INK;
     let mut path = alloc::format!("M0 0H{w}V{h}H0Z");
-    let (sign_w, sign_t, pitch) = (w / 2, (w / 10).max(1), w.max(1));
+    let (sign_w, sign_t, pitch) = (w * 2 / 5, (w / 12).max(1), (w * 3 / 5).max(1));
     let count = (h / pitch).max(1);
     let top = (h - count * pitch) / 2;
     for k in 0..count {
@@ -155,10 +156,7 @@ pub fn electrolytic_sleeve(radius_nm: i64, along_nm: i64) -> v1::Marking {
         lines: electrolytic_lines(),
         colour: Some(SLEEVE_INK),
         surface: Some(String::from("sleeve")),
-        wrap: Some([
-            180_000 - SLEEVE_TEXT_SPAN_MDEG / 2,
-            SLEEVE_TEXT_SPAN_MDEG,
-        ]),
+        wrap: Some([180_000 - SLEEVE_TEXT_SPAN_MDEG / 2, SLEEVE_TEXT_SPAN_MDEG]),
         decals: alloc::vec![stripe],
         ..v1::Marking::default()
     }

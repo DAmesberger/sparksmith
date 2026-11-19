@@ -25,11 +25,11 @@ use crate::ids::{
     BindingRef, DefinitionId, FootprintRef, FunctionId, GraphicId, PackageRef, PackageTerminalId,
     PadId, SymbolRef, TerminalId, UnitId,
 };
+use crate::library::bundle::{AssetBytes, PackedAsset};
 use crate::library::graphics::{
     self, FootprintGraphic, Graphic, HAlign, Item, Justify, Pin, PinDirection, Rotation, ShapeNm,
     TextContent, VAlign,
 };
-use crate::library::bundle::{AssetBytes, PackedAsset};
 use crate::library::package_model::PartValue;
 use crate::library::{
     BindingDefinition, ComponentDefinition, CornerMask, Definition, DrawingLayer,
@@ -1065,7 +1065,10 @@ mod marking_tests {
             .placement
             .wrap
             .ok_or_else(|| Error::Invalid("unwrapped".into()))?;
-        assert_eq!((wrap.seam_mdeg.millidegrees(), wrap.wrap_mdeg), (320_000, 80_000));
+        assert_eq!(
+            (wrap.seam_mdeg.millidegrees(), wrap.wrap_mdeg),
+            (320_000, 80_000)
+        );
         assert_eq!(assets.len(), 1);
         assert_eq!(assets[0].data.as_slice(), svg.as_bytes());
         assert_eq!(

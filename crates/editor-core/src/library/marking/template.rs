@@ -39,7 +39,9 @@ pub(super) enum Piece {
 pub(super) enum Format {
     Code(CodeScheme),
     /// The SI value divided by `10^exponent`, shortest decimal form.
-    Number { exponent: i32 },
+    Number {
+        exponent: i32,
+    },
 }
 
 /// A condition on a field's number.
@@ -286,7 +288,11 @@ fn number(value: f64, exponent: i32) -> Option<String> {
     }
     let text = format!("{:.6}", scaled);
     let text = text.trim_end_matches('0').trim_end_matches('.');
-    Some(if text == "-0" { "0".into() } else { text.into() })
+    Some(if text == "-0" {
+        "0".into()
+    } else {
+        text.into()
+    })
 }
 
 fn one(piece: &Piece, inputs: &MarkingInputs, out: &mut String) -> Result<(), Missing> {

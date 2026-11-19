@@ -654,7 +654,11 @@ fn marking(marking: &v1::Marking, top: bool) -> Result<(), Failure> {
             "The generator returned a marking wrap that starts beyond a turn or spans no angle or more than a turn.".into(),
         ));
     }
-    count("marking artwork", marking.artwork.len(), limits::MARKING_ARTWORK)?;
+    count(
+        "marking artwork",
+        marking.artwork.len(),
+        limits::MARKING_ARTWORK,
+    )?;
     for art in &marking.artwork {
         if art.svg.is_empty() || art.svg.len() > limits::MARKING_SVG_BYTES {
             return Err(invalid(format!(
@@ -662,7 +666,11 @@ fn marking(marking: &v1::Marking, top: bool) -> Result<(), Failure> {
                 limits::MARKING_SVG_BYTES
             )));
         }
-        if !art.size.iter().all(|s| *s > 0 && *s <= limits::COORDINATE_NM) {
+        if !art
+            .size
+            .iter()
+            .all(|s| *s > 0 && *s <= limits::COORDINATE_NM)
+        {
             return Err(invalid(
                 "The generator returned marking artwork without a positive size.".into(),
             ));
@@ -673,7 +681,11 @@ fn marking(marking: &v1::Marking, top: bool) -> Result<(), Failure> {
             "The generator returned a further marking with further markings of its own.".into(),
         ));
     }
-    count("further markings", marking.decals.len(), limits::MARKING_DECALS)?;
+    count(
+        "further markings",
+        marking.decals.len(),
+        limits::MARKING_DECALS,
+    )?;
     for decal in &marking.decals {
         self::marking(decal, false)?;
     }
