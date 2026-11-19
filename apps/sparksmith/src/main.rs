@@ -24,10 +24,13 @@ mod model_scene;
 #[cfg(target_os = "macos")]
 mod native_menu;
 mod navigation;
+mod online_library;
 mod open_documents;
 mod palette;
 mod part_chooser;
 mod part_editor;
+// Wired into the Place palette by the registry slice.
+mod part_preview;
 mod pcb_editor;
 mod pin_mux;
 mod place_palette;

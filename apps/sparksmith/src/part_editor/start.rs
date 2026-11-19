@@ -275,7 +275,9 @@ impl PartEditor {
         let mut show_all = false;
         let names = |entry: &CatalogEntry| match entry.source {
             Source::Project => "This project".to_owned(),
-            Source::Library(library) => self.identity.library_name(library),
+            Source::Library(library) | Source::Online(library) => {
+                self.identity.library_name(library)
+            }
         };
         if let Some(notice) = &self.start.notice {
             kit::search_message(ui, notice, true);
@@ -456,7 +458,7 @@ fn subject_of(entry: &CatalogEntry) -> Option<Subject> {
             DefinitionKind::Part => entry.implements.map(|c| Subject::Project(c.id)),
             _ => None,
         },
-        Source::Library(_) => FolderPick::of(entry).map(Subject::Folder),
+        Source::Library(_) | Source::Online(_) => FolderPick::of(entry).map(Subject::Folder),
     }
 }
 
