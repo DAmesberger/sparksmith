@@ -343,7 +343,7 @@ fn a_text_height_sets_lines_at_it_and_shrinks_long_ones_to_fit() -> Fallible<()>
     let [h] = heights(&spec)?[..] else {
         return Err("one line".into());
     };
-    assert!(h < 0.65 && h >= DEFAULT_MIN_TEXT_HEIGHT_MM, "{h}");
+    assert!((DEFAULT_MIN_TEXT_HEIGHT_MM..0.65).contains(&h), "{h}");
     // A text height is a positive size.
     spec.text_height_nm = Some(nm(0.0));
     assert!(!one_spec_problems(&spec).is_empty());
