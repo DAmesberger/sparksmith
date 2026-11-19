@@ -112,7 +112,7 @@
     },
     {
       "name": "marking_top_v",
-      "expr": "0.5 * body_width",
+      "expr": "0.2 * body_width",
       "unit": "mm",
       "comment": "marking-top size across it",
       "model": false

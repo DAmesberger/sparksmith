@@ -1366,8 +1366,8 @@ fn write_ic_pictures() -> Result<(), Box<dyn std::error::Error>> {
         let target = &mut project.library.packages[0].definition;
         target.envelope_nm = generated.envelope_nm;
         target.model = generated.model.clone();
-        // The part's own top marking (the complete part's), on every
-        // placed part, when it needs no field the demo parts lack.
+        // The complete part with its default top marking, as the Component
+        // 3D preview draws it (every field it names at 4.7 k).
         let mut whole = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
         whole.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(&root)?);
         let revision = whole.engine().revision();
@@ -1376,14 +1376,31 @@ fn write_ic_pictures() -> Result<(), Box<dyn std::error::Error>> {
             "params": {"generator": generator, "scope": "component", "preset": preset,
                        "params": params, "expected_revision": revision},
         }));
-        let marking = (made["ok"] == true)
-            .then(|| whole.engine().project().library.components.last())
-            .flatten()
-            .and_then(|c| c.definition.marking.as_deref().cloned())
-            .filter(|m| !format!("{m:?}").contains("{field:"));
-        if let Some(marking) = marking {
-            for instance in &mut project.instances {
-                instance.marking.replace = Some(marking.clone());
+        let library = &whole.engine().project().library;
+        if made["ok"] == true
+            && let (Some(component), Some(package)) =
+                (library.components.last(), library.packages.last())
+            && let Some(spec) = component.definition.marking.as_deref()
+        {
+            let inputs = sparksmith_core::library::marking::MarkingInputs {
+                designator: "U1".into(),
+                fields: component
+                    .definition
+                    .fields
+                    .iter()
+                    .map(|f| (f.field.id, ("4.7 k".to_owned(), Some(4700.0))))
+                    .collect(),
+                ..Default::default()
+            };
+            let mut v = marked_preview(&package.definition, library, spec, &inputs)?;
+            let b = v.bounds;
+            let (w, h) = (1280, 960);
+            for (view, yaw, pitch, far) in [("marked", 30.0, 40.0, 1.5), ("marked-top", 0.0, 89.0, 1.2)] {
+                aim(&mut v, b.center(), far * b.diagonal(), yaw, pitch);
+                let rgba = gpu.draw(&mut v, w, h, 2.0).ok_or("no picture")?;
+                let png = sparksmith_solidcraft::viewport::png(w as usize, h as usize, rgba)
+                    .ok_or("png encoding failed")?;
+                std::fs::write(dir.join(format!("{name}-{view}.png")), png)?;
             }
         }
         let mut v = viewport(&project)?;

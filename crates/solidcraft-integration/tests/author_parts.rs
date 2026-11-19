@@ -1371,7 +1371,7 @@ pub fn author_no_lead(four: bool, pad: bool, kind: NoLead) -> Vec<u8> {
         ),
         (
             "marking_top_v",
-            "0.5 * body_width",
+            "0.2 * body_width",
             "mm",
             "marking-top size across it",
         ),
@@ -2336,7 +2336,7 @@ fn author_tabbed(side: TabbedSide) -> Vec<u8> {
     );
     length(
         "marking_top_v",
-        "0.7 * (body_width - 2 * draft_inset)",
+        "0.35 * body_width",
         "marking-top size across it",
     );
     params.extend(lead_profile_params("lead", "foot_length"));
@@ -2485,9 +2485,11 @@ fn author_tabbed(side: TabbedSide) -> Vec<u8> {
 
 /// A part file of the `tabbed` generator's bundle: a PLCC LED with its
 /// driver (Worldsemi's WS2812B, 5050), as the datasheet's drawing shows it:
-/// a white housing on the leads' feet, a round cavity in its top filled
-/// with clear encapsulant over the leadframe, the driver die and three LED
-/// chips, the pin-3 corner cut; each lead leaves the housing's side,
+/// a white housing on the leads' feet, a round cavity in its top over the
+/// leadframe, the driver die and three LED chips, the pin-3 corner cut.
+/// The cavity's clear encapsulant is left out: the 3D view draws clear
+/// silicone opaque, which would hide the chips a person sees through it;
+/// each lead leaves the housing's side,
 /// runs down it and folds under the housing to its foot. The −y and +y
 /// rows are patterns with their own counts and grid steps, as the other
 /// tabbed files. Saved at the WS2812B's values; the generator gives every
@@ -2647,19 +2649,6 @@ fn author_plcc_led() -> Vec<u8> {
                 "body_name": name}),
         );
     }
-    circle(&mut s, "encapsulant outline");
-    run(
-        &mut s,
-        "solid.extrude",
-        json!({"sketch": "encapsulant outline", "distance": "lens_depth",
-            "operation": "new", "name": "encapsulant", "body_name": "lens"}),
-    );
-    run(
-        &mut s,
-        "solid.combine",
-        json!({"target": "lens", "tools": ["leadframe", "driver die", "red chip", "green chip",
-                "blue chip"], "operation": "cut", "keep_tools": true, "name": "lens around the dies"}),
-    );
     // Each row's first lead: out of the housing's side, down it and under
     // it, as three joined boxes; then the row's pattern.
     for (row, plus) in [("row_s", false), ("row_n", true)] {
@@ -2731,7 +2720,6 @@ fn author_plcc_led() -> Vec<u8> {
     assert_eq!(leads.len(), 32, "{leads:?}");
     let leads: Vec<&str> = leads.iter().map(String::as_str).collect();
     assign_look(&mut s, &["body"], MaterialId::PaWhite);
-    assign_look(&mut s, &["lens"], MaterialId::SiliconeClear);
     assign_look(
         &mut s,
         &["leadframe", "driver die"],
@@ -3186,7 +3174,7 @@ fn author_gull_wing(four: bool, bevel: bool) -> Vec<u8> {
     ));
     params.push((
         "marking_top_v".into(),
-        "0.6 * (body_width - 2 * draft_inset)".into(),
+        "0.2 * body_width".into(),
         "mm",
         "marking-top size across it".into(),
     ));

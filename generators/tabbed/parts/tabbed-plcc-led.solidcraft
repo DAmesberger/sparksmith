@@ -164,12 +164,6 @@
       "expr": "lens_diameter",
       "unit": "mm",
       "model": true
-    },
-    {
-      "name": "d25",
-      "expr": "lens_diameter",
-      "unit": "mm",
-      "model": true
     }
   ],
   "features": [
@@ -527,118 +521,15 @@
     },
     {
       "id": 11,
-      "name": "encapsulant outline",
-      "suppressed": false,
-      "param_names": [
-        "d24"
-      ],
-      "type": "sketch",
-      "plane": {
-        "type": "offset",
-        "base": {
-          "type": "origin",
-          "name": "XY"
-        },
-        "distance": "standoff + body_height - lens_depth"
-      },
-      "sketch": {
-        "points": [
-          {
-            "id": "origin",
-            "pos": [
-              0.0,
-              0.0
-            ],
-            "fixed": true
-          },
-          {
-            "id": "c1.center",
-            "pos": [
-              0.0,
-              0.0
-            ],
-            "fixed": false
-          }
-        ],
-        "curves": [
-          {
-            "id": "c1",
-            "type": "circle",
-            "c": 1,
-            "r": 1.9500000000000002,
-            "construction": false
-          }
-        ],
-        "constraints": [
-          {
-            "id": "k1",
-            "type": "coincident",
-            "p": 0,
-            "q": 1
-          },
-          {
-            "id": "k2",
-            "type": "diameter",
-            "c": 0,
-            "value": 3.9000000000000004,
-            "param": "d25"
-          }
-        ],
-        "counters": {
-          "c": 1,
-          "k": 2
-        }
-      }
-    },
-    {
-      "id": 12,
-      "name": "encapsulant",
-      "suppressed": false,
-      "body_names": [
-        "lens"
-      ],
-      "param_names": [
-        "d26"
-      ],
-      "type": "extrude",
-      "sketch": 11,
-      "profiles": {
-        "type": "all"
-      },
-      "extent": {
-        "distance": "lens_depth",
-        "convention": "total_distance",
-        "direction": "positive"
-      },
-      "operation": "new_body"
-    },
-    {
-      "id": 13,
-      "name": "lens around the dies",
-      "suppressed": false,
-      "type": "combine",
-      "target": "lens",
-      "tools": [
-        "leadframe",
-        "driver die",
-        "red chip",
-        "green chip",
-        "blue chip"
-      ],
-      "operation": "cut",
-      "keep_tools": true
-    },
-    {
-      "id": 14,
       "name": "row_s lead stub",
       "suppressed": false,
       "body_names": [
         "row_s lead"
       ],
       "param_names": [
-        "d27",
-        "d28",
-        "d29"
+        "d24",
+        "d25",
+        "d26"
       ],
       "type": "box",
       "corner": [
@@ -652,13 +543,13 @@
       "operation": "new_body"
     },
     {
-      "id": 15,
+      "id": 12,
       "name": "row_s lead side",
       "suppressed": false,
       "param_names": [
-        "d30",
-        "d31",
-        "d32"
+        "d27",
+        "d28",
+        "d29"
       ],
       "participants": [
         "row_s lead"
@@ -675,13 +566,13 @@
       "operation": "join"
     },
     {
-      "id": 16,
+      "id": 13,
       "name": "row_s lead foot",
       "suppressed": false,
       "param_names": [
-        "d33",
-        "d34",
-        "d35"
+        "d30",
+        "d31",
+        "d32"
       ],
       "participants": [
         "row_s lead"
@@ -698,7 +589,7 @@
       "operation": "join"
     },
     {
-      "id": 17,
+      "id": 14,
       "name": "row_s pattern",
       "suppressed": false,
       "body_names": [
@@ -719,8 +610,8 @@
         "row_s lead (16)"
       ],
       "param_names": [
-        "d36",
-        "d37"
+        "d33",
+        "d34"
       ],
       "type": "pattern",
       "features": [],
@@ -739,16 +630,16 @@
       ]
     },
     {
-      "id": 18,
+      "id": 15,
       "name": "row_n lead stub",
       "suppressed": false,
       "body_names": [
         "row_n lead"
       ],
       "param_names": [
-        "d38",
-        "d39",
-        "d40"
+        "d35",
+        "d36",
+        "d37"
       ],
       "type": "box",
       "corner": [
@@ -762,13 +653,13 @@
       "operation": "new_body"
     },
     {
-      "id": 19,
+      "id": 16,
       "name": "row_n lead side",
       "suppressed": false,
       "param_names": [
-        "d41",
-        "d42",
-        "d43"
+        "d38",
+        "d39",
+        "d40"
       ],
       "participants": [
         "row_n lead"
@@ -785,13 +676,13 @@
       "operation": "join"
     },
     {
-      "id": 20,
+      "id": 17,
       "name": "row_n lead foot",
       "suppressed": false,
       "param_names": [
-        "d44",
-        "d45",
-        "d46"
+        "d41",
+        "d42",
+        "d43"
       ],
       "participants": [
         "row_n lead"
@@ -808,7 +699,7 @@
       "operation": "join"
     },
     {
-      "id": 21,
+      "id": 18,
       "name": "row_n pattern",
       "suppressed": false,
       "body_names": [
@@ -829,8 +720,8 @@
         "row_n lead (16)"
       ],
       "param_names": [
-        "d47",
-        "d48"
+        "d44",
+        "d45"
       ],
       "type": "pattern",
       "features": [],
@@ -849,11 +740,11 @@
       ]
     },
     {
-      "id": 22,
+      "id": 19,
       "name": "edge round",
       "suppressed": false,
       "param_names": [
-        "d49"
+        "d46"
       ],
       "edge_refs": [
         {
@@ -890,11 +781,11 @@
       "fit": "reduce"
     },
     {
-      "id": 23,
+      "id": 20,
       "name": "marking-top",
       "suppressed": false,
       "param_names": [
-        "d50"
+        "d47"
       ],
       "type": "construction_plane",
       "plane": {
@@ -921,7 +812,7 @@
       }
     }
   ],
-  "next_id": 24,
+  "next_id": 21,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {
@@ -993,20 +884,6 @@
           "metallic": 1.0,
           "roughness": 0.3,
           "dielectric_ior": 1.5
-        }
-      },
-      "lens": {
-        "name": "silicone-clear",
-        "color": [
-          243,
-          243,
-          243
-        ],
-        "opacity": 1.0,
-        "pbr": {
-          "metallic": 0.0,
-          "roughness": 0.08,
-          "dielectric_ior": 1.41
         }
       },
       "red chip": {

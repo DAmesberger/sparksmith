@@ -2,7 +2,7 @@
   "format": 1,
   "name": "tabbed-plcc-led",
   "title": "PLCC LED package",
-  "summary": "PLCC LED with its driver (5050 addressable LED): a white housing standing on the leads' feet, a round cavity in its top filled with clear encapsulant over the leadframe, the driver die and three LED chips, the pin-3 corner cut; each lead leaves the housing's side, runs down it and folds under the housing to its foot; the −y and +y rows each a pattern with its own count and grid step (pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length, row_s_leads, row_s_step, row_n_leads, row_n_step, corner_round, edge_round; the cavity, chips and notch derived).",
+  "summary": "PLCC LED with its driver (5050 addressable LED): a white housing standing on the leads' feet, a round cavity in its top over the leadframe, the driver die and three LED chips (the clear encapsulant left out, since the 3D view draws clear silicone opaque), the pin-3 corner cut; each lead leaves the housing's side, runs down it and folds under the housing to its foot; the −y and +y rows each a pattern with its own count and grid step (pitch, body_length, body_width, body_height, standoff, span, lead_width, lead_thickness, foot_length, row_s_leads, row_s_step, row_n_leads, row_n_step, corner_round, edge_round; the cavity, chips and notch derived).",
   "use": "package_body",
   "prefix": "D",
   "lands": [],

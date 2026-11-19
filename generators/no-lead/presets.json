@@ -886,11 +886,7 @@
    "terminal_width": 300000,
    "exposed_pad": false,
    "construction": "sensor_window",
-   "window_diameter": 600000,
-   "marking": [
-    "SH4x",
-    "AD1ABC"
-   ]
+   "window_diameter": 600000
   },
   "citation": {
    "document": "Sensirion SHT4x datasheet, version 7.3 (June 2026), 5.2 Package Outline",
