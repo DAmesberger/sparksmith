@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tht.wasm",
-    "sha256": "d6f38ce69d5e6be82912e3fd1b1211be8f2a73b85b5226764897a90c8eb78757"
+    "sha256": "6fce0408ca916b734645bc19a9bdf288f3ae32969362a784c70e7e32e1bd7520"
   },
   "name": "tht",
   "parts": [
@@ -24,14 +24,14 @@
       "file": "parts/tht-radial.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at Ø5 × 11 mm, leads 0.5 mm at 2 mm); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
-      "sha256": "a03762d2339e97814a7dd9c6898cf43e18b3dd02b3c6237496761fa6f0d7c4dc",
+      "sha256": "6037a7e70dbfcb606e96818ca3a1201b1871cc4991d094c4bc88a4a14b3182f2",
       "title": "Radial through-hole part"
     },
     {
       "file": "parts/tht-radial-formed.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work: the in-code through-hole builder's construction (crates/solidcraft-integration/src/models/tht.rs, retired with this file) authored through SolidCraft's commands over plain parameters by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (saved at Ø5 × 11 mm, leads 0.5 mm from 2 mm at the body to 5 mm, 1.5 mm standoff); the tht generator gives every value. Estimated lead roots, bends and rounds; no vendor drawing or EDA/CAD library data copied.",
-      "sha256": "8c4f93d28e1b18004ba67ed50464ae2149dafa9d2de0ad756c430f3e0da4606e",
+      "sha256": "a458b669bd421df36d4aabf6a8e83dbaf643149ac308fc3d7998dc18c34d6808",
       "title": "Radial through-hole part, formed leads"
     },
     {

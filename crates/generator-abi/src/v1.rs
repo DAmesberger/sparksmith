@@ -126,6 +126,12 @@ pub mod limits {
     pub const MARKING_LINES: usize = 4;
     /// Most bytes in one marking line (the core's text template bound).
     pub const MARKING_LINE_BYTES: usize = 128;
+    /// Most further markings one marking carries (the core's decal bound).
+    pub const MARKING_DECALS: usize = 4;
+    /// Most artwork items in one marking.
+    pub const MARKING_ARTWORK: usize = 2;
+    /// Most bytes of one marking's SVG artwork.
+    pub const MARKING_SVG_BYTES: usize = 16 * 1024;
     /// Most an arc's start and end may differ in their distance from its
     /// centre: each is rounded to the nanometre once.
     pub const ARC_RADIUS_NM: i64 = 1;
@@ -572,11 +578,15 @@ pub struct Generation {
 /// A default top marking: text lines, top to bottom. Each line is literal
 /// text with placeholders the host fills per placed part: `{mpn}`,
 /// `{manufacturer}`, `{designator}`, `{var:<name>}` and
-/// `{field:<standard field>}` with an optional code (`|code3`, `|code4`,
-/// `|eia96`, `|cap3`), the standard field named as the standard fields name it
-/// (`Resistance`). At most [`limits::MARKING_LINES`] lines of at most
-/// [`limits::MARKING_LINE_BYTES`] bytes.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// `{field:<standard field>}` with an optional format (`|code3`, `|code4`,
+/// `|eia96`, `|cap3`, `|num:µ`), the standard field named as the standard
+/// fields name it (`Resistance`). A placeholder may list alternatives
+/// separated by `;`, each with an optional condition on a field's number
+/// after `?` (`{field:Resistance|code4?field:Tolerance<=1%;field:Resistance|code3}`):
+/// the first that holds and renders is drawn. At most
+/// [`limits::MARKING_LINES`] lines of at most [`limits::MARKING_LINE_BYTES`]
+/// bytes.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Marking {
     pub lines: Vec<String>,
@@ -588,6 +598,77 @@ pub struct Marking {
     /// SC-70 whose moulding carries no pin-1 feature).
     #[serde(default, skip_serializing_if = "is_false")]
     pub pin1_dot: bool,
+    /// The ink's sRGB colour where the print is not white (an aluminium
+    /// can's black print, a sleeve's pale print). Implies ink.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub colour: Option<[u8; 3]>,
+    /// The part file's marking surface (`sleeve`, the anchor of a
+    /// `marking-sleeve` plane or axis); the default marking area when
+    /// absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub surface: Option<String>,
+    /// Round a cylindrical surface: the angle the marking starts at and
+    /// the angle it spans, millidegrees from the surface's angle 0. A full
+    /// turn centred opposite angle 0 when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub wrap: Option<[i64; 2]>,
+    /// A polarity mark (an LED's cathode bar).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub polarity: Option<Polarity>,
+    /// SVG artwork the generator draws (a negative stripe), packed by the
+    /// host under the generator's licence.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artwork: Vec<Artwork>,
+    /// Further markings on other surfaces of the part (a sleeve's print
+    /// beside the can top's), without further markings of their own; at
+    /// most [`limits::MARKING_DECALS`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decals: Vec<Marking>,
+}
+
+/// A polarity mark of a marking.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Polarity {
+    pub mark: PolarityShape,
+    #[serde(default)]
+    pub at: MarkPlace,
+}
+
+/// A polarity mark's shape.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PolarityShape {
+    Dot,
+    Bar,
+    Band,
+    Stripe,
+}
+
+/// Where in the marking area a mark sits.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MarkPlace {
+    #[default]
+    Centre,
+    /// The pin-1 corner.
+    Pin1,
+    /// The −x end (pin 1).
+    Start,
+    /// The +x end.
+    End,
+}
+
+/// SVG artwork in a marking: the SVG text and the size it is drawn at.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Artwork {
+    /// The SVG document, at most [`limits::MARKING_SVG_BYTES`] bytes.
+    pub svg: String,
+    /// Width and height, nm.
+    pub size: [i64; 2],
+    #[serde(default)]
+    pub at: MarkPlace,
 }
 
 fn is_false(b: &bool) -> bool {

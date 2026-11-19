@@ -296,3 +296,55 @@ fn the_part_file_hashes_are_the_bundles_files() -> Result<(), String> {
     }
     Ok(())
 }
+
+#[test]
+fn resistors_carry_the_value_code_their_size_and_preset_ask_for() -> Result<(), Vec<Problem>> {
+    let three = "{field:Resistance|code3}";
+    let four = "{field:Resistance|code4?field:Tolerance<=1%;field:Resistance|code3}";
+    let eia = "{field:Resistance|eia96?field:Tolerance<=1%;field:Resistance|code3}";
+    for (key, line) in [
+        ("resistor-01005", None),
+        ("resistor-0201", None),
+        ("resistor-0402", None),
+        ("resistor-0603", Some(eia)),
+        ("resistor-0805", Some(four)),
+        ("resistor-1206", Some(four)),
+        ("resistor-2512", Some(four)),
+    ] {
+        let g = Chip::generate(&request(Scope::Component, &preset(key)))?;
+        let lines = g.marking.as_ref().map(|m| (m.lines.clone(), m.ink));
+        assert_eq!(lines, line.map(|l| (vec![String::from(l)], true)), "{key}");
+    }
+    // The size rule alone: 0603 three digits; a given code wins; lines
+    // given in Top marking replace the rule.
+    let mut auto = preset("resistor-0603");
+    auto.push(kv("resistor_code", ParamValue::Text("auto".into())));
+    let g = Chip::generate(&request(Scope::Component, &auto))?;
+    assert_eq!(g.marking.map(|m| m.lines), Some(vec![String::from(three)]));
+    let mut none = preset("resistor-1206");
+    none.push(kv("resistor_code", ParamValue::Text("none".into())));
+    assert_eq!(
+        Chip::generate(&request(Scope::Component, &none))?.marking,
+        None
+    );
+    let mut given = preset("resistor-1206");
+    given.push(kv(
+        "marking",
+        ParamValue::List(vec![ParamValue::Text("R100".into())]),
+    ));
+    let g = Chip::generate(&request(Scope::Component, &given))?;
+    assert_eq!(g.marking.map(|m| m.lines), Some(vec![String::from("R100")]));
+    // An LED's cathode (pin 1, −x) carries a bar; a capacitor nothing.
+    let g = Chip::generate(&request(Scope::Component, &preset("led-0603")))?;
+    let polarity = g.marking.and_then(|m| m.polarity);
+    assert_eq!(
+        polarity,
+        Some(v1::Polarity {
+            mark: v1::PolarityShape::Bar,
+            at: v1::MarkPlace::Start,
+        })
+    );
+    let g = Chip::generate(&request(Scope::Component, &preset("capacitor-0603")))?;
+    assert_eq!(g.marking, None);
+    Ok(())
+}

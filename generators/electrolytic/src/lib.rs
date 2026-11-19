@@ -35,8 +35,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The size codes, in nm, with their citations.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+/// The generator's version (`Description::version`): 2 prints the values
+/// on the can top in black ([`marking`]).
+const VERSION: u32 = 2;
 
 /// The seat plate's height (est.: 0.9–1.2 mm on 4–10 mm parts), at most a
 /// quarter of the overall height.
@@ -473,7 +474,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.l).trim_end_matches(" mm"),
     );
     Ok(Generation {
-        marking: None,
+        marking: Some(marking()),
         component: component_part.then(|| Component {
             terminals: [("1", "+"), ("2", "−")]
                 .iter()
@@ -523,3 +524,14 @@ impl Generator for Electrolytic {
 
 #[cfg(test)]
 mod tests;
+
+/// The can top's print: the capacitance in µF and the rated voltage in
+/// black on the bare part of the top (the part file's `marking-top`,
+/// beside the inlaid negative sector).
+fn marking() -> v1::Marking {
+    v1::Marking {
+        lines: sparksmith_generator_sdk::marking::electrolytic_lines(),
+        colour: Some(sparksmith_generator_sdk::marking::CAN_TOP_INK),
+        ..v1::Marking::default()
+    }
+}
