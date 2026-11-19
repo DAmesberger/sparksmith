@@ -233,7 +233,8 @@ fn a_second_distance_that_only_a_turn_would_satisfy_is_refused() -> TestResult {
 
 /// Second VM test drive, blocker 3: R5 (a generated 0603 at (24, 11.5),
 /// turned 90°) dimensioned from its body's side edge, which runs along the
-/// board's y from (24.4, 11) to (24.4, 12), to the bottom edge. The tool
+/// board's y from (24.385, 11) to (24.385, 12) (the caps, 0.8 mm wide,
+/// stand 15 µm proud of the body), to the bottom edge. The tool
 /// shows 11.5 mm (from the edge's middle); 11 mm moves R5 0.5 mm down to
 /// y = 11, and the distance shown afterwards is the 11 mm the card holds.
 /// (Before, the solve measured from the edge's start, already 11 mm up, so
@@ -346,7 +347,7 @@ fn an_edge_dimension_moves_the_part_to_the_value_shown() -> TestResult {
         );
         assert_eq!(deleted["ok"], true, "{deleted}");
     }
-    let (edge, now) = pick_to_bottom(&session, "R5", [24.4, 11.5, 0.2])?;
+    let (edge, now) = pick_to_bottom(&session, "R5", [24.385, 11.5, 0.2])?;
     assert!((now - 11.5).abs() < 1e-9, "{now}");
     let refs = json!([edge, bottom_edge(&session)?]);
     let before_dimension = session.engine().to_file();
@@ -361,7 +362,7 @@ fn an_edge_dimension_moves_the_part_to_the_value_shown() -> TestResult {
         placed.position
     );
     assert_eq!(placed.rotation_deg, 90.0);
-    let (_, shown) = pick_to_bottom(&session, "R5", [24.4, 11.0, 0.2])?;
+    let (_, shown) = pick_to_bottom(&session, "R5", [24.385, 11.0, 0.2])?;
     assert!((shown - 11.0).abs() < 1e-9, "{shown}");
     connected(&session)?;
     let after_dimension = session.engine().to_file();

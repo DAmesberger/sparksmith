@@ -45,5 +45,6 @@
    "request": {"abi": 1, "scope": "component", "params": {"leads_s": 2, "leads_n": 2, "step_s": 1, "step_n": 1, "pitch": 3300000, "body_length": 5000000, "body_width": 5000000, "body_height": 1420000, "standoff": 150000, "span": 5400000, "lead_width": 900000, "lead_thickness": 150000, "foot_length": 1000000, "tab": "none", "tab_width": 3000000, "tab_length": 900000, "flange": 1000000, "lands": "explicit", "land_width": 900000, "land_length": 1500000, "land_span": 4900000, "tab_land_width": 3200000, "tab_land_length": 1500000, "marking": [], "marking_pin1_dot": false, "construction": "led_plcc", "marking_height": 0}},
    "result": "9cf6cca64c5230daef2359c9022d731fdc49b71be5fcc76a56f0739d7cf705e7"
   }
- ]
+ ],
+ "outputs": "23a7a9bb3b77905d169e38bc2f7693b039e05688f7c1e1f3416370949327057a"
 }

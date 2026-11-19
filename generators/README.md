@@ -126,6 +126,8 @@ A module has one hash: the SHA-256 of its committed `library/generators/<name>/<
 
 **Golden cases.** Each crate's `golden.json` holds requests with complete parameters and the result hash of each. `check` runs them natively (the crate's own test), under wasmi natively, and under the probe, which is wasmi built for wasm32 running inside the native wasmi; all three must give the recorded hashes, and the probe must also report the same fuel as the native host.
 
+**Module parity.** `golden.json` also keeps `outputs`, the digest of everything the generator says (`sparksmith_generator_abi::parity`): its description, byte for byte as `sparksmith_describe` returns it, and its reply (status byte and body) to the defaults and to every preset in every scope it makes. The crate's native golden test computes it from the native build (`golden::parity::outputs`), and the host's `module_outputs_match_the_native_build` from the module under wasmi; both must give the recorded digest, and a mismatch lists each entry's hash so the two reports can be compared. Any change to a description or a preset changes the digest: paste the one the native test prints. The parity code is native only (`cfg(not(target_arch = "wasm32"))`), so it does not change any module's bytes. It exists because wasmi 2.0.0 miscompiled a `select` fused with a zero test of a local (wasmi issue 2046, fixed in 2.0.1; the host pins 2.0.2): `if key.starts_with("row") { "rows" } else { "single pads" }` came out of the module generator as the group "sing" (the address of one string with the length of the other), while the native build, V8 and every golden part hash were right. `crates/generators/tests/interpreter.rs` keeps the minimal case.
+
 ## Reproducibility (14 November 2026)
 
 The same source builds to the same module bytes on any checkout path, on macOS and on Linux. Measured with rustc 1.96.0 in the Nix shell from empty target directories: the `chip` module (234 868 bytes) is `82d5e6c7…` on macOS aarch64 from two checkout paths and on Linux x86_64.
@@ -188,4 +190,4 @@ The fuel limit and the response bound are tied: raise them together. The project
 1. `generators/<name>/` with a `Cargo.toml` like `chip`'s (crate type `cdylib` + `rlib`, `unsafe_code = "deny"` because the export macro allows it for `#[unsafe(no_mangle)]`, the SDK as the only dependency) and `#![cfg_attr(target_arch = "wasm32", no_std)]`.
 2. Add it to the workspace members.
 3. Implement `Generator` and call `export_generator!`.
-4. Write `golden.json`, run `cargo test -p <crate> golden` (a mismatch prints the hash produced), check the geometry by hand-derived tests, then `cargo xtask generators build --ship`.
+4. Write `golden.json` (its cases and `outputs`), run `cargo test -p <crate> golden` (a mismatch prints the hash or digest produced), check the geometry by hand-derived tests, then `cargo xtask generators build --ship`.

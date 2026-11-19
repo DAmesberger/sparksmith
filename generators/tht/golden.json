@@ -40,5 +40,6 @@
    "request": {"abi": 1, "scope": "component", "params": {"construction": "radial", "pins": 2, "lead_pitch": 2000000, "lead_diameter": 500000, "lead_below": 3000000, "body_pitch": 0, "bend_radius": 0, "standoff_basis": "estimated", "standoff": 0, "row_pitch": 7620000, "body_length": 9270000, "body_width": 6350000, "body_height": 11000000, "body_diameter": 5000000, "symbol": "polarised_capacitor", "resistor_style": "iec", "marking_height": 0}},
    "result": "8c223016eafee799dbbbf8a5cd2cefed205326a1f6819b9a2283494ac3702c82"
   }
- ]
+ ],
+ "outputs": "45de74c1ff1f120689ab8b205b85ad3b9eabb63543bafd6827020bc895ce2040"
 }

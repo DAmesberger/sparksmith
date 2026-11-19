@@ -20,5 +20,6 @@
    "request": {"abi": 1, "scope": "package", "params": {"body_height": 3400000, "body_length": 6000000, "body_width": 6600000, "common": "along", "ground": false, "ground_land_length": 1400000, "ground_land_width": 650000, "ground_land_y": 2025000, "height": 4300000, "land_length": 1550000, "land_width": 1300000, "land_x": 3975000, "land_y": 2250000, "lead_thickness": 250000, "plunger_length": 3300000, "plunger_width": 3300000, "span": 9000000, "style": "square", "terminal_pitch": 4500000, "terminal_width": 700000}},
    "result": "d9bd97c61d36591e004c3eb6bb7923094a552f859b23620b6463a8a7fe9ad3b3"
   }
- ]
+ ],
+ "outputs": "c05384fdcd9aa89f7994e5d1e3c071a2a5729c22de0ef818eb2cf3b9508b7cb0"
 }

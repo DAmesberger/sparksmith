@@ -10,5 +10,6 @@
    "request": {"abi": 1, "scope": "package", "params": {"bend_span": 17520000, "foot_width": 1000000, "height": 2840000, "land_gap": 16000000, "land_length": 2340000, "land_width": 1300000, "span": 19300000, "tube_diameter": 2280000, "tube_length": 15240000}},
    "result": "17c2f0b0696468e29328395e41aab9db3f90c2b8b4d3d214c52e98533177bb80"
   }
- ]
+ ],
+ "outputs": "01bd283e1a336d59e7f8286c81f8649bbfb51caa4fc5a43cf7e861800542eb2e"
 }
