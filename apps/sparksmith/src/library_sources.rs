@@ -649,6 +649,20 @@ impl LibrarySources {
         self.online.as_ref()
     }
 
+    /// Sign in to, or out of, the running registry.
+    pub fn account_action(&mut self, action: &crate::online_library::AccountAction) {
+        use crate::online_library::AccountAction as A;
+        let Some(online) = &mut self.online else {
+            return;
+        };
+        match action {
+            A::SignIn => online.sign_in(),
+            A::Cancel => online.cancel_sign_in(),
+            A::SignOut => online.sign_out(),
+            A::OpenBrowser(_) | A::Copy(_) => {}
+        }
+    }
+
     /// Changes whenever the registry starts or stops.
     pub fn online_generation(&self) -> u64 {
         self.online_generation

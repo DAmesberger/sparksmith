@@ -74,8 +74,10 @@ impl KeySource {
     }
 }
 
-/// The keychain, by service and entry; [`Keychain`] is the system's.
-trait Store {
+/// The keychain, by service and entry; [`Keychain`] is the system's. The
+/// online library's sign-in keeps its token through the same trait under
+/// its own service (`registry::account`).
+pub(crate) trait Store: Send + Sync {
     fn get(&self, service: &str, account: &str) -> Result<Option<String>>;
     fn set(&self, service: &str, account: &str, text: &str) -> Result<()>;
     /// Whether there was an entry.
@@ -83,7 +85,7 @@ trait Store {
 }
 
 /// The system keychain.
-struct Keychain;
+pub(crate) struct Keychain;
 
 fn entry(service: &str, account: &str) -> Result<keyring::Entry> {
     keyring::Entry::new(service, account)
@@ -148,6 +150,40 @@ pub fn keychain_has(endpoint: &Endpoint) -> bool {
 }
 
 #[cfg(test)]
+pub(crate) mod memory {
+    //! An in-memory keychain for tests.
+    use super::Store;
+    use crate::Result;
+    use std::collections::BTreeMap;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    pub(crate) struct Memory(Mutex<BTreeMap<(String, String), String>>);
+
+    impl Store for Memory {
+        fn get(&self, service: &str, account: &str) -> Result<Option<String>> {
+            Ok(self
+                .0
+                .lock()
+                .ok()
+                .and_then(|m| m.get(&(service.into(), account.into())).cloned()))
+        }
+        fn set(&self, service: &str, account: &str, text: &str) -> Result<()> {
+            if let Ok(mut m) = self.0.lock() {
+                m.insert((service.into(), account.into()), text.into());
+            }
+            Ok(())
+        }
+        fn delete(&self, service: &str, account: &str) -> Result<bool> {
+            Ok(self
+                .0
+                .lock()
+                .is_ok_and(|mut m| m.remove(&(service.into(), account.into())).is_some()))
+        }
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -188,32 +224,7 @@ mod tests {
         Ok(())
     }
 
-    /// An in-memory keychain.
-    #[derive(Default)]
-    struct Memory(std::cell::RefCell<std::collections::BTreeMap<(String, String), String>>);
-
-    impl Store for Memory {
-        fn get(&self, service: &str, account: &str) -> Result<Option<String>> {
-            Ok(self
-                .0
-                .borrow()
-                .get(&(service.into(), account.into()))
-                .cloned())
-        }
-        fn set(&self, service: &str, account: &str, text: &str) -> Result<()> {
-            self.0
-                .borrow_mut()
-                .insert((service.into(), account.into()), text.into());
-            Ok(())
-        }
-        fn delete(&self, service: &str, account: &str) -> Result<bool> {
-            Ok(self
-                .0
-                .borrow_mut()
-                .remove(&(service.into(), account.into()))
-                .is_some())
-        }
-    }
+    use crate::model::keys::memory::Memory;
 
     #[test]
     fn a_key_is_kept_per_connection_and_removed() -> Result<()> {

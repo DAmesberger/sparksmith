@@ -14,6 +14,13 @@ use sparksmith_core::ids::{LibraryId, Revision, SourceLineageId};
 use sparksmith_core::library::bundle::Bundle;
 use std::sync::Arc;
 
+/// Said when no registry is installed.
+const NO_REGISTRY: &str = "no online registry is turned on (Settings › Libraries)";
+
+fn refused(message: String) -> crate::Error {
+    crate::Error::Document(sparksmith_core::Error::Invalid(message))
+}
+
 /// Rows one online search returns at most.
 pub const MAX_ONLINE_ROWS: usize = 100;
 
@@ -65,6 +72,31 @@ pub struct OnlineReport {
     pub took_us: u64,
 }
 
+/// Who is signed in to the registry, as far as this computer knows:
+/// searching needs no account, downloading part data needs one.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OnlineAccount {
+    pub signed_in: bool,
+    /// The account's email, once the registry said it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+}
+
+/// What signing out did.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SignOut {
+    /// There was a sign-in to remove.
+    pub was_signed_in: bool,
+    /// The registry revoked the token; `false` when it could not be
+    /// reached (the token is removed from this computer either way).
+    pub revoked: bool,
+    /// Why the registry did not revoke it, in words.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub problem: Option<String>,
+}
+
 /// What a host gives a session to search and fetch from an online
 /// registry. Calls block; the session runs them on its own thread.
 pub trait OnlineSource: Send + Sync {
@@ -80,6 +112,11 @@ pub trait OnlineSource: Send + Sync {
         lineage: SourceLineageId,
         revision: Option<Revision>,
     ) -> Result<Option<Bundle>, String>;
+    /// Who is signed in, from this computer's sign-in (no network).
+    fn account(&self) -> Result<OnlineAccount, String>;
+    /// Revoke the sign-in at the registry (best effort) and remove it from
+    /// this computer.
+    fn sign_out(&self) -> Result<SignOut, String>;
 }
 
 /// Whether `text` asks for online rows: an unquoted `src:online` term.
@@ -136,6 +173,14 @@ impl OnlineSource for Prefetched {
     ) -> Result<Option<Bundle>, String> {
         self.source.bundle(library, lineage, revision)
     }
+
+    fn account(&self) -> Result<OnlineAccount, String> {
+        self.source.account()
+    }
+
+    fn sign_out(&self) -> Result<SignOut, String> {
+        self.source.sign_out()
+    }
 }
 
 impl Session {
@@ -154,8 +199,7 @@ impl Session {
             return;
         }
         let Some(online) = &self.online else {
-            reply["online"] =
-                json!({"error": "no online registry is turned on (Settings › Libraries)"});
+            reply["online"] = json!({"error": NO_REGISTRY});
             return;
         };
         let limit = limit
@@ -190,6 +234,48 @@ impl Session {
                 reply["online"] = json!({"source": online.name(), "error": error});
             }
         }
+    }
+
+    /// `library.account`: the registry and who is signed in to it.
+    pub(super) fn online_account(&self) -> crate::Result<Value> {
+        let Some(online) = &self.online else {
+            return Ok(json!({
+                "registry": null,
+                "signed_in": false,
+                "note": NO_REGISTRY,
+            }));
+        };
+        let account = online
+            .account()
+            .map_err(|why| refused(format!("{}: {why}", online.name())))?;
+        let mut reply = json!({"registry": online.name()});
+        if let (Value::Object(reply), Ok(Value::Object(fields))) =
+            (&mut reply, serde_json::to_value(&account))
+        {
+            reply.extend(fields);
+        }
+        if !account.signed_in {
+            reply["note"] = json!(format!(
+                "Downloading parts from {} needs a free account; the person signs in \
+                 in Settings › Libraries. Searching works without one.",
+                online.name()
+            ));
+        }
+        Ok(reply)
+    }
+
+    /// `library.sign_out`: revoke and forget the registry sign-in.
+    pub(super) fn online_sign_out(&self) -> crate::Result<Value> {
+        let Some(online) = &self.online else {
+            return Err(refused(NO_REGISTRY.into()));
+        };
+        let out = online
+            .sign_out()
+            .map_err(|why| refused(format!("{}: {why}", online.name())))?;
+        let mut reply = serde_json::to_value(&out)?;
+        reply["registry"] = json!(online.name());
+        reply["signed_in"] = json!(false);
+        Ok(reply)
     }
 
     /// The bundle of a folder root, else of a registry root.
@@ -232,6 +318,7 @@ mod tests {
         bundle: Bundle,
         hit: Hit,
         searches: AtomicUsize,
+        signed_in: std::sync::atomic::AtomicBool,
     }
 
     impl OnlineSource for Fake {
@@ -259,6 +346,21 @@ mod tests {
         ) -> Result<Option<Bundle>, String> {
             Ok((library == REGISTRY && lineage == self.bundle.root.lineage)
                 .then(|| self.bundle.clone()))
+        }
+        fn account(&self) -> Result<OnlineAccount, String> {
+            let signed_in = self.signed_in.load(Ordering::SeqCst);
+            Ok(OnlineAccount {
+                signed_in,
+                email: signed_in.then(|| "maker@example.com".into()),
+                display_name: None,
+            })
+        }
+        fn sign_out(&self) -> Result<SignOut, String> {
+            Ok(SignOut {
+                was_signed_in: self.signed_in.swap(false, Ordering::SeqCst),
+                revoked: true,
+                problem: None,
+            })
         }
     }
 
@@ -296,6 +398,7 @@ mod tests {
                 favourite: false,
             },
             searches: AtomicUsize::new(0),
+            signed_in: std::sync::atomic::AtomicBool::new(true),
         })
     }
 
@@ -413,6 +516,44 @@ mod tests {
             json!({"query": "library.search", "params": {"query": "led src:online"}}),
         );
         assert!(other["result"]["online"]["error"].is_string(), "{other}");
+        Ok(())
+    }
+
+    /// `library.account` names the registry and who is signed in, without
+    /// a registry says none is turned on; `library.sign_out` signs out and
+    /// is refused without a registry.
+    #[test]
+    fn the_account_entries_report_and_sign_out() -> TestResult {
+        let mut session = Session::new(Engine::demo()?);
+        let none = call(&mut session, "library.account", json!({}));
+        assert_eq!(none["ok"], true, "{none}");
+        assert_eq!(none["result"]["signed_in"], false, "{none}");
+        assert!(none["result"]["registry"].is_null(), "{none}");
+        let refused = call(&mut session, "library.sign_out", json!({}));
+        assert_eq!(refused["ok"], false, "{refused}");
+
+        let fake = Arc::new(fake()?);
+        session.set_online(Some(fake.clone()));
+        let status = call(&mut session, "library.account", json!({}));
+        let result = &status["result"];
+        assert_eq!(result["registry"], "registry.test", "{status}");
+        assert_eq!(result["signed_in"], true, "{status}");
+        assert_eq!(result["email"], "maker@example.com", "{status}");
+        assert!(result["note"].is_null(), "{status}");
+
+        let out = call(&mut session, "library.sign_out", json!({}));
+        assert_eq!(out["ok"], true, "{out}");
+        assert_eq!(out["result"]["was_signed_in"], true, "{out}");
+        assert_eq!(out["result"]["revoked"], true, "{out}");
+        assert_eq!(out["result"]["signed_in"], false, "{out}");
+        let after = call(&mut session, "library.account", json!({}));
+        assert_eq!(after["result"]["signed_in"], false, "{after}");
+        assert!(
+            after["result"]["note"]
+                .as_str()
+                .is_some_and(|n| n.contains("Settings › Libraries")),
+            "{after}"
+        );
         Ok(())
     }
 

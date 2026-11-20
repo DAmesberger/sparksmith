@@ -47,7 +47,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "library",
-        (3, 13),
+        (3, 14),
         "Library",
         "Component definitions, drafts, publishing, folders, updates and pinout import.",
     ),
