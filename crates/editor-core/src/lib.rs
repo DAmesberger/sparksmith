@@ -1848,6 +1848,8 @@ impl Engine {
                 // an undo step.
                 let mut next = candidate.project.rules.clone();
                 let added = rules::apply_added(&mut next, command)?;
+                // The profile's colour option follows the board's colour.
+                layout::mask_colour::follow(&mut next, candidate.project.fabrication.mask_colour)?;
                 if next != candidate.project.rules {
                     let project = Arc::make_mut(&mut candidate.project);
                     project.rules = next;
@@ -2061,6 +2063,7 @@ impl Engine {
         carry: rules::ChoiceCarry,
     ) -> Result<QueryResult> {
         let current = &self.document.project;
+        let profile = layout::mask_colour::following(&profile, current.fabrication.mask_colour)?;
         let (next, refusal) = rules::preview_candidate(&current.rules, &profile, keep_overrides);
         let mut impact = rules::rule_changes(&current.rules, &next);
         impact.kept_choices = carry.kept;

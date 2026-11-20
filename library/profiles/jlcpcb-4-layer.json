@@ -56,14 +56,26 @@
         "choices": [
           {
             "id": "green",
-            "name": "Green, red, yellow, blue or purple"
+            "name": "Green, red, yellow, blue or purple",
+            "mask_colours": [
+              "green",
+              "red",
+              "yellow",
+              "blue",
+              "purple"
+            ]
           },
           {
             "id": "black_white",
-            "name": "Black or white"
+            "name": "Black or white",
+            "mask_colours": [
+              "black",
+              "white"
+            ]
           }
         ],
-        "source": "Soldermask, \"Soldermask bridge\", 1 oz: \"Min. pad spacing: 0.10 mm (green, red, yellow, blue, purple)\", \"Min. pad spacing: 0.13 mm (black, white)\" (read 2026-11-14). The default is green, the colour group the profile's 0.10 mm comes from."
+        "source": "Soldermask, \"Soldermask bridge\", 1 oz: \"Min. pad spacing: 0.10 mm (green, red, yellow, blue, purple)\", \"Min. pad spacing: 0.13 mm (black, white)\" (read 2026-11-14). The default is green, the colour group the profile's 0.10 mm comes from. Which colours each choice stands for: Soldermask, \"Green, Purple, Red, Yellow, Blue, White, and Black.\" (read 2026-11-20). The board's solder mask colour (Board › Fabrication) chooses it; a colour no choice lists is not offered.",
+        "follows": "mask_colour"
       },
       {
         "id": "drill",

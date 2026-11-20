@@ -861,6 +861,9 @@
   "key": "no-lead-lga-14-3x5-0.8-adi-cc-14-1",
   "name": "LGA-14 3×5 0.8 (ADI CC-14-1)",
   "aliases": [
+   "ADXL343BCCZ",
+   "ADXL343BCCZ-RL",
+   "ADXL343BCCZ-RL7",
    "CC-14-1",
    "LGA-14 3x5",
    "ADXL343 LGA"
@@ -880,16 +883,21 @@
    "exposed_pad": false,
    "construction": "lga",
    "marking": [
-    "343B"
+    "{code}"
    ],
-   "marking_height": 400000
+   "marking_height": 400000,
+   "marking_codes": [
+    "ADXL343BCCZ=343B",
+    "ADXL343BCCZ-RL=343B",
+    "ADXL343BCCZ-RL7=343B"
+   ]
   },
   "citation": {
    "document": "Analog Devices ADXL343 data sheet Rev. 0, outline dimensions CC-14-1 (Figure 51)",
    "page": 35
   },
   "basis": "cited_unverified",
-  "note": "Lands 1.01 mm from the centre across the long sides and 0.49 mm from the ends, as the outline gives; the long axis is x here (the outline draws it upright)."
+  "note": "Lands 1.01 mm from the centre across the long sides and 0.49 mm from the ends, as the outline gives; the long axis is x here (the outline draws it upright). The top mark per orderable part number from the same data sheet: Package Information, Figure 2 and Table 4, p. 5 (branding key 343B, \"Part identifier for the ADXL343\"), and the Ordering Guide, p. 35 (ADXL343BCCZ, ADXL343BCCZ-RL and ADXL343BCCZ-RL7, all CC-14-1), so 343B on each of the three; no mark for another part number. The date code, lot code and country lines under it are not drawn."
  },
  {
   "key": "no-lead-dfn-4-1.5x1.5-0.8-sensirion-sht4x",

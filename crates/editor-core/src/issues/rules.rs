@@ -51,6 +51,8 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         // Geometry past the limit is unchecked, so errors may be uncounted.
         | "board.check_limit"
         | "board.shape_unsolved"
+        // The fabricator does not make the board in this colour.
+        | "board.mask_colour_not_offered"
         | "board.shape_open"
         | "board.shape_invalid"
         | "board.reference_lost"
@@ -116,6 +118,7 @@ pub fn group_title(code: &str) -> String {
         "impedance.mismatch" => "Impedance off target",
         "impedance.no_tolerance" => "Impedance targets without a tolerance",
         "board.shape_unsolved" => "Board shape does not solve",
+        "board.mask_colour_not_offered" => "Solder mask colour not offered",
         "board.shape_open" => "Board outline not closed",
         "board.shape_invalid" => "Board outline not one board",
         "board.param_idle" => "Board parameters that drive no edge",
@@ -257,6 +260,9 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "impedance.mismatch" => "Route at the width the Route card shows for the layer",
         "impedance.no_tolerance" => "Set Impedance tolerance in Settings or on the net class",
         "board.shape_unsolved" => "Fix the board sketch's dimensions",
+        "board.mask_colour_not_offered" => {
+            "Choose a colour the fab profile offers in Board › Fabrication, or another fab profile"
+        }
         "board.shape_open" => "Join the open ends in Board shape",
         "board.shape_invalid" => "Fix the crossing or move the hole inside the board",
         "board.param_idle" => "Dimension an outline edge to the parameter in Board shape",
@@ -552,6 +558,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "board.courtyard_overlap",
     "board.edge_clearance",
     "board.hole_clearance",
+    "board.mask_colour_not_offered",
     "board.npth_annular_ring",
     "board.outside_outline",
     "board.pad_hole_clearance",

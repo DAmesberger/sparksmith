@@ -17,6 +17,7 @@ mod junctions;
 mod labels;
 mod library;
 mod library_folders;
+mod mask_colour_rules;
 mod mechanical;
 mod named_merges;
 mod net_classes;

@@ -157,6 +157,26 @@ fn equal_values_evaluate_once() -> Fallible {
     Ok(())
 }
 
+/// More distinct parts than a board of a few dozen packages holds are
+/// each evaluated once: evaluated again, every one is the cached part.
+#[test]
+fn a_board_worth_of_distinct_parts_stays_cached() -> Fallible {
+    let bytes = small_part(&[([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], None)], false);
+    let values = |k: i64| {
+        let mut v = PartValues::new();
+        v.insert("body_height".into(), PartValue::Nm(500_000 + k * 1_000));
+        v
+    };
+    let first: Vec<_> = (0..48)
+        .map(|k| evaluate(&bytes, &values(k)))
+        .collect::<Result<_>>()?;
+    for (k, part) in first.iter().enumerate() {
+        let again = evaluate(&bytes, &values(i64::try_from(k)?))?;
+        assert!(Arc::ptr_eq(part, &again), "part {k} evaluated again");
+    }
+    Ok(())
+}
+
 #[test]
 fn bad_part_files_and_values_are_refused() -> Fallible {
     let code = |r: Result<Arc<EvaluatedPart>>| match r {

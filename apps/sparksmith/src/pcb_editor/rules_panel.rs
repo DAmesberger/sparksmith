@@ -1157,6 +1157,17 @@ fn option_rows(ui: &mut Ui, profile: &RuleProfile) -> Option<OptionChange> {
             .get(&option.id)
             .cloned()
             .unwrap_or_default();
+        // The board's setting chooses it (Board › Fabrication): shown, not
+        // chosen here.
+        if let Some(setting) = option.follows {
+            let name = option.choice(&current).map_or("", |c| c.name.as_str());
+            kit::value_row(
+                ui,
+                &option.name,
+                &format!("{name} (follows the board's {})", setting.label()),
+            );
+            continue;
+        }
         let mut pick = current.clone();
         let list: Vec<(String, String)> = option
             .choices
