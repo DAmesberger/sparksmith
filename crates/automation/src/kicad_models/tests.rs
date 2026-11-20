@@ -405,6 +405,60 @@ fn a_generator_never_joins_pads_on_different_nets() -> Fallible {
     Ok(())
 }
 
+/// A six-pin 1.0 mm side-entry header (JST's SH layout: 0.6 × 1.55 mm
+/// lands, 1.2 × 1.8 mm tab lands 3.8 mm out and 3.875 mm back) whose two
+/// tab lands carry different numbers, each with its `tabs` net text.
+fn tabbed_header(name: &str, tabs: [&str; 2]) -> String {
+    let mut out = format!(
+        r#"(footprint "Original:SixTabs" (layer "F.Cu") (at 60 20)
+        (property "Reference" "{name}")"#
+    );
+    for k in 0..6_usize {
+        out.push_str(&format!(
+            r#"(pad "{}" smd rect (at {} 0) (size 0.6 1.55) (layers "F.Cu" "F.Paste" "F.Mask") (net {} "{}"))"#,
+            k + 1,
+            -2.5 + k as f64,
+            k % 4 + 1,
+            ["A", "B", "C", "D"][k % 4]
+        ));
+    }
+    for (k, (x, net)) in [(-3.8, tabs[0]), (3.8, tabs[1])].into_iter().enumerate() {
+        out.push_str(&format!(
+            r#"(pad "T{}" smd rect (at {x} 3.875 90) (size 1.8 1.2) (layers "F.Cu" "F.Paste" "F.Mask") {net})"#,
+            k + 1
+        ));
+    }
+    out.push(')');
+    out
+}
+
+/// Two tab lands of different numbers share the header's mechanical
+/// terminal when the board leaves both on no net (they join nothing), and
+/// never when the board has one on a net and the other on none.
+#[test]
+fn unconnected_tabs_of_different_numbers_share_a_terminal() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let free = import(
+        dir.path(),
+        "free",
+        &board("free", &tabbed_header("J1", ["", ""])),
+    )?;
+    assert_eq!(free.report.count(Case::GeneratedPart), 1);
+    assert_eq!(
+        generated_root(free.engine.project(), "J1").as_deref(),
+        Some("wire-to-board")
+    );
+    let one = import(
+        dir.path(),
+        "one",
+        &board("one", &tabbed_header("J1", [r#"(net 1 "A")"#, ""])),
+    )?;
+    assert_eq!(one.report.count(Case::GeneratedPart), 0);
+    Ok(())
+}
+
 /// Footprints that are no part to draw get no body, as their source has
 /// it: no model reference, and not assembled or bare copper.
 #[test]
@@ -492,6 +546,37 @@ fn library_references_stay_unresolved_and_an_expired_import_refuses() -> Fallibl
         .ok_or("expired import succeeded")?;
     assert!(error.contains("time limit"), "{error}");
     assert_eq!(engine.revision(), before);
+    Ok(())
+}
+
+/// The copper of two saved designs (`SPARKSMITH_COPPER_FILES=a:b`),
+/// compared layer by layer, as evidence that a re-import or a body change
+/// left the copper as it was: each layer's differing area is printed and
+/// must be zero.
+#[test]
+#[ignore = "compares the designs named by SPARKSMITH_COPPER_FILES"]
+fn two_saved_designs_have_the_same_copper() -> Fallible {
+    let Ok(files) = std::env::var("SPARKSMITH_COPPER_FILES") else {
+        return Err("set SPARKSMITH_COPPER_FILES=a.sparksmith:b.sparksmith".into());
+    };
+    let (a, b) = files.split_once(':').ok_or("two paths, `:`-separated")?;
+    let context = sparksmith_io::standards::shipped_context()?;
+    let _context = context.enter();
+    let open = |path: &str| -> Result<sparksmith_core::Engine, Box<dyn std::error::Error>> {
+        let mut engine = sparksmith_core::Engine::default();
+        engine.replace_document(sparksmith_io::read_project(Path::new(path))?)?;
+        Ok(engine)
+    };
+    let (a, b) = (open(a)?, open(b)?);
+    let layers = sparksmith_solidcraft::project::copper_agree::between(a.project(), b.project());
+    for layer in &layers {
+        println!("{layer:?}");
+    }
+    assert!(
+        layers
+            .iter()
+            .all(|l| l.objects_differ_mm2 == 0.0 && l.fills_differ_mm2 == 0.0)
+    );
     Ok(())
 }
 
