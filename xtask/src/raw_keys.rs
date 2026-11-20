@@ -87,6 +87,11 @@ const EXCEPTIONS: &[(&str, usize, &str)] = &[
         "text field: Enter commits and Esc reverts a class field",
     ),
     (
+        "pcb_editor/variants_card.rs",
+        1,
+        "text field: Esc reverts the variant name",
+    ),
+    (
         "pcb_editor/rules_panel.rs",
         2,
         "text field: Esc reverts a rule value",
