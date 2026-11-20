@@ -1,24 +1,32 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "7.11", "digest": "sha256:6888544c577e585095f9303b9ed2df37e75b30ee25ba0946048d4c3ee59b1bac", "entries": [
-  {"name":"project.apply","class":"edit","schema":"67026745c88a231f","fields":[["expected_revision","9295ea67127970c6"],["operation","1eddf1a89350b152"]],"required":["expected_revision","operation"]},
-  {"name":"project.apply_all","class":"edit","schema":"4c6c4afdc1574d02","fields":[["expected_revision","9295ea67127970c6"],["operations","2b898f1edb0aefa1"]],"required":["expected_revision","operations"]},
+ {"id": "project", "version": "7.12", "digest": "sha256:f20d370cee772a7d9353746ac7166368682bea1f2a75dc3f46f01ba58576517b", "entries": [
+  {"name":"project.apply","class":"edit","schema":"e95b2d9568c6f609","fields":[["expected_revision","9295ea67127970c6"],["operation","4eedad5190bd8bfe"]],"required":["expected_revision","operation"]},
+  {"name":"project.apply_all","class":"edit","schema":"07766197db2026e1","fields":[["expected_revision","9295ea67127970c6"],["operations","9a971116834efa75"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"project.inspect","class":"read","schema":"249aa00f4b2dbec1","fields":[["at","40bd5b57f4261fe2"]],"required":[]},
-  {"name":"project.query","class":"read","schema":"6125ce94761ea500","fields":[],"required":[]},
+  {"name":"project.query","class":"read","schema":"0e34bff8fe70a42f","fields":[],"required":[]},
   {"name":"project.redo","class":"edit","schema":"5d360ab06dd84fb0","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]},
   {"name":"project.rename","class":"edit","schema":"92c2e30151865925","fields":[["name","f186891b5656c9ae"]],"required":["name"]},
   {"name":"project.schema","class":"read","schema":"7e398ef3b2cf4d96","fields":[["def","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"]],"required":[]},
   {"name":"project.set_properties","class":"edit","schema":"9d0064f23473ac9e","fields":[["properties","23e63cfc65c28b64"]],"required":["properties"]},
   {"name":"project.turn_begin","class":"read","schema":"c3b32c54c0444881","fields":[["label","f186891b5656c9ae"]],"required":["label"]},
   {"name":"project.turn_end","class":"read","schema":"8ba67b5506a8d9ac","fields":[["turn","f186891b5656c9ae"]],"required":["turn"]},
-  {"name":"project.undo","class":"edit","schema":"5d360ab06dd84fb0","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]}
+  {"name":"project.undo","class":"edit","schema":"5d360ab06dd84fb0","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]},
+  {"name":"variant.add","class":"edit","schema":"a18777c986f561df","fields":[["copy_of","c5454bd7e46f4b53"],["name","f186891b5656c9ae"]],"required":["name"]},
+  {"name":"variant.list","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
+  {"name":"variant.remove","class":"edit","schema":"a499d5444d4119e7","fields":[["variant","9295ea67127970c6"]],"required":["variant"]},
+  {"name":"variant.rename","class":"edit","schema":"61bf1e901cac957f","fields":[["name","f186891b5656c9ae"],["variant","9295ea67127970c6"]],"required":["name","variant"]},
+  {"name":"variant.set_active","class":"edit","schema":"5c99c92efe040582","fields":[["variant","7a741a10d799de26"]],"required":[]},
+  {"name":"variant.set_part","class":"edit","schema":"ca2a716c58863821","fields":[["instance","9295ea67127970c6"],["part","6556f97a7f2bf7a3"],["variant","9295ea67127970c6"]],"required":["instance","variant"]},
+  {"name":"variant.set_population","class":"edit","schema":"f4a0d51125490c0e","fields":[["instances","6eed743aac2b3e81"],["population","b8b0924b1f19efc2"],["variant","c5454bd7e46f4b53"]],"required":["instances"]},
+  {"name":"variant.substitutes","class":"read","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]}
  ]},
  {"id": "files", "version": "1.0", "digest": "sha256:512b8454e2413148193a8eb8f50b2346f5e85a6f7515278db279b1f072527dc9", "entries": [
   {"name":"project.new","class":"ask","schema":"1c3cfa8f8e134842","fields":[["expected_revision","9295ea67127970c6"],["profile","00fb75aedcd3a0a7"]],"required":["expected_revision"]},
   {"name":"project.open","class":"ask","schema":"7317cdb697af20e5","fields":[["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"]],"required":["expected_revision","path"]},
   {"name":"project.save","class":"ask","schema":"d6b27c72606417bf","fields":[["path","40bd5b57f4261fe2"]],"required":[]}
  ]},
- {"id": "schematic", "version": "1.2", "digest": "sha256:2aaf6565730de4ed153e3e8c3a01643e7e085cf25835cd21611855a3926bceab", "entries": [
+ {"id": "schematic", "version": "1.3", "digest": "sha256:1c36f9bb6b4701454d5adef40ae3cad9ab5c41b8988ede1baed510e528ba9a98", "entries": [
   {"name":"component.inspect","class":"read","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
   {"name":"component.place","class":"edit","schema":"c33c11f7baa52915","fields":[["component","22aa48fd0ddcd4f9"],["designator","428293de17850c2e"],["physical","022b01e9723dbee2"],["position","bb2fc2c0f053c755"],["properties","008c01f70eeca47c"],["representation","6fcbdbe3a9c678cf"],["sheet","3b67158582ea34e4"],["unit","3b67158582ea34e4"]],"required":["component"]},
   {"name":"component.remove","class":"edit","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
@@ -52,7 +60,7 @@
   {"name":"schematic.disconnect","class":"edit","schema":"b56ac9373ad1f979","fields":[["wire","9295ea67127970c6"]],"required":["wire"]},
   {"name":"schematic.net_places","class":"read","schema":"1cae6f693afb7b2c","fields":[["net","9295ea67127970c6"]],"required":["net"]},
   {"name":"schematic.net_rename","class":"edit","schema":"d0b91a176a61140e","fields":[["name","f186891b5656c9ae"],["net","9295ea67127970c6"]],"required":["name","net"]},
-  {"name":"schematic.paste","class":"edit","schema":"923d14e242af9350","fields":[["clip","207967ece6d894cd"],["offset","3a24a71d71b5fbb1"],["sheet","3b67158582ea34e4"]],"required":["clip","offset"]},
+  {"name":"schematic.paste","class":"edit","schema":"63fa8944275820a2","fields":[["clip","ca8f9ead87c71931"],["offset","3a24a71d71b5fbb1"],["sheet","3b67158582ea34e4"]],"required":["clip","offset"]},
   {"name":"schematic.scene","class":"read","schema":"d25f03721ddf4c75","fields":[["sheet","4fc1bca01b237b23"]],"required":["sheet"]},
   {"name":"schematic.set_net_disagreements","class":"edit","schema":"7b5542040b839eaa","fields":[["disagreements","38c3c689edc0872d"]],"required":["disagreements"]},
   {"name":"schematic.sheets","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
@@ -174,7 +182,7 @@
   {"name":"rules.set_override","class":"edit","schema":"93b45eb7c3b5045a","fields":[["key","3974a1128389ec01"],["value","6c59be4a009ace34"]],"required":["key","value"]},
   {"name":"rules.set_project_source","class":"edit","schema":"b89c3f26a45bbcd2","fields":[["source","40bd5b57f4261fe2"]],"required":[]}
  ]},
- {"id": "library", "version": "3.11", "digest": "sha256:1cfee72f169c25d3532a693dbcf405733d9fd150bcb65e2db20c8e531a744a93", "entries": [
+ {"id": "library", "version": "3.12", "digest": "sha256:1fd1156f7114580ba9f10291c0e34a87afc0bc7bd47453f2f5588c3559ea9f81", "entries": [
   {"name":"assist.pinout_apply","class":"edit","schema":"0d7d675e0f3e0c08","fields":[["accept","e47a2876fcbc3d5b"],["base","40bd5b57f4261fe2"],["expected_revision","9295ea67127970c6"],["handle","40bd5b57f4261fe2"],["target","356ba44bdfddabcb"]],"required":["expected_revision"]},
   {"name":"component.check","class":"read","schema":"97f39db6c630611f","fields":[["target","36100673e29fba06"]],"required":["target"]},
   {"name":"component.check_drafts","class":"read","schema":"5e6b8a03d7e6acfa","fields":[["detail","e3ce44acd037492c"]],"required":[]},
@@ -233,11 +241,11 @@
   {"name":"library.sources","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"library.standard_fields","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"library.updates_available","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
-  {"name":"project.apply_update","class":"edit","schema":"d6850e5327b99111","fields":[["change","5c4e6ded884876ca"],["expected_revision","9295ea67127970c6"],["merge_named_nets","90c3f0cfcf6ff8f0"],["remove_conflicting_tracks","90c3f0cfcf6ff8f0"]],"required":["change","expected_revision","remove_conflicting_tracks"]},
+  {"name":"project.apply_update","class":"edit","schema":"b15f630cc31f6015","fields":[["change","728f01a61d08c3eb"],["expected_revision","9295ea67127970c6"],["merge_named_nets","90c3f0cfcf6ff8f0"],["remove_conflicting_tracks","90c3f0cfcf6ff8f0"]],"required":["change","expected_revision","remove_conflicting_tracks"]},
   {"name":"project.preview_replace","class":"read","schema":"82299feaac768986","fields":[["alignment","e182e6952848c079"],["designators","1e052309e6b92305"],["physical","022b01e9723dbee2"],["representation","6fcbdbe3a9c678cf"],["target","22aa48fd0ddcd4f9"],["terminals","c31e7bd4d81b323f"],["units","5a5bd34ee5298020"]],"required":["designators","target"]},
-  {"name":"project.preview_update","class":"read","schema":"9fa92f434f8334e8","fields":[["change","5c4e6ded884876ca"]],"required":["change"]},
+  {"name":"project.preview_update","class":"read","schema":"1556de0089d24858","fields":[["change","728f01a61d08c3eb"]],"required":["change"]},
   {"name":"project.replace_component","class":"edit","schema":"0f62d586fbe2b558","fields":[["expected_revision","9295ea67127970c6"],["merge_named_nets","e3ce44acd037492c"],["remove_conflicting_tracks","e3ce44acd037492c"],["replace","47f7843e6ef58065"]],"required":["expected_revision","replace"]},
-  {"name":"update","class":"edit","schema":"d6850e5327b99111","fields":[["change","5c4e6ded884876ca"],["expected_revision","9295ea67127970c6"],["merge_named_nets","90c3f0cfcf6ff8f0"],["remove_conflicting_tracks","90c3f0cfcf6ff8f0"]],"required":["change","expected_revision","remove_conflicting_tracks"]}
+  {"name":"update","class":"edit","schema":"b15f630cc31f6015","fields":[["change","728f01a61d08c3eb"],["expected_revision","9295ea67127970c6"],["merge_named_nets","90c3f0cfcf6ff8f0"],["remove_conflicting_tracks","90c3f0cfcf6ff8f0"]],"required":["change","expected_revision","remove_conflicting_tracks"]}
  ]},
  {"id": "generators", "version": "1.8", "digest": "sha256:7ee0eaa6515cf1c101ce65bce1f512a715d864babaae28004e9e46181713eece", "entries": [
   {"name":"library.body_fit","class":"read","schema":"cb50547ec8956657","fields":[["designator","f186891b5656c9ae"],["generator","428293de17850c2e"],["missing","428293de17850c2e"],["params","b463012aa9f6135d"],["pins","8c061a0ec6daf112"],["preset","428293de17850c2e"],["tolerance","c2c9404499233196"]],"required":["designator"]},

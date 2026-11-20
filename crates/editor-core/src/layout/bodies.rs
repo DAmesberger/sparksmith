@@ -1,5 +1,6 @@
 //! Placed 3D bodies against their pads, in board coordinates
-//! (`board.body_off_pads`, `project.check_bodies`).
+//! (`board.body_off_pads`, `project.check_bodies`). Only the bodies the
+//! active assembly variant fits are checked.
 //!
 //! Each lead contact a package stores ([`PackageLead`], model frame) goes
 //! to the board the way the 3D view places the body
@@ -258,10 +259,13 @@ pub fn bodies(project: &Project) -> BodiesReport {
         let Some(instance) = project.instance(placement.instance) else {
             continue;
         };
-        let Some(physical) = instances::resolve(&project.library, instance)
-            .ok()
-            .and_then(|r| r.physical)
-        else {
+        // The part the active variant fits: none, or another Part's body
+        // on the same lands (docs/assembly-variants.md).
+        let fitted = instances::variants::fitted(project, instance);
+        if !fitted.populated() {
+            continue;
+        }
+        let Some(physical) = fitted.physical else {
             continue;
         };
         let package = &physical.package.definition;

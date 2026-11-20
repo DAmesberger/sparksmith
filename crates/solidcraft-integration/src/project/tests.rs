@@ -2412,6 +2412,123 @@ fn the_copper_measure_finds_missing_and_reshaped_copper() -> Result<()> {
     Ok(())
 }
 
+/// The active assembly variant decides the bodies: a part it does not fit
+/// places none, in the live view and the export alike (both read
+/// `placed_parts`), and a part it fits another Part on places that Part's
+/// package (docs/assembly-variants.md).
+#[test]
+fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
+    use sparksmith_core::library::{PartDefinition, Published};
+    use sparksmith_core::{
+        AssemblyVariant, BindingRef, ComponentRef, DefinitionId, FootprintRef, PackageRef,
+        PartRef, Population, VariantOverride,
+    };
+    let fail = |what: &str| Error::Verification(what.into());
+    let mut project = envelope_demo()?;
+    let (r1, r2) = instances(&project)?;
+    assert_eq!(placed_parts(&project)?.len(), 2);
+
+    // A second package on the same lands: copies of R1's package,
+    // footprint, binding and component under new lineages, and a Part.
+    let instance = project.instance(r1).ok_or_else(|| fail("R1"))?.clone();
+    let own = instances::resolve(&project.library, &instance)
+        .map_err(|e| fail(&e.to_string()))?;
+    let physical = own.physical.ok_or_else(|| fail("R1's footprint"))?;
+    let own_stem = models::definition_name(physical.package.id, physical.package.revision.0);
+    let (package, footprint, binding, component) = (
+        physical.package.clone(),
+        physical.footprint.clone(),
+        physical.binding.clone(),
+        own.component.clone(),
+    );
+    let mut new_id = || -> Result<DefinitionId> {
+        project
+            .allocate()
+            .map(DefinitionId)
+            .map_err(|e| fail(&e.to_string()))
+    };
+    let ids = [new_id()?, new_id()?, new_id()?, new_id()?, new_id()?];
+    let [pkg, fp, bd, comp, part] = ids;
+    let package_ref = PackageRef::new(pkg, package.revision);
+    let footprint_ref = FootprintRef::new(fp, footprint.revision);
+    let binding_ref = BindingRef::new(bd, binding.revision);
+    let component_ref = ComponentRef::new(comp, component.revision);
+    let mut other_package = Published { id: pkg, ..package };
+    other_package.definition.placement.translation_nm = crate::test_units::nm3([0.0, 0.0, 0.1]);
+    let mut other_footprint = Published { id: fp, ..footprint };
+    other_footprint.definition.package = package_ref;
+    let mut other_binding = Published { id: bd, ..binding };
+    other_binding.definition.component = comp;
+    other_binding.definition.package = package_ref;
+    other_binding.definition.footprints = vec![footprint_ref];
+    let mut other_component = Published { id: comp, ..component };
+    other_component.definition.implementations = vec![binding_ref];
+    project.library.packages.push(other_package);
+    project.library.footprints.push(other_footprint);
+    project.library.bindings.push(other_binding);
+    project.library.components.push(other_component);
+    let part_ref = PartRef::new(part, sparksmith_core::Revision::FIRST);
+    project.library.parts.push(Published {
+        id: part,
+        revision: part_ref.revision,
+        meta: Default::default(),
+        definition: PartDefinition {
+            mpn: "EX-ALT-1".into(),
+            component: component_ref,
+            binding: binding_ref,
+            ..PartDefinition::default()
+        },
+    });
+
+    let variant = project.allocate().map_err(|e| fail(&e.to_string()))?;
+    project.variants.list.push(AssemblyVariant {
+        id: variant,
+        name: "Alt".into(),
+        overrides: [
+            (
+                r1,
+                VariantOverride {
+                    population: None,
+                    part: Some(part_ref),
+                },
+            ),
+            (
+                r2,
+                VariantOverride {
+                    population: Some(Population::NotPopulated),
+                    part: None,
+                },
+            ),
+        ]
+        .into(),
+    });
+    // The default still places both parts on their own package.
+    let default = placed_parts(&project)?;
+    assert_eq!(default.len(), 2);
+    assert!(default.iter().all(|p| p.stem == own_stem));
+    project.variants.active = Some(variant);
+    let alt = placed_parts(&project)?;
+    assert_eq!(alt.len(), 1, "R2 is not fitted in Alt");
+    let r1_part = alt.first().ok_or_else(|| fail("R1 placed"))?;
+    assert_eq!(r1_part.instance.id, r1);
+    assert_eq!(
+        r1_part.stem,
+        models::definition_name(pkg, package_ref.revision.0),
+        "R1 carries the substitute's package"
+    );
+    // The default population is typed on the instance as well.
+    project.variants.active = None;
+    for i in project.instances.iter_mut() {
+        if i.id == r1 {
+            i.population = Population::NotPopulated;
+        }
+    }
+    let left = placed_parts(&project)?;
+    assert_eq!(left.len(), 1);
+    assert!(left.iter().all(|p| p.instance.id == r2));
+    Ok(())
+}
+
 /// A package of no body places nothing: neither the live view's parts nor
 /// the export's see it, while the other parts stay.
 #[test]

@@ -935,3 +935,60 @@ fn every_describe_example_is_what_apply_and_query_accept() -> Fallible<()> {
     );
     Ok(())
 }
+
+/// Assembly variants are found, applied and listed through the verbs like
+/// every other entry (docs/assembly-variants.md), with one undo step each.
+#[test]
+fn assembly_variants_are_found_applied_and_listed() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    block_on(async move {
+        let c = Connection::open(Mode::AutoAllowEdits, dir.path()).await?;
+        let found = c
+            .ok(FIND, json!({"text": "assembly variant", "limit": 10}))
+            .await?;
+        let names: Vec<&str> = found["hits"]
+            .as_array()
+            .ok_or("hits")?
+            .iter()
+            .filter_map(|h| h["name"].as_str())
+            .collect();
+        for name in ["variant.add", "variant.set_active", "variant.list"] {
+            assert!(names.contains(&name), "{name} in {names:?}");
+        }
+        let start = revision(&c.ok(QUERY, json!({"name": "project.inspect"})).await?)?;
+        let added = c
+            .ok(
+                APPLY,
+                json!({"expected_revision": start,
+            "operations": [{"op": "variant.add", "params": {"name": "Lite"}}]}),
+            )
+            .await?;
+        let variant = added["outcomes"][0]["variant"]
+            .as_u64()
+            .ok_or_else(|| format!("no variant in {added}"))?;
+        c.ok(
+            APPLY,
+            json!({"expected_revision": start + 1,
+            "operations": [{"op": "variant.set_active", "params": {"variant": variant}}]}),
+        )
+        .await?;
+        let listed = c.ok(QUERY, json!({"name": "variant.list"})).await?;
+        let text = listed.to_string();
+        assert!(
+            text.contains("Lite") && text.contains(&variant.to_string()),
+            "{listed}"
+        );
+        // A duplicate name is refused and changes nothing.
+        let (refused, failed) = c
+            .call(
+                APPLY,
+                json!({"expected_revision": start + 2,
+            "operations": [{"op": "variant.add", "params": {"name": "lite"}}]}),
+            )
+            .await?;
+        assert!(failed, "{refused}");
+        let now = revision(&c.ok(QUERY, json!({"name": "project.inspect"})).await?)?;
+        assert_eq!(now, start + 2);
+        c.close().await
+    })?
+}

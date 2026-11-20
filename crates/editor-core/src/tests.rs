@@ -33,4 +33,5 @@ mod staged;
 pub(crate) mod support;
 mod text_placement;
 mod touching;
+mod variants;
 mod wire_commands;

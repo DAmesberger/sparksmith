@@ -142,7 +142,7 @@ Format tests check attributes, polarities, D-code reuse, macro text, escapes, de
 - **Out of scope:** IPC-2581 and ODB++ are follow-ups.
 - **Holes:** blind and buried vias are not modelled, so there are no drill-pair files. A plated board slot that is not straight is refused by the check.
 - **Legend:** it is not clipped at mask openings or the outline (the fabricator clips; the check warns). The desktop's Designator section moves the silkscreen designator only; the command takes any footprint text.
-- **Assembly variants:** there are no DNP flags or variants in the model; every part is fitted.
+- **Assembly variants:** the assembly files and drawing follow the active variant ([assembly variants](assembly-variants.md)); one export writes one variant.
 - **Profile check:** the check compares profiles only by id. A changed user profile file is read fresh at each export.
 - **Drawings:** text widths use Helvetica's metrics; bold text is measured with the regular widths.
 - **Desktop dialog:** the pre-flight time on large boards was not measured; the check runs on a worker. Cancelling during an export closes the dialog while the worker finishes writing.

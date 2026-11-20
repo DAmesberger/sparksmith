@@ -667,11 +667,17 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
         0.0,
         INK,
     );
+    let not_fitted = side.parts.iter().filter(|p| !p.fitted).count();
+    let crossed = if not_fitted == 0 {
+        String::new()
+    } else {
+        format!(" {not_fitted} not fitted (crossed out).")
+    };
     page.text(
         [MARGIN + 6.0, h - MARGIN - 15.0],
         3.0,
         &format!(
-            "{} parts. {}. Red dots mark pin 1 / polarity.",
+            "{} parts.{crossed} {}. Red dots mark pin 1 / polarity.",
             side.parts.len(),
             view.label()
         ),
@@ -730,6 +736,12 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
         );
         if let Some(p) = part.polarity {
             page.disc(view.map(p), (0.25 * view.scale).clamp(0.4, 1.0), POLARITY);
+        }
+        // Do not populate: the body crossed out corner to corner.
+        if !part.fitted {
+            let stroke = Stroke::new(0.3, POLARITY);
+            page.polyline(&[lo, hi], false, &stroke);
+            page.polyline(&[[lo[0], hi[1]], [hi[0], lo[1]]], false, &stroke);
         }
     }
     title_block(

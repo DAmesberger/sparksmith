@@ -26,6 +26,7 @@ use std::collections::{BTreeMap, BTreeSet};
 mod part;
 pub mod pins;
 pub mod text;
+pub mod variants;
 pub use part::{assign_part, binding_name, part_findings, republished_part, requirements};
 
 /// Terminals one `instance.set_no_connect` changes.
@@ -736,6 +737,7 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
         marking: Default::default(),
         text_placements: Default::default(),
         board_only: false,
+        population: Default::default(),
     });
     let sheet = request.sheet.unwrap_or_else(|| project.sheets.first());
     let position = request.position.unwrap_or(PointNm::ORIGIN);
@@ -788,6 +790,7 @@ pub fn place_off_sheet(
         marking: Default::default(),
         text_placements: Default::default(),
         board_only: false,
+        population: Default::default(),
     });
     check_instance(project, id)?;
     check_designators(project)?;

@@ -146,7 +146,7 @@ The declarations are data in `sparksmith_core::format::records`, and the encoder
 
 | File | Record fields, in order | Sorted by | Floats today |
 |---|---|---|---|
-| `circuit/instances.jsonl` | `id`, `component`, `designator`, `representation`, `physical`, `part`, `properties`, `unused_units`, `no_connect`, `functions`, `pin_config`, `marking`, `text_placements` | `id` | allowed |
+| `circuit/instances.jsonl` | `id`, `component`, `designator`, `representation`, `physical`, `part`, `properties`, `unused_units`, `no_connect`, `functions`, `pin_config`, `marking`, `text_placements`, `board_only`, `population` | `id` | allowed |
 | `circuit/nets.jsonl` | `id`, `name`, `terminals` | `id` | refused |
 | `schematic/sheet-<id>.jsonl` | `type` `drawing`: `id`, `type`, `item`<br>`junction`: `id`, `type`, `position`, `placed`<br>`label`: `id`, `type`, `name`, `kind`, `position`, `rotation`, `manual`<br>`occurrence`: `id`, `type`, `instance`, `unit`, `position`, `rotation`, `mirror`<br>`sheet_symbol`: `id`, `type`, `child`, `position`, `size`, `pins`<br>`wire`: `id`, `type`, `from`, `to`, `corners` | `type`, then `id` | refused |
 | `board/placements.jsonl` | `instance`, `layer`, `position`, `rotation_deg`, `locked` | `instance` | allowed |
@@ -196,6 +196,7 @@ F2 checked every collection of the project (each `Shared<Vec<T>>` in `sparksmith
 | a net's `terminals`, a sheet symbol's `pins`, a wire's `corners` | their own rules (terminals sorted by validation; pins and corners are paths or lists in one record) | left as is |
 | `drafts.items` | the order drafts were opened | left as is; F3 gives drafts one file each |
 | `net_disagreements` | report order | left as is |
+| `variants.list` | the order the variant manager lists them in ([assembly variants](assembly-variants.md)) | left as is; each variant's `overrides` is a map by instance id, written in key order |
 
 ## 5. The manifest
 

@@ -21,6 +21,7 @@ pub mod interface;
 pub mod production;
 pub mod sheet;
 mod stackup;
+pub mod variants;
 mod via;
 pub use board::{BoardShape, SolvedBoard};
 pub use dimension::PartDimension;
@@ -34,6 +35,7 @@ pub use stackup::{
     DielectricKind, GlassDk, GlassStep, GlassStyle, MASK_UM_RANGE, MAX_COPPER_LAYERS,
     MIN_COPPER_LAYERS, OUNCE_UM, PresetDielectric, Stackup, StackupPresets, Unsaved,
 };
+pub use variants::{AssemblyVariant, AssemblyVariants, Population, VariantOverride};
 pub use via::{Via, ViaSpan};
 
 /// The physical implementation an instance uses, as lineages resolved
@@ -91,6 +93,10 @@ pub struct ComponentInstance {
     /// and imports leave it alone; only an explicit removal removes it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub board_only: bool,
+    /// Whether the board without an assembly variant fits this part
+    /// (docs/assembly-variants.md). A variant may override it.
+    #[serde(default, skip_serializing_if = "Population::is_populated")]
+    pub population: Population,
 }
 
 /// Where one instance prints a text of its footprint, relative to where the
@@ -549,6 +555,9 @@ pub struct Project {
     /// why.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub refused_import_tracks: Vec<import_review::RefusedTrack>,
+    /// Assembly variants and the active one (docs/assembly-variants.md).
+    #[serde(default, skip_serializing_if = "AssemblyVariants::is_default")]
+    pub variants: AssemblyVariants,
 }
 
 /// The item of `items` with identity `id`. Collections are kept in
@@ -660,6 +669,7 @@ impl Project {
             assembly_link: None,
             net_disagreements: Vec::new(),
             refused_import_tracks: Vec::new(),
+            variants: AssemblyVariants::default(),
         }
     }
 }

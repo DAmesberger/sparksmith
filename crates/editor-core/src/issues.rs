@@ -516,6 +516,11 @@ fn collect(
                 if !crate::library::mechanical::in_bom(&project.library, instance.component) {
                     continue;
                 }
+                // A part the active variant does not fit is not bought.
+                let fitted = crate::instances::variants::fitted(project, instance);
+                if !fitted.populated() {
+                    continue;
+                }
                 if report.purchasing.state == completeness::PurchasingState::NoPart {
                     schematic.push(Finding::new(
                         rules::NO_PART,
@@ -534,6 +539,7 @@ fn collect(
     }
     schematic.extend(erc::checks(project));
     schematic.extend(crate::model::import_review::findings(project));
+    schematic.extend(crate::instances::variants::findings(project));
     out.push((IssueArea::Schematic, schematic));
     let mut board = layout::checks_with(project, graph, settings);
     board.extend(crate::interface::list::checks(project));
