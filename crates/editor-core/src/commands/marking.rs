@@ -181,6 +181,13 @@ pub fn layout(project: &Project, instance: Id) -> Result<Option<MarkingLayout>> 
         marking::surface_region(library, package.as_ref(), s.area, &s.placement)
     };
     let mut laid = marking::layout_with(spec, &inputs, &region)?;
+    marking::bind_artwork(&mut laid, spec, &inputs, &|hash| {
+        library
+            .assets
+            .iter()
+            .find(|a| a.hash == *hash && a.media_type == marking::ARTWORK_MEDIA_TYPE)
+            .and_then(|a| std::str::from_utf8(a.data.as_slice()).ok())
+    });
     for finding in &mut laid.findings {
         finding.objects.push(ObjectRef::Instance { id: instance });
     }

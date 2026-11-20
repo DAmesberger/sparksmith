@@ -1120,6 +1120,7 @@ fn publish_resistor_part(
     mpn: &str,
     ohms: f64,
     top_mark: Option<MarkingSpec>,
+    artwork: Option<crate::library::PackedAsset>,
 ) -> Fallible<crate::PartRef> {
     use crate::fields::{FieldValue, RatedSpec, SpecMeaning};
     use crate::library::{
@@ -1164,14 +1165,18 @@ fn publish_resistor_part(
         top_mark: top_mark.map(Box::new),
     };
     let id = new_draft(&mut b.engine, crate::DefinitionKind::Part)?;
-    edit(
-        &mut b.engine,
-        vec![DraftEdit {
-            id,
-            meta: meta(mpn),
-            definition: Definition::Part(Box::new(body)),
-        }],
-    )?;
+    let edits = vec![DraftEdit {
+        id,
+        meta: meta(mpn),
+        definition: Definition::Part(Box::new(body)),
+    }];
+    match artwork {
+        // The top mark's SVG packs with the edit.
+        Some(asset) => {
+            apply(&mut b.engine, pack(edits, vec![asset]))?;
+        }
+        None => edit(&mut b.engine, edits)?,
+    }
     let r = publish(&mut b.engine, vec![id])?
         .into_iter()
         .next()
@@ -1211,7 +1216,7 @@ fn substitute_variant(b: &mut Board, name: &str, part: crate::PartRef) -> Fallib
 fn a_substitute_part_shows_its_own_marking() -> Fallible<()> {
     use crate::instances::variants::VariantCommand;
     let mut b = board("10k")?;
-    let rated_part = publish_resistor_part(&mut b, "EX-R-4K7", 4.7e3, None)?;
+    let rated_part = publish_resistor_part(&mut b, "EX-R-4K7", 4.7e3, None, None)?;
     let marked_part = publish_resistor_part(
         &mut b,
         "EX-R-1K",
@@ -1224,6 +1229,7 @@ fn a_substitute_part_shows_its_own_marking() -> Fallible<()> {
             }],
             ..Default::default()
         }),
+        None,
     )?;
     let rated = substitute_variant(&mut b, "Rated", rated_part)?;
     let topped = substitute_variant(&mut b, "Topped", marked_part)?;
@@ -1276,5 +1282,45 @@ fn a_substitute_part_shows_its_own_marking() -> Fallible<()> {
     set_marking(&mut b.engine, InstanceMarking::default())?;
     set_properties(&mut b.engine, instance, vec![text(b.value, "4.7k")])?;
     assert_eq!(marking(&b.engine)?, substitute);
+    Ok(())
+}
+
+/// A substitute's artwork template is bound for the substitute: its own
+/// part number in the text, and the groups its part number chooses.
+#[test]
+fn a_substitute_part_binds_its_artwork_template() -> Fallible<()> {
+    use crate::instances::variants::VariantCommand;
+    let mut b = board("10k")?;
+    // Original artwork: the part number, and a bar for one family only.
+    let template = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 10'><text x='1' y='5'>{mpn}</text><g data-if='mpn^=EX-R-1'><rect width='20' height='2'/></g></svg>";
+    let asset = svg_asset(template);
+    let part = publish_resistor_part(
+        &mut b,
+        "EX-R-1K",
+        1e3,
+        Some(MarkingSpec {
+            items: vec![artwork_item(asset.hash, Some("CC0-1.0"))],
+            ..Default::default()
+        }),
+        Some(asset),
+    )?;
+    let variant = substitute_variant(&mut b, "Templated", part)?;
+    apply(
+        &mut b.engine,
+        Operation::Variant(VariantCommand::SetActive {
+            variant: Some(variant),
+        }),
+    )?;
+    let laid = marking_of(&b.engine, b.instance)?.ok_or("marked")?;
+    let bound = laid
+        .elements
+        .iter()
+        .find_map(|e| match e {
+            LaidElement::Artwork { bound, .. } => Some(bound.clone()),
+            _ => None,
+        })
+        .ok_or("no artwork")?;
+    assert_eq!(bound.get("mpn").map(String::as_str), Some("EX-R-1K"));
+    assert_eq!(bound.get("?mpn^=EX-R-1").map(String::as_str), Some("1"));
     Ok(())
 }

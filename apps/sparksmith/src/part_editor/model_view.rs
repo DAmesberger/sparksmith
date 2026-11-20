@@ -125,11 +125,18 @@ impl PartEditor {
                     })
                     .and_then(|(_, region)| *region)
             };
-            let layout =
+            let mut layout =
                 match sparksmith_core::library::marking::layout_with(&spec, &inputs, &region) {
                     Ok(layout) => layout,
                     Err(error) => return (Vec::new(), vec![error.to_string()]),
                 };
+            // Artwork templates drawn for the previewed part's values.
+            sparksmith_core::library::marking::bind_artwork(&mut layout, &spec, &inputs, &|hash| {
+                artwork
+                    .iter()
+                    .find(|(h, _)| h == hash)
+                    .map(|(_, text)| text.as_str())
+            });
             let source = |hash: &sparksmith_core::ContentHash| {
                 artwork
                     .iter()

@@ -382,6 +382,7 @@ fn artwork_is_scaled_into_its_box() -> TestResult {
             svg: hash,
             origin: [0.0, 0.0],
             size_mm: [2.0, 2.0],
+            bound: Default::default(),
         }],
         Finish::LaserEtch,
     );
@@ -397,6 +398,63 @@ fn artwork_is_scaled_into_its_box() -> TestResult {
     assert!(flat.area_mm2() > 1.0, "{}", flat.area_mm2());
     // Without the asset, artwork draws nothing.
     assert!(flatten(&marked, &Region::plane([3.0, 3.0]), &no_artwork)?.is_empty());
+    Ok(())
+}
+
+/// An original synthetic artwork template: a fixed frame (fitted by its
+/// view box), the variant's text and a bar shown only for one family.
+const TEMPLATE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20" data-fit="view-box">
+<text x="20" y="9" font-size="8" text-anchor="middle">{code}</text>
+<g data-if="mpn^=ACME-S3"><rect x="2" y="14" width="36" height="4"/></g>
+</svg>"#;
+
+fn template_layout(bound: &[(&str, &str)]) -> MarkingLayout {
+    layout(
+        vec![LaidElement::Artwork {
+            svg: ContentHash([9; 32]),
+            origin: [0.0, 0.0],
+            size_mm: [4.0, 2.0],
+            bound: bound
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect(),
+        }],
+        Finish::LaserEtchMetal,
+    )
+}
+
+/// A template is cached by what it draws for a part: two parts of the
+/// same variant share one flat decal, another variant gets its own, and
+/// the group a condition hides draws nothing.
+#[test]
+fn artwork_templates_are_cached_per_resolved_content() -> TestResult {
+    let source = |h: &ContentHash| (*h == ContentHash([9; 32])).then(|| TEMPLATE.to_string());
+    let n16r8 = template_layout(&[("code", "N16R8"), ("?mpn^=ACME-S3", "1")]);
+    let n8 = template_layout(&[("code", "N8"), ("?mpn^=ACME-S3", "1")]);
+    let other = template_layout(&[("code", "N16R8"), ("?mpn^=ACME-S3", "")]);
+    let size = [5.0, 3.0];
+    let mut cache = DecalCache::default();
+    let a = cache.flat(1, &n16r8, size, &source)?;
+    let b = cache.flat(2, &n16r8, size, &source)?;
+    assert!(Arc::ptr_eq(&a, &b));
+    assert_eq!(cache.built(), 1);
+    let c = cache.flat(3, &n8, size, &source)?;
+    assert_eq!(cache.built(), 2);
+    assert_ne!(*a, *c);
+    let d = cache.flat(4, &other, size, &source)?;
+    assert_eq!(cache.built(), 3);
+    // Without its bar the label covers less, in the same frame: the text
+    // stays where it was (fitted by the view box, not by what is drawn).
+    assert!(
+        d.area_mm2() < a.area_mm2() - 0.5,
+        "{} {}",
+        d.area_mm2(),
+        a.area_mm2()
+    );
+    let top = |f: &FlatDecal| f.points().iter().map(|p| p[1]).fold(f64::MIN, f64::max);
+    assert!((top(&a) - top(&d)).abs() < 1e-6, "{} {}", top(&a), top(&d));
+    // Nothing bound: no text, no bar, no placeholder drawn.
+    assert!(flatten(&template_layout(&[]), &Region::plane(size), &source)?.is_empty());
     Ok(())
 }
 

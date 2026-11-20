@@ -127,7 +127,7 @@ pub fn artwork_with_notes(
     // A first pass finds the painted bounds, a second flattens curves
     // within the chord tolerance at the fitted scale.
     let first = Walk::run(text, &gradients, None)?;
-    let Some(bounds) = bounds(&first.out) else {
+    let Some(bounds) = first.frame.or_else(|| bounds(&first.out)) else {
         return Ok((Vec::new(), first.notes()));
     };
     let (w, h) = (bounds[2] - bounds[0], bounds[3] - bounds[1]);
@@ -139,7 +139,7 @@ pub fn artwork_with_notes(
         return Ok((Vec::new(), first.notes()));
     }
     let second = Walk::run(text, &gradients, Some(CHORD_MM / k))?;
-    let Some(bounds) = bounds_of(&second.out) else {
+    let Some(bounds) = second.frame.or_else(|| bounds_of(&second.out)) else {
         return Ok((Vec::new(), second.notes()));
     };
     // Fit again to the flattened curves (the first pass saw only chords).
@@ -1030,6 +1030,9 @@ struct Walk<'a> {
     /// Chord tolerance in document units; `None` on the bounds pass.
     tol: Option<f64>,
     root: Option<Affine>,
+    /// The root's view box in document units when the artwork asks to be
+    /// fitted by it (`data-fit="view-box"`) rather than by what it paints.
+    frame: Option<[f64; 4]>,
     stack: Vec<Frame>,
     skip: usize,
     elements: usize,
@@ -1071,6 +1074,7 @@ impl<'a> Walk<'a> {
             gradients,
             tol,
             root: None,
+            frame: None,
             stack: Vec::new(),
             skip: 0,
             elements: 0,
@@ -1161,6 +1165,7 @@ impl<'a> Walk<'a> {
                 }
                 let root = root_affine(&attrs);
                 self.root = Some(root);
+                self.frame = view_frame(&attrs, root);
                 Frame {
                     m: root,
                     style: Style::default(),
@@ -1520,6 +1525,20 @@ impl<'a> Walk<'a> {
         }
         Ok(())
     }
+}
+
+/// The root's view box in document units, when the root asks to be
+/// fitted by it (`data-fit="view-box"`): an artwork template keeps its
+/// frame whichever of its groups its part shows.
+fn view_frame(attrs: &[(String, String)], root: Affine) -> Option<[f64; 4]> {
+    if attr(attrs, "data-fit").is_none_or(|v| v.trim() != "view-box") {
+        return None;
+    }
+    let v = attr(attrs, "viewBox")
+        .and_then(numbers)
+        .filter(|v| v.len() == 4 && v[2] > 0.0 && v[3] > 0.0)?;
+    let [a, _, _, d, _, _] = root.0;
+    Some([v[0] * a, v[1] * d, (v[0] + v[2]) * a, (v[1] + v[3]) * d])
 }
 
 /// The root's map from user units: the `viewBox` stretched to the

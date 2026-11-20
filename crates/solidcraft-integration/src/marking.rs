@@ -51,6 +51,7 @@ pub mod paint;
 mod shapes;
 #[cfg(test)]
 mod surface_tests;
+pub mod template;
 #[cfg(test)]
 mod tests;
 
@@ -462,8 +463,12 @@ fn groups(layout: &MarkingLayout, fit: [f64; 2], artwork: ArtworkSource<'_>) -> 
                 svg,
                 origin,
                 size_mm,
+                bound,
             } => {
                 if let Some(text) = artwork(svg) {
+                    // A template drawn with this part's values and the
+                    // installed artwork it names.
+                    let text = template::apply(&text, bound, &template::installed_art)?;
                     out.extend(artwork_groups(&text, *origin, *size_mm, layout.finish)?);
                 }
             }

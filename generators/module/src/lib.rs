@@ -61,8 +61,21 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The presets, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`).
-const VERSION: u32 = 5;
+/// The generator's version (`Description::version`). 6: the shield label.
+const VERSION: u32 = 6;
+
+/// The shield can's label: an artwork template (the generator's data,
+/// original layout) whose `%NAME%`, `%LOGO%`, `%FCC%` and `%CE%` the
+/// preset's label parameters fill; a line naming one the preset leaves
+/// empty is left out. The host fills `{code}` per placed part (the
+/// orderable variant from `marking_codes`) and fits the installed artwork
+/// the preset names by id (`<use data-art>`), drawing none that is not
+/// installed.
+const SHIELD_LABEL: &str = include_str!("../marking/shield-label.svg");
+/// Longest label text or artwork id.
+const LABEL_CHARS: u32 = 32;
+/// The label's share of the can top along each side, in thousandths.
+const LABEL_SHARE: i64 = 820;
 
 /// Row slots of the part files: two per side.
 pub const ROWS_PER_SIDE: usize = 2;
@@ -251,6 +264,85 @@ fn text(key: &str, label: &str, default: &str, group: &str) -> Param {
         group: Some(group.into()),
         context: None,
     }
+}
+
+fn label_text(key: &str, label: &str, help: &str) -> Param {
+    Param {
+        key: key.into(),
+        label: label.into(),
+        help: Some(help.into()),
+        ty: ParamType::Text {
+            max_chars: LABEL_CHARS,
+        },
+        default: ParamValue::Text(String::new()),
+        group: Some("marking".into()),
+        context: None,
+    }
+}
+
+/// `text` safe in the label's XML text and attributes: markup characters
+/// escaped, braces (the host's placeholders) dropped.
+fn label_escape(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.trim().chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '{' | '}' => {}
+            c if c.is_control() => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// The shield can's label: the template filled from the preset's label
+/// parameters, laser-etched on the can top (`marking-can-top`), with the
+/// variant codes for `{code}`. None without a label name or a can.
+fn shield_label(args: &Args<'_>, d: &Dims) -> Result<Option<v1::Marking>, Problem> {
+    let name = label_escape(args.text("label_name")?);
+    if name.is_empty() || d.can[0] <= 0 || d.can[1] <= 0 {
+        return Ok(None);
+    }
+    let tokens = [
+        ("%NAME%", name),
+        ("%LOGO%", label_escape(args.text("label_logo")?)),
+        ("%FCC%", label_escape(args.text("label_fcc_id")?)),
+        ("%CE%", label_escape(args.text("label_ce")?)),
+    ];
+    let mut svg = String::with_capacity(SHIELD_LABEL.len());
+    for line in SHIELD_LABEL.lines() {
+        let mut line = String::from(line);
+        let mut empty = false;
+        for (token, value) in &tokens {
+            if line.contains(token) {
+                empty |= value.is_empty();
+                line = line.replace(token, value);
+            }
+        }
+        if !empty {
+            svg.push_str(&line);
+            svg.push('\n');
+        }
+    }
+    let share = |v: i64| {
+        div_round(v.saturating_mul(LABEL_SHARE), 1000)
+            .unwrap_or(0)
+            .max(1)
+    };
+    Ok(Some(v1::Marking {
+        metal: true,
+        surface: Some("can-top".into()),
+        artwork: vec![v1::Artwork {
+            svg,
+            size: [share(d.can[0]), share(d.can[1])],
+            at: v1::MarkPlace::Centre,
+        }],
+        codes: sparksmith_generator_sdk::marking::codes(args)?,
+        ..v1::Marking::default()
+    }))
 }
 
 /// A list parameter of the pad rows.
@@ -678,6 +770,27 @@ fn description_with(presets: Vec<Preset>) -> Description {
             0,
             "keep-out",
         ),
+        label_text(
+            "label_name",
+            "Shield label: module name",
+            "The module name laser-etched on the shield can, as the product carries it; no label when empty.",
+        ),
+        label_text(
+            "label_logo",
+            "Shield label: maker's mark",
+            "The id of the maker's mark in the installed library artwork (artwork/<id>.svg); drawn only where installed.",
+        ),
+        label_text(
+            "label_fcc_id",
+            "Shield label: FCC ID",
+            "The FCC ID the label prints, from the module's grant; no FCC line when empty.",
+        ),
+        label_text(
+            "label_ce",
+            "Shield label: conformity mark",
+            "The id of a conformity mark (for example the CE mark) in the installed library artwork; none when empty.",
+        ),
+        sparksmith_generator_sdk::marking::codes_param(),
     ];
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
@@ -1722,7 +1835,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             .to_string(),
     ];
     Ok(Generation {
-        marking: None,
+        marking: shield_label(&args, &d).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

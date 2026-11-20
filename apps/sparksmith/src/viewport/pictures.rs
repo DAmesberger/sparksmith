@@ -297,6 +297,9 @@ mod esp32;
 /// The generators' marking rules on placed parts.
 mod marking_rules;
 
+/// Markings as the window draws them, through the model worker.
+mod live_markings;
+
 /// A four-sided gull-wing and the land grids, for review.
 mod lead_rows;
 

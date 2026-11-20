@@ -129,7 +129,7 @@ impl Standards {
 /// material library and the shipped generators. Explicit: the host builds
 /// one from the shipped library and hands it to each engine and session;
 /// nothing in the process holds one for everybody.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Context {
     standards: Arc<Standards>,
     /// The material library, or why loading it failed: a host without 3D
@@ -150,6 +150,10 @@ pub struct Context {
     /// The PCB realism showcase's parts (`library/showcase/parts.json`),
     /// or why reading them failed.
     showcase: std::result::Result<Arc<crate::library::showcase_parts::ShowcaseParts>, String>,
+    /// Marking artwork installed with the library (`artwork/<id>.svg`), by
+    /// id, which artwork templates name (`<use data-art="ID">`). Optional:
+    /// a template draws without artwork that is not installed.
+    artwork: Arc<std::collections::BTreeMap<String, Arc<str>>>,
 }
 
 /// A shipped part file as the host read it: its name (the file's stem)
@@ -239,7 +243,20 @@ impl Context {
                 "the showcase parts were not loaded: the program reads the shipped library's showcase/ folder before it builds the showcase"
                     .into(),
             ),
+            artwork: Arc::default(),
         }
+    }
+
+    /// This context with the installed marking artwork, by id.
+    #[must_use]
+    pub fn with_artwork(mut self, artwork: std::collections::BTreeMap<String, Arc<str>>) -> Self {
+        self.artwork = Arc::new(artwork);
+        self
+    }
+
+    /// The installed marking artwork `id` (SVG text), if any.
+    pub fn artwork(&self, id: &str) -> Option<&Arc<str>> {
+        self.artwork.get(id)
     }
 
     /// This context with the showcase's parts, or why reading them failed.

@@ -259,6 +259,63 @@ fn values_become_the_generated_parts_typed_fields() -> Fallible {
     Ok(())
 }
 
+/// An imported board is marked as a designed one: a resistor's value code
+/// from its KiCad value, an IC's part number, a ceramic capacitor bare;
+/// and the decals are made on the live model the PCB 3D view draws.
+#[test]
+fn imported_parts_are_marked_from_their_values_and_part_numbers() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let footprints = [
+        chip_footprint("R1", 10.0, "4k7"),
+        chip_footprint("R2", 20.0, "10k"),
+        chip_footprint("C1", 30.0, "100n 16V"),
+        sot_footprint(
+            "U1",
+            [40.0, 10.0],
+            0.0,
+            false,
+            r#"(property "MPN" "ORIG23-6") (property "Manufacturer" "Original Devices")"#,
+        ),
+    ]
+    .concat();
+    let imported = import(dir.path(), "marked", &board("marked", &footprints))?;
+    let project = imported.engine.project();
+    let texts = |designator: &str| -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or(designator.to_owned())?;
+        Ok(
+            sparksmith_core::commands::instance_marking(project, instance.id)?
+                .iter()
+                .flat_map(|l| l.all())
+                .flat_map(|l| &l.elements)
+                .filter_map(|e| match e {
+                    sparksmith_core::library::marking::LaidElement::Text(t) => Some(t.text.clone()),
+                    _ => None,
+                })
+                .collect(),
+        )
+    };
+    assert_eq!(texts("R1")?, ["472"]);
+    assert_eq!(texts("R2")?, ["103"]);
+    assert!(texts("C1")?.is_empty());
+    assert_eq!(texts("U1")?, ["ORIG23-6"]);
+    let model = sparksmith_solidcraft::project::build_flat(
+        project,
+        &sparksmith_solidcraft::models::imported::SourceCache::default(),
+        None,
+        sparksmith_solidcraft::project::Flat::Meshed,
+    )?;
+    let mut markings = sparksmith_solidcraft::marking::board::BoardMarkings::default();
+    let decals = markings.decals(project, &model.geometry, &model.sources);
+    assert!(markings.failures().is_empty(), "{:?}", markings.failures());
+    let marked: std::collections::BTreeSet<_> = decals.iter().filter_map(|g| g.item).collect();
+    assert_eq!(marked.len(), 3, "R1, R2 and U1 carry decals");
+    Ok(())
+}
+
 /// A part number with a manufacturer becomes the placed part's
 /// manufacturer part; one naming another package than the lands are, or
 /// a variant of the matched package's name, is a finding naming both, and
