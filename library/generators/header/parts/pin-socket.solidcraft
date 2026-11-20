@@ -44,7 +44,7 @@
       "name": "body_height",
       "expr": "8.5 mm",
       "unit": "mm",
-      "comment": "housing top above the seating plane",
+      "comment": "insulator top above the seating plane",
       "model": false
     },
     {
@@ -107,7 +107,7 @@
       "name": "corner_round",
       "expr": "0.15 mm",
       "unit": "mm",
-      "comment": "round of the housing's upright corners",
+      "comment": "round of the insulator's upright corners",
       "model": false
     },
     {
@@ -135,7 +135,7 @@
       "name": "floor_z",
       "expr": "1 mm",
       "unit": "mm",
-      "comment": "housing floor under the cavity",
+      "comment": "insulator floor under the cavity",
       "model": false
     },
     {
@@ -149,10 +149,10 @@
   "features": [
     {
       "id": 1,
-      "name": "housing",
+      "name": "insulator",
       "suppressed": false,
       "body_names": [
-        "housing"
+        "insulator"
       ],
       "param_names": [
         "d1",
@@ -277,7 +277,7 @@
         ]
       ],
       "radius": "corner_round",
-      "body": "housing"
+      "body": "insulator"
     },
     {
       "id": 3,
@@ -412,7 +412,7 @@
       },
       "operation": "cut",
       "targets": [
-        "housing"
+        "insulator"
       ]
     },
     {
@@ -425,7 +425,7 @@
         "d10"
       ],
       "participants": [
-        "housing"
+        "insulator"
       ],
       "type": "box",
       "corner": [
@@ -448,7 +448,7 @@
         "d13"
       ],
       "participants": [
-        "housing"
+        "insulator"
       ],
       "type": "box",
       "corner": [
@@ -471,7 +471,7 @@
         "d16"
       ],
       "participants": [
-        "housing"
+        "insulator"
       ],
       "type": "box",
       "corner": [
@@ -4480,7 +4480,7 @@
           "dielectric_ior": 1.5
         }
       },
-      "housing": {
+      "insulator": {
         "name": "pbt",
         "color": [
           48,

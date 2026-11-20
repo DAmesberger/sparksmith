@@ -44,7 +44,7 @@
       "name": "body_height",
       "expr": "3.7 mm",
       "unit": "mm",
-      "comment": "housing top above the seating plane",
+      "comment": "insulator top above the seating plane",
       "model": false
     },
     {
@@ -107,7 +107,7 @@
       "name": "corner_round",
       "expr": "0.15 mm",
       "unit": "mm",
-      "comment": "round of the housing's upright corners",
+      "comment": "round of the insulator's upright corners",
       "model": false
     },
     {
@@ -128,7 +128,7 @@
       "name": "standoff",
       "expr": "0.2 mm",
       "unit": "mm",
-      "comment": "housing underside above the board",
+      "comment": "insulator underside above the board",
       "model": false
     },
     {
@@ -201,10 +201,10 @@
   "features": [
     {
       "id": 1,
-      "name": "housing",
+      "name": "insulator",
       "suppressed": false,
       "body_names": [
-        "housing"
+        "insulator"
       ],
       "param_names": [
         "d1",
@@ -329,7 +329,7 @@
         ]
       ],
       "radius": "corner_round",
-      "body": "housing"
+      "body": "insulator"
     },
     {
       "id": 3,
@@ -464,7 +464,7 @@
       },
       "operation": "cut",
       "targets": [
-        "housing"
+        "insulator"
       ]
     },
     {
@@ -600,7 +600,7 @@
       },
       "operation": "cut",
       "targets": [
-        "housing"
+        "insulator"
       ]
     },
     {
@@ -613,7 +613,7 @@
         "d13"
       ],
       "participants": [
-        "housing"
+        "insulator"
       ],
       "type": "box",
       "corner": [
@@ -636,7 +636,7 @@
         "d16"
       ],
       "participants": [
-        "housing"
+        "insulator"
       ],
       "type": "box",
       "corner": [
@@ -1097,7 +1097,7 @@
       },
       "operation": "cut",
       "targets": [
-        "housing"
+        "insulator"
       ]
     },
     {
@@ -1533,7 +1533,7 @@
       },
       "operation": "cut",
       "targets": [
-        "housing"
+        "insulator"
       ]
     },
     {
@@ -1653,7 +1653,7 @@
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {
-      "housing": {
+      "insulator": {
         "name": "pa9t",
         "color": [
           48,

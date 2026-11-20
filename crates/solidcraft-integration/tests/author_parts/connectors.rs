@@ -1379,7 +1379,7 @@ fn socket_params(
             "body_height",
             mm(height),
             "mm",
-            "housing top above the seating plane",
+            "insulator top above the seating plane",
         ),
         ("pin_side", mm(tail), "mm", "contact tail width"),
         (
@@ -1408,7 +1408,7 @@ fn socket_params(
             "corner_round",
             "0.15 mm".into(),
             "mm",
-            "round of the housing's upright corners",
+            "round of the insulator's upright corners",
         ),
         (
             "x0",
@@ -1425,23 +1425,23 @@ fn socket_params(
     ]
 }
 
-/// The housing `housing` on z `z0..body_height`, its upright corners
+/// The insulator `insulator` on z `z0..body_height`, its upright corners
 /// rounded (picked at the saved length, width and a mid height).
-fn socket_housing(s: &mut Session, z0: &str, [length, width, zm]: [f64; 3]) {
+fn socket_insulator(s: &mut Session, z0: &str, [length, width, zm]: [f64; 3]) {
     span_box(
         s,
-        "housing",
+        "insulator",
         ["- pins * pitch / 2", "pins * pitch / 2"],
         ["- rows * row_pitch / 2", "rows * row_pitch / 2"],
         [z0, "body_height"],
-        Some("housing"),
+        Some("insulator"),
         None,
     );
     let (x, y) = (length / 2.0, width / 2.0);
     run(
         s,
         "solid.fillet",
-        json!({"name": "corner round", "body": "housing", "radius": "corner_round",
+        json!({"name": "corner round", "body": "insulator", "radius": "corner_round",
             "edges": [[-x, -y, zm], [x, -y, zm], [x, y, zm], [-x, y, zm]]}),
     );
 }
@@ -1458,14 +1458,14 @@ fn every_position(s: &mut Session, what: serde_json::Value, name: &str) {
 }
 
 /// The header generator's through-hole socket (`pin-socket`): a black
-/// PBT housing on the seating plane, per position a square entry under a
+/// PBT insulator on the seating plane, per position a square entry under a
 /// 45° lead-in at the top opening into a wider cavity down to the floor,
 /// and a gold contact: two leaves facing each other across the cavity
 /// (they grip the mating post) on a tail of `pin_side` square that passes
 /// the floor and reaches `pin_below` under the seating plane. The
-/// housing's openings are cuts at pin 1 patterned over every position, so
-/// contacts and housing stay disjoint at any count. Saved at a 1 × 10
-/// socket of 2.54 mm (Würth Elektronik WR-PHD 61301011821: housing 8.5 mm
+/// insulator's openings are cuts at pin 1 patterned over every position, so
+/// contacts and insulator stay disjoint at any count. Saved at a 1 × 10
+/// socket of 2.54 mm (Würth Elektronik WR-PHD 61301011821: insulator 8.5 mm
 /// high, tails 3.1 mm); the generator gives every value.
 pub fn author_pin_socket() -> Vec<u8> {
     let mut p = socket_params(1, 10, 2.54, 8.5, 0.64);
@@ -1480,7 +1480,7 @@ pub fn author_pin_socket() -> Vec<u8> {
             "floor_z",
             "1 mm".into(),
             "mm",
-            "housing floor under the cavity",
+            "insulator floor under the cavity",
         ),
         (
             "cavity_top",
@@ -1490,9 +1490,9 @@ pub fn author_pin_socket() -> Vec<u8> {
         ),
     ]);
     let mut s = new_design("Pin socket", &p);
-    socket_housing(&mut s, "0 mm", [25.4, 2.54, 4.25]);
-    let cut = Some(("cut", "housing"));
-    lead_in(&mut s, "lead-in", "housing", "body_height", true);
+    socket_insulator(&mut s, "0 mm", [25.4, 2.54, 4.25]);
+    let cut = Some(("cut", "insulator"));
+    lead_in(&mut s, "lead-in", "insulator", "body_height", true);
     pin_box(
         &mut s,
         "entry",
@@ -1541,24 +1541,24 @@ pub fn author_pin_socket() -> Vec<u8> {
     // Every contact the generator can ask for (4 × 64) gets its look at
     // that count, then the file goes back.
     set(&mut s, json!({"rows": "4", "pins": "64"}));
-    let contacts = bodies_but(&s, &["housing"]);
+    let contacts = bodies_but(&s, &["insulator"]);
     assert_eq!(contacts.len(), 256);
     let contacts: Vec<&str> = contacts.iter().map(String::as_str).collect();
-    assign_look(&mut s, &["housing"], MaterialId::Pbt);
+    assign_look(&mut s, &["insulator"], MaterialId::Pbt);
     assign_look(&mut s, &contacts, MaterialId::Gold);
     set(&mut s, json!({"rows": "1", "pins": "10"}));
     finish(s)
 }
 
 /// The header generator's bottom-entry SMD socket (`socket-smd-bottom`):
-/// a black PA9T housing `standoff` above the board, per position a square
+/// a black PA9T insulator `standoff` above the board, per position a square
 /// entry through it with a 45° lead-in at the bottom (over the board's
 /// hole, where the mating post comes up) and the same at the top, a wider
 /// cavity between holding the gold contact's two leaves, and per pin a
 /// gold tail: a strip of `tail_sheet` and `pin_side` wide from inside the
-/// housing's long wall down through its bottom and out along ±y on the
-/// board to `tail_span` / 2 (the housing cut round it). Saved at a 2 × 3
-/// socket of 2.54 mm (Würth Elektronik WR-PHD 610006243021: housing 5 mm
+/// insulator's long wall down through its bottom and out along ±y on the
+/// board to `tail_span` / 2 (the insulator cut round it). Saved at a 2 × 3
+/// socket of 2.54 mm (Würth Elektronik WR-PHD 610006243021: insulator 5 mm
 /// wide, top 3.7 mm and underside 0.2 mm over the board, tails 7.2 mm tip
 /// to tip); the generator gives every value.
 pub fn author_socket_smd_bottom() -> Vec<u8> {
@@ -1568,7 +1568,7 @@ pub fn author_socket_smd_bottom() -> Vec<u8> {
             "standoff",
             "0.2 mm".to_owned(),
             "mm",
-            "housing underside above the board",
+            "insulator underside above the board",
         ),
         (
             "cavity_bottom",
@@ -1598,10 +1598,10 @@ pub fn author_socket_smd_bottom() -> Vec<u8> {
         ),
     ]);
     let mut s = new_design("Bottom-entry SMD socket", &p);
-    socket_housing(&mut s, "standoff", [7.62, 5.08, 1.95]);
-    let cut = Some(("cut", "housing"));
-    lead_in(&mut s, "lead-in below", "housing", "standoff", false);
-    lead_in(&mut s, "lead-in above", "housing", "body_height", true);
+    socket_insulator(&mut s, "standoff", [7.62, 5.08, 1.95]);
+    let cut = Some(("cut", "insulator"));
+    lead_in(&mut s, "lead-in below", "insulator", "standoff", false);
+    lead_in(&mut s, "lead-in above", "insulator", "body_height", true);
     pin_box(
         &mut s,
         "entry",
@@ -1647,7 +1647,7 @@ pub fn author_socket_smd_bottom() -> Vec<u8> {
             ],
             "tail_sheet / 2",
             "tail_bend",
-            Some("housing"),
+            Some("insulator"),
         );
         run(
             &mut s,
@@ -1665,10 +1665,10 @@ pub fn author_socket_smd_bottom() -> Vec<u8> {
     // Every leaf and tail the generator can ask for (2 × 64) gets its look
     // at that count, then the file goes back.
     set(&mut s, json!({"pins": "64"}));
-    let metal = bodies_but(&s, &["housing"]);
+    let metal = bodies_but(&s, &["insulator"]);
     assert_eq!(metal.len(), 6 * 64);
     let metal: Vec<&str> = metal.iter().map(String::as_str).collect();
-    assign_look(&mut s, &["housing"], MaterialId::Pa9t);
+    assign_look(&mut s, &["insulator"], MaterialId::Pa9t);
     assign_look(&mut s, &metal, MaterialId::Gold);
     set(&mut s, json!({"pins": "3"}));
     finish(s)
