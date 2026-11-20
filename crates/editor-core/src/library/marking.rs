@@ -8,6 +8,7 @@
 //! finding (`marking.unrepresentable`, `marking.does_not_fit`); a wrong
 //! code is never drawn. [`MarkingLayout`] is the 2D result the integration
 //! crate (`sparksmith-solidcraft::marking`, D5) turns into a decal mesh.
+pub mod artwork;
 pub mod codes;
 mod layout;
 pub mod matrix;
@@ -516,11 +517,15 @@ pub enum LaidElement {
         origin: [f64; 2],
         module_mm: f64,
     },
-    /// `origin` is the artwork's centre.
+    /// `origin` is the artwork's centre. `bound` holds the values of an
+    /// artwork template's placeholders and conditions for this part
+    /// ([`artwork`], [`bind_artwork`]); empty for plain artwork.
     Artwork {
         svg: ContentHash,
         origin: [f64; 2],
         size_mm: [f64; 2],
+        #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+        bound: BTreeMap<String, String>,
     },
     /// `origin` is the mark's centre; a dot is a circle of diameter
     /// `size_mm[0]`, a bar, a band and a stripe are rectangles (a stripe
@@ -619,6 +624,46 @@ pub fn layout(spec: &MarkingSpec, inputs: &MarkingInputs) -> Result<MarkingLayou
 
 /// A spec's region and chart on its surface, for [`layout_with`].
 pub type Region<'a> = dyn Fn(&MarkingSpec) -> Option<([f64; 2], Chart)> + 'a;
+
+/// Bind the artwork templates of `laid` (the layout of `spec` for
+/// `inputs`, its decals those of `spec`'s decals in order): each artwork
+/// element whose SVG text `svg` gives and which is a template gets the
+/// values of its placeholders and conditions for this part, each spec's
+/// code table read for `{code}` ([`artwork::bindings`]).
+pub fn bind_artwork<'a>(
+    laid: &mut MarkingLayout,
+    spec: &MarkingSpec,
+    inputs: &MarkingInputs,
+    svg: &dyn Fn(&ContentHash) -> Option<&'a str>,
+) {
+    let one = |laid: &mut MarkingLayout, spec: &MarkingSpec| {
+        let mut with_codes = None;
+        for element in &mut laid.elements {
+            let LaidElement::Artwork {
+                svg: hash, bound, ..
+            } = element
+            else {
+                continue;
+            };
+            let Some(text) = svg(hash).filter(|t| artwork::is_template(t)) else {
+                continue;
+            };
+            let inputs = with_codes.get_or_insert_with(|| MarkingInputs {
+                codes: if spec.codes.is_empty() {
+                    inputs.codes.clone()
+                } else {
+                    spec.codes.clone()
+                },
+                ..inputs.clone()
+            });
+            *bound = artwork::bindings(text, inputs);
+        }
+    };
+    one(laid, spec);
+    for (laid, spec) in laid.decals.iter_mut().zip(&spec.decals) {
+        one(laid, spec);
+    }
+}
 
 /// Lay out `spec` and its decals, each in the area and chart `region`
 /// gives for it (the region of its surface; [`Placement::layout_area`] is

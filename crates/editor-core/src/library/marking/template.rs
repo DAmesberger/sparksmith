@@ -47,13 +47,57 @@ pub(super) enum Format {
     },
 }
 
-/// A condition on a field's number.
+/// A condition: on a field's number (`field:D8<=1%`), on a text the part
+/// gives (`mpn^=ESP32-S3`), or that a text is there at all (`code`); a
+/// leading `!` negates it.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct Condition {
-    field: DefinitionId,
-    at_most: bool,
-    value: f64,
+    test: Test,
+    negated: bool,
 }
+
+#[derive(Clone, Debug, PartialEq)]
+enum Test {
+    Number {
+        field: DefinitionId,
+        at_most: bool,
+        value: f64,
+    },
+    /// The subject's text compared as part numbers are (upper case,
+    /// spaces ignored).
+    Text {
+        subject: Subject,
+        op: TextOp,
+        text: String,
+    },
+    /// The subject has a text that is not blank.
+    Present(Subject),
+}
+
+/// What a text condition reads.
+#[derive(Clone, Debug, PartialEq)]
+enum Subject {
+    Mpn,
+    Code,
+    Manufacturer,
+    Field(DefinitionId),
+    Var(String),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum TextOp {
+    /// `=`
+    Equals,
+    /// `^=`
+    Starts,
+    /// `$=`
+    Ends,
+    /// `*=`
+    Contains,
+}
+
+/// Longest literal a text condition compares with.
+const MAX_CONDITION_TEXT: usize = 64;
 
 /// Alternatives one placeholder may list.
 const MAX_ALTERNATIVES: usize = 4;
@@ -126,33 +170,82 @@ fn code(text: &str) -> Result<CodeScheme, String> {
     })
 }
 
-fn condition(text: &str) -> Result<Condition, String> {
-    let bad = || format!("\"{text}\" is not a condition (field:<lineage><=<number> or >=)");
-    let rest = text.strip_prefix("field:").ok_or_else(bad)?;
-    let (id, at_most, number) = if let Some((id, n)) = rest.split_once("<=") {
-        (id, true, n)
-    } else if let Some((id, n)) = rest.split_once(">=") {
-        (id, false, n)
-    } else {
-        return Err(bad());
-    };
-    let field = lineage(id.trim()).ok_or_else(bad)?;
-    let number = number.trim();
-    let (number, scale) = match number.strip_suffix('%') {
-        Some(n) => (n.trim(), 0.01),
-        None => (number, 1.0),
-    };
-    let value = number
-        .parse::<f64>()
-        .ok()
-        .filter(|v| v.is_finite())
-        .ok_or_else(bad)?
-        * scale;
-    Ok(Condition {
-        field,
-        at_most,
-        value,
+fn subject(text: &str) -> Option<Subject> {
+    Some(match text {
+        "mpn" => Subject::Mpn,
+        "code" => Subject::Code,
+        "manufacturer" => Subject::Manufacturer,
+        _ => {
+            if let Some(name) = text.strip_prefix("var:") {
+                return var_name_valid(name).then(|| Subject::Var(name.into()));
+            }
+            return lineage(text.strip_prefix("field:")?).map(Subject::Field);
+        }
     })
+}
+
+/// Parse a condition, or say why it is not one.
+pub(super) fn condition(text: &str) -> Result<Condition, String> {
+    let bad = || {
+        format!(
+            "\"{text}\" is not a condition (field:<lineage><=<number> or >=; mpn, code, manufacturer, field:<lineage> or var:<name> with =, ^= starts, $= ends or *= contains a text, or alone: it has one; ! negates)"
+        )
+    };
+    let (negated, rest) = match text.trim().strip_prefix('!') {
+        Some(rest) => (true, rest.trim()),
+        None => (false, text.trim()),
+    };
+    let number = |id: &str, at_most: bool, number: &str| -> Result<Test, String> {
+        let field = id
+            .trim()
+            .strip_prefix("field:")
+            .and_then(lineage)
+            .ok_or_else(bad)?;
+        let number = number.trim();
+        let (number, scale) = match number.strip_suffix('%') {
+            Some(n) => (n.trim(), 0.01),
+            None => (number, 1.0),
+        };
+        let value = number
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite())
+            .ok_or_else(bad)?
+            * scale;
+        Ok(Test::Number {
+            field,
+            at_most,
+            value,
+        })
+    };
+    let test = if let Some((id, n)) = rest.split_once("<=") {
+        number(id, true, n)?
+    } else if let Some((id, n)) = rest.split_once(">=") {
+        number(id, false, n)?
+    } else if let Some((left, right)) = rest.split_once('=') {
+        let (left, op) = if let Some(left) = left.strip_suffix('^') {
+            (left, TextOp::Starts)
+        } else if let Some(left) = left.strip_suffix('$') {
+            (left, TextOp::Ends)
+        } else if let Some(left) = left.strip_suffix('*') {
+            (left, TextOp::Contains)
+        } else {
+            (left, TextOp::Equals)
+        };
+        let text = super::code_key(right);
+        if text.is_empty() || text.len() > MAX_CONDITION_TEXT || text.chars().any(char::is_control)
+        {
+            return Err(bad());
+        }
+        Test::Text {
+            subject: subject(left.trim()).ok_or_else(bad)?,
+            op,
+            text,
+        }
+    } else {
+        Test::Present(subject(rest).ok_or_else(bad)?)
+    };
+    Ok(Condition { test, negated })
 }
 
 fn placeholder(body: &str) -> Result<Piece, String> {
@@ -272,14 +365,50 @@ pub(super) fn render(pieces: &[Piece], inputs: &MarkingInputs) -> Result<String,
         .collect())
 }
 
-fn holds(condition: &Condition, inputs: &MarkingInputs) -> bool {
-    // Within a part per million of the bound: a parsed "1 %" is 0.01
-    // within binary rounding.
-    let slack = condition.value.abs() * 1e-6;
-    match inputs.fields.get(&condition.field).and_then(|(_, si)| *si) {
-        Some(v) if condition.at_most => v <= condition.value + slack,
-        Some(v) => v >= condition.value - slack,
-        None => false,
+/// Whether `condition` holds for `inputs`. A condition on a value the part
+/// does not have does not hold (its negation does).
+pub(super) fn holds(condition: &Condition, inputs: &MarkingInputs) -> bool {
+    let held = match &condition.test {
+        Test::Number {
+            field,
+            at_most,
+            value,
+        } => {
+            // Within a part per million of the bound: a parsed "1 %" is
+            // 0.01 within binary rounding.
+            let slack = value.abs() * 1e-6;
+            match inputs.fields.get(field).and_then(|(_, si)| *si) {
+                Some(v) if *at_most => v <= value + slack,
+                Some(v) => v >= value - slack,
+                None => false,
+            }
+        }
+        Test::Text { subject, op, text } => subject_text(subject, inputs).is_some_and(|have| {
+            let have = super::code_key(&have);
+            match op {
+                TextOp::Equals => have == *text,
+                TextOp::Starts => have.starts_with(text.as_str()),
+                TextOp::Ends => have.ends_with(text.as_str()),
+                TextOp::Contains => have.contains(text.as_str()),
+            }
+        }),
+        Test::Present(subject) => {
+            subject_text(subject, inputs).is_some_and(|t| !t.trim().is_empty())
+        }
+    };
+    held != condition.negated
+}
+
+fn subject_text(subject: &Subject, inputs: &MarkingInputs) -> Option<String> {
+    match subject {
+        Subject::Mpn => inputs.mpn.clone(),
+        Subject::Manufacturer => inputs.manufacturer.clone(),
+        Subject::Code => inputs
+            .mpn
+            .as_deref()
+            .and_then(|mpn| inputs.codes.get(&super::code_key(mpn)).cloned()),
+        Subject::Field(id) => inputs.fields.get(id).map(|(text, _)| text.clone()),
+        Subject::Var(name) => inputs.vars.get(name).cloned(),
     }
 }
 
@@ -545,7 +674,9 @@ mod tests {
     fn refuses_malformed_alternatives() {
         for bad in [
             "{mpn;}",
-            "{mpn?field:3}",
+            "{mpn?part}",
+            "{mpn?mpn=}",
+            "{mpn?colour^=red}",
             "{mpn?field:x<=1}",
             "{mpn?field:3<=a}",
             "{field:3|num:q}",

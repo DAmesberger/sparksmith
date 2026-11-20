@@ -598,6 +598,10 @@ pub struct Marking {
     /// rather than laser-etched.
     #[serde(default, skip_serializing_if = "is_false")]
     pub ink: bool,
+    /// Laser-etched into metal (a module's shield can) rather than into a
+    /// moulded body; ignored when printed in ink.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub metal: bool,
     /// A dot marks the pin-1 corner of the marking area (a SOT-23-6 or
     /// SC-70 whose moulding carries no pin-1 feature).
     #[serde(default, skip_serializing_if = "is_false")]

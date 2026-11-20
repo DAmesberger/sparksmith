@@ -16,6 +16,7 @@ use super::{
 use crate::diagnostics::{Error, Finding, Result};
 use crate::quantity::format_number;
 use crate::units::Nm;
+use std::collections::BTreeMap;
 
 /// The tallest auto-fitted text, mm: typical package top marks are 0.5–1.2
 /// mm tall (an estimate, data rather than a rule), so large bodies do not
@@ -531,6 +532,7 @@ pub(super) fn run(spec: &MarkingSpec, inputs: &MarkingInputs) -> Result<MarkingL
                         svg: *svg,
                         origin,
                         size_mm,
+                        bound: BTreeMap::new(),
                     });
                 }
             }

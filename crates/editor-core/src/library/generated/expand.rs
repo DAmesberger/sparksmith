@@ -1033,7 +1033,9 @@ fn one_marking(
         });
     }
     for art in &marking.artwork {
-        let bytes = art.svg.as_bytes().to_vec();
+        // An artwork template names standard fields in its text as a line
+        // does; they become the project's lineages too.
+        let bytes = field_lineages(&art.svg, field)?.into_bytes();
         if bytes.is_empty() || bytes.len() > MAX_ARTWORK_BYTES {
             return Err(Error::Limit(
                 "generated.marking: marking artwork is empty or too large".into(),
@@ -1081,10 +1083,11 @@ fn one_marking(
     }
     Ok(Some(MarkingSpec {
         items,
-        finish: match (marking.colour, marking.ink) {
-            (Some(colour), _) => Finish::Ink { colour },
-            (None, true) => Finish::InkWhite,
-            (None, false) => Finish::LaserEtch,
+        finish: match (marking.colour, marking.ink, marking.metal) {
+            (Some(colour), _, _) => Finish::Ink { colour },
+            (None, true, _) => Finish::InkWhite,
+            (None, false, true) => Finish::LaserEtchMetal,
+            (None, false, false) => Finish::LaserEtch,
         },
         placement,
         text_height_nm: marking.text_height.map(Nm::new).transpose()?,
@@ -1116,7 +1119,7 @@ fn field_lineages(
         if inside && token && rest.starts_with(FIELD) {
             let after = &rest[FIELD.len()..];
             let end = after
-                .find(['|', '}', '?', ';', '<', '>', '='])
+                .find(['|', '}', '?', ';', '<', '>', '=', '^', '$', '*'])
                 .unwrap_or(after.len());
             let (name, tail) = after.split_at(end);
             let name = name.trim();
@@ -1143,7 +1146,8 @@ fn field_lineages(
             }
             '}' => inside = false,
             ';' | '?' if inside => token = true,
-            ' ' if inside => {}
+            // A negated condition's subject follows its `!`.
+            ' ' | '!' if inside => {}
             _ => token = false,
         }
         out.push(c);
