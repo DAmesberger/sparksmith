@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "socket-smd-bottom",
+  "title": "Bottom-entry SMD socket",
+  "summary": "Dual-row female socket on surface-mount tails, entered from below: a black PA9T housing above the board with, per position, a square entry through it with 45° lead-ins below and above and a cavity holding a gold contact's two leaves, and per pin a gold tail from the housing's long wall out onto the board (rows, pins, pitch, row_pitch, body_height, pin_side, standoff, lead_in, entry, entry_depth, cavity, cavity_bottom, cavity_top, leaf, leaf_gap, leaf_width, tail_span, tail_sheet, tail_bend, corner_round).",
+  "use": "package_body",
+  "prefix": "J",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 2 × 3 socket of 2.54 mm; the header generator gives every parameter its value. Outline read as a datasheet from Würth Elektronik's WR-PHD SMT dual socket header, bottom entry, drawing (610006243021, rev. 002.001, 2022-01-28: housing 5 mm wide, top 3.7 mm and underside 0.2 mm above the board, tails 7.2 mm tip to tip); the openings, the contact's leaves and the tails' sheet are estimated. No vendor CAD or EDA/CAD library data copied."
+}

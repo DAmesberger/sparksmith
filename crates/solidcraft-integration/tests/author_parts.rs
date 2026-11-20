@@ -5437,7 +5437,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 70] = [
+    let parts: [(&str, &str, Author); 72] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -5453,6 +5453,16 @@ fn author_parts() {
         ("generators/chip/parts", "chip-led", author_chip_led),
         // The header generator's bundle (`generators/header/parts/`).
         ("generators/header/parts", "pin-header", author_pin_header),
+        (
+            "generators/header/parts",
+            "pin-socket",
+            connectors::author_pin_socket,
+        ),
+        (
+            "generators/header/parts",
+            "socket-smd-bottom",
+            connectors::author_socket_smd_bottom,
+        ),
         // The gull-wing generator's bundle (`generators/gull-wing/parts/`).
         (
             "generators/gull-wing/parts",
