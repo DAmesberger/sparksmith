@@ -73,6 +73,8 @@ pub struct Board {
     pub items: crate::items::Items,
     /// Board-level objects the importer does not import, by keyword.
     pub other: std::collections::BTreeMap<String, usize>,
+    /// Whether the file holds variant data (not imported).
+    pub variants: bool,
 }
 
 /// Board-wide pad defaults from `setup`.
@@ -169,9 +171,15 @@ pub struct Footprint {
     pub zone: ZoneOverride,
     /// KiCad's "not in schematic" attribute: a part on the board only.
     pub board_only: bool,
-    /// KiCad's "exclude from position files" or "exclude from bill of
-    /// materials" attribute: nothing is assembled there.
+    /// KiCad's "exclude from position files" attribute: nothing is placed
+    /// there by assembly (no body when it names no model).
     pub not_assembled: bool,
+    /// KiCad's "do not populate" attribute (`dnp`): imported as not
+    /// populated, with its body (a variant may fit it).
+    pub dnp: bool,
+    /// KiCad's "exclude from bill of materials" attribute: imported as not
+    /// populated, with its body.
+    pub exclude_from_bom: bool,
     /// The bounds of the fabrication-layer drawings (the body outline), in
     /// the footprint frame, when there are any.
     pub fab_bounds: Option<[PointNm; 2]>,
@@ -303,6 +311,7 @@ pub fn read(bytes: &[u8], report: &mut Report) -> Result<Board> {
     }
     let mut board = Board {
         version,
+        variants: root.any_head(crate::sexpr::variant_keyword),
         ..Board::default()
     };
     if let Some(layers) = root.child("layers") {
@@ -652,9 +661,11 @@ fn footprint(node: &Node, report: &mut Report) -> Result<Footprint> {
                 if has("board_only") {
                     fp.board_only = true;
                 }
-                if has("exclude_from_pos_files") || has("exclude_from_bom") {
+                if has("exclude_from_pos_files") {
                     fp.not_assembled = true;
                 }
+                fp.dnp |= has("dnp");
+                fp.exclude_from_bom |= has("exclude_from_bom");
             }
             "layer"
             | "uuid"
