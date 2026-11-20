@@ -10,14 +10,14 @@ use serde_json::{Value, json};
 /// tolerance to set, the manufacturer part number its Part gives, the
 /// close-up distance and the part's height over the board (mm): the top
 /// view aims at its top, the angled view at its middle.
-struct Case {
-    name: &'static str,
-    words: Option<&'static str>,
-    preset: Option<(&'static str, &'static str)>,
-    tolerance: Option<&'static str>,
-    mpn: Option<&'static str>,
-    distance: f64,
-    top: f64,
+pub(super) struct Case {
+    pub(super) name: &'static str,
+    pub(super) words: Option<&'static str>,
+    pub(super) preset: Option<(&'static str, &'static str)>,
+    pub(super) tolerance: Option<&'static str>,
+    pub(super) mpn: Option<&'static str>,
+    pub(super) distance: f64,
+    pub(super) top: f64,
 }
 
 const CASES: [Case; 9] = [
@@ -127,7 +127,7 @@ fn apply(
 }
 
 /// Make, place on the board at `at` and give its values: the instance id.
-fn place(
+pub(super) fn place(
     session: &mut sparksmith_automation::Session,
     case: &Case,
     at: [f64; 2],
@@ -228,6 +228,52 @@ fn place(
     Ok(instance)
 }
 
+/// Give `instance` a Part of manufacturer part number `mpn` (made here as
+/// a published Part revision would be; the marking reads its MPN).
+pub(super) fn give_part(
+    project: &mut Project,
+    instance: u64,
+    mpn: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let id = sparksmith_core::ids::DefinitionId(project.allocate()?);
+    let target = project
+        .instances
+        .iter()
+        .find(|i| i.id == instance)
+        .ok_or("no instance")?;
+    let component = target.component;
+    let binding = project
+        .library
+        .component(component)
+        .and_then(|c| c.definition.implementations.first().copied())
+        .ok_or("no binding")?;
+    project
+        .library
+        .parts
+        .push(sparksmith_core::library::Published {
+            id,
+            revision: sparksmith_core::ids::Revision::FIRST,
+            meta: sparksmith_core::library::DefinitionMeta {
+                name: mpn.into(),
+                ..Default::default()
+            },
+            definition: sparksmith_core::library::PartDefinition {
+                mpn: mpn.into(),
+                manufacturer: "Example".into(),
+                component,
+                binding,
+                ..Default::default()
+            },
+        });
+    if let Some(i) = project.instances.iter_mut().find(|i| i.id == instance) {
+        i.part = Some(sparksmith_core::ids::PartRef::new(
+            id,
+            sparksmith_core::ids::Revision::FIRST,
+        ));
+    }
+    Ok(())
+}
+
 #[test]
 #[ignore = "writes marking rule pictures"]
 fn write_marking_rule_pictures() -> Result<(), Box<dyn std::error::Error>> {
@@ -272,42 +318,8 @@ fn write_marking_rule_pictures() -> Result<(), Box<dyn std::error::Error>> {
     // A Part gives the ICs and the diode their part numbers (made here as
     // a published Part revision would be; the marking reads its MPN).
     for (case, instance, _) in &placed {
-        let Some(mpn) = case.mpn else { continue };
-        let id = sparksmith_core::ids::DefinitionId(project.allocate()?);
-        let target = project
-            .instances
-            .iter()
-            .find(|i| i.id == *instance)
-            .ok_or("no instance")?;
-        let component = target.component;
-        let binding = project
-            .library
-            .component(component)
-            .and_then(|c| c.definition.implementations.first().copied())
-            .ok_or("no binding")?;
-        project
-            .library
-            .parts
-            .push(sparksmith_core::library::Published {
-                id,
-                revision: sparksmith_core::ids::Revision::FIRST,
-                meta: sparksmith_core::library::DefinitionMeta {
-                    name: mpn.into(),
-                    ..Default::default()
-                },
-                definition: sparksmith_core::library::PartDefinition {
-                    mpn: mpn.into(),
-                    manufacturer: "Example".into(),
-                    component,
-                    binding,
-                    ..Default::default()
-                },
-            });
-        if let Some(i) = project.instances.iter_mut().find(|i| i.id == *instance) {
-            i.part = Some(sparksmith_core::ids::PartRef::new(
-                id,
-                sparksmith_core::ids::Revision::FIRST,
-            ));
+        if let Some(mpn) = case.mpn {
+            give_part(&mut project, *instance, mpn)?;
         }
     }
     let model = sparksmith_solidcraft::project::build(&project)?;

@@ -327,6 +327,24 @@ impl Worker {
     }
 }
 
+/// The board's drawn scene as the model worker makes it for the window
+/// (the live model and its marking decals, packed for drawing), for tests
+/// that draw what the window draws; and the drawn geometry.
+#[cfg(test)]
+pub(crate) fn live_board(
+    project: &Project,
+) -> Result<(ModelScene, Vec<sparksmith_solidcraft::scene::Geometry>), String> {
+    let job = Job::Project(
+        0,
+        Arc::new(project.clone()),
+        Arc::new(AtomicBool::new(false)),
+    );
+    let (_, built) = build(job, &mut Kept::default());
+    let (geometry, _, stack) = built?;
+    let scene = model_scene::build(geometry.clone(), &stack).map_err(|e| e.to_string())?;
+    Ok((scene, geometry))
+}
+
 pub enum Status {
     Idle,
     Building,
