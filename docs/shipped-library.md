@@ -29,6 +29,7 @@ If none is found, the message lists every folder searched and names the variable
 | Templates | `templates/` | Package templates and starter rows |
 | Generators | `generators/` | Generator bundles, `<name>/`: `generator.json`, the built module `<name>.wasm` and the part files it names, `parts/*.solidcraft` ([generator plugins](generator-plugins.md)) |
 | Defaults | `defaults/` | What a new project starts with: its fab profile, stackup and board size (`new-project.json`); the values Settings start with until the user sets their own, such as the impedance tolerance (`settings.json`) |
+| Artwork | `artwork/` | Optional, and absent from this repository: marking artwork that artwork templates name by id (`<id>.svg`, ids `a-z`, `0-9`, `-`), such as makers' marks and certification marks, installed with the parts library that holds them ([artwork templates](generator-plugins.md)). Read at startup; a file that is missing or unreadable is left out quietly and its marking is drawn without it, the one exception to the rule below. |
 
 ## Rules
 
