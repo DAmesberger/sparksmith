@@ -23,7 +23,7 @@
 //! into the box, or draws nothing there when that artwork is not
 //! installed. The core keeps no artwork of its own.
 use super::MarkingInputs;
-use super::template::{self, Missing};
+use super::template;
 use std::collections::BTreeMap;
 
 /// Placeholders and conditions one artwork may bind.
@@ -63,10 +63,8 @@ pub fn bindings(svg: &str, inputs: &MarkingInputs) -> BTreeMap<String, String> {
         let Ok(pieces) = template::parse(&format!("{{{body}}}")) else {
             continue;
         };
-        let text = match template::render(&pieces, inputs) {
-            Ok(text) => text,
-            Err(Missing::Value(_) | Missing::Code(_)) => String::new(),
-        };
+        // A value the part does not have draws nothing.
+        let text = template::render(&pieces, inputs).unwrap_or_default();
         out.insert(body.to_owned(), text);
     }
     for expression in conditions(svg) {
@@ -88,8 +86,8 @@ fn placeholders(svg: &str) -> Vec<&str> {
     let mut rest = svg;
     while let Some(at) = rest.find('{') {
         let after = &rest[at + 1..];
-        if after.starts_with('{') {
-            rest = &after[1..];
+        if let Some(escaped) = after.strip_prefix('{') {
+            rest = escaped;
             continue;
         }
         let Some(end) = after.find(['}', '{', '<', '>']) else {

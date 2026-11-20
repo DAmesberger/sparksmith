@@ -86,8 +86,9 @@ fn substitute(raw: &str, bound: &BTreeMap<String, String>) -> String {
             rest = &tail[2..];
             continue;
         }
-        if tail.starts_with('}') {
-            rest = &tail[1..];
+        // A lone closing brace is dropped.
+        if let Some(after) = tail.strip_prefix('}') {
+            rest = after;
             continue;
         }
         match tail.find('}') {
