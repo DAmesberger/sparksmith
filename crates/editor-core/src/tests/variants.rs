@@ -275,13 +275,19 @@ fn population_is_typed_and_variants_change_bodies_bom_and_placement() -> Result<
     // Lite: R2 is listed as not fitted, has no placement row and no body.
     activate(engine, Some(lite))?;
     let (fitted, not) = bom_split(engine)?;
-    assert_eq!((fitted, not), (vec!["R1".to_owned()], vec!["R2".to_owned()]));
+    assert_eq!(
+        (fitted, not),
+        (vec!["R1".to_owned()], vec!["R2".to_owned()])
+    );
     assert_eq!(bom(engine)?.variant.as_deref(), Some("Lite"));
     assert_eq!(placed_designators(engine)?, ["R1"]);
     assert_eq!(fitted_package(engine, b.r2)?, None);
     assert_eq!(checked_bodies(engine), ["R1"]);
     let parts_csv = assembly::bom_parts_csv(engine.project())?;
-    assert!(parts_csv.contains("\nR2,") && parts_csv.trim_end().ends_with(",no"), "{parts_csv}");
+    assert!(
+        parts_csv.contains("\nR2,") && parts_csv.trim_end().ends_with(",no"),
+        "{parts_csv}"
+    );
     let grouped = assembly::bom_csv(engine.project())?;
     assert!(!grouped.contains("R2"), "{grouped}");
 
@@ -304,7 +310,10 @@ fn population_is_typed_and_variants_change_bodies_bom_and_placement() -> Result<
         .iter()
         .find(|r| r.designator == "R1")
         .ok_or_else(|| Error::NotFound("R1 row".into()))?;
-    assert_eq!(r1_row.value, "EX-C0603-100N", "a Part without specs reads as its MPN");
+    assert_eq!(
+        r1_row.value, "EX-C0603-100N",
+        "a Part without specs reads as its MPN"
+    );
 
     // The copper never changes between variants.
     let copper = |e: &Engine| {
@@ -324,7 +333,10 @@ fn population_is_typed_and_variants_change_bodies_bom_and_placement() -> Result<
     let names: Vec<_> = table.variants.iter().map(|v| v.name.as_str()).collect();
     assert_eq!(names, ["Lite", "Alt"]);
     assert_eq!(
-        (table.variants[0].not_populated, table.variants[1].substituted),
+        (
+            table.variants[0].not_populated,
+            table.variants[1].substituted
+        ),
         (1, 1)
     );
     let r2_row = table
@@ -387,7 +399,10 @@ fn the_default_population_is_typed_and_variants_follow_it() -> Result<()> {
             population: None,
         },
     );
-    assert_eq!(refused.err().as_ref().map(Error::code), Some("invalid_input"));
+    assert_eq!(
+        refused.err().as_ref().map(Error::code),
+        Some("invalid_input")
+    );
     Ok(())
 }
 
@@ -414,7 +429,11 @@ fn a_substitute_must_sit_on_the_same_lands_with_the_same_pad_grouping() -> Resul
         message.contains("EX-HDR-2") && message.contains("land pattern"),
         "{message}"
     );
-    assert_eq!(*engine.project(), before, "a refused command changes nothing");
+    assert_eq!(
+        *engine.project(),
+        before,
+        "a refused command changes nothing"
+    );
     assert_eq!(engine.revision(), revision);
 
     // The picker offers what fits: the 0 Ω resistor and the capacitor.
@@ -500,7 +519,11 @@ fn variant_edits_undo_round_trip_and_follow_removed_parts() -> Result<()> {
         other => return Err(Error::Invalid(format!("{other:?}"))),
     };
     assert_eq!(
-        engine.project().variants.get(copy).map(|v| v.overrides.len()),
+        engine
+            .project()
+            .variants
+            .get(copy)
+            .map(|v| v.overrides.len()),
         Some(1)
     );
     variant(
@@ -512,7 +535,11 @@ fn variant_edits_undo_round_trip_and_follow_removed_parts() -> Result<()> {
     )?;
     activate(engine, Some(copy))?;
     variant(engine, VariantCommand::Remove { variant: copy })?;
-    assert_eq!(engine.project().variants.active, None, "the default is active");
+    assert_eq!(
+        engine.project().variants.active,
+        None,
+        "the default is active"
+    );
     engine.undo()?;
     assert_eq!(engine.project().variants.active, Some(copy));
     assert_eq!(

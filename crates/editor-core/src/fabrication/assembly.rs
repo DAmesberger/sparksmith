@@ -181,9 +181,11 @@ fn instance_value(
     line: Option<&BomLine>,
 ) -> Result<String> {
     let fitted = instances::variants::fitted(project, instance);
-    Ok(instances::variants::fitted_value(project, instance, &fitted)?
-        .or_else(|| line.and_then(|l| l.mpn.clone()))
-        .unwrap_or_default())
+    Ok(
+        instances::variants::fitted_value(project, instance, &fitted)?
+            .or_else(|| line.and_then(|l| l.mpn.clone()))
+            .unwrap_or_default(),
+    )
 }
 
 /// The package name of the part the active variant fits on an instance

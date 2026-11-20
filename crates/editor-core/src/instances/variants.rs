@@ -240,11 +240,13 @@ pub fn substitute_fit<'a>(
         ))
     })?;
     let mpn = &part.definition.mpn;
-    let component = library.component(part.definition.component).ok_or_else(|| {
-        invalid(format!(
-            "{mpn}'s component is missing from the project library."
-        ))
-    })?;
+    let component = library
+        .component(part.definition.component)
+        .ok_or_else(|| {
+            invalid(format!(
+                "{mpn}'s component is missing from the project library."
+            ))
+        })?;
     if component
         .definition
         .implementation(part.definition.binding.id)
@@ -265,7 +267,8 @@ pub fn substitute_fit<'a>(
         let Some(candidate) = library.footprint(*f) else {
             continue;
         };
-        let exact = candidate.id == own.footprint.id && candidate.revision == own.footprint.revision;
+        let exact =
+            candidate.id == own.footprint.id && candidate.revision == own.footprint.revision;
         if exact || same_lands(target, &candidate.definition) {
             land_match = Some(candidate);
             if exact {
@@ -280,7 +283,9 @@ pub fn substitute_fit<'a>(
         ))
     })?;
     let package = library.package(binding.definition.package).ok_or_else(|| {
-        invalid(format!("{mpn}'s package is missing from the project library."))
+        invalid(format!(
+            "{mpn}'s package is missing from the project library."
+        ))
     })?;
     let view = PhysicalView {
         binding,
@@ -288,7 +293,11 @@ pub fn substitute_fit<'a>(
         package,
     };
     let ours = pad_groups(&own, target, &own_order(target));
-    let theirs = pad_groups(&view, &footprint.definition, &matched_order(target, &footprint.definition));
+    let theirs = pad_groups(
+        &view,
+        &footprint.definition,
+        &matched_order(target, &footprint.definition),
+    );
     if ours != theirs {
         return Err(Error::Conflict(format!(
             "{mpn} does not fit {name}: its pins join or split {name}'s pads differently, \
@@ -324,13 +333,12 @@ fn same_lands(a: &FootprintDefinition, b: &FootprintDefinition) -> bool {
     if a.pads.len() != b.pads.len() || a.datum != b.datum {
         return false;
     }
-    land_order(a)
-        .into_iter()
-        .zip(land_order(b))
-        .all(|(i, j)| match (a.pads.get(i), b.pads.get(j)) {
+    land_order(a).into_iter().zip(land_order(b)).all(|(i, j)| {
+        match (a.pads.get(i), b.pads.get(j)) {
             (Some(p), Some(q)) => land(p) == land(q),
             _ => false,
-        })
+        }
+    })
 }
 
 /// `footprint`'s pads in stored order.
@@ -516,7 +524,11 @@ pub fn report(project: &Project) -> Result<VariantsReport> {
             name: v.name.clone(),
             not_populated: rows
                 .iter()
-                .filter(|r| r.variants.get(k).is_some_and(|c| !c.population.is_populated()))
+                .filter(|r| {
+                    r.variants
+                        .get(k)
+                        .is_some_and(|c| !c.population.is_populated())
+                })
                 .count(),
             substituted: rows
                 .iter()
@@ -573,9 +585,7 @@ pub fn apply(project: &mut Project, command: VariantCommand) -> Result<Option<Id
                 Some(id) => project
                     .variants
                     .get(id)
-                    .ok_or_else(|| {
-                        Error::NotFound("The variant to copy no longer exists.".into())
-                    })?
+                    .ok_or_else(|| Error::NotFound("The variant to copy no longer exists.".into()))?
                     .overrides
                     .clone(),
                 None => BTreeMap::new(),
@@ -717,11 +727,11 @@ fn set_population(
 /// Overrides of instances that no longer exist go with them. Run after
 /// every edit; leaves the variants untouched when nothing is dropped.
 pub fn follow_instances(project: &mut Project) {
-    let dangling = project.variants.list.iter().any(|v| {
-        v.overrides
-            .keys()
-            .any(|id| project.instance(*id).is_none())
-    });
+    let dangling = project
+        .variants
+        .list
+        .iter()
+        .any(|v| v.overrides.keys().any(|id| project.instance(*id).is_none()));
     if !dangling {
         return;
     }

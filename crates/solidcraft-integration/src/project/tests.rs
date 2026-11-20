@@ -2420,8 +2420,8 @@ fn the_copper_measure_finds_missing_and_reshaped_copper() -> Result<()> {
 fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
     use sparksmith_core::library::{PartDefinition, Published};
     use sparksmith_core::{
-        AssemblyVariant, BindingRef, ComponentRef, DefinitionId, FootprintRef, PackageRef,
-        PartRef, Population, VariantOverride,
+        AssemblyVariant, BindingRef, ComponentRef, DefinitionId, FootprintRef, PackageRef, PartRef,
+        Population, VariantOverride,
     };
     let fail = |what: &str| Error::Verification(what.into());
     let mut project = envelope_demo()?;
@@ -2431,8 +2431,7 @@ fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
     // A second package on the same lands: copies of R1's package,
     // footprint, binding and component under new lineages, and a Part.
     let instance = project.instance(r1).ok_or_else(|| fail("R1"))?.clone();
-    let own = instances::resolve(&project.library, &instance)
-        .map_err(|e| fail(&e.to_string()))?;
+    let own = instances::resolve(&project.library, &instance).map_err(|e| fail(&e.to_string()))?;
     let physical = own.physical.ok_or_else(|| fail("R1's footprint"))?;
     let own_stem = models::definition_name(physical.package.id, physical.package.revision.0);
     let (package, footprint, binding, component) = (
@@ -2455,13 +2454,19 @@ fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
     let component_ref = ComponentRef::new(comp, component.revision);
     let mut other_package = Published { id: pkg, ..package };
     other_package.definition.placement.translation_nm = crate::test_units::nm3([0.0, 0.0, 0.1]);
-    let mut other_footprint = Published { id: fp, ..footprint };
+    let mut other_footprint = Published {
+        id: fp,
+        ..footprint
+    };
     other_footprint.definition.package = package_ref;
     let mut other_binding = Published { id: bd, ..binding };
     other_binding.definition.component = comp;
     other_binding.definition.package = package_ref;
     other_binding.definition.footprints = vec![footprint_ref];
-    let mut other_component = Published { id: comp, ..component };
+    let mut other_component = Published {
+        id: comp,
+        ..component
+    };
     other_component.definition.implementations = vec![binding_ref];
     project.library.packages.push(other_package);
     project.library.footprints.push(other_footprint);

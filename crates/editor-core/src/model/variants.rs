@@ -13,9 +13,7 @@ pub const MAX_VARIANT_NAME: usize = 64;
 
 /// Whether a placed part is fitted at assembly. A typed state, never a
 /// value text such as "DNP".
-#[derive(
-    Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash,
-)]
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
 pub enum Population {
     /// Fitted at assembly.
