@@ -788,7 +788,8 @@ fn temp_finish_top() -> Result<(), Box<dyn std::error::Error>> {
 /// The PCB 3D view's overview, drawn as the window opens it, in the
 /// Realistic and the Standard look, written to `SPARKSMITH_PICTURES`: the
 /// showcase, a new project's bare board and each design named in
-/// `SPARKSMITH_LOOK_BOARDS` (`:`-separated paths). Evidence for look tuning.
+/// `SPARKSMITH_LOOK_BOARDS` (`:`-separated paths), in their soldermask
+/// colour or `SPARKSMITH_LOOK_MASK`'s. Evidence for look tuning.
 #[test]
 #[ignore = "writes look pictures"]
 fn write_look_pictures() -> Result<(), Box<dyn std::error::Error>> {
@@ -826,7 +827,16 @@ fn write_look_pictures() -> Result<(), Box<dyn std::error::Error>> {
             .map_or("board".into(), |s| s.to_string_lossy().into_owned());
         boards.push((name, engine.project().clone()));
     }
-    for (name, project) in boards {
+    // `SPARKSMITH_LOOK_MASK=black` (any soldermask colour) draws every
+    // board in that colour, as `layout.set_fabrication` would set it.
+    let mask: Option<sparksmith_core::MaskColour> = std::env::var("SPARKSMITH_LOOK_MASK")
+        .ok()
+        .map(|m| serde_json::from_value(serde_json::Value::String(m)))
+        .transpose()?;
+    for (name, mut project) in boards {
+        if let Some(colour) = mask {
+            project.fabrication.mask_colour = colour;
+        }
         // The live view's model (each part its own design), as the window
         // builds it.
         let model = sparksmith_solidcraft::project::build_flat(

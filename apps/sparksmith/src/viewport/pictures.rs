@@ -1341,7 +1341,8 @@ fn write_family_pictures() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Generated parts named in a JSON list (`SPARKSMITH_IC_PICTURES`, a file of
-/// `[name, generator, preset, params, distance]` rows), each on the demo
+/// `[name, generator, preset, params, distance]` rows, optionally with a
+/// sixth, the part number the marked views draw for), each on the demo
 /// board in place of its first part, from three views, for comparison with
 /// the manufacturers' photographs at board zoom:
 /// `SPARKSMITH_PICTURES=dir SPARKSMITH_IC_PICTURES=list.json cargo test -p sparksmith write_ic_pictures -- --ignored`.
@@ -1358,13 +1359,26 @@ fn write_ic_pictures() -> Result<(), Box<dyn std::error::Error>> {
     };
     let dir = std::path::PathBuf::from(dir);
     std::fs::create_dir_all(&dir)?;
-    let parts: Vec<(String, String, String, serde_json::Value, f64)> =
-        serde_json::from_str(&std::fs::read_to_string(list)?)?;
+    let rows: Vec<Vec<serde_json::Value>> = serde_json::from_str(&std::fs::read_to_string(list)?)?;
+    let mut parts = Vec::new();
+    for row in rows {
+        let text = |i: usize| row.get(i).and_then(|v| v.as_str()).map(str::to_owned);
+        let (Some(name), Some(generator), Some(preset), Some(params), Some(distance)) = (
+            text(0),
+            text(1),
+            text(2),
+            row.get(3).cloned(),
+            row.get(4).and_then(serde_json::Value::as_f64),
+        ) else {
+            return Err(format!("not a picture row: {row:?}").into());
+        };
+        parts.push((name, generator, preset, params, distance, text(5)));
+    }
     let Some(mut gpu) = Gpu::new() else {
         return Err("no GPU adapter".into());
     };
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
-    for (name, generator, preset, params, distance) in parts {
+    for (name, generator, preset, params, distance, mpn) in parts {
         let mut session = sparksmith_automation::Session::new(sparksmith_core::Engine::demo()?);
         session.set_shipped(sparksmith_io::shipped::ShippedLibrary::at(&root)?);
         let revision = session.engine().revision();
@@ -1408,6 +1422,7 @@ fn write_ic_pictures() -> Result<(), Box<dyn std::error::Error>> {
         {
             let inputs = sparksmith_core::library::marking::MarkingInputs {
                 designator: "U1".into(),
+                mpn: mpn.clone(),
                 fields: component
                     .definition
                     .fields
