@@ -245,7 +245,13 @@ pub fn report(
             match rules::apply(
                 &mut candidate.rules,
                 RulesCommand::set_profile(p.clone(), true),
-            ) {
+            )
+            .and_then(|_| {
+                crate::layout::mask_colour::follow(
+                    &mut candidate.rules,
+                    candidate.fabrication.mask_colour,
+                )
+            }) {
                 Ok(_) => Cow::Owned(candidate),
                 Err(e) => {
                     items.push(item(

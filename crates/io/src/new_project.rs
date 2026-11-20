@@ -166,6 +166,10 @@ pub fn profiled_engine(context: &Arc<Context>) -> Result<Engine> {
             false,
         ),
     )?;
+    sparksmith_core::layout::mask_colour::follow(
+        &mut project.rules,
+        project.fabrication.mask_colour,
+    )?;
     let mut engine = Engine::from_file_with(
         EditorFile {
             version: sparksmith_core::format::FILE_VERSION,

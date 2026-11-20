@@ -61,14 +61,26 @@
         "choices": [
           {
             "id": "green",
-            "name": "Green"
+            "name": "Green",
+            "mask_colours": [
+              "green"
+            ]
           },
           {
             "id": "other",
-            "name": "Other colours or black"
+            "name": "Other colours or black",
+            "mask_colours": [
+              "red",
+              "yellow",
+              "blue",
+              "white",
+              "black",
+              "purple"
+            ]
           }
         ],
-        "source": "Capabilities, Advanced PCB, row 23, green solder mask bridge, copper <2OZ, normal process: \"4（spacing between ICs is 8 mil, green oil），variegated or black oil≥4.5mil\". The default is green."
+        "source": "Capabilities, Advanced PCB, row 23, green solder mask bridge, copper <2OZ, normal process: \"4（spacing between ICs is 8 mil, green oil），variegated or black oil≥4.5mil\". The default is green. Which colours each choice stands for: Capabilities, standard PCB table, \"Solder Mask\": \"Green ,Red, Yellow, Blue, White, Black, Matt green, Matte black, Purple, none\" (read 2026-11-20; matte is the board's mask finish, none is no mask). The board's solder mask colour (Board › Fabrication) chooses it; a colour no choice lists is not offered.",
+        "follows": "mask_colour"
       }
     ],
     "rules": {

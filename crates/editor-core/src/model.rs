@@ -419,6 +419,38 @@ pub enum MaskColour {
     Clear,
 }
 
+impl MaskColour {
+    pub const ALL: [Self; 8] = [
+        Self::Green,
+        Self::Blue,
+        Self::Red,
+        Self::Purple,
+        Self::Yellow,
+        Self::Black,
+        Self::White,
+        Self::Clear,
+    ];
+
+    /// The stored name (`"green"`), as files and fab profiles write it.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Green => "green",
+            Self::Blue => "blue",
+            Self::Red => "red",
+            Self::Purple => "purple",
+            Self::Yellow => "yellow",
+            Self::Black => "black",
+            Self::White => "white",
+            Self::Clear => "clear",
+        }
+    }
+
+    /// The colour a stored name names.
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|c| c.id() == id)
+    }
+}
+
 /// Soldermask surface texture.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]

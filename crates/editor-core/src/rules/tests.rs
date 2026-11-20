@@ -866,10 +866,9 @@ fn fab_options_choose_the_published_limits_and_default_to_the_base_values() -> R
     assert_eq!(r.mask.web_min, 0.2);
     // 2 oz takes its own ring and mask bridge under either value set and
     // either mask colour.
-    let heavy_min = heavy.with_choices(&choices(&[
-        ("limits", "minimum"),
-        ("mask_colour", "black_white"),
-    ]))?;
+    let heavy_min = heavy
+        .with_choices(&choices(&[("limits", "minimum")]))?
+        .with_board_setting(BoardSetting::MaskColour, "black")?;
     assert_eq!(heavy_min.rules().holes.pth_annular_ring_min, 0.254);
     assert_eq!(heavy_min.rules().mask.web_min, 0.2);
     assert_eq!(heavy_min.rules().holes.drill_min, 0.15);
@@ -892,8 +891,25 @@ fn fab_options_choose_the_published_limits_and_default_to_the_base_values() -> R
         .active(RuleKey::PthAnnularRingMin)
         .ok_or_else(|| Error::Invalid("no ring".into()))?;
     assert!(source.contains("absolute minimum 0.18 mm"), "{source}");
-    let black = p.with_choices(&choices(&[("mask_colour", "black_white")]))?;
+    // The mask colour option follows the board's colour: black or white
+    // mask takes the wider web, and no command chooses it directly.
+    let black = p.with_board_setting(BoardSetting::MaskColour, "black")?;
     assert_eq!(black.rules().mask.web_min, 0.13);
+    assert_eq!(
+        black.chosen().get("mask_colour").map(String::as_str),
+        Some("black_white")
+    );
+    let red = black.with_board_setting(BoardSetting::MaskColour, "red")?;
+    assert_eq!(red.rules().mask.web_min, 0.1);
+    let refused = p
+        .with_choices(&choices(&[("mask_colour", "black_white")]))
+        .map_err(|e| e.to_string());
+    assert!(
+        refused
+            .as_ref()
+            .is_err_and(|e| e.contains("follows the board's solder mask colour")),
+        "{refused:?}"
+    );
     let fine = p.with_choices(&choices(&[("drill", "microvia")]))?;
     assert_eq!(fine.rules().holes.drill_min, 0.1, "ordered microvias win");
     assert_eq!(min.rules().holes.drill_min, 0.15);
@@ -962,8 +978,16 @@ fn fab_options_and_cases_are_checked() -> Result<()> {
             "sets the outer copper or none does",
         ),
         (
-            edit(&|p| p["options"][2]["choices"][0]["outer_copper_um"] = 70.0.into())?,
+            edit(&|p| p["options"][3]["choices"][0]["outer_copper_um"] = 70.0.into())?,
             "or none does",
+        ),
+        (
+            edit(&|p| {
+                for c in 0..2 {
+                    p["options"][3]["choices"][c]["outer_copper_um"] = 70.0.into();
+                }
+            })?,
+            "most one option sets the outer copper",
         ),
         (
             edit(&|p| {
@@ -971,7 +995,31 @@ fn fab_options_and_cases_are_checked() -> Result<()> {
                     p["options"][2]["choices"][c]["outer_copper_um"] = 70.0.into();
                 }
             })?,
-            "most one option sets the outer copper",
+            "follows the board's colour, so it cannot set the outer copper",
+        ),
+        (
+            edit(&|p| {
+                if let Some(c) = p["options"][2]["choices"][1].as_object_mut() {
+                    c.remove("mask_colours");
+                }
+            })?,
+            "lists the solder mask colours it stands for",
+        ),
+        (
+            edit(&|p| {
+                if let Some(o) = p["options"][2].as_object_mut() {
+                    o.remove("follows");
+                }
+            })?,
+            "must follow the board's",
+        ),
+        (
+            edit(&|p| p["options"][2]["choices"][1]["mask_colours"][0] = "green".into())?,
+            "lists the colour green twice",
+        ),
+        (
+            edit(&|p| p["options"][0]["follows"] = "mask_colour".into())?,
+            "lists the solder mask colours it stands for",
         ),
     ];
     for (text, why) in cases {
@@ -997,7 +1045,18 @@ fn fab_options_and_cases_are_checked() -> Result<()> {
     }
     assert_eq!(all.len(), 16);
     for picked in &all {
-        p.with_choices(picked)?;
+        // The mask colour option takes its choice from a colour it lists.
+        let mut picked = picked.clone();
+        let colour = picked
+            .remove("mask_colour")
+            .and_then(|c| {
+                p.following(BoardSetting::MaskColour)
+                    .and_then(|o| o.choice(&c))
+                    .and_then(|c| c.mask_colours.first().cloned())
+            })
+            .ok_or_else(|| Error::Invalid("no colour".into()))?;
+        p.with_choices(&picked)?
+            .with_board_setting(BoardSetting::MaskColour, &colour)?;
     }
     Ok(())
 }
@@ -1149,15 +1208,24 @@ fn the_copper_weight_and_the_stackup_stay_together() -> Result<()> {
 
     // Switching to a profile that offers the same option keeps 2 oz; one
     // without it keeps the foils as they are.
-    // Its mask colour choices differ: "dark" for "black_white".
+    // Its mask colour choices differ: "dark" for "black_white"; the board's
+    // black mask chooses it, so it is neither kept nor reset.
     let four = fixtures::parse(
         &include_str!("../../../../library/profiles/jlcpcb-4-layer.json")
             .replace("\"black_white\"", "\"dark\""),
     )?;
+    let black = crate::model::Fabrication {
+        mask_colour: crate::model::MaskColour::Black,
+        ..engine.project().fabrication
+    };
+    engine.apply(
+        engine.revision(),
+        Operation::Layout(LayoutCommand::SetFabrication(black)),
+    )?;
     engine.apply(
         engine.revision(),
         Operation::Rules(RulesCommand::SetOptions {
-            options: choices(&[("mask_colour", "black_white"), ("limits", "minimum")]),
+            options: choices(&[("limits", "minimum")]),
         }),
     )?;
     let QueryResult::ProfileImpact(impact) = engine.query(Query::PreviewProfile {
@@ -1178,11 +1246,7 @@ fn the_copper_weight_and_the_stackup_stay_together() -> Result<()> {
         ids(&impact.kept_choices),
         ["limits=minimum", "copper_weight=2oz", "drill=standard"]
     );
-    assert_eq!(ids(&impact.reset_choices), ["mask_colour=green"]);
-    assert_eq!(
-        impact.reset_choices[0].label,
-        "Solder mask colour: Green, red, yellow, blue or purple"
-    );
+    assert!(impact.reset_choices.is_empty());
     assert_eq!(impact.outer_copper_um, None, "2 oz is kept");
     engine.apply(
         engine.revision(),
@@ -1200,7 +1264,7 @@ fn the_copper_weight_and_the_stackup_stay_together() -> Result<()> {
     );
     assert_eq!(
         p.chosen().get("mask_colour").map(String::as_str),
-        Some("green")
+        Some("dark")
     );
     assert_eq!(outer(&engine), Some((70.0, 70.0)));
     engine.apply(
@@ -1209,6 +1273,7 @@ fn the_copper_weight_and_the_stackup_stay_together() -> Result<()> {
     )?;
     assert_eq!(outer(&engine), Some((70.0, 70.0)), "no option, no change");
     // Back to 1 oz by undo: the profile switches and the copper step go.
+    engine.undo()?;
     engine.undo()?;
     engine.undo()?;
     engine.undo()?;

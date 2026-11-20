@@ -555,6 +555,7 @@ pub fn for_new_board_from_env(choice: Option<&str>) -> Result<RuleProfile> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sparksmith_core::rules::BoardSetting;
 
     fn shipped() -> Result<ShippedLibrary> {
         ShippedLibrary::locate()
@@ -679,7 +680,7 @@ mod tests {
                     let one = [(option.id.clone(), choice.id.clone())]
                         .into_iter()
                         .collect();
-                    let chosen = p.with_choices(&one)?;
+                    let chosen = choose(&p, &one)?;
                     for key in sparksmith_core::rules::RuleKey::all() {
                         let (_, source) = chosen.active(key).ok_or_else(|| {
                             Error::Invalid(format!("{name}: {} has no entry", key.name()))
@@ -698,10 +699,10 @@ mod tests {
                 pth,
                 "{name}"
             );
-            assert_eq!(
-                pick("mask_colour", "black_white")?.rules().mask.web_min,
-                0.13
-            );
+            for (colour, web) in [("black", 0.13), ("white", 0.13), ("red", 0.1)] {
+                let p = p.with_board_setting(BoardSetting::MaskColour, colour)?;
+                assert_eq!(p.rules().mask.web_min, web, "{name}: {colour}");
+            }
             assert_eq!(pick("drill", "microvia")?.rules().holes.drill_min, 0.1);
             assert_eq!(min.rules().holes.drill_min, 0.15, "{name}");
             let heavy = pick("copper_weight", "2oz")?;
@@ -709,6 +710,70 @@ mod tests {
             assert_eq!(heavy.rules().copper.track_width_min, space_2oz, "{name}");
             assert_eq!(heavy.rules().holes.pth_annular_ring_min, 0.254, "{name}");
             assert_eq!(heavy.rules().mask.web_min, 0.2, "{name}");
+        }
+        Ok(())
+    }
+
+    /// `profile` with `one` chosen: an option that follows the board's mask
+    /// colour takes the choice through the first colour it lists.
+    fn choose(
+        profile: &sparksmith_core::rules::RuleProfile,
+        one: &std::collections::BTreeMap<String, String>,
+    ) -> Result<sparksmith_core::rules::RuleProfile> {
+        let follows = profile.following(BoardSetting::MaskColour);
+        match follows.and_then(|o| one.get(&o.id).and_then(|c| o.choice(c))) {
+            Some(choice) => {
+                let colour = choice.mask_colours.first().cloned().unwrap_or_default();
+                Ok(profile.with_board_setting(BoardSetting::MaskColour, &colour)?)
+            }
+            None => Ok(profile.with_choices(one)?),
+        }
+    }
+
+    /// Every shipped profile's mask colour option follows the board's
+    /// colour and lists only solder mask colours: every one but clear,
+    /// which neither fabricator lists. Black takes the wider web each
+    /// publishes for it.
+    #[test]
+    fn the_shipped_mask_colour_options_follow_the_board_colour() -> Result<()> {
+        use sparksmith_core::model::MaskColour;
+        for (name, green, black) in [
+            ("jlcpcb-2-layer.json", 0.1, 0.13),
+            ("jlcpcb-4-layer.json", 0.1, 0.13),
+            ("pcbway-2-layer.json", 0.1016, 0.1143),
+            ("pcbway-4-layer.json", 0.1016, 0.1143),
+        ] {
+            let p = decode(shipped_text(name)?.as_bytes())?;
+            let option = p
+                .following(BoardSetting::MaskColour)
+                .ok_or_else(|| Error::Invalid(format!("{name}: no colour option")))?;
+            let mut listed: Vec<&str> = option
+                .choices
+                .iter()
+                .flat_map(|c| c.mask_colours.iter().map(String::as_str))
+                .collect();
+            assert!(
+                listed.iter().all(|c| MaskColour::from_id(c).is_some()),
+                "{name}: {listed:?}"
+            );
+            listed.sort_unstable();
+            assert_eq!(
+                listed,
+                ["black", "blue", "green", "purple", "red", "white", "yellow"],
+                "{name}"
+            );
+            assert_eq!(
+                p.board_choice(BoardSetting::MaskColour, "clear"),
+                Some(None)
+            );
+            let web = |colour: MaskColour| -> Result<f64> {
+                Ok(p.with_board_setting(BoardSetting::MaskColour, colour.id())?
+                    .rules()
+                    .mask
+                    .web_min)
+            };
+            assert_eq!(web(MaskColour::Green)?, green, "{name}");
+            assert_eq!(web(MaskColour::Black)?, black, "{name}");
         }
         Ok(())
     }
@@ -739,7 +804,7 @@ mod tests {
                     let one = [(option.id.clone(), choice.id.clone())]
                         .into_iter()
                         .collect();
-                    let chosen = p.with_choices(&one)?;
+                    let chosen = choose(&p, &one)?;
                     for key in sparksmith_core::rules::RuleKey::all() {
                         let (_, source) = chosen.active(key).ok_or_else(|| {
                             Error::Invalid(format!("{name}: {} has no entry", key.name()))
