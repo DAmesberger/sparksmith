@@ -20,6 +20,7 @@
 use crate::commands::{Chord, Command, Context, Registry};
 use crate::keymap::Unapplied;
 use crate::kit;
+use crate::online_library::AccountAction;
 use sparksmith_io::settings::{HOLD_MS_RANGE, RevealSettings};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::{ui_kit, ui_kit::Button};
@@ -89,6 +90,14 @@ pub(crate) struct LibrariesPage {
     pub changed: bool,
     /// The URL field has focus: the app keeps the typed text.
     pub editing: bool,
+    /// The running registry's sign-in; `None` while none runs.
+    pub account: Option<crate::online_library::AccountView>,
+    /// Whether the registry may be signed in to (HTTPS, or this computer).
+    pub may_sign_in: bool,
+    /// What the last sign-in or sign-out said, and whether it is a problem.
+    pub account_note: Option<(String, bool)>,
+    /// What the person asked of the sign-in this frame.
+    pub account_action: Option<AccountAction>,
 }
 
 impl Default for SettingsWindow {
@@ -611,6 +620,12 @@ impl super::App {
             page.url = setting.url;
             page.enabled = setting.enabled;
         }
+        page.account = self.sources.online().map(|o| o.account());
+        page.may_sign_in = self.sources.online().is_some_and(|o| o.may_sign_in());
+        page.account_note = self
+            .sources
+            .online()
+            .and_then(|o| o.account_note().cloned());
         page.status = match (self.sources.online(), self.sources.online_problem()) {
             (_, Some(problem)) => Some((problem.to_owned(), true)),
             (Some(online), None) => {
@@ -655,6 +670,18 @@ impl super::App {
         );
         if profile_changed {
             self.sources.set_default_rule_profile(default_profile);
+        }
+        let libraries = &mut self.settings_window.libraries;
+        match libraries.account_action.take() {
+            Some(AccountAction::Copy(code)) => ctx.copy_text(code),
+            Some(AccountAction::OpenBrowser(url)) => {
+                if !crate::online_library::open_in_browser(&url) {
+                    libraries.account_note =
+                        Some((format!("Open {url} in your browser to sign in."), false));
+                }
+            }
+            Some(action) => self.sources.account_action(&action),
+            None => {}
         }
         let libraries = &mut self.settings_window.libraries;
         if libraries.changed {
@@ -799,12 +826,102 @@ fn libraries_rows(ui: &mut egui::Ui, page: &mut LibrariesPage) {
             },
         );
     }
+    if let Some(view) = &page.account {
+        page.account_action =
+            account_rows(ui, view, page.may_sign_in).or(page.account_action.take());
+    }
+    if let Some((note, problem)) = &page.account_note {
+        kit::status(
+            ui,
+            note,
+            if *problem {
+                kit::Tone::Error
+            } else {
+                kit::Tone::Dim
+            },
+        );
+    }
     kit::hint(
         ui,
         "Placing a part copies it into the project; nothing needs the network later",
         "Online rows come after your project and library folders and say whether a person \
          reviewed them. Use parts.sparksmith.io once it is live, or a registry on this computer.",
     );
+}
+
+/// The online library's sign-in: signed out with Sign in, the code to
+/// confirm in the browser with Open browser, Copy code and Cancel, or who
+/// is signed in with Sign out. What was pressed.
+fn account_rows(
+    ui: &mut egui::Ui,
+    view: &crate::online_library::AccountView,
+    may_sign_in: bool,
+) -> Option<AccountAction> {
+    use crate::online_library::AccountView as V;
+    let mut action = None;
+    match view {
+        V::Reading => {
+            kit::status(ui, "Reading your sign-in…", kit::Tone::Dim);
+        }
+        V::SignedOut if may_sign_in => {
+            if kit::summary_row(
+                ui,
+                "Not signed in: downloading parts needs a free account",
+                Some("Sign in…"),
+            ) {
+                action = Some(AccountAction::SignIn);
+            }
+        }
+        V::SignedOut => {
+            kit::status(
+                ui,
+                "Signing in needs an https:// online library or one on this computer.",
+                kit::Tone::Dim,
+            );
+        }
+        V::Requesting => {
+            if kit::summary_row(ui, "Asking for a sign-in code…", Some("Cancel")) {
+                action = Some(AccountAction::Cancel);
+            }
+        }
+        V::Code(code) => {
+            kit::value_row(ui, "Sign-in code", &code.user_code);
+            kit::status(
+                ui,
+                &format!(
+                    "Confirm this code at {} to sign in. Waiting for the browser…",
+                    code.verification_uri
+                ),
+                kit::Tone::Dim,
+            );
+            kit::actions(ui, |ui| {
+                if ui_kit::button(ui, "Open browser", Button::Enabled(true)).clicked() {
+                    action = Some(AccountAction::OpenBrowser(
+                        code.verification_uri_complete.clone(),
+                    ));
+                }
+                if ui_kit::button(ui, "Copy code", Button::Enabled(true)).clicked() {
+                    action = Some(AccountAction::Copy(code.user_code.clone()));
+                }
+                if ui_kit::button(ui, "Cancel", Button::Enabled(true)).clicked() {
+                    action = Some(AccountAction::Cancel);
+                }
+            });
+        }
+        V::SignedIn(name) => {
+            let who = match name {
+                Some(name) => format!("Signed in as {name}"),
+                None => "Signed in".to_owned(),
+            };
+            if kit::summary_row(ui, &who, Some("Sign out")) {
+                action = Some(AccountAction::SignOut);
+            }
+        }
+        V::SigningOut => {
+            kit::status(ui, "Signing out…", kit::Tone::Dim);
+        }
+    }
+    action
 }
 
 #[cfg(test)]
