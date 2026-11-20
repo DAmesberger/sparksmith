@@ -800,6 +800,12 @@ fn write_look_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let Some(mut gpu) = Gpu::new() else {
         return Err("no GPU adapter".into());
     };
+    // The shipped standards, materials and generators, as the program
+    // hands them to its engine, so a design with generated parts opens.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    let _context =
+        sparksmith_io::standards::context(&sparksmith_io::shipped::ShippedLibrary::at(&root)?)?
+            .enter();
     let mut boards = vec![
         ("showcase".to_owned(), showcase_project()?),
         (
