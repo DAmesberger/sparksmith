@@ -239,8 +239,10 @@ pub fn import_with_models(
             part
         })
         .collect();
-    // Parts not fitted: KiCad's attributes on the footprint or symbol, or
-    // a not-fitted marker in the value, which leaves the value.
+    // Parts not fitted: KiCad's do-not-populate attribute on the footprint
+    // or symbol, or a not-fitted marker in the value, which leaves the
+    // value. Exclude-from-BOM is not one: it marks test points, mechanical
+    // items and logos.
     let schematic_not_fitted = schematic
         .as_ref()
         .map(crate::sheets::not_fitted_by_reference)
@@ -256,7 +258,6 @@ pub fn import_with_models(
         };
         let attribute = [
             fp.dnp.then_some(Why::DoNotPopulate),
-            fp.exclude_from_bom.then_some(Why::ExcludedFromBom),
             schematic_not_fitted.get(&key).copied(),
         ]
         .into_iter()
@@ -633,7 +634,7 @@ pub fn import_with_models(
         if let Some(why) = why {
             let case = match why {
                 Why::MarkerValue => Case::NotPopulatedMarker,
-                Why::DoNotPopulate | Why::ExcludedFromBom => Case::NotPopulatedAttribute,
+                Why::DoNotPopulate => Case::NotPopulatedAttribute,
             };
             report.add_detail(case, &fp.reference, "", why.text());
             unfitted.push(*instance);

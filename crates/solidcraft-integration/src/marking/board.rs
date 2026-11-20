@@ -443,8 +443,9 @@ pub fn project_artwork_of(
     }
 }
 
-/// Whether any placed instance of `project` can have a marking: its
-/// component or Part carries a spec, or the instance replaces it.
+/// Whether any placed instance of `project` can have a marking: the
+/// component or Part the active assembly variant fits carries a spec, or
+/// the instance replaces it (for its default part).
 pub fn any_marked(project: &Project) -> bool {
     project.placements.iter().any(|placement| {
         let Some(instance) = project.instance(placement.instance) else {
@@ -453,14 +454,15 @@ pub fn any_marked(project: &Project) -> bool {
         if instance.marking.hide {
             return false;
         }
-        if instance.marking.replace.is_some() {
+        let fitted = sparksmith_core::instances::variants::fitted(project, instance);
+        if instance.marking.replace.is_some() && !fitted.substituted {
             return true;
         }
         let component = project
             .library
-            .component(instance.component)
+            .component(fitted.component)
             .is_some_and(|c| c.definition.marking.is_some());
-        let part = instance
+        let part = fitted
             .part
             .and_then(|p| project.library.part(p))
             .is_some_and(|p| p.definition.top_mark.is_some());
@@ -492,12 +494,12 @@ pub fn instance_layouts(project: &Project) -> InstanceLayouts {
     for placement in &project.placements {
         let instance = placement.instance;
         // A part the active assembly variant leaves off has no body to
-        // mark; a substitute is not the part the marking describes, so it
-        // is left unmarked rather than marked wrongly.
+        // mark; a substitute is marked from its own data by
+        // `instance.marking`, which follows the active variant.
         let fitted = project
             .instance(instance)
             .map(|i| sparksmith_core::instances::variants::fitted(project, i));
-        if fitted.is_some_and(|f| !f.populated() || f.substituted) {
+        if fitted.is_some_and(|f| !f.populated()) {
             continue;
         }
         match sparksmith_core::commands::instance_marking(project, instance) {
@@ -511,7 +513,6 @@ pub fn instance_layouts(project: &Project) -> InstanceLayouts {
     out
 }
 
-/// The package an instance is built with, if it resolves.
 /// The package an instance is built with under the active assembly
 /// variant, if it resolves.
 fn package_of(project: &Project, instance: Id) -> Option<&PackageDefinition> {

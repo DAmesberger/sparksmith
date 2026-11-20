@@ -1561,10 +1561,7 @@ impl PcbEditor {
                 let text = self.text_section(ui, project, id);
                 let part = self.part_section(ui, engine, id);
                 let exported = self.interface_part_section(ui, engine, id);
-                let assembly = project
-                    .instance(id)
-                    .and_then(|i| crate::variants::assembly_section(ui, project, i));
-                moved.or(text).or(part).or(exported).or(assembly)
+                moved.or(text).or(part).or(exported)
             }
             Inspected::Unplaced(_) => {
                 self.unplaced_section(ui, engine);

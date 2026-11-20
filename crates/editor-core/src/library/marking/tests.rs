@@ -1112,3 +1112,169 @@ fn decals_lay_out_on_their_own_surfaces() -> Fallible<()> {
     assert_eq!(back, spec);
     Ok(())
 }
+
+/// A Part of `b`'s resistor rated `ohms`, published, with `top_mark`.
+/// Manufacturer and MPNs are invented.
+fn publish_resistor_part(
+    b: &mut Board,
+    mpn: &str,
+    ohms: f64,
+    top_mark: Option<MarkingSpec>,
+) -> Fallible<crate::PartRef> {
+    use crate::fields::{FieldValue, RatedSpec, SpecMeaning};
+    use crate::library::{
+        Basis, Definition, DistributorOffer, DraftEdit, PartDefinition, Provenance, Reference,
+        ReferenceKind,
+    };
+    let body = PartDefinition {
+        next_local: 3,
+        manufacturer: "ExampleCo".into(),
+        mpn: mpn.into(),
+        component: b.fixture.r1(),
+        binding: crate::BindingRef::new(b.fixture.binding, Revision::FIRST),
+        specs: vec![RatedSpec {
+            field: b.value,
+            value: FieldValue::Quantity {
+                si: dec(ohms),
+                display_unit: None,
+            },
+            meaning: SpecMeaning::ExactNominal,
+        }],
+        references: vec![Reference {
+            id: 1,
+            kind: ReferenceKind::Datasheet,
+            title: format!("{mpn} datasheet"),
+            url: Some("https://example.com/exampleco/ex-r.pdf".into()),
+            document_revision: Some("A".into()),
+            asset: None,
+            licence: None,
+            provenance: Provenance::default(),
+        }],
+        offers: vec![DistributorOffer {
+            id: 2,
+            distributor: "Example Distribution".into(),
+            sku: format!("EXD-{mpn}"),
+            url: None,
+            packaging: None,
+        }],
+        provenance: Provenance {
+            basis: Basis::FromReference(1),
+            ..Provenance::default()
+        },
+        top_mark: top_mark.map(Box::new),
+    };
+    let id = new_draft(&mut b.engine, crate::DefinitionKind::Part)?;
+    edit(
+        &mut b.engine,
+        vec![DraftEdit {
+            id,
+            meta: meta(mpn),
+            definition: Definition::Part(Box::new(body)),
+        }],
+    )?;
+    let r = publish(&mut b.engine, vec![id])?
+        .into_iter()
+        .next()
+        .ok_or("nothing published")?;
+    Ok(crate::PartRef::new(r.id, r.revision))
+}
+
+/// A variant fitting `part` on `b`'s resistor.
+fn substitute_variant(b: &mut Board, name: &str, part: crate::PartRef) -> Fallible<crate::ids::Id> {
+    use crate::instances::variants::VariantCommand;
+    let variant = match apply(
+        &mut b.engine,
+        Operation::Variant(VariantCommand::Add {
+            name: name.into(),
+            copy_of: None,
+        }),
+    )? {
+        crate::Outcome::VariantAdded { variant } => variant,
+        other => return Err(format!("unexpected {other:?}").into()),
+    };
+    apply(
+        &mut b.engine,
+        Operation::Variant(VariantCommand::SetPart {
+            instance: b.instance,
+            variant,
+            part: Some(part),
+        }),
+    )?;
+    Ok(variant)
+}
+
+/// A substitute Part in an assembly variant is marked from its own data
+/// (docs/assembly-variants.md): its rated value through its component's
+/// resistor code, and its own top mark with its part number; never the
+/// default part's marking or the instance's replacing spec.
+#[test]
+fn a_substitute_part_shows_its_own_marking() -> Fallible<()> {
+    use crate::instances::variants::VariantCommand;
+    let mut b = board("10k")?;
+    let rated_part = publish_resistor_part(&mut b, "EX-R-4K7", 4.7e3, None)?;
+    let marked_part = publish_resistor_part(
+        &mut b,
+        "EX-R-1K",
+        1e3,
+        Some(MarkingSpec {
+            items: vec![MarkingItem::Text {
+                template: Template("{mpn}".into()),
+                height_nm: None,
+                align: Align::Centre,
+            }],
+            ..Default::default()
+        }),
+    )?;
+    let rated = substitute_variant(&mut b, "Rated", rated_part)?;
+    let topped = substitute_variant(&mut b, "Topped", marked_part)?;
+    let activate = |engine: &mut Engine, variant| {
+        apply(
+            engine,
+            Operation::Variant(VariantCommand::SetActive { variant }),
+        )
+    };
+    let instance = b.instance;
+    let marking = |engine: &Engine| -> Fallible<Vec<String>> {
+        let laid = marking_of(engine, instance)?.ok_or("marked")?;
+        Ok(texts(&laid).into_iter().map(str::to_owned).collect())
+    };
+    let designator = InstanceMarking {
+        replace: Some(MarkingSpec {
+            items: vec![MarkingItem::Text {
+                template: Template("{designator}".into()),
+                height_nm: None,
+                align: Align::Centre,
+            }],
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let set_marking = |engine: &mut Engine, marking: InstanceMarking| {
+        apply(
+            engine,
+            Operation::Instance(InstanceCommand::SetMarking { instance, marking }),
+        )
+    };
+
+    // The default part: the instance's own 10 kΩ.
+    assert_eq!(marking(&b.engine)?, ["01C"]);
+    // The substitute's 4.7 kΩ through the component's resistor code.
+    activate(&mut b.engine, Some(rated))?;
+    let substitute = marking(&b.engine)?;
+    assert_eq!(substitute, ["4701"]);
+    // The substitute's own top mark, with its own part number.
+    activate(&mut b.engine, Some(topped))?;
+    assert_eq!(marking(&b.engine)?, ["EX-R-1K"]);
+
+    // The instance's replacing spec describes the default part only.
+    set_marking(&mut b.engine, designator)?;
+    assert_eq!(marking(&b.engine)?, ["EX-R-1K"]);
+    activate(&mut b.engine, None)?;
+    assert_eq!(marking(&b.engine)?, ["R1"]);
+
+    // The same value on the default part reads the same code: one path.
+    set_marking(&mut b.engine, InstanceMarking::default())?;
+    set_properties(&mut b.engine, instance, vec![text(b.value, "4.7k")])?;
+    assert_eq!(marking(&b.engine)?, substitute);
+    Ok(())
+}
