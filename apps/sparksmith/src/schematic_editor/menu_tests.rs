@@ -143,6 +143,7 @@ fn a_symbol_offers_arrange_edit_no_connect_and_delete() -> TestResult {
             "—",
             "Edit component",
             "No connect on all open pins",
+            "Not populated in default",
             "—",
             "Delete…"
         ]

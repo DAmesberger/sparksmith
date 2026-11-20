@@ -56,6 +56,10 @@ pub(super) enum Act {
     DeleteGroup,
     /// Lock or unlock the whole group.
     LockGroup(bool),
+    /// Toggle whether the part is populated in the active variant.
+    Population(Id),
+    /// The same for every part of the group, in one step.
+    GroupPopulation,
 }
 
 impl PcbEditor {
@@ -167,6 +171,12 @@ impl PcbEditor {
                         !reviewing,
                     )),
                     Some(edge),
+                    crate::variants::menu_entry(
+                        project,
+                        &[instance],
+                        Act::Population(instance),
+                        !reviewing,
+                    ),
                     None,
                     Some(Entry::act(
                         "Delete…",
@@ -223,17 +233,18 @@ impl PcbEditor {
                 ]
             }
             Target::Group => {
-                let parts = self.group.parts.len();
+                let parts: Vec<Id> = self.group.parts.iter().copied().collect();
+                let count = parts.len();
                 let locked = self.group.all_locked(project);
                 let arrange = |id: &'static str, label: &str, fewest: usize| {
                     Some(Entry::command(
                         ctx,
                         id,
                         label,
-                        parts >= fewest && !reviewing,
+                        count >= fewest && !reviewing,
                     ))
                 };
-                vec![
+                let mut rows = vec![
                     arrange("pcb.align-left", "Align left edges", 2),
                     arrange("pcb.align-right", "Align right edges", 2),
                     arrange("pcb.align-top", "Align top edges", 2),
@@ -249,6 +260,14 @@ impl PcbEditor {
                         Act::LockGroup(!locked),
                         !reviewing,
                     )),
+                ];
+                // Only a group with parts has a population to toggle.
+                if let Some(entry) =
+                    crate::variants::menu_entry(project, &parts, Act::GroupPopulation, !reviewing)
+                {
+                    rows.push(Some(entry));
+                }
+                rows.extend([
                     None,
                     Some(
                         Entry::act(
@@ -259,7 +278,8 @@ impl PcbEditor {
                         )
                         .key_of(ctx, "pcb.delete"),
                     ),
-                ]
+                ]);
+                rows
             }
             Target::Board => {
                 let ribbon = self.ribbon(engine);
@@ -347,6 +367,10 @@ impl PcbEditor {
                 objects: self.group.objects(),
                 locked,
             }),
+            Act::Population(instance) => crate::variants::toggle(project, vec![instance]),
+            Act::GroupPopulation => {
+                crate::variants::toggle(project, self.group.parts.iter().copied().collect())
+            }
         }
     }
 

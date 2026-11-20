@@ -117,6 +117,7 @@ impl SchematicEditor {
         }
         output = output.or(self.property_rows(ui, project, instance));
         output = output.or(self.part_section(ui, engine, instance));
+        output = output.or(crate::variants::assembly_section(ui, project, instance));
         output = output.or(self.function_section(ui, engine, instance));
         // C6: the docked pin-mux panel, opened by Pin assignment… above;
         // D6: the Marking row.

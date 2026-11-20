@@ -1449,6 +1449,10 @@ impl App {
                     crate::navigation::hint_3d(crate::navigation::Device::last(ui.ctx())),
                 );
                 self.follow_pill(ui, rect);
+                let row = usize::from(self.scene.viewport.following());
+                let ctx = ui.ctx().clone();
+                let operation = self.pcb.variant_pill(ui, rect, self.engine.project(), row);
+                self.apply(&ctx, crate::refusal::Origin::Command, operation);
             }
             pick
         };
@@ -1853,6 +1857,9 @@ mod parts_band_tests;
 #[cfg(test)]
 #[path = "app/ax_harness.rs"]
 pub(crate) mod ax_harness;
+#[cfg(test)]
+#[path = "app/variants_tests.rs"]
+mod variants_tests;
 
 #[cfg(test)]
 #[path = "app/ax_tests.rs"]

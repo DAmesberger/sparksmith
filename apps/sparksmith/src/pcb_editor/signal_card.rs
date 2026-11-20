@@ -53,6 +53,7 @@ impl PcbEditor {
         self.stackup = None;
         self.rules = None;
         self.net_classes = None;
+        self.variants = None;
         self.end_route();
         self.signals = Some(SignalCard::default());
     }

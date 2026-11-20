@@ -43,6 +43,7 @@ mod schematic_editor;
 mod shell;
 mod symbol_view;
 mod update_preview;
+mod variants;
 mod viewport;
 mod workflow_cards;
 

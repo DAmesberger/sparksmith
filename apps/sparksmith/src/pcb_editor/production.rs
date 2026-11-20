@@ -526,6 +526,7 @@ impl PcbEditor {
         self.stackup = None;
         self.net_classes = None;
         self.rules = None;
+        self.variants = None;
         if self.production.is_none() {
             self.production = Some(ProductionDialog::new(
                 library,

@@ -739,6 +739,7 @@ impl PcbEditor {
         self.stackup = None;
         self.net_classes = None;
         self.signals = None;
+        self.variants = None;
         match &mut self.rules {
             Some(panel) => {
                 if topic.is_some() {

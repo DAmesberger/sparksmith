@@ -38,7 +38,7 @@ pub use item_row::*;
 pub use pick::{PickResponse, PickRow, Tick, pick_row};
 pub use rows::*;
 pub use search::*;
-pub use toast::{pill, status_chip};
+pub use toast::{PillResponse, pill, status_chip};
 pub use tree::*;
 pub use {dialog::DialogPanel, issues::issue_line, severity::severity_glyph};
 

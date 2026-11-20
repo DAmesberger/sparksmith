@@ -74,6 +74,8 @@ enum Arrange {
     Mirror,
 }
 
+/// The opacity of a symbol the active assembly variant leaves off.
+const NOT_FITTED_OPACITY: f32 = 0.45;
 /// The canvas zoom range, in points per sheet millimetre. The low end frames
 /// the largest page, A0, in a 600-point canvas.
 const SCALE_MIN: f32 = 0.5;
@@ -2071,6 +2073,14 @@ impl SchematicEditor {
         let visible = Bounds::point(view.world(rect.left_bottom()))
             .including(view.world(rect.right_top()))
             .inflated(f64::from(12.0 / scale.max(f32::EPSILON)));
+        // Parts the active assembly variant leaves off are drawn dimmed.
+        let active = project.variants.active();
+        let not_fitted: BTreeSet<Id> = project
+            .instances
+            .iter()
+            .filter(|i| !sparksmith_core::instances::variants::population(i, active).is_populated())
+            .map(|i| i.id)
+            .collect();
         for occurrence in project.occurrences.iter().filter(|o| o.sheet == self.sheet) {
             let Some(placed) = placed_units.get(&occurrence.id) else {
                 continue;
@@ -2110,7 +2120,16 @@ impl SchematicEditor {
             let selected = !removed
                 && (self.selected == Some(occurrence.instance)
                     || self.group.instances.contains(&occurrence.instance));
-            let dim = |c: egui::Color32| if removed { c.gamma_multiply(0.3) } else { c };
+            let off = not_fitted.contains(&occurrence.instance);
+            let dim = |c: egui::Color32| {
+                if removed {
+                    c.gamma_multiply(0.3)
+                } else if off {
+                    c.gamma_multiply(NOT_FITTED_OPACITY)
+                } else {
+                    c
+                }
+            };
             symbol_view::paint(
                 &painter,
                 view,
