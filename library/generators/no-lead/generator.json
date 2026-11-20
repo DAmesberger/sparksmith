@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "no-lead.wasm",
-    "sha256": "591a35bb92dc9a7ebaed6016c594eef2722a4d69cf8bfd0bbd70f3e013318044"
+    "sha256": "2cc5fbd548acd9e6b4ed361cd94b6611bf5dca193046e95ca2121290bb3dd145"
   },
   "name": "no-lead",
   "parts": [
@@ -61,6 +61,13 @@
       "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's RGV0016A (4219037/A) and DML0010A (4222524/A) outlines (sawn, pin-1 index area, no moulded dimple) and Sensirion's SHT4x datasheet v7.3 §5 (side walls bare copper); the flank step is estimated; leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' photographs and package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
       "sha256": "201b925073388fcb9a68f1c5ed392c4613d8bc35f375e2ffdba4002b8523c435",
       "title": "QFN package with exposed pad, wettable flanks"
+    },
+    {
+      "file": "parts/sawn-terminals.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's DML0010A (4222524/A, WSON: sawn, pin-1 index area, pins joined by lugs) and RXB0014A (4225574/C, VQFN-FCRLF: L-shaped corner terminals, half-etched necks at the sawn edge, section A-A) outlines; leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' package drawings cited; no vendor drawing, CAD model or EDA library data copied.",
+      "sha256": "bc566e713413118f4744f2aa37bb90ecabdccb5ac95cccd83555dbee162ab5c7",
+      "title": "No-lead package, individually placed terminals"
     }
   ]
 }

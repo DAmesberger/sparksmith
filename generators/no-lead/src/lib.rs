@@ -44,9 +44,10 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The starter rows, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`): 5 sets the marking
-/// text at the height its preset gives (`marking_height`).
-const VERSION: u32 = 5;
+/// The generator's version (`Description::version`): 6 takes terminals
+/// and lands given one by one (`terminal_numbers`, `given_land_numbers`;
+/// the `sawn-terminals` part file).
+const VERSION: u32 = 6;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.
@@ -290,6 +291,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "body",
         ),
     ];
+    params.extend(explicit_params());
     params.push(sparksmith_generator_sdk::marking::param());
     params.push(sparksmith_generator_sdk::marking::height_param());
     let rule = |text: &str, fields: &[&str]| Rule {
@@ -351,6 +353,168 @@ fn description_with(presets: Vec<Preset>) -> Description {
         }],
         needs: Vec::new(),
     }
+}
+
+/// A list parameter in `group`.
+fn list(key: &str, label: &str, help: &str, of: ParamType, max: usize, group: &str) -> Param {
+    Param {
+        key: key.into(),
+        label: label.into(),
+        help: Some(help.into()),
+        ty: ParamType::List {
+            of: alloc::boxed::Box::new(of),
+            max_len: u32::try_from(max).unwrap_or(0),
+        },
+        default: ParamValue::List(Vec::new()),
+        group: Some(group.into()),
+        context: None,
+    }
+}
+
+/// The parameters of terminals and lands given one by one.
+fn explicit_params() -> Vec<Param> {
+    let number = || ParamType::Text {
+        max_chars: explicit::MAX_NUMBER_CHARS + 2,
+    };
+    let coord = || ParamType::Length {
+        min_nm: -15 * MM,
+        max_nm: 15 * MM,
+        step_nm: None,
+    };
+    let size = || ParamType::Length {
+        min_nm: 10 * UM,
+        max_nm: 30 * MM,
+        step_nm: None,
+    };
+    let slots = explicit::TERMINAL_SLOTS;
+    let most = explicit::MAX_LANDS;
+    let t = "terminals given one by one";
+    let l = "lands given one by one";
+    vec![
+        list(
+            "terminal_numbers",
+            "Number of each terminal rectangle",
+            "Terminals given one by one, for packages no row pattern makes (L-shaped corner terminals, pins joined by lugs, pins at their own pitch): each entry is one rectangle of bared leadframe, and rectangles of one number are one terminal. When given, sides, counts, pitch, terminal sizes and the exposed pad are not used; the exposed pad is a terminal like any other.",
+            number(),
+            slots,
+            t,
+        ),
+        list(
+            "terminal_x",
+            "Centre x of each terminal rectangle",
+            "From the body centre.",
+            coord(),
+            slots,
+            t,
+        ),
+        list(
+            "terminal_y",
+            "Centre y of each terminal rectangle",
+            "From the body centre.",
+            coord(),
+            slots,
+            t,
+        ),
+        list(
+            "terminal_size_x",
+            "Size x of each terminal rectangle",
+            "Along x.",
+            size(),
+            slots,
+            t,
+        ),
+        list(
+            "terminal_size_y",
+            "Size y of each terminal rectangle",
+            "Along y.",
+            size(),
+            slots,
+            t,
+        ),
+        list(
+            "terminal_lift",
+            "Lift of each terminal rectangle",
+            "Its underside above the seating plane: 0 bares it underneath; more makes a half-etched neck the moulding covers, bared only at the sawn edge. Empty: all 0.",
+            ParamType::Length {
+                min_nm: 0,
+                max_nm: MM,
+                step_nm: None,
+            },
+            slots,
+            t,
+        ),
+        list(
+            "given_land_numbers",
+            "Number of each given land",
+            "The recommended land pattern, land by land; several lands may share a number. \"(N)\" lands terminal N without showing its number (a lug, a via in the exposed pad). Empty: each bared terminal rectangle grown 0.025 mm on every side.",
+            number(),
+            most,
+            l,
+        ),
+        list(
+            "given_land_x",
+            "Centre x of each given land",
+            "From the body centre.",
+            coord(),
+            most,
+            l,
+        ),
+        list(
+            "given_land_y",
+            "Centre y of each given land",
+            "From the body centre.",
+            coord(),
+            most,
+            l,
+        ),
+        list(
+            "given_land_size_x",
+            "Size x of each given land",
+            "Along x; a round land's diameter.",
+            size(),
+            most,
+            l,
+        ),
+        list(
+            "given_land_size_y",
+            "Size y of each given land",
+            "Along y.",
+            size(),
+            most,
+            l,
+        ),
+        list(
+            "given_land_shapes",
+            "Shape of each given land",
+            "Empty: all rectangles.",
+            ParamType::Enum {
+                choices: vec![
+                    Choice {
+                        key: "rect".into(),
+                        label: "Rectangle".into(),
+                    },
+                    Choice {
+                        key: "round".into(),
+                        label: "Round".into(),
+                    },
+                ],
+            },
+            most,
+            l,
+        ),
+        list(
+            "given_land_drill",
+            "Plated hole of each given land",
+            "0 for a surface land; a round land with a plated hole (a via) otherwise. Empty: all 0.",
+            ParamType::Length {
+                min_nm: 0,
+                max_nm: 5 * MM,
+                step_nm: None,
+            },
+            most,
+            l,
+        ),
+    ]
 }
 
 type Point2 = [i64; 2];
@@ -859,6 +1023,29 @@ fn symbol(keys: &[String]) -> Symbol {
     }
 }
 
+/// The pin-1 dot's radius on a body whose shorter side is `short`.
+fn dot_radius(short: i64) -> i64 {
+    let (lo, hi) = (DOT_RADIUS_NM[0], DOT_RADIUS_NM[1]);
+    let radius = div_round(short * 6, 100).unwrap_or(lo).clamp(lo, hi);
+    // On a body too small for it, the dot shrinks to fit.
+    if 6 * radius >= short {
+        div_round(short, 8).unwrap_or(0)
+    } else {
+        radius
+    }
+}
+
+/// The leadframe (or an LGA's land) thickness under a body `height` tall.
+fn frame_of(height: i64, lga: bool) -> i64 {
+    let frame = if lga { LGA_LAND_NM } else { FRAME_NM };
+    frame.min(div_round(height, 3).unwrap_or(0))
+}
+
+/// The top edges' round on a body `height` tall.
+fn edge_round(height: i64) -> i64 {
+    TOP_EDGE_NM.min(div_round(height, 10).unwrap_or(0))
+}
+
 /// The SHA-256 of each part file in the bundle (`parts/`), written by the
 /// build script.
 mod parts {
@@ -874,13 +1061,7 @@ mod parts {
 /// a dimple marks the pin-1 corner.
 fn model(d: &Dims) -> v1::Model {
     let [bl, bw, bh] = d.body;
-    let short = bl.min(bw);
-    let (lo, hi) = (DOT_RADIUS_NM[0], DOT_RADIUS_NM[1]);
-    let mut radius = div_round(short * 6, 100).unwrap_or(lo).clamp(lo, hi);
-    // On a body too small for it, the dot shrinks to fit.
-    if 6 * radius >= short {
-        radius = div_round(short, 8).unwrap_or(0);
-    }
+    let radius = dot_radius(bl.min(bw));
     let mut values = v1::Params::new();
     let mut set = |name: &str, v: i64| {
         values.insert(name.into(), ParamValue::Int(v));
@@ -896,16 +1077,8 @@ fn model(d: &Dims) -> v1::Model {
     set("terminal_length", d.terminal_length);
     set("terminal_width", d.terminal_width);
     set("pullback", d.pullback);
-    let frame = if d.construction == Construction::Lga {
-        LGA_LAND_NM
-    } else {
-        FRAME_NM
-    };
-    set("frame", frame.min(div_round(bh, 3).unwrap_or(0)));
-    set(
-        "edge_round",
-        TOP_EDGE_NM.min(div_round(bh, 10).unwrap_or(0)),
-    );
+    set("frame", frame_of(bh, d.construction == Construction::Lga));
+    set("edge_round", edge_round(bh));
     set("mark_radius", radius);
     set("mark_depth", DOT_DEPTH_NM);
     if let Some([pl, pw]) = d.pad {
@@ -934,6 +1107,9 @@ fn model(d: &Dims) -> v1::Model {
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
+    if explicit::given(&args)? {
+        return explicit::generate(request, &args);
+    }
     let d = dims(&args)?;
     let pads = pads(&d);
     let body = d.body();
@@ -1057,6 +1233,8 @@ impl Generator for NoLead {
         generate(request)
     }
 }
+
+mod explicit;
 
 #[cfg(test)]
 mod tests;
