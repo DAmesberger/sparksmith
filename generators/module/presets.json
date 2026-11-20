@@ -164,7 +164,9 @@
    "keepout_left": 0,
    "keepout_right": 0,
    "keepout_top": 0,
-   "mask_colour": "black"
+   "mask_colour": "black",
+   "label_name": "ESP32-S31-WROOM-3",
+   "label_logo": "espressif-logo"
   },
   "citation": {
    "document": "Espressif ESP32-S31-WROOM-3 & ESP32-S31-WROOM-3U Datasheet (pre-release), Figure 10-1 module dimensions and Figure 11-1 PCB land pattern",
@@ -172,7 +174,7 @@
    "page": 64
   },
   "basis": "cited",
-  "note": "The pad rows, pitch, outline and land pattern are the datasheet's (Figure 10-1, p. 64; Figure 11-1, p. 67); the ground array's turn and pitch were checked against Espressif's published footprint and STEP model, used as a dimension source only. The ground pad nearest the antenna is chamfered on the module; it is drawn square. The can size, board thickness and antenna meander are estimated. Soldermask black: the datasheet's cover drawing (pre-release v0.7, p. 1) shows a black board under the can, as Espressif's ESP32-S3 modules are made (no product photograph of this module found, 20 November 2026)."
+  "note": "The pad rows, pitch, outline and land pattern are the datasheet's (Figure 10-1, p. 64; Figure 11-1, p. 67); the ground array's turn and pitch were checked against Espressif's published footprint and STEP model, used as a dimension source only. The ground pad nearest the antenna is chamfered on the module; it is drawn square. The can size, board thickness and antenna meander are estimated. Soldermask black: the datasheet's cover drawing (pre-release v0.7, p. 1) shows a black board under the can, as Espressif's ESP32-S3 modules are made (no product photograph of this module found, 20 November 2026). Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, laid out as on Espressif's ESP32-S3 module cover drawing (datasheet v1.8, p. 1); the S31's orderable variants and certification are not in the pre-release datasheet, so it prints no variant, FCC ID or conformity mark."
  },
  {
   "key": "module-esp32-s3-wroom-1",
@@ -246,7 +248,24 @@
    "keepout_left": 0,
    "keepout_right": 0,
    "keepout_top": 0,
-   "mask_colour": "black"
+   "mask_colour": "black",
+   "label_name": "ESP32-S3-WROOM-1",
+   "label_logo": "espressif-logo",
+   "marking_codes": [
+    "ESP32-S3-WROOM-1-N4=N4",
+    "ESP32-S3-WROOM-1-N8=N8",
+    "ESP32-S3-WROOM-1-N16=N16",
+    "ESP32-S3-WROOM-1-H4=H4",
+    "ESP32-S3-WROOM-1-N4R2=N4R2",
+    "ESP32-S3-WROOM-1-N8R2=N8R2",
+    "ESP32-S3-WROOM-1-N16R2=N16R2",
+    "ESP32-S3-WROOM-1-N4R8=N4R8",
+    "ESP32-S3-WROOM-1-N8R8=N8R8",
+    "ESP32-S3-WROOM-1-N16R8=N16R8",
+    "ESP32-S3-WROOM-1-N16R16VA7=N16R16VA7"
+   ],
+   "label_fcc_id": "2AC7Z-ESPS3WROOM1",
+   "label_ce": "ce-mark"
   },
   "citation": {
    "document": "Espressif ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet, Figure 10-1 module dimensions and Figure 11-1 recommended PCB land pattern",
@@ -254,7 +273,7 @@
    "page": 42
   },
   "basis": "cited",
-  "note": "Outline, height, board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 7.49 mm below the antenna edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.8 × 17.6 mm, read 1.05 mm above the bottom edge) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-1, p. 45) from the datasheet. The antenna meander's trace, inset and turns are estimated from the top view; the emboss groove is estimated. Soldermask black, satin to matte, as product photographs of the module show (for example the DFRobot DFR0896 module, https://core-electronics.com.au/esp32-s3-wroom-1-n4-module-pcb-antenna.html, read 20 November 2026) and the datasheet's cover drawing (v1.8, p. 1); the antenna meander is black on black."
+  "note": "Outline, height, board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 7.49 mm below the antenna edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.8 × 17.6 mm, read 1.05 mm above the bottom edge) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-1, p. 45) from the datasheet. The antenna meander's trace, inset and turns are estimated from the top view; the emboss groove is estimated. Soldermask black, satin to matte, as product photographs of the module show (for example the DFRobot DFR0896 module, https://core-electronics.com.au/esp32-s3-wroom-1-n4-module-pcb-antenna.html, read 20 November 2026) and the datasheet's cover drawing (v1.8, p. 1); the antenna meander is black on black. Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, as on the datasheet's cover drawing (v1.8, p. 1), then the orderable variant of the placed part's number ({code}: the ordering codes of datasheet v1.8 Table 1-1, p. 3; ESP32-S3-WROOM-1-N16R8 prints N16R8). FCC ID 2AC7Z-ESPS3WROOM1 from the FCC grant for model ESPS3WROOM1 (2.4 GHz Wi-Fi & BT IoT module, granted 21 January 2022; fccid.io listing read 20 November 2026) and the CE mark (installed artwork `ce-mark`); their place on the can is estimated, as the cover drawing shows neither. The WROOM-1U prints no FCC line or CE mark until its own grant is checked."
  },
  {
   "key": "module-esp32-s3-wroom-1u",
@@ -328,7 +347,22 @@
    "keepout_left": 0,
    "keepout_right": 0,
    "keepout_top": 0,
-   "mask_colour": "black"
+   "mask_colour": "black",
+   "label_name": "ESP32-S3-WROOM-1U",
+   "label_logo": "espressif-logo",
+   "marking_codes": [
+    "ESP32-S3-WROOM-1U-N4=N4",
+    "ESP32-S3-WROOM-1U-N8=N8",
+    "ESP32-S3-WROOM-1U-N16=N16",
+    "ESP32-S3-WROOM-1U-H4=H4",
+    "ESP32-S3-WROOM-1U-N4R2=N4R2",
+    "ESP32-S3-WROOM-1U-N8R2=N8R2",
+    "ESP32-S3-WROOM-1U-N16R2=N16R2",
+    "ESP32-S3-WROOM-1U-N4R8=N4R8",
+    "ESP32-S3-WROOM-1U-N8R8=N8R8",
+    "ESP32-S3-WROOM-1U-N16R8=N16R8",
+    "ESP32-S3-WROOM-1U-N16R16VA7=N16R16VA7"
+   ]
   },
   "citation": {
    "document": "Espressif ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet, Figure 10-2 module dimensions and Figure 11-2 recommended PCB land pattern",
@@ -336,6 +370,6 @@
    "page": 42
   },
   "basis": "cited",
-  "note": "Outline (18 × 19.2 mm), height (3.2 mm), board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 1.19 mm below the top edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.65 × 17.5 mm, 1.1 mm above the bottom edge, its notch 4.9 × 4.4 mm from the 10.75 mm and 13.1 mm sections), the U.FL receptacle's centre (3 mm from the right edge, 2.46 mm from the top) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-2, p. 46) from the datasheet; the pads are the WROOM-1's at the same distance from the bottom edge. The can is centred across, as read from the top view (within 0.1 mm); the receptacle's body (2.6 mm square base, Ø2 mm shell, 1.25 mm tall) is a U.FL / MHF I receptacle's typical size, estimated. Soldermask black, as the datasheet's cover drawing (v1.8, p. 1) and Espressif's product image show, the same board as the ESP32-S3-WROOM-1 (no photograph of the -1U itself found, 20 November 2026)."
+  "note": "Outline (18 × 19.2 mm), height (3.2 mm), board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 1.19 mm below the top edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.65 × 17.5 mm, 1.1 mm above the bottom edge, its notch 4.9 × 4.4 mm from the 10.75 mm and 13.1 mm sections), the U.FL receptacle's centre (3 mm from the right edge, 2.46 mm from the top) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-2, p. 46) from the datasheet; the pads are the WROOM-1's at the same distance from the bottom edge. The can is centred across, as read from the top view (within 0.1 mm); the receptacle's body (2.6 mm square base, Ø2 mm shell, 1.25 mm tall) is a U.FL / MHF I receptacle's typical size, estimated. Soldermask black, as the datasheet's cover drawing (v1.8, p. 1) and Espressif's product image show, the same board as the ESP32-S3-WROOM-1 (no photograph of the -1U itself found, 20 November 2026). Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, as on the datasheet's cover drawing (v1.8, p. 1), then the orderable variant of the placed part's number ({code}: the ordering codes of datasheet v1.8 Table 1-1, p. 3; ESP32-S3-WROOM-1U-N16R8 prints N16R8)."
  }
 ]
