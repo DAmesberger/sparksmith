@@ -320,6 +320,84 @@ fn a_part_number_naming_another_package_is_a_finding() -> Fallible {
     Ok(())
 }
 
+/// An 18 mm wide castellated module's land pattern as KiCad stores it (y
+/// down): 14 + 12 + 14 lands of 1.5 × 0.9 mm at 1.27 mm and a 3 × 3
+/// ground array, as a public module datasheet's recommended pattern gives
+/// it; one module PCB with its antenna end and one without share it.
+fn module_footprint(name: &str, at: [f64; 2], extra: &str) -> String {
+    let mut out = format!(
+        r#"(footprint "Original:Module" (layer "F.Cu") (at {} {})
+        (property "Reference" "{name}") {extra}"#,
+        at[0], at[1]
+    );
+    let mut land = |number: usize, x: f64, y: f64, size: [f64; 2]| {
+        out.push_str(&format!(
+            r#"(pad "{number}" smd rect (at {x:.3} {:.3}) (size {} {}) (layers "F.Cu" "F.Paste" "F.Mask") (net {} "{}"))"#,
+            -y,
+            size[0],
+            size[1],
+            number % 4 + 1,
+            ["A", "B", "C", "D"][number % 4]
+        ));
+    };
+    for k in 0..14 {
+        land(1 + k, -8.75, 5.26 - 1.27 * k as f64, [1.5, 0.9]);
+        land(27 + k, 8.75, -11.25 + 1.27 * k as f64, [1.5, 0.9]);
+    }
+    for k in 0..12 {
+        land(15 + k, -6.985 + 1.27 * k as f64, -12.5, [0.9, 1.5]);
+    }
+    for r in 0..3 {
+        for c in 0..3 {
+            let x = -1.5 + 1.4 * (c as f64 - 1.0);
+            let y = -2.46 + 1.4 * (1.0 - r as f64);
+            land(41, x, y, [0.9, 0.9]);
+        }
+    }
+    out.push(')');
+    out
+}
+
+/// Lands two presets fit alike (a module with its PCB antenna and its
+/// external-antenna variant): the placed part's number, naming one of them
+/// standing apart, chooses it; without one they tie.
+#[test]
+fn a_part_number_chooses_among_presets_that_fit_alike() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let props = |mpn: &str| {
+        format!(r#"(property "MPN" "{mpn}") (property "Manufacturer" "Original Devices")"#)
+    };
+    let footprints = [
+        module_footprint("U1", [20.0, 20.0], &props("ESP32-S3-WROOM-1U-N4R2")),
+        module_footprint("U2", [50.0, 20.0], &props("ESP32-S3-WROOM-1-N4")),
+        module_footprint("U3", [80.0, 20.0], ""),
+    ]
+    .concat();
+    let imported = import(dir.path(), "mpn-choice", &board("mpn-choice", &footprints))?;
+    let project = imported.engine.project();
+    let preset = |designator: &str| {
+        let instance = project.instance_by_designator(designator)?;
+        project
+            .library
+            .generated
+            .iter()
+            .find(|g| g.root.id == instance.component.id)
+            .and_then(|g| g.from.preset.clone())
+    };
+    assert_eq!(preset("U1").as_deref(), Some("module-esp32-s3-wroom-1u"));
+    assert_eq!(preset("U2").as_deref(), Some("module-esp32-s3-wroom-1"));
+    assert_eq!(preset("U3"), None);
+    assert_eq!(
+        imported.report.count(Case::PackageContradiction),
+        0,
+        "{:?}",
+        imported.report.details()
+    );
+    Ok(())
+}
+
 /// A footprint no generator fits is a project part of its lands, the same
 /// kind of part as an authored one: no import-only field, the package's
 /// default model until a recreation, named by its value.

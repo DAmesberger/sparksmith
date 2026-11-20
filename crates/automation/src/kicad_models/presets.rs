@@ -227,13 +227,16 @@ impl Presets {
         self.candidates = Some(candidates);
         Ok(())
     }
-    /// The preset `pads` (a footprint's lands) are, or why none is.
+    /// The preset `pads` (a footprint's lands) are, or why none is; the
+    /// placed part's manufacturer part number `mpn`, when it names one of
+    /// the fitting presets, chooses among them.
     pub(super) fn identify(
         &mut self,
         engine: &Engine,
         pads: &[Pad],
         prefix: &str,
         facts: &Facts,
+        mpn: Option<&str>,
         deadline: std::time::Instant,
     ) -> Result<Result<Found, Miss>, String> {
         super::check_time(deadline)?;
@@ -271,6 +274,7 @@ impl Presets {
                 &facts.name,
                 facts.fab_extent_nm,
                 facts.courtyard_extent_nm,
+                mpn,
             ))
             .map_err(|e| e.to_string())?,
         );
@@ -321,7 +325,7 @@ impl Presets {
                     (None, None) => Miss::NoPreset,
                 })
             } else {
-                choose(candidates, fitting, prefix, facts)
+                choose(candidates, fitting, prefix, facts, mpn)
             };
             self.matches.insert(key, found.clone());
             found
@@ -637,9 +641,10 @@ fn body_distance(extent: [f64; 2], preset: [f64; 2], fit: &Fit) -> f64 {
         .fold(0.0, f64::max)
 }
 
-/// The fitting presets narrowed, in order, by a preset the footprint's name
-/// names (the longest such name), else by the longest declared prefix that
-/// begins the designator's ("RFB" is a resistor's "R", "FB" a ferrite
+/// The fitting presets narrowed, in order, by a preset the part number
+/// `mpn` names standing apart (the longest such name), else by a preset the
+/// footprint's name names (the longest such name), else by the longest
+/// declared prefix that begins the designator's ("RFB" is a resistor's "R", "FB" a ferrite
 /// bead's); then the nearest centres decide, and among equally near ones
 /// the footprint's body outline (fabrication layer, else courtyard). A tie
 /// is no choice. Two-pad lands (chip resistors, capacitors, inductors,
@@ -653,6 +658,7 @@ fn choose(
     fitting: Vec<(usize, Fit)>,
     prefix: &str,
     facts: &Facts,
+    mpn: Option<&str>,
 ) -> Result<Found, Miss> {
     let nearest_name = |pool: &[(usize, Fit)]| {
         let best = pool
@@ -665,12 +671,33 @@ fn choose(
             .unwrap_or_default()
     };
     let mut notes = Vec::new();
+    let in_mpn = |index: &usize| {
+        mpn.and_then(|mpn| {
+            candidates[*index]
+                .names
+                .iter()
+                .filter(|n| names_apart(mpn, n))
+                .map(String::len)
+                .max()
+        })
+        .unwrap_or(0)
+    };
+    let by_mpn = fitting.iter().map(|(i, _)| in_mpn(i)).max().unwrap_or(0);
     let by_name = fitting
         .iter()
         .map(|(i, _)| named(&candidates[*i], &facts.name))
         .max()
         .unwrap_or(0);
-    let pool: Vec<(usize, Fit)> = if by_name > 0 {
+    let pool: Vec<(usize, Fit)> = if by_mpn > 0 {
+        notes.push(format!(
+            "Named by the part number {:?}.",
+            mpn.unwrap_or_default()
+        ));
+        fitting
+            .into_iter()
+            .filter(|(i, _)| in_mpn(i) == by_mpn)
+            .collect()
+    } else if by_name > 0 {
         notes.push(format!("Named by the footprint's name {:?}.", facts.name));
         fitting
             .into_iter()
@@ -914,7 +941,7 @@ mod tests {
             (chip(1.65, [0.8, 0.95])?, "FB", "chip/ferrite-0603"),
         ] {
             let choice = presets
-                .identify(&engine, &pads, prefix, &Facts::default(), deadline)?
+                .identify(&engine, &pads, prefix, &Facts::default(), None, deadline)?
                 .map_err(|miss| format!("{preset}: {miss}"))?;
             assert!(choice.name.contains(preset), "{}", choice.name);
         }
@@ -922,7 +949,7 @@ mod tests {
         // crystal's (Y) lands of a 1210 chip's size get no resistor body.
         let r0603 = lands_of(&presets, "chip/resistor-0603")?;
         assert!(matches!(
-            presets.identify(&engine, &r0603, "?", &Facts::default(), deadline)?,
+            presets.identify(&engine, &r0603, "?", &Facts::default(), None, deadline)?,
             Err(Miss::PrefixMismatch { .. })
         ));
         let mut crystal = chip(2.4, [1.0, 3.0])?;
@@ -935,7 +962,7 @@ mod tests {
             accepted(&crystal, &lands_of(&presets, "chip/resistor-1210")?),
             "the lands fit a 1210 chip"
         );
-        match presets.identify(&engine, &crystal, "Y", &Facts::default(), deadline)? {
+        match presets.identify(&engine, &crystal, "Y", &Facts::default(), None, deadline)? {
             // Nearest by centres is the XEL4030 (2.39 mm span), which declares L.
             Err(Miss::PrefixMismatch { nearest }) => {
                 assert_eq!(nearest, "power-inductor/power-inductor-xel4030");
@@ -946,7 +973,7 @@ mod tests {
         // gets its body, not the placeholder.
         let xel4030 = lands_of(&presets, "power-inductor/power-inductor-xel4030")?;
         let choice = presets
-            .identify(&engine, &xel4030, "L", &Facts::default(), deadline)?
+            .identify(&engine, &xel4030, "L", &Facts::default(), None, deadline)?
             .map_err(|miss| format!("XEL4030 under L: {miss}"))?;
         assert!(
             choice
@@ -958,7 +985,7 @@ mod tests {
         // A multi-pad package keeps its body under an unusual designator.
         let sot = lands_of(&presets, "tabbed/tabbed-sot-23-6")?;
         let choice = presets
-            .identify(&engine, &sot, "XQ", &Facts::default(), deadline)?
+            .identify(&engine, &sot, "XQ", &Facts::default(), None, deadline)?
             .map_err(|miss| format!("SOT-23-6 under XQ: {miss}"))?;
         assert!(choice.name.contains("tabbed/tabbed-sot-23-6"));
         for name in [
@@ -968,11 +995,11 @@ mod tests {
         ] {
             let pads = lands_of(&presets, name)?;
             let choice = presets
-                .identify(&engine, &pads, "U", &Facts::default(), deadline)?
+                .identify(&engine, &pads, "U", &Facts::default(), None, deadline)?
                 .map_err(|miss| format!("{name}: {miss}"))?;
             assert!(choice.name.contains(name));
             let repeated = presets
-                .identify(&engine, &pads, "U", &Facts::default(), deadline)?
+                .identify(&engine, &pads, "U", &Facts::default(), None, deadline)?
                 .map_err(|miss| miss.to_string())?;
             assert_eq!(choice.index, repeated.index);
             // Identifying makes nothing.
@@ -983,7 +1010,7 @@ mod tests {
             far[0].position = PointNm::from_mm_f64_rounded([x - 1.0, y])?;
             assert!(
                 presets
-                    .identify(&engine, &far, "U", &Facts::default(), deadline)?
+                    .identify(&engine, &far, "U", &Facts::default(), None, deadline)?
                     .is_err(),
                 "far lands accepted for {name}"
             );
@@ -1040,7 +1067,7 @@ mod tests {
             ("CP_Elec_6.3x7.7", "electrolytic/electrolytic-panasonic-d8"),
         ] {
             let choice = presets
-                .identify(&engine, &lands, "C", &named(name), deadline)?
+                .identify(&engine, &lands, "C", &named(name), None, deadline)?
                 .map_err(|miss| format!("{name}: {miss}"))?;
             assert!(choice.name.contains(preset), "{}", choice.name);
             assert!(
@@ -1051,7 +1078,7 @@ mod tests {
             );
         }
         for name in ["CP_Elec_16.3x7.7", "CP_Own", ""] {
-            match presets.identify(&engine, &lands, "C", &named(name), deadline)? {
+            match presets.identify(&engine, &lands, "C", &named(name), None, deadline)? {
                 Err(Miss::Tie { presets: tied }) => {
                     for preset in [
                         "electrolytic/electrolytic-6.3x5.4",
@@ -1112,7 +1139,7 @@ mod tests {
                 ..Facts::default()
             })
         };
-        let found = choose(&two, fitting(), "C", &fab(1.0)?).map_err(|m| m.to_string())?;
+        let found = choose(&two, fitting(), "C", &fab(1.0)?, None).map_err(|m| m.to_string())?;
         assert_eq!(found.index, 0);
         assert!(
             found
@@ -1120,14 +1147,14 @@ mod tests {
                 .iter()
                 .any(|n| n.contains("fabrication outline"))
         );
-        let found = choose(&two, fitting(), "C", &fab(1.24)?).map_err(|m| m.to_string())?;
+        let found = choose(&two, fitting(), "C", &fab(1.24)?, None).map_err(|m| m.to_string())?;
         assert_eq!(found.index, 1);
         // Near misses: an outline between the two (12% and 10.4% off) and
         // one far from both are ties.
         for scale in [1.12, 1.6] {
             assert!(
                 matches!(
-                    choose(&two, fitting(), "C", &fab(scale)?),
+                    choose(&two, fitting(), "C", &fab(scale)?, None),
                     Err(Miss::Tie { .. })
                 ),
                 "{scale}"
@@ -1138,7 +1165,7 @@ mod tests {
             courtyard_extent_nm: Some(nm(courtyard)?),
             ..Facts::default()
         };
-        let found = choose(&two, fitting(), "C", &by_courtyard).map_err(|m| m.to_string())?;
+        let found = choose(&two, fitting(), "C", &by_courtyard, None).map_err(|m| m.to_string())?;
         assert_eq!(found.index, 0);
         assert!(found.notes.iter().any(|n| n.contains("courtyard")));
         Ok(())
@@ -1169,6 +1196,7 @@ mod tests {
                 &plated(4.4)?,
                 "U",
                 &named("Own9774100360R"),
+                None,
                 deadline,
             )?
             .map_err(|miss| miss.to_string())?;
@@ -1178,11 +1206,25 @@ mod tests {
             (4.4, "Own_M3_Spacer", "U"),
             (3.2, "Own9774100360R", "U"),
         ] {
-            let got = presets.identify(&engine, &plated(drill)?, prefix, &named(name), deadline)?;
+            let got = presets.identify(
+                &engine,
+                &plated(drill)?,
+                prefix,
+                &named(name),
+                None,
+                deadline,
+            )?;
             assert!(got.is_err(), "{drill} {name:?}: {:?}", got.map(|c| c.name));
         }
         assert!(matches!(
-            presets.identify(&engine, &plated(4.4)?, "H", &Facts::default(), deadline)?,
+            presets.identify(
+                &engine,
+                &plated(4.4)?,
+                "H",
+                &Facts::default(),
+                None,
+                deadline
+            )?,
             Err(Miss::Unnamed { .. })
         ));
         Ok(())
@@ -1197,7 +1239,14 @@ mod tests {
         let buzzer = lands_of(&presets, "buzzer/buzzer-cmi-9653s-smt")?;
         let polar = renamed(&buzzer, &[("1", "N"), ("2", "P")]);
         let choice = presets
-            .identify(&engine, &polar, "LS", &named("Own_CMI-9653S-SMT"), deadline)?
+            .identify(
+                &engine,
+                &polar,
+                "LS",
+                &named("Own_CMI-9653S-SMT"),
+                None,
+                deadline,
+            )?
             .map_err(|miss| miss.to_string())?;
         assert!(
             choice.notes.join(" ").contains("P→1 (+)"),
@@ -1206,7 +1255,7 @@ mod tests {
         );
         assert_eq!(choice.placement.rotation_deg()[2], 180.0);
         assert!(matches!(
-            presets.identify(&engine, &polar, "LS", &Facts::default(), deadline)?,
+            presets.identify(&engine, &polar, "LS", &Facts::default(), None, deadline)?,
             Err(Miss::PrefixMismatch { .. })
         ));
         let header = lands_of(&presets, "wire-to-board/wtb-sh-side-4")?;
@@ -1215,7 +1264,7 @@ mod tests {
             &[("MP1", "S1"), ("MP2", "S2"), ("1", "01")],
         ))?;
         let choice = presets
-            .identify(&engine, &tabs, "J", &Facts::default(), deadline)?
+            .identify(&engine, &tabs, "J", &Facts::default(), None, deadline)?
             .map_err(|miss| miss.to_string())?;
         assert!(
             choice.name.contains("wire-to-board/wtb-sh-side-4"),
@@ -1226,7 +1275,7 @@ mod tests {
         let one_tab: Vec<Pad> = tabs.iter().filter(|p| p.number != "S2").cloned().collect();
         assert!(
             presets
-                .identify(&engine, &one_tab, "J", &Facts::default(), deadline)?
+                .identify(&engine, &one_tab, "J", &Facts::default(), None, deadline)?
                 .is_err()
         );
         Ok(())
@@ -1324,6 +1373,7 @@ mod tests {
                 &chip(1.6, [0.7, 0.8])?,
                 "R",
                 &Facts::default(),
+                None,
                 std::time::Instant::now() + std::time::Duration::from_secs(120),
             )
             .err()
