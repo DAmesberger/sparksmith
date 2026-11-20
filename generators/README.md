@@ -75,7 +75,7 @@ The tabbed generator (phase C) ships three part files, one per outline class (`t
 
 The module generator (phase C) makes radio and processor modules: pad rows on up to eight sides' slots (castellated or LGA), a ground array turned by any multiple of 45°, single pads and the antenna keep-out as a footprint keep-out. It ships four part files (LGA or castellated, ground array along the axes or turned 45°) that park what a module lacks beyond its −x edge and cut it away; its in-code builder is deleted ([plan](../docs/design/part-generation-plan.md#done-module-15-november-2026)).
 
-Since version 2 the module generator's antenna meander (`antenna_trace`, `antenna_margin`, `antenna_turns`) and the shield can's stamped emboss groove round its label area (`can_emboss`, `can_emboss_inset`) are parameters, and it has an ESP32-S3-WROOM-1 preset (datasheet v1.8).
+Since version 2 the module generator's antenna meander (`antenna_trace`, `antenna_margin`, `antenna_turns`) and the shield can's stamped emboss groove round its label area (`can_emboss`, `can_emboss_inset`) are parameters, and it has an ESP32-S3-WROOM-1 preset (datasheet v1.8). Since version 4 the can can be notched at its +x +y corner (`can_notch_width`, `can_notch_length`) and the board can carry an antenna connector, a U.FL / MHF I receptacle (`connector`, `connector_x`, `connector_y`), both parked and cut away like the rest; the ESP32-S3-WROOM-1U preset uses them.
 
 The electromechanical families (18 November 2026) are original parametric recreations saved at the manufacturer drawing each cites (sources and dates in each part file's provenance); their lands are the manufacturer's, taken as parameters, and each lead contact lies on its land:
 

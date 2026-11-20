@@ -3805,6 +3805,68 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
         ),
         param("pin1_x", &mm(saved_rows[0].1[0]), "mm", "pin 1 x"),
         param("pin1_y", &mm(saved_rows[0].1[1]), "mm", "pin 1 y"),
+        param(
+            "can_notch_x",
+            &mm(park),
+            "mm",
+            "the can's corner notch: its inner corner x (to park_x without one)",
+        ),
+        param(
+            "can_notch_y",
+            "0 mm",
+            "mm",
+            "the can's corner notch: its inner corner y",
+        ),
+        param(
+            "can_notch_width",
+            "1 mm",
+            "mm",
+            "the notch across (x), to the can's +x side",
+        ),
+        param(
+            "can_notch_length",
+            "1 mm",
+            "mm",
+            "the notch along (y), to the can's +y side",
+        ),
+        param(
+            "connector_x",
+            &mm(park),
+            "mm",
+            "antenna connector centre x (to park_x without one)",
+        ),
+        param("connector_y", "0 mm", "mm", "antenna connector centre y"),
+        param(
+            "connector_size",
+            "2.6 mm",
+            "mm",
+            "the antenna connector's square insulator base (U.FL / MHF I receptacle)",
+        ),
+        param(
+            "connector_base",
+            "0.4 mm",
+            "mm",
+            "the insulator base's height (est.)",
+        ),
+        param(
+            "connector_diameter",
+            "2 mm",
+            "mm",
+            "the connector shell's outer diameter",
+        ),
+        param("connector_wall", "0.15 mm", "mm", "the shell's wall (est.)"),
+        param(
+            "connector_height",
+            "1.25 mm",
+            "mm",
+            "the connector's height above the module board",
+        ),
+        param(
+            "connector_pin",
+            "0.45 mm",
+            "mm",
+            "the centre contact's diameter (est.)",
+        ),
     ];
     // The seed ground pad: row 0, column 0 of the array about (0, −2).
     let seed = if diagonal {
@@ -4214,6 +4276,48 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
         json!({"target": "shield can", "tools": ["can emboss"], "operation": "cut",
             "name": "can emboss groove"}),
     );
+    // The can's corner notch (where an antenna connector stands): a box
+    // from the notch's inner corner past the can's +x +y corner, cut.
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["can_notch_x", "can_notch_y", "-1 mm"],
+            "length": "can_notch_width + 1 mm", "width": "can_notch_length + 1 mm",
+            "height": "height + 2 mm", "operation": "cut", "targets": ["shield can"],
+            "name": "can notch"}),
+    );
+    // The antenna connector on the board: a square insulator base, a
+    // round shell on it and the centre contact inside.
+    let board_top_z = "pad_thickness + board_thickness";
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["connector_x - connector_size / 2", "connector_y - connector_size / 2", board_top_z],
+            "length": "connector_size", "width": "connector_size", "height": "connector_base",
+            "name": "connector base", "body_name": "connector base"}),
+    );
+    let base_top = format!("{board_top_z} + connector_base");
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"diameter": "connector_diameter", "height": "connector_height - connector_base",
+            "base": ["connector_x", "connector_y", base_top],
+            "name": "connector shell", "body_name": "connector shell"}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"diameter": "connector_diameter - 2 * connector_wall", "height": "connector_height",
+            "base": ["connector_x", "connector_y", base_top], "operation": "cut",
+            "targets": ["connector shell"], "name": "connector socket"}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"diameter": "connector_pin", "height": "(connector_height - connector_base) * 0.6",
+            "base": ["connector_x", "connector_y", base_top],
+            "name": "connector pin", "body_name": "connector pin"}),
+    );
     // The antenna meander: head, turn copies, tail, joined.
     let antenna_sketch = |s: &mut Session, name: &str| {
         run(
@@ -4499,7 +4603,8 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
     let mut gold: Vec<&str> = Vec::new();
     for n in &names {
         match n.as_str() {
-            "board" | "shield can" | "antenna" => {}
+            "board" | "shield can" | "antenna" | "connector base" | "connector shell"
+            | "connector pin" => {}
             other => gold.push(other),
         }
     }
@@ -4513,6 +4618,12 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
     assign_look(&mut s, &["board"], MaterialId::SolderMaskGreen);
     assign_look(&mut s, &["shield can"], MaterialId::NickelSilver);
     assign_look(&mut s, &["antenna"], MaterialId::SolderMaskOverCopper);
+    assign_look(&mut s, &["connector base"], MaterialId::PaWhite);
+    assign_look(
+        &mut s,
+        &["connector shell", "connector pin"],
+        MaterialId::Gold,
+    );
     for chunk in gold.chunks(200) {
         assign_look(&mut s, chunk, MaterialId::Gold);
     }

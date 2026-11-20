@@ -113,6 +113,7 @@ impl Provider for Models {
                 request.pads,
                 request.prefix,
                 request.facts,
+                request.mpn,
                 self.deadline,
             )
             .map_err(|error| format!("{note}; presets unavailable: {error}"))?;
