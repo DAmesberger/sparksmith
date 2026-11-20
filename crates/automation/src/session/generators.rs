@@ -389,20 +389,24 @@ impl Session {
         let operation = Operation::Library(LibraryCommand::Generate(Box::new(generate)));
         self.ensure_generators();
         let mut reply = self.apply(expected_revision, operation)?;
-        // Made again over an older version: preview moving the instances
-        // that pin the old component revision (never applied here).
+        // Made again: preview moving the instances that pin an older
+        // component revision, or whose Part was carried to this one
+        // (never applied here).
         let report = &reply["outcome"]["report"];
         let new: Option<DefinitionRef> = serde_json::from_value(report["root"].clone()).ok();
-        let old: Option<DefinitionRef> = serde_json::from_value(report["replaced"].clone()).ok();
-        if let (Some(new), Some(_)) = (new, old)
+        if let Some(new) = new
             && new.kind == DefinitionKind::Component
         {
-            let instances: Vec<_> = self
-                .engine
-                .project()
+            let project = self.engine.project();
+            let instances: Vec<_> = project
                 .instances
                 .iter()
-                .filter(|i| i.component.id == new.id && i.component.revision != new.revision)
+                .filter(|i| {
+                    i.component.id == new.id
+                        && (i.component.revision != new.revision
+                            || sparksmith_core::instances::republished_part(&project.library, i)
+                                .is_some())
+                })
                 .map(|i| i.id)
                 .collect();
             if !instances.is_empty() {
