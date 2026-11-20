@@ -60,7 +60,7 @@ fn golden_hashes_match_natively() -> Result<(), String> {
 #[test]
 fn presets_generate_in_both_scopes() -> Result<(), Vec<Problem>> {
     let description = description();
-    assert_eq!(description.presets().len(), 3);
+    assert_eq!(description.presets().len(), 4);
     for p in description.presets() {
         for scope in [Scope::Component, Scope::Package] {
             let g = Module::generate(&request(scope, &preset(&p.key)))?;
@@ -219,6 +219,49 @@ fn the_wroom1_lands_where_its_datasheet_lays_them() -> Result<(), Vec<Problem>> 
         ],
         [1_000_000, 300_000, 3, 500_000]
     );
+    Ok(())
+}
+
+#[test]
+fn the_wroom1u_is_the_wroom1_pads_without_the_antenna_end() -> Result<(), Vec<Problem>> {
+    // ESP32-S3-WROOM-1U (datasheet v1.8, Figures 10-2 and 11-2): the
+    // WROOM-1's pads at the same distance from the bottom edge on a
+    // 19.2 mm PCB (all 3.15 mm up in the centred frame); no antenna or
+    // keep-out; the can notched 4.9 × 4.4 mm at its +x +y corner for the
+    // U.FL receptacle 3 mm from the right edge and 2.46 mm from the top.
+    let one = Module::generate(&request(Scope::Package, &preset("module-esp32-s3-wroom-1")))?;
+    let u = Module::generate(&request(
+        Scope::Package,
+        &preset("module-esp32-s3-wroom-1u"),
+    ))?;
+    let shifted: Vec<[i64; 2]> = one
+        .footprint
+        .pads
+        .iter()
+        .map(|p| [p.at[0], p.at[1] + 3_150_000])
+        .collect();
+    let pads: Vec<[i64; 2]> = u.footprint.pads.iter().map(|p| p.at).collect();
+    assert_eq!(pads, shifted);
+    assert_eq!(
+        u.package.geometry.envelope_nm,
+        [18_000_000, 19_200_000, 3_200_000]
+    );
+    assert!(u.footprint.keepouts.is_empty());
+    let (_, v) = values(&u);
+    assert_eq!(
+        [int(v, "connector_x"), int(v, "connector_y")],
+        [6_000_000, 7_140_000]
+    );
+    // The notch's inner corner: the can's +x +y corner (7.825, 9.0) less
+    // the notch.
+    assert_eq!(
+        [int(v, "can_notch_x"), int(v, "can_notch_y")],
+        [2_925_000, 4_600_000]
+    );
+    assert!(int(v, "antenna_shift") < -50 * MM);
+    // The WROOM-1 parks both.
+    let (_, w) = values(&one);
+    assert!(int(w, "connector_x") < -50 * MM && int(w, "can_notch_x") < -50 * MM);
     Ok(())
 }
 

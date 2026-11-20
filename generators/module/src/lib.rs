@@ -1,8 +1,8 @@
 //! The module generator: radio and processor modules (a small board with a
 //! shield can, pad rows along its edges as castellated half-holes or LGA
 //! lands, an optional ground-pad array under it, single corner pads and an
-//! optional printed antenna at one end), as a symbol, package, footprint
-//! and 3D model.
+//! optional printed antenna at one end or an antenna connector beside a
+//! notched can), as a symbol, package, footprint and 3D model.
 //!
 //! Frame (the host's module form's): seen from above, x across the module
 //! (`width`), y along it (`length`), the antenna end at +y, the origin at
@@ -25,14 +25,14 @@
 //!
 //! The 3D model is one of four part files (LGA pads or castellated, the
 //! ground array along the axes or turned 45°), every parameter given:
-//! eight row slots (two per side),
-//! sixteen single-pad slots, a ground array, a shield can and the antenna
-//! meander; what a module does not have is placed beyond the −x edge and
-//! cut away there, so the bodies left are the module's.
+//! eight row slots (two per side), sixteen single-pad slots, a ground
+//! array, a shield can (with a notch at its +x +y corner), the antenna
+//! meander and an antenna connector (a U.FL / MHF I receptacle); what a
+//! module does not have is placed beyond the −x edge and cut away there,
+//! so the bodies left are the module's.
 //!
 //! The presets are the module form's typical values (an original synthetic
-//! module, estimated) and the ESP32-S31-WROOM-3 from Espressif's public
-//! datasheet.
+//! module, estimated) and Espressif modules from their public datasheets.
 #![cfg_attr(target_arch = "wasm32", no_std)]
 
 extern crate alloc;
@@ -58,7 +58,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// Row slots of the part files: two per side.
 pub const ROWS_PER_SIDE: usize = 2;
@@ -98,6 +98,9 @@ const MAX_TURNS: i64 = 64;
 /// part file serves.
 const EMBOSS_WIDTH_NM: i64 = 300_000;
 const EMBOSS_DEPTH_NM: i64 = 50_000;
+/// The antenna connector's square base (a U.FL / MHF I receptacle's,
+/// 2.6 mm; the part files' `connector_size`).
+const CONNECTOR_NM: i64 = 2_600_000;
 
 /// The pin-1 dot: a filled silkscreen circle of this radius beyond pad 1's
 /// −x edge, clear of its mask opening by the silkscreen clearance (as the
@@ -420,6 +423,40 @@ fn description_with(presets: Vec<Preset>) -> Description {
         length("can_x", "Shield can centre x", COORD, 0, "can"),
         length("can_y", "Shield can centre y", COORD, -2_500_000, "can"),
         length(
+            "can_notch_width",
+            "Can corner notch at its +x +y corner, across (0: none)",
+            [0, MAX_SIZE_NM],
+            0,
+            "can",
+        ),
+        length(
+            "can_notch_length",
+            "Can corner notch at its +x +y corner, along (0: none)",
+            [0, MAX_SIZE_NM],
+            0,
+            "can",
+        ),
+        flag(
+            "connector",
+            "Antenna connector (U.FL / MHF I receptacle) on the board",
+            false,
+            "antenna",
+        ),
+        length(
+            "connector_x",
+            "Antenna connector centre x",
+            COORD,
+            0,
+            "antenna",
+        ),
+        length(
+            "connector_y",
+            "Antenna connector centre y",
+            COORD,
+            0,
+            "antenna",
+        ),
+        length(
             "pitch",
             "Pad pitch within a row",
             [100 * UM, 10 * MM],
@@ -718,6 +755,10 @@ struct Dims {
     emboss: Option<i64>,
     can: [i64; 2],
     can_at: Point2,
+    /// The can's notch at its +x +y corner (across, along), when it has one.
+    can_notch: Option<Point2>,
+    /// The antenna connector's centre, when it has one.
+    connector: Option<Point2>,
     pitch: i64,
     pad: Point2,
     castellation: i64,
@@ -970,6 +1011,13 @@ fn dims(args: &Args<'_>, request: &Request) -> Result<Dims, Vec<Problem>> {
         },
         can: [int("can_width")?, int("can_length")?],
         can_at: [int("can_x")?, int("can_y")?],
+        can_notch: Some([int("can_notch_width")?, int("can_notch_length")?])
+            .filter(|n| n[0] > 0 && n[1] > 0),
+        connector: if args.flag("connector").map_err(one)? {
+            Some([int("connector_x")?, int("connector_y")?])
+        } else {
+            None
+        },
         pitch: int("pitch")?,
         pad: [int("pad_length")?, int("pad_width")?],
         castellation: int("castellation")?,
@@ -1050,6 +1098,23 @@ fn dims(args: &Args<'_>, request: &Request) -> Result<Dims, Vec<Problem>> {
         "can_y",
         "The shield can must lie within the module, clear of the antenna region.".into(),
     );
+    if let Some(n) = d.can_notch {
+        rule(
+            n[0] < cw && n[1] < cl,
+            "can_notch_width",
+            "The can's corner notch must be smaller than the can.".into(),
+        );
+    }
+    if let Some(at) = d.connector {
+        rule(
+            inside(at, [CONNECTOR_NM, CONNECTOR_NM]),
+            "connector_x",
+            format!(
+                "The antenna connector ({} square) must lie within the module.",
+                mm(CONNECTOR_NM)
+            ),
+        );
+    }
     if let Some(inset) = d.emboss {
         rule(
             2 * (inset + EMBOSS_WIDTH_NM) + MM <= cw.min(cl),
@@ -1382,6 +1447,24 @@ fn model(d: &Dims) -> v1::Model {
             set("can_emboss_depth", UM);
         }
     }
+    // The can's corner notch and the antenna connector, or parked.
+    match d.can_notch {
+        Some(n) => {
+            set("can_notch_x", d.can_at[0] + half(d.can[0]) - n[0]);
+            set("can_notch_y", d.can_at[1] + half(d.can[1]) - n[1]);
+            set("can_notch_width", n[0]);
+            set("can_notch_length", n[1]);
+        }
+        None => {
+            set("can_notch_x", park);
+            set("can_notch_y", 0);
+            set("can_notch_width", MM);
+            set("can_notch_length", MM);
+        }
+    }
+    let connector = d.connector.unwrap_or([park, 0]);
+    set("connector_x", connector[0]);
+    set("connector_y", connector[1]);
     // Rows into their slots: row k keeps slot k when that slot is on its
     // side (so its bodies keep the builder's names), else the first free
     // slot of its side.

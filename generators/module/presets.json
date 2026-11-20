@@ -253,5 +253,86 @@
   },
   "basis": "cited",
   "note": "Outline, height, board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 7.49 mm below the antenna edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.8 × 17.6 mm, read 1.05 mm above the bottom edge) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-1, p. 45) from the datasheet. The antenna meander's trace, inset and turns are estimated from the top view; the emboss groove is estimated."
+ },
+ {
+  "key": "module-esp32-s3-wroom-1u",
+  "name": "ESP32-S3-WROOM-1U",
+  "aliases": [
+   "ESP32-S3-WROOM-1U",
+   "WROOM-1U",
+   "ESP32-S3-WROOM-1U-N8"
+  ],
+  "description": "Espressif ESP32-S3-WROOM-1U: 18 × 19.2 × 3.2 mm castellated module without a PCB antenna, 14 + 12 + 14 pads at 1.27 mm, a 3 × 3 ground array (pad 41), a 15.65 × 17.5 mm shield can notched at its +x +y corner for a U.FL (MHF I) antenna receptacle 3 mm from the right edge and 2.46 mm from the top.",
+  "params": {
+   "width": 18000000,
+   "length": 19200000,
+   "height": 3200000,
+   "board_thickness": 800000,
+   "antenna_length": 0,
+   "can_emboss": false,
+   "can_width": 15650000,
+   "can_length": 17500000,
+   "can_x": 0,
+   "can_y": 250000,
+   "can_notch_width": 4900000,
+   "can_notch_length": 4400000,
+   "connector": true,
+   "connector_x": 6000000,
+   "connector_y": 7140000,
+   "pitch": 1270000,
+   "pad_length": 850000,
+   "pad_width": 900000,
+   "castellation": 550000,
+   "land_width": 900000,
+   "land_outer": 500000,
+   "land_inner": 150000,
+   "row_sides": [
+    "left",
+    "bottom",
+    "right"
+   ],
+   "row_counts": [
+    14,
+    12,
+    14
+   ],
+   "row_x": [
+    -8575000,
+    -6985000,
+    8575000
+   ],
+   "row_y": [
+    8410000,
+    -9175000,
+    -8100000
+   ],
+   "ground": true,
+   "ground_rows": 3,
+   "ground_columns": 3,
+   "ground_pitch_x": 1400000,
+   "ground_pitch_y": 1400000,
+   "ground_size_x": 900000,
+   "ground_size_y": 900000,
+   "ground_x": -1500000,
+   "ground_y": 690000,
+   "ground_rotation": 0,
+   "ground_number": "41",
+   "single_numbers": [],
+   "single_x": [],
+   "single_y": [],
+   "single_length": [],
+   "single_width": [],
+   "keepout": false,
+   "keepout_left": 0,
+   "keepout_right": 0,
+   "keepout_top": 0
+  },
+  "citation": {
+   "document": "Espressif ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet, Figure 10-2 module dimensions and Figure 11-2 recommended PCB land pattern",
+   "revision": "v1.8",
+   "page": 42
+  },
+  "basis": "cited",
+  "note": "Outline (18 × 19.2 mm), height (3.2 mm), board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 1.19 mm below the top edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.65 × 17.5 mm, 1.1 mm above the bottom edge, its notch 4.9 × 4.4 mm from the 10.75 mm and 13.1 mm sections), the U.FL receptacle's centre (3 mm from the right edge, 2.46 mm from the top) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-2, p. 46) from the datasheet; the pads are the WROOM-1's at the same distance from the bottom edge. The can is centred across, as read from the top view (within 0.1 mm); the receptacle's body (2.6 mm square base, Ø2 mm shell, 1.25 mm tall) is a U.FL / MHF I receptacle's typical size, estimated."
  }
 ]
