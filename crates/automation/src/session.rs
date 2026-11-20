@@ -384,6 +384,14 @@ pub enum Request {
     /// Turn a source on or off.
     #[serde(rename = "library.source.enable")]
     SourceEnable(SourceEnableParams),
+    /// The online library and who is signed in to it (downloading part
+    /// data needs a free account; searching does not).
+    #[serde(rename = "library.account")]
+    Account(NoParams),
+    /// Sign out of the online library: the registry revokes the token
+    /// (best effort when offline) and this computer forgets it.
+    #[serde(rename = "library.sign_out")]
+    SignOut(NoParams),
     /// Re-read every source's manifest and catalog.
     #[serde(rename = "library.rescan")]
     Rescan(NoParams),
@@ -556,6 +564,8 @@ sparksmith_core::declare_entries!(Request in project {
     SourceCreate "library.source.create" Ask "Create a library folder" [in library, reach(Settings)],
     SourceRemove "library.source.remove" Ask "Remove a library folder" [in library, reach(Settings)],
     SourceEnable "library.source.enable" Ask "Turn a library folder on or off" [in library, reach(Settings)],
+    Account "library.account" Read "Online library sign-in" [in library, reach(Settings), since(3, 12)],
+    SignOut "library.sign_out" Ask "Sign out of the online library" [in library, short, reach(Network), reach(Settings), since(3, 12)],
     Rescan "library.rescan" Read "Rescan library folders" [in library, long, link, reach(Files)],
     Favourite "library.favourite" Never "Mark a favourite" [in library, reach(Settings)],
     Bundle "library.bundle" Read "Read a folder bundle" [in library, link, reach(Files)],
@@ -834,6 +844,16 @@ impl Request {
                 "library.source.enable",
                 "Turn a library source on or off.",
                 "Turn a library source on or off; an off source stays listed as disabled (turned off).",
+            ),
+            info::<NoParams>(
+                "library.account",
+                "Name the online library and who is signed in to it; downloading parts needs a free account, searching does not.",
+                "Name the online library (its host) and whether this computer is signed in to it, with the account's email and name once the registry said them. Read from this computer's sign-in, without the network. Searching works without an account; placing or importing a part from the online library downloads its data, which needs a free account: the person signs in in Settings › Libraries. Without a registry turned on, registry is null.",
+            ),
+            info::<NoParams>(
+                "library.sign_out",
+                "Sign out of the online library: the registry revokes the token and this computer forgets it.",
+                "Sign out of the online library: the registry revokes this computer's token (best effort: offline, revoked is false and problem says why) and the token is removed from the system keychain. Searching keeps working; downloading parts needs signing in again in Settings. Refused without a registry turned on.",
             ),
             info::<NoParams>(
                 "library.rescan",
@@ -1465,6 +1485,8 @@ impl Session {
                     .enable(Path::new(&params.path), params.enabled)?;
                 return self.list_sources();
             }
+            Request::Account(_) => return self.online_account(),
+            Request::SignOut(_) => return self.online_sign_out(),
             Request::Rescan(_) => {
                 self.sources.rescan();
                 return self.list_sources();

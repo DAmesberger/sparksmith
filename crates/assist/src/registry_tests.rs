@@ -2,11 +2,14 @@
 //! answers with the core's own search over an original fixture shard:
 //! search, the offline mirror, refused bundles and dropped stale replies.
 use super::*;
+use crate::model::keys::Store;
+use crate::model::keys::memory::Memory;
+use account::{Account, Known, Poll};
 use sparksmith_core::catalog::source_catalog;
 use sparksmith_core::ids::{DefinitionKind, DefinitionRef};
 use sparksmith_io::registry_mirror::{ShardEntry, ShardInfo};
-use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Write};
+use std::collections::{BTreeMap, VecDeque};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::sync::atomic::AtomicBool;
 
@@ -68,6 +71,28 @@ struct Registry {
     slow: Option<(String, Duration)>,
     tamper: AtomicBool,
     up: AtomicBool,
+    /// Every request: method and path, and its `Authorization` header.
+    seen: Mutex<Vec<(String, Option<String>)>>,
+    /// Bundles need [`TOKEN`] as their bearer (the accounts contract).
+    needs_account: AtomicBool,
+    /// Bundles answer 429 with `Retry-After: 300`.
+    limited: AtomicBool,
+    /// The answers of the next device-token polls, in order; `pending`
+    /// once they run out.
+    polls: Mutex<VecDeque<&'static str>>,
+    /// Request bodies of the device endpoints.
+    bodies: Mutex<Vec<serde_json::Value>>,
+}
+
+/// The token the fixture registry issues.
+const TOKEN: &str = "ssp_fixturetoken0123456789abcdefghijklmnopqrstu";
+
+/// A reply: status, extra headers and body.
+type Answer = (u16, Vec<(&'static str, String)>, Vec<u8>);
+
+fn error_body(code: &str, message: &str) -> Vec<u8> {
+    serde_json::to_vec(&serde_json::json!({"error": {"code": code, "message": message}}))
+        .unwrap_or_default()
 }
 
 fn decode(text: &str) -> String {
@@ -95,6 +120,74 @@ fn decode(text: &str) -> String {
 }
 
 impl Registry {
+    /// The accounts contract's routes, then the catalog's.
+    fn respond(&self, method: &str, path: &str, auth: Option<&str>, body: &[u8]) -> Answer {
+        if let Ok(mut seen) = self.seen.lock() {
+            seen.push((format!("{method} {path}"), auth.map(str::to_owned)));
+        }
+        let bearer = auth == Some(&format!("Bearer {TOKEN}"));
+        let body: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
+        match (method, path) {
+            ("POST", "/v1/device/code") => {
+                if let Ok(mut b) = self.bodies.lock() {
+                    b.push(body);
+                }
+                let reply = serde_json::json!({
+                    "device_code": "dev-secret-code", "user_code": "BCDF-GHJK",
+                    "verification_uri": "https://parts.example/device",
+                    "verification_uri_complete": "https://parts.example/device?code=BCDF-GHJK",
+                    "expires_in": 900, "interval": 1});
+                return (200, vec![], serde_json::to_vec(&reply).unwrap_or_default());
+            }
+            ("POST", "/v1/device/token") => {
+                if let Ok(mut b) = self.bodies.lock() {
+                    b.push(body);
+                }
+                let next = self
+                    .polls
+                    .lock()
+                    .ok()
+                    .and_then(|mut p| p.pop_front())
+                    .unwrap_or("pending");
+                if next == "approve" {
+                    let reply = serde_json::json!({"access_token": TOKEN, "token_type": "bearer",
+                        "token_id": "t1", "account": {"email": "maker@example.com", "display_name": "Maker"}});
+                    return (200, vec![], serde_json::to_vec(&reply).unwrap_or_default());
+                }
+                return (400, vec![], error_body(&format!("device.{next}"), next));
+            }
+            ("GET", "/v1/account") if bearer => {
+                let reply = serde_json::json!({"id": "a1", "email": "maker@example.com",
+                    "display_name": "", "providers": ["email"]});
+                return (200, vec![], serde_json::to_vec(&reply).unwrap_or_default());
+            }
+            ("DELETE", "/v1/auth/token") if bearer => return (204, vec![], Vec::new()),
+            ("GET", "/v1/account") | ("DELETE", "/v1/auth/token") => {
+                return (401, vec![], error_body("auth.required", "Sign in"));
+            }
+            _ => {}
+        }
+        if path.starts_with("/v1/bundles/") {
+            if self.limited.load(Ordering::SeqCst) {
+                return (
+                    429,
+                    vec![("retry-after", "300".into())],
+                    br#"{"error":{"code":"rate.limited","message":"Too many"},"retry_after":300}"#
+                        .to_vec(),
+                );
+            }
+            if self.needs_account.load(Ordering::SeqCst) && !bearer {
+                return (
+                    401,
+                    vec![("www-authenticate", "Bearer".into())],
+                    error_body("auth.required", "Sign in to download parts."),
+                );
+            }
+        }
+        let (status, body) = self.answer(path);
+        (status, vec![], body)
+    }
+
     fn answer(&self, path: &str) -> (u16, Vec<u8>) {
         let (route, query) = path.split_once('?').unwrap_or((path, ""));
         let params: BTreeMap<&str, String> = query
@@ -182,20 +275,41 @@ fn serve(registry: Arc<Registry>) -> std::result::Result<String, Box<dyn std::er
                 if reader.read_line(&mut line).is_err() {
                     return;
                 }
+                let mut auth = None;
+                let mut length = 0usize;
                 loop {
                     let mut header = String::new();
                     if reader.read_line(&mut header).is_err() || header.trim().is_empty() {
                         break;
                     }
+                    if let Some((name, value)) = header.split_once(':') {
+                        let value = value.trim().to_owned();
+                        match name.trim().to_ascii_lowercase().as_str() {
+                            "authorization" => auth = Some(value),
+                            "content-length" => length = value.parse().unwrap_or(0),
+                            _ => {}
+                        }
+                    }
+                }
+                let mut body = vec![0; length.min(64 * 1024)];
+                if reader.read_exact(&mut body).is_err() {
+                    return;
                 }
                 if !registry.up.load(Ordering::SeqCst) {
                     // Down: close without an answer, as an unreachable host.
                     return;
                 }
-                let path = line.split_whitespace().nth(1).unwrap_or("/").to_owned();
-                let (status, body) = registry.answer(&path);
+                let mut words = line.split_whitespace();
+                let method = words.next().unwrap_or("GET").to_owned();
+                let path = words.next().unwrap_or("/").to_owned();
+                let (status, headers, body) =
+                    registry.respond(&method, &path, auth.as_deref(), &body);
+                let extra: String = headers
+                    .iter()
+                    .map(|(name, value)| format!("{name}: {value}\r\n"))
+                    .collect();
                 let head = format!(
-                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\n{extra}content-length: {}\r\nconnection: close\r\n\r\n",
                     body.len()
                 );
                 let _ = stream.write_all(head.as_bytes());
@@ -218,13 +332,33 @@ fn registry(
         slow: slow.map(|(t, d)| (t.to_owned(), d)),
         tamper: AtomicBool::new(false),
         up: AtomicBool::new(true),
+        seen: Mutex::new(Vec::new()),
+        needs_account: AtomicBool::new(false),
+        limited: AtomicBool::new(false),
+        polls: Mutex::new(VecDeque::new()),
+        bodies: Mutex::new(Vec::new()),
     }))
+}
+
+/// A client of `url` whose sign-in lives in `store`, never the system
+/// keychain.
+fn client_with(
+    url: &str,
+    cache: Option<&Path>,
+    store: &Arc<Memory>,
+) -> std::result::Result<RegistryClient, String> {
+    RegistryClient::with_store(url, cache, store.clone())
+}
+
+/// A client with no sign-in, in a keychain of its own.
+fn plain(url: &str, cache: Option<&Path>) -> std::result::Result<RegistryClient, String> {
+    client_with(url, cache, &Arc::new(Memory::default()))
 }
 
 #[test]
 fn online_search_reads_the_same_query_and_marks_rows_online() -> TestResult {
     let registry = registry(None)?;
-    let client = RegistryClient::new(&serve(registry.clone())?, None)?;
+    let client = plain(&serve(registry.clone())?, None)?;
     let report = client.search("EX-R0603 kind:part", 10, 0)?;
     assert_eq!(report.offline, None);
     assert_eq!(report.total, 1, "{report:?}");
@@ -246,7 +380,7 @@ fn a_tampered_bundle_is_refused_naming_the_record_and_never_mirrored() -> TestRe
     registry.tamper.store(true, Ordering::SeqCst);
     let cache = tempfile::tempdir()?;
     let url = serve(registry.clone())?;
-    let client = RegistryClient::new(&url, Some(cache.path()))?;
+    let client = plain(&url, Some(cache.path()))?;
     let refused = client.bundle(LIBRARY, registry.bundle.root);
     let message = refused.err().ok_or("a tampered bundle was accepted")?;
     assert!(
@@ -267,13 +401,13 @@ fn the_mirror_answers_search_and_bundles_when_the_registry_is_down() -> TestResu
     let registry = registry(None)?;
     let cache = tempfile::tempdir()?;
     let url = serve(registry.clone())?;
-    let client = RegistryClient::new(&url, Some(cache.path()))?;
+    let client = plain(&url, Some(cache.path()))?;
     client.sync()?;
     let fetched = client.bundle(LIBRARY, registry.bundle.root)?;
     assert_eq!(fetched, registry.bundle);
     registry.up.store(false, Ordering::SeqCst);
     // A new client (the next session) on the same cache, offline.
-    let offline = RegistryClient::new(&url, Some(cache.path()))?;
+    let offline = plain(&url, Some(cache.path()))?;
     let report = offline.search("EX-R0603 kind:part", 10, 0)?;
     assert!(
         report
@@ -311,7 +445,7 @@ fn wait_for(
 #[test]
 fn a_slow_older_search_is_dropped_and_typing_is_debounced() -> TestResult {
     let registry = registry(Some(("EX-R", Duration::from_millis(400))))?;
-    let client = Arc::new(RegistryClient::new(&serve(registry.clone())?, None)?);
+    let client = Arc::new(plain(&serve(registry.clone())?, None)?);
     let worker = RegistryWorker::start(client, Duration::from_millis(40), Arc::new(|| {}));
     // Typing quickly: only the last text of a burst is sent.
     worker.search(1, "E", 10);
@@ -367,6 +501,260 @@ fn index_dates_read_as_people_write_them() {
     assert_eq!(index_date(1_794_614_400), "index of 14 November");
 }
 
+fn seen(registry: &Registry) -> Vec<(String, Option<String>)> {
+    registry.seen.lock().map(|s| s.clone()).unwrap_or_default()
+}
+
+/// The sign-in's token goes with bundle downloads and nothing else: not
+/// with a search, the index or a shard, and never to another registry.
+#[test]
+fn the_token_goes_with_bundles_only_and_only_to_its_registry() -> TestResult {
+    let registry = registry(None)?;
+    registry.needs_account.store(true, Ordering::SeqCst);
+    let url = serve(registry.clone())?;
+    let store = Arc::new(Memory::default());
+    store.set(account::SERVICE, &url, TOKEN)?;
+    let signed_in = client_with(&url, None, &store)?;
+    signed_in.search("EX-R0603 kind:part", 10, 0)?;
+    let bundle = signed_in.bundle(LIBRARY, registry.bundle.root)?;
+    assert_eq!(bundle, registry.bundle);
+    let requests = seen(&registry);
+    for (request, auth) in &requests {
+        if request.starts_with("GET /v1/bundles/") {
+            assert_eq!(auth.as_deref(), Some(format!("Bearer {TOKEN}").as_str()));
+        } else {
+            assert_eq!(auth, &None, "{request} carried the token");
+        }
+    }
+    assert!(
+        requests
+            .iter()
+            .any(|(r, _)| r.starts_with("GET /v1/search"))
+    );
+    assert!(requests.iter().any(|(r, _)| r == "GET /v1/index"));
+
+    // Another registry, same keychain: its own entry is empty, so nothing
+    // is sent, and its refusal says to sign in.
+    let other = self::registry(None)?;
+    other.needs_account.store(true, Ordering::SeqCst);
+    let elsewhere = client_with(&serve(other.clone())?, None, &store)?;
+    let refused = elsewhere.bundle(LIBRARY, other.bundle.root);
+    assert_eq!(refused.err().as_deref(), Some(account::SIGN_IN_NEEDED));
+    assert!(seen(&other).iter().all(|(_, auth)| auth.is_none()));
+    Ok(())
+}
+
+/// A download without an account is refused with the words saying where
+/// to sign in; a limit says when to try again. Search still works.
+#[test]
+fn refusals_say_to_sign_in_or_when_to_retry() -> TestResult {
+    let registry = registry(None)?;
+    registry.needs_account.store(true, Ordering::SeqCst);
+    let client = plain(&serve(registry.clone())?, None)?;
+    assert_eq!(client.search("EX-R0603 kind:part", 10, 0)?.total, 1);
+    let refused = client.bundle(LIBRARY, registry.bundle.root).err();
+    assert_eq!(refused.as_deref(), Some(account::SIGN_IN_NEEDED));
+    registry.limited.store(true, Ordering::SeqCst);
+    let limited = client.bundle(LIBRARY, registry.bundle.root).err();
+    assert_eq!(
+        limited.as_deref(),
+        Some("The online library's download limit is reached. Try again in 5 minutes.")
+    );
+    Ok(())
+}
+
+/// A token the registry no longer knows is forgotten when a download is
+/// refused, and Settings then shows signed out.
+#[test]
+fn a_refused_token_is_forgotten() -> TestResult {
+    let registry = registry(None)?;
+    registry.needs_account.store(true, Ordering::SeqCst);
+    let url = serve(registry.clone())?;
+    let store = Arc::new(Memory::default());
+    store.set(account::SERVICE, &url, "ssp_revoked")?;
+    let client = client_with(&url, None, &store)?;
+    assert!(client.account_status().signed_in);
+    let refused = client.bundle(LIBRARY, registry.bundle.root).err();
+    assert_eq!(refused.as_deref(), Some(account::SIGN_IN_NEEDED));
+    assert_eq!(store.get(account::SERVICE, &url)?, None);
+    assert_eq!(client.known(), Some(Known::SignedOut));
+    Ok(())
+}
+
+/// The device flow: a code under the client's name, polled at the
+/// registry's interval, 5 s longer after `slow_down`, until approved; the
+/// token goes to the keychain and the account is known.
+#[test]
+fn signing_in_polls_until_approved_and_keeps_the_token() -> TestResult {
+    let registry = registry(None)?;
+    if let Ok(mut polls) = registry.polls.lock() {
+        polls.extend(["pending", "slow_down", "pending", "approve"]);
+    }
+    let url = serve(registry.clone())?;
+    let store = Arc::new(Memory::default());
+    let client = client_with(&url, None, &store)?;
+    assert_eq!(
+        client.known(),
+        None,
+        "the keychain is not read before asked"
+    );
+    let code = client.start_sign_in("Sparksmith on bench")?;
+    assert_eq!(code.user_code, "BCDF-GHJK");
+    assert_eq!(
+        code.verification_uri_complete,
+        "https://parts.example/device?code=BCDF-GHJK"
+    );
+    assert!(!format!("{code:?}").contains("dev-secret-code"));
+    let waits = Mutex::new(Vec::new());
+    let sleep = |_: &AtomicBool, wait: Duration| {
+        if let Ok(mut w) = waits.lock() {
+            w.push(wait.as_secs());
+        }
+        false
+    };
+    let account = client.wait_for_sign_in(&code, &AtomicBool::new(false), &sleep)?;
+    assert_eq!(account.email, "maker@example.com");
+    assert_eq!(account.label(), "Maker");
+    assert_eq!(
+        waits.lock().map(|w| w.clone()).unwrap_or_default(),
+        [1, 1, 6, 6]
+    );
+    assert_eq!(store.get(account::SERVICE, &url)?.as_deref(), Some(TOKEN));
+    assert_eq!(client.known(), Some(Known::SignedIn(Some(account))));
+    let status = client.account_status();
+    assert!(status.signed_in);
+    assert_eq!(status.email.as_deref(), Some("maker@example.com"));
+    let bodies = registry
+        .bodies
+        .lock()
+        .map(|b| b.clone())
+        .unwrap_or_default();
+    assert_eq!(bodies[0]["client_name"], "Sparksmith on bench");
+    assert_eq!(bodies[1]["device_code"], "dev-secret-code");
+    // Polls never carry a token.
+    assert!(seen(&registry).iter().all(|(_, auth)| auth.is_none()));
+    Ok(())
+}
+
+/// Declined, expired, past its time or cancelled: no token is kept.
+#[test]
+fn a_declined_expired_or_cancelled_sign_in_keeps_nothing() -> TestResult {
+    let registry = registry(None)?;
+    let url = serve(registry.clone())?;
+    let store = Arc::new(Memory::default());
+    let client = client_with(&url, None, &store)?;
+    let no_wait = |_: &AtomicBool, _: Duration| false;
+    let go = AtomicBool::new(false);
+    for (answer, said) in [
+        ("denied", account::SIGN_IN_DENIED),
+        ("expired", account::SIGN_IN_EXPIRED),
+    ] {
+        if let Ok(mut polls) = registry.polls.lock() {
+            polls.push_back(answer);
+        }
+        let code = client.start_sign_in("Sparksmith")?;
+        let ended = client.wait_for_sign_in(&code, &go, &no_wait);
+        assert_eq!(ended.err().as_deref(), Some(said));
+    }
+    assert_eq!(
+        client.poll_sign_in(&client.start_sign_in("Sparksmith")?)?,
+        Poll::Pending
+    );
+    // Pending past `expires_in`: given up after that long.
+    let mut code = client.start_sign_in("Sparksmith")?;
+    code.expires_in = 3;
+    let polls = registry.bodies.lock().map(|b| b.len()).unwrap_or_default();
+    let ended = client.wait_for_sign_in(&code, &go, &no_wait);
+    assert_eq!(ended.err().as_deref(), Some(account::SIGN_IN_EXPIRED));
+    let after = registry.bodies.lock().map(|b| b.len()).unwrap_or_default();
+    assert_eq!(after - polls, 3, "one poll a second for three seconds");
+    // Cancelled while waiting.
+    let stop = AtomicBool::new(true);
+    let ended = client.wait_for_sign_in(&code, &stop, &account::sleep_unless);
+    assert_eq!(ended.err().as_deref(), Some(account::SIGN_IN_CANCELLED));
+    assert_eq!(store.get(account::SERVICE, &url)?, None);
+    assert_eq!(client.known(), None);
+    Ok(())
+}
+
+/// Sign-out revokes the token at the registry and removes it from the
+/// keychain; offline, it is removed all the same and says it was not
+/// revoked.
+#[test]
+fn signing_out_revokes_and_forgets_the_token() -> TestResult {
+    let registry = registry(None)?;
+    let url = serve(registry.clone())?;
+    let store = Arc::new(Memory::default());
+    store.set(account::SERVICE, &url, TOKEN)?;
+    let client = client_with(&url, None, &store)?;
+    assert_eq!(
+        client.refresh_account()?,
+        Some(Account {
+            email: "maker@example.com".into(),
+            display_name: String::new(),
+        })
+    );
+    let out = client.sign_out()?;
+    assert!(
+        out.was_signed_in && out.revoked && out.problem.is_none(),
+        "{out:?}"
+    );
+    assert!(
+        seen(&registry)
+            .iter()
+            .any(|(r, auth)| r == "DELETE /v1/auth/token"
+                && auth.as_deref() == Some(format!("Bearer {TOKEN}").as_str()))
+    );
+    assert_eq!(store.get(account::SERVICE, &url)?, None);
+    assert!(!client.account_status().signed_in);
+    assert!(!client.sign_out()?.was_signed_in);
+
+    store.set(account::SERVICE, &url, TOKEN)?;
+    let offline = client_with(&url, None, &store)?;
+    registry.up.store(false, Ordering::SeqCst);
+    let out = offline.sign_out()?;
+    assert!(
+        out.was_signed_in && !out.revoked && out.problem.is_some(),
+        "{out:?}"
+    );
+    assert!(!out.problem.unwrap_or_default().contains(TOKEN));
+    assert_eq!(store.get(account::SERVICE, &url)?, None);
+    Ok(())
+}
+
+/// A registry over plain HTTP on another computer is never sent a token
+/// and cannot be signed in to.
+#[test]
+fn no_token_travels_over_plain_http_to_another_computer() -> TestResult {
+    let url = "http://192.168.1.20:8787";
+    let store = Arc::new(Memory::default());
+    store.set(account::SERVICE, url, TOKEN)?;
+    let client = client_with(url, None, &store)?;
+    assert!(!client.may_sign_in());
+    assert!(client.token().is_none());
+    assert!(!client.account_status().signed_in);
+    let refused = client.start_sign_in("Sparksmith").err().unwrap_or_default();
+    assert!(refused.contains("https://"), "{refused}");
+    Ok(())
+}
+
+#[test]
+fn the_client_name_names_this_computer_within_its_bound() {
+    let product = sparksmith_core::product::NAME;
+    assert_eq!(
+        account::client_name_for("bench-mac.local"),
+        format!("{product} on bench-mac")
+    );
+    assert_eq!(account::client_name_for("  "), product);
+    assert_eq!(
+        account::client_name_for("\u{1b}[31m"),
+        format!("{product} on 31m")
+    );
+    let long = account::client_name_for(&"a".repeat(200));
+    assert_eq!(long.chars().count(), account::MAX_CLIENT_NAME);
+    assert!(account::client_name().starts_with(product));
+}
+
 /// Against a running registry (`SPARKSMITH_REGISTRY_URL`, e.g. the
 /// sparksmith-parts server on http://localhost:8787): sync, search with the
 /// app's own query text, fetch, check and mirror a bundle, then reuse it
@@ -376,7 +764,7 @@ fn index_dates_read_as_people_write_them() {
 fn live_registry_round_trip() -> TestResult {
     let url = std::env::var("SPARKSMITH_REGISTRY_URL")?;
     let cache = tempfile::tempdir()?;
-    let client = RegistryClient::new(&url, Some(cache.path()))?;
+    let client = plain(&url, Some(cache.path()))?;
     let started = Instant::now();
     let synced = client.sync()?;
     println!(

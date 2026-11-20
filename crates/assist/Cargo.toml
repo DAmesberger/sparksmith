@@ -27,6 +27,8 @@ ureq = { version = "3", default-features = false, features = ["rustls", "json"] 
 pdf-extract = "0.12"
 hayro = "0.9"
 # API keys per connection: Keychain, Credential Manager, Secret Service.
+# The host name in the online library's sign-in name ("Sparksmith on …").
+gethostname = "1.1"
 keyring = { version = "3.6", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 
 [dev-dependencies]
