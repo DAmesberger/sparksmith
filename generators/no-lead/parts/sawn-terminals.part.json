@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "sawn-terminals",
+  "title": "No-lead package, individually placed terminals",
+  "summary": "No-lead package whose terminals no row pattern lands: a sawn moulding with square sides and forty terminal slots, each one rectangle of leadframe (bare copper at the cut, NiPdAu underneath) placed on its own, optionally lifted as a half-etched neck under the moulding; unused slots parked and cut away; a laser-marked pin-1 dot; a marking-top surface on the top face (body_length, body_width, body_height, frame, plating, edge_round, mark_radius, mark_depth, mark_x, mark_y, park_x, and terminal_k_x, terminal_k_y, terminal_k_length, terminal_k_width, terminal_k_lift for k 1–40).",
+  "use": "package_body",
+  "prefix": "U",
+  "lands": [],
+  "licence": "MIT OR Apache-2.0",
+  "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored`; the no-lead generator gives every parameter its value. Construction after TI's DML0010A (4222524/A, WSON: sawn, pin-1 index area, pins joined by lugs) and RXB0014A (4225574/C, VQFN-FCRLF: L-shaped corner terminals, half-etched necks at the sawn edge, section A-A) outlines; leadframe and plating thickness, edge round and dot size are estimated. Looked at, never copied: the manufacturers' package drawings cited; no vendor drawing, CAD model or EDA library data copied."
+}

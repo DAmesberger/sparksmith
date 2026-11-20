@@ -1,0 +1,5658 @@
+{
+  "format": "solidcraft/57",
+  "format_pending": [
+    "cell-grid-margin",
+    "extrude-to-object-keeps-picked-placements",
+    "hole-thread-class",
+    "linked-configuration",
+    "linked-cosmetic-threads",
+    "plane-at-angle-follows-named-axis",
+    "thread-multiple-faces"
+  ],
+  "name": "No-lead package, individually placed terminals",
+  "units": "mm",
+  "params": [
+    {
+      "name": "body_length",
+      "expr": "2 mm",
+      "unit": "mm",
+      "comment": "body length (x)",
+      "model": false
+    },
+    {
+      "name": "body_width",
+      "expr": "2 mm",
+      "unit": "mm",
+      "comment": "body width (y)",
+      "model": false
+    },
+    {
+      "name": "body_height",
+      "expr": "0.75 mm",
+      "unit": "mm",
+      "comment": "body height above the seating plane",
+      "model": false
+    },
+    {
+      "name": "frame",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "leadframe (terminal) thickness",
+      "model": false
+    },
+    {
+      "name": "plating",
+      "expr": "0.01 mm",
+      "unit": "mm",
+      "comment": "finish under the terminals (NiPdAu, est.)",
+      "model": false
+    },
+    {
+      "name": "edge_round",
+      "expr": "0.03 mm",
+      "unit": "mm",
+      "comment": "round of the body's top edges",
+      "model": false
+    },
+    {
+      "name": "mark_radius",
+      "expr": "0.12 mm",
+      "unit": "mm",
+      "comment": "pin-1 laser dot radius",
+      "model": false
+    },
+    {
+      "name": "mark_depth",
+      "expr": "0.005 mm",
+      "unit": "mm",
+      "comment": "pin-1 laser dot depth",
+      "model": false
+    },
+    {
+      "name": "mark_x",
+      "expr": "-0.76 mm",
+      "unit": "mm",
+      "comment": "pin-1 dot centre x",
+      "model": false
+    },
+    {
+      "name": "mark_y",
+      "expr": "-0.76 mm",
+      "unit": "mm",
+      "comment": "pin-1 dot centre y",
+      "model": false
+    },
+    {
+      "name": "park_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "where unused terminal slots wait, beyond the −x edge, to be cut away",
+      "model": false
+    },
+    {
+      "name": "marking_top_u",
+      "expr": "0.7 * body_length",
+      "unit": "mm",
+      "comment": "marking-top size along its u axis",
+      "model": false
+    },
+    {
+      "name": "marking_top_v",
+      "expr": "0.2 * body_width",
+      "unit": "mm",
+      "comment": "marking-top size across it",
+      "model": false
+    },
+    {
+      "name": "terminal_1_x",
+      "expr": "-0.65 mm",
+      "unit": "mm",
+      "comment": "terminal slot 1 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_1_y",
+      "expr": "-0.85 mm",
+      "unit": "mm",
+      "comment": "terminal slot 1 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_1_length",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 1 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_1_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 1 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_1_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 1 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_2_x",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 2 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_2_y",
+      "expr": "-0.85 mm",
+      "unit": "mm",
+      "comment": "terminal slot 2 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_2_length",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 2 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_2_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 2 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_2_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 2 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_3_x",
+      "expr": "0.65 mm",
+      "unit": "mm",
+      "comment": "terminal slot 3 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_3_y",
+      "expr": "-0.85 mm",
+      "unit": "mm",
+      "comment": "terminal slot 3 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_3_length",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 3 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_3_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 3 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_3_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 3 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_4_x",
+      "expr": "0.65 mm",
+      "unit": "mm",
+      "comment": "terminal slot 4 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_4_y",
+      "expr": "0.85 mm",
+      "unit": "mm",
+      "comment": "terminal slot 4 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_4_length",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 4 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_4_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 4 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_4_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 4 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_5_x",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 5 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_5_y",
+      "expr": "0.85 mm",
+      "unit": "mm",
+      "comment": "terminal slot 5 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_5_length",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 5 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_5_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 5 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_5_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 5 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_6_x",
+      "expr": "-0.65 mm",
+      "unit": "mm",
+      "comment": "terminal slot 6 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_6_y",
+      "expr": "0.85 mm",
+      "unit": "mm",
+      "comment": "terminal slot 6 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_6_length",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 6 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_6_width",
+      "expr": "0.3 mm",
+      "unit": "mm",
+      "comment": "terminal slot 6 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_6_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 6 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_7_x",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 7 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_7_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 7 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_7_length",
+      "expr": "1.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 7 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_7_width",
+      "expr": "0.9 mm",
+      "unit": "mm",
+      "comment": "terminal slot 7 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_7_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 7 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_8_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 8 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_8_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 8 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_8_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 8 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_8_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 8 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_8_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 8 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_9_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 9 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_9_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 9 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_9_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 9 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_9_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 9 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_9_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 9 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_10_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 10 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_10_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 10 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_10_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 10 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_10_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 10 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_10_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 10 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_11_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 11 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_11_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 11 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_11_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 11 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_11_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 11 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_11_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 11 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_12_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 12 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_12_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 12 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_12_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 12 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_12_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 12 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_12_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 12 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_13_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 13 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_13_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 13 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_13_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 13 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_13_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 13 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_13_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 13 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_14_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 14 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_14_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 14 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_14_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 14 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_14_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 14 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_14_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 14 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_15_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 15 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_15_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 15 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_15_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 15 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_15_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 15 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_15_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 15 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_16_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 16 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_16_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 16 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_16_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 16 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_16_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 16 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_16_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 16 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_17_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 17 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_17_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 17 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_17_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 17 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_17_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 17 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_17_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 17 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_18_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 18 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_18_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 18 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_18_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 18 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_18_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 18 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_18_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 18 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_19_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 19 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_19_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 19 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_19_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 19 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_19_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 19 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_19_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 19 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_20_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 20 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_20_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 20 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_20_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 20 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_20_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 20 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_20_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 20 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_21_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 21 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_21_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 21 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_21_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 21 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_21_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 21 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_21_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 21 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_22_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 22 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_22_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 22 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_22_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 22 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_22_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 22 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_22_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 22 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_23_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 23 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_23_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 23 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_23_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 23 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_23_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 23 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_23_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 23 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_24_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 24 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_24_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 24 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_24_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 24 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_24_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 24 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_24_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 24 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_25_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 25 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_25_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 25 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_25_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 25 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_25_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 25 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_25_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 25 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_26_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 26 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_26_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 26 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_26_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 26 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_26_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 26 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_26_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 26 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_27_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 27 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_27_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 27 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_27_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 27 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_27_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 27 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_27_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 27 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_28_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 28 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_28_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 28 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_28_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 28 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_28_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 28 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_28_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 28 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_29_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 29 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_29_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 29 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_29_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 29 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_29_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 29 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_29_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 29 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_30_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 30 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_30_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 30 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_30_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 30 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_30_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 30 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_30_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 30 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_31_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 31 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_31_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 31 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_31_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 31 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_31_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 31 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_31_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 31 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_32_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 32 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_32_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 32 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_32_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 32 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_32_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 32 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_32_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 32 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_33_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 33 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_33_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 33 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_33_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 33 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_33_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 33 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_33_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 33 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_34_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 34 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_34_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 34 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_34_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 34 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_34_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 34 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_34_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 34 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_35_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 35 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_35_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 35 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_35_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 35 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_35_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 35 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_35_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 35 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_36_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 36 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_36_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 36 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_36_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 36 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_36_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 36 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_36_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 36 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_37_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 37 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_37_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 37 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_37_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 37 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_37_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 37 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_37_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 37 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_38_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 38 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_38_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 38 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_38_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 38 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_38_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 38 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_38_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 38 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_39_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 39 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_39_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 39 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_39_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 39 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_39_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 39 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_39_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 39 underside above the seating plane (a half-etched neck)",
+      "model": false
+    },
+    {
+      "name": "terminal_40_x",
+      "expr": "-100 mm",
+      "unit": "mm",
+      "comment": "terminal slot 40 centre x",
+      "model": false
+    },
+    {
+      "name": "terminal_40_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 40 centre y",
+      "model": false
+    },
+    {
+      "name": "terminal_40_length",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 40 size x",
+      "model": false
+    },
+    {
+      "name": "terminal_40_width",
+      "expr": "0.2 mm",
+      "unit": "mm",
+      "comment": "terminal slot 40 size y",
+      "model": false
+    },
+    {
+      "name": "terminal_40_lift",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "terminal slot 40 underside above the seating plane (a half-etched neck)",
+      "model": false
+    }
+  ],
+  "features": [
+    {
+      "id": 1,
+      "name": "body",
+      "suppressed": false,
+      "body_names": [
+        "body"
+      ],
+      "param_names": [
+        "d1",
+        "d2",
+        "d3"
+      ],
+      "type": "box",
+      "corner": [
+        "- body_length / 2",
+        "- body_width / 2",
+        "0 mm"
+      ],
+      "length": "body_length",
+      "width": "body_width",
+      "height": "body_height",
+      "operation": "new_body"
+    },
+    {
+      "id": 2,
+      "name": "terminal 1 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d4",
+        "d5",
+        "d6"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_1_x - terminal_1_length / 2",
+        "terminal_1_y - terminal_1_width / 2",
+        "terminal_1_lift"
+      ],
+      "length": "terminal_1_length",
+      "width": "terminal_1_width",
+      "height": "frame - terminal_1_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 3,
+      "name": "terminal 1",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1"
+      ],
+      "param_names": [
+        "d7",
+        "d8",
+        "d9"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_1_x - terminal_1_length / 2",
+        "terminal_1_y - terminal_1_width / 2",
+        "terminal_1_lift + plating"
+      ],
+      "length": "terminal_1_length",
+      "width": "terminal_1_width",
+      "height": "frame - terminal_1_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 4,
+      "name": "terminal 1 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 1 plating"
+      ],
+      "param_names": [
+        "d10",
+        "d11",
+        "d12"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_1_x - terminal_1_length / 2",
+        "terminal_1_y - terminal_1_width / 2",
+        "terminal_1_lift"
+      ],
+      "length": "terminal_1_length",
+      "width": "terminal_1_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "terminal 2 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d13",
+        "d14",
+        "d15"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_2_x - terminal_2_length / 2",
+        "terminal_2_y - terminal_2_width / 2",
+        "terminal_2_lift"
+      ],
+      "length": "terminal_2_length",
+      "width": "terminal_2_width",
+      "height": "frame - terminal_2_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 6,
+      "name": "terminal 2",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2"
+      ],
+      "param_names": [
+        "d16",
+        "d17",
+        "d18"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_2_x - terminal_2_length / 2",
+        "terminal_2_y - terminal_2_width / 2",
+        "terminal_2_lift + plating"
+      ],
+      "length": "terminal_2_length",
+      "width": "terminal_2_width",
+      "height": "frame - terminal_2_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "terminal 2 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 2 plating"
+      ],
+      "param_names": [
+        "d19",
+        "d20",
+        "d21"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_2_x - terminal_2_length / 2",
+        "terminal_2_y - terminal_2_width / 2",
+        "terminal_2_lift"
+      ],
+      "length": "terminal_2_length",
+      "width": "terminal_2_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 8,
+      "name": "terminal 3 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d22",
+        "d23",
+        "d24"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_3_x - terminal_3_length / 2",
+        "terminal_3_y - terminal_3_width / 2",
+        "terminal_3_lift"
+      ],
+      "length": "terminal_3_length",
+      "width": "terminal_3_width",
+      "height": "frame - terminal_3_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 9,
+      "name": "terminal 3",
+      "suppressed": false,
+      "body_names": [
+        "terminal 3"
+      ],
+      "param_names": [
+        "d25",
+        "d26",
+        "d27"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_3_x - terminal_3_length / 2",
+        "terminal_3_y - terminal_3_width / 2",
+        "terminal_3_lift + plating"
+      ],
+      "length": "terminal_3_length",
+      "width": "terminal_3_width",
+      "height": "frame - terminal_3_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 10,
+      "name": "terminal 3 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 3 plating"
+      ],
+      "param_names": [
+        "d28",
+        "d29",
+        "d30"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_3_x - terminal_3_length / 2",
+        "terminal_3_y - terminal_3_width / 2",
+        "terminal_3_lift"
+      ],
+      "length": "terminal_3_length",
+      "width": "terminal_3_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 11,
+      "name": "terminal 4 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d31",
+        "d32",
+        "d33"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_4_x - terminal_4_length / 2",
+        "terminal_4_y - terminal_4_width / 2",
+        "terminal_4_lift"
+      ],
+      "length": "terminal_4_length",
+      "width": "terminal_4_width",
+      "height": "frame - terminal_4_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 12,
+      "name": "terminal 4",
+      "suppressed": false,
+      "body_names": [
+        "terminal 4"
+      ],
+      "param_names": [
+        "d34",
+        "d35",
+        "d36"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_4_x - terminal_4_length / 2",
+        "terminal_4_y - terminal_4_width / 2",
+        "terminal_4_lift + plating"
+      ],
+      "length": "terminal_4_length",
+      "width": "terminal_4_width",
+      "height": "frame - terminal_4_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 13,
+      "name": "terminal 4 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 4 plating"
+      ],
+      "param_names": [
+        "d37",
+        "d38",
+        "d39"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_4_x - terminal_4_length / 2",
+        "terminal_4_y - terminal_4_width / 2",
+        "terminal_4_lift"
+      ],
+      "length": "terminal_4_length",
+      "width": "terminal_4_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 14,
+      "name": "terminal 5 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d40",
+        "d41",
+        "d42"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_5_x - terminal_5_length / 2",
+        "terminal_5_y - terminal_5_width / 2",
+        "terminal_5_lift"
+      ],
+      "length": "terminal_5_length",
+      "width": "terminal_5_width",
+      "height": "frame - terminal_5_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 15,
+      "name": "terminal 5",
+      "suppressed": false,
+      "body_names": [
+        "terminal 5"
+      ],
+      "param_names": [
+        "d43",
+        "d44",
+        "d45"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_5_x - terminal_5_length / 2",
+        "terminal_5_y - terminal_5_width / 2",
+        "terminal_5_lift + plating"
+      ],
+      "length": "terminal_5_length",
+      "width": "terminal_5_width",
+      "height": "frame - terminal_5_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 16,
+      "name": "terminal 5 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 5 plating"
+      ],
+      "param_names": [
+        "d46",
+        "d47",
+        "d48"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_5_x - terminal_5_length / 2",
+        "terminal_5_y - terminal_5_width / 2",
+        "terminal_5_lift"
+      ],
+      "length": "terminal_5_length",
+      "width": "terminal_5_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 17,
+      "name": "terminal 6 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d49",
+        "d50",
+        "d51"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_6_x - terminal_6_length / 2",
+        "terminal_6_y - terminal_6_width / 2",
+        "terminal_6_lift"
+      ],
+      "length": "terminal_6_length",
+      "width": "terminal_6_width",
+      "height": "frame - terminal_6_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 18,
+      "name": "terminal 6",
+      "suppressed": false,
+      "body_names": [
+        "terminal 6"
+      ],
+      "param_names": [
+        "d52",
+        "d53",
+        "d54"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_6_x - terminal_6_length / 2",
+        "terminal_6_y - terminal_6_width / 2",
+        "terminal_6_lift + plating"
+      ],
+      "length": "terminal_6_length",
+      "width": "terminal_6_width",
+      "height": "frame - terminal_6_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 19,
+      "name": "terminal 6 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 6 plating"
+      ],
+      "param_names": [
+        "d55",
+        "d56",
+        "d57"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_6_x - terminal_6_length / 2",
+        "terminal_6_y - terminal_6_width / 2",
+        "terminal_6_lift"
+      ],
+      "length": "terminal_6_length",
+      "width": "terminal_6_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 20,
+      "name": "terminal 7 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d58",
+        "d59",
+        "d60"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_7_x - terminal_7_length / 2",
+        "terminal_7_y - terminal_7_width / 2",
+        "terminal_7_lift"
+      ],
+      "length": "terminal_7_length",
+      "width": "terminal_7_width",
+      "height": "frame - terminal_7_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 21,
+      "name": "terminal 7",
+      "suppressed": false,
+      "body_names": [
+        "terminal 7"
+      ],
+      "param_names": [
+        "d61",
+        "d62",
+        "d63"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_7_x - terminal_7_length / 2",
+        "terminal_7_y - terminal_7_width / 2",
+        "terminal_7_lift + plating"
+      ],
+      "length": "terminal_7_length",
+      "width": "terminal_7_width",
+      "height": "frame - terminal_7_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 22,
+      "name": "terminal 7 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 7 plating"
+      ],
+      "param_names": [
+        "d64",
+        "d65",
+        "d66"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_7_x - terminal_7_length / 2",
+        "terminal_7_y - terminal_7_width / 2",
+        "terminal_7_lift"
+      ],
+      "length": "terminal_7_length",
+      "width": "terminal_7_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 23,
+      "name": "terminal 8 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d67",
+        "d68",
+        "d69"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_8_x - terminal_8_length / 2",
+        "terminal_8_y - terminal_8_width / 2",
+        "terminal_8_lift"
+      ],
+      "length": "terminal_8_length",
+      "width": "terminal_8_width",
+      "height": "frame - terminal_8_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 24,
+      "name": "terminal 8",
+      "suppressed": false,
+      "body_names": [
+        "terminal 8"
+      ],
+      "param_names": [
+        "d70",
+        "d71",
+        "d72"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_8_x - terminal_8_length / 2",
+        "terminal_8_y - terminal_8_width / 2",
+        "terminal_8_lift + plating"
+      ],
+      "length": "terminal_8_length",
+      "width": "terminal_8_width",
+      "height": "frame - terminal_8_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 25,
+      "name": "terminal 8 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 8 plating"
+      ],
+      "param_names": [
+        "d73",
+        "d74",
+        "d75"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_8_x - terminal_8_length / 2",
+        "terminal_8_y - terminal_8_width / 2",
+        "terminal_8_lift"
+      ],
+      "length": "terminal_8_length",
+      "width": "terminal_8_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 26,
+      "name": "terminal 9 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d76",
+        "d77",
+        "d78"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_9_x - terminal_9_length / 2",
+        "terminal_9_y - terminal_9_width / 2",
+        "terminal_9_lift"
+      ],
+      "length": "terminal_9_length",
+      "width": "terminal_9_width",
+      "height": "frame - terminal_9_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 27,
+      "name": "terminal 9",
+      "suppressed": false,
+      "body_names": [
+        "terminal 9"
+      ],
+      "param_names": [
+        "d79",
+        "d80",
+        "d81"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_9_x - terminal_9_length / 2",
+        "terminal_9_y - terminal_9_width / 2",
+        "terminal_9_lift + plating"
+      ],
+      "length": "terminal_9_length",
+      "width": "terminal_9_width",
+      "height": "frame - terminal_9_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 28,
+      "name": "terminal 9 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 9 plating"
+      ],
+      "param_names": [
+        "d82",
+        "d83",
+        "d84"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_9_x - terminal_9_length / 2",
+        "terminal_9_y - terminal_9_width / 2",
+        "terminal_9_lift"
+      ],
+      "length": "terminal_9_length",
+      "width": "terminal_9_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 29,
+      "name": "terminal 10 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d85",
+        "d86",
+        "d87"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_10_x - terminal_10_length / 2",
+        "terminal_10_y - terminal_10_width / 2",
+        "terminal_10_lift"
+      ],
+      "length": "terminal_10_length",
+      "width": "terminal_10_width",
+      "height": "frame - terminal_10_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 30,
+      "name": "terminal 10",
+      "suppressed": false,
+      "body_names": [
+        "terminal 10"
+      ],
+      "param_names": [
+        "d88",
+        "d89",
+        "d90"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_10_x - terminal_10_length / 2",
+        "terminal_10_y - terminal_10_width / 2",
+        "terminal_10_lift + plating"
+      ],
+      "length": "terminal_10_length",
+      "width": "terminal_10_width",
+      "height": "frame - terminal_10_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 31,
+      "name": "terminal 10 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 10 plating"
+      ],
+      "param_names": [
+        "d91",
+        "d92",
+        "d93"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_10_x - terminal_10_length / 2",
+        "terminal_10_y - terminal_10_width / 2",
+        "terminal_10_lift"
+      ],
+      "length": "terminal_10_length",
+      "width": "terminal_10_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 32,
+      "name": "terminal 11 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d94",
+        "d95",
+        "d96"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_11_x - terminal_11_length / 2",
+        "terminal_11_y - terminal_11_width / 2",
+        "terminal_11_lift"
+      ],
+      "length": "terminal_11_length",
+      "width": "terminal_11_width",
+      "height": "frame - terminal_11_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 33,
+      "name": "terminal 11",
+      "suppressed": false,
+      "body_names": [
+        "terminal 11"
+      ],
+      "param_names": [
+        "d97",
+        "d98",
+        "d99"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_11_x - terminal_11_length / 2",
+        "terminal_11_y - terminal_11_width / 2",
+        "terminal_11_lift + plating"
+      ],
+      "length": "terminal_11_length",
+      "width": "terminal_11_width",
+      "height": "frame - terminal_11_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 34,
+      "name": "terminal 11 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 11 plating"
+      ],
+      "param_names": [
+        "d100",
+        "d101",
+        "d102"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_11_x - terminal_11_length / 2",
+        "terminal_11_y - terminal_11_width / 2",
+        "terminal_11_lift"
+      ],
+      "length": "terminal_11_length",
+      "width": "terminal_11_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 35,
+      "name": "terminal 12 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d103",
+        "d104",
+        "d105"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_12_x - terminal_12_length / 2",
+        "terminal_12_y - terminal_12_width / 2",
+        "terminal_12_lift"
+      ],
+      "length": "terminal_12_length",
+      "width": "terminal_12_width",
+      "height": "frame - terminal_12_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 36,
+      "name": "terminal 12",
+      "suppressed": false,
+      "body_names": [
+        "terminal 12"
+      ],
+      "param_names": [
+        "d106",
+        "d107",
+        "d108"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_12_x - terminal_12_length / 2",
+        "terminal_12_y - terminal_12_width / 2",
+        "terminal_12_lift + plating"
+      ],
+      "length": "terminal_12_length",
+      "width": "terminal_12_width",
+      "height": "frame - terminal_12_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 37,
+      "name": "terminal 12 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 12 plating"
+      ],
+      "param_names": [
+        "d109",
+        "d110",
+        "d111"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_12_x - terminal_12_length / 2",
+        "terminal_12_y - terminal_12_width / 2",
+        "terminal_12_lift"
+      ],
+      "length": "terminal_12_length",
+      "width": "terminal_12_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 38,
+      "name": "terminal 13 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d112",
+        "d113",
+        "d114"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_13_x - terminal_13_length / 2",
+        "terminal_13_y - terminal_13_width / 2",
+        "terminal_13_lift"
+      ],
+      "length": "terminal_13_length",
+      "width": "terminal_13_width",
+      "height": "frame - terminal_13_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 39,
+      "name": "terminal 13",
+      "suppressed": false,
+      "body_names": [
+        "terminal 13"
+      ],
+      "param_names": [
+        "d115",
+        "d116",
+        "d117"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_13_x - terminal_13_length / 2",
+        "terminal_13_y - terminal_13_width / 2",
+        "terminal_13_lift + plating"
+      ],
+      "length": "terminal_13_length",
+      "width": "terminal_13_width",
+      "height": "frame - terminal_13_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 40,
+      "name": "terminal 13 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 13 plating"
+      ],
+      "param_names": [
+        "d118",
+        "d119",
+        "d120"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_13_x - terminal_13_length / 2",
+        "terminal_13_y - terminal_13_width / 2",
+        "terminal_13_lift"
+      ],
+      "length": "terminal_13_length",
+      "width": "terminal_13_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 41,
+      "name": "terminal 14 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d121",
+        "d122",
+        "d123"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_14_x - terminal_14_length / 2",
+        "terminal_14_y - terminal_14_width / 2",
+        "terminal_14_lift"
+      ],
+      "length": "terminal_14_length",
+      "width": "terminal_14_width",
+      "height": "frame - terminal_14_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 42,
+      "name": "terminal 14",
+      "suppressed": false,
+      "body_names": [
+        "terminal 14"
+      ],
+      "param_names": [
+        "d124",
+        "d125",
+        "d126"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_14_x - terminal_14_length / 2",
+        "terminal_14_y - terminal_14_width / 2",
+        "terminal_14_lift + plating"
+      ],
+      "length": "terminal_14_length",
+      "width": "terminal_14_width",
+      "height": "frame - terminal_14_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 43,
+      "name": "terminal 14 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 14 plating"
+      ],
+      "param_names": [
+        "d127",
+        "d128",
+        "d129"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_14_x - terminal_14_length / 2",
+        "terminal_14_y - terminal_14_width / 2",
+        "terminal_14_lift"
+      ],
+      "length": "terminal_14_length",
+      "width": "terminal_14_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 44,
+      "name": "terminal 15 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d130",
+        "d131",
+        "d132"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_15_x - terminal_15_length / 2",
+        "terminal_15_y - terminal_15_width / 2",
+        "terminal_15_lift"
+      ],
+      "length": "terminal_15_length",
+      "width": "terminal_15_width",
+      "height": "frame - terminal_15_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 45,
+      "name": "terminal 15",
+      "suppressed": false,
+      "body_names": [
+        "terminal 15"
+      ],
+      "param_names": [
+        "d133",
+        "d134",
+        "d135"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_15_x - terminal_15_length / 2",
+        "terminal_15_y - terminal_15_width / 2",
+        "terminal_15_lift + plating"
+      ],
+      "length": "terminal_15_length",
+      "width": "terminal_15_width",
+      "height": "frame - terminal_15_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 46,
+      "name": "terminal 15 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 15 plating"
+      ],
+      "param_names": [
+        "d136",
+        "d137",
+        "d138"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_15_x - terminal_15_length / 2",
+        "terminal_15_y - terminal_15_width / 2",
+        "terminal_15_lift"
+      ],
+      "length": "terminal_15_length",
+      "width": "terminal_15_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 47,
+      "name": "terminal 16 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d139",
+        "d140",
+        "d141"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_16_x - terminal_16_length / 2",
+        "terminal_16_y - terminal_16_width / 2",
+        "terminal_16_lift"
+      ],
+      "length": "terminal_16_length",
+      "width": "terminal_16_width",
+      "height": "frame - terminal_16_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 48,
+      "name": "terminal 16",
+      "suppressed": false,
+      "body_names": [
+        "terminal 16"
+      ],
+      "param_names": [
+        "d142",
+        "d143",
+        "d144"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_16_x - terminal_16_length / 2",
+        "terminal_16_y - terminal_16_width / 2",
+        "terminal_16_lift + plating"
+      ],
+      "length": "terminal_16_length",
+      "width": "terminal_16_width",
+      "height": "frame - terminal_16_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 49,
+      "name": "terminal 16 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 16 plating"
+      ],
+      "param_names": [
+        "d145",
+        "d146",
+        "d147"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_16_x - terminal_16_length / 2",
+        "terminal_16_y - terminal_16_width / 2",
+        "terminal_16_lift"
+      ],
+      "length": "terminal_16_length",
+      "width": "terminal_16_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 50,
+      "name": "terminal 17 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d148",
+        "d149",
+        "d150"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_17_x - terminal_17_length / 2",
+        "terminal_17_y - terminal_17_width / 2",
+        "terminal_17_lift"
+      ],
+      "length": "terminal_17_length",
+      "width": "terminal_17_width",
+      "height": "frame - terminal_17_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 51,
+      "name": "terminal 17",
+      "suppressed": false,
+      "body_names": [
+        "terminal 17"
+      ],
+      "param_names": [
+        "d151",
+        "d152",
+        "d153"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_17_x - terminal_17_length / 2",
+        "terminal_17_y - terminal_17_width / 2",
+        "terminal_17_lift + plating"
+      ],
+      "length": "terminal_17_length",
+      "width": "terminal_17_width",
+      "height": "frame - terminal_17_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 52,
+      "name": "terminal 17 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 17 plating"
+      ],
+      "param_names": [
+        "d154",
+        "d155",
+        "d156"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_17_x - terminal_17_length / 2",
+        "terminal_17_y - terminal_17_width / 2",
+        "terminal_17_lift"
+      ],
+      "length": "terminal_17_length",
+      "width": "terminal_17_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 53,
+      "name": "terminal 18 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d157",
+        "d158",
+        "d159"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_18_x - terminal_18_length / 2",
+        "terminal_18_y - terminal_18_width / 2",
+        "terminal_18_lift"
+      ],
+      "length": "terminal_18_length",
+      "width": "terminal_18_width",
+      "height": "frame - terminal_18_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 54,
+      "name": "terminal 18",
+      "suppressed": false,
+      "body_names": [
+        "terminal 18"
+      ],
+      "param_names": [
+        "d160",
+        "d161",
+        "d162"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_18_x - terminal_18_length / 2",
+        "terminal_18_y - terminal_18_width / 2",
+        "terminal_18_lift + plating"
+      ],
+      "length": "terminal_18_length",
+      "width": "terminal_18_width",
+      "height": "frame - terminal_18_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 55,
+      "name": "terminal 18 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 18 plating"
+      ],
+      "param_names": [
+        "d163",
+        "d164",
+        "d165"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_18_x - terminal_18_length / 2",
+        "terminal_18_y - terminal_18_width / 2",
+        "terminal_18_lift"
+      ],
+      "length": "terminal_18_length",
+      "width": "terminal_18_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 56,
+      "name": "terminal 19 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d166",
+        "d167",
+        "d168"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_19_x - terminal_19_length / 2",
+        "terminal_19_y - terminal_19_width / 2",
+        "terminal_19_lift"
+      ],
+      "length": "terminal_19_length",
+      "width": "terminal_19_width",
+      "height": "frame - terminal_19_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 57,
+      "name": "terminal 19",
+      "suppressed": false,
+      "body_names": [
+        "terminal 19"
+      ],
+      "param_names": [
+        "d169",
+        "d170",
+        "d171"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_19_x - terminal_19_length / 2",
+        "terminal_19_y - terminal_19_width / 2",
+        "terminal_19_lift + plating"
+      ],
+      "length": "terminal_19_length",
+      "width": "terminal_19_width",
+      "height": "frame - terminal_19_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 58,
+      "name": "terminal 19 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 19 plating"
+      ],
+      "param_names": [
+        "d172",
+        "d173",
+        "d174"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_19_x - terminal_19_length / 2",
+        "terminal_19_y - terminal_19_width / 2",
+        "terminal_19_lift"
+      ],
+      "length": "terminal_19_length",
+      "width": "terminal_19_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 59,
+      "name": "terminal 20 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d175",
+        "d176",
+        "d177"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_20_x - terminal_20_length / 2",
+        "terminal_20_y - terminal_20_width / 2",
+        "terminal_20_lift"
+      ],
+      "length": "terminal_20_length",
+      "width": "terminal_20_width",
+      "height": "frame - terminal_20_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 60,
+      "name": "terminal 20",
+      "suppressed": false,
+      "body_names": [
+        "terminal 20"
+      ],
+      "param_names": [
+        "d178",
+        "d179",
+        "d180"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_20_x - terminal_20_length / 2",
+        "terminal_20_y - terminal_20_width / 2",
+        "terminal_20_lift + plating"
+      ],
+      "length": "terminal_20_length",
+      "width": "terminal_20_width",
+      "height": "frame - terminal_20_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 61,
+      "name": "terminal 20 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 20 plating"
+      ],
+      "param_names": [
+        "d181",
+        "d182",
+        "d183"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_20_x - terminal_20_length / 2",
+        "terminal_20_y - terminal_20_width / 2",
+        "terminal_20_lift"
+      ],
+      "length": "terminal_20_length",
+      "width": "terminal_20_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 62,
+      "name": "terminal 21 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d184",
+        "d185",
+        "d186"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_21_x - terminal_21_length / 2",
+        "terminal_21_y - terminal_21_width / 2",
+        "terminal_21_lift"
+      ],
+      "length": "terminal_21_length",
+      "width": "terminal_21_width",
+      "height": "frame - terminal_21_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 63,
+      "name": "terminal 21",
+      "suppressed": false,
+      "body_names": [
+        "terminal 21"
+      ],
+      "param_names": [
+        "d187",
+        "d188",
+        "d189"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_21_x - terminal_21_length / 2",
+        "terminal_21_y - terminal_21_width / 2",
+        "terminal_21_lift + plating"
+      ],
+      "length": "terminal_21_length",
+      "width": "terminal_21_width",
+      "height": "frame - terminal_21_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 64,
+      "name": "terminal 21 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 21 plating"
+      ],
+      "param_names": [
+        "d190",
+        "d191",
+        "d192"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_21_x - terminal_21_length / 2",
+        "terminal_21_y - terminal_21_width / 2",
+        "terminal_21_lift"
+      ],
+      "length": "terminal_21_length",
+      "width": "terminal_21_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 65,
+      "name": "terminal 22 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d193",
+        "d194",
+        "d195"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_22_x - terminal_22_length / 2",
+        "terminal_22_y - terminal_22_width / 2",
+        "terminal_22_lift"
+      ],
+      "length": "terminal_22_length",
+      "width": "terminal_22_width",
+      "height": "frame - terminal_22_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 66,
+      "name": "terminal 22",
+      "suppressed": false,
+      "body_names": [
+        "terminal 22"
+      ],
+      "param_names": [
+        "d196",
+        "d197",
+        "d198"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_22_x - terminal_22_length / 2",
+        "terminal_22_y - terminal_22_width / 2",
+        "terminal_22_lift + plating"
+      ],
+      "length": "terminal_22_length",
+      "width": "terminal_22_width",
+      "height": "frame - terminal_22_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 67,
+      "name": "terminal 22 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 22 plating"
+      ],
+      "param_names": [
+        "d199",
+        "d200",
+        "d201"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_22_x - terminal_22_length / 2",
+        "terminal_22_y - terminal_22_width / 2",
+        "terminal_22_lift"
+      ],
+      "length": "terminal_22_length",
+      "width": "terminal_22_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 68,
+      "name": "terminal 23 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d202",
+        "d203",
+        "d204"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_23_x - terminal_23_length / 2",
+        "terminal_23_y - terminal_23_width / 2",
+        "terminal_23_lift"
+      ],
+      "length": "terminal_23_length",
+      "width": "terminal_23_width",
+      "height": "frame - terminal_23_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 69,
+      "name": "terminal 23",
+      "suppressed": false,
+      "body_names": [
+        "terminal 23"
+      ],
+      "param_names": [
+        "d205",
+        "d206",
+        "d207"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_23_x - terminal_23_length / 2",
+        "terminal_23_y - terminal_23_width / 2",
+        "terminal_23_lift + plating"
+      ],
+      "length": "terminal_23_length",
+      "width": "terminal_23_width",
+      "height": "frame - terminal_23_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 70,
+      "name": "terminal 23 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 23 plating"
+      ],
+      "param_names": [
+        "d208",
+        "d209",
+        "d210"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_23_x - terminal_23_length / 2",
+        "terminal_23_y - terminal_23_width / 2",
+        "terminal_23_lift"
+      ],
+      "length": "terminal_23_length",
+      "width": "terminal_23_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 71,
+      "name": "terminal 24 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d211",
+        "d212",
+        "d213"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_24_x - terminal_24_length / 2",
+        "terminal_24_y - terminal_24_width / 2",
+        "terminal_24_lift"
+      ],
+      "length": "terminal_24_length",
+      "width": "terminal_24_width",
+      "height": "frame - terminal_24_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 72,
+      "name": "terminal 24",
+      "suppressed": false,
+      "body_names": [
+        "terminal 24"
+      ],
+      "param_names": [
+        "d214",
+        "d215",
+        "d216"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_24_x - terminal_24_length / 2",
+        "terminal_24_y - terminal_24_width / 2",
+        "terminal_24_lift + plating"
+      ],
+      "length": "terminal_24_length",
+      "width": "terminal_24_width",
+      "height": "frame - terminal_24_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 73,
+      "name": "terminal 24 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 24 plating"
+      ],
+      "param_names": [
+        "d217",
+        "d218",
+        "d219"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_24_x - terminal_24_length / 2",
+        "terminal_24_y - terminal_24_width / 2",
+        "terminal_24_lift"
+      ],
+      "length": "terminal_24_length",
+      "width": "terminal_24_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 74,
+      "name": "terminal 25 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d220",
+        "d221",
+        "d222"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_25_x - terminal_25_length / 2",
+        "terminal_25_y - terminal_25_width / 2",
+        "terminal_25_lift"
+      ],
+      "length": "terminal_25_length",
+      "width": "terminal_25_width",
+      "height": "frame - terminal_25_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 75,
+      "name": "terminal 25",
+      "suppressed": false,
+      "body_names": [
+        "terminal 25"
+      ],
+      "param_names": [
+        "d223",
+        "d224",
+        "d225"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_25_x - terminal_25_length / 2",
+        "terminal_25_y - terminal_25_width / 2",
+        "terminal_25_lift + plating"
+      ],
+      "length": "terminal_25_length",
+      "width": "terminal_25_width",
+      "height": "frame - terminal_25_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 76,
+      "name": "terminal 25 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 25 plating"
+      ],
+      "param_names": [
+        "d226",
+        "d227",
+        "d228"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_25_x - terminal_25_length / 2",
+        "terminal_25_y - terminal_25_width / 2",
+        "terminal_25_lift"
+      ],
+      "length": "terminal_25_length",
+      "width": "terminal_25_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 77,
+      "name": "terminal 26 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d229",
+        "d230",
+        "d231"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_26_x - terminal_26_length / 2",
+        "terminal_26_y - terminal_26_width / 2",
+        "terminal_26_lift"
+      ],
+      "length": "terminal_26_length",
+      "width": "terminal_26_width",
+      "height": "frame - terminal_26_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 78,
+      "name": "terminal 26",
+      "suppressed": false,
+      "body_names": [
+        "terminal 26"
+      ],
+      "param_names": [
+        "d232",
+        "d233",
+        "d234"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_26_x - terminal_26_length / 2",
+        "terminal_26_y - terminal_26_width / 2",
+        "terminal_26_lift + plating"
+      ],
+      "length": "terminal_26_length",
+      "width": "terminal_26_width",
+      "height": "frame - terminal_26_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 79,
+      "name": "terminal 26 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 26 plating"
+      ],
+      "param_names": [
+        "d235",
+        "d236",
+        "d237"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_26_x - terminal_26_length / 2",
+        "terminal_26_y - terminal_26_width / 2",
+        "terminal_26_lift"
+      ],
+      "length": "terminal_26_length",
+      "width": "terminal_26_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 80,
+      "name": "terminal 27 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d238",
+        "d239",
+        "d240"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_27_x - terminal_27_length / 2",
+        "terminal_27_y - terminal_27_width / 2",
+        "terminal_27_lift"
+      ],
+      "length": "terminal_27_length",
+      "width": "terminal_27_width",
+      "height": "frame - terminal_27_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 81,
+      "name": "terminal 27",
+      "suppressed": false,
+      "body_names": [
+        "terminal 27"
+      ],
+      "param_names": [
+        "d241",
+        "d242",
+        "d243"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_27_x - terminal_27_length / 2",
+        "terminal_27_y - terminal_27_width / 2",
+        "terminal_27_lift + plating"
+      ],
+      "length": "terminal_27_length",
+      "width": "terminal_27_width",
+      "height": "frame - terminal_27_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 82,
+      "name": "terminal 27 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 27 plating"
+      ],
+      "param_names": [
+        "d244",
+        "d245",
+        "d246"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_27_x - terminal_27_length / 2",
+        "terminal_27_y - terminal_27_width / 2",
+        "terminal_27_lift"
+      ],
+      "length": "terminal_27_length",
+      "width": "terminal_27_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 83,
+      "name": "terminal 28 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d247",
+        "d248",
+        "d249"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_28_x - terminal_28_length / 2",
+        "terminal_28_y - terminal_28_width / 2",
+        "terminal_28_lift"
+      ],
+      "length": "terminal_28_length",
+      "width": "terminal_28_width",
+      "height": "frame - terminal_28_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 84,
+      "name": "terminal 28",
+      "suppressed": false,
+      "body_names": [
+        "terminal 28"
+      ],
+      "param_names": [
+        "d250",
+        "d251",
+        "d252"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_28_x - terminal_28_length / 2",
+        "terminal_28_y - terminal_28_width / 2",
+        "terminal_28_lift + plating"
+      ],
+      "length": "terminal_28_length",
+      "width": "terminal_28_width",
+      "height": "frame - terminal_28_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 85,
+      "name": "terminal 28 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 28 plating"
+      ],
+      "param_names": [
+        "d253",
+        "d254",
+        "d255"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_28_x - terminal_28_length / 2",
+        "terminal_28_y - terminal_28_width / 2",
+        "terminal_28_lift"
+      ],
+      "length": "terminal_28_length",
+      "width": "terminal_28_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 86,
+      "name": "terminal 29 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d256",
+        "d257",
+        "d258"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_29_x - terminal_29_length / 2",
+        "terminal_29_y - terminal_29_width / 2",
+        "terminal_29_lift"
+      ],
+      "length": "terminal_29_length",
+      "width": "terminal_29_width",
+      "height": "frame - terminal_29_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 87,
+      "name": "terminal 29",
+      "suppressed": false,
+      "body_names": [
+        "terminal 29"
+      ],
+      "param_names": [
+        "d259",
+        "d260",
+        "d261"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_29_x - terminal_29_length / 2",
+        "terminal_29_y - terminal_29_width / 2",
+        "terminal_29_lift + plating"
+      ],
+      "length": "terminal_29_length",
+      "width": "terminal_29_width",
+      "height": "frame - terminal_29_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 88,
+      "name": "terminal 29 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 29 plating"
+      ],
+      "param_names": [
+        "d262",
+        "d263",
+        "d264"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_29_x - terminal_29_length / 2",
+        "terminal_29_y - terminal_29_width / 2",
+        "terminal_29_lift"
+      ],
+      "length": "terminal_29_length",
+      "width": "terminal_29_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 89,
+      "name": "terminal 30 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d265",
+        "d266",
+        "d267"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_30_x - terminal_30_length / 2",
+        "terminal_30_y - terminal_30_width / 2",
+        "terminal_30_lift"
+      ],
+      "length": "terminal_30_length",
+      "width": "terminal_30_width",
+      "height": "frame - terminal_30_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 90,
+      "name": "terminal 30",
+      "suppressed": false,
+      "body_names": [
+        "terminal 30"
+      ],
+      "param_names": [
+        "d268",
+        "d269",
+        "d270"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_30_x - terminal_30_length / 2",
+        "terminal_30_y - terminal_30_width / 2",
+        "terminal_30_lift + plating"
+      ],
+      "length": "terminal_30_length",
+      "width": "terminal_30_width",
+      "height": "frame - terminal_30_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 91,
+      "name": "terminal 30 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 30 plating"
+      ],
+      "param_names": [
+        "d271",
+        "d272",
+        "d273"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_30_x - terminal_30_length / 2",
+        "terminal_30_y - terminal_30_width / 2",
+        "terminal_30_lift"
+      ],
+      "length": "terminal_30_length",
+      "width": "terminal_30_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 92,
+      "name": "terminal 31 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d274",
+        "d275",
+        "d276"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_31_x - terminal_31_length / 2",
+        "terminal_31_y - terminal_31_width / 2",
+        "terminal_31_lift"
+      ],
+      "length": "terminal_31_length",
+      "width": "terminal_31_width",
+      "height": "frame - terminal_31_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 93,
+      "name": "terminal 31",
+      "suppressed": false,
+      "body_names": [
+        "terminal 31"
+      ],
+      "param_names": [
+        "d277",
+        "d278",
+        "d279"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_31_x - terminal_31_length / 2",
+        "terminal_31_y - terminal_31_width / 2",
+        "terminal_31_lift + plating"
+      ],
+      "length": "terminal_31_length",
+      "width": "terminal_31_width",
+      "height": "frame - terminal_31_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 94,
+      "name": "terminal 31 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 31 plating"
+      ],
+      "param_names": [
+        "d280",
+        "d281",
+        "d282"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_31_x - terminal_31_length / 2",
+        "terminal_31_y - terminal_31_width / 2",
+        "terminal_31_lift"
+      ],
+      "length": "terminal_31_length",
+      "width": "terminal_31_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 95,
+      "name": "terminal 32 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d283",
+        "d284",
+        "d285"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_32_x - terminal_32_length / 2",
+        "terminal_32_y - terminal_32_width / 2",
+        "terminal_32_lift"
+      ],
+      "length": "terminal_32_length",
+      "width": "terminal_32_width",
+      "height": "frame - terminal_32_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 96,
+      "name": "terminal 32",
+      "suppressed": false,
+      "body_names": [
+        "terminal 32"
+      ],
+      "param_names": [
+        "d286",
+        "d287",
+        "d288"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_32_x - terminal_32_length / 2",
+        "terminal_32_y - terminal_32_width / 2",
+        "terminal_32_lift + plating"
+      ],
+      "length": "terminal_32_length",
+      "width": "terminal_32_width",
+      "height": "frame - terminal_32_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 97,
+      "name": "terminal 32 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 32 plating"
+      ],
+      "param_names": [
+        "d289",
+        "d290",
+        "d291"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_32_x - terminal_32_length / 2",
+        "terminal_32_y - terminal_32_width / 2",
+        "terminal_32_lift"
+      ],
+      "length": "terminal_32_length",
+      "width": "terminal_32_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 98,
+      "name": "terminal 33 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d292",
+        "d293",
+        "d294"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_33_x - terminal_33_length / 2",
+        "terminal_33_y - terminal_33_width / 2",
+        "terminal_33_lift"
+      ],
+      "length": "terminal_33_length",
+      "width": "terminal_33_width",
+      "height": "frame - terminal_33_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 99,
+      "name": "terminal 33",
+      "suppressed": false,
+      "body_names": [
+        "terminal 33"
+      ],
+      "param_names": [
+        "d295",
+        "d296",
+        "d297"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_33_x - terminal_33_length / 2",
+        "terminal_33_y - terminal_33_width / 2",
+        "terminal_33_lift + plating"
+      ],
+      "length": "terminal_33_length",
+      "width": "terminal_33_width",
+      "height": "frame - terminal_33_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 100,
+      "name": "terminal 33 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 33 plating"
+      ],
+      "param_names": [
+        "d298",
+        "d299",
+        "d300"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_33_x - terminal_33_length / 2",
+        "terminal_33_y - terminal_33_width / 2",
+        "terminal_33_lift"
+      ],
+      "length": "terminal_33_length",
+      "width": "terminal_33_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 101,
+      "name": "terminal 34 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d301",
+        "d302",
+        "d303"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_34_x - terminal_34_length / 2",
+        "terminal_34_y - terminal_34_width / 2",
+        "terminal_34_lift"
+      ],
+      "length": "terminal_34_length",
+      "width": "terminal_34_width",
+      "height": "frame - terminal_34_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 102,
+      "name": "terminal 34",
+      "suppressed": false,
+      "body_names": [
+        "terminal 34"
+      ],
+      "param_names": [
+        "d304",
+        "d305",
+        "d306"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_34_x - terminal_34_length / 2",
+        "terminal_34_y - terminal_34_width / 2",
+        "terminal_34_lift + plating"
+      ],
+      "length": "terminal_34_length",
+      "width": "terminal_34_width",
+      "height": "frame - terminal_34_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 103,
+      "name": "terminal 34 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 34 plating"
+      ],
+      "param_names": [
+        "d307",
+        "d308",
+        "d309"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_34_x - terminal_34_length / 2",
+        "terminal_34_y - terminal_34_width / 2",
+        "terminal_34_lift"
+      ],
+      "length": "terminal_34_length",
+      "width": "terminal_34_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 104,
+      "name": "terminal 35 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d310",
+        "d311",
+        "d312"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_35_x - terminal_35_length / 2",
+        "terminal_35_y - terminal_35_width / 2",
+        "terminal_35_lift"
+      ],
+      "length": "terminal_35_length",
+      "width": "terminal_35_width",
+      "height": "frame - terminal_35_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 105,
+      "name": "terminal 35",
+      "suppressed": false,
+      "body_names": [
+        "terminal 35"
+      ],
+      "param_names": [
+        "d313",
+        "d314",
+        "d315"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_35_x - terminal_35_length / 2",
+        "terminal_35_y - terminal_35_width / 2",
+        "terminal_35_lift + plating"
+      ],
+      "length": "terminal_35_length",
+      "width": "terminal_35_width",
+      "height": "frame - terminal_35_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 106,
+      "name": "terminal 35 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 35 plating"
+      ],
+      "param_names": [
+        "d316",
+        "d317",
+        "d318"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_35_x - terminal_35_length / 2",
+        "terminal_35_y - terminal_35_width / 2",
+        "terminal_35_lift"
+      ],
+      "length": "terminal_35_length",
+      "width": "terminal_35_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 107,
+      "name": "terminal 36 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d319",
+        "d320",
+        "d321"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_36_x - terminal_36_length / 2",
+        "terminal_36_y - terminal_36_width / 2",
+        "terminal_36_lift"
+      ],
+      "length": "terminal_36_length",
+      "width": "terminal_36_width",
+      "height": "frame - terminal_36_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 108,
+      "name": "terminal 36",
+      "suppressed": false,
+      "body_names": [
+        "terminal 36"
+      ],
+      "param_names": [
+        "d322",
+        "d323",
+        "d324"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_36_x - terminal_36_length / 2",
+        "terminal_36_y - terminal_36_width / 2",
+        "terminal_36_lift + plating"
+      ],
+      "length": "terminal_36_length",
+      "width": "terminal_36_width",
+      "height": "frame - terminal_36_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 109,
+      "name": "terminal 36 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 36 plating"
+      ],
+      "param_names": [
+        "d325",
+        "d326",
+        "d327"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_36_x - terminal_36_length / 2",
+        "terminal_36_y - terminal_36_width / 2",
+        "terminal_36_lift"
+      ],
+      "length": "terminal_36_length",
+      "width": "terminal_36_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 110,
+      "name": "terminal 37 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d328",
+        "d329",
+        "d330"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_37_x - terminal_37_length / 2",
+        "terminal_37_y - terminal_37_width / 2",
+        "terminal_37_lift"
+      ],
+      "length": "terminal_37_length",
+      "width": "terminal_37_width",
+      "height": "frame - terminal_37_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 111,
+      "name": "terminal 37",
+      "suppressed": false,
+      "body_names": [
+        "terminal 37"
+      ],
+      "param_names": [
+        "d331",
+        "d332",
+        "d333"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_37_x - terminal_37_length / 2",
+        "terminal_37_y - terminal_37_width / 2",
+        "terminal_37_lift + plating"
+      ],
+      "length": "terminal_37_length",
+      "width": "terminal_37_width",
+      "height": "frame - terminal_37_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 112,
+      "name": "terminal 37 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 37 plating"
+      ],
+      "param_names": [
+        "d334",
+        "d335",
+        "d336"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_37_x - terminal_37_length / 2",
+        "terminal_37_y - terminal_37_width / 2",
+        "terminal_37_lift"
+      ],
+      "length": "terminal_37_length",
+      "width": "terminal_37_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 113,
+      "name": "terminal 38 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d337",
+        "d338",
+        "d339"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_38_x - terminal_38_length / 2",
+        "terminal_38_y - terminal_38_width / 2",
+        "terminal_38_lift"
+      ],
+      "length": "terminal_38_length",
+      "width": "terminal_38_width",
+      "height": "frame - terminal_38_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 114,
+      "name": "terminal 38",
+      "suppressed": false,
+      "body_names": [
+        "terminal 38"
+      ],
+      "param_names": [
+        "d340",
+        "d341",
+        "d342"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_38_x - terminal_38_length / 2",
+        "terminal_38_y - terminal_38_width / 2",
+        "terminal_38_lift + plating"
+      ],
+      "length": "terminal_38_length",
+      "width": "terminal_38_width",
+      "height": "frame - terminal_38_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 115,
+      "name": "terminal 38 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 38 plating"
+      ],
+      "param_names": [
+        "d343",
+        "d344",
+        "d345"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_38_x - terminal_38_length / 2",
+        "terminal_38_y - terminal_38_width / 2",
+        "terminal_38_lift"
+      ],
+      "length": "terminal_38_length",
+      "width": "terminal_38_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 116,
+      "name": "terminal 39 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d346",
+        "d347",
+        "d348"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_39_x - terminal_39_length / 2",
+        "terminal_39_y - terminal_39_width / 2",
+        "terminal_39_lift"
+      ],
+      "length": "terminal_39_length",
+      "width": "terminal_39_width",
+      "height": "frame - terminal_39_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 117,
+      "name": "terminal 39",
+      "suppressed": false,
+      "body_names": [
+        "terminal 39"
+      ],
+      "param_names": [
+        "d349",
+        "d350",
+        "d351"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_39_x - terminal_39_length / 2",
+        "terminal_39_y - terminal_39_width / 2",
+        "terminal_39_lift + plating"
+      ],
+      "length": "terminal_39_length",
+      "width": "terminal_39_width",
+      "height": "frame - terminal_39_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 118,
+      "name": "terminal 39 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 39 plating"
+      ],
+      "param_names": [
+        "d352",
+        "d353",
+        "d354"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_39_x - terminal_39_length / 2",
+        "terminal_39_y - terminal_39_width / 2",
+        "terminal_39_lift"
+      ],
+      "length": "terminal_39_length",
+      "width": "terminal_39_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 119,
+      "name": "terminal 40 pocket",
+      "suppressed": false,
+      "param_names": [
+        "d355",
+        "d356",
+        "d357"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_40_x - terminal_40_length / 2",
+        "terminal_40_y - terminal_40_width / 2",
+        "terminal_40_lift"
+      ],
+      "length": "terminal_40_length",
+      "width": "terminal_40_width",
+      "height": "frame - terminal_40_lift",
+      "operation": "cut"
+    },
+    {
+      "id": 120,
+      "name": "terminal 40",
+      "suppressed": false,
+      "body_names": [
+        "terminal 40"
+      ],
+      "param_names": [
+        "d358",
+        "d359",
+        "d360"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_40_x - terminal_40_length / 2",
+        "terminal_40_y - terminal_40_width / 2",
+        "terminal_40_lift + plating"
+      ],
+      "length": "terminal_40_length",
+      "width": "terminal_40_width",
+      "height": "frame - terminal_40_lift - plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 121,
+      "name": "terminal 40 plating",
+      "suppressed": false,
+      "body_names": [
+        "terminal 40 plating"
+      ],
+      "param_names": [
+        "d361",
+        "d362",
+        "d363"
+      ],
+      "type": "box",
+      "corner": [
+        "terminal_40_x - terminal_40_length / 2",
+        "terminal_40_y - terminal_40_width / 2",
+        "terminal_40_lift"
+      ],
+      "length": "terminal_40_length",
+      "width": "terminal_40_width",
+      "height": "plating",
+      "operation": "new_body"
+    },
+    {
+      "id": 122,
+      "name": "parked",
+      "suppressed": false,
+      "param_names": [
+        "d364",
+        "d365",
+        "d366"
+      ],
+      "type": "box",
+      "corner": [
+        "park_x - 20 mm",
+        "-20 mm",
+        "-1 mm"
+      ],
+      "length": "40 mm",
+      "width": "40 mm",
+      "height": "body_height + 2 mm",
+      "operation": "cut"
+    },
+    {
+      "id": 123,
+      "name": "edge round",
+      "suppressed": false,
+      "param_names": [
+        "d367"
+      ],
+      "edge_refs": [
+        {
+          "dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -1.0,
+            -1.0,
+            0.0
+          ],
+          "max": [
+            1.0,
+            1.0,
+            0.75
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "min": [
+            -1.0,
+            -1.0,
+            0.0
+          ],
+          "max": [
+            1.0,
+            1.0,
+            0.75
+          ]
+        },
+        {
+          "dir": [
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "min": [
+            -1.0,
+            -1.0,
+            0.0
+          ],
+          "max": [
+            1.0,
+            1.0,
+            0.75
+          ]
+        },
+        {
+          "dir": [
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "min": [
+            -1.0,
+            -1.0,
+            0.0
+          ],
+          "max": [
+            1.0,
+            1.0,
+            0.75
+          ]
+        }
+      ],
+      "edge_names": [
+        "F1:+z|F1:-y",
+        "F1:+x|F1:+z",
+        "F1:+y|F1:+z",
+        "F1:+z|F1:-x"
+      ],
+      "type": "fillet",
+      "edges": [
+        [
+          0.0,
+          -1.0,
+          0.75
+        ],
+        [
+          1.0,
+          0.0,
+          0.75
+        ],
+        [
+          0.0,
+          1.0,
+          0.75
+        ],
+        [
+          -1.0,
+          0.0,
+          0.75
+        ]
+      ],
+      "radius": "edge_round",
+      "body": "body"
+    },
+    {
+      "id": 124,
+      "name": "pin 1 mark",
+      "suppressed": false,
+      "param_names": [
+        "d368",
+        "d369"
+      ],
+      "participants": [
+        "body"
+      ],
+      "type": "cylinder",
+      "base": [
+        "mark_x",
+        "mark_y",
+        "body_height - mark_depth"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "mark_radius",
+      "height": "2 * mark_depth",
+      "operation": "cut"
+    },
+    {
+      "id": 125,
+      "name": "pin 1 dot",
+      "suppressed": false,
+      "body_names": [
+        "pin 1 dot"
+      ],
+      "param_names": [
+        "d370",
+        "d371"
+      ],
+      "type": "cylinder",
+      "base": [
+        "mark_x",
+        "mark_y",
+        "body_height - mark_depth"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "mark_radius",
+      "height": "mark_depth / 2",
+      "operation": "new_body"
+    },
+    {
+      "id": 126,
+      "name": "marking-top",
+      "suppressed": false,
+      "param_names": [
+        "d372"
+      ],
+      "type": "construction_plane",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "placed",
+          "origin": [
+            "0 mm",
+            "0 mm",
+            "body_height"
+          ],
+          "x_dir": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "y_dir": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        "distance": "0 mm"
+      }
+    }
+  ],
+  "next_id": 127,
+  "next_component_color_index": 0,
+  "appearances": {
+    "bodies": {
+      "body": {
+        "name": "epoxy-mould",
+        "color": [
+          41,
+          41,
+          43
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.45,
+          "dielectric_ior": 1.55
+        }
+      },
+      "pin 1 dot": {
+        "name": "epoxy-laser-marked",
+        "color": [
+          134,
+          134,
+          137
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.75,
+          "dielectric_ior": 1.55
+        }
+      },
+      "terminal 1": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 1 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 10": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 10 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 11": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 11 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 12": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 12 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 13": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 13 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 14": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 14 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 15": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 15 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 16": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 16 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 17": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 17 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 18": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 18 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 19": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 19 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 2 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 20": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 20 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 21": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 21 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 22": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 22 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 23": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 23 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 24": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 24 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 25": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 25 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 26": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 26 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 27": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 27 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 28": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 28 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 29": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 29 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 3": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 3 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 30": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 30 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 31": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 31 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 32": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 32 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 33": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 33 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 34": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 34 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 35": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 35 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 36": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 36 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 37": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 37 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 38": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 38 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 39": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 39 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 4": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 4 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 40": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 40 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 5": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 5 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 6": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 6 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 7": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 7 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 8": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 8 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 9": {
+        "name": "copper-alloy",
+        "color": [
+          250,
+          209,
+          194
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.32,
+          "dielectric_ior": 1.5
+        }
+      },
+      "terminal 9 plating": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      }
+    }
+  }
+}

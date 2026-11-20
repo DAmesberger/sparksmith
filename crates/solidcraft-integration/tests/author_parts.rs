@@ -1786,6 +1786,266 @@ fn author_lga() -> Vec<u8> {
     author_no_lead(true, false, NoLead::Lga)
 }
 
+/// Terminal slots of the `sawn-terminals` part file (the no-lead
+/// generator's `TERMINAL_SLOTS`).
+const NO_LEAD_SLOTS: usize = 40;
+
+/// The `no-lead` generator's part file for packages whose terminals no
+/// row pattern lands: each of `NO_LEAD_SLOTS` slots is one rectangle of
+/// leadframe placed on its own (`terminal_k_x`, `_y` its centre,
+/// `_length` along x, `_width` along y), so L-shaped corner terminals,
+/// pins joined by lugs, pins at their own pitch and the exposed pad are
+/// each a few slots. A slot's copper stands on `plating` of finish from
+/// `terminal_k_lift` up to `frame`: a lift of 0 is a terminal bared on the
+/// underside; a lift above 0 is a half-etched neck whose underside the
+/// moulding covers, bared only where the saw cut it (TI's FCRLF section
+/// A-A). The moulding (`body_length` × `body_width` × `body_height`) is
+/// cut round each slot's box, so terminals and moulding stay disjoint.
+/// Slots a package does not use sit at `park_x`, beyond the −x edge, and
+/// one cut removes everything there (as the module part file parks its
+/// single pads). Sawn sides stay square; the top edges are rounded by
+/// `edge_round`; pin 1 is a laser-marked dot of `mark_radius` at
+/// (`mark_x`, `mark_y`), as the other no-lead files make it. The finish is
+/// NiPdAu (pre-plated leadframe: the sawn flanks bare copper). Saved at an
+/// original 2 × 2 × 0.75 mm DFN-6 at 0.65 mm with a 1.2 × 0.9 mm pad; the
+/// generator gives every value.
+fn author_no_lead_terminals() -> Vec<u8> {
+    let mut s = Session::default();
+    run(
+        &mut s,
+        "file.new",
+        json!({"name": "No-lead package, individually placed terminals"}),
+    );
+    let mm = |v: f64| format!("{v} mm");
+    let park = -100.0;
+    // The saved package: six terminals 0.3 × 0.3 mm at 0.65 mm, and the pad.
+    let saved: Vec<([f64; 2], [f64; 2])> = vec![
+        ([-0.65, -0.85], [0.3, 0.3]),
+        ([0.0, -0.85], [0.3, 0.3]),
+        ([0.65, -0.85], [0.3, 0.3]),
+        ([0.65, 0.85], [0.3, 0.3]),
+        ([0.0, 0.85], [0.3, 0.3]),
+        ([-0.65, 0.85], [0.3, 0.3]),
+        ([0.0, 0.0], [1.2, 0.9]),
+    ];
+    let slot = |k: usize| -> ([f64; 2], [f64; 2]) {
+        saved
+            .get(k - 1)
+            .copied()
+            .unwrap_or(([park, 0.0], [0.2, 0.2]))
+    };
+    let mut rows = vec![
+        param("body_length", "2 mm", "mm", "body length (x)"),
+        param("body_width", "2 mm", "mm", "body width (y)"),
+        param(
+            "body_height",
+            "0.75 mm",
+            "mm",
+            "body height above the seating plane",
+        ),
+        param("frame", "0.2 mm", "mm", "leadframe (terminal) thickness"),
+        param(
+            "plating",
+            "0.01 mm",
+            "mm",
+            "finish under the terminals (NiPdAu, est.)",
+        ),
+        param(
+            "edge_round",
+            "0.03 mm",
+            "mm",
+            "round of the body's top edges",
+        ),
+        param("mark_radius", "0.12 mm", "mm", "pin-1 laser dot radius"),
+        param("mark_depth", "0.005 mm", "mm", "pin-1 laser dot depth"),
+        param("mark_x", "-0.76 mm", "mm", "pin-1 dot centre x"),
+        param("mark_y", "-0.76 mm", "mm", "pin-1 dot centre y"),
+        param(
+            "park_x",
+            &mm(park),
+            "mm",
+            "where unused terminal slots wait, beyond the −x edge, to be cut away",
+        ),
+        param(
+            "marking_top_u",
+            "0.7 * body_length",
+            "mm",
+            "marking-top size along its u axis",
+        ),
+        param(
+            "marking_top_v",
+            "0.2 * body_width",
+            "mm",
+            "marking-top size across it",
+        ),
+    ];
+    for k in 1..=NO_LEAD_SLOTS {
+        let (at, size) = slot(k);
+        rows.push(param(
+            &format!("terminal_{k}_x"),
+            &mm(at[0]),
+            "mm",
+            &format!("terminal slot {k} centre x"),
+        ));
+        rows.push(param(
+            &format!("terminal_{k}_y"),
+            &mm(at[1]),
+            "mm",
+            &format!("terminal slot {k} centre y"),
+        ));
+        rows.push(param(
+            &format!("terminal_{k}_length"),
+            &mm(size[0]),
+            "mm",
+            &format!("terminal slot {k} size x"),
+        ));
+        rows.push(param(
+            &format!("terminal_{k}_width"),
+            &mm(size[1]),
+            "mm",
+            &format!("terminal slot {k} size y"),
+        ));
+        rows.push(param(
+            &format!("terminal_{k}_lift"),
+            "0 mm",
+            "mm",
+            &format!("terminal slot {k} underside above the seating plane (a half-etched neck)"),
+        ));
+    }
+    import(&mut s, &rows);
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["- body_length / 2", "- body_width / 2", "0 mm"],
+            "length": "body_length", "width": "body_width", "height": "body_height",
+            "name": "body", "body_name": "body"}),
+    );
+    for k in 1..=NO_LEAD_SLOTS {
+        let corner = |z: &str| {
+            json!([
+                format!("terminal_{k}_x - terminal_{k}_length / 2"),
+                format!("terminal_{k}_y - terminal_{k}_width / 2"),
+                z
+            ])
+        };
+        let (l, w) = (
+            format!("terminal_{k}_length"),
+            format!("terminal_{k}_width"),
+        );
+        let lift = format!("terminal_{k}_lift");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner(&lift), "length": l, "width": w,
+                "height": format!("frame - {lift}"), "operation": "cut", "targets": ["body"],
+                "name": format!("terminal {k} pocket")}),
+        );
+        let copper = format!("terminal {k}");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner(&format!("{lift} + plating")), "length": l, "width": w,
+                "height": format!("frame - {lift} - plating"), "name": copper, "body_name": copper}),
+        );
+        let plating = format!("terminal {k} plating");
+        run(
+            &mut s,
+            "solid.box",
+            json!({"corner": corner(&lift), "length": l, "width": w, "height": "plating",
+                "name": plating, "body_name": plating}),
+        );
+    }
+    // Everything parked beyond the −x edge goes.
+    run(
+        &mut s,
+        "solid.box",
+        json!({"corner": ["park_x - 20 mm", "-20 mm", "-1 mm"],
+            "length": "40 mm", "width": "40 mm", "height": "body_height + 2 mm",
+            "operation": "cut", "name": "parked"}),
+    );
+    // The top edges, picked at the saved size: 2 × 2 × 0.75 mm.
+    let (x, y, z) = (1.0, 1.0, 0.75);
+    run(
+        &mut s,
+        "solid.fillet",
+        json!({"name": "edge round", "body": "body", "radius": "edge_round",
+            "edges": [[0.0, -y, z], [x, 0.0, z], [0.0, y, z], [-x, 0.0, z]]}),
+    );
+    // The pin-1 laser dot, as `author_no_lead` makes it.
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 mark", "base": ["mark_x", "mark_y", "body_height - mark_depth"],
+            "radius": "mark_radius", "height": "2 * mark_depth", "axis": "Z",
+            "operation": "cut", "targets": ["body"]}),
+    );
+    run(
+        &mut s,
+        "solid.cylinder",
+        json!({"name": "pin 1 dot", "base": ["mark_x", "mark_y", "body_height - mark_depth"],
+            "radius": "mark_radius", "height": "mark_depth / 2", "axis": "Z",
+            "body_name": "pin 1 dot"}),
+    );
+    marking_plane(&mut s, "body_height");
+    // Looks are kept by body name: every slot gets its look placed on a
+    // body large enough to hold them all, then the saved values return.
+    let mut spread = serde_json::Map::new();
+    spread.insert("body_length".into(), json!("30 mm"));
+    spread.insert("body_width".into(), json!("30 mm"));
+    for k in 1..=NO_LEAD_SLOTS {
+        let i = (k - 1) as f64;
+        spread.insert(
+            format!("terminal_{k}_x"),
+            json!(mm(-10.0 + 0.5 * (i % 40.0))),
+        );
+        spread.insert(format!("terminal_{k}_y"), json!(mm(-10.0)));
+    }
+    run(&mut s, "parameters.change", json!({ "changes": spread }));
+    s.refresh();
+    let names: Vec<String> = s
+        .model
+        .state()
+        .bodies
+        .iter()
+        .map(|b| b.name.clone())
+        .collect();
+    let of = |plated: bool| -> Vec<&str> {
+        names
+            .iter()
+            .map(String::as_str)
+            .filter(|n| n.starts_with("terminal ") && n.ends_with(" plating") == plated)
+            .collect()
+    };
+    let (copper, plating) = (of(false), of(true));
+    assert_eq!(copper.len(), NO_LEAD_SLOTS, "{names:?}");
+    assert_eq!(plating.len(), NO_LEAD_SLOTS, "{names:?}");
+    assign_look(&mut s, &["body"], MaterialId::EpoxyMould);
+    assign_look(&mut s, &copper, MaterialId::CopperAlloy);
+    assign_look(&mut s, &plating, MaterialId::Gold);
+    assign_look(&mut s, &["pin 1 dot"], MaterialId::EpoxyLaserMarked);
+    let mut back = serde_json::Map::new();
+    back.insert("body_length".into(), json!("2 mm"));
+    back.insert("body_width".into(), json!("2 mm"));
+    for k in 1..=NO_LEAD_SLOTS {
+        let (at, _) = slot(k);
+        back.insert(format!("terminal_{k}_x"), json!(mm(at[0])));
+        back.insert(format!("terminal_{k}_y"), json!(mm(at[1])));
+    }
+    run(&mut s, "parameters.change", json!({ "changes": back }));
+    s.refresh();
+    let errors: Vec<String> = s
+        .model
+        .results
+        .iter()
+        .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
+        .collect();
+    assert!(errors.is_empty(), "{errors:?}");
+    let left = s.model.state().bodies.len();
+    // Body, dot, and copper and plating of the seven terminals used.
+    assert_eq!(left, 2 + 2 * saved.len(), "bodies saved");
+    solidcraft_engine::io::write_design(&s.doc)
+}
+
 /// Rectangular cut-outs of a depopulated grid's part file (the grid
 /// generator's `MAX_VOIDS`).
 const GRID_VOIDS: usize = 16;
@@ -5437,7 +5697,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 70] = [
+    let parts: [(&str, &str, Author); 71] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -5486,6 +5746,11 @@ fn author_parts() {
         ),
         ("generators/no-lead/parts", "lga", author_lga),
         ("generators/no-lead/parts", "dfn-window", author_dfn_window),
+        (
+            "generators/no-lead/parts",
+            "sawn-terminals",
+            author_no_lead_terminals,
+        ),
         // The molded generator's bundle (`generators/molded/parts/`): one
         // file per terminal form, each with and without the band.
         ("generators/molded/parts", "molded-flat", author_molded_flat),
