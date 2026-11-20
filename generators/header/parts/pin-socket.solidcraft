@@ -144,147 +144,5964 @@
       "unit": "mm",
       "comment": "cavity's roof under the entry",
       "model": false
+    },
+    {
+      "name": "d2",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d3",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d4",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d5",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d8",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d9",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d10",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d11",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d14",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d15",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d16",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
+    },
+    {
+      "name": "d17",
+      "expr": "corner_round",
+      "unit": "mm",
+      "model": true
     }
   ],
   "features": [
     {
       "id": 1,
-      "name": "insulator",
+      "name": "floor sketch",
+      "suppressed": false,
+      "param_names": [
+        "d1"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "0 mm"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "corner4",
+            "pos": [
+              -12.7,
+              -1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- pins * pitch / 2",
+              "y": "- rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              12.7,
+              -1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "pins * pitch / 2",
+              "y": "- rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              12.7,
+              1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "pins * pitch / 2",
+              "y": "rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner3",
+            "pos": [
+              -12.7,
+              1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- pins * pitch / 2",
+              "y": "rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              12.549999999999999,
+              -1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p6",
+            "pos": [
+              12.7,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              12.549999999999999,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p7",
+            "pos": [
+              12.7,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p8",
+            "pos": [
+              12.549999999999999,
+              1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              12.549999999999999,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -12.549999999999999,
+              1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -12.7,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              -12.549999999999999,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -12.7,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              -12.549999999999999,
+              -1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              -12.549999999999999,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              -11.75,
+              -0.32
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 - (pin_side) / 2",
+              "y": "y0 - (pin_side) / 2"
+            }
+          },
+          {
+            "id": "p14",
+            "pos": [
+              -11.11,
+              -0.32
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 + (pin_side) / 2",
+              "y": "y0 - (pin_side) / 2"
+            }
+          },
+          {
+            "id": "p15",
+            "pos": [
+              -11.11,
+              0.32
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 + (pin_side) / 2",
+              "y": "y0 + (pin_side) / 2"
+            }
+          },
+          {
+            "id": "p16",
+            "pos": [
+              -11.75,
+              0.32
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 - (pin_side) / 2",
+              "y": "y0 + (pin_side) / 2"
+            }
+          },
+          {
+            "id": "p17",
+            "pos": [
+              -9.21,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p18",
+            "pos": [
+              -8.57,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p19",
+            "pos": [
+              -8.57,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p20",
+            "pos": [
+              -9.21,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p21",
+            "pos": [
+              -6.67,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p22",
+            "pos": [
+              -6.029999999999999,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p23",
+            "pos": [
+              -6.029999999999999,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p24",
+            "pos": [
+              -6.67,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p25",
+            "pos": [
+              -4.13,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p26",
+            "pos": [
+              -3.4899999999999993,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p27",
+            "pos": [
+              -3.4899999999999993,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p28",
+            "pos": [
+              -4.13,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p29",
+            "pos": [
+              -1.5899999999999999,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p30",
+            "pos": [
+              -0.9499999999999993,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p31",
+            "pos": [
+              -0.9499999999999993,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p32",
+            "pos": [
+              -1.5899999999999999,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p33",
+            "pos": [
+              0.9499999999999993,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p34",
+            "pos": [
+              1.5899999999999999,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p35",
+            "pos": [
+              1.5899999999999999,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p36",
+            "pos": [
+              0.9499999999999993,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p37",
+            "pos": [
+              3.49,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p38",
+            "pos": [
+              4.130000000000001,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p39",
+            "pos": [
+              4.130000000000001,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p40",
+            "pos": [
+              3.49,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p41",
+            "pos": [
+              6.030000000000001,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p42",
+            "pos": [
+              6.670000000000002,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p43",
+            "pos": [
+              6.670000000000002,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p44",
+            "pos": [
+              6.030000000000001,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p45",
+            "pos": [
+              8.57,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p46",
+            "pos": [
+              9.21,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p47",
+            "pos": [
+              9.21,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p48",
+            "pos": [
+              8.57,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p49",
+            "pos": [
+              11.11,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p50",
+            "pos": [
+              11.75,
+              -0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p51",
+            "pos": [
+              11.75,
+              0.32
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p52",
+            "pos": [
+              11.11,
+              0.32
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "floor edge 1",
+            "type": "line",
+            "a": 15,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "floor edge 2",
+            "type": "line",
+            "a": 6,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "floor edge 3",
+            "type": "line",
+            "a": 9,
+            "b": 11,
+            "construction": false
+          },
+          {
+            "id": "floor edge 4",
+            "type": "line",
+            "a": 12,
+            "b": 14,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 7,
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 10,
+            "a": 8,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 13,
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 16,
+            "a": 14,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "floor hole 0 1",
+            "type": "line",
+            "a": 17,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "floor hole 0 2",
+            "type": "line",
+            "a": 18,
+            "b": 19,
+            "construction": false
+          },
+          {
+            "id": "floor hole 0 3",
+            "type": "line",
+            "a": 19,
+            "b": 20,
+            "construction": false
+          },
+          {
+            "id": "floor hole 0 4",
+            "type": "line",
+            "a": 20,
+            "b": 17,
+            "construction": false
+          },
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 21,
+            "b": 22,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 22,
+            "b": 23,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 23,
+            "b": 24,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 24,
+            "b": 21,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 25,
+            "b": 26,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 26,
+            "b": 27,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 27,
+            "b": 28,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 28,
+            "b": 25,
+            "construction": false
+          },
+          {
+            "id": "l9",
+            "type": "line",
+            "a": 29,
+            "b": 30,
+            "construction": false
+          },
+          {
+            "id": "l10",
+            "type": "line",
+            "a": 30,
+            "b": 31,
+            "construction": false
+          },
+          {
+            "id": "l11",
+            "type": "line",
+            "a": 31,
+            "b": 32,
+            "construction": false
+          },
+          {
+            "id": "l12",
+            "type": "line",
+            "a": 32,
+            "b": 29,
+            "construction": false
+          },
+          {
+            "id": "l13",
+            "type": "line",
+            "a": 33,
+            "b": 34,
+            "construction": false
+          },
+          {
+            "id": "l14",
+            "type": "line",
+            "a": 34,
+            "b": 35,
+            "construction": false
+          },
+          {
+            "id": "l15",
+            "type": "line",
+            "a": 35,
+            "b": 36,
+            "construction": false
+          },
+          {
+            "id": "l16",
+            "type": "line",
+            "a": 36,
+            "b": 33,
+            "construction": false
+          },
+          {
+            "id": "l17",
+            "type": "line",
+            "a": 37,
+            "b": 38,
+            "construction": false
+          },
+          {
+            "id": "l18",
+            "type": "line",
+            "a": 38,
+            "b": 39,
+            "construction": false
+          },
+          {
+            "id": "l19",
+            "type": "line",
+            "a": 39,
+            "b": 40,
+            "construction": false
+          },
+          {
+            "id": "l20",
+            "type": "line",
+            "a": 40,
+            "b": 37,
+            "construction": false
+          },
+          {
+            "id": "l21",
+            "type": "line",
+            "a": 41,
+            "b": 42,
+            "construction": false
+          },
+          {
+            "id": "l22",
+            "type": "line",
+            "a": 42,
+            "b": 43,
+            "construction": false
+          },
+          {
+            "id": "l23",
+            "type": "line",
+            "a": 43,
+            "b": 44,
+            "construction": false
+          },
+          {
+            "id": "l24",
+            "type": "line",
+            "a": 44,
+            "b": 41,
+            "construction": false
+          },
+          {
+            "id": "l25",
+            "type": "line",
+            "a": 45,
+            "b": 46,
+            "construction": false
+          },
+          {
+            "id": "l26",
+            "type": "line",
+            "a": 46,
+            "b": 47,
+            "construction": false
+          },
+          {
+            "id": "l27",
+            "type": "line",
+            "a": 47,
+            "b": 48,
+            "construction": false
+          },
+          {
+            "id": "l28",
+            "type": "line",
+            "a": 48,
+            "b": 45,
+            "construction": false
+          },
+          {
+            "id": "l29",
+            "type": "line",
+            "a": 49,
+            "b": 50,
+            "construction": false
+          },
+          {
+            "id": "l30",
+            "type": "line",
+            "a": 50,
+            "b": 51,
+            "construction": false
+          },
+          {
+            "id": "l31",
+            "type": "line",
+            "a": 51,
+            "b": 52,
+            "construction": false
+          },
+          {
+            "id": "l32",
+            "type": "line",
+            "a": 52,
+            "b": 49,
+            "construction": false
+          },
+          {
+            "id": "l33",
+            "type": "line",
+            "a": 53,
+            "b": 54,
+            "construction": false
+          },
+          {
+            "id": "l34",
+            "type": "line",
+            "a": 54,
+            "b": 55,
+            "construction": false
+          },
+          {
+            "id": "l35",
+            "type": "line",
+            "a": 55,
+            "b": 56,
+            "construction": false
+          },
+          {
+            "id": "l36",
+            "type": "line",
+            "a": 56,
+            "b": 53,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 4
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 4
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 4,
+            "value": 0.15,
+            "param": "d2"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 1
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 2
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 1,
+            "b": 5
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 2,
+            "b": 5
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 5,
+            "value": 0.15,
+            "param": "d3"
+          },
+          {
+            "id": "k11",
+            "type": "point_on_curve",
+            "p": 4,
+            "c": 2
+          },
+          {
+            "id": "k12",
+            "type": "point_on_curve",
+            "p": 4,
+            "c": 3
+          },
+          {
+            "id": "k13",
+            "type": "tangent",
+            "a": 2,
+            "b": 6
+          },
+          {
+            "id": "k14",
+            "type": "tangent",
+            "a": 3,
+            "b": 6
+          },
+          {
+            "id": "k15",
+            "type": "radius",
+            "c": 6,
+            "value": 0.15,
+            "param": "d4"
+          },
+          {
+            "id": "k16",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 3
+          },
+          {
+            "id": "k17",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 0
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 3,
+            "b": 7
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 0,
+            "b": 7
+          },
+          {
+            "id": "k20",
+            "type": "radius",
+            "c": 7,
+            "value": 0.15,
+            "param": "d5"
+          },
+          {
+            "id": "k21",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 21,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k22",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 22,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k23",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 23,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k24",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 24,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k25",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 25,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k26",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 26,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k27",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 27,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k28",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 28,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k29",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 29,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k30",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 30,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k31",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 31,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k32",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 32,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k33",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 33,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k34",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 34,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k35",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 35,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k36",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 36,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k37",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 37,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k38",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 38,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k39",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 39,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k40",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 40,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k41",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 41,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k42",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 42,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k43",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 43,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k44",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 44,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k45",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 45,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k46",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 46,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k47",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 47,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k48",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 48,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k49",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 49,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k50",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 50,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k51",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 51,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k52",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 52,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k53",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 53,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k54",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 54,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k55",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 55,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k56",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 56,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          }
+        ],
+        "patterns": [
+          {
+            "id": "pat1",
+            "entities": [
+              "floor hole 0 1",
+              "floor hole 0 2",
+              "floor hole 0 3",
+              "floor hole 0 4"
+            ],
+            "kind": {
+              "type": "rectangular",
+              "dir": [
+                1.0,
+                0.0
+              ],
+              "dir2": [
+                0.0,
+                1.0
+              ],
+              "direction": null,
+              "direction2": null,
+              "count": 10,
+              "spacing": 2.54,
+              "count2": 1,
+              "spacing2": 2.54,
+              "alignment": "right",
+              "alignment2": "right",
+              "reversed": false,
+              "reversed2": false
+            },
+            "instances": [
+              {
+                "index": [
+                  1,
+                  0
+                ],
+                "curves": [
+                  "l1",
+                  "l2",
+                  "l3",
+                  "l4"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p17"
+                  ],
+                  [
+                    "p14",
+                    "p18"
+                  ],
+                  [
+                    "p15",
+                    "p19"
+                  ],
+                  [
+                    "p16",
+                    "p20"
+                  ]
+                ],
+                "constraints": [
+                  "k21",
+                  "k22",
+                  "k23",
+                  "k24"
+                ]
+              },
+              {
+                "index": [
+                  2,
+                  0
+                ],
+                "curves": [
+                  "l5",
+                  "l6",
+                  "l7",
+                  "l8"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p21"
+                  ],
+                  [
+                    "p14",
+                    "p22"
+                  ],
+                  [
+                    "p15",
+                    "p23"
+                  ],
+                  [
+                    "p16",
+                    "p24"
+                  ]
+                ],
+                "constraints": [
+                  "k25",
+                  "k26",
+                  "k27",
+                  "k28"
+                ]
+              },
+              {
+                "index": [
+                  3,
+                  0
+                ],
+                "curves": [
+                  "l9",
+                  "l10",
+                  "l11",
+                  "l12"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p25"
+                  ],
+                  [
+                    "p14",
+                    "p26"
+                  ],
+                  [
+                    "p15",
+                    "p27"
+                  ],
+                  [
+                    "p16",
+                    "p28"
+                  ]
+                ],
+                "constraints": [
+                  "k29",
+                  "k30",
+                  "k31",
+                  "k32"
+                ]
+              },
+              {
+                "index": [
+                  4,
+                  0
+                ],
+                "curves": [
+                  "l13",
+                  "l14",
+                  "l15",
+                  "l16"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p29"
+                  ],
+                  [
+                    "p14",
+                    "p30"
+                  ],
+                  [
+                    "p15",
+                    "p31"
+                  ],
+                  [
+                    "p16",
+                    "p32"
+                  ]
+                ],
+                "constraints": [
+                  "k33",
+                  "k34",
+                  "k35",
+                  "k36"
+                ]
+              },
+              {
+                "index": [
+                  5,
+                  0
+                ],
+                "curves": [
+                  "l17",
+                  "l18",
+                  "l19",
+                  "l20"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p33"
+                  ],
+                  [
+                    "p14",
+                    "p34"
+                  ],
+                  [
+                    "p15",
+                    "p35"
+                  ],
+                  [
+                    "p16",
+                    "p36"
+                  ]
+                ],
+                "constraints": [
+                  "k37",
+                  "k38",
+                  "k39",
+                  "k40"
+                ]
+              },
+              {
+                "index": [
+                  6,
+                  0
+                ],
+                "curves": [
+                  "l21",
+                  "l22",
+                  "l23",
+                  "l24"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p37"
+                  ],
+                  [
+                    "p14",
+                    "p38"
+                  ],
+                  [
+                    "p15",
+                    "p39"
+                  ],
+                  [
+                    "p16",
+                    "p40"
+                  ]
+                ],
+                "constraints": [
+                  "k41",
+                  "k42",
+                  "k43",
+                  "k44"
+                ]
+              },
+              {
+                "index": [
+                  7,
+                  0
+                ],
+                "curves": [
+                  "l25",
+                  "l26",
+                  "l27",
+                  "l28"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p41"
+                  ],
+                  [
+                    "p14",
+                    "p42"
+                  ],
+                  [
+                    "p15",
+                    "p43"
+                  ],
+                  [
+                    "p16",
+                    "p44"
+                  ]
+                ],
+                "constraints": [
+                  "k45",
+                  "k46",
+                  "k47",
+                  "k48"
+                ]
+              },
+              {
+                "index": [
+                  8,
+                  0
+                ],
+                "curves": [
+                  "l29",
+                  "l30",
+                  "l31",
+                  "l32"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p45"
+                  ],
+                  [
+                    "p14",
+                    "p46"
+                  ],
+                  [
+                    "p15",
+                    "p47"
+                  ],
+                  [
+                    "p16",
+                    "p48"
+                  ]
+                ],
+                "constraints": [
+                  "k49",
+                  "k50",
+                  "k51",
+                  "k52"
+                ]
+              },
+              {
+                "index": [
+                  9,
+                  0
+                ],
+                "curves": [
+                  "l33",
+                  "l34",
+                  "l35",
+                  "l36"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p49"
+                  ],
+                  [
+                    "p14",
+                    "p50"
+                  ],
+                  [
+                    "p15",
+                    "p51"
+                  ],
+                  [
+                    "p16",
+                    "p52"
+                  ]
+                ],
+                "constraints": [
+                  "k53",
+                  "k54",
+                  "k55",
+                  "k56"
+                ]
+              }
+            ],
+            "expressions": {
+              "count": "pins",
+              "count2": "rows",
+              "spacing": "pitch",
+              "spacing2": "row_pitch"
+            }
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 4,
+          "k": 1040,
+          "l": 1020,
+          "p": 1036,
+          "pat": 1
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "floor",
       "suppressed": false,
       "body_names": [
         "insulator"
       ],
       "param_names": [
-        "d1",
-        "d2",
-        "d3"
+        "d6"
       ],
-      "type": "box",
-      "corner": [
-        "- pins * pitch / 2",
-        "- rows * row_pitch / 2",
-        "0 mm"
-      ],
-      "length": "(pins * pitch / 2) - (- pins * pitch / 2)",
-      "width": "(rows * row_pitch / 2) - (- rows * row_pitch / 2)",
-      "height": "(body_height) - (0 mm)",
+      "type": "extrude",
+      "sketch": 1,
+      "profiles": {
+        "type": "curves",
+        "loops": [
+          [
+            "floor edge 1",
+            "floor edge 2",
+            "floor edge 3",
+            "floor edge 4",
+            "a1",
+            "a2",
+            "a3",
+            "a4"
+          ]
+        ]
+      },
+      "extent": {
+        "distance": "(floor_z) - (0 mm)",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
       "operation": "new_body"
     },
     {
-      "id": 2,
-      "name": "corner round",
+      "id": 3,
+      "name": "cavity walls sketch",
       "suppressed": false,
       "param_names": [
-        "d4"
+        "d7"
       ],
-      "edge_refs": [
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -12.7,
-            -1.27,
-            0.0
-          ],
-          "max": [
-            12.7,
-            1.27,
-            8.5
-          ]
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
         },
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -12.7,
-            -1.27,
-            0.0
-          ],
-          "max": [
-            12.7,
-            1.27,
-            8.5
-          ]
-        },
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -12.7,
-            -1.27,
-            0.0
-          ],
-          "max": [
-            12.7,
-            1.27,
-            8.5
-          ]
-        },
-        {
-          "dir": [
-            0.0,
-            0.0,
-            1.0
-          ],
-          "min": [
-            -12.7,
-            -1.27,
-            0.0
-          ],
-          "max": [
-            12.7,
-            1.27,
-            8.5
-          ]
+        "distance": "floor_z"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "corner4",
+            "pos": [
+              -12.7,
+              -1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- pins * pitch / 2",
+              "y": "- rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              12.7,
+              -1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "pins * pitch / 2",
+              "y": "- rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              12.7,
+              1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "pins * pitch / 2",
+              "y": "rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner3",
+            "pos": [
+              -12.7,
+              1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- pins * pitch / 2",
+              "y": "rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              12.549999999999999,
+              -1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p6",
+            "pos": [
+              12.7,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              12.549999999999999,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p7",
+            "pos": [
+              12.7,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p8",
+            "pos": [
+              12.549999999999999,
+              1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              12.549999999999999,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -12.549999999999999,
+              1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -12.7,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              -12.549999999999999,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -12.7,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              -12.549999999999999,
+              -1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              -12.549999999999999,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              -12.1412,
+              -0.7112
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 - (cavity) / 2",
+              "y": "y0 - (cavity) / 2"
+            }
+          },
+          {
+            "id": "p14",
+            "pos": [
+              -10.7188,
+              -0.7112
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 + (cavity) / 2",
+              "y": "y0 - (cavity) / 2"
+            }
+          },
+          {
+            "id": "p15",
+            "pos": [
+              -10.7188,
+              0.7112
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 + (cavity) / 2",
+              "y": "y0 + (cavity) / 2"
+            }
+          },
+          {
+            "id": "p16",
+            "pos": [
+              -12.1412,
+              0.7112
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 - (cavity) / 2",
+              "y": "y0 + (cavity) / 2"
+            }
+          },
+          {
+            "id": "p17",
+            "pos": [
+              -9.601199999999999,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p18",
+            "pos": [
+              -8.178799999999999,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p19",
+            "pos": [
+              -8.178799999999999,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p20",
+            "pos": [
+              -9.601199999999999,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p21",
+            "pos": [
+              -7.0611999999999995,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p22",
+            "pos": [
+              -5.6388,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p23",
+            "pos": [
+              -5.6388,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p24",
+            "pos": [
+              -7.0611999999999995,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p25",
+            "pos": [
+              -4.521199999999999,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p26",
+            "pos": [
+              -3.0987999999999998,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p27",
+            "pos": [
+              -3.0987999999999998,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p28",
+            "pos": [
+              -4.521199999999999,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p29",
+            "pos": [
+              -1.9811999999999994,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p30",
+            "pos": [
+              -0.5587999999999997,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p31",
+            "pos": [
+              -0.5587999999999997,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p32",
+            "pos": [
+              -1.9811999999999994,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p33",
+            "pos": [
+              0.5587999999999997,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p34",
+            "pos": [
+              1.9811999999999994,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p35",
+            "pos": [
+              1.9811999999999994,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p36",
+            "pos": [
+              0.5587999999999997,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p37",
+            "pos": [
+              3.0988000000000007,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p38",
+            "pos": [
+              4.5212,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p39",
+            "pos": [
+              4.5212,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p40",
+            "pos": [
+              3.0988000000000007,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p41",
+            "pos": [
+              5.638800000000002,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p42",
+            "pos": [
+              7.061200000000001,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p43",
+            "pos": [
+              7.061200000000001,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p44",
+            "pos": [
+              5.638800000000002,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p45",
+            "pos": [
+              8.1788,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p46",
+            "pos": [
+              9.6012,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p47",
+            "pos": [
+              9.6012,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p48",
+            "pos": [
+              8.1788,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p49",
+            "pos": [
+              10.7188,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p50",
+            "pos": [
+              12.1412,
+              -0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p51",
+            "pos": [
+              12.1412,
+              0.7112
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p52",
+            "pos": [
+              10.7188,
+              0.7112
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "cavity walls edge 1",
+            "type": "line",
+            "a": 15,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "cavity walls edge 2",
+            "type": "line",
+            "a": 6,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "cavity walls edge 3",
+            "type": "line",
+            "a": 9,
+            "b": 11,
+            "construction": false
+          },
+          {
+            "id": "cavity walls edge 4",
+            "type": "line",
+            "a": 12,
+            "b": 14,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 7,
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 10,
+            "a": 8,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 13,
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 16,
+            "a": 14,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "cavity walls hole 0 1",
+            "type": "line",
+            "a": 17,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "cavity walls hole 0 2",
+            "type": "line",
+            "a": 18,
+            "b": 19,
+            "construction": false
+          },
+          {
+            "id": "cavity walls hole 0 3",
+            "type": "line",
+            "a": 19,
+            "b": 20,
+            "construction": false
+          },
+          {
+            "id": "cavity walls hole 0 4",
+            "type": "line",
+            "a": 20,
+            "b": 17,
+            "construction": false
+          },
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 21,
+            "b": 22,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 22,
+            "b": 23,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 23,
+            "b": 24,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 24,
+            "b": 21,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 25,
+            "b": 26,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 26,
+            "b": 27,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 27,
+            "b": 28,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 28,
+            "b": 25,
+            "construction": false
+          },
+          {
+            "id": "l9",
+            "type": "line",
+            "a": 29,
+            "b": 30,
+            "construction": false
+          },
+          {
+            "id": "l10",
+            "type": "line",
+            "a": 30,
+            "b": 31,
+            "construction": false
+          },
+          {
+            "id": "l11",
+            "type": "line",
+            "a": 31,
+            "b": 32,
+            "construction": false
+          },
+          {
+            "id": "l12",
+            "type": "line",
+            "a": 32,
+            "b": 29,
+            "construction": false
+          },
+          {
+            "id": "l13",
+            "type": "line",
+            "a": 33,
+            "b": 34,
+            "construction": false
+          },
+          {
+            "id": "l14",
+            "type": "line",
+            "a": 34,
+            "b": 35,
+            "construction": false
+          },
+          {
+            "id": "l15",
+            "type": "line",
+            "a": 35,
+            "b": 36,
+            "construction": false
+          },
+          {
+            "id": "l16",
+            "type": "line",
+            "a": 36,
+            "b": 33,
+            "construction": false
+          },
+          {
+            "id": "l17",
+            "type": "line",
+            "a": 37,
+            "b": 38,
+            "construction": false
+          },
+          {
+            "id": "l18",
+            "type": "line",
+            "a": 38,
+            "b": 39,
+            "construction": false
+          },
+          {
+            "id": "l19",
+            "type": "line",
+            "a": 39,
+            "b": 40,
+            "construction": false
+          },
+          {
+            "id": "l20",
+            "type": "line",
+            "a": 40,
+            "b": 37,
+            "construction": false
+          },
+          {
+            "id": "l21",
+            "type": "line",
+            "a": 41,
+            "b": 42,
+            "construction": false
+          },
+          {
+            "id": "l22",
+            "type": "line",
+            "a": 42,
+            "b": 43,
+            "construction": false
+          },
+          {
+            "id": "l23",
+            "type": "line",
+            "a": 43,
+            "b": 44,
+            "construction": false
+          },
+          {
+            "id": "l24",
+            "type": "line",
+            "a": 44,
+            "b": 41,
+            "construction": false
+          },
+          {
+            "id": "l25",
+            "type": "line",
+            "a": 45,
+            "b": 46,
+            "construction": false
+          },
+          {
+            "id": "l26",
+            "type": "line",
+            "a": 46,
+            "b": 47,
+            "construction": false
+          },
+          {
+            "id": "l27",
+            "type": "line",
+            "a": 47,
+            "b": 48,
+            "construction": false
+          },
+          {
+            "id": "l28",
+            "type": "line",
+            "a": 48,
+            "b": 45,
+            "construction": false
+          },
+          {
+            "id": "l29",
+            "type": "line",
+            "a": 49,
+            "b": 50,
+            "construction": false
+          },
+          {
+            "id": "l30",
+            "type": "line",
+            "a": 50,
+            "b": 51,
+            "construction": false
+          },
+          {
+            "id": "l31",
+            "type": "line",
+            "a": 51,
+            "b": 52,
+            "construction": false
+          },
+          {
+            "id": "l32",
+            "type": "line",
+            "a": 52,
+            "b": 49,
+            "construction": false
+          },
+          {
+            "id": "l33",
+            "type": "line",
+            "a": 53,
+            "b": 54,
+            "construction": false
+          },
+          {
+            "id": "l34",
+            "type": "line",
+            "a": 54,
+            "b": 55,
+            "construction": false
+          },
+          {
+            "id": "l35",
+            "type": "line",
+            "a": 55,
+            "b": 56,
+            "construction": false
+          },
+          {
+            "id": "l36",
+            "type": "line",
+            "a": 56,
+            "b": 53,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 4
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 4
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 4,
+            "value": 0.15,
+            "param": "d8"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 1
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 2
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 1,
+            "b": 5
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 2,
+            "b": 5
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 5,
+            "value": 0.15,
+            "param": "d9"
+          },
+          {
+            "id": "k11",
+            "type": "point_on_curve",
+            "p": 4,
+            "c": 2
+          },
+          {
+            "id": "k12",
+            "type": "point_on_curve",
+            "p": 4,
+            "c": 3
+          },
+          {
+            "id": "k13",
+            "type": "tangent",
+            "a": 2,
+            "b": 6
+          },
+          {
+            "id": "k14",
+            "type": "tangent",
+            "a": 3,
+            "b": 6
+          },
+          {
+            "id": "k15",
+            "type": "radius",
+            "c": 6,
+            "value": 0.15,
+            "param": "d10"
+          },
+          {
+            "id": "k16",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 3
+          },
+          {
+            "id": "k17",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 0
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 3,
+            "b": 7
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 0,
+            "b": 7
+          },
+          {
+            "id": "k20",
+            "type": "radius",
+            "c": 7,
+            "value": 0.15,
+            "param": "d11"
+          },
+          {
+            "id": "k21",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 21,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k22",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 22,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k23",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 23,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k24",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 24,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k25",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 25,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k26",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 26,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k27",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 27,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k28",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 28,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k29",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 29,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k30",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 30,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k31",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 31,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k32",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 32,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k33",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 33,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k34",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 34,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k35",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 35,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k36",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 36,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k37",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 37,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k38",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 38,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k39",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 39,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k40",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 40,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k41",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 41,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k42",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 42,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k43",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 43,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k44",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 44,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k45",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 45,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k46",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 46,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k47",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 47,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k48",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 48,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k49",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 49,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k50",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 50,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k51",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 51,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k52",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 52,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k53",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 53,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k54",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 54,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k55",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 55,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k56",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 56,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          }
+        ],
+        "patterns": [
+          {
+            "id": "pat1",
+            "entities": [
+              "cavity walls hole 0 1",
+              "cavity walls hole 0 2",
+              "cavity walls hole 0 3",
+              "cavity walls hole 0 4"
+            ],
+            "kind": {
+              "type": "rectangular",
+              "dir": [
+                1.0,
+                0.0
+              ],
+              "dir2": [
+                0.0,
+                1.0
+              ],
+              "direction": null,
+              "direction2": null,
+              "count": 10,
+              "spacing": 2.54,
+              "count2": 1,
+              "spacing2": 2.54,
+              "alignment": "right",
+              "alignment2": "right",
+              "reversed": false,
+              "reversed2": false
+            },
+            "instances": [
+              {
+                "index": [
+                  1,
+                  0
+                ],
+                "curves": [
+                  "l1",
+                  "l2",
+                  "l3",
+                  "l4"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p17"
+                  ],
+                  [
+                    "p14",
+                    "p18"
+                  ],
+                  [
+                    "p15",
+                    "p19"
+                  ],
+                  [
+                    "p16",
+                    "p20"
+                  ]
+                ],
+                "constraints": [
+                  "k21",
+                  "k22",
+                  "k23",
+                  "k24"
+                ]
+              },
+              {
+                "index": [
+                  2,
+                  0
+                ],
+                "curves": [
+                  "l5",
+                  "l6",
+                  "l7",
+                  "l8"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p21"
+                  ],
+                  [
+                    "p14",
+                    "p22"
+                  ],
+                  [
+                    "p15",
+                    "p23"
+                  ],
+                  [
+                    "p16",
+                    "p24"
+                  ]
+                ],
+                "constraints": [
+                  "k25",
+                  "k26",
+                  "k27",
+                  "k28"
+                ]
+              },
+              {
+                "index": [
+                  3,
+                  0
+                ],
+                "curves": [
+                  "l9",
+                  "l10",
+                  "l11",
+                  "l12"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p25"
+                  ],
+                  [
+                    "p14",
+                    "p26"
+                  ],
+                  [
+                    "p15",
+                    "p27"
+                  ],
+                  [
+                    "p16",
+                    "p28"
+                  ]
+                ],
+                "constraints": [
+                  "k29",
+                  "k30",
+                  "k31",
+                  "k32"
+                ]
+              },
+              {
+                "index": [
+                  4,
+                  0
+                ],
+                "curves": [
+                  "l13",
+                  "l14",
+                  "l15",
+                  "l16"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p29"
+                  ],
+                  [
+                    "p14",
+                    "p30"
+                  ],
+                  [
+                    "p15",
+                    "p31"
+                  ],
+                  [
+                    "p16",
+                    "p32"
+                  ]
+                ],
+                "constraints": [
+                  "k33",
+                  "k34",
+                  "k35",
+                  "k36"
+                ]
+              },
+              {
+                "index": [
+                  5,
+                  0
+                ],
+                "curves": [
+                  "l17",
+                  "l18",
+                  "l19",
+                  "l20"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p33"
+                  ],
+                  [
+                    "p14",
+                    "p34"
+                  ],
+                  [
+                    "p15",
+                    "p35"
+                  ],
+                  [
+                    "p16",
+                    "p36"
+                  ]
+                ],
+                "constraints": [
+                  "k37",
+                  "k38",
+                  "k39",
+                  "k40"
+                ]
+              },
+              {
+                "index": [
+                  6,
+                  0
+                ],
+                "curves": [
+                  "l21",
+                  "l22",
+                  "l23",
+                  "l24"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p37"
+                  ],
+                  [
+                    "p14",
+                    "p38"
+                  ],
+                  [
+                    "p15",
+                    "p39"
+                  ],
+                  [
+                    "p16",
+                    "p40"
+                  ]
+                ],
+                "constraints": [
+                  "k41",
+                  "k42",
+                  "k43",
+                  "k44"
+                ]
+              },
+              {
+                "index": [
+                  7,
+                  0
+                ],
+                "curves": [
+                  "l25",
+                  "l26",
+                  "l27",
+                  "l28"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p41"
+                  ],
+                  [
+                    "p14",
+                    "p42"
+                  ],
+                  [
+                    "p15",
+                    "p43"
+                  ],
+                  [
+                    "p16",
+                    "p44"
+                  ]
+                ],
+                "constraints": [
+                  "k45",
+                  "k46",
+                  "k47",
+                  "k48"
+                ]
+              },
+              {
+                "index": [
+                  8,
+                  0
+                ],
+                "curves": [
+                  "l29",
+                  "l30",
+                  "l31",
+                  "l32"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p45"
+                  ],
+                  [
+                    "p14",
+                    "p46"
+                  ],
+                  [
+                    "p15",
+                    "p47"
+                  ],
+                  [
+                    "p16",
+                    "p48"
+                  ]
+                ],
+                "constraints": [
+                  "k49",
+                  "k50",
+                  "k51",
+                  "k52"
+                ]
+              },
+              {
+                "index": [
+                  9,
+                  0
+                ],
+                "curves": [
+                  "l33",
+                  "l34",
+                  "l35",
+                  "l36"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p49"
+                  ],
+                  [
+                    "p14",
+                    "p50"
+                  ],
+                  [
+                    "p15",
+                    "p51"
+                  ],
+                  [
+                    "p16",
+                    "p52"
+                  ]
+                ],
+                "constraints": [
+                  "k53",
+                  "k54",
+                  "k55",
+                  "k56"
+                ]
+              }
+            ],
+            "expressions": {
+              "count": "pins",
+              "count2": "rows",
+              "spacing": "pitch",
+              "spacing2": "row_pitch"
+            }
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 4,
+          "k": 1040,
+          "l": 1020,
+          "p": 1036,
+          "pat": 1
         }
-      ],
-      "edge_names": [
-        "F1:-x|F1:-y",
-        "F1:+x|F1:-y",
-        "F1:+x|F1:+y",
-        "F1:+y|F1:-x"
-      ],
-      "type": "fillet",
-      "edges": [
-        [
-          -12.7,
-          -1.27,
-          4.25
-        ],
-        [
-          12.7,
-          -1.27,
-          4.25
-        ],
-        [
-          12.7,
-          1.27,
-          4.25
-        ],
-        [
-          -12.7,
-          1.27,
-          4.25
-        ]
-      ],
-      "radius": "corner_round",
-      "body": "insulator"
+      }
     },
     {
-      "id": 3,
-      "name": "lead-in sketch",
+      "id": 4,
+      "name": "cavity walls",
+      "suppressed": false,
+      "body_names": [
+        "insulator walls"
+      ],
+      "param_names": [
+        "d12"
+      ],
+      "type": "extrude",
+      "sketch": 3,
+      "profiles": {
+        "type": "curves",
+        "loops": [
+          [
+            "cavity walls edge 1",
+            "cavity walls edge 2",
+            "cavity walls edge 3",
+            "cavity walls edge 4",
+            "a1",
+            "a2",
+            "a3",
+            "a4"
+          ]
+        ]
+      },
+      "extent": {
+        "distance": "(cavity_top) - (floor_z)",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 5,
+      "name": "entry walls sketch",
       "suppressed": false,
       "param_names": [
-        "d5"
+        "d13"
+      ],
+      "type": "sketch",
+      "plane": {
+        "type": "offset",
+        "base": {
+          "type": "origin",
+          "name": "XY"
+        },
+        "distance": "cavity_top"
+      },
+      "sketch": {
+        "points": [
+          {
+            "id": "origin",
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "fixed": true
+          },
+          {
+            "id": "corner4",
+            "pos": [
+              -12.7,
+              -1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- pins * pitch / 2",
+              "y": "- rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner1",
+            "pos": [
+              12.7,
+              -1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "pins * pitch / 2",
+              "y": "- rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner2",
+            "pos": [
+              12.7,
+              1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "pins * pitch / 2",
+              "y": "rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "corner3",
+            "pos": [
+              -12.7,
+              1.27
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "- pins * pitch / 2",
+              "y": "rows * row_pitch / 2"
+            }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              12.549999999999999,
+              -1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p6",
+            "pos": [
+              12.7,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a1.center",
+            "pos": [
+              12.549999999999999,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p7",
+            "pos": [
+              12.7,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p8",
+            "pos": [
+              12.549999999999999,
+              1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a2.center",
+            "pos": [
+              12.549999999999999,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -12.549999999999999,
+              1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -12.7,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a3.center",
+            "pos": [
+              -12.549999999999999,
+              1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -12.7,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              -12.549999999999999,
+              -1.27
+            ],
+            "fixed": false
+          },
+          {
+            "id": "a4.center",
+            "pos": [
+              -12.549999999999999,
+              -1.12
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              -11.937999999999999,
+              -0.508
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 - (entry) / 2",
+              "y": "y0 - (entry) / 2"
+            }
+          },
+          {
+            "id": "p14",
+            "pos": [
+              -10.922,
+              -0.508
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 + (entry) / 2",
+              "y": "y0 - (entry) / 2"
+            }
+          },
+          {
+            "id": "p15",
+            "pos": [
+              -10.922,
+              0.508
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 + (entry) / 2",
+              "y": "y0 + (entry) / 2"
+            }
+          },
+          {
+            "id": "p16",
+            "pos": [
+              -11.937999999999999,
+              0.508
+            ],
+            "fixed": true,
+            "exprs": {
+              "x": "x0 - (entry) / 2",
+              "y": "y0 + (entry) / 2"
+            }
+          },
+          {
+            "id": "p17",
+            "pos": [
+              -9.398,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p18",
+            "pos": [
+              -8.382000000000001,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p19",
+            "pos": [
+              -8.382000000000001,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p20",
+            "pos": [
+              -9.398,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p21",
+            "pos": [
+              -6.857999999999999,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p22",
+            "pos": [
+              -5.8420000000000005,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p23",
+            "pos": [
+              -5.8420000000000005,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p24",
+            "pos": [
+              -6.857999999999999,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p25",
+            "pos": [
+              -4.317999999999999,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p26",
+            "pos": [
+              -3.3020000000000005,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p27",
+            "pos": [
+              -3.3020000000000005,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p28",
+            "pos": [
+              -4.317999999999999,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p29",
+            "pos": [
+              -1.7779999999999987,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p30",
+            "pos": [
+              -0.7620000000000005,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p31",
+            "pos": [
+              -0.7620000000000005,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p32",
+            "pos": [
+              -1.7779999999999987,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p33",
+            "pos": [
+              0.7620000000000005,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p34",
+            "pos": [
+              1.7779999999999987,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p35",
+            "pos": [
+              1.7779999999999987,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p36",
+            "pos": [
+              0.7620000000000005,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p37",
+            "pos": [
+              3.3020000000000014,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p38",
+            "pos": [
+              4.318,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p39",
+            "pos": [
+              4.318,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p40",
+            "pos": [
+              3.3020000000000014,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p41",
+            "pos": [
+              5.842000000000002,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p42",
+            "pos": [
+              6.8580000000000005,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p43",
+            "pos": [
+              6.8580000000000005,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p44",
+            "pos": [
+              5.842000000000002,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p45",
+            "pos": [
+              8.382000000000001,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p46",
+            "pos": [
+              9.398,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p47",
+            "pos": [
+              9.398,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p48",
+            "pos": [
+              8.382000000000001,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p49",
+            "pos": [
+              10.922,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p50",
+            "pos": [
+              11.937999999999999,
+              -0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p51",
+            "pos": [
+              11.937999999999999,
+              0.508
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p52",
+            "pos": [
+              10.922,
+              0.508
+            ],
+            "fixed": false
+          }
+        ],
+        "curves": [
+          {
+            "id": "entry walls edge 1",
+            "type": "line",
+            "a": 15,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "entry walls edge 2",
+            "type": "line",
+            "a": 6,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "entry walls edge 3",
+            "type": "line",
+            "a": 9,
+            "b": 11,
+            "construction": false
+          },
+          {
+            "id": "entry walls edge 4",
+            "type": "line",
+            "a": 12,
+            "b": 14,
+            "construction": false
+          },
+          {
+            "id": "a1",
+            "type": "arc",
+            "c": 7,
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "a2",
+            "type": "arc",
+            "c": 10,
+            "a": 8,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "a3",
+            "type": "arc",
+            "c": 13,
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "a4",
+            "type": "arc",
+            "c": 16,
+            "a": 14,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "entry walls hole 0 1",
+            "type": "line",
+            "a": 17,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "entry walls hole 0 2",
+            "type": "line",
+            "a": 18,
+            "b": 19,
+            "construction": false
+          },
+          {
+            "id": "entry walls hole 0 3",
+            "type": "line",
+            "a": 19,
+            "b": 20,
+            "construction": false
+          },
+          {
+            "id": "entry walls hole 0 4",
+            "type": "line",
+            "a": 20,
+            "b": 17,
+            "construction": false
+          },
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 21,
+            "b": 22,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 22,
+            "b": 23,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 23,
+            "b": 24,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 24,
+            "b": 21,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 25,
+            "b": 26,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 26,
+            "b": 27,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 27,
+            "b": 28,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 28,
+            "b": 25,
+            "construction": false
+          },
+          {
+            "id": "l9",
+            "type": "line",
+            "a": 29,
+            "b": 30,
+            "construction": false
+          },
+          {
+            "id": "l10",
+            "type": "line",
+            "a": 30,
+            "b": 31,
+            "construction": false
+          },
+          {
+            "id": "l11",
+            "type": "line",
+            "a": 31,
+            "b": 32,
+            "construction": false
+          },
+          {
+            "id": "l12",
+            "type": "line",
+            "a": 32,
+            "b": 29,
+            "construction": false
+          },
+          {
+            "id": "l13",
+            "type": "line",
+            "a": 33,
+            "b": 34,
+            "construction": false
+          },
+          {
+            "id": "l14",
+            "type": "line",
+            "a": 34,
+            "b": 35,
+            "construction": false
+          },
+          {
+            "id": "l15",
+            "type": "line",
+            "a": 35,
+            "b": 36,
+            "construction": false
+          },
+          {
+            "id": "l16",
+            "type": "line",
+            "a": 36,
+            "b": 33,
+            "construction": false
+          },
+          {
+            "id": "l17",
+            "type": "line",
+            "a": 37,
+            "b": 38,
+            "construction": false
+          },
+          {
+            "id": "l18",
+            "type": "line",
+            "a": 38,
+            "b": 39,
+            "construction": false
+          },
+          {
+            "id": "l19",
+            "type": "line",
+            "a": 39,
+            "b": 40,
+            "construction": false
+          },
+          {
+            "id": "l20",
+            "type": "line",
+            "a": 40,
+            "b": 37,
+            "construction": false
+          },
+          {
+            "id": "l21",
+            "type": "line",
+            "a": 41,
+            "b": 42,
+            "construction": false
+          },
+          {
+            "id": "l22",
+            "type": "line",
+            "a": 42,
+            "b": 43,
+            "construction": false
+          },
+          {
+            "id": "l23",
+            "type": "line",
+            "a": 43,
+            "b": 44,
+            "construction": false
+          },
+          {
+            "id": "l24",
+            "type": "line",
+            "a": 44,
+            "b": 41,
+            "construction": false
+          },
+          {
+            "id": "l25",
+            "type": "line",
+            "a": 45,
+            "b": 46,
+            "construction": false
+          },
+          {
+            "id": "l26",
+            "type": "line",
+            "a": 46,
+            "b": 47,
+            "construction": false
+          },
+          {
+            "id": "l27",
+            "type": "line",
+            "a": 47,
+            "b": 48,
+            "construction": false
+          },
+          {
+            "id": "l28",
+            "type": "line",
+            "a": 48,
+            "b": 45,
+            "construction": false
+          },
+          {
+            "id": "l29",
+            "type": "line",
+            "a": 49,
+            "b": 50,
+            "construction": false
+          },
+          {
+            "id": "l30",
+            "type": "line",
+            "a": 50,
+            "b": 51,
+            "construction": false
+          },
+          {
+            "id": "l31",
+            "type": "line",
+            "a": 51,
+            "b": 52,
+            "construction": false
+          },
+          {
+            "id": "l32",
+            "type": "line",
+            "a": 52,
+            "b": 49,
+            "construction": false
+          },
+          {
+            "id": "l33",
+            "type": "line",
+            "a": 53,
+            "b": 54,
+            "construction": false
+          },
+          {
+            "id": "l34",
+            "type": "line",
+            "a": 54,
+            "b": 55,
+            "construction": false
+          },
+          {
+            "id": "l35",
+            "type": "line",
+            "a": 55,
+            "b": 56,
+            "construction": false
+          },
+          {
+            "id": "l36",
+            "type": "line",
+            "a": 56,
+            "b": 53,
+            "construction": false
+          }
+        ],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 0
+          },
+          {
+            "id": "k2",
+            "type": "point_on_curve",
+            "p": 2,
+            "c": 1
+          },
+          {
+            "id": "k3",
+            "type": "tangent",
+            "a": 0,
+            "b": 4
+          },
+          {
+            "id": "k4",
+            "type": "tangent",
+            "a": 1,
+            "b": 4
+          },
+          {
+            "id": "k5",
+            "type": "radius",
+            "c": 4,
+            "value": 0.15,
+            "param": "d14"
+          },
+          {
+            "id": "k6",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 1
+          },
+          {
+            "id": "k7",
+            "type": "point_on_curve",
+            "p": 3,
+            "c": 2
+          },
+          {
+            "id": "k8",
+            "type": "tangent",
+            "a": 1,
+            "b": 5
+          },
+          {
+            "id": "k9",
+            "type": "tangent",
+            "a": 2,
+            "b": 5
+          },
+          {
+            "id": "k10",
+            "type": "radius",
+            "c": 5,
+            "value": 0.15,
+            "param": "d15"
+          },
+          {
+            "id": "k11",
+            "type": "point_on_curve",
+            "p": 4,
+            "c": 2
+          },
+          {
+            "id": "k12",
+            "type": "point_on_curve",
+            "p": 4,
+            "c": 3
+          },
+          {
+            "id": "k13",
+            "type": "tangent",
+            "a": 2,
+            "b": 6
+          },
+          {
+            "id": "k14",
+            "type": "tangent",
+            "a": 3,
+            "b": 6
+          },
+          {
+            "id": "k15",
+            "type": "radius",
+            "c": 6,
+            "value": 0.15,
+            "param": "d16"
+          },
+          {
+            "id": "k16",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 3
+          },
+          {
+            "id": "k17",
+            "type": "point_on_curve",
+            "p": 1,
+            "c": 0
+          },
+          {
+            "id": "k18",
+            "type": "tangent",
+            "a": 3,
+            "b": 7
+          },
+          {
+            "id": "k19",
+            "type": "tangent",
+            "a": 0,
+            "b": 7
+          },
+          {
+            "id": "k20",
+            "type": "radius",
+            "c": 7,
+            "value": 0.15,
+            "param": "d17"
+          },
+          {
+            "id": "k21",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 21,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k22",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 22,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k23",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 23,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k24",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 24,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k25",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 25,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k26",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 26,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k27",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 27,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k28",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 28,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k29",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 29,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k30",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 30,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k31",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 31,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k32",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 32,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k33",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 33,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k34",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 34,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k35",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 35,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k36",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 36,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k37",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 37,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k38",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 38,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k39",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 39,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k40",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 40,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k41",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 41,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k42",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 42,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k43",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 43,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k44",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 44,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k45",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 45,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k46",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 46,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k47",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 47,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k48",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 48,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k49",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 49,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k50",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 50,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k51",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 51,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k52",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 52,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k53",
+            "type": "pattern_point",
+            "p": 17,
+            "q": 53,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k54",
+            "type": "pattern_point",
+            "p": 18,
+            "q": 54,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k55",
+            "type": "pattern_point",
+            "p": 19,
+            "q": 55,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k56",
+            "type": "pattern_point",
+            "p": 20,
+            "q": 56,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          }
+        ],
+        "patterns": [
+          {
+            "id": "pat1",
+            "entities": [
+              "entry walls hole 0 1",
+              "entry walls hole 0 2",
+              "entry walls hole 0 3",
+              "entry walls hole 0 4"
+            ],
+            "kind": {
+              "type": "rectangular",
+              "dir": [
+                1.0,
+                0.0
+              ],
+              "dir2": [
+                0.0,
+                1.0
+              ],
+              "direction": null,
+              "direction2": null,
+              "count": 10,
+              "spacing": 2.54,
+              "count2": 1,
+              "spacing2": 2.54,
+              "alignment": "right",
+              "alignment2": "right",
+              "reversed": false,
+              "reversed2": false
+            },
+            "instances": [
+              {
+                "index": [
+                  1,
+                  0
+                ],
+                "curves": [
+                  "l1",
+                  "l2",
+                  "l3",
+                  "l4"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p17"
+                  ],
+                  [
+                    "p14",
+                    "p18"
+                  ],
+                  [
+                    "p15",
+                    "p19"
+                  ],
+                  [
+                    "p16",
+                    "p20"
+                  ]
+                ],
+                "constraints": [
+                  "k21",
+                  "k22",
+                  "k23",
+                  "k24"
+                ]
+              },
+              {
+                "index": [
+                  2,
+                  0
+                ],
+                "curves": [
+                  "l5",
+                  "l6",
+                  "l7",
+                  "l8"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p21"
+                  ],
+                  [
+                    "p14",
+                    "p22"
+                  ],
+                  [
+                    "p15",
+                    "p23"
+                  ],
+                  [
+                    "p16",
+                    "p24"
+                  ]
+                ],
+                "constraints": [
+                  "k25",
+                  "k26",
+                  "k27",
+                  "k28"
+                ]
+              },
+              {
+                "index": [
+                  3,
+                  0
+                ],
+                "curves": [
+                  "l9",
+                  "l10",
+                  "l11",
+                  "l12"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p25"
+                  ],
+                  [
+                    "p14",
+                    "p26"
+                  ],
+                  [
+                    "p15",
+                    "p27"
+                  ],
+                  [
+                    "p16",
+                    "p28"
+                  ]
+                ],
+                "constraints": [
+                  "k29",
+                  "k30",
+                  "k31",
+                  "k32"
+                ]
+              },
+              {
+                "index": [
+                  4,
+                  0
+                ],
+                "curves": [
+                  "l13",
+                  "l14",
+                  "l15",
+                  "l16"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p29"
+                  ],
+                  [
+                    "p14",
+                    "p30"
+                  ],
+                  [
+                    "p15",
+                    "p31"
+                  ],
+                  [
+                    "p16",
+                    "p32"
+                  ]
+                ],
+                "constraints": [
+                  "k33",
+                  "k34",
+                  "k35",
+                  "k36"
+                ]
+              },
+              {
+                "index": [
+                  5,
+                  0
+                ],
+                "curves": [
+                  "l17",
+                  "l18",
+                  "l19",
+                  "l20"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p33"
+                  ],
+                  [
+                    "p14",
+                    "p34"
+                  ],
+                  [
+                    "p15",
+                    "p35"
+                  ],
+                  [
+                    "p16",
+                    "p36"
+                  ]
+                ],
+                "constraints": [
+                  "k37",
+                  "k38",
+                  "k39",
+                  "k40"
+                ]
+              },
+              {
+                "index": [
+                  6,
+                  0
+                ],
+                "curves": [
+                  "l21",
+                  "l22",
+                  "l23",
+                  "l24"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p37"
+                  ],
+                  [
+                    "p14",
+                    "p38"
+                  ],
+                  [
+                    "p15",
+                    "p39"
+                  ],
+                  [
+                    "p16",
+                    "p40"
+                  ]
+                ],
+                "constraints": [
+                  "k41",
+                  "k42",
+                  "k43",
+                  "k44"
+                ]
+              },
+              {
+                "index": [
+                  7,
+                  0
+                ],
+                "curves": [
+                  "l25",
+                  "l26",
+                  "l27",
+                  "l28"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p41"
+                  ],
+                  [
+                    "p14",
+                    "p42"
+                  ],
+                  [
+                    "p15",
+                    "p43"
+                  ],
+                  [
+                    "p16",
+                    "p44"
+                  ]
+                ],
+                "constraints": [
+                  "k45",
+                  "k46",
+                  "k47",
+                  "k48"
+                ]
+              },
+              {
+                "index": [
+                  8,
+                  0
+                ],
+                "curves": [
+                  "l29",
+                  "l30",
+                  "l31",
+                  "l32"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p45"
+                  ],
+                  [
+                    "p14",
+                    "p46"
+                  ],
+                  [
+                    "p15",
+                    "p47"
+                  ],
+                  [
+                    "p16",
+                    "p48"
+                  ]
+                ],
+                "constraints": [
+                  "k49",
+                  "k50",
+                  "k51",
+                  "k52"
+                ]
+              },
+              {
+                "index": [
+                  9,
+                  0
+                ],
+                "curves": [
+                  "l33",
+                  "l34",
+                  "l35",
+                  "l36"
+                ],
+                "points": [
+                  [
+                    "p13",
+                    "p49"
+                  ],
+                  [
+                    "p14",
+                    "p50"
+                  ],
+                  [
+                    "p15",
+                    "p51"
+                  ],
+                  [
+                    "p16",
+                    "p52"
+                  ]
+                ],
+                "constraints": [
+                  "k53",
+                  "k54",
+                  "k55",
+                  "k56"
+                ]
+              }
+            ],
+            "expressions": {
+              "count": "pins",
+              "count2": "rows",
+              "spacing": "pitch",
+              "spacing2": "row_pitch"
+            }
+          }
+        ],
+        "counters": {
+          "a": 4,
+          "corner": 4,
+          "k": 1040,
+          "l": 1020,
+          "p": 1036,
+          "pat": 1
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "entry walls",
+      "suppressed": false,
+      "body_names": [
+        "insulator top"
+      ],
+      "param_names": [
+        "d18"
+      ],
+      "type": "extrude",
+      "sketch": 5,
+      "profiles": {
+        "type": "curves",
+        "loops": [
+          [
+            "entry walls edge 1",
+            "entry walls edge 2",
+            "entry walls edge 3",
+            "entry walls edge 4",
+            "a1",
+            "a2",
+            "a3",
+            "a4"
+          ]
+        ]
+      },
+      "extent": {
+        "distance": "(body_height) - (cavity_top)",
+        "convention": "total_distance",
+        "direction": "positive"
+      },
+      "operation": "new_body"
+    },
+    {
+      "id": 7,
+      "name": "lead-ins sketch",
+      "suppressed": false,
+      "param_names": [
+        "d19"
       ],
       "type": "sketch",
       "plane": {
@@ -313,8 +6130,8 @@
             ],
             "fixed": true,
             "exprs": {
-              "x": "x0 - lead_in / 2",
-              "y": "y0 - lead_in / 2"
+              "x": "x0 - (lead_in) / 2",
+              "y": "y0 - (lead_in) / 2"
             }
           },
           {
@@ -325,8 +6142,8 @@
             ],
             "fixed": true,
             "exprs": {
-              "x": "x0 + lead_in / 2",
-              "y": "y0 - lead_in / 2"
+              "x": "x0 + (lead_in) / 2",
+              "y": "y0 - (lead_in) / 2"
             }
           },
           {
@@ -337,8 +6154,8 @@
             ],
             "fixed": true,
             "exprs": {
-              "x": "x0 + lead_in / 2",
-              "y": "y0 + lead_in / 2"
+              "x": "x0 + (lead_in) / 2",
+              "y": "y0 + (lead_in) / 2"
             }
           },
           {
@@ -349,58 +6166,1541 @@
             ],
             "fixed": true,
             "exprs": {
-              "x": "x0 - lead_in / 2",
-              "y": "y0 + lead_in / 2"
+              "x": "x0 - (lead_in) / 2",
+              "y": "y0 + (lead_in) / 2"
             }
+          },
+          {
+            "id": "p5",
+            "pos": [
+              -9.753599999999999,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p6",
+            "pos": [
+              -8.026399999999999,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p7",
+            "pos": [
+              -8.026399999999999,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p8",
+            "pos": [
+              -9.753599999999999,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p9",
+            "pos": [
+              -7.2136,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p10",
+            "pos": [
+              -5.4864,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p11",
+            "pos": [
+              -5.4864,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p12",
+            "pos": [
+              -7.2136,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p13",
+            "pos": [
+              -4.6735999999999995,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p14",
+            "pos": [
+              -2.9463999999999997,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p15",
+            "pos": [
+              -2.9463999999999997,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p16",
+            "pos": [
+              -4.6735999999999995,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p17",
+            "pos": [
+              -2.1335999999999995,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p18",
+            "pos": [
+              -0.40639999999999965,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p19",
+            "pos": [
+              -0.40639999999999965,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p20",
+            "pos": [
+              -2.1335999999999995,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p21",
+            "pos": [
+              0.40639999999999965,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p22",
+            "pos": [
+              2.1335999999999995,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p23",
+            "pos": [
+              2.1335999999999995,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p24",
+            "pos": [
+              0.40639999999999965,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p25",
+            "pos": [
+              2.9464000000000006,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p26",
+            "pos": [
+              4.6736,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p27",
+            "pos": [
+              4.6736,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p28",
+            "pos": [
+              2.9464000000000006,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p29",
+            "pos": [
+              5.4864000000000015,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p30",
+            "pos": [
+              7.213600000000001,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p31",
+            "pos": [
+              7.213600000000001,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p32",
+            "pos": [
+              5.4864000000000015,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p33",
+            "pos": [
+              8.0264,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p34",
+            "pos": [
+              9.7536,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p35",
+            "pos": [
+              9.7536,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p36",
+            "pos": [
+              8.0264,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p37",
+            "pos": [
+              10.5664,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p38",
+            "pos": [
+              12.2936,
+              -0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p39",
+            "pos": [
+              12.2936,
+              0.8636
+            ],
+            "fixed": false
+          },
+          {
+            "id": "p40",
+            "pos": [
+              10.5664,
+              0.8636
+            ],
+            "fixed": false
           }
         ],
         "curves": [
           {
-            "id": "l1",
+            "id": "lead-ins 1",
             "type": "line",
             "a": 1,
             "b": 2,
             "construction": false
           },
           {
-            "id": "l2",
+            "id": "lead-ins 2",
             "type": "line",
             "a": 2,
             "b": 3,
             "construction": false
           },
           {
-            "id": "l3",
+            "id": "lead-ins 3",
             "type": "line",
             "a": 3,
             "b": 4,
             "construction": false
           },
           {
-            "id": "l4",
+            "id": "lead-ins 4",
             "type": "line",
             "a": 4,
             "b": 1,
             "construction": false
+          },
+          {
+            "id": "l1",
+            "type": "line",
+            "a": 5,
+            "b": 6,
+            "construction": false
+          },
+          {
+            "id": "l2",
+            "type": "line",
+            "a": 6,
+            "b": 7,
+            "construction": false
+          },
+          {
+            "id": "l3",
+            "type": "line",
+            "a": 7,
+            "b": 8,
+            "construction": false
+          },
+          {
+            "id": "l4",
+            "type": "line",
+            "a": 8,
+            "b": 5,
+            "construction": false
+          },
+          {
+            "id": "l5",
+            "type": "line",
+            "a": 9,
+            "b": 10,
+            "construction": false
+          },
+          {
+            "id": "l6",
+            "type": "line",
+            "a": 10,
+            "b": 11,
+            "construction": false
+          },
+          {
+            "id": "l7",
+            "type": "line",
+            "a": 11,
+            "b": 12,
+            "construction": false
+          },
+          {
+            "id": "l8",
+            "type": "line",
+            "a": 12,
+            "b": 9,
+            "construction": false
+          },
+          {
+            "id": "l9",
+            "type": "line",
+            "a": 13,
+            "b": 14,
+            "construction": false
+          },
+          {
+            "id": "l10",
+            "type": "line",
+            "a": 14,
+            "b": 15,
+            "construction": false
+          },
+          {
+            "id": "l11",
+            "type": "line",
+            "a": 15,
+            "b": 16,
+            "construction": false
+          },
+          {
+            "id": "l12",
+            "type": "line",
+            "a": 16,
+            "b": 13,
+            "construction": false
+          },
+          {
+            "id": "l13",
+            "type": "line",
+            "a": 17,
+            "b": 18,
+            "construction": false
+          },
+          {
+            "id": "l14",
+            "type": "line",
+            "a": 18,
+            "b": 19,
+            "construction": false
+          },
+          {
+            "id": "l15",
+            "type": "line",
+            "a": 19,
+            "b": 20,
+            "construction": false
+          },
+          {
+            "id": "l16",
+            "type": "line",
+            "a": 20,
+            "b": 17,
+            "construction": false
+          },
+          {
+            "id": "l17",
+            "type": "line",
+            "a": 21,
+            "b": 22,
+            "construction": false
+          },
+          {
+            "id": "l18",
+            "type": "line",
+            "a": 22,
+            "b": 23,
+            "construction": false
+          },
+          {
+            "id": "l19",
+            "type": "line",
+            "a": 23,
+            "b": 24,
+            "construction": false
+          },
+          {
+            "id": "l20",
+            "type": "line",
+            "a": 24,
+            "b": 21,
+            "construction": false
+          },
+          {
+            "id": "l21",
+            "type": "line",
+            "a": 25,
+            "b": 26,
+            "construction": false
+          },
+          {
+            "id": "l22",
+            "type": "line",
+            "a": 26,
+            "b": 27,
+            "construction": false
+          },
+          {
+            "id": "l23",
+            "type": "line",
+            "a": 27,
+            "b": 28,
+            "construction": false
+          },
+          {
+            "id": "l24",
+            "type": "line",
+            "a": 28,
+            "b": 25,
+            "construction": false
+          },
+          {
+            "id": "l25",
+            "type": "line",
+            "a": 29,
+            "b": 30,
+            "construction": false
+          },
+          {
+            "id": "l26",
+            "type": "line",
+            "a": 30,
+            "b": 31,
+            "construction": false
+          },
+          {
+            "id": "l27",
+            "type": "line",
+            "a": 31,
+            "b": 32,
+            "construction": false
+          },
+          {
+            "id": "l28",
+            "type": "line",
+            "a": 32,
+            "b": 29,
+            "construction": false
+          },
+          {
+            "id": "l29",
+            "type": "line",
+            "a": 33,
+            "b": 34,
+            "construction": false
+          },
+          {
+            "id": "l30",
+            "type": "line",
+            "a": 34,
+            "b": 35,
+            "construction": false
+          },
+          {
+            "id": "l31",
+            "type": "line",
+            "a": 35,
+            "b": 36,
+            "construction": false
+          },
+          {
+            "id": "l32",
+            "type": "line",
+            "a": 36,
+            "b": 33,
+            "construction": false
+          },
+          {
+            "id": "l33",
+            "type": "line",
+            "a": 37,
+            "b": 38,
+            "construction": false
+          },
+          {
+            "id": "l34",
+            "type": "line",
+            "a": 38,
+            "b": 39,
+            "construction": false
+          },
+          {
+            "id": "l35",
+            "type": "line",
+            "a": 39,
+            "b": 40,
+            "construction": false
+          },
+          {
+            "id": "l36",
+            "type": "line",
+            "a": 40,
+            "b": 37,
+            "construction": false
           }
         ],
-        "constraints": [],
+        "constraints": [
+          {
+            "id": "k1",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 5,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k2",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 6,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k3",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 7,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k4",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 8,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              2.54,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k5",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 9,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k6",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 10,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k7",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 11,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k8",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 12,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              5.08,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k9",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 13,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k10",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 14,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k11",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 15,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k12",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 16,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              7.62,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k13",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 17,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k14",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 18,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k15",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 19,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k16",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 20,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              10.16,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k17",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 21,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k18",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 22,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k19",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 23,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k20",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 24,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              12.7,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k21",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 25,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k22",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 26,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k23",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 27,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k24",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 28,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              15.24,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k25",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 29,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k26",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 30,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k27",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 31,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k28",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 32,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              17.78,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k29",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 33,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k30",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 34,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k31",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 35,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k32",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 36,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              20.32,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k33",
+            "type": "pattern_point",
+            "p": 1,
+            "q": 37,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k34",
+            "type": "pattern_point",
+            "p": 2,
+            "q": 38,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k35",
+            "type": "pattern_point",
+            "p": 3,
+            "q": 39,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          },
+          {
+            "id": "k36",
+            "type": "pattern_point",
+            "p": 4,
+            "q": 40,
+            "center": null,
+            "angle": 0.0,
+            "offset": [
+              22.86,
+              0.0
+            ],
+            "directions": [
+              null,
+              null
+            ]
+          }
+        ],
+        "patterns": [
+          {
+            "id": "pat1",
+            "entities": [
+              "lead-ins 1",
+              "lead-ins 2",
+              "lead-ins 3",
+              "lead-ins 4"
+            ],
+            "kind": {
+              "type": "rectangular",
+              "dir": [
+                1.0,
+                0.0
+              ],
+              "dir2": [
+                0.0,
+                1.0
+              ],
+              "direction": null,
+              "direction2": null,
+              "count": 10,
+              "spacing": 2.54,
+              "count2": 1,
+              "spacing2": 2.54,
+              "alignment": "right",
+              "alignment2": "right",
+              "reversed": false,
+              "reversed2": false
+            },
+            "instances": [
+              {
+                "index": [
+                  1,
+                  0
+                ],
+                "curves": [
+                  "l1",
+                  "l2",
+                  "l3",
+                  "l4"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p5"
+                  ],
+                  [
+                    "p2",
+                    "p6"
+                  ],
+                  [
+                    "p3",
+                    "p7"
+                  ],
+                  [
+                    "p4",
+                    "p8"
+                  ]
+                ],
+                "constraints": [
+                  "k1",
+                  "k2",
+                  "k3",
+                  "k4"
+                ]
+              },
+              {
+                "index": [
+                  2,
+                  0
+                ],
+                "curves": [
+                  "l5",
+                  "l6",
+                  "l7",
+                  "l8"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p9"
+                  ],
+                  [
+                    "p2",
+                    "p10"
+                  ],
+                  [
+                    "p3",
+                    "p11"
+                  ],
+                  [
+                    "p4",
+                    "p12"
+                  ]
+                ],
+                "constraints": [
+                  "k5",
+                  "k6",
+                  "k7",
+                  "k8"
+                ]
+              },
+              {
+                "index": [
+                  3,
+                  0
+                ],
+                "curves": [
+                  "l9",
+                  "l10",
+                  "l11",
+                  "l12"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p13"
+                  ],
+                  [
+                    "p2",
+                    "p14"
+                  ],
+                  [
+                    "p3",
+                    "p15"
+                  ],
+                  [
+                    "p4",
+                    "p16"
+                  ]
+                ],
+                "constraints": [
+                  "k9",
+                  "k10",
+                  "k11",
+                  "k12"
+                ]
+              },
+              {
+                "index": [
+                  4,
+                  0
+                ],
+                "curves": [
+                  "l13",
+                  "l14",
+                  "l15",
+                  "l16"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p17"
+                  ],
+                  [
+                    "p2",
+                    "p18"
+                  ],
+                  [
+                    "p3",
+                    "p19"
+                  ],
+                  [
+                    "p4",
+                    "p20"
+                  ]
+                ],
+                "constraints": [
+                  "k13",
+                  "k14",
+                  "k15",
+                  "k16"
+                ]
+              },
+              {
+                "index": [
+                  5,
+                  0
+                ],
+                "curves": [
+                  "l17",
+                  "l18",
+                  "l19",
+                  "l20"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p21"
+                  ],
+                  [
+                    "p2",
+                    "p22"
+                  ],
+                  [
+                    "p3",
+                    "p23"
+                  ],
+                  [
+                    "p4",
+                    "p24"
+                  ]
+                ],
+                "constraints": [
+                  "k17",
+                  "k18",
+                  "k19",
+                  "k20"
+                ]
+              },
+              {
+                "index": [
+                  6,
+                  0
+                ],
+                "curves": [
+                  "l21",
+                  "l22",
+                  "l23",
+                  "l24"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p25"
+                  ],
+                  [
+                    "p2",
+                    "p26"
+                  ],
+                  [
+                    "p3",
+                    "p27"
+                  ],
+                  [
+                    "p4",
+                    "p28"
+                  ]
+                ],
+                "constraints": [
+                  "k21",
+                  "k22",
+                  "k23",
+                  "k24"
+                ]
+              },
+              {
+                "index": [
+                  7,
+                  0
+                ],
+                "curves": [
+                  "l25",
+                  "l26",
+                  "l27",
+                  "l28"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p29"
+                  ],
+                  [
+                    "p2",
+                    "p30"
+                  ],
+                  [
+                    "p3",
+                    "p31"
+                  ],
+                  [
+                    "p4",
+                    "p32"
+                  ]
+                ],
+                "constraints": [
+                  "k25",
+                  "k26",
+                  "k27",
+                  "k28"
+                ]
+              },
+              {
+                "index": [
+                  8,
+                  0
+                ],
+                "curves": [
+                  "l29",
+                  "l30",
+                  "l31",
+                  "l32"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p33"
+                  ],
+                  [
+                    "p2",
+                    "p34"
+                  ],
+                  [
+                    "p3",
+                    "p35"
+                  ],
+                  [
+                    "p4",
+                    "p36"
+                  ]
+                ],
+                "constraints": [
+                  "k29",
+                  "k30",
+                  "k31",
+                  "k32"
+                ]
+              },
+              {
+                "index": [
+                  9,
+                  0
+                ],
+                "curves": [
+                  "l33",
+                  "l34",
+                  "l35",
+                  "l36"
+                ],
+                "points": [
+                  [
+                    "p1",
+                    "p37"
+                  ],
+                  [
+                    "p2",
+                    "p38"
+                  ],
+                  [
+                    "p3",
+                    "p39"
+                  ],
+                  [
+                    "p4",
+                    "p40"
+                  ]
+                ],
+                "constraints": [
+                  "k33",
+                  "k34",
+                  "k35",
+                  "k36"
+                ]
+              }
+            ],
+            "expressions": {
+              "count": "pins",
+              "count2": "rows",
+              "spacing": "pitch",
+              "spacing2": "row_pitch"
+            }
+          }
+        ],
         "counters": {
-          "l": 4,
-          "p": 4
+          "k": 1020,
+          "l": 1020,
+          "p": 1024,
+          "pat": 1
         }
       }
     },
     {
-      "id": 4,
-      "name": "lead-in",
+      "id": 8,
+      "name": "lead-ins",
       "suppressed": false,
       "param_names": [
-        "d6",
-        "d7"
+        "d20",
+        "d21"
       ],
       "type": "extrude",
-      "sketch": 3,
+      "sketch": 7,
       "profiles": {
         "type": "all"
       },
@@ -412,112 +7712,8 @@
       },
       "operation": "cut",
       "targets": [
-        "insulator"
+        "insulator top"
       ]
-    },
-    {
-      "id": 5,
-      "name": "entry",
-      "suppressed": false,
-      "param_names": [
-        "d8",
-        "d9",
-        "d10"
-      ],
-      "participants": [
-        "insulator"
-      ],
-      "type": "box",
-      "corner": [
-        "x0 - (entry) / 2",
-        "y0 - (entry) / 2",
-        "floor_z"
-      ],
-      "length": "(x0 + (entry) / 2) - (x0 - (entry) / 2)",
-      "width": "(y0 + (entry) / 2) - (y0 - (entry) / 2)",
-      "height": "(body_height) - (floor_z)",
-      "operation": "cut"
-    },
-    {
-      "id": 6,
-      "name": "cavity",
-      "suppressed": false,
-      "param_names": [
-        "d11",
-        "d12",
-        "d13"
-      ],
-      "participants": [
-        "insulator"
-      ],
-      "type": "box",
-      "corner": [
-        "x0 - (cavity) / 2",
-        "y0 - (cavity) / 2",
-        "floor_z"
-      ],
-      "length": "(x0 + (cavity) / 2) - (x0 - (cavity) / 2)",
-      "width": "(y0 + (cavity) / 2) - (y0 - (cavity) / 2)",
-      "height": "(cavity_top) - (floor_z)",
-      "operation": "cut"
-    },
-    {
-      "id": 7,
-      "name": "tail hole",
-      "suppressed": false,
-      "param_names": [
-        "d14",
-        "d15",
-        "d16"
-      ],
-      "participants": [
-        "insulator"
-      ],
-      "type": "box",
-      "corner": [
-        "x0 - (pin_side) / 2",
-        "y0 - (pin_side) / 2",
-        "- 1 mm"
-      ],
-      "length": "(x0 + (pin_side) / 2) - (x0 - (pin_side) / 2)",
-      "width": "(y0 + (pin_side) / 2) - (y0 - (pin_side) / 2)",
-      "height": "(floor_z + 0.1 mm) - (- 1 mm)",
-      "operation": "cut"
-    },
-    {
-      "id": 8,
-      "name": "openings",
-      "suppressed": false,
-      "param_names": [
-        "d17",
-        "d18",
-        "d19",
-        "d20"
-      ],
-      "type": "pattern",
-      "features": [
-        4,
-        5,
-        6,
-        7
-      ],
-      "pattern": {
-        "type": "rectangular",
-        "dir1": [
-          1.0,
-          0.0,
-          0.0
-        ],
-        "count1": "pins",
-        "spacing1": "pitch",
-        "dir2": [
-          0.0,
-          1.0,
-          0.0
-        ],
-        "count2": "rows",
-        "spacing2": "row_pitch"
-      }
     },
     {
       "id": 9,
@@ -527,9 +7723,9 @@
         "contact"
       ],
       "param_names": [
-        "d21",
         "d22",
-        "d23"
+        "d23",
+        "d24"
       ],
       "type": "box",
       "corner": [
@@ -550,9 +7746,9 @@
         "leaf a"
       ],
       "param_names": [
-        "d24",
         "d25",
-        "d26"
+        "d26",
+        "d27"
       ],
       "type": "box",
       "corner": [
@@ -573,9 +7769,9 @@
         "leaf b"
       ],
       "param_names": [
-        "d27",
         "d28",
-        "d29"
+        "d29",
+        "d30"
       ],
       "type": "box",
       "corner": [
@@ -863,10 +8059,10 @@
         "contact (256)"
       ],
       "param_names": [
-        "d30",
         "d31",
         "d32",
-        "d33"
+        "d33",
+        "d34"
       ],
       "type": "pattern",
       "features": [],
@@ -4481,6 +11677,34 @@
         }
       },
       "insulator": {
+        "name": "pbt",
+        "color": [
+          48,
+          48,
+          50
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.5,
+          "dielectric_ior": 1.57
+        }
+      },
+      "insulator top": {
+        "name": "pbt",
+        "color": [
+          48,
+          48,
+          50
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.5,
+          "dielectric_ior": 1.57
+        }
+      },
+      "insulator walls": {
         "name": "pbt",
         "color": [
           48,
