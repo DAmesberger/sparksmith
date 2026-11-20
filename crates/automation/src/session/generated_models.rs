@@ -152,11 +152,13 @@ pub(crate) fn generated_model(
         .collect();
     let mut leads = part_file::lead_bodies(&part, &contacts, true).map_err(refused)?;
     // Lead bodies under no lead contact take the terminal of the land they
-    // stand on (a module's ground array: one contact, every pad bound).
+    // stand on (a module's ground array: one contact, every pad bound); a
+    // body in a hole that lands no terminal (an alignment pin) binds none.
     let lands: Vec<(String, [f64; 2])> = generation
         .footprint
         .pads
         .iter()
+        .filter(|p| !p.terminal.is_empty())
         .map(|p| (p.terminal.clone(), [mm(p.at[0]), mm(p.at[1])]))
         .collect();
     for lead in part_file::lead_bodies(&part, &lands, false).map_err(refused)? {
