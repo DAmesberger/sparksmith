@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "header.wasm",
-    "sha256": "423c4660546f0bd86cf2b435d3e730ab5b06bda96fe02f59e81f4ed94e5962b5"
+    "sha256": "620ea2fada9b23ab3f9d8878db44be93fb805e0f1db165a3c93f62b0bd2a672d"
   },
   "name": "header",
   "parts": [
@@ -12,6 +12,20 @@
       "provenance": "Original work: the in-code header builder's construction (crates/solidcraft-integration/src/models/header.rs, retired with this file) made parametric in its counts, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 2 × 5 header of 2.54 mm; the header generator gives every parameter its value. Typical square-post proportions and estimated rounds; no vendor drawing or EDA/CAD library data copied.",
       "sha256": "24c5a7d604724a2ce1ccbf00bdb8cdaf31a6c469f564a585059a83a0bc9241bc",
       "title": "Straight pin header"
+    },
+    {
+      "file": "parts/pin-socket.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 1 × 10 socket of 2.54 mm; the header generator gives every parameter its value. Proportions read as a datasheet from Würth Elektronik's WR-PHD 2.54 mm socket header drawing (61301011821, rev. 002.000, 2024-03-25: housing 8.5 mm high and 2.5 mm wide, tails 3.1 mm below the board); the openings and the contact's leaves are estimated. No vendor CAD or EDA/CAD library data copied.",
+      "sha256": "26c01ba37f8df594acdd37f6b35b7abab28576186d77cea83fa6e5b92af621b8",
+      "title": "Through-hole pin socket"
+    },
+    {
+      "file": "parts/socket-smd-bottom.solidcraft",
+      "licence": "MIT OR Apache-2.0",
+      "provenance": "Original work, saved through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` at a 2 × 3 socket of 2.54 mm; the header generator gives every parameter its value. Outline read as a datasheet from Würth Elektronik's WR-PHD SMT dual socket header, bottom entry, drawing (610006243021, rev. 002.001, 2022-01-28: housing 5 mm wide, top 3.7 mm and underside 0.2 mm above the board, tails 7.2 mm tip to tip); the openings, the contact's leaves and the tails' sheet are estimated. No vendor CAD or EDA/CAD library data copied.",
+      "sha256": "c7a2b0914d44de376dd0e980593dbffd0d37434b25bdd77c452dd5fc8749ed81",
+      "title": "Bottom-entry SMD socket"
     }
   ]
 }
