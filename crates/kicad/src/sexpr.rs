@@ -77,6 +77,25 @@ impl Node {
     pub fn arg(&self, index: usize) -> Option<&str> {
         self.args().get(index).and_then(Node::atom)
     }
+
+    /// Whether this list or any list inside it has a keyword `wanted`
+    /// accepts and something after it (searched without recursion).
+    pub fn any_head(&self, wanted: impl Fn(&str) -> bool) -> bool {
+        let mut stack = vec![self];
+        while let Some(node) = stack.pop() {
+            if node.head().is_some_and(&wanted) && !node.args().is_empty() {
+                return true;
+            }
+            stack.extend(node.args().iter().filter(|n| matches!(n, Node::List(_))));
+        }
+        false
+    }
+}
+
+/// Whether a keyword names variant data (KiCad's design variants, which
+/// its public file-format documentation does not describe).
+pub fn variant_keyword(head: &str) -> bool {
+    head.starts_with("variant")
 }
 
 /// Parse one file holding exactly one top-level list.

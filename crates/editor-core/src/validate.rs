@@ -63,6 +63,7 @@ fn project_checks(p: &Project, schematic: bool) -> Result<()> {
         .chain(p.fills.iter().map(|f| f.id))
         .chain(p.keepouts.iter().map(|k| k.id))
         .chain(p.part_dimensions.iter().map(|d| d.id))
+        .chain(instances::variants::ids(p))
     {
         if id == 0 || id >= p.next_id || !ids.insert(id) {
             return Err(Error::Invalid("invalid global identity allocation".into()));
@@ -81,6 +82,7 @@ fn project_checks(p: &Project, schematic: bool) -> Result<()> {
     if let Some(link) = p.assembly_link.as_deref() {
         crate::interface::assembly_link::check_link(link)?;
     }
+    instances::variants::check(p)?;
     if schematic {
         instances::check_all(p)?;
         instances::check_designators(p)?;

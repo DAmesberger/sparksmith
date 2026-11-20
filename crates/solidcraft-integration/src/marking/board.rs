@@ -491,6 +491,15 @@ pub fn instance_layouts(project: &Project) -> InstanceLayouts {
     }
     for placement in &project.placements {
         let instance = placement.instance;
+        // A part the active assembly variant leaves off has no body to
+        // mark; a substitute is not the part the marking describes, so it
+        // is left unmarked rather than marked wrongly.
+        let fitted = project
+            .instance(instance)
+            .map(|i| sparksmith_core::instances::variants::fitted(project, i));
+        if fitted.is_some_and(|f| !f.populated() || f.substituted) {
+            continue;
+        }
         match sparksmith_core::commands::instance_marking(project, instance) {
             Ok(Some(layout)) if !layout.is_blank() => {
                 out.layouts.insert(instance, layout);
@@ -503,12 +512,12 @@ pub fn instance_layouts(project: &Project) -> InstanceLayouts {
 }
 
 /// The package an instance is built with, if it resolves.
+/// The package an instance is built with under the active assembly
+/// variant, if it resolves.
 fn package_of(project: &Project, instance: Id) -> Option<&PackageDefinition> {
     let target = project.instance(instance)?;
-    let component = project.library.component(target.component)?;
-    let choice = target.physical?;
-    sparksmith_core::instances::resolve_physical(&project.library, &component.definition, choice)
-        .ok()
+    sparksmith_core::instances::variants::fitted(project, target)
+        .physical
         .map(|view| &view.package.definition)
 }
 

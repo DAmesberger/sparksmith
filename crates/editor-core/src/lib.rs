@@ -76,6 +76,8 @@ pub enum Operation {
     Interface(interface::InterfaceCommand),
     /// The assembly link (`assembly.*`).
     Assembly(interface::assembly_link::AssemblyCommand),
+    /// Assembly variants and which parts each fits (`variant.*`).
+    Variant(instances::variants::VariantCommand),
     Update(Box<updates::ApplyUpdate>),
 }
 
@@ -94,6 +96,7 @@ impl Operation {
             Self::Fabrication(command) => command.class(),
             Self::Interface(command) => command.class(),
             Self::Assembly(command) => command.class(),
+            Self::Variant(command) => command.class(),
             Self::Update(_) => Class::Edit,
         }
     }
@@ -112,6 +115,7 @@ impl Operation {
             Self::Fabrication(command) => command.command(),
             Self::Interface(command) => command.command(),
             Self::Assembly(command) => command.command(),
+            Self::Variant(command) => command.command(),
             Self::Update(_) => "update",
         }
     }
@@ -137,7 +141,8 @@ impl Operation {
             Self::Schematic(
                 schematic::SchematicCommand::SetProperties { .. }
                 | schematic::SchematicCommand::RenameProject { .. },
-            ) => Area::Project,
+            )
+            | Self::Variant(_) => Area::Project,
             Self::Instance(_) | Self::Schematic(_) | Self::Update(_) => Area::Schematic,
         }
     }
@@ -166,10 +171,16 @@ impl Operation {
                 | InstanceCommand::SetMarking { instance, .. }
                 | InstanceCommand::SetTextPlacement { instance, .. },
             ) => Some(*instance),
-            Self::Instance(InstanceCommand::AssignPart { instances, .. }) => match instances[..] {
+            Self::Instance(InstanceCommand::AssignPart { instances, .. })
+            | Self::Variant(instances::variants::VariantCommand::SetPopulation {
+                instances, ..
+            }) => match instances[..] {
                 [one] => Some(one),
                 _ => None,
             },
+            Self::Variant(instances::variants::VariantCommand::SetPart { instance, .. }) => {
+                Some(*instance)
+            }
             _ => None,
         }
     }
@@ -195,6 +206,7 @@ impl Operation {
             fabrication::FabricationCommand::ENTRIES,
             interface::InterfaceCommand::ENTRIES,
             interface::assembly_link::AssemblyCommand::ENTRIES,
+            instances::variants::VariantCommand::ENTRIES,
             UPDATE,
         ]
         .into_iter()
@@ -266,6 +278,14 @@ pub enum Query {
     /// included.
     #[serde(rename = "library.resolve_groups")]
     ResolveGroups {},
+    /// The assembly variants, the active one, and every bought part's
+    /// population and fitted Part in the default and in each variant.
+    #[serde(rename = "variant.list")]
+    Variants {},
+    /// The Parts of the project library that can be fitted on a part's
+    /// footprint in a variant: the same land pattern and pad grouping.
+    #[serde(rename = "variant.substitutes")]
+    Substitutes { instance: Id },
     /// What `library.edit_footprint` would produce for these edits, without
     /// changing the document. Pads, graphics and findings, including blocking
     /// ones. Needs the host's footprint evaluator.
@@ -493,6 +513,8 @@ declare_entries!(Query in project {
     InspectLineage "library.inspect" Read "Inspect a lineage" [in library, link],
     Bom "project.bom" Read "Bill of materials" [link],
     ResolveGroups "library.resolve_groups" Read "Group instances for purchasing" [in library, link],
+    Variants "variant.list" Read "List assembly variants" [link, since(7, 13)],
+    Substitutes "variant.substitutes" Read "Parts that fit a footprint" [link, since(7, 13)],
     FootprintPreview "library.footprint_preview" Read "Preview a footprint" [in library, long, link],
     UpdatesAvailable "library.updates_available" Read "List library updates" [in library, link],
     PromotePreview "library.promote_preview" Read "Preview a promotion" [in library, link],
@@ -540,6 +562,8 @@ pub enum QueryResult {
     Lineage(Box<catalog::ItemReport>),
     Bom(completeness::BomReport),
     ResolveGroups(completeness::ResolveReport),
+    Variants(instances::variants::VariantsReport),
+    Substitutes(Vec<instances::variants::Substitute>),
     FootprintPreview(Box<library::footprint_edit::FootprintPreview>),
     UpdatesAvailable(Vec<catalog::UpdateAvailable>),
     Promote(Box<library::import::PromotePlan>),
@@ -1891,6 +1915,19 @@ impl Engine {
                 interface::assembly_link::apply(project, command, evaluators.board)?;
                 Outcome::None
             }
+            // Applied to a copy, so a command that restates the variants
+            // takes no revision or undo step.
+            Operation::Variant(command) => {
+                let mut next = (*candidate.project).clone();
+                let added = instances::variants::apply(&mut next, command)?;
+                if next != *candidate.project {
+                    candidate.project = Arc::new(next);
+                }
+                match added {
+                    Some(variant) => Outcome::VariantAdded { variant },
+                    None => Outcome::None,
+                }
+            }
             Operation::Update(update) => {
                 candidate.project = Arc::new(updates::candidate(
                     &self.document.project,
@@ -1910,6 +1947,8 @@ impl Engine {
             let project = Arc::make_mut(&mut candidate.project);
             let changes = if schematic_edited {
                 schematic::tidy(project)?;
+                // A removed part takes its variant overrides with it.
+                instances::variants::follow_instances(project);
                 nets::reconcile(project)?
             } else {
                 nets::NetChanges::default()
@@ -2122,6 +2161,12 @@ impl Engine {
             Query::Bom {} => Ok(QueryResult::Bom(completeness::bom(&self.document.project)?)),
             Query::ResolveGroups {} => Ok(QueryResult::ResolveGroups(
                 completeness::resolve_groups(&self.document.project)?,
+            )),
+            Query::Variants {} => Ok(QueryResult::Variants(instances::variants::report(
+                &self.document.project,
+            )?)),
+            Query::Substitutes { instance } => Ok(QueryResult::Substitutes(
+                instances::variants::substitutes(&self.document.project, instance)?,
             )),
             Query::InspectInstance { instance } => Ok(QueryResult::Instance(Box::new(
                 completeness::instance(&self.document.project, instance)?,

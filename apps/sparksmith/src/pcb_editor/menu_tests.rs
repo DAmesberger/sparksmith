@@ -168,6 +168,7 @@ fn a_part_offers_its_placement_actions() -> TestResult {
             "—",
             "Lock",
             "Dimension to edge",
+            "Not populated in default",
             "—",
             "Delete…"
         ]

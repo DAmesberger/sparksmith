@@ -60,6 +60,7 @@ impl PcbEditor {
         let mut classes = false;
         let mut rules = false;
         let mut signals = false;
+        let mut variants = false;
         kit::section(ui, "pcb-board", "Board", true, None, |ui| {
             renamed = self.project_name_row(ui, project);
             kit::value_row(
@@ -109,7 +110,21 @@ impl PcbEditor {
                 };
                 signals = kit::summary_row(ui, &summary, Some("Edit…"));
             });
+            kit::row(ui, "Variants", |ui| {
+                let summary = match (project.variants.list.len(), project.variants.active()) {
+                    (0, _) => "Default only".to_owned(),
+                    (n, active) => format!(
+                        "{n} variant{} · {} active",
+                        if n == 1 { "" } else { "s" },
+                        active.map_or("Default", |v| v.name.as_str())
+                    ),
+                };
+                variants = kit::summary_row(ui, &summary, Some("Edit…"));
+            });
         });
+        if variants {
+            self.open_variants();
+        }
         if signals {
             self.open_signals();
         }
@@ -158,6 +173,7 @@ impl PcbEditor {
             D::Stackup => self.open_stackup(project),
             D::NetClasses => self.open_net_classes(None),
             D::HighSpeed => self.open_signals(),
+            D::Variants => self.open_variants(),
         }
     }
 
@@ -173,12 +189,15 @@ impl PcbEditor {
             Some(D::NetClasses)
         } else if self.signals.is_some() {
             Some(D::HighSpeed)
+        } else if self.variants.is_some() {
+            Some(D::Variants)
         } else {
             None
         }
     }
 
     pub(super) fn open_board_setup(&mut self, project: &Project) {
+        self.variants = None;
         self.net_classes = None;
         self.signals = None;
         self.rules = None;

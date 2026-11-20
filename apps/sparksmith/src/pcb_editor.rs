@@ -101,7 +101,10 @@ mod track_drag;
 #[cfg(test)]
 mod track_drag_tests;
 mod tune_tool;
+mod variants_card;
 pub use rules_panel::{RuleTopic, topic_for as rule_topic_for};
+#[cfg(test)]
+pub(crate) use variants_card::tests as variant_fixtures;
 mod track_card;
 mod via_card;
 #[cfg(test)]
@@ -439,6 +442,9 @@ pub struct PcbEditor {
     outlined: BTreeSet<Id>,
     /// Instances whose designator a placed text already shows.
     labelled: BTreeSet<Id>,
+    /// Placed parts the active assembly variant does not fit, per
+    /// revision: drawn crossed out.
+    not_fitted: BTreeSet<Id>,
     layers: Layers,
     /// PCB 3D's layer toggles; its outer copper and silkscreen entries are
     /// `layers`' ([`PcbEditor::layer_view`]).
@@ -508,6 +514,8 @@ pub struct PcbEditor {
     connections_all: bool,
     /// The Net classes card while it is open.
     net_classes: Option<net_classes::NetClassesCard>,
+    /// The Assembly variants card while it is open.
+    variants: Option<variants_card::VariantsCard>,
     /// The issue slot of the last inspected subject, per document revision.
     issue_slot: Option<((u64, usize, Inspected), Option<IssueSlot>)>,
     /// The selected copper fill.
@@ -614,6 +622,7 @@ impl Default for PcbEditor {
             track_ends: vec![],
             outlined: BTreeSet::new(),
             labelled: BTreeSet::new(),
+            not_fitted: BTreeSet::new(),
             layers: Layers::default(),
             view_layers: Default::default(),
             interface_shown: false,
@@ -643,6 +652,7 @@ impl Default for PcbEditor {
             show_in_schematic: None,
             connections_all: false,
             net_classes: None,
+            variants: None,
             issue_slot: None,
             fill: None,
             fill_meshes: Default::default(),
@@ -1023,6 +1033,19 @@ impl PcbEditor {
             })
             .map(|g| g.instance)
             .collect();
+        // What the active variant leaves off (`variants::fitted`'s
+        // population): its copper stays, its outline is crossed out.
+        let active = project.variants.active();
+        self.not_fitted = project
+            .placements
+            .iter()
+            .filter(|p| {
+                project.instance(p.instance).is_some_and(|i| {
+                    !sparksmith_core::instances::variants::population(i, active).is_populated()
+                })
+            })
+            .map(|p| p.instance)
+            .collect();
     }
 
     fn cancel_drag(&mut self) {
@@ -1344,6 +1367,7 @@ impl PcbEditor {
             || self.stackup.is_some()
             || self.net_classes.is_some()
             || self.signals.is_some()
+            || self.variants.is_some()
         {
             Subject::Dialog
         } else if ((self.shape.active
@@ -1422,6 +1446,7 @@ impl PcbEditor {
                 CardResponse::output(self.stackup_setup(ui, engine))
             }
             Subject::Dialog if self.signals.is_some() => self.signals_card(ui, engine),
+            Subject::Dialog if self.variants.is_some() => self.variants_card(ui, engine),
             Subject::Dialog if self.setup.is_none() => self.net_classes_card(ui, engine),
             Subject::Dialog => CardResponse::output(self.board_setup(ui, engine)),
             // The review docks with its own header and pinned footer
@@ -1536,7 +1561,10 @@ impl PcbEditor {
                 let text = self.text_section(ui, project, id);
                 let part = self.part_section(ui, engine, id);
                 let exported = self.interface_part_section(ui, engine, id);
-                moved.or(text).or(part).or(exported)
+                let assembly = project
+                    .instance(id)
+                    .and_then(|i| crate::variants::assembly_section(ui, project, i));
+                moved.or(text).or(part).or(exported).or(assembly)
             }
             Inspected::Unplaced(_) => {
                 self.unplaced_section(ui, engine);
@@ -2092,7 +2120,9 @@ impl PcbEditor {
         {
             operation = self.menu_act(engine, menu::Act::Rotate(id));
         }
-        self.pills(ui, rect, project);
+        if let Some(pill) = self.pills(ui, rect, project) {
+            operation = Some(pill);
+        }
         if let Some(menu) = self.show_menu(ui.ctx(), engine) {
             operation = Some(menu);
         }
@@ -2141,32 +2171,45 @@ impl PcbEditor {
     }
 
     /// Pills for the persistent modes, top-centre of the canvas: the route
-    /// in progress, else the highlighted net. × ends the mode.
-    fn pills(&mut self, ui: &mut Ui, rect: Rect, project: &Project) {
-        let t = Tokens::get();
-        let Some(text) = self.pill_text(ui.ctx(), project) else {
-            return;
-        };
-        // The pill hugs its text: its frame fills the rect it is given.
-        let text_width = ui
-            .painter()
-            .layout_no_wrap(text.clone(), FontId::proportional(t.font_label), t.text)
-            .size()
-            .x;
-        let width = (text_width + 3.0 * t.control_height).min(rect.width());
-        let area = Rect::from_min_size(
-            rect.center_top() + egui::vec2(-width / 2.0, t.space_8),
-            egui::vec2(width, t.control_height + t.space_8),
-        );
-        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(area));
-        let pill = kit::pill(&mut child, None, &text);
-        if pill.closed {
-            if self.route_start.is_some() {
-                self.finish_route();
-            } else {
-                self.highlighted = None;
+    /// in progress, else the highlighted net; × ends the mode. Under it,
+    /// the active assembly variant's ([`Self::variant_pill`]).
+    fn pills(&mut self, ui: &mut Ui, rect: Rect, project: &Project) -> Option<Operation> {
+        let mut row = 0;
+        if let Some(text) = self.pill_text(ui.ctx(), project) {
+            row = 1;
+            if pill_at(ui, rect, 0, &text).closed {
+                if self.route_start.is_some() {
+                    self.finish_route();
+                } else {
+                    self.highlighted = None;
+                }
             }
         }
+        self.variant_pill(ui, rect, project, row)
+    }
+
+    /// The active assembly variant's pill ("Lite variant"), in pill row
+    /// `row` of the view at `rect`, PCB 2D and 3D alike: a click opens
+    /// the Assembly variants card to switch, × makes the default active.
+    /// None while the default is active.
+    pub fn variant_pill(
+        &mut self,
+        ui: &mut Ui,
+        rect: Rect,
+        project: &Project,
+        row: usize,
+    ) -> Option<Operation> {
+        let variant = project.variants.active()?;
+        let pill = pill_at(ui, rect, row, &format!("{} variant", variant.name));
+        if pill.clicked {
+            self.open_variants();
+        }
+        pill.closed.then(|| {
+            refusal::mark(ui.ctx(), Origin::Command);
+            Operation::Variant(
+                sparksmith_core::instances::variants::VariantCommand::SetActive { variant: None },
+            )
+        })
     }
 
     /// The pad a route click at `at` snaps to: a visible pad with a net and
@@ -2605,6 +2648,7 @@ impl PcbEditor {
         self.paint_drawings(painter, view, &ink, near, false, silk);
         self.paint_drawings(painter, view, &ink, near, false, courtyard);
         self.paint_courtyard_overlaps(painter, view, near);
+        self.paint_not_fitted(painter, view, project);
         if self.show_airwires {
             for (a, b) in self.visible_airwires() {
                 painter.line_segment(
@@ -2903,6 +2947,48 @@ impl PcbEditor {
         }
     }
 
+    /// A cross over each part the active assembly variant leaves off,
+    /// corner to corner of its courtyard (else its body outline); its
+    /// drawings are dimmed ([`Self::paint_drawings`]). Copper is the same
+    /// on every variant.
+    fn paint_not_fitted(&self, painter: &egui::Painter, view: BoardView, project: &Project) {
+        let stroke = Stroke::new(1.5, Tokens::get().text_dim);
+        for placement in project
+            .placements
+            .iter()
+            .filter(|p| self.not_fitted.contains(&p.instance))
+        {
+            let Some(corners) = self.cross_corners(project, placement) else {
+                continue;
+            };
+            let [a, b, c, d] = corners.map(|p| view.screen(p));
+            painter.line_segment([a, c], stroke);
+            painter.line_segment([b, d], stroke);
+        }
+    }
+
+    /// The corners a not-fitted part's cross joins, at its drag preview:
+    /// the box of its closed courtyard outlines, else its body outline.
+    fn cross_corners(&self, project: &Project, placement: &Placement) -> Option<[Point; 4]> {
+        let delta = self.drag_delta(placement.instance);
+        let courtyard = self
+            .graphics
+            .iter()
+            .filter(|g| {
+                g.instance == placement.instance && matches!(g.layer, BoardDrawing::Courtyard(_))
+            })
+            .filter_map(|g| match &g.item {
+                PlacedItem::Shape { shape, .. } if shape.is_closed() => Some(shape.bounds(0.0)),
+                _ => None,
+            })
+            .reduce(|a, b| a.union(b));
+        let corners = match courtyard {
+            Some(b) => [b.min, [b.max[0], b.min[1]], b.max, [b.min[0], b.max[1]]],
+            None => body_polygon(project, placement)?,
+        };
+        Some(corners.map(|p| [p[0] + delta[0], p[1] + delta[1]]))
+    }
+
     /// The courtyards of parts a `board.courtyard_overlap` finding names,
     /// tinted on the near side so the overlap reads darker where they
     /// cross.
@@ -2968,6 +3054,9 @@ impl PcbEditor {
             };
             if dim {
                 color = ink.on_board(color, FAR_SHADE);
+            }
+            if self.not_fitted.contains(&graphic.instance) {
+                color = ink.on_board(color, NOT_FITTED_SHADE);
             }
             let delta = self.drag_delta(graphic.instance);
             match &graphic.item {
@@ -3479,6 +3568,29 @@ impl crate::issues::Locate for PcbEditor {
         self.frame_request = bounds_of(self, project, refs);
         true
     }
+}
+
+/// A part's drawings' share of their colour over the board while the
+/// active assembly variant leaves it off.
+const NOT_FITTED_SHADE: f32 = 0.45;
+
+/// A pill hugging `text`, top-centre of `rect` in pill row `row` (0 the
+/// top).
+fn pill_at(ui: &mut Ui, rect: Rect, row: usize, text: &str) -> kit::PillResponse {
+    let t = Tokens::get();
+    let text_width = ui
+        .painter()
+        .layout_no_wrap(text.to_owned(), FontId::proportional(t.font_label), t.text)
+        .size()
+        .x;
+    let width = (text_width + 3.0 * t.control_height).min(rect.width());
+    let pitch = t.control_height + t.space_8 + t.space_4;
+    let area = Rect::from_min_size(
+        rect.center_top() + egui::vec2(-width / 2.0, t.space_8 + pitch * row as f32),
+        egui::vec2(width, t.control_height + t.space_8),
+    );
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(area));
+    kit::pill(&mut child, None, text)
 }
 
 /// A part's outline on the board: the one align and distribute line up.

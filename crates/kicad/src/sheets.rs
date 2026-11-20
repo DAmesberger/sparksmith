@@ -129,6 +129,40 @@ pub(crate) fn values_by_reference(schematic: &Schematic) -> BTreeMap<String, Str
     out
 }
 
+/// Each part the schematic marks not fitted (any unit's `(dnp yes)`, else
+/// `(in_bom no)`), by upper-case reference, power symbols left out.
+pub(crate) fn not_fitted_by_reference(
+    schematic: &Schematic,
+) -> BTreeMap<String, crate::population::Why> {
+    use crate::population::Why;
+    let mut out: BTreeMap<String, Why> = BTreeMap::new();
+    for sheet in &schematic.sheets {
+        let Some(file) = schematic.files.get(&sheet.file) else {
+            continue;
+        };
+        for symbol in &file.symbols {
+            let why = if symbol.dnp {
+                Why::DoNotPopulate
+            } else if symbol.not_in_bom {
+                Why::ExcludedFromBom
+            } else {
+                continue;
+            };
+            let (reference, _) = schematic.reference(sheet, symbol);
+            if !reference.starts_with('#') {
+                let entry = out.entry(reference.to_ascii_uppercase()).or_insert(why);
+                *entry = (*entry).min(why);
+            }
+        }
+    }
+    out
+}
+
+/// Whether any sheet file holds variant data (not imported).
+pub(crate) fn has_variants(schematic: &Schematic) -> bool {
+    schematic.files.values().any(|f| f.variants)
+}
+
 fn mm(p: PointNm) -> [f64; 2] {
     [p[0] as f64 / 1e6, p[1] as f64 / 1e6]
 }

@@ -10,10 +10,12 @@
 //! directly: each step is a typed [`Operation`] applied by [`Engine`], and
 //! any refused step fails the whole import (the engine is dropped).
 use crate::board::{self, Board, Footprint};
+use crate::population::Why;
 use crate::report::{Case, Report};
 use crate::translate::{self, DefPad, Mapped};
 use sparksmith_core::functions::{Direction, TerminalFunctions};
 use sparksmith_core::geometry::Bounds;
+use sparksmith_core::instances::variants::VariantCommand;
 use sparksmith_core::layout::LayoutCommand;
 use sparksmith_core::layout::fill::FillCommand;
 use sparksmith_core::layout::outline::{BoardCommand, BoardEdit};
@@ -24,6 +26,7 @@ use sparksmith_core::library::{
     FootprintDefinition, ModelPlacement, PackageDefinition, PackageModel, PackageTerminal, Pad,
     PadDefaults, PadKind, Terminal, TerminalClass, TerminalMap, designator_prefix_valid,
 };
+use sparksmith_core::model::Population;
 use sparksmith_core::model::board::BoardShape;
 use sparksmith_core::model::fill::PadFillOverride;
 use sparksmith_core::rules::{
@@ -236,16 +239,38 @@ pub fn import_with_models(
             part
         })
         .collect();
-    let values: Vec<Option<String>> = board
-        .footprints
-        .iter()
-        .map(|fp| {
-            let value = schematic_values
-                .get(&fp.reference.to_ascii_uppercase())
-                .unwrap_or(&fp.value);
-            value_text(value)
-        })
-        .collect();
+    // Parts not fitted: KiCad's attributes on the footprint or symbol, or
+    // a not-fitted marker in the value, which leaves the value.
+    let schematic_not_fitted = schematic
+        .as_ref()
+        .map(crate::sheets::not_fitted_by_reference)
+        .unwrap_or_default();
+    let mut not_fitted: Vec<Option<Why>> = Vec::with_capacity(board.footprints.len());
+    let mut values: Vec<Option<String>> = Vec::with_capacity(board.footprints.len());
+    for fp in &board.footprints {
+        let key = fp.reference.to_ascii_uppercase();
+        let value = value_text(schematic_values.get(&key).unwrap_or(&fp.value));
+        let (value, marker) = match value.as_deref().map(crate::population::split_marker) {
+            Some(Some(rest)) => ((!rest.is_empty()).then_some(rest), Some(Why::MarkerValue)),
+            _ => (value, None),
+        };
+        let attribute = [
+            fp.dnp.then_some(Why::DoNotPopulate),
+            fp.exclude_from_bom.then_some(Why::ExcludedFromBom),
+            schematic_not_fitted.get(&key).copied(),
+        ]
+        .into_iter()
+        .flatten()
+        .min();
+        not_fitted.push(attribute.or(marker));
+        values.push(value);
+    }
+    let has_variants = board.variants
+        || schematic.as_ref().is_some_and(crate::sheets::has_variants)
+        || setup.project_file.is_some_and(crate::project::has_variants);
+    if has_variants {
+        report.add(Case::VariantsNotImported);
+    }
     // Each footprint's pads in its own definition frame, with its KiCad
     // symbol; copies of one KiCad footprint (by its `library:name`) with
     // equal pads and symbol share a definition. Distinct KiCad footprints
@@ -601,6 +626,28 @@ pub fn import_with_models(
                 });
             }
         }
+    }
+    // The parts not fitted, not populated in the default, each named.
+    let mut unfitted = Vec::new();
+    for ((fp, instance), why) in placed.iter().zip(&instances).zip(&not_fitted) {
+        if let Some(why) = why {
+            let case = match why {
+                Why::MarkerValue => Case::NotPopulatedMarker,
+                Why::DoNotPopulate | Why::ExcludedFromBom => Case::NotPopulatedAttribute,
+            };
+            report.add_detail(case, &fp.reference, "", why.text());
+            unfitted.push(*instance);
+        }
+    }
+    if !unfitted.is_empty() {
+        session.batches(
+            "variant.set_population",
+            vec![Operation::Variant(VariantCommand::SetPopulation {
+                instances: unfitted,
+                variant: None,
+                population: Some(Population::NotPopulated),
+            })],
+        )?;
     }
     // Every unit turned as KiCad turns it; the other units placed.
     if plan.is_some() {

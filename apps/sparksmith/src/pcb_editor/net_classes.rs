@@ -241,6 +241,7 @@ impl PcbEditor {
         self.stackup = None;
         self.rules = None;
         self.signals = None;
+        self.variants = None;
         self.end_route();
         self.net_classes = Some(NetClassesCard {
             selected: class,

@@ -58,6 +58,8 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         // A loop through positions; a broken assembly reference is a
         // warning that blocks only publishing to the linked design.
         | "assembly.cycle"
+        // The variant fits the default part instead of the one chosen.
+        | "variant.substitute_unfit"
         | CHECK_FAILED => Severity::Error,
         "board.unrouted" | "board.unplaced" | NO_PART => Severity::ToDo,
         "erc.unchecked_terminal"
@@ -205,6 +207,7 @@ pub fn group_title(code: &str) -> String {
         "asset.missing" => "Attached copies not packed",
         "library.update_available" => "Library updates",
         "library.source_modified" => "Library sources changed",
+        "variant.substitute_unfit" => "Variant parts that no longer fit",
         _ => "",
     };
     if !known.is_empty() {
@@ -227,6 +230,7 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "board.copper_sliver" => "Move the copper apart or together, or widen the hatch",
         "board.courtyard_overlap" => "Move the parts apart",
         "board.body_off_pads" => "Fit the body to its pads or give the part another body",
+        "variant.substitute_unfit" => "Choose another part for the variant or fit the default",
         "board.outside_outline" => "Move it inside the board",
         "board.unrouted" => "Route the connection",
         "board.unplaced" => "Update the PCB from the schematic",
@@ -442,6 +446,12 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
         "board.body_off_pads" => format!(
             "{}: body leads off their pads",
             list(&names_of(names, findings, |_| true))
+        ),
+        "variant.substitute_unfit" => format!(
+            "{}: variant part no longer fits its footprint",
+            list(&names_of(names, findings, |o| {
+                matches!(o, ObjectRef::Instance { .. })
+            }))
         ),
         // Short enough for the Issues row: the hole and what it is near.
         "board.hole_clearance" => {
@@ -763,6 +773,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "text.content_kind",
     "text.empty",
     "text.too_long",
+    "variant.substitute_unfit",
     NO_PART,
     CHECK_FAILED,
 ];

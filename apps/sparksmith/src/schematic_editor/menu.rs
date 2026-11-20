@@ -50,6 +50,10 @@ pub(super) enum Act {
     RemoveItem(Item),
     Paste(Point),
     RemoveGroup,
+    /// Toggle whether the part is populated in the active variant.
+    Population(Id),
+    /// The same for every part of the group, in one step.
+    GroupPopulation,
 }
 
 /// What the app does for a sheet menu row it runs itself.
@@ -125,7 +129,10 @@ impl SchematicEditor {
                     return Vec::new();
                 }
                 let arrangeable = self.can_arrange(project);
-                vec![
+                let parts: Vec<Id> = self.group.instances.iter().copied().collect();
+                let population =
+                    crate::variants::menu_entry(project, &parts, Act::GroupPopulation, !reviewing);
+                let mut rows = vec![
                     Some(
                         Entry::act("Rotate", "spin", Act::Arrange(Arrange::Rotate), arrangeable)
                             .key_of(ctx, "schematic.rotate"),
@@ -152,12 +159,19 @@ impl SchematicEditor {
                         "Copy",
                         self.can_copy(project).is_ok(),
                     )),
+                ];
+                // Only a group with parts has a population to toggle.
+                if let Some(entry) = population {
+                    rows.extend([None, Some(entry)]);
+                }
+                rows.extend([
                     None,
                     Some(
                         Entry::act("Delete…", "delete", Act::RemoveGroup, !reviewing)
                             .key_of(ctx, "schematic.delete"),
                     ),
-                ]
+                ]);
+                rows
             }
             Target::Symbol {
                 instance,
@@ -208,6 +222,12 @@ impl SchematicEditor {
                         Act::NoConnectAll(instance, occurrence),
                         open_pins && !reviewing,
                     )),
+                    crate::variants::menu_entry(
+                        project,
+                        &[instance],
+                        Act::Population(instance),
+                        !reviewing,
+                    ),
                     None,
                     Some(
                         Entry::act("Delete…", "delete", Act::Remove(instance), !reviewing)
@@ -381,6 +401,10 @@ impl SchematicEditor {
             Act::RemoveItem(item) => self.remove_item(engine, item),
             Act::Paste(at) => self.paste_at(engine, Some(at)),
             Act::RemoveGroup => self.remove_group(engine),
+            Act::Population(instance) => crate::variants::toggle(project, vec![instance]),
+            Act::GroupPopulation => {
+                crate::variants::toggle(project, self.group.instances.iter().copied().collect())
+            }
         }
     }
 

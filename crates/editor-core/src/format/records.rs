@@ -108,6 +108,7 @@ pub const INSTANCES: Collection = Collection {
         "marking",
         "text_placements",
         "board_only",
+        "population",
     ]),
     numbers: Numbers::FloatsAllowed,
 };

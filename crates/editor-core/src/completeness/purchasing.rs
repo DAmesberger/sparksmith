@@ -87,29 +87,40 @@ pub struct BomLine {
     /// The line has no Part, or its Part has a purchasing finding.
     pub unresolved: bool,
     pub state: PurchasingState,
+    /// Fitted under the active assembly variant; a line of parts not
+    /// fitted (do not populate) is listed but not bought.
+    pub fitted: bool,
 }
 
 /// `project.bom`.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct BomReport {
     pub lines: Vec<BomLine>,
-    /// Lines with `unresolved`.
+    /// Fitted lines with `unresolved`.
     pub unresolved: usize,
+    /// The assembly variant the report follows; `None` is the default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub variant: Option<String>,
 }
 
-/// The project BOM, lines in designator order of their first instance.
+/// The project BOM under the active assembly variant, lines in designator
+/// order of their first instance. Each instance is listed with the Part the
+/// variant fits; parts it does not fit group in lines of their own.
 pub fn bom(project: &Project) -> Result<BomReport> {
-    let rows = rows(project)?;
+    let rows: Vec<Row<'_>> = rows(project)?
+        .into_iter()
+        .map(|row| fitted_row(project, row))
+        .collect::<Result<_>>()?;
     let mut lines: Vec<(String, Vec<&Row<'_>>)> = Vec::new();
     let mut index: BTreeMap<String, usize> = BTreeMap::new();
     for row in &rows {
         let key = match row.report.state {
             PurchasingState::Resolved => {
-                format!("part {:?} {:?}", row.instance.part, row.footprint)
+                format!("part {:?} {:?} {}", row.part, row.footprint, row.fitted)
             }
             _ => format!(
-                "generic {:?} {:?} {:?} {}",
-                row.instance.component, row.footprint, row.instance.part, row.key
+                "generic {:?} {:?} {:?} {} {}",
+                row.component, row.footprint, row.part, row.key, row.fitted
             ),
         };
         group(&mut lines, &mut index, key, row);
@@ -124,12 +135,15 @@ pub fn bom(project: &Project) -> Result<BomReport> {
                 .find(|s| *s != PurchasingState::Resolved)
                 .unwrap_or(PurchasingState::Resolved);
             Some(BomLine {
-                component: first.instance.component,
+                component: first.component,
                 footprint: first.footprint,
-                part: first.instance.part,
+                part: first.part,
                 manufacturer: first.report.manufacturer.clone(),
                 mpn: first.report.mpn.clone(),
-                values: values(&project.library, &first.requirements),
+                values: first
+                    .values
+                    .clone()
+                    .unwrap_or_else(|| values(&project.library, &first.requirements)),
                 designators: members
                     .iter()
                     .map(|m| m.instance.designator.clone())
@@ -138,18 +152,76 @@ pub fn bom(project: &Project) -> Result<BomReport> {
                 quantity: u32::try_from(members.len()).unwrap_or(u32::MAX),
                 unresolved: state != PurchasingState::Resolved,
                 state,
+                fitted: first.fitted,
             })
         })
         .collect();
     Ok(BomReport {
-        unresolved: lines.iter().filter(|l| l.unresolved).count(),
+        unresolved: lines.iter().filter(|l| l.unresolved && l.fitted).count(),
         lines,
+        variant: project.variants.active().map(|v| v.name.clone()),
     })
+}
+
+/// `row` as the active variant fits it: not fitted, or another Part on the
+/// same footprint (listed by the Part and its rated values).
+fn fitted_row<'a>(project: &'a Project, mut row: Row<'a>) -> Result<Row<'a>> {
+    let fitted = instances::variants::fitted(project, row.instance);
+    row.fitted = fitted.populated();
+    if !fitted.substituted {
+        return Ok(row);
+    }
+    let library = &project.library;
+    let part = fitted.part.and_then(|r| library.part(r));
+    row.component = fitted.component;
+    row.part = fitted.part;
+    row.footprint = fitted.footprint();
+    row.requirements = Vec::new();
+    row.key = String::new();
+    row.values = Some(
+        part.map(|p| spec_values(library, &p.definition.specs))
+            .unwrap_or_default(),
+    );
+    row.report = PurchasingReport {
+        state: PurchasingState::Resolved,
+        part: fitted.part,
+        manufacturer: part.map(|p| p.definition.manufacturer.clone()),
+        mpn: part.map(|p| p.definition.mpn.clone()),
+        findings: Vec::new(),
+    };
+    Ok(row)
+}
+
+/// A Part's rated values as BOM values.
+fn spec_values(library: &Library, specs: &[fields::RatedSpec]) -> Vec<BomValue> {
+    specs
+        .iter()
+        .filter_map(|spec| {
+            let view = library.field_view(spec.field)?;
+            Some(BomValue {
+                field: spec.field.id,
+                label: view.field.meta.name.clone(),
+                text: fields::display(
+                    &spec.value,
+                    &view.field.definition.value_type,
+                    view.kind_body(),
+                ),
+            })
+        })
+        .collect()
 }
 
 /// One instance with what grouping needs.
 struct Row<'a> {
     instance: &'a ComponentInstance,
+    /// The component revision and Part bought: the instance's own, or a
+    /// variant's substitute ([`fitted_row`]).
+    component: ComponentRef,
+    part: Option<PartRef>,
+    /// Fitted under the active variant.
+    fitted: bool,
+    /// The substitute's rated values, which replace the requirements.
+    values: Option<Vec<BomValue>>,
     report: PurchasingReport,
     requirements: Vec<Requirement>,
     footprint: Option<FootprintRef>,
@@ -184,6 +256,10 @@ fn rows(project: &Project) -> Result<Vec<Row<'_>>> {
             .collect();
         out.push(Row {
             instance,
+            component: instance.component,
+            part: instance.part,
+            fitted: true,
+            values: None,
             report: purchasing(project, instance),
             footprint: resolved
                 .physical

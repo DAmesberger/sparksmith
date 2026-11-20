@@ -558,6 +558,16 @@ pub fn check(ui: &mut Ui, label: &str, value: &mut bool) -> bool {
     .inner
 }
 
+/// A checkbox without text, for a table cell under a caption that says
+/// what it is: `name` is its accessible name ("R2 populated in Lite").
+pub fn cell_check(ui: &mut Ui, name: &str, value: &mut bool) -> bool {
+    let response = ui.add(egui::Checkbox::without_text(value));
+    let (enabled, checked) = (ui.is_enabled(), *value);
+    response
+        .widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, enabled, checked, name));
+    response.changed()
+}
+
 /// Rows a read-only value wraps to before it is cut.
 const VALUE_MAX_ROWS: usize = 3;
 

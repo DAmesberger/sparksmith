@@ -39,9 +39,12 @@
 //!
 //! # Fitted parts
 //!
-//! The design model has no do-not-populate flag or assembly variants yet.
-//! Every instance is fitted, and `bom-parts.csv` says so in its Fitted
-//! column. A mechanical part placed from a part file carries its own
+//! Every file follows the active assembly variant
+//! (docs/assembly-variants.md, `instances::variants::fitted`): a part it
+//! does not fit has no pick-and-place row and no line in `bom.csv`, and
+//! reads `no` in the Fitted column of `bom-parts.csv`; a part it fits
+//! another Part on is written with that Part's value, package and MPN. A
+//! mechanical part placed from a part file carries its own
 //! `bom` and `pick_and_place` flags (docs/mechanical-parts.md M1.6): it is
 //! left out of the BOM files or the pick-and-place rows when they are off.
 use super::{FabFile, FabricationOptions, FileGroup};
@@ -177,19 +180,22 @@ fn instance_value(
     instance: &crate::model::ComponentInstance,
     line: Option<&BomLine>,
 ) -> Result<String> {
-    Ok(instances::value_text(&project.library, instance)?
-        .or_else(|| line.and_then(|l| l.mpn.clone()))
-        .unwrap_or_default())
+    let fitted = instances::variants::fitted(project, instance);
+    Ok(
+        instances::variants::fitted_value(project, instance, &fitted)?
+            .or_else(|| line.and_then(|l| l.mpn.clone()))
+            .unwrap_or_default(),
+    )
 }
 
-/// The package name of an instance (the package definition's name, else
-/// the footprint's), or `None` without a physical choice.
+/// The package name of the part the active variant fits on an instance
+/// (the package definition's name, else the footprint's), or `None`
+/// without a physical choice.
 pub fn package_name(
     project: &Project,
     instance: &crate::model::ComponentInstance,
 ) -> Option<String> {
-    let resolved = instances::resolve(&project.library, instance).ok()?;
-    let physical = resolved.physical?;
+    let physical = instances::variants::fitted(project, instance).physical?;
     let name = physical.package.meta.name.trim();
     Some(if name.is_empty() {
         physical.footprint.meta.name.trim().to_string()
@@ -219,7 +225,9 @@ pub fn rows(project: &Project, convention: &PlacementConvention) -> Result<Vec<P
         let Some(instance) = project.instance(placement.instance) else {
             continue;
         };
-        if !crate::library::mechanical::in_pick_and_place(&project.library, instance.component) {
+        if !crate::library::mechanical::in_pick_and_place(&project.library, instance.component)
+            || !instances::variants::fitted(project, instance).populated()
+        {
             continue;
         }
         let Some(package) = package_name(project, instance) else {
@@ -370,7 +378,7 @@ pub fn bom_csv(project: &Project) -> Result<String> {
             "Status",
         ],
     );
-    for (k, line) in report.lines.iter().enumerate() {
+    for (k, line) in report.lines.iter().filter(|l| l.fitted).enumerate() {
         let value = match line.instances.first().and_then(|id| project.instance(*id)) {
             Some(first) => instance_value(project, first, Some(line))?,
             None => String::new(),
@@ -392,7 +400,8 @@ pub fn bom_csv(project: &Project) -> Result<String> {
     Ok(out)
 }
 
-/// One row per instance, in designator order, every instance fitted.
+/// One row per instance, in designator order, with whether the active
+/// variant fits it.
 pub fn bom_parts_csv(project: &Project) -> Result<String> {
     let report = completeness::bom(project)?;
     let lines = line_index(&report);
@@ -429,7 +438,11 @@ pub fn bom_parts_csv(project: &Project) -> Result<String> {
                 &package_name(project, instance).unwrap_or_default(),
                 line.and_then(|l| l.manufacturer.as_deref()).unwrap_or(""),
                 line.and_then(|l| l.mpn.as_deref()).unwrap_or(""),
-                "yes",
+                if line.is_none_or(|l| l.fitted) {
+                    "yes"
+                } else {
+                    "no"
+                },
             ],
         );
     }

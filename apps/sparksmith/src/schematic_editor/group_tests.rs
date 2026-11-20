@@ -757,7 +757,17 @@ fn a_right_click_on_the_group_keeps_it_and_offers_group_actions() -> TestResult 
     assert_eq!(s.editor.group, group, "the selection stays");
     let rows = s.editor.menu_rows(&s.ctx, &s.engine, Target::Group);
     let labels: Vec<&str> = rows.iter().flatten().map(|e| e.label.as_str()).collect();
-    assert_eq!(labels, ["Rotate", "Mirror", "Cut", "Copy", "Delete…"]);
+    assert_eq!(
+        labels,
+        [
+            "Rotate",
+            "Mirror",
+            "Cut",
+            "Copy",
+            "Not populated in default",
+            "Delete…"
+        ]
+    );
     assert!(rows.iter().flatten().all(|e| e.enabled));
     assert!(
         rows.iter()

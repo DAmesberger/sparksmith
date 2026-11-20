@@ -92,6 +92,7 @@ pub(super) fn stackup_summary(stackup: &Stackup) -> String {
 
 impl PcbEditor {
     pub(super) fn open_stackup(&mut self, project: &Project) {
+        self.variants = None;
         self.net_classes = None;
         self.signals = None;
         self.rules = None;

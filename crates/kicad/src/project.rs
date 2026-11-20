@@ -281,6 +281,45 @@ pub fn overrides(
     out
 }
 
+/// Whether a project file holds variant data (a key naming variants, at
+/// any depth, with something under it), which is not imported. An
+/// unreadable file holds none; KiCad writes an empty list when there are
+/// none.
+pub fn has_variants(bytes: &[u8]) -> bool {
+    fn empty(v: &serde_json::Value) -> bool {
+        match v {
+            serde_json::Value::Null => true,
+            serde_json::Value::Array(a) => a.is_empty(),
+            serde_json::Value::Object(o) => o.is_empty(),
+            serde_json::Value::String(s) => s.is_empty(),
+            _ => false,
+        }
+    }
+    if bytes.len() > MAX_PROJECT {
+        return false;
+    }
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(bytes) else {
+        return false;
+    };
+    let mut stack = vec![&json];
+    while let Some(value) = stack.pop() {
+        match value {
+            serde_json::Value::Object(map) => {
+                if map
+                    .iter()
+                    .any(|(k, v)| k.starts_with("variant") && !empty(v))
+                {
+                    return true;
+                }
+                stack.extend(map.values());
+            }
+            serde_json::Value::Array(items) => stack.extend(items),
+            _ => {}
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

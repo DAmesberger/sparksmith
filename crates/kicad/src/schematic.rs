@@ -105,6 +105,10 @@ pub struct KSymbol {
     pub part: crate::models::PartNumber,
     /// `(path, reference, unit)` per sheet instance.
     pub instances: Vec<(String, String, u32)>,
+    /// `(dnp yes)`: do not populate.
+    pub dnp: bool,
+    /// `(in_bom no)`: excluded from the bill of materials.
+    pub not_in_bom: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -144,6 +148,8 @@ pub struct SheetFile {
     pub no_connects: Vec<PointNm>,
     pub labels: Vec<KLabel>,
     pub sheets: Vec<KSheetSymbol>,
+    /// Whether the file holds variant data (not imported).
+    pub variants: bool,
     /// Bus wires, bus entries and other items not imported, counted.
     pub skipped: usize,
 }
@@ -309,6 +315,8 @@ fn symbol(node: &Node) -> Result<KSymbol> {
             part
         },
         instances,
+        dnp: node.child("dnp").and_then(|d| d.arg(0)) == Some("yes"),
+        not_in_bom: node.child("in_bom").and_then(|d| d.arg(0)) == Some("no"),
     })
 }
 
@@ -324,6 +332,7 @@ pub fn read_file(bytes: &[u8]) -> Result<SheetFile> {
             .and_then(|u| u.arg(0))
             .unwrap_or_default()
             .to_owned(),
+        variants: root.any_head(crate::sexpr::variant_keyword),
         ..SheetFile::default()
     };
     if let Some(paper) = root.child("paper") {

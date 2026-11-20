@@ -152,8 +152,9 @@ impl Facts {
 }
 
 /// Why `footprint` is no part to draw, as its source has it: it names no 3D
-/// model and nothing is assembled there (KiCad's board-only or exclude
-/// attributes), or it is bare copper (no pad on a net on a board with nets:
+/// model and nothing is assembled there (KiCad's board-only or
+/// exclude-from-position-files attributes; a part not populated keeps its
+/// body, which a variant may fit), or it is bare copper (no pad on a net on a board with nets:
 /// a fiducial, a logo;
 /// a net tie; one surface pad: a test or contact pad). `None` for a part
 /// that needs a body.

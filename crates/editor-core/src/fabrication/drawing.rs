@@ -48,6 +48,9 @@ pub struct AssemblyPart {
     pub pads: Vec<Vec<Point>>,
     /// Where the polarity (pin 1) mark goes, when the footprint has one.
     pub polarity: Option<Point>,
+    /// Fitted under the active assembly variant; a part that is not is
+    /// drawn crossed out.
+    pub fitted: bool,
 }
 
 /// One side of the assembly drawing.
@@ -476,6 +479,7 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
                 body,
                 pads: part_pads,
                 polarity: polarity.get(&instance.id).copied(),
+                fitted: crate::instances::variants::fitted(project, instance).populated(),
             });
         }
         if !parts.is_empty() {

@@ -1115,7 +1115,8 @@ impl<'a> PlacedPart<'a> {
 /// made of; refused when a placement's instance, physical implementation or
 /// model file is missing. A package of no body ([`PackageModel::NoBody`]: a
 /// jumper, a contact pad, a fiducial) places nothing, in the view and the
-/// export alike.
+/// export alike, and neither does a part the active assembly variant does
+/// not fit; a part it fits another Part on places that Part's body.
 fn placed_parts(project: &Project) -> Result<Vec<PlacedPart<'_>>> {
     project
         .placements
@@ -1131,9 +1132,14 @@ fn placed_part<'a>(
     let instance = project
         .instance(placement.instance)
         .ok_or_else(|| Error::Invalid("missing instance".into()))?;
-    let physical = instances::resolve(&project.library, instance)
-        .ok()
-        .and_then(|r| r.physical)
+    // The part the active assembly variant fits: none (not populated), or
+    // another Part's body on the same lands.
+    let fitted = instances::variants::fitted(project, instance);
+    if !fitted.populated() {
+        return Ok(None);
+    }
+    let physical = fitted
+        .physical
         .ok_or_else(|| Error::Invalid("placed instance has no physical implementation".into()))?;
     let package = &physical.package.definition;
     let model = match &package.model {

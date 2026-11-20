@@ -556,6 +556,8 @@ pub enum PcbDialog {
     NetClasses,
     /// Board card › High speed › Edit…
     HighSpeed,
+    /// Board card › Variants › Edit…
+    Variants,
 }
 
 /// How the selected parts are lined up or spaced.
@@ -1873,6 +1875,9 @@ fn defaults() -> Vec<Command> {
         dialog("pcb.high-speed", "High speed…", PcbDialog::HighSpeed)
             .icon("trace")
             .keywords("differential diff pair length group matching skew impedance"),
+        dialog("pcb.variants", "Assembly variants…", PcbDialog::Variants)
+            .icon("list")
+            .keywords("variant dnp dnf do not populate fitted substitute bom option build"),
         tool(
             "pcb.board-shape",
             "Board shape",
