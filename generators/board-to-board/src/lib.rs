@@ -24,7 +24,7 @@ use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
 use sparksmith_generator_sdk::args::{Args, checked, problem};
-use sparksmith_generator_sdk::draw::{self, Drawing, LEFT, RIGHT, UP};
+use sparksmith_generator_sdk::draw::{self, Drawing, LEFT, RIGHT};
 use sparksmith_generator_sdk::land::{self, Box2};
 use sparksmith_generator_sdk::units::{MM, UM, div_round};
 use sparksmith_generator_sdk::v1::{
@@ -39,7 +39,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 /// Most positions per row.
 const MAX_POSITIONS: i64 = 50;
@@ -47,12 +47,10 @@ const MAX_POSITIONS: i64 = 50;
 /// The insulator's upright corners' round (est.).
 const CORNER_ROUND_NM: i64 = 100_000;
 
-/// An alignment pin's hole: the pin's diameter plus this (est.), plated
-/// with a ring of this width round it (est.): the ABI has no mechanical
-/// hole without a terminal, so the hole is a plated pad of the mechanical
-/// terminal `MP`.
+/// An alignment pin's hole: the pin's diameter plus this, unplated and
+/// landing no terminal (Samtec's TSM -A layout: a 0.062" pin in a 0.068"
+/// non-plated hole).
 const PEG_HOLE_EXTRA_NM: i64 = 130_000;
-const PEG_RING_NM: i64 = 150_000;
 
 /// The pin-1 dot on the silkscreen.
 const PIN_ONE_DOT_RADIUS_NM: i64 = 150_000;
@@ -543,21 +541,19 @@ fn pads(d: &Dims) -> Vec<Pad> {
         for (key, sign) in [("A1", -1), ("A2", 1)] {
             pads.push(Pad {
                 key: key.into(),
-                terminal: key.into(),
-                shape: PadShape::Circle {
-                    diameter_nm: hole + 2 * PEG_RING_NM,
-                },
+                terminal: String::new(),
+                shape: PadShape::Circle { diameter_nm: hole },
                 at: [sign * d.peg_x(), 0],
                 rot_mdeg: 0,
                 side: Side::Top,
                 hole: Some(Hole {
                     shape: HoleShape::Round { diameter_nm: hole },
-                    plated: true,
+                    plated: false,
                     offset: None,
                 }),
                 mask: Opening::Default,
                 paste: Opening::None,
-                number: None,
+                number: Some(String::new()),
                 kind: None,
             });
         }
@@ -595,16 +591,6 @@ fn symbol(d: &Dims) -> Symbol {
             rot_mdeg: if row == 0 { RIGHT } else { LEFT },
             show_name: false,
             show_number: true,
-        });
-    }
-    if d.pegs {
-        sym.pins.push(SymbolPin {
-            terminal: "MP".into(),
-            at: [0, bottom - module],
-            length_nm: module,
-            rot_mdeg: UP,
-            show_name: true,
-            show_number: false,
         });
     }
     Symbol {
@@ -689,11 +675,17 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         stroke_nm: 0,
         fill: Fill::Solid,
     });
-    let keys: Vec<String> = pads.iter().map(|p| p.key.clone()).collect();
+    // The tails' pads; the alignment pins' holes land no terminal.
+    let keys: Vec<String> = pads
+        .iter()
+        .filter(|p| !p.terminal.is_empty())
+        .map(|p| p.key.clone())
+        .collect();
     let contact_y = d.contact_y();
-    // A tail's contact on its land; an alignment pin's at its hole.
+    // A tail's contact on its land.
     let leads: Vec<Lead> = pads
         .iter()
+        .filter(|p| !p.terminal.is_empty())
         .map(|p| Lead {
             key: p.key.clone(),
             contact: [p.at[0], p.at[1].signum() * contact_y, 0],
@@ -722,27 +714,20 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm(d.pitch),
         if d.pegs { " with alignment pins" } else { "" }
     );
-    let mut terminals: Vec<Terminal> = (1..=d.pins())
+    let terminals: Vec<Terminal> = (1..=d.pins())
         .map(|k| Terminal {
             key: k.to_string(),
             name: k.to_string(),
             direction: Direction::Passive,
         })
         .collect();
-    if d.pegs {
-        terminals.push(Terminal {
-            key: "MP".into(),
-            name: "MP".into(),
-            direction: Direction::Passive,
-        });
-    }
     let mut notes = vec![
         "Lands are the land parameters as given: the maker's recommended layout only where they were taken from it. The insulator's grooves and pockets are drawn to typical proportions."
             .into(),
     ];
     if d.pegs {
         notes.push(
-            "The alignment pins' holes are the pin's diameter + 0.13 mm (estimated), plated with a 0.15 mm ring as pads of the mechanical terminal MP, though the maker's layout may call for unplated holes; confirm against it."
+            "The alignment pins' holes are unplated, the pin's diameter + 0.13 mm (Samtec's TSM -A layout); they land no terminal."
                 .into(),
         );
     }
@@ -761,11 +746,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             keys.iter()
                 .map(|k| BindingEntry {
                     package_terminal: k.clone(),
-                    terminal: if k.starts_with('A') {
-                        "MP".into()
-                    } else {
-                        k.clone()
-                    },
+                    terminal: k.clone(),
                 })
                 .collect()
         } else {
