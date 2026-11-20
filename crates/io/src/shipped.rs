@@ -58,6 +58,10 @@ pub enum Shelf {
     Generators,
     /// What a new project starts with (`defaults/`).
     Defaults,
+    /// Marking artwork artwork templates name by id (`artwork/<id>.svg`):
+    /// optional, installed with the library data that holds it (makers'
+    /// marks are not part of Sparksmith's own repository).
+    Artwork,
 }
 
 impl Shelf {
@@ -75,6 +79,7 @@ impl Shelf {
             Self::Showcase => "showcase",
             Self::Generators => "generators",
             Self::Defaults => "defaults",
+            Self::Artwork => "artwork",
         }
     }
 }

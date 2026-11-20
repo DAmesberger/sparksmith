@@ -132,8 +132,41 @@ pub fn context(shipped: &ShippedLibrary) -> Result<Arc<Context>> {
             .with_materials(materials)
             .with_generators(generators(shipped).map_err(|e| e.to_string()))
             .with_parts(parts(shipped).map_err(|e| e.to_string()))
-            .with_showcase(showcase(shipped).map_err(|e| e.to_string())),
+            .with_showcase(showcase(shipped).map_err(|e| e.to_string()))
+            .with_artwork(artwork(shipped)),
     ))
+}
+
+/// Most marking artwork files read.
+const MAX_ARTWORK: usize = 512;
+
+/// The installed marking artwork (`artwork/<id>.svg`) by id, the file's
+/// stem (`a-z`, `0-9`, `-`, at most 64 bytes). Optional data: a missing
+/// folder is none, and a file that is not a readable SVG of at most
+/// [`crate::artwork::MAX_SVG_BYTES`] is left out (a template draws
+/// without it), so a broken artwork file never stops the program.
+pub fn artwork(shipped: &ShippedLibrary) -> std::collections::BTreeMap<String, Arc<str>> {
+    const SUFFIX: &str = ".svg";
+    let mut out = std::collections::BTreeMap::new();
+    let Ok(files) = shipped.list(Shelf::Artwork, SUFFIX) else {
+        return out;
+    };
+    for file in files.into_iter().take(MAX_ARTWORK) {
+        let id = file.trim_end_matches(SUFFIX);
+        let valid = !id.is_empty()
+            && id.len() <= 64
+            && id
+                .bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+        if !valid {
+            continue;
+        }
+        let Ok(text) = crate::artwork::read_svg(&shipped.shelf(Shelf::Artwork).join(&file)) else {
+            continue;
+        };
+        out.insert(id.to_owned(), Arc::from(text));
+    }
+    out
 }
 
 /// Largest showcase parts file read, bytes.
@@ -286,6 +319,27 @@ mod tests {
         std::fs::write(&colours, text)?;
         let error = message(load(&shipped));
         assert!(error.contains("colour-code.json"), "{error}");
+        Ok(())
+    }
+
+    /// Installed marking artwork is read by id; a missing folder, a bad
+    /// name and a file that is not SVG text are left out quietly.
+    #[test]
+    fn marking_artwork_is_optional_data_by_id() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        std::fs::write(dir.path().join(crate::shipped::MARKER), "{\"format\":1}\n")?;
+        let shipped = ShippedLibrary::at(dir.path())?;
+        assert!(artwork(&shipped).is_empty());
+        let shelf = dir.path().join("artwork");
+        std::fs::create_dir_all(&shelf)?;
+        std::fs::write(shelf.join("maker-mark.svg"), "<svg viewBox='0 0 1 1'/>")?;
+        std::fs::write(shelf.join("Bad Name.svg"), "<svg/>")?;
+        std::fs::write(shelf.join("binary.svg"), [0xff_u8, 0xfe])?;
+        std::fs::write(shelf.join("notes.txt"), "not artwork")?;
+        let read = artwork(&shipped);
+        assert_eq!(read.keys().collect::<Vec<_>>(), ["maker-mark"]);
+        let context = context(&repository()?)?;
+        assert!(context.artwork("maker-mark").is_none());
         Ok(())
     }
 }
