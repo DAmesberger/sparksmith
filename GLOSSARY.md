@@ -218,6 +218,14 @@ _Avoid_: Footprint assignment when a pin mapping is also required
 One exact orderable item: its own revisioned definition lineage holding the manufacturer as written, the complete manufacturer part number (MPN, ordering suffixes included), the exact component revision and device binding it implements, its rated specs, references, distributor offers and provenance. An instance may pin one Part revision; the Part must agree with the instance's component revision, physical choice and requirements, and a component update that leaves it behind is a finding, never a silent re-pointing. A supplier listing is an offer for that part, not its identity. An "atomic part" in other tools is a component plus exactly one Part.
 _Avoid_: Part for a component definition or a catalog entry
 
+**Population**:
+Whether a placed part is fitted at assembly: populated, or not populated (do not populate, DNP). A typed state of the instance for the default build, which an assembly variant may override; never a value text.
+_Avoid_: "DNP" as a value
+
+**Assembly variant**:
+A named way to build the same board: per part, a population and a fitted Part that override the default (the build with no variant). The copper is the same in every variant; a substitute Part must sit on the same land pattern with the same pad grouping. The active variant, a project setting, is what the 3D view, BOM, pick-and-place and assembly drawing show.
+_Avoid_: Variant alone (see part variant and footprint variant)
+
 **Rated spec**:
 One value a manufacturer part is rated at, typed by a field definition and carrying a spec meaning, such as resistance 10 kΩ (exact nominal) or voltage 25 V (minimum rating). It matches an instance requirement by field lineage, never by name.
 
