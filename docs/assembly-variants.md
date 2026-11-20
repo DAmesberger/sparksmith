@@ -50,7 +50,7 @@ Overrides of a removed part are dropped with it. The variants' invariants (bound
 
 ## Import
 
-The KiCad importer maps KiCad's do-not-populate and exclude-from-BOM attributes, and a value that is only a not-fitted marker ("DNP", "DNF", "NF", "NC (not fitted)" and similar), to `not_populated` in the default. A real value is kept; a value that is only the marker becomes empty. The import report names each part.
+The KiCad importer maps KiCad's do-not-populate attribute (the footprint's `dnp` flag, the symbol's `(dnp yes)`), and a value that is or carries a not-fitted marker ("DNP", "DNF", "NF", "NC (not fitted)" and similar), to `not_populated` in the default. A real value is kept; a value that is only the marker becomes empty. The import report names each part. KiCad's exclude-from-BOM attribute (`exclude_from_bom`, `(in_bom no)`) is not a not-fitted state: it marks test points, mechanical items and logos, so such a part stays populated, and on a footprint without a 3D model the footprint flag still means nothing is assembled there (no body).
 
 ## Out of scope
 

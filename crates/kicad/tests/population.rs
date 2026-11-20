@@ -1,7 +1,8 @@
 //! KiCad's not-fitted states import as the typed default population
-//! (docs/assembly-variants.md, Import): the do-not-populate and
-//! exclude-from-BOM attributes, and a value that is or carries a
-//! not-fitted marker, which leaves the value. Synthetic boards only.
+//! (docs/assembly-variants.md, Import): the do-not-populate attribute and
+//! a value that is or carries a not-fitted marker, which leaves the value.
+//! Exclude-from-BOM (test points, mechanical items, logos) is not one.
+//! Synthetic boards only.
 mod support;
 
 use sparksmith_core::model::Population;
@@ -85,7 +86,7 @@ fn board_attributes_and_marker_values_import_as_not_populated() -> Fallible<()> 
         states(&imported, &["R1", "R2", "R3", "R4", "R5", "R6", "R7", "R8"])?,
         vec![
             (not, some("10k")),
-            (not, some("22k")),
+            (fitted, some("22k")),
             (not, None),
             (not, some("10k")),
             (not, some("4k7")),
@@ -103,26 +104,21 @@ fn board_attributes_and_marker_values_import_as_not_populated() -> Fallible<()> 
         }),
         "a marker in a part name"
     );
-    // A part not populated keeps its body (a variant may fit it); only
-    // KiCad's exclude-from-position-files attribute, on a part with no
-    // model, says nothing is placed there.
+    // A part marked do-not-populate keeps its body (a variant may fit it);
+    // KiCad's exclude-from-BOM and exclude-from-position-files attributes,
+    // on a part with no model, say nothing is assembled there, so they
+    // keep making no body, as before variants.
     let no_body: Vec<String> = details(&imported, Case::NoBody)
         .into_iter()
         .map(|(d, _)| d)
         .collect();
-    assert_eq!(no_body, ["R7"]);
+    assert_eq!(no_body, ["R2", "R7"]);
     assert_eq!(
         details(&imported, Case::NotPopulatedAttribute),
-        vec![
-            (
-                "R1".to_owned(),
-                "KiCad's do-not-populate attribute".to_owned()
-            ),
-            (
-                "R2".to_owned(),
-                "KiCad's exclude-from-BOM attribute".to_owned()
-            ),
-        ]
+        vec![(
+            "R1".to_owned(),
+            "KiCad's do-not-populate attribute".to_owned()
+        )]
     );
     let marker: Vec<String> = details(&imported, Case::NotPopulatedMarker)
         .into_iter()
@@ -169,14 +165,20 @@ fn sheet(symbols: &[(&str, &str, &str)]) -> String {
 
 #[test]
 fn schematic_attributes_import_as_not_populated() -> Fallible<()> {
-    let source = board(&[("R1", "1k", ""), ("R2", "1k", ""), ("R3", "1k", "")]);
+    let source = board(&[
+        ("R1", "1k", ""),
+        ("R2", "1k", ""),
+        ("R3", "1k", ""),
+        ("R4", "1k", ""),
+    ]);
     let mut files = BTreeMap::new();
     files.insert(
         "synthetic.kicad_sch".to_owned(),
         sheet(&[
             ("R1", "1k", "(in_bom yes) (on_board yes) (dnp yes)"),
-            ("R2", "2k DNP", "(in_bom no) (on_board yes) (dnp no)"),
-            ("R3", "3k", "(in_bom yes) (on_board yes) (dnp no)"),
+            ("R2", "2k", "(in_bom no) (on_board yes) (dnp no)"),
+            ("R3", "3k DNP", "(in_bom yes) (on_board yes) (dnp yes)"),
+            ("R4", "4k", "(in_bom yes) (on_board yes) (dnp no)"),
         ])
         .into_bytes(),
     );
@@ -187,25 +189,23 @@ fn schematic_attributes_import_as_not_populated() -> Fallible<()> {
     )?;
     let some = |v: &str| Some(v.to_owned());
     assert_eq!(
-        states(&imported, &["R1", "R2", "R3"])?,
+        states(&imported, &["R1", "R2", "R3", "R4"])?,
         vec![
             (Population::NotPopulated, some("1k")),
-            (Population::NotPopulated, some("2k")),
-            (Population::Populated, some("3k")),
+            // `(in_bom no)` marks a test point, a mechanical item or a
+            // logo, not a part left off.
+            (Population::Populated, some("2k")),
+            (Population::NotPopulated, some("3k")),
+            (Population::Populated, some("4k")),
         ]
     );
     // An attribute names the part once, before its value's marker.
+    let attribute = "KiCad's do-not-populate attribute".to_owned();
     assert_eq!(
         details(&imported, Case::NotPopulatedAttribute),
         vec![
-            (
-                "R1".to_owned(),
-                "KiCad's do-not-populate attribute".to_owned()
-            ),
-            (
-                "R2".to_owned(),
-                "KiCad's exclude-from-BOM attribute".to_owned()
-            ),
+            ("R1".to_owned(), attribute.clone()),
+            ("R3".to_owned(), attribute)
         ]
     );
     assert!(details(&imported, Case::NotPopulatedMarker).is_empty());

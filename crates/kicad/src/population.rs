@@ -1,7 +1,8 @@
 //! KiCad's ways of saying a part is not fitted, as Sparksmith's typed
 //! default population ([`docs/assembly-variants.md`], Import): the
-//! do-not-populate and exclude-from-BOM attributes, and a value that says
-//! "not fitted" in words ("DNP", "10k DNP").
+//! do-not-populate attribute, and a value that says "not fitted" in words
+//! ("DNP", "10k DNP"). Exclude-from-BOM is not one: it marks test points,
+//! mechanical items and logos, which are not left off.
 //!
 //! A value never carries the population in Sparksmith, so the marker is
 //! taken out of the value: a value that is only the marker becomes empty,
@@ -18,9 +19,6 @@ pub enum Why {
     /// KiCad's do-not-populate attribute (`dnp`) on the footprint or the
     /// symbol.
     DoNotPopulate,
-    /// KiCad's exclude-from-BOM attribute (`exclude_from_bom` on the
-    /// footprint, `(in_bom no)` on the symbol).
-    ExcludedFromBom,
     /// A value that says "not fitted" ([`split_marker`]).
     MarkerValue,
 }
@@ -30,7 +28,6 @@ impl Why {
     pub fn text(self) -> &'static str {
         match self {
             Self::DoNotPopulate => "KiCad's do-not-populate attribute",
-            Self::ExcludedFromBom => "KiCad's exclude-from-BOM attribute",
             Self::MarkerValue => "a not-fitted value marker (taken out of the value)",
         }
     }

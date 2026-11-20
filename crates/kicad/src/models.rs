@@ -152,10 +152,10 @@ impl Facts {
 }
 
 /// Why `footprint` is no part to draw, as its source has it: it names no 3D
-/// model and nothing is assembled there (KiCad's board-only or
-/// exclude-from-position-files attributes; a part not populated keeps its
-/// body, which a variant may fit), or it is bare copper (no pad on a net on a board with nets:
-/// a fiducial, a logo;
+/// model and nothing is assembled there (KiCad's board-only,
+/// exclude-from-position-files or exclude-from-BOM attributes; a part
+/// marked do-not-populate keeps its body, which a variant may fit), or it
+/// is bare copper (no pad on a net on a board with nets: a fiducial, a logo;
 /// a net tie; one surface pad: a test or contact pad). `None` for a part
 /// that needs a body.
 pub fn no_body(footprint: &crate::board::Footprint, board_nets: bool) -> Option<&'static str> {

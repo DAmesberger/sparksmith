@@ -107,8 +107,6 @@ pub struct KSymbol {
     pub instances: Vec<(String, String, u32)>,
     /// `(dnp yes)`: do not populate.
     pub dnp: bool,
-    /// `(in_bom no)`: excluded from the bill of materials.
-    pub not_in_bom: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -316,7 +314,6 @@ fn symbol(node: &Node) -> Result<KSymbol> {
         },
         instances,
         dnp: node.child("dnp").and_then(|d| d.arg(0)) == Some("yes"),
-        not_in_bom: node.child("in_bom").and_then(|d| d.arg(0)) == Some("no"),
     })
 }
 
