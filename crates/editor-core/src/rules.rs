@@ -31,8 +31,8 @@ pub mod profile;
 pub mod signal;
 
 pub use profile::{
-    DrillFiles, FabChoice, FabOption, PROFILE_FILE_FORMAT, ProfileFile, ProfileSource, RuleCase,
-    RuleEntry, RuleProfile, Setting,
+    BoardSetting, DrillFiles, FabChoice, FabOption, PROFILE_FILE_FORMAT, ProfileFile,
+    ProfileSource, RuleCase, RuleEntry, RuleProfile, Setting,
 };
 
 pub use netclass::{
@@ -1493,9 +1493,11 @@ pub enum RulesCommand {
     /// named keep their choice. The limits become those the profile gives for the
     /// choices; overrides are kept and must stay valid
     /// (`rules.override_conflict`). A copper weight choice also sets the
-    /// stackup's outer foils, in the same undo step. Preview with
-    /// `rules.preview_fab_options`. Example:
-    /// `{"options":{"mask_colour":"black_white"}}`.
+    /// stackup's outer foils, in the same undo step. An option that follows
+    /// a board setting (`follows`, the solder mask colour) is refused
+    /// (`rules.fab_option_follows_board`): `layout.set_fabrication` sets
+    /// the colour and the option follows. Preview with
+    /// `rules.preview_fab_options`. Example: `{"options":{"limits":"minimum"}}`.
     #[serde(rename = "rules.set_fab_options")]
     SetOptions {
         options: std::collections::BTreeMap<String, String>,
@@ -1736,7 +1738,7 @@ pub fn carry_choices(
         Some(current) => profile
             .options()
             .iter()
-            .filter(|o| !options.contains_key(&o.id))
+            .filter(|o| !options.contains_key(&o.id) && o.follows.is_none())
             .filter_map(|o| {
                 let choice = current.chosen().get(&o.id)?;
                 o.choice(choice).map(|_| (o.id.clone(), choice.clone()))
@@ -1748,7 +1750,9 @@ pub fn carry_choices(
     chosen.extend(options.iter().map(|(o, c)| (o.clone(), c.clone())));
     let profile = profile.with_choices(&chosen)?;
     let mut carry = ChoiceCarry::default();
-    for o in profile.options() {
+    // An option that follows a board setting is not carried or reset: the
+    // board's setting chooses it.
+    for o in profile.options().iter().filter(|o| o.follows.is_none()) {
         let note = ChoiceNote {
             option: o.id.clone(),
             choice: profile.chosen().get(&o.id).cloned().unwrap_or_default(),
@@ -1847,6 +1851,9 @@ pub struct OptionBrief {
     pub name: String,
     pub default: String,
     pub choices: Vec<FabChoice>,
+    /// The board setting that chooses it; `rules.set_fab_options` does not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follows: Option<BoardSetting>,
 }
 
 impl ProfileBrief {
@@ -1864,6 +1871,7 @@ impl ProfileBrief {
                     name: o.name.clone(),
                     default: o.default.clone(),
                     choices: o.choices.clone(),
+                    follows: o.follows,
                 })
                 .collect(),
             chosen: if board {

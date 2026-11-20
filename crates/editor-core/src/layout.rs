@@ -37,6 +37,7 @@ pub mod impedance;
 pub mod legend;
 pub mod length;
 pub mod limits;
+pub mod mask_colour;
 pub mod meander;
 pub mod obstacles;
 pub mod outline;
@@ -942,7 +943,11 @@ fn apply_inner(project: &mut Project, command: LayoutCommand) -> Result<Option<I
                 },
             )?;
         }
-        LayoutCommand::SetFabrication(fabrication) => project.fabrication = fabrication,
+        LayoutCommand::SetFabrication(fabrication) => {
+            project.fabrication = fabrication;
+            // The fab profile's colour option follows, in the same step.
+            mask_colour::follow(&mut project.rules, fabrication.mask_colour)?;
+        }
         LayoutCommand::SetStackup(stackup) => restack::apply(
             project,
             restack::StackupEdit {
@@ -1478,6 +1483,7 @@ fn trim_mm(mm: f64) -> String {
 }
 
 pub fn validate(project: &Project) -> Result<()> {
+    mask_colour::check(project)?;
     if !project
         .board_size
         .iter()
@@ -1788,6 +1794,7 @@ pub fn checks_on(
     findings.extend(length::checks(project, graph, settings));
     findings.extend(etch::checks(project, graph));
     findings.extend(bodies::checks(project));
+    findings.extend(mask_colour::findings(project));
     findings
 }
 

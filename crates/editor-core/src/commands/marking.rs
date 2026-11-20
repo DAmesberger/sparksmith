@@ -87,41 +87,81 @@ fn numeric(value: &FieldValue, value_type: Option<&ValueType>) -> Option<f64> {
 /// `instance.marking`: the effective spec laid out for one instance;
 /// `None` when nothing is marked (hidden, or no spec anywhere). Reads only
 /// `project`; it is the query's whole implementation.
+///
+/// It marks the part the active assembly variant fits
+/// ([`instances::variants::fitted`]): a substitute Part is marked from its
+/// own data (its top mark, else its component's spec; its part number,
+/// manufacturer and rated values; its package's surface), never with the
+/// default part's. The instance's replacing spec describes the default
+/// part, so a substitute does not take it; hiding and the template
+/// variables still apply.
 pub fn layout(project: &Project, instance: Id) -> Result<Option<MarkingLayout>> {
     let target = project
         .instance(instance)
         .ok_or_else(|| invalid(format!("Instance {instance} does not exist.")))?;
     let library = &project.library;
-    let component = library.component(target.component).ok_or_else(|| {
+    let fitted = instances::variants::fitted(project, target);
+    let component = library.component(fitted.component).ok_or_else(|| {
         invalid(format!(
             "{} pins component {}, which is not in the project library.",
-            target.designator, target.component
+            target.designator, fitted.component
         ))
     })?;
-    let part = target.part.and_then(|p| library.part(p));
+    let part = fitted.part.and_then(|p| library.part(p));
+    let substitute_marking;
+    let instance_marking = if fitted.substituted {
+        substitute_marking = InstanceMarking {
+            replace: None,
+            ..target.marking.clone()
+        };
+        &substitute_marking
+    } else {
+        &target.marking
+    };
     let Some(spec) = marking::effective(
-        &target.marking,
+        instance_marking,
         part.and_then(|p| p.definition.top_mark.as_deref()),
         component.definition.marking.as_deref(),
     ) else {
         return Ok(None);
     };
-    let package = match target.physical {
-        Some(choice) => Some(
+    let package = match (fitted.substituted, fitted.physical, target.physical) {
+        (true, Some(physical), _) => Some(physical.package.definition.clone()),
+        (false, _, Some(choice)) => Some(
             instances::resolve_physical(library, &component.definition, choice)?
                 .package
                 .definition
                 .clone(),
         ),
-        None => None,
+        _ => None,
     };
     let mut fields = BTreeMap::new();
-    for field in instances::effective_fields(library, target)? {
+    let effective = if fitted.substituted {
+        // The substitute's own data: its component's defaults, then the
+        // Part's rated values over them.
+        instances::default_fields(library, &component.definition)?
+    } else {
+        instances::effective_fields(library, target)?
+    };
+    for field in effective {
         let (Some(value), Some(text)) = (&field.value, &field.text) else {
             continue;
         };
         let value_type = library.field(field.field).map(|f| &f.definition.value_type);
         fields.insert(field.field.id, (text.clone(), numeric(value, value_type)));
+    }
+    if fitted.substituted {
+        for spec in part.iter().flat_map(|p| &p.definition.specs) {
+            let Some(view) = library.field_view(spec.field) else {
+                continue;
+            };
+            let value_type = &view.field.definition.value_type;
+            let text = crate::fields::display(&spec.value, value_type, view.kind_body());
+            fields.insert(
+                spec.field.id,
+                (text, numeric(&spec.value, Some(value_type))),
+            );
+        }
     }
     let inputs = MarkingInputs {
         designator: target.designator.clone(),

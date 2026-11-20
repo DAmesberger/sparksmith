@@ -167,6 +167,29 @@ pub struct FabOption {
     /// Where the option and its choices come from.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub source: String,
+    /// The board setting this option follows, instead of a choice of its
+    /// own: its choice is the one that lists the board's setting
+    /// ([`FabChoice::mask_colours`]), and no command chooses it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follows: Option<BoardSetting>,
+}
+
+/// A board setting a manufacturing option can follow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BoardSetting {
+    /// The board's solder mask colour (Board › Fabrication,
+    /// `layout.set_fabrication`).
+    MaskColour,
+}
+
+impl BoardSetting {
+    /// The setting in the user's words.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::MaskColour => "solder mask colour",
+        }
+    }
 }
 
 /// One choice of a [`FabOption`].
@@ -182,6 +205,13 @@ pub struct FabChoice {
     /// sets it (its copper weight).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub outer_copper_um: Option<f64>,
+    /// The board solder mask colours this choice stands for (`"black"`,
+    /// as `layout.set_fabrication` names them), when its option follows
+    /// the board's colour ([`FabOption::follows`]): every choice of such an
+    /// option lists at least one, no colour is listed twice, and a colour
+    /// no choice lists is one the fabricator does not offer.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub mask_colours: Vec<String>,
 }
 
 /// Options a profile offers, and choices one option offers.
@@ -331,7 +361,65 @@ impl RuleProfile {
     /// This profile with `choices` (option id → choice id) in place of the
     /// current ones; options not named keep theirs. An unknown option or
     /// choice, or rules out of bounds under the choices, is refused.
+    /// An option that follows a board setting ([`FabOption::follows`]) is
+    /// refused (`rules.fab_option_follows_board`): the board's setting
+    /// chooses it ([`Self::with_board_setting`]).
     pub fn with_choices(&self, choices: &BTreeMap<String, String>) -> Result<Self> {
+        if let Some(o) = self
+            .options
+            .iter()
+            .find(|o| o.follows.is_some() && choices.contains_key(&o.id))
+            && let Some(setting) = o.follows
+        {
+            return Err(Error::Invalid(format!(
+                "rules.fab_option_follows_board: {} follows the board's {}; set the colour in \
+                 Board › Fabrication (layout.set_fabrication) instead",
+                o.name,
+                setting.label()
+            )));
+        }
+        self.choose(choices)
+    }
+
+    /// The option that follows `setting`, if the profile offers one.
+    pub fn following(&self, setting: BoardSetting) -> Option<&FabOption> {
+        self.options.iter().find(|o| o.follows == Some(setting))
+    }
+
+    /// The choice the board's `value` of `setting` takes: `None` when no
+    /// option follows it, `Some(None)` when the profile's option lists no
+    /// choice for the value (the fabricator does not offer it).
+    pub fn board_choice(&self, setting: BoardSetting, value: &str) -> Option<Option<&FabChoice>> {
+        let option = self.following(setting)?;
+        Some(
+            option
+                .choices
+                .iter()
+                .find(|c| c.mask_colours.iter().any(|m| m == value)),
+        )
+    }
+
+    /// This profile with the option that follows `setting` at the choice
+    /// the board's `value` takes, else at its default (a value the profile
+    /// does not offer is a board finding, not a choice). Unchanged when no
+    /// option follows `setting`.
+    pub fn with_board_setting(&self, setting: BoardSetting, value: &str) -> Result<Self> {
+        let Some(option) = self.following(setting) else {
+            return Ok(self.clone());
+        };
+        let choice = self
+            .board_choice(setting, value)
+            .flatten()
+            .map_or_else(|| option.default.clone(), |c| c.id.clone());
+        if self.chosen.get(&option.id) == Some(&choice) {
+            return Ok(self.clone());
+        }
+        self.choose(&BTreeMap::from([(option.id.clone(), choice)]))
+    }
+
+    /// [`Self::with_choices`] for any option, those that follow a board
+    /// setting included.
+    fn choose(&self, choices: &BTreeMap<String, String>) -> Result<Self> {
         let mut next = self.clone();
         for (option, choice) in choices {
             let Some(o) = next.options.iter().find(|o| o.id == *option) else {
@@ -385,9 +473,7 @@ impl RuleProfile {
 
     /// Whether `other` is this profile with other choices.
     pub fn same_but_choices(&self, other: &Self) -> bool {
-        other
-            .with_choices(&self.chosen)
-            .is_ok_and(|other| other == *self)
+        other.choose(&self.chosen).is_ok_and(|other| other == *self)
     }
 
     /// Options and cases name each other: unique, bounded ids; a default
@@ -441,6 +527,50 @@ impl RuleProfile {
                     o.name, o.default
                 ));
             }
+            let mut colours = BTreeSet::new();
+            for c in &o.choices {
+                if c.mask_colours.len() > MAX_OPTIONS
+                    || c.mask_colours.iter().any(|m| !printable(m))
+                {
+                    return bad(format!("{}'s colour lists are bounded", o.name));
+                }
+                if let Some(m) = c.mask_colours.iter().find(|m| !colours.insert(m.as_str())) {
+                    return bad(format!("{} lists the colour {m} twice", o.name));
+                }
+            }
+            match o.follows {
+                Some(BoardSetting::MaskColour) => {
+                    if o.choices.iter().any(|c| c.mask_colours.is_empty()) {
+                        return bad(format!(
+                            "every choice of {} lists the solder mask colours it stands for",
+                            o.name
+                        ));
+                    }
+                    if !copper.is_empty() {
+                        return bad(format!(
+                            "{} follows the board's colour, so it cannot set the outer copper",
+                            o.name
+                        ));
+                    }
+                }
+                None if !colours.is_empty() => {
+                    return bad(format!(
+                        "{}'s choices list solder mask colours, so it must follow the board's \
+                         (\"follows\": \"mask_colour\")",
+                        o.name
+                    ));
+                }
+                None => {}
+            }
+        }
+        if self
+            .options
+            .iter()
+            .filter(|o| o.follows == Some(BoardSetting::MaskColour))
+            .count()
+            > 1
+        {
+            return bad("at most one option follows the board's solder mask colour".into());
         }
         let copper_options = self
             .options
@@ -889,6 +1019,6 @@ impl TryFrom<ProfileData> for RuleProfile {
         }
         profile
             .with_options(data.options, cases)?
-            .with_choices(&data.chosen)
+            .choose(&data.chosen)
     }
 }

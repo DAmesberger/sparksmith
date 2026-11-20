@@ -73,8 +73,11 @@ pub const DATUM_CONVENTION: &str = "package datums from opening-<name> construct
 pub const SEATING_TOLERANCE_MM: f64 = 0.01;
 /// Cold evaluation above this is advisory `part_file.slow`, ms (a target).
 pub const SLOW_MS: f64 = 100.0;
-/// Evaluated parts the cache keeps (a target bound).
-pub const CACHE_ENTRIES: usize = 32;
+/// Evaluated parts the cache keeps (a target bound: more than the distinct
+/// parts of a large board, so building it again, opening it again or
+/// tracing a reference evaluates none of them again; the named-design
+/// cache keeps as many).
+pub const CACHE_ENTRIES: usize = 256;
 /// Failing features a finding names.
 const NAMED_FAILURES: usize = 16;
 /// Longest definition name (as for generated models).

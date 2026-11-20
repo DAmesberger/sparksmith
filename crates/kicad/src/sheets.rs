@@ -129,8 +129,9 @@ pub(crate) fn values_by_reference(schematic: &Schematic) -> BTreeMap<String, Str
     out
 }
 
-/// Each part the schematic marks not fitted (any unit's `(dnp yes)`, else
-/// `(in_bom no)`), by upper-case reference, power symbols left out.
+/// Each part the schematic marks do-not-populate (any unit's `(dnp yes)`),
+/// by upper-case reference, power symbols left out. `(in_bom no)` marks
+/// test points, mechanical items and logos, not parts left off.
 pub(crate) fn not_fitted_by_reference(
     schematic: &Schematic,
 ) -> BTreeMap<String, crate::population::Why> {
@@ -141,17 +142,12 @@ pub(crate) fn not_fitted_by_reference(
             continue;
         };
         for symbol in &file.symbols {
-            let why = if symbol.dnp {
-                Why::DoNotPopulate
-            } else if symbol.not_in_bom {
-                Why::ExcludedFromBom
-            } else {
+            if !symbol.dnp {
                 continue;
-            };
+            }
             let (reference, _) = schematic.reference(sheet, symbol);
             if !reference.starts_with('#') {
-                let entry = out.entry(reference.to_ascii_uppercase()).or_insert(why);
-                *entry = (*entry).min(why);
+                out.insert(reference.to_ascii_uppercase(), Why::DoNotPopulate);
             }
         }
     }

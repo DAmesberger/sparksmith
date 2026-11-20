@@ -255,8 +255,8 @@ pub enum Case {
     ZoneHatched,
     /// Zones with corner smoothing, filled without it.
     ZoneSmoothing,
-    /// Parts KiCad marks do-not-populate or excluded from the BOM (on the
-    /// footprint or the symbol): not populated in the default, body kept.
+    /// Parts KiCad marks do-not-populate (on the footprint or the symbol):
+    /// not populated in the default, body kept.
     NotPopulatedAttribute,
     /// Parts whose value is or carries a not-fitted marker ("DNP"): not
     /// populated in the default, the marker taken out of the value.
@@ -664,7 +664,7 @@ impl Case {
             Self::NotPopulatedAttribute => (
                 "P7",
                 Exact,
-                "parts KiCad marks do-not-populate or excluded from the BOM, not populated (body kept for variants)",
+                "parts KiCad marks do-not-populate, not populated (body kept for variants)",
             ),
             Self::NotPopulatedMarker => (
                 "P7",

@@ -22,7 +22,7 @@ A **substitute** (`variant.set_part`) is a Part of the project library. Its comp
 
 Pin names are never compared, and electrical compatibility is not inferred: the Part's binding is the explicit pin mapping. A substitute that fails any rule is refused with the reason. A library update can leave a substitute that no longer fits. It is then not fitted: the default part is, and Issues reports it as an error (`variant.substitute_unfit`) until it is chosen again or removed.
 
-A substitute is placed with its own package body. Its BOM line is the Part (manufacturer, MPN, rated values), and its value text is the Part's rated values through its component's value template, else its MPN.
+A substitute is placed with its own package body and its own markings. Its BOM line is the Part (manufacturer, MPN, rated values), and its value text is the Part's rated values through its component's value template, else its MPN.
 
 ## Commands
 
@@ -45,12 +45,12 @@ Overrides of a removed part are dropped with it. The variants' invariants (bound
 
 - **BOM** (`project.bom`): each instance is listed with the Part the active variant fits. Parts it does not fit group in lines of their own with `fitted: false`; they are not counted as unresolved and `bom.csv` leaves them out. `bom-parts.csv` lists every part with its Fitted column.
 - **Pick-and-place:** a part that is not fitted has no row; a substitute is written with its package and value.
-- **3D:** a part that is not fitted places no body, in the live view and the exact export alike (both read `placed_parts`); a substitute places its own body.
+- **3D:** a part that is not fitted places no body, in the live view and the exact export alike (both read `placed_parts`); a substitute places its own body, marked from its own data through the same `instance.marking` path as any fitted part: its Part's top mark, else its component's marking, filled with its part number, manufacturer and rated values (a resistor's code, say) on its own package's surface. The instance's own replacing marking describes the default part, so a substitute does not take it; hiding the marking still applies.
 - **Checks:** body checks (`board.body_off_pads`) skip bodies that are not fitted and check a substitute's body against its pads. Electrical, footprint, courtyard and copper checks are unchanged. A part the active variant does not fit is not reported as having no Part chosen.
 
 ## Import
 
-The KiCad importer maps KiCad's do-not-populate and exclude-from-BOM attributes, and a value that is only a not-fitted marker ("DNP", "DNF", "NF", "NC (not fitted)" and similar), to `not_populated` in the default. A real value is kept; a value that is only the marker becomes empty. The import report names each part.
+The KiCad importer maps KiCad's do-not-populate attribute (the footprint's `dnp` flag, the symbol's `(dnp yes)`), and a value that is or carries a not-fitted marker ("DNP", "DNF", "NF", "NC (not fitted)" and similar), to `not_populated` in the default. A real value is kept; a value that is only the marker becomes empty. The import report names each part. KiCad's exclude-from-BOM attribute (`exclude_from_bom`, `(in_bom no)`) is not a not-fitted state: it marks test points, mechanical items and logos, so such a part stays populated, and on a footprint without a 3D model the footprint flag still means nothing is assembled there (no body).
 
 ## Out of scope
 

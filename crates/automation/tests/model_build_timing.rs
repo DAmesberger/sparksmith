@@ -69,3 +69,49 @@ fn showcase_build_timing() {
     let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
     time("showcase", &showcase(), 4);
 }
+
+/// A saved board (`SPARKSMITH_BUILD_FILE=board.sparksmith`) built for the
+/// live view twice in one process, as opening it again does: the second
+/// build evaluates no part file (each is evaluated once, then served by
+/// the process-wide part-file cache). Prints both builds' times and the
+/// cache's counts.
+///
+/// `SPARKSMITH_BUILD_FILE=… nix develop -c cargo test --profile ci -p sparksmith-automation --test model_build_timing -- --ignored --nocapture --exact a_saved_board_evaluates_each_part_file_once`
+#[test]
+#[ignore = "builds the design named by SPARKSMITH_BUILD_FILE"]
+fn a_saved_board_evaluates_each_part_file_once() {
+    use sparksmith_solidcraft::models::part_file;
+    let Ok(path) = std::env::var("SPARKSMITH_BUILD_FILE") else {
+        panic!("set SPARKSMITH_BUILD_FILE=board.sparksmith");
+    };
+    let context = sparksmith_io::standards::shipped_context().unwrap();
+    let _context = context.enter();
+    let project = sparksmith_io::read_project(std::path::Path::new(&path))
+        .unwrap()
+        .into_document()
+        .project
+        .as_ref()
+        .clone();
+    let mut evaluated = Vec::new();
+    for round in 1..=2 {
+        let (_, before) = part_file::cache_counts();
+        let start = Instant::now();
+        project::build_flat(
+            &project,
+            &SourceCache::default(),
+            None,
+            project::Flat::Meshed,
+        )
+        .unwrap();
+        let ms = start.elapsed().as_secs_f64() * 1e3;
+        let (hits, after) = part_file::cache_counts();
+        eprintln!(
+            "build {round}: {ms:.0} ms, {} part files evaluated (cache: {hits} hits, {after} \
+             evaluations)",
+            after - before
+        );
+        evaluated.push(after - before);
+    }
+    assert!(evaluated[0] > 0, "the first build evaluates the parts");
+    assert_eq!(evaluated[1], 0, "the second build evaluates none again");
+}

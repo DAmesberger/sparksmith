@@ -125,20 +125,22 @@ fn a_module_marking_goes_on_its_can_and_board_in_one_step() -> TestResult {
             name: "can_top".into()
         }
     );
+    // The shield label: an artwork template naming the maker's mark by id.
+    assert!(matches!(spec.items[0], MarkingItem::Artwork { .. }));
     assert!(matches!(
-        spec.decals[1].items[1],
+        spec.decals[0].items[0],
         MarkingItem::Code2d { .. }
     ));
-    assert_eq!(spec.decals.len(), 3);
-    assert_eq!(spec.decals[2].finish, Finish::InkWhite);
+    assert_eq!(spec.decals.len(), 2);
+    assert_eq!(spec.decals[1].finish, Finish::InkWhite);
     assert_eq!(
-        spec.decals[2].placement.on,
+        spec.decals[1].placement.on,
         SurfaceRef::Anchor {
             name: "pcb_top".into()
         }
     );
     // The artwork is packed with the edit: one undo step takes both.
-    assert_eq!(spec.artwork().count(), 2);
+    assert_eq!(spec.artwork().count(), 1);
     let undone = session.dispatch(json!({"command": "project.undo", "params": {"expected_revision": session.engine().revision()}}));
     assert_eq!(undone["ok"], true, "{undone}");
     let marked = session.engine().drafts().items.iter().any(|d| {
@@ -158,7 +160,7 @@ fn bad_marking_placements_are_refused_whole() -> TestResult {
     let mut many = wroom_marking();
     many["decals"] = json!(vec![many["decals"][0].clone(); 5]);
     let mut tiny_code = wroom_marking();
-    tiny_code["decals"][1]["items"][1]["size_mm"] = json!(0.0);
+    tiny_code["decals"][0]["items"][0]["size_mm"] = json!(0.0);
 
     let mut bad_wrap = wroom_marking();
     bad_wrap["placement"]["wrap"] = json!({"wrap_deg": 400.0});
