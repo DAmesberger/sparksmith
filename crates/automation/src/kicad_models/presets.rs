@@ -58,6 +58,10 @@ pub(super) struct Candidate {
     pub(super) name: String,
     /// The preset's key and aliases, as letters and digits in upper case.
     names: Vec<String>,
+    /// The choices the preset makes away from its generator's defaults
+    /// (`socket` of a header's style, `black` of a shroud's colour), in
+    /// lower case: a variant whose lands are another preset's too.
+    departures: Vec<String>,
     /// The body's length and width (the package envelope), millimetres.
     body_mm: [f64; 2],
     /// The courtyard's extent, millimetres.
@@ -202,6 +206,19 @@ impl Presets {
                     let hi = [0, 1].map(|a| courtyard.iter().map(|p| p[a]).max().unwrap_or(0));
                     mm2([hi[0] - lo[0], hi[1] - lo[1]])
                 });
+                let departures = description
+                    .params()
+                    .iter()
+                    .filter(|p| matches!(p.ty, v1::ParamType::Enum { .. }))
+                    .filter_map(|p| match (preset.params.get(&p.key), &p.default) {
+                        (Some(v1::ParamValue::Text(chosen)), v1::ParamValue::Text(default))
+                            if chosen != default =>
+                        {
+                            Some(chosen.to_lowercase())
+                        }
+                        _ => None,
+                    })
+                    .collect();
                 let names = std::iter::once(&preset.key)
                     .chain(&preset.aliases)
                     .map(|n| plain(n))
@@ -217,6 +234,7 @@ impl Presets {
                     tolerance_nm,
                     name: format!("{name}/{}", preset.key),
                     names,
+                    departures,
                     body_mm: mm2([envelope[0], envelope[1]]),
                     courtyard_mm,
                     generation,
@@ -272,6 +290,8 @@ impl Presets {
                 geometry,
                 prefix,
                 &facts.name,
+                &facts.value,
+                &facts.description,
                 facts.fab_extent_nm,
                 facts.courtyard_extent_nm,
                 mpn,
@@ -641,6 +661,138 @@ fn body_distance(extent: [f64; 2], preset: [f64; 2], fit: &Fit) -> f64 {
         .fold(0.0, f64::max)
 }
 
+/// Variants of a package that share its lands (a female socket and a male
+/// pin header, a shroud's colours) told apart by evidence: a preset whose
+/// choices depart from its generator's defaults ([`Candidate::departures`])
+/// is shown when the part number or the footprint's name names it, or
+/// every word of each such choice (`socket`, `smd` and `bottom` of
+/// `socket_smd_bottom`) appears in the part number, the footprint's name,
+/// the part's value or the footprint's description;
+/// then the generator's presets of the same kind (component prefix)
+/// without that evidence give way to it. Without evidence a departing
+/// preset gives way to a fitting preset of the same generator and kind
+/// that keeps the defaults (the male header); where none fits (the lands
+/// are the variant's own), to its plain twin with the same leads and lands
+/// ([`twin`]), at the variant's fit; else it stays.
+fn by_evidence(
+    candidates: &[Candidate],
+    pool: Vec<(usize, Fit)>,
+    facts: &Facts,
+    mpn: Option<&str>,
+    notes: &mut Vec<String>,
+) -> Vec<(usize, Fit)> {
+    let text = [
+        facts.name.as_str(),
+        &facts.value,
+        &facts.description,
+        mpn.unwrap_or_default(),
+    ]
+    .join(" ")
+    .to_lowercase();
+    let shown = |index: usize| {
+        let c = &candidates[index];
+        // Named by the part number or the footprint's name, or every word
+        // of its choices written somewhere.
+        let named_so = mpn.is_some_and(|mpn| c.names.iter().any(|n| names_apart(mpn, n)))
+            || named(c, &facts.name) > 0;
+        !c.departures.is_empty()
+            && (named_so
+                || c.departures.iter().all(|choice| {
+                    choice
+                        .split(['_', '-', ' '])
+                        .filter(|w| !w.is_empty())
+                        .all(|w| text.contains(w))
+                }))
+    };
+    // Variants of one another: one generator's presets of one kind of
+    // part (the component's prefix: a chip resistor is no variant of a
+    // chip capacitor).
+    let kind = |index: usize| {
+        let c = &candidates[index];
+        let prefix = c.generation.component.as_ref().map(|c| c.prefix.as_str());
+        (c.generator.as_str(), prefix.unwrap_or_default())
+    };
+    let kinds: std::collections::BTreeSet<(&str, &str)> =
+        pool.iter().map(|(i, _)| kind(*i)).collect();
+    let mut kept = Vec::with_capacity(pool.len());
+    let mut dropped = Vec::new();
+    for of_kind in kinds {
+        let of: Vec<&(usize, Fit)> = pool.iter().filter(|(i, _)| kind(*i) == of_kind).collect();
+        let evidenced = of.iter().any(|(i, _)| shown(*i));
+        let plain = of.iter().any(|(i, _)| candidates[*i].departures.is_empty());
+        for entry in of {
+            let c = &candidates[entry.0];
+            if evidenced {
+                if shown(entry.0) {
+                    kept.push(entry.clone());
+                } else {
+                    dropped.push(c.name.clone());
+                }
+            } else if c.departures.is_empty() || plain {
+                if c.departures.is_empty() {
+                    kept.push(entry.clone());
+                } else {
+                    dropped.push(c.name.clone());
+                }
+            } else if let Some(twin) = twin(candidates, entry.0) {
+                // Its lands are the variant's own (a socket's oval lands
+                // a male header's footprint may have too), so no plain
+                // preset fits them; the plain twin with the same leads at
+                // the same places takes its fit.
+                dropped.push(c.name.clone());
+                kept.push((twin, entry.1.clone()));
+            } else {
+                kept.push(entry.clone());
+            }
+        }
+    }
+    if !dropped.is_empty() {
+        dropped.sort();
+        notes.push(format!(
+            "Variants without evidence in the part number, name, value or description set aside: {}.",
+            dropped.join(", ")
+        ));
+    }
+    // The pool's order (preset order) decides nothing; keep it anyway.
+    kept.sort_by_key(|(i, _)| *i);
+    kept
+}
+
+/// The preset of `index`'s generator and kind that keeps its generator's
+/// defaults and has the same leads at the same places and the same lands
+/// in the same order (a male pin header of a socket's pins and pitch).
+fn twin(candidates: &[Candidate], index: usize) -> Option<usize> {
+    let of = &candidates[index];
+    let prefix = |c: &Candidate| c.generation.component.as_ref().map(|c| c.prefix.clone());
+    let leads = |c: &Candidate| {
+        let mut leads: Vec<(String, [i64; 2])> = c
+            .generation
+            .package
+            .geometry
+            .leads
+            .iter()
+            .map(|l| (l.key.clone(), [l.contact[0], l.contact[1]]))
+            .collect();
+        leads.sort();
+        leads
+    };
+    let pads = |c: &Candidate| -> Vec<String> {
+        c.generation
+            .footprint
+            .pads
+            .iter()
+            .map(|p| p.terminal.clone())
+            .collect()
+    };
+    candidates.iter().position(|c| {
+        c.departures.is_empty()
+            && c.generator == of.generator
+            && prefix(c) == prefix(of)
+            && leads(c) == leads(of)
+            && pads(c) == pads(of)
+    })
+}
+
 /// The fitting presets narrowed, in order, by a preset the part number
 /// `mpn` names standing apart (the longest such name), else by a preset the
 /// footprint's name names (the longest such name), else by the longest
@@ -737,6 +889,7 @@ fn choose(
             .filter(|(i, _)| declared(i) == longest)
             .collect()
     };
+    let pool = by_evidence(candidates, pool, facts, mpn, &mut notes);
     let best = pool
         .iter()
         .map(|(_, f)| f.error_nm)
@@ -1384,6 +1537,57 @@ mod tests {
         assert!(presets.matches.is_empty());
         assert_eq!(engine.revision(), revision);
         assert!(engine.project().library.models.is_empty());
+        Ok(())
+    }
+    /// A single-row male header footprint with long oval lands is a female
+    /// socket's lands too: without evidence the male header is chosen; the
+    /// socket only when the part number, the footprint's name, the value or
+    /// the description says so. Original synthetic footprints.
+    #[test]
+    fn a_socket_needs_evidence_and_otherwise_the_male_header_is_chosen() -> Fallible {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(120);
+        let (mut presets, engine) = setup()?;
+        let oval = lands_of(&presets, "header/socket-1x4-2.54")?;
+        let round = lands_of(&presets, "header/header-1x4-2.54")?;
+        let facts = |name: &str, value: &str, description: &str| Facts {
+            name: name.into(),
+            value: value.into(),
+            description: description.into(),
+            ..Facts::default()
+        };
+        let none = facts(
+            "Own_Conn_4_Oval",
+            "Conn_4",
+            "four-way connector, oval lands",
+        );
+        for (lands, what) in [(&oval, "oval"), (&round, "round")] {
+            let choice = presets
+                .identify(&engine, lands, "J", &none, None, deadline)?
+                .map_err(|miss| format!("{what}: {miss}"))?;
+            assert_eq!(
+                choice.name, "header/header-1x4-2.54",
+                "{what}: {:?}",
+                choice.notes
+            );
+        }
+        for (evidence, mpn) in [
+            (facts("Own_Socket_4_Oval", "", ""), None),
+            (facts("Own_4", "Conn_01x04_Socket", ""), None),
+            (
+                facts("Own_4", "Conn_4", "female socket strip, 4 ways"),
+                None,
+            ),
+            (facts("Own_4", "", ""), Some("61300411821")),
+        ] {
+            let choice = presets
+                .identify(&engine, &oval, "J", &evidence, mpn, deadline)?
+                .map_err(|miss| format!("{evidence:?}: {miss}"))?;
+            assert_eq!(
+                choice.name, "header/socket-1x4-2.54",
+                "{evidence:?} {mpn:?}: {:?}",
+                choice.notes
+            );
+        }
         Ok(())
     }
 }
