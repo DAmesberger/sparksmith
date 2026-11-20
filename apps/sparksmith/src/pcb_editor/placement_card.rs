@@ -51,7 +51,9 @@ impl PcbEditor {
         }
     }
 
-    /// PLACEMENT (position, rotation, side, locked) and CONNECTIONS.
+    /// PLACEMENT (position, rotation, side, locked), ASSEMBLY (right under
+    /// it, so a normal-height window shows it without scrolling), then the
+    /// dimensions to edges, CONNECTIONS and the pad fill connections.
     pub(super) fn placement_section(
         &mut self,
         ui: &mut Ui,
@@ -173,11 +175,14 @@ impl PcbEditor {
             action = self.placement_commit(placement);
         }
         self.editing = focused;
+        let assembly = project
+            .instance(placement.instance)
+            .and_then(|i| crate::variants::assembly_section(ui, project, i));
         let edge = self.edge_section(ui, self.cached_revision.unwrap_or(0), project, placement);
         self.connections_section(ui, project, placement.instance);
         let fills = self.pad_fill_section(ui, project, placement);
         if action.is_none() {
-            return state.or(edge).or(fills);
+            return state.or(assembly).or(edge).or(fills);
         }
         let (command, field) = action?;
         let origin = field.map_or(Origin::Command, |f| Origin::Field(f.id()));
