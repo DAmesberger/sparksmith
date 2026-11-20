@@ -2,7 +2,8 @@
 //!
 //! Grammar: literal text with `{…}` placeholders; `{{` and `}}` are literal
 //! braces and a line break starts a new marking line. Placeholders:
-//! `{mpn}`, `{manufacturer}`, `{designator}`, `{var:<name>}` and
+//! `{mpn}`, `{manufacturer}`, `{designator}`, `{code}` (the top-mark code
+//! the spec's code table gives the placed part's MPN), `{var:<name>}` and
 //! `{field:<lineage>}` with an optional formatter
 //! `{field:<lineage>|<format>}`. The lineage is written `D12` or `12`.
 //! Formats: the codes `code3`, `code4`, `eia96`, `cap3` and
@@ -26,6 +27,8 @@ use crate::ids::{DefinitionId, Id};
 pub(super) enum Piece {
     Literal(String),
     Mpn,
+    /// The code table's entry for the placed part's MPN.
+    Code,
     Manufacturer,
     Designator,
     Var(String),
@@ -179,6 +182,7 @@ fn placeholder(body: &str) -> Result<Piece, String> {
 fn single(body: &str) -> Result<Piece, String> {
     match body {
         "mpn" => return Ok(Piece::Mpn),
+        "code" => return Ok(Piece::Code),
         "manufacturer" => return Ok(Piece::Manufacturer),
         "designator" => return Ok(Piece::Designator),
         _ => {}
@@ -305,6 +309,16 @@ fn one(piece: &Piece, inputs: &MarkingInputs, out: &mut String) -> Result<(), Mi
                 .as_deref()
                 .ok_or_else(|| Missing::Value("no manufacturer part number".into()))?,
         ),
+        Piece::Code => {
+            let mpn = inputs
+                .mpn
+                .as_deref()
+                .ok_or_else(|| Missing::Value("no manufacturer part number".into()))?;
+            let code = inputs.codes.get(&super::code_key(mpn)).ok_or_else(|| {
+                Missing::Value(format!("no marking code for the part number {mpn}"))
+            })?;
+            out.push_str(code);
+        }
         Piece::Manufacturer => out.push_str(
             inputs
                 .manufacturer
@@ -370,6 +384,7 @@ fn one(piece: &Piece, inputs: &MarkingInputs, out: &mut String) -> Result<(), Mi
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     #[test]
     fn parses_every_placeholder() {
@@ -480,6 +495,30 @@ mod tests {
             ..resistor(10.0, None)
         };
         assert_eq!(render(&mpn, &with).ok().as_deref(), Some("LM358"));
+    }
+
+    /// `{code}` draws the code table's entry for the placed part's MPN
+    /// (upper case, spaces ignored) and nothing for a part number it does
+    /// not list or a part without one: no fake code.
+    #[test]
+    fn a_code_is_the_tables_entry_for_the_part_number() {
+        let pieces = parse("{code}").unwrap_or_default();
+        let mut codes = BTreeMap::new();
+        codes.insert(super::super::code_key("LMQ66430MC3RXBRQ1"), "3MC3Q".into());
+        codes.insert(super::super::code_key("LMQ66420MA5RXBRQ1"), "2MA5Q".into());
+        let with = |mpn: Option<&str>| MarkingInputs {
+            mpn: mpn.map(str::to_owned),
+            codes: codes.clone(),
+            ..Default::default()
+        };
+        for (mpn, code) in [
+            (Some("LMQ66430MC3RXBRQ1"), Some("3MC3Q")),
+            (Some("lmq66420ma5rxbrq1 "), Some("2MA5Q")),
+            (Some("LMQ66430MC5RXBRQ1"), None),
+            (None, None),
+        ] {
+            assert_eq!(render(&pieces, &with(mpn)).ok().as_deref(), code, "{mpn:?}");
+        }
     }
 
     #[test]

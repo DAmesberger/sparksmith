@@ -676,6 +676,20 @@ fn marking(marking: &v1::Marking, top: bool) -> Result<(), Failure> {
             ));
         }
     }
+    count("marking codes", marking.codes.len(), limits::MARKING_CODES)?;
+    for (mpn, code) in &marking.codes {
+        let bad = |t: &str| {
+            t.trim().is_empty()
+                || t.len() > limits::MARKING_CODE_BYTES
+                || t.chars().any(char::is_control)
+        };
+        if bad(mpn) || bad(code) {
+            return Err(invalid(format!(
+                "The generator returned a marking code entry that is empty, longer than {} bytes or holds a control character.",
+                limits::MARKING_CODE_BYTES
+            )));
+        }
+    }
     if !top && !marking.decals.is_empty() {
         return Err(invalid(
             "The generator returned a further marking with further markings of its own.".into(),

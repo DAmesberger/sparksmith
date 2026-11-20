@@ -47,7 +47,7 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`): 6 takes terminals
 /// and lands given one by one (`terminal_numbers`, `given_land_numbers`;
 /// the `sawn-terminals` part file).
-const VERSION: u32 = 6;
+const VERSION: u32 = 7;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.
@@ -294,6 +294,7 @@ fn description_with(presets: Vec<Preset>) -> Description {
     params.extend(explicit_params());
     params.push(sparksmith_generator_sdk::marking::param());
     params.push(sparksmith_generator_sdk::marking::height_param());
+    params.push(sparksmith_generator_sdk::marking::codes_param());
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),
@@ -1104,6 +1105,12 @@ fn model(d: &Dims) -> v1::Model {
     }
 }
 
+/// The top marking the parameters ask for, laser-etched, with the preset's
+/// code table (`marking_codes`) for a line's `{code}`.
+pub(crate) fn marking(args: &Args<'_>) -> Result<Option<v1::Marking>, Problem> {
+    let codes = sparksmith_generator_sdk::marking::codes(args)?;
+    Ok(sparksmith_generator_sdk::marking::of(args, false)?.map(|m| v1::Marking { codes, ..m }))
+}
 fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     let description = description_with(Vec::new());
     let args = checked(&description, &request.params)?;
@@ -1181,7 +1188,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         short_mm(d.pitch)
     );
     Ok(Generation {
-        marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
+        marking: marking(&args).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

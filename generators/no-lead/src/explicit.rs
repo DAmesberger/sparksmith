@@ -514,7 +514,7 @@ pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Pr
         super::short_mm(e.body[1])
     );
     Ok(Generation {
-        marking: sparksmith_generator_sdk::marking::of(args, false).map_err(|p| vec![p])?,
+        marking: crate::marking(args).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
                 .iter()

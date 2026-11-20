@@ -128,6 +128,10 @@ pub mod limits {
     pub const MARKING_LINE_BYTES: usize = 128;
     /// Most further markings one marking carries (the core's decal bound).
     pub const MARKING_DECALS: usize = 4;
+    /// Most entries of a marking's code table (the core's bound).
+    pub const MARKING_CODES: usize = 64;
+    /// Most bytes of a code table's part number or code (the core's bound).
+    pub const MARKING_CODE_BYTES: usize = 64;
     /// Most artwork items in one marking.
     pub const MARKING_ARTWORK: usize = 2;
     /// Most bytes of one marking's SVG artwork.
@@ -630,6 +634,14 @@ pub struct Marking {
     /// most [`limits::MARKING_DECALS`].
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub decals: Vec<Marking>,
+    /// The manufacturer's top-mark code of each orderable part number (a
+    /// package marking table: `TPS22990DMLR` → `RB990`), which `{code}` in
+    /// a line draws for the placed part's MPN (compared in upper case,
+    /// spaces ignored); nothing is drawn for a part number the table does
+    /// not list. At most [`limits::MARKING_CODES`] entries of at most
+    /// [`limits::MARKING_CODE_BYTES`] bytes each side.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub codes: BTreeMap<String, String>,
 }
 
 /// A polarity mark of a marking.

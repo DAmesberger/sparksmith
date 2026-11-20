@@ -5,7 +5,8 @@ whole body back, since `library.edit` replaces a draft's meta and
 definition: it renames two generated packages (the SOT-23-5 and SOT-23-3 of
 the regulator and the ESD part: build_lib.py, `own(..., package=)`), types
 the chip resistor's and capacitors' components with this board's fields
-(`set_fields`) and gives the B3U-1000P push button its `SW` prefix. The
+(`set_fields`) and gives the B3U-1000P push button its `SW` prefix; its
+pinout plans are applied with the base token their preview gave. The
 replay records each body literally, as the generator made it then. After the
 generator or its part file changes, replaying puts the old generation back
 over the new one: a package's old part-file values make the board build
@@ -16,6 +17,9 @@ This tool replays the replay through `sparksmith stdio --operator` and, at
 each such edit, reads the draft as the current generator made it and sends
 it with only the authored changes:
 
+- a pinout plan (`library.pinout_apply`): the base token of the preview
+  just before it, since the generated draft it targets records its
+  generator's bundle;
 - a package: its name;
 - a component: its name, its designator prefix, and this board's fields in
   place of the generator's fields of the same name (each with the recorded
@@ -114,6 +118,7 @@ def main():
         return reply
 
     out, report = [], []
+    preview_base = None
     with open(REPLAY, encoding="utf-8") as f:
         lines = f.read().splitlines()
     for n, line in enumerate(lines, 1):
@@ -137,8 +142,17 @@ def main():
                     edits[k] = rebuilt
             line = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
         out.append(line)
+        if operation.get("command") == "library.pinout_apply" and preview_base is not None:
+            params = operation["params"]
+            if params.get("base") != preview_base:
+                report.append(f"line {n}: pinout plan applied at its preview's base {preview_base}")
+                params["base"] = preview_base
+                line = json.dumps(request, separators=(",", ":"), ensure_ascii=False)
+                out[-1] = line
         if request["command"] != "project.save":
-            send(request)
+            reply = send(request)
+            if request.get("params", {}).get("query") == "library.pinout_preview":
+                preview_base = reply["result"]["result"].get("base")
     proc.stdin.close()
     proc.wait()
     with open(REPLAY, "w", encoding="utf-8") as f:

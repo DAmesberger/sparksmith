@@ -57,6 +57,10 @@ pub const MAX_TEMPLATE: usize = 128;
 pub const MAX_MARKING_VARS: usize = 8;
 /// Bytes of one instance variable name or value.
 pub const MAX_MARKING_VAR: usize = 32;
+/// Entries of one spec's code table.
+pub const MAX_MARKING_CODES: usize = 64;
+/// Bytes of a code table's part number or code.
+pub const MAX_MARKING_CODE: usize = 64;
 /// Smallest legible text height by default, mm (an estimate for laser
 /// marking on a 0603; data, not a rule).
 pub const DEFAULT_MIN_TEXT_HEIGHT_MM: f64 = 0.3;
@@ -308,6 +312,21 @@ pub struct MarkingSpec {
     /// most [`MAX_DECALS`], and they carry no decals of their own.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub decals: Vec<MarkingSpec>,
+    /// The manufacturer's top-mark code of each orderable part number (a
+    /// package marking table), keyed as [`code_key`] writes the part
+    /// number; `{code}` draws the placed part's. At most
+    /// [`MAX_MARKING_CODES`] entries of at most [`MAX_MARKING_CODE`] bytes.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub codes: BTreeMap<String, String>,
+}
+
+/// How a code table keys a part number: upper case, without spaces, so
+/// `lmq66430mc3rxbrq1` and `LMQ66430MC3RXBRQ1` are one part number.
+pub fn code_key(mpn: &str) -> String {
+    mpn.chars()
+        .filter(|c| !c.is_whitespace())
+        .flat_map(char::to_uppercase)
+        .collect()
 }
 
 impl MarkingSpec {
@@ -339,6 +358,12 @@ impl MarkingSpec {
                 .decals
                 .iter()
                 .all(|d| d.decals.is_empty() && d.within_bounds())
+            && self.codes.len() <= MAX_MARKING_CODES
+            && self.codes.iter().all(|(mpn, code)| {
+                [mpn, code].iter().all(|t| {
+                    !t.is_empty() && t.len() <= MAX_MARKING_CODE && !t.chars().any(char::is_control)
+                })
+            })
     }
 
     /// The artwork hashes the spec and its decals name, in item order.
@@ -561,6 +586,9 @@ pub struct MarkingInputs {
     /// the SI value.
     pub fields: BTreeMap<DefinitionId, (String, Option<f64>)>,
     pub vars: BTreeMap<String, String>,
+    /// The spec's code table ([`MarkingSpec::codes`]); the layout fills it
+    /// from the spec it lays out.
+    pub codes: BTreeMap<String, String>,
     /// The marking area's size, mm.
     pub area_mm: [f64; 2],
     /// The chart the area lies in (flat, or round a cylinder).

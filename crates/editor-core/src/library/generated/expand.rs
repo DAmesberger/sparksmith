@@ -973,6 +973,28 @@ fn one_marking(
         MAX_TEMPLATE, MarkingItem, MarkingSpec, Placement, PolarityMark, SurfaceRef, Template,
         Wrap,
     };
+    let mut codes = std::collections::BTreeMap::new();
+    for (mpn, code) in &marking.codes {
+        let (key, code) = (
+            crate::library::marking::code_key(mpn),
+            code.trim().to_string(),
+        );
+        if key.is_empty()
+            || code.is_empty()
+            || key.len() > crate::library::marking::MAX_MARKING_CODE
+            || code.len() > crate::library::marking::MAX_MARKING_CODE
+        {
+            return Err(Error::Limit(
+                "generated.marking: a marking code entry is empty or too long".into(),
+            ));
+        }
+        codes.insert(key, code);
+    }
+    if codes.len() > crate::library::marking::MAX_MARKING_CODES {
+        return Err(Error::Limit(
+            "generated.marking: too many marking codes".into(),
+        ));
+    }
     let items_wanted = marking.lines.len()
         + usize::from(marking.pin1_dot)
         + usize::from(marking.polarity.is_some())
@@ -1066,6 +1088,7 @@ fn one_marking(
         },
         placement,
         text_height_nm: marking.text_height.map(Nm::new).transpose()?,
+        codes,
         ..MarkingSpec::default()
     }))
 }
