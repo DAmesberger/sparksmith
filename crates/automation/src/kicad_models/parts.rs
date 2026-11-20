@@ -362,8 +362,9 @@ pub(super) fn make(
             }
         }
         // Pads of different numbers (two mounting tabs, say) joined into
-        // one terminal only where the board has them on one net: else
-        // the part would join what the source keeps apart.
+        // one terminal only where the board has them on one net, or both
+        // on none (two unconnected tabs join nothing): else the part
+        // would join what the source keeps apart.
         let mut numbers: BTreeMap<&str, (super::lands::Key, Option<u32>)> = BTreeMap::new();
         for ((terminal, net), pad) in terminals.iter().zip(nets).zip(request.pads) {
             let Some(component) = component_of.get(terminal.as_str()) else {
@@ -371,9 +372,7 @@ pub(super) fn make(
             };
             let key = super::lands::Key::of(&pad.number);
             match numbers.get(component) {
-                Some((other, other_net))
-                    if *other != key && (net.is_none() || *other_net != *net) =>
-                {
+                Some((other, other_net)) if *other != key && *other_net != *net => {
                     return refuse(format!(
                         "{} joins pads of different numbers the board keeps apart (terminal {component})",
                         candidate.name

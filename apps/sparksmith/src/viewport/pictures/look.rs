@@ -800,6 +800,12 @@ fn write_look_pictures() -> Result<(), Box<dyn std::error::Error>> {
     let Some(mut gpu) = Gpu::new() else {
         return Err("no GPU adapter".into());
     };
+    // The shipped standards, materials and generators, as the program
+    // hands them to its engine, so a design with generated parts opens.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../library");
+    let _context =
+        sparksmith_io::standards::context(&sparksmith_io::shipped::ShippedLibrary::at(&root)?)?
+            .enter();
     let mut boards = vec![
         ("showcase".to_owned(), showcase_project()?),
         (
@@ -821,7 +827,14 @@ fn write_look_pictures() -> Result<(), Box<dyn std::error::Error>> {
         boards.push((name, engine.project().clone()));
     }
     for (name, project) in boards {
-        let model = sparksmith_solidcraft::project::build(&project)?;
+        // The live view's model (each part its own design), as the window
+        // builds it.
+        let model = sparksmith_solidcraft::project::build_flat(
+            &project,
+            &sparksmith_solidcraft::models::imported::SourceCache::default(),
+            None,
+            sparksmith_solidcraft::project::Flat::Meshed,
+        )?;
         let mut v = Viewport::detached();
         v.set_model(crate::model_scene::build(model.geometry, &model.stack)?);
         v.fit_to(4.0 / 3.0);

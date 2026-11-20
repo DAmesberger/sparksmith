@@ -349,6 +349,90 @@
       "model": false
     },
     {
+      "name": "can_notch_x",
+      "expr": "-109 mm",
+      "unit": "mm",
+      "comment": "the can's corner notch: its inner corner x (to park_x without one)",
+      "model": false
+    },
+    {
+      "name": "can_notch_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "the can's corner notch: its inner corner y",
+      "model": false
+    },
+    {
+      "name": "can_notch_width",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "the notch across (x), to the can's +x side",
+      "model": false
+    },
+    {
+      "name": "can_notch_length",
+      "expr": "1 mm",
+      "unit": "mm",
+      "comment": "the notch along (y), to the can's +y side",
+      "model": false
+    },
+    {
+      "name": "connector_x",
+      "expr": "-109 mm",
+      "unit": "mm",
+      "comment": "antenna connector centre x (to park_x without one)",
+      "model": false
+    },
+    {
+      "name": "connector_y",
+      "expr": "0 mm",
+      "unit": "mm",
+      "comment": "antenna connector centre y",
+      "model": false
+    },
+    {
+      "name": "connector_size",
+      "expr": "2.6 mm",
+      "unit": "mm",
+      "comment": "the antenna connector's square insulator base (U.FL / MHF I receptacle)",
+      "model": false
+    },
+    {
+      "name": "connector_base",
+      "expr": "0.4 mm",
+      "unit": "mm",
+      "comment": "the insulator base's height (est.)",
+      "model": false
+    },
+    {
+      "name": "connector_diameter",
+      "expr": "2 mm",
+      "unit": "mm",
+      "comment": "the connector shell's outer diameter",
+      "model": false
+    },
+    {
+      "name": "connector_wall",
+      "expr": "0.15 mm",
+      "unit": "mm",
+      "comment": "the shell's wall (est.)",
+      "model": false
+    },
+    {
+      "name": "connector_height",
+      "expr": "1.25 mm",
+      "unit": "mm",
+      "comment": "the connector's height above the module board",
+      "model": false
+    },
+    {
+      "name": "connector_pin",
+      "expr": "0.45 mm",
+      "unit": "mm",
+      "comment": "the centre contact's diameter (est.)",
+      "model": false
+    },
+    {
       "name": "ground_x",
       "expr": "-1.6 mm",
       "unit": "mm",
@@ -7544,10 +7628,134 @@
     },
     {
       "id": 66,
+      "name": "can notch",
+      "suppressed": false,
+      "param_names": [
+        "d148",
+        "d149",
+        "d150"
+      ],
+      "participants": [
+        "shield can"
+      ],
+      "type": "box",
+      "corner": [
+        "can_notch_x",
+        "can_notch_y",
+        "-1 mm"
+      ],
+      "length": "can_notch_width + 1 mm",
+      "width": "can_notch_length + 1 mm",
+      "height": "height + 2 mm",
+      "operation": "cut"
+    },
+    {
+      "id": 67,
+      "name": "connector base",
+      "suppressed": false,
+      "body_names": [
+        "connector base"
+      ],
+      "param_names": [
+        "d151",
+        "d152",
+        "d153"
+      ],
+      "type": "box",
+      "corner": [
+        "connector_x - connector_size / 2",
+        "connector_y - connector_size / 2",
+        "pad_thickness + board_thickness"
+      ],
+      "length": "connector_size",
+      "width": "connector_size",
+      "height": "connector_base",
+      "operation": "new_body"
+    },
+    {
+      "id": 68,
+      "name": "connector shell",
+      "suppressed": false,
+      "body_names": [
+        "connector shell"
+      ],
+      "param_names": [
+        "d154",
+        "d155"
+      ],
+      "type": "cylinder",
+      "base": [
+        "connector_x",
+        "connector_y",
+        "pad_thickness + board_thickness + connector_base"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "(connector_diameter) / 2",
+      "height": "connector_height - connector_base",
+      "operation": "new_body"
+    },
+    {
+      "id": 69,
+      "name": "connector socket",
+      "suppressed": false,
+      "param_names": [
+        "d156",
+        "d157"
+      ],
+      "participants": [
+        "connector shell"
+      ],
+      "type": "cylinder",
+      "base": [
+        "connector_x",
+        "connector_y",
+        "pad_thickness + board_thickness + connector_base"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "(connector_diameter - 2 * connector_wall) / 2",
+      "height": "connector_height",
+      "operation": "cut"
+    },
+    {
+      "id": 70,
+      "name": "connector pin",
+      "suppressed": false,
+      "body_names": [
+        "connector pin"
+      ],
+      "param_names": [
+        "d158",
+        "d159"
+      ],
+      "type": "cylinder",
+      "base": [
+        "connector_x",
+        "connector_y",
+        "pad_thickness + board_thickness + connector_base"
+      ],
+      "axis": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "radius": "(connector_pin) / 2",
+      "height": "(connector_height - connector_base) * 0.6",
+      "operation": "new_body"
+    },
+    {
+      "id": 71,
       "name": "antenna head sketch",
       "suppressed": false,
       "param_names": [
-        "d148"
+        "d160"
       ],
       "type": "sketch",
       "plane": {
@@ -7725,17 +7933,17 @@
       }
     },
     {
-      "id": 67,
+      "id": 72,
       "name": "antenna head",
       "suppressed": false,
       "body_names": [
         "antenna"
       ],
       "param_names": [
-        "d149"
+        "d161"
       ],
       "type": "extrude",
-      "sketch": 66,
+      "sketch": 71,
       "profiles": {
         "type": "all"
       },
@@ -7747,11 +7955,11 @@
       "operation": "new_body"
     },
     {
-      "id": 68,
+      "id": 73,
       "name": "antenna turn sketch",
       "suppressed": false,
       "param_names": [
-        "d150"
+        "d162"
       ],
       "type": "sketch",
       "plane": {
@@ -8139,14 +8347,14 @@
       }
     },
     {
-      "id": 69,
+      "id": 74,
       "name": "antenna turn",
       "suppressed": false,
       "param_names": [
-        "d151"
+        "d163"
       ],
       "type": "extrude",
-      "sketch": 68,
+      "sketch": 73,
       "profiles": {
         "type": "all"
       },
@@ -8161,16 +8369,16 @@
       ]
     },
     {
-      "id": 70,
+      "id": 75,
       "name": "antenna turns",
       "suppressed": false,
       "param_names": [
-        "d152",
-        "d153"
+        "d164",
+        "d165"
       ],
       "type": "pattern",
       "features": [
-        69
+        74
       ],
       "pattern": {
         "type": "rectangular",
@@ -8184,11 +8392,11 @@
       }
     },
     {
-      "id": 71,
+      "id": 76,
       "name": "antenna tail sketch",
       "suppressed": false,
       "param_names": [
-        "d154"
+        "d166"
       ],
       "type": "sketch",
       "plane": {
@@ -8506,14 +8714,14 @@
       }
     },
     {
-      "id": 72,
+      "id": 77,
       "name": "antenna tail",
       "suppressed": false,
       "param_names": [
-        "d155"
+        "d167"
       ],
       "type": "extrude",
-      "sketch": 71,
+      "sketch": 76,
       "profiles": {
         "type": "all"
       },
@@ -8528,13 +8736,13 @@
       ]
     },
     {
-      "id": 73,
+      "id": 78,
       "name": "parked",
       "suppressed": false,
       "param_names": [
-        "d156",
-        "d157",
-        "d158"
+        "d168",
+        "d169",
+        "d170"
       ],
       "type": "box",
       "corner": [
@@ -8548,11 +8756,11 @@
       "operation": "cut"
     },
     {
-      "id": 74,
+      "id": 79,
       "name": "marking-top",
       "suppressed": false,
       "param_names": [
-        "d159"
+        "d171"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8579,11 +8787,11 @@
       }
     },
     {
-      "id": 75,
+      "id": 80,
       "name": "marking-can-top",
       "suppressed": false,
       "param_names": [
-        "d160"
+        "d172"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8610,11 +8818,11 @@
       }
     },
     {
-      "id": 76,
+      "id": 81,
       "name": "marking-can-pos-x",
       "suppressed": false,
       "param_names": [
-        "d161"
+        "d173"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8641,11 +8849,11 @@
       }
     },
     {
-      "id": 77,
+      "id": 82,
       "name": "marking-can-neg-x",
       "suppressed": false,
       "param_names": [
-        "d162"
+        "d174"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8672,11 +8880,11 @@
       }
     },
     {
-      "id": 78,
+      "id": 83,
       "name": "marking-can-pos-y",
       "suppressed": false,
       "param_names": [
-        "d163"
+        "d175"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8703,11 +8911,11 @@
       }
     },
     {
-      "id": 79,
+      "id": 84,
       "name": "marking-can-neg-y",
       "suppressed": false,
       "param_names": [
-        "d164"
+        "d176"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8734,11 +8942,11 @@
       }
     },
     {
-      "id": 80,
+      "id": 85,
       "name": "marking-pcb-top",
       "suppressed": false,
       "param_names": [
-        "d165"
+        "d177"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8765,11 +8973,11 @@
       }
     },
     {
-      "id": 81,
+      "id": 86,
       "name": "marking-antenna-area",
       "suppressed": false,
       "param_names": [
-        "d166"
+        "d178"
       ],
       "type": "construction_plane",
       "plane": {
@@ -8796,11 +9004,11 @@
       }
     },
     {
-      "id": 82,
+      "id": 87,
       "name": "pin 1 sketch",
       "suppressed": false,
       "param_names": [
-        "d167"
+        "d179"
       ],
       "type": "sketch",
       "plane": {
@@ -8840,7 +9048,7 @@
       }
     },
     {
-      "id": 83,
+      "id": 88,
       "name": "pin1",
       "suppressed": false,
       "type": "construction_point",
@@ -8848,13 +9056,13 @@
         "type": "at",
         "point": {
           "type": "sketch_point",
-          "sketch": 82,
+          "sketch": 87,
           "point": "p1"
         }
       }
     }
   ],
-  "next_id": 84,
+  "next_id": 89,
   "next_component_color_index": 0,
   "appearances": {
     "bodies": {
@@ -8884,6 +9092,48 @@
           "metallic": 0.0,
           "roughness": 0.2,
           "dielectric_ior": 1.52
+        }
+      },
+      "connector base": {
+        "name": "pa-white",
+        "color": [
+          231,
+          231,
+          226
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 0.0,
+          "roughness": 0.5,
+          "dielectric_ior": 1.53
+        }
+      },
+      "connector pin": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
+        }
+      },
+      "connector shell": {
+        "name": "gold",
+        "color": [
+          255,
+          229,
+          158
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
+          "dielectric_ior": 1.5
         }
       },
       "ground pad": {

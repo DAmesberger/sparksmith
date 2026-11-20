@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 
 /// The part files, by file stem; each becomes `<STEM>` in upper case.
-const PARTS: [&str; 8] = [
+const PARTS: [&str; 9] = [
     "dfn",
     "dfn-ep",
     "dfn-ep-wettable",
@@ -16,6 +16,7 @@ const PARTS: [&str; 8] = [
     "qfn",
     "qfn-ep",
     "qfn-ep-wettable",
+    "sawn-terminals",
 ];
 
 fn main() -> Result<(), Box<dyn Error>> {

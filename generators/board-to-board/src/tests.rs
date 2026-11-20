@@ -53,8 +53,13 @@ fn presets_all_generate_with_a_lead_per_pad() -> Result<(), Vec<Problem>> {
     for p in description.presets() {
         for scope in [Scope::Component, Scope::Package] {
             let g = BoardToBoard::generate(&request(scope, &preset(&p.key)))?;
-            let pads = g.footprint.pads.len();
-            assert_eq!(g.package.geometry.leads.len(), pads, "{}", p.key);
+            // Every tail's land; an alignment pin's hole is unplated and
+            // lands no terminal.
+            let pads = g.footprint.pads.iter().filter(|p| !p.terminal.is_empty());
+            for hole in g.footprint.pads.iter().filter(|p| p.terminal.is_empty()) {
+                assert!(hole.hole.as_ref().is_some_and(|h| !h.plated), "{}", p.key);
+            }
+            assert_eq!(g.package.geometry.leads.len(), pads.count(), "{}", p.key);
         }
     }
     Ok(())

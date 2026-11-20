@@ -49,9 +49,13 @@ fn golden_hashes_match_natively() -> Result<(), String> {
 #[test]
 fn presets_are_the_starter_rows_and_all_generate() -> Result<(), Vec<Problem>> {
     let description = description();
-    // The 25 starter rows, then the rows after a device's drawing.
-    assert_eq!(description.presets().len(), 28);
+    // The 25 starter rows, the rows after a device's drawing, then the
+    // packages whose terminals are given one by one (`ti-`).
+    assert_eq!(description.presets().len(), 30);
     for p in description.presets() {
+        if p.key.starts_with("no-lead-ti-") {
+            continue;
+        }
         for scope in [Scope::Component, Scope::Package] {
             let g = NoLead::generate(&request(scope, &preset(&p.key)))?;
             let pads = g.footprint.pads.len();
@@ -282,6 +286,9 @@ fn refusals_name_the_field_in_plain_words() {
 #[test]
 fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
     for p in description().presets() {
+        if p.key.starts_with("no-lead-ti-") {
+            continue;
+        }
         let g = NoLead::generate(&request(Scope::Package, &preset(&p.key)))
             .map_err(|e| format!("{e:?}"))?;
         let Some(v1::Model::PartFile { asset, values }) = &g.model else {
@@ -353,6 +360,7 @@ fn the_part_file_hashes_are_the_bundles_files() -> Result<(), String> {
         ("dfn-ep", parts::DFN_EP),
         ("qfn", parts::QFN),
         ("qfn-ep", parts::QFN_EP),
+        ("sawn-terminals", parts::SAWN_TERMINALS),
     ] {
         let path = format!("{}/parts/{stem}.solidcraft", env!("CARGO_MANIFEST_DIR"));
         let bytes = std::fs::read(&path).map_err(|e| format!("{path}: {e}"))?;
@@ -362,4 +370,123 @@ fn the_part_file_hashes_are_the_bundles_files() -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+/// The pads of `g` landing `terminal`.
+fn lands_of<'a>(g: &'a Generation, terminal: &str) -> Vec<&'a Pad> {
+    g.footprint
+        .pads
+        .iter()
+        .filter(|p| p.terminal == terminal)
+        .collect()
+}
+
+#[test]
+fn ti_dml0010a_lands_its_comb_and_parks_unused_slots() -> Result<(), Vec<Problem>> {
+    let g = NoLead::generate(&request(Scope::Component, &preset("no-lead-ti-dml0010a")))?;
+    let terminals: Vec<&str> = g.package.terminals.iter().map(String::as_str).collect();
+    assert_eq!(
+        terminals,
+        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "EP"]
+    );
+    // Pin 8 is its numbered land and the unnumbered lug towards pin 9.
+    let eight = lands_of(&g, "8");
+    assert_eq!(eight.len(), 2);
+    assert_eq!(eight[0].key, "8");
+    assert_eq!(eight[0].number, None);
+    assert_eq!(eight[1].number.as_deref(), Some(""));
+    assert_eq!(eight[1].at, [812_500, 300_000]);
+    // Each lead's contact is its numbered land's centre.
+    for lead in &g.package.geometry.leads {
+        let land = g.footprint.pads.iter().find(|p| p.key == lead.key);
+        assert_eq!(land.map(|p| p.at), Some([lead.contact[0], lead.contact[1]]));
+    }
+    let Some(v1::Model::PartFile { asset, values }) = &g.model else {
+        return Err(Vec::new());
+    };
+    assert_eq!(asset, parts::SAWN_TERMINALS);
+    let int = |k: &str| match values.get(k) {
+        Some(ParamValue::Int(v)) => *v,
+        _ => i64::MIN,
+    };
+    // Thirteen rectangles; slot 14 on is parked beyond the −x edge.
+    assert_eq!(int("terminal_13_length"), 1_100_000);
+    assert_eq!(int("terminal_14_x"), int("park_x"));
+    assert_eq!(int("park_x"), -101_000_000);
+    // Pin 1 is at the −x, +y corner: the dot is there.
+    assert!(int("mark_x") < 0 && int("mark_y") > 0);
+    Ok(())
+}
+
+#[test]
+fn ti_rxb0014a_lands_its_corners_round_pins_and_via() -> Result<(), Vec<Problem>> {
+    let g = NoLead::generate(&request(Scope::Package, &preset("no-lead-ti-rxb0014a")))?;
+    assert_eq!(g.package.terminals.len(), 15);
+    let one = lands_of(&g, "1");
+    assert_eq!(one.len(), 2);
+    assert_eq!(one[1].number.as_deref(), Some("1"));
+    assert!(matches!(
+        lands_of(&g, "5")[0].shape,
+        PadShape::Circle {
+            diameter_nm: 225_000
+        }
+    ));
+    let pad = lands_of(&g, "15");
+    assert_eq!(pad.len(), 2);
+    assert_eq!(pad[1].number.as_deref(), Some(""));
+    assert!(pad[1].hole.is_some());
+    let Some(v1::Model::PartFile { values, .. }) = &g.model else {
+        return Err(Vec::new());
+    };
+    // 37 rectangles, the necks lifted 0.1 mm; slot 38 on parked.
+    assert_eq!(
+        values.get("terminal_2_lift"),
+        Some(&ParamValue::Int(100_000))
+    );
+    assert_eq!(values.get("terminal_1_lift"), Some(&ParamValue::Int(0)));
+    assert_ne!(values.get("terminal_37_x"), values.get("park_x"));
+    assert_eq!(values.get("terminal_38_x"), values.get("park_x"));
+    Ok(())
+}
+
+#[test]
+fn given_terminals_refuse_what_cannot_land() {
+    let list = |k: &str, v: ParamValue| (k.to_string(), ParamValue::List(vec![v]));
+    let rect = |n: &str, x: i64| -> Vec<(String, ParamValue)> {
+        vec![
+            list("terminal_numbers", ParamValue::Text(n.into())),
+            list("terminal_x", ParamValue::Int(x)),
+            list("terminal_y", ParamValue::Int(0)),
+            list("terminal_size_x", ParamValue::Int(500_000)),
+            list("terminal_size_y", ParamValue::Int(500_000)),
+        ]
+    };
+    let refused = |o: Vec<(String, ParamValue)>| -> Vec<String> {
+        NoLead::generate(&request(Scope::Package, &o))
+            .err()
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|p| p.field)
+            .collect()
+    };
+    // Beyond the 3 mm body.
+    assert_eq!(refused(rect("1", 1_400_000)), ["terminal_x"]);
+    // A land naming no terminal (and so terminal 1 has no land).
+    let mut stray = rect("1", 0);
+    stray.extend([
+        list("given_land_numbers", ParamValue::Text("2".into())),
+        list("given_land_x", ParamValue::Int(0)),
+        list("given_land_y", ParamValue::Int(0)),
+        list("given_land_size_x", ParamValue::Int(500_000)),
+        list("given_land_size_y", ParamValue::Int(500_000)),
+    ]);
+    assert_eq!(refused(stray), ["given_land_numbers", "given_land_numbers"]);
+    // Estimated lands: the rectangle grown 0.025 mm a side.
+    let g = NoLead::generate(&request(Scope::Package, &rect("1", 0)));
+    assert_eq!(
+        g.map(|g| g.footprint.pads[0].shape.clone()).ok(),
+        Some(PadShape::Rect {
+            size: [550_000, 550_000]
+        })
+    );
 }

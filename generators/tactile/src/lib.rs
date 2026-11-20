@@ -18,7 +18,11 @@
 //! 4 (+x +y). `common` says which terminals are joined inside: `across`
 //! (the pair at one y) or `along` (the pair at one x). The switch's
 //! terminal 1 is the pair at −y (across) or −x (along); with the ground
-//! tab, package terminal 5 is the switch's terminal 3 (`SH`).
+//! tab, package terminal 5 is the switch's terminal 3 (`SH`). With
+//! `separate`, each package terminal is its own component terminal of the
+//! same key (the ground tab's 5, `SH`), the joints drawn in the symbol, as
+//! the datasheets' circuit diagrams do. Without `ground_land` the ground
+//! tab is drawn but lands nothing: no pad, no package terminal.
 #![cfg_attr(target_arch = "wasm32", no_std)]
 
 extern crate alloc;
@@ -28,7 +32,7 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use sparksmith_generator_sdk::args::{Args, checked, problem};
-use sparksmith_generator_sdk::draw::{Drawing, UP};
+use sparksmith_generator_sdk::draw::{Drawing, LEFT, RIGHT, TWO_TERMINAL_PIN_X_NM, UP};
 use sparksmith_generator_sdk::land::{self, Box2};
 use sparksmith_generator_sdk::units::{MM, UM, div_round, mm_text};
 use sparksmith_generator_sdk::v1::{
@@ -43,7 +47,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+const VERSION: u32 = 3;
 
 /// Estimates. Mini: the cover sheet, the J's tab height
 /// (a third of the cover's), foot length, root in the base, the opening's
@@ -108,6 +112,18 @@ fn choices(key: &str, label: &str, options: &[(&str, &str)], default: &str, grou
         },
         default: ParamValue::Text(default.into()),
         group: Some(group.into()),
+        context: None,
+    }
+}
+
+fn flag(key: &str, label: &str, help: &str, default: bool) -> Param {
+    Param {
+        key: key.into(),
+        label: label.into(),
+        help: Some(help.into()),
+        ty: ParamType::Bool,
+        default: ParamValue::Bool(default),
+        group: Some("terminals".into()),
         context: None,
     }
 }
@@ -209,6 +225,12 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "across",
             "terminals",
         ),
+        flag(
+            "separate",
+            "Each terminal its own pin",
+            "Every package terminal is its own component terminal; the joints inside are drawn in the symbol.",
+            false,
+        ),
         Param {
             key: "ground".into(),
             label: "Ground tab (mini)".into(),
@@ -218,6 +240,12 @@ fn description_with(presets: Vec<Preset>) -> Description {
             group: Some("terminals".into()),
             context: None,
         },
+        flag(
+            "ground_land",
+            "Ground tab soldered (mini)",
+            "The ground tab has its land and package terminal; off, it is drawn but lands nothing.",
+            true,
+        ),
         length(
             "land_x",
             "Land centre x",
@@ -335,7 +363,9 @@ struct Dims {
     pitch: i64,
     t: i64,
     along: bool,
+    separate: bool,
     ground: bool,
+    ground_soldered: bool,
     land_at: [i64; 2],
     land: [i64; 2],
     ground_land_y: i64,
@@ -375,6 +405,29 @@ impl Dims {
         }
     }
 
+    /// The ground tab has a land (and a package terminal).
+    fn ground_landed(&self) -> bool {
+        self.ground && self.ground_soldered
+    }
+
+    /// The package terminals joined inside as the switch's terminal 1 (the
+    /// pair at −y across, −x along) and 2.
+    fn pairs(&self) -> [[&'static str; 2]; 2] {
+        let terminals = self.terminals();
+        let mut pairs = [[""; 2]; 2];
+        let mut filled = [0usize; 2];
+        for (key, [x, y]) in terminals {
+            let side = usize::from(if self.along { x >= 0 } else { y >= 0 });
+            if let (Some(pair), Some(n)) = (pairs.get_mut(side), filled.get_mut(side))
+                && let Some(slot) = pair.get_mut(*n)
+            {
+                *slot = key;
+                *n += 1;
+            }
+        }
+        pairs
+    }
+
     fn mini_foot(&self) -> i64 {
         MINI_FOOT_NM.min(part_of(self.span, 2) - part_of(self.bl, 4))
     }
@@ -412,7 +465,9 @@ fn dims(args: &Args<'_>) -> Result<Dims, Vec<Problem>> {
         pitch: int("terminal_pitch")?,
         t: int("lead_thickness")?,
         along: args.text("common").map_err(one)? == "along",
+        separate: args.flag("separate").map_err(one)?,
         ground: args.flag("ground").map_err(one)?,
+        ground_soldered: args.flag("ground_land").map_err(one)?,
         land_at: [int("land_x")?, int("land_y")?],
         land: [int("land_length")?, int("land_width")?],
         ground_land_y: int("ground_land_y")?,
@@ -494,7 +549,7 @@ fn pads(d: &Dims) -> Vec<Pad> {
         .iter()
         .map(|(key, at)| pad(key, [at[0].signum() * x, at[1].signum() * y], d.land))
         .collect();
-    if d.ground {
+    if d.ground_landed() {
         pads.push(pad("5", [0, -d.ground_land_y], d.ground_land));
     }
     pads
@@ -502,20 +557,37 @@ fn pads(d: &Dims) -> Vec<Pad> {
 
 /// A normally open push-button (IEC 60617 as published): two contacts,
 /// the bridging bar above them and its stem; the ground tab's terminal
-/// below.
-fn symbol(ground: bool) -> Symbol {
+/// (`ground`) below. With `separate`, each contact has the pins of its
+/// joined pair, one below the other, the joint drawn between them.
+fn symbol(ground: Option<&str>, separate: Option<[[&str; 2]; 2]>) -> Symbol {
     let mut d = Drawing::default();
     let m = |v: i64| v * MM / 1000;
-    d.two_pins("1", "2", m(2500), m(2500));
+    let x = TWO_TERMINAL_PIN_X_NM;
+    match separate {
+        None => d.two_pins("1", "2", m(2500), m(2500)),
+        Some([[a, b], [c, e]]) => {
+            d.pin(a, [-x, 0], RIGHT, x - m(2500));
+            d.pin(b, [-x, m(-2500)], RIGHT, x - m(2500));
+            d.pin(c, [x, 0], LEFT, x - m(2500));
+            d.pin(e, [x, m(-2500)], LEFT, x - m(2500));
+            d.line([m(-2500), m(-2500)], [m(-2500), 0]);
+            d.line([m(2500), m(-2500)], [m(2500), 0]);
+        }
+    }
     d.line([m(-2500), 0], [m(-2500), m(500)]);
     d.line([m(2500), 0], [m(2500), m(500)]);
     d.line([m(-2500), m(1250)], [m(2500), m(1250)]);
     d.line([0, m(1250)], [0, m(2500)]);
     d.line([m(-750), m(2500)], [m(750), m(2500)]);
-    if ground {
-        d.pin("3", [0, m(-5000)], UP, m(2500));
+    if let Some(key) = ground {
+        d.pin(key, [0, m(-5000)], UP, m(2500));
     }
-    d.labels(m(2500), if ground { m(-5000) } else { m(-500) });
+    let bottom = match (ground, separate) {
+        (Some(_), _) => m(-5000),
+        (None, Some(_)) => m(-2500),
+        (None, None) => m(-500),
+    };
+    d.labels(m(2500), bottom);
     Symbol {
         units: vec![d.unit("A")],
     }
@@ -597,7 +669,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     silk.push(land::silk_designator(body, top));
     let terminals = d.terminals();
     let mut package_terminals: Vec<String> = terminals.iter().map(|(k, _)| (*k).into()).collect();
-    if d.ground {
+    if d.ground_landed() {
         package_terminals.push("5".into());
     }
     let package = Package {
@@ -634,24 +706,38 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.h).trim_end_matches(" mm"),
     );
     // The switch's terminal of each package terminal: 1 for the pair at −y
-    // (across) or −x (along).
+    // (across) or −x (along); separate, its own key.
     let mut binding: Vec<BindingEntry> = terminals
         .iter()
         .map(|(key, [x, y])| {
             let low = if d.along { *x < 0 } else { *y < 0 };
+            let terminal = if d.separate {
+                key
+            } else if low {
+                "1"
+            } else {
+                "2"
+            };
             BindingEntry {
                 package_terminal: (*key).into(),
-                terminal: if low { "1" } else { "2" }.into(),
+                terminal: terminal.into(),
             }
         })
         .collect();
-    let mut names = vec![("1", "1"), ("2", "2")];
-    if d.ground {
+    let mut names: Vec<(&str, &str)> = if d.separate {
+        terminals.iter().map(|(key, _)| (*key, *key)).collect()
+    } else {
+        vec![("1", "1"), ("2", "2")]
+    };
+    let ground_terminal = d
+        .ground_landed()
+        .then_some(if d.separate { "5" } else { "3" });
+    if let Some(terminal) = ground_terminal {
         binding.push(BindingEntry {
             package_terminal: "5".into(),
-            terminal: "3".into(),
+            terminal: terminal.into(),
         });
-        names.push(("3", "SH"));
+        names.push((terminal, "SH"));
     }
     Ok(Generation {
         marking: None,
@@ -668,7 +754,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             name,
             fields: vec![String::from("value")],
         }),
-        symbol: component_part.then(|| symbol(d.ground)),
+        symbol: component_part.then(|| symbol(ground_terminal, d.separate.then(|| d.pairs()))),
         package,
         footprint,
         binding: if component_part { binding } else { Vec::new() },

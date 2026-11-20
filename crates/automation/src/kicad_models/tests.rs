@@ -320,6 +320,84 @@ fn a_part_number_naming_another_package_is_a_finding() -> Fallible {
     Ok(())
 }
 
+/// An 18 mm wide castellated module's land pattern as KiCad stores it (y
+/// down): 14 + 12 + 14 lands of 1.5 × 0.9 mm at 1.27 mm and a 3 × 3
+/// ground array, as a public module datasheet's recommended pattern gives
+/// it; one module PCB with its antenna end and one without share it.
+fn module_footprint(name: &str, at: [f64; 2], extra: &str) -> String {
+    let mut out = format!(
+        r#"(footprint "Original:Module" (layer "F.Cu") (at {} {})
+        (property "Reference" "{name}") {extra}"#,
+        at[0], at[1]
+    );
+    let mut land = |number: usize, x: f64, y: f64, size: [f64; 2]| {
+        out.push_str(&format!(
+            r#"(pad "{number}" smd rect (at {x:.3} {:.3}) (size {} {}) (layers "F.Cu" "F.Paste" "F.Mask") (net {} "{}"))"#,
+            -y,
+            size[0],
+            size[1],
+            number % 4 + 1,
+            ["A", "B", "C", "D"][number % 4]
+        ));
+    };
+    for k in 0..14 {
+        land(1 + k, -8.75, 5.26 - 1.27 * k as f64, [1.5, 0.9]);
+        land(27 + k, 8.75, -11.25 + 1.27 * k as f64, [1.5, 0.9]);
+    }
+    for k in 0..12 {
+        land(15 + k, -6.985 + 1.27 * k as f64, -12.5, [0.9, 1.5]);
+    }
+    for r in 0..3 {
+        for c in 0..3 {
+            let x = -1.5 + 1.4 * (c as f64 - 1.0);
+            let y = -2.46 + 1.4 * (1.0 - r as f64);
+            land(41, x, y, [0.9, 0.9]);
+        }
+    }
+    out.push(')');
+    out
+}
+
+/// Lands two presets fit alike (a module with its PCB antenna and its
+/// external-antenna variant): the placed part's number, naming one of them
+/// standing apart, chooses it; without one they tie.
+#[test]
+fn a_part_number_chooses_among_presets_that_fit_alike() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let props = |mpn: &str| {
+        format!(r#"(property "MPN" "{mpn}") (property "Manufacturer" "Original Devices")"#)
+    };
+    let footprints = [
+        module_footprint("U1", [20.0, 20.0], &props("ESP32-S3-WROOM-1U-N4R2")),
+        module_footprint("U2", [50.0, 20.0], &props("ESP32-S3-WROOM-1-N4")),
+        module_footprint("U3", [80.0, 20.0], ""),
+    ]
+    .concat();
+    let imported = import(dir.path(), "mpn-choice", &board("mpn-choice", &footprints))?;
+    let project = imported.engine.project();
+    let preset = |designator: &str| {
+        let instance = project.instance_by_designator(designator)?;
+        project
+            .library
+            .generated
+            .iter()
+            .find(|g| g.root.id == instance.component.id)
+            .and_then(|g| g.from.preset.clone())
+    };
+    assert_eq!(preset("U1").as_deref(), Some("module-esp32-s3-wroom-1u"));
+    assert_eq!(preset("U2").as_deref(), Some("module-esp32-s3-wroom-1"));
+    assert_eq!(preset("U3"), None);
+    assert_eq!(
+        imported.report.count(Case::PackageContradiction),
+        0,
+        "{:?}",
+        imported.report.details()
+    );
+    Ok(())
+}
+
 /// A footprint no generator fits is a project part of its lands, the same
 /// kind of part as an authored one: no import-only field, the package's
 /// default model until a recreation, named by its value.
@@ -402,6 +480,60 @@ fn a_generator_never_joins_pads_on_different_nets() -> Fallible {
         "{}",
         detail.path
     );
+    Ok(())
+}
+
+/// A six-pin 1.0 mm side-entry header (JST's SH layout: 0.6 × 1.55 mm
+/// lands, 1.2 × 1.8 mm tab lands 3.8 mm out and 3.875 mm back) whose two
+/// tab lands carry different numbers, each with its `tabs` net text.
+fn tabbed_header(name: &str, tabs: [&str; 2]) -> String {
+    let mut out = format!(
+        r#"(footprint "Original:SixTabs" (layer "F.Cu") (at 60 20)
+        (property "Reference" "{name}")"#
+    );
+    for k in 0..6_usize {
+        out.push_str(&format!(
+            r#"(pad "{}" smd rect (at {} 0) (size 0.6 1.55) (layers "F.Cu" "F.Paste" "F.Mask") (net {} "{}"))"#,
+            k + 1,
+            -2.5 + k as f64,
+            k % 4 + 1,
+            ["A", "B", "C", "D"][k % 4]
+        ));
+    }
+    for (k, (x, net)) in [(-3.8, tabs[0]), (3.8, tabs[1])].into_iter().enumerate() {
+        out.push_str(&format!(
+            r#"(pad "T{}" smd rect (at {x} 3.875 90) (size 1.8 1.2) (layers "F.Cu" "F.Paste" "F.Mask") {net})"#,
+            k + 1
+        ));
+    }
+    out.push(')');
+    out
+}
+
+/// Two tab lands of different numbers share the header's mechanical
+/// terminal when the board leaves both on no net (they join nothing), and
+/// never when the board has one on a net and the other on none.
+#[test]
+fn unconnected_tabs_of_different_numbers_share_a_terminal() -> Fallible {
+    let context = sparksmith_core::library::standards::Context::fixture()?;
+    let _context = context.enter();
+    let dir = tempfile::tempdir()?;
+    let free = import(
+        dir.path(),
+        "free",
+        &board("free", &tabbed_header("J1", ["", ""])),
+    )?;
+    assert_eq!(free.report.count(Case::GeneratedPart), 1);
+    assert_eq!(
+        generated_root(free.engine.project(), "J1").as_deref(),
+        Some("wire-to-board")
+    );
+    let one = import(
+        dir.path(),
+        "one",
+        &board("one", &tabbed_header("J1", [r#"(net 1 "A")"#, ""])),
+    )?;
+    assert_eq!(one.report.count(Case::GeneratedPart), 0);
     Ok(())
 }
 
@@ -492,6 +624,37 @@ fn library_references_stay_unresolved_and_an_expired_import_refuses() -> Fallibl
         .ok_or("expired import succeeded")?;
     assert!(error.contains("time limit"), "{error}");
     assert_eq!(engine.revision(), before);
+    Ok(())
+}
+
+/// The copper of two saved designs (`SPARKSMITH_COPPER_FILES=a:b`),
+/// compared layer by layer, as evidence that a re-import or a body change
+/// left the copper as it was: each layer's differing area is printed and
+/// must be zero.
+#[test]
+#[ignore = "compares the designs named by SPARKSMITH_COPPER_FILES"]
+fn two_saved_designs_have_the_same_copper() -> Fallible {
+    let Ok(files) = std::env::var("SPARKSMITH_COPPER_FILES") else {
+        return Err("set SPARKSMITH_COPPER_FILES=a.sparksmith:b.sparksmith".into());
+    };
+    let (a, b) = files.split_once(':').ok_or("two paths, `:`-separated")?;
+    let context = sparksmith_io::standards::shipped_context()?;
+    let _context = context.enter();
+    let open = |path: &str| -> Result<sparksmith_core::Engine, Box<dyn std::error::Error>> {
+        let mut engine = sparksmith_core::Engine::default();
+        engine.replace_document(sparksmith_io::read_project(Path::new(path))?)?;
+        Ok(engine)
+    };
+    let (a, b) = (open(a)?, open(b)?);
+    let layers = sparksmith_solidcraft::project::copper_agree::between(a.project(), b.project());
+    for layer in &layers {
+        println!("{layer:?}");
+    }
+    assert!(
+        layers
+            .iter()
+            .all(|l| l.objects_differ_mm2 == 0.0 && l.fills_differ_mm2 == 0.0)
+    );
     Ok(())
 }
 
