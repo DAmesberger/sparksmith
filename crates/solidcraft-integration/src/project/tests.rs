@@ -2418,10 +2418,13 @@ fn the_copper_measure_finds_missing_and_reshaped_copper() -> Result<()> {
 /// package (docs/assembly-variants.md).
 #[test]
 fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
+    use sparksmith_core::library::marking::{
+        Align, LaidElement, MarkingItem, MarkingSpec, Template,
+    };
     use sparksmith_core::library::{PartDefinition, Published};
     use sparksmith_core::{
-        AssemblyVariant, BindingRef, ComponentRef, DefinitionId, FootprintRef, PackageRef, PartRef,
-        Population, VariantOverride,
+        AssemblyVariant, BindingRef, ComponentRef, DefinitionId, FootprintRef, Id, PackageRef,
+        PartRef, Population, VariantOverride,
     };
     let fail = |what: &str| Error::Verification(what.into());
     let mut project = envelope_demo()?;
@@ -2481,6 +2484,14 @@ fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
             mpn: "EX-ALT-1".into(),
             component: component_ref,
             binding: binding_ref,
+            top_mark: Some(Box::new(MarkingSpec {
+                items: vec![MarkingItem::Text {
+                    template: Template("{mpn}".into()),
+                    height_nm: None,
+                    align: Align::Centre,
+                }],
+                ..MarkingSpec::default()
+            })),
             ..PartDefinition::default()
         },
     });
@@ -2520,6 +2531,33 @@ fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
         r1_part.stem,
         models::definition_name(pkg, package_ref.revision.0),
         "R1 carries the substitute's package"
+    );
+    // The substitute is marked from its own data, through the same marking
+    // path as any fitted part; R2, not fitted, has no marking.
+    let marked = |project: &Project| -> Vec<(Id, Vec<String>)> {
+        crate::marking::board::instance_layouts(project)
+            .layouts
+            .iter()
+            .map(|(id, layout)| {
+                let texts = layout
+                    .elements
+                    .iter()
+                    .filter_map(|e| match e {
+                        LaidElement::Text(t) => Some(t.text.clone()),
+                        _ => None,
+                    })
+                    .collect();
+                (*id, texts)
+            })
+            .collect()
+    };
+    assert_eq!(marked(&project), [(r1, vec!["EX-ALT-1".to_owned()])]);
+    project.variants.active = None;
+    assert!(
+        marked(&project)
+            .iter()
+            .all(|(_, texts)| !texts.iter().any(|t| t == "EX-ALT-1")),
+        "the default part does not carry the substitute's marking"
     );
     // The default population is typed on the instance as well.
     project.variants.active = None;
