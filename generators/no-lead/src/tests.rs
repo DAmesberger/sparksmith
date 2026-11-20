@@ -418,6 +418,32 @@ fn ti_dml0010a_lands_its_comb_and_parks_unused_slots() -> Result<(), Vec<Problem
     Ok(())
 }
 
+/// The ADI LGA-14 marks each orderable ADXL343 its data sheet's branding
+/// code, and nothing for another part number.
+#[test]
+fn adi_lga_14_marks_each_orderable_part_its_code() -> Result<(), Vec<Problem>> {
+    let g = NoLead::generate(&request(
+        Scope::Component,
+        &preset("no-lead-lga-14-3x5-0.8-adi-cc-14-1"),
+    ))?;
+    let marking = g.marking.ok_or_else(Vec::new)?;
+    assert_eq!(marking.lines, ["{code}"]);
+    let codes: Vec<(&str, &str)> = marking
+        .codes
+        .iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    assert_eq!(
+        codes,
+        [
+            ("ADXL343BCCZ", "343B"),
+            ("ADXL343BCCZ-RL", "343B"),
+            ("ADXL343BCCZ-RL7", "343B")
+        ]
+    );
+    Ok(())
+}
+
 #[test]
 fn ti_rxb0014a_lands_its_corners_round_pins_and_via() -> Result<(), Vec<Problem>> {
     let g = NoLead::generate(&request(Scope::Package, &preset("no-lead-ti-rxb0014a")))?;
