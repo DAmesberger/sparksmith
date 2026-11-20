@@ -63,7 +63,7 @@ fn golden_hashes_match_natively() -> Result<(), String> {
 #[test]
 fn every_preset_generates_on_its_lands() -> Result<(), Vec<Problem>> {
     let description = description();
-    assert_eq!(description.presets().len(), 4);
+    assert_eq!(description.presets().len(), 5);
     for p in description.presets() {
         let g = Tactile::generate(&request(Scope::Component, &preset(&p.key)))?;
         contacts_on_lands(&g);
@@ -124,6 +124,54 @@ fn the_evqp2_with_ground_tab() -> Result<(), Vec<Problem>> {
         bound,
         vec![("1", "1"), ("2", "2"), ("3", "1"), ("4", "2"), ("5", "3")]
     );
+    Ok(())
+}
+
+#[test]
+fn the_evqp2v02m_on_four_lands_keeps_its_terminals_apart() -> Result<(), Vec<Problem>> {
+    // The ground tab is drawn (the ground body, its reach in the envelope)
+    // but lands nothing; each switch terminal is its own pin.
+    let g = Tactile::generate(&request(
+        Scope::Component,
+        &preset("tactile-evqp2v02m-four-lands"),
+    ))?;
+    assert_eq!(asset(&g), parts::TACTILE_MINI_GROUND);
+    let keys: Vec<&str> = g.footprint.pads.iter().map(|p| p.key.as_str()).collect();
+    assert_eq!(keys, vec!["1", "2", "3", "4"]);
+    assert_eq!(g.package.terminals, vec!["1", "2", "3", "4"]);
+    assert_eq!(g.package.geometry.leads.len(), 4);
+    assert_eq!(
+        g.package.geometry.envelope_nm,
+        [5_500_000, 4_100_000, 2_100_000]
+    );
+    let bound: Vec<(&str, &str)> = g
+        .binding
+        .iter()
+        .map(|b| (b.package_terminal.as_str(), b.terminal.as_str()))
+        .collect();
+    assert_eq!(bound, vec![("1", "1"), ("2", "2"), ("3", "3"), ("4", "4")]);
+    // Joined across: 1 and 3 on the left contact, 2 and 4 on the right.
+    let pins: Vec<(String, [i64; 2])> = g
+        .symbol
+        .iter()
+        .flat_map(|s| &s.units)
+        .flat_map(|u| &u.pins)
+        .map(|p| (p.terminal.clone(), p.at))
+        .collect();
+    assert_eq!(
+        pins,
+        vec![
+            ("1".into(), [-5_000_000, 0]),
+            ("3".into(), [-5_000_000, -2_500_000]),
+            ("2".into(), [5_000_000, 0]),
+            ("4".into(), [5_000_000, -2_500_000])
+        ]
+    );
+    // Soldered and separate, the ground tab is pin 5.
+    let mut landed = preset("tactile-evqp2v02m-four-lands");
+    landed.push(("ground_land".into(), ParamValue::Bool(true)));
+    let g = Tactile::generate(&request(Scope::Component, &landed))?;
+    assert_eq!(g.binding.last().map(|b| b.terminal.as_str()), Some("5"));
     Ok(())
 }
 
