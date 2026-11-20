@@ -3843,14 +3843,21 @@ fn sketch_outline(s: &mut Session, tag: &str, start: [&str; 2], steps: &[Step<'_
 /// (`pin1_x`, `pin1_y`). Saved at the module form's typical values (an
 /// original synthetic 18 × 25 mm castellated module: 14 + 10 + 14 pads at
 /// 1.27 mm, a 3 × 3 ground array, turned 45° in the diagonal file, a 6 mm
-/// antenna end); the generator gives every value.
-pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
+/// antenna end); the generator gives every value. `black`: the board and
+/// the antenna under black soldermask instead of green (the module's own
+/// colour, a file of its own since an appearance is no parameter).
+pub fn author_module(diagonal: bool, castellated: bool, black: bool) -> Vec<u8> {
     let mut s = Session::default();
     let title = match (castellated, diagonal) {
         (false, false) => "Radio module",
         (false, true) => "Radio module, ground array turned 45°",
         (true, false) => "Castellated radio module",
         (true, true) => "Castellated radio module, ground array turned 45°",
+    };
+    let title = if black {
+        format!("{title}, black soldermask")
+    } else {
+        title.to_owned()
     };
     run(&mut s, "file.new", json!({"name": title}));
     let mm = |v: f64| format!("{v} mm");
@@ -4875,9 +4882,20 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
             + MODULE_SINGLES,
         "{names:?}"
     );
-    assign_look(&mut s, &["board"], MaterialId::SolderMaskGreen);
+    let (mask, mask_over_copper) = if black {
+        (
+            MaterialId::SolderMaskBlack,
+            MaterialId::SolderMaskBlackOverCopper,
+        )
+    } else {
+        (
+            MaterialId::SolderMaskGreen,
+            MaterialId::SolderMaskOverCopper,
+        )
+    };
+    assign_look(&mut s, &["board"], mask);
     assign_look(&mut s, &["shield can"], MaterialId::NickelSilver);
-    assign_look(&mut s, &["antenna"], MaterialId::SolderMaskOverCopper);
+    assign_look(&mut s, &["antenna"], mask_over_copper);
     assign_look(&mut s, &["connector base"], MaterialId::PaWhite);
     assign_look(
         &mut s,
@@ -4926,19 +4944,19 @@ pub fn author_module(diagonal: bool, castellated: bool) -> Vec<u8> {
 }
 
 fn author_module_straight() -> Vec<u8> {
-    author_module(false, false)
+    author_module(false, false, false)
 }
 
 fn author_module_diagonal() -> Vec<u8> {
-    author_module(true, false)
+    author_module(true, false, false)
 }
 
 fn author_module_castellated() -> Vec<u8> {
-    author_module(false, true)
+    author_module(false, true, false)
 }
 
 fn author_module_castellated_diagonal() -> Vec<u8> {
-    author_module(true, true)
+    author_module(true, true, false)
 }
 
 /// Give `bodies` the Solidcraft appearance named after `material`, with
@@ -5808,7 +5826,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 73] = [
+    let parts: [(&str, &str, Author); 77] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -5962,6 +5980,23 @@ fn author_parts() {
             "generators/module/parts",
             "module-castellated-diagonal",
             author_module_castellated_diagonal,
+        ),
+        // The same four under black soldermask.
+        ("generators/module/parts", "module-black", || {
+            author_module(false, false, true)
+        }),
+        ("generators/module/parts", "module-diagonal-black", || {
+            author_module(true, false, true)
+        }),
+        (
+            "generators/module/parts",
+            "module-castellated-black",
+            || author_module(false, true, true),
+        ),
+        (
+            "generators/module/parts",
+            "module-castellated-diagonal-black",
+            || author_module(true, true, true),
         ),
         // The electromechanical families' bundles (`author_parts/families.rs`).
         ("generators/tactile/parts", "tactile-mini", || {

@@ -319,6 +319,7 @@ impl Session {
                         text_height_nm: None,
                         placement: decal.placement.into(),
                         decals: Vec::new(),
+                        codes: Default::default(),
                     });
                 }
                 let spec = MarkingSpec {
@@ -329,6 +330,7 @@ impl Session {
                     text_height_nm: None,
                     placement: input.placement.into(),
                     decals,
+                    codes: Default::default(),
                 };
                 if let Some(finding) =
                     sparksmith_core::library::marking::spec_findings(params.draft, &spec)

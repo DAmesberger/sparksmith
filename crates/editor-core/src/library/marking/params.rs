@@ -349,6 +349,9 @@ pub struct MarkingSpecParams {
     pub placement: PlacementParams,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub decals: Vec<MarkingSpecParams>,
+    /// The top-mark code of each orderable part number, for `{code}`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub codes: BTreeMap<String, String>,
 }
 
 impl From<MarkingSpec> for MarkingSpecParams {
@@ -361,6 +364,7 @@ impl From<MarkingSpec> for MarkingSpecParams {
             text_height_mm: s.text_height_nm.map(Length),
             placement: s.placement.into(),
             decals: s.decals.into_iter().map(MarkingSpecParams::from).collect(),
+            codes: s.codes,
         }
     }
 }
@@ -375,6 +379,11 @@ impl From<MarkingSpecParams> for MarkingSpec {
             text_height_nm: s.text_height_mm.map(|l| l.0),
             placement: s.placement.into(),
             decals: s.decals.into_iter().map(MarkingSpec::from).collect(),
+            codes: s
+                .codes
+                .into_iter()
+                .map(|(mpn, code)| (super::code_key(&mpn), code))
+                .collect(),
         }
     }
 }

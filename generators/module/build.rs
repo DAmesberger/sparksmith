@@ -7,11 +7,15 @@ use std::fmt::Write as _;
 use std::path::PathBuf;
 
 /// The part files, by file stem; each becomes `<STEM>` in upper case.
-const PARTS: [&str; 4] = [
+const PARTS: [&str; 8] = [
     "module",
     "module-castellated",
     "module-castellated-diagonal",
     "module-diagonal",
+    "module-black",
+    "module-castellated-black",
+    "module-castellated-diagonal-black",
+    "module-diagonal-black",
 ];
 
 fn main() -> Result<(), Box<dyn Error>> {

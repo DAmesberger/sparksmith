@@ -1,6 +1,7 @@
 //! A package's default top marking as parameters: lines of text the
 //! presets give (data), returned with the generation as its `marking`.
 use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 use sparksmith_generator_abi::v1::{self, Param, ParamType, ParamValue, Problem, limits};
@@ -82,6 +83,59 @@ pub fn height_param() -> Param {
         group: Some("marking".into()),
         context: None,
     }
+}
+
+/// The code table parameter's key.
+pub const CODES_KEY: &str = "marking_codes";
+
+/// The `marking_codes` parameter: the manufacturer's top-mark code of each
+/// orderable part number, `MPN=CODE` per entry (a package marking table,
+/// data of the presets); a line's `{code}` draws the placed part's. None
+/// by default.
+pub fn codes_param() -> Param {
+    Param {
+        key: CODES_KEY.into(),
+        label: "Marking codes by part number".into(),
+        help: Some(
+            "The top-mark code each orderable part number carries, one MPN=CODE per entry, from the manufacturer's package marking table; {code} in a marking line draws the placed part's, and nothing for a part number not listed."
+                .into(),
+        ),
+        ty: ParamType::List {
+            of: Box::new(ParamType::Text {
+                max_chars: 2 * limits::MARKING_CODE_BYTES as u32 + 1,
+            }),
+            max_len: limits::MARKING_CODES as u32,
+        },
+        default: ParamValue::List(Vec::new()),
+        group: Some("marking".into()),
+        context: None,
+    }
+}
+
+/// The code table `marking_codes` gives: each `MPN=CODE` entry, both sides
+/// trimmed. An entry without `=` or with an empty side is refused.
+pub fn codes(args: &Args<'_>) -> Result<BTreeMap<String, String>, Problem> {
+    let mut out = BTreeMap::new();
+    for value in args.list(CODES_KEY)? {
+        let ParamValue::Text(entry) = value else {
+            continue;
+        };
+        let pair = entry
+            .split_once('=')
+            .map(|(mpn, code)| (mpn.trim(), code.trim()))
+            .filter(|(mpn, code)| !mpn.is_empty() && !code.is_empty());
+        let Some((mpn, code)) = pair else {
+            return Err(Problem {
+                code: "param.marking_codes".into(),
+                field: Some(CODES_KEY.into()),
+                message: alloc::format!(
+                    "\"{entry}\" is not a marking code entry: write the part number, \"=\" and its code."
+                ),
+            });
+        };
+        out.insert(String::from(mpn), String::from(code));
+    }
+    Ok(out)
 }
 
 /// The text height `marking_height` asks for: `None` at 0 (fit the area).

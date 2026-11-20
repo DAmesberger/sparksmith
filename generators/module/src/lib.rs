@@ -23,8 +23,12 @@
 //! `keepout_top` beyond the −x, +x and +y edges) is a copper keep-out of
 //! the host board on every layer.
 //!
-//! The 3D model is one of four part files (LGA pads or castellated, the
-//! ground array along the axes or turned 45°), every parameter given:
+//! The module's own board carries its own soldermask colour (`mask_colour`,
+//! green or black, as the real module is made), never the host board's.
+//!
+//! The 3D model is one of eight part files (LGA pads or castellated, the
+//! ground array along the axes or turned 45°, green or black soldermask),
+//! every parameter given:
 //! eight row slots (two per side), sixteen single-pad slots, a ground
 //! array, a shield can (with a notch at its +x +y corner), the antenna
 //! meander and an antenna connector (a U.FL / MHF I receptacle); what a
@@ -58,7 +62,7 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 
 /// Row slots of the part files: two per side.
 pub const ROWS_PER_SIDE: usize = 2;
@@ -210,6 +214,26 @@ fn flag(key: &str, label: &str, default: bool, group: &str) -> Param {
         help: None,
         ty: ParamType::Bool,
         default: ParamValue::Bool(default),
+        group: Some(group.into()),
+        context: None,
+    }
+}
+
+fn pick(key: &str, label: &str, choices: &[(&str, &str)], default: &str, group: &str) -> Param {
+    Param {
+        key: key.into(),
+        label: label.into(),
+        help: None,
+        ty: ParamType::Enum {
+            choices: choices
+                .iter()
+                .map(|(key, label)| Choice {
+                    key: (*key).into(),
+                    label: (*label).into(),
+                })
+                .collect(),
+        },
+        default: ParamValue::Text(default.into()),
         group: Some(group.into()),
         context: None,
     }
@@ -392,6 +416,13 @@ fn description_with(presets: Vec<Preset>) -> Description {
             [0, MAX_TURNS],
             0,
             "antenna",
+        ),
+        pick(
+            "mask_colour",
+            "Module board's soldermask colour",
+            &[("green", "Green"), ("black", "Black")],
+            "green",
+            "outline",
         ),
         flag(
             "can_emboss",
@@ -769,6 +800,8 @@ struct Dims {
     singles: Vec<Single>,
     /// Growth beyond −x, +x, +y; `None` without a keep-out.
     keepout: Option<[i64; 3]>,
+    /// The module board's own soldermask is black (else green).
+    black_mask: bool,
 }
 
 impl Dims {
@@ -1027,6 +1060,7 @@ fn dims(args: &Args<'_>, request: &Request) -> Result<Dims, Vec<Problem>> {
         ground,
         singles,
         keepout,
+        black_mask: args.text("mask_colour").map_err(one)? == "black",
     };
     let [hw, hl] = [d.width, d.length];
     // Inside the outline, in doubled nm: 2·(c − s/2) ≥ −W, 2·(c + s/2) ≤ W.
@@ -1608,11 +1642,15 @@ fn model(d: &Dims) -> v1::Model {
     set("pin1_x", pin1[0]);
     set("pin1_y", pin1[1]);
     v1::Model::PartFile {
-        asset: match (castellated, diagonal) {
-            (false, false) => parts::MODULE,
-            (false, true) => parts::MODULE_DIAGONAL,
-            (true, false) => parts::MODULE_CASTELLATED,
-            (true, true) => parts::MODULE_CASTELLATED_DIAGONAL,
+        asset: match (castellated, diagonal, d.black_mask) {
+            (false, false, false) => parts::MODULE,
+            (false, true, false) => parts::MODULE_DIAGONAL,
+            (true, false, false) => parts::MODULE_CASTELLATED,
+            (true, true, false) => parts::MODULE_CASTELLATED_DIAGONAL,
+            (false, false, true) => parts::MODULE_BLACK,
+            (false, true, true) => parts::MODULE_DIAGONAL_BLACK,
+            (true, false, true) => parts::MODULE_CASTELLATED_BLACK,
+            (true, true, true) => parts::MODULE_CASTELLATED_DIAGONAL_BLACK,
         }
         .into(),
         values,

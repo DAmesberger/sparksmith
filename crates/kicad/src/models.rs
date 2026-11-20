@@ -120,6 +120,11 @@ impl PartNumber {
 pub struct Facts {
     /// The footprint's name, without its library nickname.
     pub name: String,
+    /// The placed part's Value and the footprint's description, as
+    /// written: words that may tell a variant of a package (a socket among
+    /// pin headers).
+    pub value: String,
+    pub description: String,
     /// The extent (x, y) of its fabrication-layer outline, footprint frame.
     pub fab_extent_nm: Option<[Nm; 2]>,
     /// The extent (x, y) of its courtyard, footprint frame.
@@ -138,6 +143,8 @@ impl Facts {
             .map_or(footprint.lib_id.as_str(), |(_, name)| name);
         Self {
             name: name.to_owned(),
+            value: footprint.value.clone(),
+            description: footprint.description.clone(),
             fab_extent_nm: extent(footprint.fab_bounds),
             courtyard_extent_nm: extent(footprint.courtyard_bounds),
         }

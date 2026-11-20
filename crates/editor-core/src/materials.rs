@@ -87,10 +87,14 @@ pub enum MaterialId {
     PomWhite,
     /// Black marking ink: an aluminium capacitor's polarity mark.
     MarkingInkBlack,
+    /// Black soldermask over FR-4: a black module board's face.
+    SolderMaskBlack,
+    /// Black soldermask over copper: a black module's printed antenna trace.
+    SolderMaskBlackOverCopper,
 }
 
 impl MaterialId {
-    pub const ALL: [Self; 33] = [
+    pub const ALL: [Self; 35] = [
         Self::EpoxyMould,
         Self::EpoxyLaserMarked,
         Self::MarkingInkWhite,
@@ -124,6 +128,8 @@ impl MaterialId {
         Self::SolderMaskOverCopper,
         Self::PomWhite,
         Self::MarkingInkBlack,
+        Self::SolderMaskBlack,
+        Self::SolderMaskBlackOverCopper,
     ];
 
     /// The id as files and messages write it (`epoxy_mould`).
@@ -141,10 +147,26 @@ impl MaterialId {
             | Brass | Aluminium | NickelSilver | MetalLaserMarked => MaterialCategory::Metal,
             Alumina96 | BariumTitanate | Ferrite => MaterialCategory::Ceramic,
             BorosilicateGlass => MaterialCategory::Glass,
-            EpoxyMould | EpoxyLaserMarked | MarkingInkWhite | MarkingInkBlack | PadPrintInk
-            | ResistorOvercoat | PvcSleeve | Pbt | Lcp | Pa9t | PaNatural | PaWhite | PomWhite
-            | SiliconeClear | SiliconeDiffuse | Polyimide | SolderMaskGreen
-            | SolderMaskOverCopper => MaterialCategory::Polymer,
+            EpoxyMould
+            | EpoxyLaserMarked
+            | MarkingInkWhite
+            | MarkingInkBlack
+            | PadPrintInk
+            | ResistorOvercoat
+            | PvcSleeve
+            | Pbt
+            | Lcp
+            | Pa9t
+            | PaNatural
+            | PaWhite
+            | PomWhite
+            | SiliconeClear
+            | SiliconeDiffuse
+            | Polyimide
+            | SolderMaskGreen
+            | SolderMaskOverCopper
+            | SolderMaskBlack
+            | SolderMaskBlackOverCopper => MaterialCategory::Polymer,
         }
     }
 }

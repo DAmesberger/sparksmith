@@ -579,6 +579,36 @@
           "note": "carbon-black pigmented ink printed on an aluminium can"
         }
       ]
+    },
+    {
+      "id": "solder_mask_black",
+      "name": "Black soldermask over FR-4",
+      "base_linear": [0.024, 0.024, 0.026],
+      "metallic": 0.0,
+      "roughness": 0.35,
+      "ior": 1.52,
+      "density_kg_m3": 1850.0,
+      "source": [
+        {
+          "reference": "est",
+          "note": "the board mask composite of docs/materials.md (mask_over(black, FR-4, 20 µm)); roughness between the board's satin and matte black coats, as product photographs of black-masked radio modules show a satin-to-matte face; density of the FR-4 board under it"
+        }
+      ]
+    },
+    {
+      "id": "solder_mask_black_over_copper",
+      "name": "Black soldermask over copper",
+      "base_linear": [0.028, 0.026, 0.028],
+      "metallic": 0.0,
+      "roughness": 0.35,
+      "ior": 1.52,
+      "density_kg_m3": 8960.0,
+      "source": [
+        {
+          "reference": "est",
+          "note": "the mask-over-copper composite of docs/materials.md (mask_over(black, Cu, 12 µm)): a printed antenna under black mask barely shows; density of the copper it covers"
+        }
+      ]
     }
   ]
 }

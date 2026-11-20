@@ -927,15 +927,18 @@
   "name": "TI DML0010A WSON-10 2×3",
   "aliases": [
    "TPS22990DMLR",
+   "TPS22990DMLT",
+   "TPS22990NDMLR",
+   "TPS22990NDMLT",
    "TPS22990DML",
    "DML0010A",
    "DML10"
   ],
-  "description": "TI WSON-10 (DML0010A): body 2 × 3 × 0.75 mm, pins 1–7 at 0.5 mm, pins 8–10 at 0.56 mm joined by two lugs into one comb, exposed thermal pad 1.1 × 2.6 mm.",
+  "description": "TI WSON-10 (DML0010A): body 2 × 3 × 0.8 mm, pins 1–7 at 0.5 mm, pins 8–10 at 0.56 mm joined by two lugs into one comb, exposed thermal pad 1.1 × 2.6 mm.",
   "params": {
    "body_length": 2000000,
    "body_width": 3000000,
-   "body_height": 750000,
+   "body_height": 800000,
    "terminal_numbers": [
     "1",
     "2",
@@ -1132,9 +1135,15 @@
     0
    ],
    "marking": [
-    "RB990"
+    "{code}"
    ],
-   "marking_height": 300000
+   "marking_height": 300000,
+   "marking_codes": [
+    "TPS22990DMLR=RB990",
+    "TPS22990DMLT=RB990",
+    "TPS22990NDMLR=RB990N",
+    "TPS22990NDMLT=RB990N"
+   ]
   },
   "citation": {
    "document": "Texas Instruments TPS22990 datasheet SLVSDK1C, package outline DML0010A (4222524/A 11/2015) and example board layout",
@@ -1142,14 +1151,27 @@
    "page": 31
   },
   "basis": "cited",
-  "note": "Body, terminals (0.25 mm long, 0.24 and 0.28 mm wide, pins 8–10 at 0.56 mm from 0.02 mm off the centre line, lugs 0.125 mm), thermal pad and the land pattern (0.45 mm lands at 1.95 mm, the comb's lugs as unnumbered lands) from the drawing; the 0.75 mm height is the nominal under the 0.8 mm maximum (est.); marking RB990 from the orderable addendum; the thermal pad's optional pin-1 chamfer is not made. Terminal finish NiPdAu."
+  "note": "Body, terminals (0.25 mm long, 0.24 and 0.28 mm wide, pins 8–10 at 0.56 mm from 0.02 mm off the centre line, lugs 0.125 mm), thermal pad and the land pattern (0.45 mm lands at 1.95 mm, the comb's lugs as unnumbered lands) from the drawing; the height is the drawing's 0.8 mm, the only height it gives (a maximum; standoff 0–0.05 mm); the top marks per orderable part number from the datasheet's package option addendum (p. 27, 3 May 2025: RB990 for TPS22990DMLR and DMLT, RB990N for TPS22990NDMLR and NDMLT), no mark for another part number; the thermal pad's optional pin-1 chamfer is not made. Terminal finish NiPdAu."
  },
  {
   "key": "no-lead-ti-rxb0014a",
   "name": "TI RXB0014A VQFN-FCRLF-14 2.6×2.6",
   "aliases": [
+   "LMQ66410MA3RXBRQ1",
+   "LMQ66410MA5RXBRQ1",
+   "LMQ66410MC3RXBRQ1",
+   "LMQ66410MC5RXBRQ1",
+   "LMQ66420MA3RXBRQ1",
+   "LMQ66420MA5RXBRQ1",
+   "LMQ66420MC3RXBRQ1",
+   "LMQ66420MC5RXBRQ1",
+   "LMQ66430MA3RXBRQ1",
+   "LMQ66430MA5RXBRQ1",
    "LMQ66430MC3RXBRQ1",
+   "LMQ66430MC5RXBRQ1",
    "LMQ66430-Q1",
+   "LMQ66420-Q1",
+   "LMQ66410-Q1",
    "RXB0014A",
    "RXB14"
   ],
@@ -1533,9 +1555,23 @@
     200000
    ],
    "marking": [
-    "3MC3Q"
+    "{code}"
    ],
-   "marking_height": 350000
+   "marking_height": 350000,
+   "marking_codes": [
+    "LMQ66410MA3RXBRQ1=1MA3Q",
+    "LMQ66410MA5RXBRQ1=1MA5Q",
+    "LMQ66410MC3RXBRQ1=1MC3Q",
+    "LMQ66410MC5RXBRQ1=1MC5Q",
+    "LMQ66420MA3RXBRQ1=2MA3Q",
+    "LMQ66420MA5RXBRQ1=2MA5Q",
+    "LMQ66420MC3RXBRQ1=2MC3Q",
+    "LMQ66420MC5RXBRQ1=2MC5Q",
+    "LMQ66430MA3RXBRQ1=3MA3Q",
+    "LMQ66430MA5RXBRQ1=3MA5Q",
+    "LMQ66430MC3RXBRQ1=3MC3Q",
+    "LMQ66430MC5RXBRQ1=3MC5Q"
+   ]
   },
   "citation": {
    "document": "Texas Instruments LMQ66410-Q1/LMQ66420-Q1/LMQ66430-Q1 datasheet SNVSBV1F, package outline RXB0014A (4225574/C 02/2021) and land pattern example",
@@ -1543,6 +1579,6 @@
    "page": 55
   },
   "basis": "cited",
-  "note": "Body, terminals (0.25 mm wide, 0.5 mm from the edge, L corners 0.675 mm along the edge, each with a 0.18 mm neck lifted 0.1 mm for the outer 0.1 mm, section A-A) and the 1 mm thermal pad from the outline; the lands are TI's CAD footprint for the package (L-shaped lands 1 and 12 as two rectangles each, small round lands 5 and 8, a plated via in the thermal pad), where the datasheet's example draws 5 and 8 as L-shaped lands too; marking 3MC3Q from the orderable addendum; the thermal pad's pin-1 chamfer and the terminals' corner rounds are not made. Terminal finish NiPdAu."
+  "note": "Body, terminals (0.25 mm wide, 0.5 mm from the edge, L corners 0.675 mm along the edge, each with a 0.18 mm neck lifted 0.1 mm for the outer 0.1 mm, section A-A) and the 1 mm thermal pad from the outline; the lands are TI's CAD footprint for the package (L-shaped lands 1 and 12 as two rectangles each, small round lands 5 and 8, a plated via in the thermal pad), where the datasheet's example draws 5 and 8 as L-shaped lands too; the top marks per orderable part number from the datasheet's package option addendum (pp. 48–49: LMQ664x0MyzRXBRQ1 marked xMyzQ, for example 3MC3Q on LMQ66430MC3RXBRQ1), no mark for another part number; the thermal pad's pin-1 chamfer and the terminals' corner rounds are not made. Terminal finish NiPdAu. Checked against the outline (20 November 2026): body 2.5–2.7 mm, height 0.95–1.05 mm, pitch 0.5 mm, terminals 0.2–0.3 mm wide and 0.4–0.6 mm long (corner legs 0.575–0.775 mm), thermal pad 1 ± 0.1 mm."
  }
 ]

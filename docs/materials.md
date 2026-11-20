@@ -129,6 +129,8 @@ Every value carries a source key: `johnson-christy-1972`, `rakic-1998`, `hoffman
 | Polyimide | (0.40, 0.15, 0.02) | 0 | 0.25 | 1.70 | – | 1420 | n and density handbook; amber colour **est.** |
 | White POM | (0.72, 0.72, 0.70) | 0 | 0.40 | 1.48 | – | 1410 | n and density handbook; colour and roughness **est.** A tactile switch's white acetal push plate. |
 | Black marking ink | (0.020, 0.020, 0.022) | 0 | 0.50 | 1.50 | – | – | **est.** Carbon-black ink: an aluminium capacitor's polarity mark. |
+| Black soldermask over FR-4 | (0.024, 0.024, 0.026) | 0 | 0.35 | 1.52 | – | 1850 | **est.** `mask_over(black, FR-4, 20 µm)`, the board's black mask without its coat; roughness between the board's satin and matte black, as photographs of black-masked radio modules show. A module generator's board when its preset says black (the module's own colour, never the project's). |
+| Black soldermask over copper | (0.028, 0.026, 0.028) | 0 | 0.35 | 1.52 | – | 8960 | **est.** `mask_over(black, Cu, 12 µm)`: a printed antenna under black mask barely shows. |
 
 Family defaults (`library::default_material`, never from names): chip bodies alumina (resistor), barium titanate (capacitor) or ferrite (inductor); header bodies PBT and pins gold; leads, terminations and exposed pads matte tin; markings laser-marked epoxy; lenses clear silicone; sleeves PVC; every other body epoxy mould compound. A generated model may override a role (`GeneratedMaterials`).
 
@@ -265,7 +267,7 @@ Reading the table:
 
 **Mask materials (for track PL; not unified here).**
 - The board's mask is a diffuse pigmented body under a clear coat. The body is `mask_body(green, FR-4, 20 µm)` with roughness 1 and IOR 1. The coat has weight 1, roughness 0.06 and IOR 1.52. The mask carries the orange-peel detail.
-- The ESP32 module's board (the `module` generator's part files; before 15 November 2026 `models/module.rs`) uses editor-core `MaterialId::SolderMaskGreen`: a dielectric (0.0118, 0.116, 0.032) with roughness 0.20, IOR 1.52, no coat and no peel. Its antenna uses `SolderMaskOverCopper`, (0.064, 0.237, 0.069), with the same 0.20 and no coat.
+- The ESP32 module's board (the `module` generator's part files; before 15 November 2026 `models/module.rs`) uses editor-core `MaterialId::SolderMaskGreen`: a dielectric (0.0118, 0.116, 0.032) with roughness 0.20, IOR 1.52, no coat and no peel. Its antenna uses `SolderMaskOverCopper`, (0.064, 0.237, 0.069), with the same 0.20 and no coat. A black module (`mask_colour` black, the Espressif presets) uses `SolderMaskBlack` and `SolderMaskBlackOverCopper` at 0.35, also uncoated.
 - At grazing angles, the board's 0.06 coat mirrors the cyclorama, while the module's 0.20 uncoated surface stays green.
 - The module's pads use `MaterialId::Gold` (1.000, 0.782, 0.344; roughness 0.30). The board's ENIG is (1.0, 0.73, 0.30; 0.28).
 

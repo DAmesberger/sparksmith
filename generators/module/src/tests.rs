@@ -107,7 +107,8 @@ fn the_wroom3_has_99_terminals_and_nine_pads_numbered_95() -> Result<(), Vec<Pro
         }]
     );
     let (asset, v) = values(&g);
-    assert_eq!(asset, parts::MODULE_DIAGONAL);
+    // The module is black, as Espressif makes it.
+    assert_eq!(asset, parts::MODULE_DIAGONAL_BLACK);
     // The ground seed is the form's first pad; four rows in their own
     // slots (LGA pads: no castellation values); four singles, the rest
     // parked.
@@ -208,7 +209,7 @@ fn the_wroom1_lands_where_its_datasheet_lays_them() -> Result<(), Vec<Problem>> 
         [18_000_000, 25_500_000, 3_100_000]
     );
     let (asset, v) = values(&g);
-    assert_eq!(asset, parts::MODULE_CASTELLATED);
+    assert_eq!(asset, parts::MODULE_CASTELLATED_BLACK);
     assert_eq!(int(v, "notch_radius"), 275_000);
     assert_eq!(
         [

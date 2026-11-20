@@ -400,6 +400,17 @@ pub(super) fn run(spec: &MarkingSpec, inputs: &MarkingInputs) -> Result<MarkingL
             "marking.template: marking sizes must be finite".into(),
         ));
     }
+    // The spec's code table, for `{code}`.
+    let with_codes;
+    let inputs = if spec.codes.is_empty() {
+        inputs
+    } else {
+        with_codes = MarkingInputs {
+            codes: spec.codes.clone(),
+            ..inputs.clone()
+        };
+        &with_codes
+    };
     let mut cx = Context {
         inputs,
         findings: Vec::new(),

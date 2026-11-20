@@ -1288,13 +1288,22 @@ pub fn author_b2b_dual_row_pegs() -> Vec<u8> {
 // Female sockets (the header generator's sockets)
 // ---------------------------------------------------------------------
 
-/// A square lead-in `name` at pin 1's position (`x0`, `y0`), cut into
-/// `target` from the face at `z`: `lead_in` across at the face, drawing in
-/// at 45° to the entry at `entry_depth`, into the part (down from a top
-/// face with `down`, else up from a bottom face). The cut runs on half as
-/// deep again inside the entry, so its bottom edges do not lie on the
-/// entry's walls.
-fn lead_in(s: &mut Session, name: &str, target: &str, z: &str, down: bool) {
+/// One square of `side` round every position (pin 1 at `x0`, `y0`, a sketch
+/// pattern of `pins` × `rows`) on an XY sketch `name sketch` at `z`, cut
+/// into `target` by one extrude of `distance` (`taper`, `down` as given):
+/// one Boolean for every position, where a feature pattern of the cut made
+/// one a position (the socket files' evaluation time).
+#[allow(clippy::too_many_arguments)]
+fn every_opening(
+    s: &mut Session,
+    name: &str,
+    target: &str,
+    side: &str,
+    z: &str,
+    distance: &str,
+    taper: Option<&str>,
+    down: bool,
+) {
     let sketch = format!("{name} sketch");
     run(
         s,
@@ -1303,23 +1312,53 @@ fn lead_in(s: &mut Session, name: &str, target: &str, z: &str, down: bool) {
     );
     let corner = |sx: &str, sy: &str| {
         json!([
-            format!("x0 {sx} lead_in / 2"),
-            format!("y0 {sy} lead_in / 2")
+            format!("x0 {sx} ({side}) / 2"),
+            format!("y0 {sy} ({side}) / 2")
         ])
     };
+    let ids: Vec<String> = (1..=4).map(|k| format!("{name} {k}")).collect();
     run(
         s,
         "sketch.line",
         json!({"points": [corner("-", "-"), corner("+", "-"), corner("+", "+"), corner("-", "+")],
-            "closed": true}),
+            "closed": true, "ids": ids}),
+    );
+    run(
+        s,
+        "sketch.pattern.rectangular",
+        json!({"entities": ids, "dir": [1, 0], "count": "pins", "spacing": "pitch",
+            "dir2": [0, 1], "count2": "rows", "spacing2": "row_pitch"}),
     );
     run(s, "sketch.finish", json!({}));
-    let mut p = json!({"sketch": sketch, "distance": "entry_depth * 1.5", "taper": "-45 deg",
-        "operation": "cut", "targets": [target], "name": name});
-    if down && let Some(map) = p.as_object_mut() {
-        map.insert("direction".into(), json!("negative"));
+    let mut p = json!({"sketch": sketch, "distance": distance, "operation": "cut",
+        "targets": [target], "name": name});
+    if let Some(map) = p.as_object_mut() {
+        if let Some(taper) = taper {
+            map.insert("taper".into(), json!(taper));
+        }
+        if down {
+            map.insert("direction".into(), json!("negative"));
+        }
     }
     run(s, "solid.extrude", p);
+}
+
+/// A square lead-in at every position, cut into `target` from the face at
+/// `z`: `lead_in` across at the face, drawing in at 45° to the entry at
+/// `entry_depth`, into the part (down from a top face with `down`, else up
+/// from a bottom face). The cut runs on half as deep again inside the
+/// entry, so its bottom edges do not lie on the entry's walls.
+fn lead_ins(s: &mut Session, name: &str, target: &str, z: &str, down: bool) {
+    every_opening(
+        s,
+        name,
+        target,
+        "lead_in",
+        z,
+        "entry_depth * 1.5",
+        Some("-45 deg"),
+        down,
+    );
 }
 
 /// A box `name` round pin 1's position: `side` square over z `z0..z1`.
@@ -1425,27 +1464,6 @@ fn socket_params(
     ]
 }
 
-/// The insulator `insulator` on z `z0..body_height`, its upright corners
-/// rounded (picked at the saved length, width and a mid height).
-fn socket_insulator(s: &mut Session, z0: &str, [length, width, zm]: [f64; 3]) {
-    span_box(
-        s,
-        "insulator",
-        ["- pins * pitch / 2", "pins * pitch / 2"],
-        ["- rows * row_pitch / 2", "rows * row_pitch / 2"],
-        [z0, "body_height"],
-        Some("insulator"),
-        None,
-    );
-    let (x, y) = (length / 2.0, width / 2.0);
-    run(
-        s,
-        "solid.fillet",
-        json!({"name": "corner round", "body": "insulator", "radius": "corner_round",
-            "edges": [[-x, -y, zm], [x, -y, zm], [x, y, zm], [-x, y, zm]]}),
-    );
-}
-
 /// A rectangular pattern of `what` (features or bodies) over every
 /// position, `pins` × `rows`.
 fn every_position(s: &mut Session, what: serde_json::Value, name: &str) {
@@ -1463,8 +1481,12 @@ fn every_position(s: &mut Session, what: serde_json::Value, name: &str) {
 /// and a gold contact: two leaves facing each other across the cavity
 /// (they grip the mating post) on a tail of `pin_side` square that passes
 /// the floor and reaches `pin_below` under the seating plane. The
-/// insulator's openings are cuts at pin 1 patterned over every position, so
-/// contacts and insulator stay disjoint at any count. Saved at a 1 × 10
+/// insulator is three flush slabs (floor, cavity walls, entry walls), each
+/// one extrude of its outline with its openings drawn in by a sketch
+/// pattern over every position, and the lead-ins one tapered cut: no
+/// Boolean per position, so the file evaluates in about a third of the time
+/// a cut per opening and position took, and contacts and insulator stay
+/// disjoint at any count. Saved at a 1 × 10
 /// socket of 2.54 mm (Würth Elektronik WR-PHD 61301011821: insulator 8.5 mm
 /// high, tails 3.1 mm); the generator gives every value.
 pub fn author_pin_socket() -> Vec<u8> {
@@ -1490,38 +1512,28 @@ pub fn author_pin_socket() -> Vec<u8> {
         ),
     ]);
     let mut s = new_design("Pin socket", &p);
-    socket_insulator(&mut s, "0 mm", [25.4, 2.54, 4.25]);
-    let cut = Some(("cut", "insulator"));
-    lead_in(&mut s, "lead-in", "insulator", "body_height", true);
-    pin_box(
+    slab(
         &mut s,
-        "entry",
-        "entry",
-        ["floor_z", "body_height"],
-        None,
-        cut,
+        "floor",
+        "insulator",
+        ["0 mm", "floor_z"],
+        &[Hole::Square("pin_side")],
     );
-    pin_box(
+    slab(
         &mut s,
-        "cavity",
-        "cavity",
+        "cavity walls",
+        "insulator walls",
         ["floor_z", "cavity_top"],
-        None,
-        cut,
+        &[Hole::Square("cavity")],
     );
-    pin_box(
+    slab(
         &mut s,
-        "tail hole",
-        "pin_side",
-        ["- 1 mm", "floor_z + 0.1 mm"],
-        None,
-        cut,
+        "entry walls",
+        "insulator top",
+        ["cavity_top", "body_height"],
+        &[Hole::Square("entry")],
     );
-    every_position(
-        &mut s,
-        json!({"features": ["lead-in", "entry", "cavity", "tail hole"]}),
-        "openings",
-    );
+    lead_ins(&mut s, "lead-ins", "insulator top", "body_height", true);
     pin_box(
         &mut s,
         "contact",
@@ -1541,10 +1553,11 @@ pub fn author_pin_socket() -> Vec<u8> {
     // Every contact the generator can ask for (4 × 64) gets its look at
     // that count, then the file goes back.
     set(&mut s, json!({"rows": "4", "pins": "64"}));
-    let contacts = bodies_but(&s, &["insulator"]);
+    let insulator = ["insulator", "insulator walls", "insulator top"];
+    let contacts = bodies_but(&s, &insulator);
     assert_eq!(contacts.len(), 256);
     let contacts: Vec<&str> = contacts.iter().map(String::as_str).collect();
-    assign_look(&mut s, &["insulator"], MaterialId::Pbt);
+    assign_look(&mut s, &insulator, MaterialId::Pbt);
     assign_look(&mut s, &contacts, MaterialId::Gold);
     set(&mut s, json!({"rows": "1", "pins": "10"}));
     finish(s)
@@ -1557,7 +1570,11 @@ pub fn author_pin_socket() -> Vec<u8> {
 /// cavity between holding the gold contact's two leaves, and per pin a
 /// gold tail: a strip of `tail_sheet` and `pin_side` wide from inside the
 /// insulator's long wall down through its bottom and out along ±y on the
-/// board to `tail_span` / 2 (the insulator cut round it). Saved at a 2 × 3
+/// board to `tail_span` / 2. The insulator is three flush slabs (the foot
+/// up to the cavity, the cavity walls, the entry walls) drawn with their
+/// openings and the tails' passages by sketch patterns, the lead-ins two
+/// tapered cuts; the foot's passage reaches as far out as the tail's bend.
+/// Saved at a 2 × 3
 /// socket of 2.54 mm (Würth Elektronik WR-PHD 610006243021: insulator 5 mm
 /// wide, top 3.7 mm and underside 0.2 mm over the board, tails 7.2 mm tip
 /// to tip); the generator gives every value.
@@ -1598,30 +1615,48 @@ pub fn author_socket_smd_bottom() -> Vec<u8> {
         ),
     ]);
     let mut s = new_design("Bottom-entry SMD socket", &p);
-    socket_insulator(&mut s, "standoff", [7.62, 5.08, 1.95]);
-    let cut = Some(("cut", "insulator"));
-    lead_in(&mut s, "lead-in below", "insulator", "standoff", false);
-    lead_in(&mut s, "lead-in above", "insulator", "body_height", true);
-    pin_box(
+    // The tails' passages up the long walls (x across pin 1, y each side
+    // out from the wall's inside): the tail's section in the walls round
+    // the cavity, and in the insulator's foot as far out as the bend's
+    // inner fibre reaches.
+    let x = ["x0 - pin_side / 2", "x0 + pin_side / 2"];
+    let passage = |inner: &str, outer: &str| {
+        let [l, r] = x.map(str::to_owned);
+        [
+            Hole::Rect([l.clone(), r.clone(), inner.to_owned(), outer.to_owned()]),
+            Hole::Rect([l, r, neg(outer), neg(inner)]),
+        ]
+    };
+    let [foot_a, foot_b] = passage("tail_y - tail_sheet / 2", "tail_y + tail_bend");
+    let [wall_a, wall_b] = passage("tail_y - tail_sheet / 2", "tail_y + tail_sheet / 2");
+    slab(
         &mut s,
-        "entry",
-        "entry",
-        ["standoff - 1 mm", "body_height + 1 mm"],
-        None,
-        cut,
+        "foot",
+        "insulator",
+        ["standoff", "cavity_bottom"],
+        &[Hole::Square("entry"), foot_a, foot_b],
     );
-    pin_box(
+    slab(
         &mut s,
-        "cavity",
-        "cavity",
+        "cavity walls",
+        "insulator walls",
         ["cavity_bottom", "cavity_top"],
-        None,
-        cut,
+        &[Hole::Square("cavity"), wall_a, wall_b],
     );
-    every_position(
+    slab(
         &mut s,
-        json!({"features": ["lead-in below", "lead-in above", "entry", "cavity"]}),
-        "openings",
+        "entry walls",
+        "insulator top",
+        ["cavity_top", "body_height"],
+        &[Hole::Square("entry")],
+    );
+    lead_ins(&mut s, "lead-ins below", "insulator", "standoff", false);
+    lead_ins(
+        &mut s,
+        "lead-ins above",
+        "insulator top",
+        "body_height",
+        true,
     );
     leaves(&mut s, ["cavity_bottom", "cavity_top"]);
     every_position(&mut s, json!({"bodies": ["leaf a", "leaf b"]}), "leaves");
@@ -1647,13 +1682,7 @@ pub fn author_socket_smd_bottom() -> Vec<u8> {
             ],
             "tail_sheet / 2",
             "tail_bend",
-            Some("insulator"),
-        );
-        run(
-            &mut s,
-            "solid.pattern.rectangular",
-            json!({"features": [format!("{name} cut")], "dir1": [1, 0, 0],
-                "count1": "pins", "spacing1": "pitch", "name": format!("{name} cuts")}),
+            None,
         );
         run(
             &mut s,
@@ -1665,11 +1694,133 @@ pub fn author_socket_smd_bottom() -> Vec<u8> {
     // Every leaf and tail the generator can ask for (2 × 64) gets its look
     // at that count, then the file goes back.
     set(&mut s, json!({"pins": "64"}));
-    let metal = bodies_but(&s, &["insulator"]);
+    let insulator = ["insulator", "insulator walls", "insulator top"];
+    let metal = bodies_but(&s, &insulator);
     assert_eq!(metal.len(), 6 * 64);
     let metal: Vec<&str> = metal.iter().map(String::as_str).collect();
-    assign_look(&mut s, &["insulator"], MaterialId::Pa9t);
+    assign_look(&mut s, &insulator, MaterialId::Pa9t);
     assign_look(&mut s, &metal, MaterialId::Gold);
     set(&mut s, json!({"pins": "3"}));
     finish(s)
+}
+
+/// A slab of the socket insulator over z `z0..z1`: the insulator's outline
+/// (its upright corners rounded by `corner_round`) with `holes` (a side
+/// expression, or a rectangle's corners) round every position, a sketch
+/// pattern, extruded once as body `body`, or joined to it when `join`: no
+/// Boolean per position. Every slab is the same outline, so the joined
+/// insulator's walls are flush.
+fn slab(s: &mut Session, name: &str, body: &str, [z0, z1]: [&str; 2], holes: &[Hole<'_>]) {
+    let sketch = format!("{name} sketch");
+    run(
+        s,
+        "sketch.create",
+        json!({"plane": "XY", "offset": z0, "name": sketch}),
+    );
+    let (l, r, b, t) = (
+        "- pins * pitch / 2",
+        "pins * pitch / 2",
+        "- rows * row_pitch / 2",
+        "rows * row_pitch / 2",
+    );
+    let outline: Vec<String> = (1..=4).map(|k| format!("{name} edge {k}")).collect();
+    run(
+        s,
+        "sketch.line",
+        json!({"points": [[l, b], [r, b], [r, t], [l, t]], "closed": true, "ids": outline}),
+    );
+    let mut boundary = outline.clone();
+    for k in 0..4 {
+        let reply = run(
+            s,
+            "sketch.fillet",
+            json!({"a": outline[k], "b": outline[(k + 1) % 4], "radius": "corner_round"}),
+        );
+        if let Some(arc) = reply["arc"].as_str().or_else(|| reply["id"].as_str()) {
+            boundary.push(arc.to_owned());
+        } else if let Some(c) = reply["curves"].as_array() {
+            boundary.extend(c.iter().filter_map(|c| c.as_str().map(str::to_owned)));
+        } else {
+            panic!("fillet reply {reply}");
+        }
+    }
+    // Squares at every position; rectangles at every position along x.
+    let (mut squares, mut along) = (Vec::new(), Vec::new());
+    for (k, hole) in holes.iter().enumerate() {
+        let corners = match hole {
+            Hole::Square(side) => {
+                let c = |sx: &str, sy: &str| {
+                    json!([
+                        format!("x0 {sx} ({side}) / 2"),
+                        format!("y0 {sy} ({side}) / 2")
+                    ])
+                };
+                [c("-", "-"), c("+", "-"), c("+", "+"), c("-", "+")]
+            }
+            Hole::Rect([x0, x1, y0, y1]) => [
+                json!([x0, y0]),
+                json!([x1, y0]),
+                json!([x1, y1]),
+                json!([x0, y1]),
+            ],
+        };
+        let hole_ids: Vec<String> = (1..=4).map(|i| format!("{name} hole {k} {i}")).collect();
+        run(
+            s,
+            "sketch.line",
+            json!({"points": corners, "closed": true, "ids": hole_ids}),
+        );
+        match hole {
+            Hole::Square(_) => squares.extend(hole_ids),
+            Hole::Rect(_) => along.extend(hole_ids),
+        }
+    }
+    if !squares.is_empty() {
+        run(
+            s,
+            "sketch.pattern.rectangular",
+            json!({"entities": squares, "dir": [1, 0], "count": "pins", "spacing": "pitch",
+                "dir2": [0, 1], "count2": "rows", "spacing2": "row_pitch"}),
+        );
+    }
+    if !along.is_empty() {
+        run(
+            s,
+            "sketch.pattern.rectangular",
+            json!({"entities": along, "dir": [1, 0], "count": "pins", "spacing": "pitch"}),
+        );
+    }
+    run(s, "sketch.finish", json!({}));
+    run(
+        s,
+        "solid.extrude",
+        json!({"sketch": sketch, "distance": format!("({z1}) - ({z0})"), "name": name,
+            "operation": "new", "body_name": body}),
+    );
+    // The region inside the outline, found again at every count.
+    let curves: solidcraft_engine::doc::ProfileSel =
+        serde_json::from_value(json!({"type": "curves", "loops": [boundary]})).unwrap();
+    let feature = s
+        .doc_mut()
+        .features
+        .iter_mut()
+        .find(|f| f.name == name)
+        .unwrap();
+    match &mut feature.kind {
+        solidcraft_engine::doc::FeatureKind::Extrude { profiles, .. } => *profiles = curves,
+        other => panic!("{name}: {other:?}"),
+    }
+    s.refresh();
+}
+
+/// `-(e)`.
+fn neg(e: &str) -> String {
+    format!("-({e})")
+}
+
+/// A hole of a [`slab`] at pin 1: a square of a side (at every position),
+/// or a rectangle `[x0, x1, y0, y1]` (at every position along x).
+enum Hole<'a> {
+    Square(&'a str),
+    Rect([String; 4]),
 }

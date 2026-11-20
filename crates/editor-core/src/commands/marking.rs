@@ -133,6 +133,7 @@ pub fn layout(project: &Project, instance: Id) -> Result<Option<MarkingLayout>> 
             .filter(|s| !s.is_empty()),
         fields,
         vars: target.marking.vars.clone(),
+        codes: Default::default(),
         area_mm: [0.0, 0.0],
         chart: marking::Chart::Flat,
     };
