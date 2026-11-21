@@ -971,3 +971,299 @@ fn given_land_details_expand_exactly() -> TestResult {
     assert!(super::expand::land_pattern(&g).is_err());
     Ok(())
 }
+
+/// The edit that gives an instance of `component` the value `text` in the
+/// first field the generated component selects (its part value).
+fn value(
+    engine: &Engine,
+    component: crate::ids::ComponentRef,
+    text: &str,
+) -> TestResult<Vec<crate::fields::PropertyEdit>> {
+    let field = engine
+        .project()
+        .library
+        .component(component)
+        .and_then(|c| c.definition.fields.first())
+        .ok_or("the generated component selects no field")?
+        .field;
+    Ok(vec![crate::fields::PropertyEdit {
+        field: field.id,
+        input: crate::fields::PropertyInput::Text(text.into()),
+    }])
+}
+
+/// A placed part with an exact manufacturer Part, made again by a newer
+/// module: the regeneration republishes the Part for the new component
+/// revision (its binding lineage's new revision, by lineage, never by
+/// name), and the update that moves the instance takes it, so the
+/// instance keeps no Part of the old revision behind.
+#[test]
+fn regenerating_carries_a_placed_parts_exact_part_to_the_new_revision() -> TestResult {
+    use crate::ids::{BindingRef, ComponentRef, PartRef};
+    use crate::instances::NewInstance;
+    use crate::library::{Definition, DraftEdit, PartDefinition};
+    use crate::model::PhysicalChoice;
+    use crate::tests::support::{apply, edit, meta, new_draft};
+    use crate::{InstanceCommand, Outcome as Placed, updates::Change};
+    let mut engine = engine();
+    let first = generate(
+        &mut engine,
+        request(MODULE, GeneratorScope::Component, 1_600_000),
+    )?;
+    let [component, symbol, _, footprint, binding] = first.revisions[..] else {
+        return Err("five revisions".into());
+    };
+    let instance = match apply(
+        &mut engine,
+        Operation::Instance(InstanceCommand::Place(NewInstance {
+            sheet: None,
+            component: ComponentRef::new(component.id, component.revision),
+            designator: Some("R1".into()),
+            properties: vec![],
+            representation: Some(symbol.id),
+            unit: Some(crate::ids::UnitId(1)),
+            position: Some(crate::tests::support::pt([0.0, 0.0])),
+            physical: Some(PhysicalChoice {
+                binding: binding.id,
+                footprint: footprint.id,
+            }),
+        })),
+    )? {
+        Placed::InstancePlaced { instance, .. } => instance,
+        other => return Err(format!("unexpected outcome {other:?}").into()),
+    };
+    let body = PartDefinition {
+        next_local: 1,
+        manufacturer: "ExampleCo".into(),
+        mpn: "EX-STANDIN-1".into(),
+        component: ComponentRef::new(component.id, component.revision),
+        binding: BindingRef::new(binding.id, binding.revision),
+        specs: Vec::new(),
+        references: Vec::new(),
+        offers: Vec::new(),
+        provenance: Default::default(),
+        top_mark: None,
+    };
+    let id = new_draft(&mut engine, crate::ids::DefinitionKind::Part)?;
+    edit(
+        &mut engine,
+        vec![DraftEdit {
+            id,
+            meta: meta("EX-STANDIN-1"),
+            definition: Definition::Part(Box::new(body)),
+        }],
+    )?;
+    let part = match apply(
+        &mut engine,
+        Operation::Library(LibraryCommand::Publish {
+            drafts: vec![id],
+            close: true,
+        }),
+    )? {
+        Placed::Published { revisions } => revisions.first().copied().ok_or("nothing published")?,
+        other => return Err(format!("unexpected outcome {other:?}").into()),
+    };
+    apply(
+        &mut engine,
+        Operation::Instance(InstanceCommand::AssignPart {
+            instances: vec![instance],
+            part: Some(PartRef::new(part.id, part.revision)),
+        }),
+    )?;
+    let properties = value(
+        &engine,
+        ComponentRef::new(component.id, component.revision),
+        "EX",
+    )?;
+    // A value the Part does not rate: a finding the regeneration neither
+    // causes nor resolves.
+    crate::tests::support::set_properties(&mut engine, instance, properties)?;
+    let second = generate(
+        &mut engine,
+        request(CHANGED, GeneratorScope::Component, 1_600_000),
+    )?;
+    assert_eq!(second.replaced, Some(first.root));
+    let change = Change::ComponentRevision {
+        instances: vec![instance],
+        target: ComponentRef::new(second.root.id, second.root.revision),
+        resolutions: Default::default(),
+    };
+    let plan = engine.preview_update(change.clone());
+    assert!(plan.blockers.is_empty(), "{:?}", plan.blockers);
+    engine.apply_update(engine.revision(), change, false)?;
+    let project = engine.project();
+    let placed = project.instance(instance).ok_or("no instance")?;
+    let findings: Vec<String> = crate::instances::part_findings(&project.library, placed)
+        .into_iter()
+        .map(|f| f.code)
+        .collect();
+    assert_eq!(findings, ["part.spec_unrated"]);
+    let pinned = placed.part.ok_or("the Part was dropped")?;
+    assert_eq!(pinned.id, part.id);
+    let republished = project.library.part(pinned).ok_or("no Part")?;
+    assert_eq!(
+        republished.definition.component,
+        ComponentRef::new(second.root.id, second.root.revision)
+    );
+    let [.., new_binding] = second.revisions[..] else {
+        return Err("five revisions".into());
+    };
+    assert_eq!(
+        republished.definition.binding,
+        BindingRef::new(new_binding.id, new_binding.revision)
+    );
+    Ok(())
+}
+
+/// A Part an earlier regeneration left behind (the instance already on the
+/// new revision, its Part still on the old one): making the part again
+/// with the same version changes nothing of the part but carries the Part,
+/// and an update to the revision the instance is on takes it.
+#[test]
+fn regenerating_at_the_same_version_carries_a_part_left_on_an_older_revision() -> TestResult {
+    use crate::ids::{BindingRef, ComponentRef, PartRef};
+    use crate::instances::NewInstance;
+    use crate::library::{Definition, DraftEdit, PartDefinition};
+    use crate::model::PhysicalChoice;
+    use crate::tests::support::{apply, edit, meta, new_draft};
+    use crate::updates::{Change, PartAction, PartResolution, Resolutions};
+    use crate::{InstanceCommand, Outcome as Placed};
+    let mut engine = engine();
+    let first = generate(
+        &mut engine,
+        request(MODULE, GeneratorScope::Component, 1_600_000),
+    )?;
+    let [component, symbol, _, footprint, binding] = first.revisions[..] else {
+        return Err("five revisions".into());
+    };
+    let instance = match apply(
+        &mut engine,
+        Operation::Instance(InstanceCommand::Place(NewInstance {
+            sheet: None,
+            component: ComponentRef::new(component.id, component.revision),
+            designator: Some("R1".into()),
+            properties: vec![],
+            representation: Some(symbol.id),
+            unit: Some(crate::ids::UnitId(1)),
+            position: Some(crate::tests::support::pt([0.0, 0.0])),
+            physical: Some(PhysicalChoice {
+                binding: binding.id,
+                footprint: footprint.id,
+            }),
+        })),
+    )? {
+        Placed::InstancePlaced { instance, .. } => instance,
+        other => return Err(format!("unexpected outcome {other:?}").into()),
+    };
+    // Version 2 is made before the Part exists, so nothing carries it.
+    let second = generate(
+        &mut engine,
+        request(CHANGED, GeneratorScope::Component, 1_600_000),
+    )?;
+    let body = PartDefinition {
+        next_local: 1,
+        manufacturer: "ExampleCo".into(),
+        mpn: "EX-STANDIN-2".into(),
+        component: ComponentRef::new(component.id, component.revision),
+        binding: BindingRef::new(binding.id, binding.revision),
+        specs: Vec::new(),
+        references: Vec::new(),
+        offers: Vec::new(),
+        provenance: Default::default(),
+        top_mark: None,
+    };
+    let id = new_draft(&mut engine, crate::ids::DefinitionKind::Part)?;
+    edit(
+        &mut engine,
+        vec![DraftEdit {
+            id,
+            meta: meta("EX-STANDIN-2"),
+            definition: Definition::Part(Box::new(body)),
+        }],
+    )?;
+    let part = match apply(
+        &mut engine,
+        Operation::Library(LibraryCommand::Publish {
+            drafts: vec![id],
+            close: true,
+        }),
+    )? {
+        Placed::Published { revisions } => revisions.first().copied().ok_or("nothing published")?,
+        other => return Err(format!("unexpected outcome {other:?}").into()),
+    };
+    let part = PartRef::new(part.id, part.revision);
+    apply(
+        &mut engine,
+        Operation::Instance(InstanceCommand::AssignPart {
+            instances: vec![instance],
+            part: Some(part),
+        }),
+    )?;
+    let properties = value(
+        &engine,
+        ComponentRef::new(component.id, component.revision),
+        "EX",
+    )?;
+    // A value the Part does not rate: a finding the regeneration neither
+    // causes nor resolves.
+    crate::tests::support::set_properties(&mut engine, instance, properties)?;
+    let target = ComponentRef::new(second.root.id, second.root.revision);
+    // The instance moves to revision 2 keeping its Part: left behind.
+    engine.apply_update(
+        engine.revision(),
+        Change::ComponentRevision {
+            instances: vec![instance],
+            target,
+            resolutions: Resolutions {
+                parts: vec![PartResolution {
+                    instance,
+                    action: PartAction::Keep,
+                }],
+                ..Default::default()
+            },
+        },
+        false,
+    )?;
+    let stale = |engine: &Engine| -> TestResult<Vec<String>> {
+        let placed = engine.project().instance(instance).ok_or("no instance")?;
+        Ok(
+            crate::instances::part_findings(&engine.project().library, placed)
+                .into_iter()
+                .map(|f| f.code)
+                .collect(),
+        )
+    };
+    assert_eq!(
+        stale(&engine)?,
+        [
+            "part.stale_component",
+            "part.binding_mismatch",
+            "part.spec_unrated"
+        ]
+    );
+    // The same version again: the part stands, the Part is carried.
+    let mut again = request(CHANGED, GeneratorScope::Component, 1_600_000);
+    again.module.data = None;
+    let third = generate(&mut engine, again)?;
+    assert!(!third.created);
+    assert_eq!(third.root, second.root);
+    let carried = engine
+        .project()
+        .library
+        .latest_parts()
+        .into_iter()
+        .find(|p| p.id == part.id)
+        .ok_or("no Part")?;
+    assert_eq!(carried.definition.component, target);
+    // The update to the revision the instance is on takes it.
+    let change = Change::ComponentRevision {
+        instances: vec![instance],
+        target,
+        resolutions: Default::default(),
+    };
+    let plan = engine.preview_update(change.clone());
+    assert!(plan.blockers.is_empty(), "{:?}", plan.blockers);
+    engine.apply_update(engine.revision(), change, false)?;
+    assert_eq!(stale(&engine)?, ["part.spec_unrated"]);
+    Ok(())
+}

@@ -670,6 +670,48 @@ fn republished_parts(
     Ok(out)
 }
 
+/// Republish, for the published component revision `component`, each Part
+/// whose latest revision implements an older revision of its lineage, has
+/// no draft of its own and whose binding lineage that revision lists: the
+/// new Part revision is the latest one with only its pins moved, as
+/// `library.publish_with_parts` moves them (nothing matched by name). A
+/// Part this cannot carry is left as it is, and its findings say so.
+/// Publishes nothing when no Part qualifies.
+pub(crate) fn carry_parts(document: &mut Document, component: ComponentRef) -> Result<()> {
+    let library = &document.project.library;
+    let target = library.component(component).ok_or_else(|| {
+        Error::NotFound("The component revision to carry Parts to is not published.".into())
+    })?;
+    let mut staged = (*document.drafts).clone();
+    let mut ids = Vec::new();
+    for part in library.latest_parts() {
+        let pinned = part.definition.component;
+        if pinned.id != component.id
+            || pinned.revision >= component.revision
+            || staged.get(part.id).is_some()
+        {
+            continue;
+        }
+        let Some(binding) = target.definition.implementation(part.definition.binding.id) else {
+            continue;
+        };
+        let mut definition = part.definition.clone();
+        (definition.component, definition.binding) = (component, binding);
+        staged.items.push(library::Draft {
+            id: part.id,
+            base: Some(part.revision),
+            meta: part.meta.clone(),
+            definition: Definition::Part(Box::new(definition)),
+        });
+        ids.push(part.id);
+    }
+    if ids.is_empty() {
+        return Ok(());
+    }
+    *Arc::make_mut(&mut document.drafts) = staged;
+    publish_drafts(document, None, ids, true).map(|_| ())
+}
+
 fn package_of<'a>(
     document: &'a Document,
     footprint: &library::FootprintDefinition,

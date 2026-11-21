@@ -155,14 +155,28 @@ pub fn part_findings(library: &Library, instance: &ComponentInstance) -> Vec<Fin
     findings_with(library, instance, r, &part.definition)
 }
 
-/// The newest revision of `instance`'s Part lineage that agrees with the
-/// instance as it is now, when its pinned revision no longer does: the
-/// revision `library.publish_with_parts` republished for a new component
-/// revision. Matched by lineage only, never by name; `None` when the Part
-/// still agrees, or no revision of its lineage does.
+/// The newest revision of `instance`'s Part lineage whose pins agree with
+/// the instance as it is now (its component revision and binding), when
+/// its pinned revision's do not: the revision `library.publish_with_parts`
+/// or a regeneration republished for a new component revision. Matched by
+/// lineage only, never by name; findings of the Part's ratings are the
+/// same for every revision and do not decide. `None` when the pins still
+/// agree, or no revision of its lineage does.
 pub fn republished_part(library: &Library, instance: &ComponentInstance) -> Option<PartRef> {
     let pinned = instance.part?;
-    if part_findings(library, instance).is_empty() {
+    let pins_agree = |findings: Vec<Finding>| {
+        !findings.iter().any(|f| {
+            matches!(
+                f.code.as_str(),
+                "part.component_mismatch"
+                    | "part.stale_component"
+                    | "part.newer_component"
+                    | "part.binding_mismatch"
+                    | "reference.missing"
+            )
+        })
+    };
+    if pins_agree(part_findings(library, instance)) {
         return None;
     }
     library
@@ -170,7 +184,7 @@ pub fn republished_part(library: &Library, instance: &ComponentInstance) -> Opti
         .iter()
         .filter(|p| p.id == pinned.id && p.revision > pinned.revision)
         .map(|p| (PartRef::new(p.id, p.revision), &p.definition))
-        .filter(|(r, part)| findings_with(library, instance, *r, part).is_empty())
+        .filter(|(r, part)| pins_agree(findings_with(library, instance, *r, part)))
         .max_by_key(|(r, _)| r.revision)
         .map(|(r, _)| r)
 }

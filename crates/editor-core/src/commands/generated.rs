@@ -5,11 +5,11 @@
 //! never interprets it.
 use super::Outcome;
 use crate::diagnostics::{Error, Result};
-use crate::ids::ModelRef;
 use crate::ids::{
     BindingRef, ContentHash, DefinitionId, DefinitionRef, FootprintRef, PackageRef, Revision,
     SymbolRef,
 };
+use crate::ids::{ComponentRef, ModelRef};
 use crate::library::PackageModel;
 use crate::library::bundle::{AssetBytes, MAX_ASSETS, PackedAsset};
 use crate::library::generated::{
@@ -412,6 +412,15 @@ pub(crate) fn generate(
                 });
                 return match other_name {
                     Some(name) => second_part(document, root, name, same),
+                    // Parts an earlier regeneration left on an older
+                    // revision are carried to this one.
+                    None if scope == GeneratorScope::Component => {
+                        super::library::carry_parts(
+                            document,
+                            ComponentRef::new(root.id, root.revision),
+                        )?;
+                        Ok(same)
+                    }
                     None => Ok(same),
                 };
             }
@@ -749,6 +758,12 @@ pub(crate) fn generate(
         .first()
         .copied()
         .ok_or_else(|| Error::Invalid("generated.expansion: nothing was made".into()))?;
+    // Made again over an older revision: the exact manufacturer Parts of
+    // the older revisions are carried to the new one in the same step, so
+    // the update that moves the instances takes them along.
+    if scope == GeneratorScope::Component {
+        super::library::carry_parts(document, ComponentRef::new(root.id, root.revision))?;
+    }
     let part = GeneratedPart {
         root,
         expansion: expansion.clone(),
