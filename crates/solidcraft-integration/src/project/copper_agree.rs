@@ -1,8 +1,9 @@
 //! How far the board plan's copper on each layer lies from the core's:
 //! the copper the copper graph joins, the checks measure and the
-//! fabrication output plots (every pad on each layer
+//! fabrication output plots (every land of the physical inventory,
+//! [`sparksmith_core::layout::physical::lands`]: each pad on each layer
 //! [`sparksmith_core::layout::pad_copper_on`] gives it, by its exact
-//! outline; each track's stadium, [`sparksmith_core::layout::track_shape`];
+//! outline, and each plated mounting hole's washer; each track's stadium, [`sparksmith_core::layout::track_shape`];
 //! each via's pad on the layers it joins; each fill's computed copper).
 //!
 //! Layout and the 3D view both show the plan's copper
@@ -111,8 +112,9 @@ struct Copper {
     fills: Vec<Shape>,
 }
 
-/// The core's copper of `project` on `layer`: every pad, track, via and
-/// computed fill, and what flattening allows the objects and fills to
+/// The core's copper of `project` on `layer`: every land of its physical
+/// inventory (pads, netted or not, and mounting-hole washers), track, via
+/// and computed fill, and what flattening allows the objects and fills to
 /// differ by.
 fn core_copper(
     project: &Project,
@@ -123,8 +125,11 @@ fn core_copper(
     let mut allowed = 0.0;
     let mut fill_allowed = 0.0;
     let mut core = Copper::default();
-    for pad in pads.iter().filter(|p| p.on_copper(layer)) {
-        let ring = pad.outline().flatten(PAD_ARC_TOLERANCE_MM);
+    for land in layout::physical::lands_of(project, pads)
+        .iter()
+        .filter(|l| l.on(layer))
+    {
+        let ring = land.outline.flatten(PAD_ARC_TOLERANCE_MM);
         if ring.len() >= 3 {
             allowed += perimeter(&ring) * (PAD_ARC_TOLERANCE_MM + FLATTEN_TOLERANCE_MM);
             core.objects.push(vec![oriented(ring, true)]);

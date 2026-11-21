@@ -101,7 +101,7 @@ enum Object {
 
 fn object(origin: &Origin) -> Option<Object> {
     match *origin {
-        Origin::Laminate(_) => None,
+        Origin::Laminate(_) | Origin::Washer { .. } => None,
         Origin::Pad { instance, pad, .. } => Some(Object::Pad(instance, pad)),
         Origin::Track(track) => Some(Object::Track(track)),
         Origin::Via { via, .. } => Some(Object::Via(via)),
