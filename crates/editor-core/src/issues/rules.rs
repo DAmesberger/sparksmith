@@ -41,6 +41,8 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         | "board.via_aspect_ratio"
         | "board.via_drill_clearance"
         | "board.via_drill_size"
+        | "board.drill_size"
+        | "board.track_width"
         | "board.via_hole_spacing"
         | "erc.driver_conflict"
         | "erc.open_drain_contention"
@@ -94,6 +96,8 @@ pub fn group_title(code: &str) -> String {
         "board.via_dangling" => "Vias joining nothing",
         "board.track_dangling" => "Track ends joining nothing",
         "board.via_drill_size" => "Via drills too small",
+        "board.drill_size" => "Holes too small to drill",
+        "board.track_width" => "Tracks under the minimum width",
         "board.via_aspect_ratio" => "Via aspect ratio too high",
         "board.edge_clearance" => "Too close to the board edge",
         "board.hole_clearance" => "Too close to a mounting hole",
@@ -242,6 +246,8 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "board.via_dangling" => "Route copper to the via or delete it",
         "board.track_dangling" => "Route the end to copper of its net or delete the track",
         "board.via_drill_size" | "board.via_aspect_ratio" => "Enlarge the via drill",
+        "board.drill_size" => "Enlarge the hole or slot",
+        "board.track_width" => "Widen the track",
         "board.edge_clearance" => "Move it away from the edge",
         "board.hole_clearance" | "board.pad_hole_clearance" => "Move the copper away from the hole",
         "board.pad_hole_spacing" => "Move the part or the other hole",
@@ -406,6 +412,19 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
     };
     let message = first.message.as_str();
     let title = match first.code.as_str() {
+        // A mounting hole's washer is named by the board object, which says
+        // nothing: the message names the hole ("the plated mounting hole
+        // at (40, 20) mm / a track on GND").
+        "board.clearance"
+            if findings.len() == 1 && first.objects.contains(&ObjectRef::Board) =>
+        {
+            let pair = message
+                .split_once(": ")
+                .map_or(message, |(_, rest)| rest)
+                .rsplit_once(" (")
+                .map_or(message, |(pair, _)| pair);
+            format!("{} too close", pair.replace(" / ", " ↔ "))
+        }
         "board.clearance" => {
             let pads = names_of(names, findings, is_pad);
             match parties(names, findings).as_slice() {
@@ -556,6 +575,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "board.copper_sliver",
     "board.courtyard_clearance",
     "board.courtyard_overlap",
+    "board.drill_size",
     "board.edge_clearance",
     "board.hole_clearance",
     "board.mask_colour_not_offered",
@@ -571,6 +591,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "board.shape_open",
     "board.shape_unsolved",
     "board.track_dangling",
+    "board.track_width",
     "board.unplaced",
     "board.unrouted",
     "board.via_annular_ring",

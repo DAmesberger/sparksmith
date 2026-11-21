@@ -15,7 +15,8 @@ use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::connectivity::CopperGraph;
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
-use super::{CLEARANCE_MM, EPS, WorldPad, check_pair_budget, courtyard, pad_labels, sync_preview};
+use super::physical::{Conductor, Land};
+use super::{CLEARANCE_MM, EPS, WorldPad, check_pair_budget, courtyard, sync_preview};
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{
     Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance, segments_gap,
@@ -121,10 +122,16 @@ impl CopperRing {
     /// A track's stadium, round end caps included. Its gaps are exact:
     /// measured from the centre line less the half-width.
     pub fn of_track(track: &Track) -> Self {
+        Self::of_stadium(track.start, track.end, track.width)
+    }
+
+    /// The points within `width / 2` of `a`–`b` (a track, a slot), its
+    /// gaps exact from the centre line.
+    pub fn of_stadium(a: Point, b: Point, width: f64) -> Self {
         Self {
             slack: 0.0,
-            spine: Some((track.start, track.end, track.width / 2.0)),
-            ..Self::of_shape(&super::track_shape(track), true)
+            spine: Some((a, b, width / 2.0)),
+            ..Self::of_shape(&super::stadium_shape(a, b, width), true)
         }
     }
 
@@ -231,37 +238,43 @@ fn curved(shape: &PadShape) -> bool {
     }
 }
 
-/// The connected pads and the vias of a board with their copper outlines,
-/// built once per document revision, for the clearance and edge checks.
+/// The board's lands ([`super::physical::lands`]: every pad with copper,
+/// netted or not, and every plated mounting hole's washer) and its vias
+/// with their copper outlines, built once per document revision, for the
+/// clearance and edge checks.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BoardCopper {
-    pads: Vec<WorldPad>,
-    rings: Vec<CopperRing>,
+    lands: Vec<Land>,
     vias: Vec<Via>,
     via_rings: Vec<CopperRing>,
 }
 
-/// One copper shape the checks compare: a pad, a via or a track.
+/// One copper shape the checks compare: a land, a via or a track.
 struct Copper<'a> {
     kind: CopperObject,
-    net: Id,
+    conductor: Conductor,
     layer: CopperLayer,
     through: bool,
     ring: &'a CopperRing,
     object: ObjectRef,
+    /// A land's name; tracks and vias are named by their net.
+    name: Option<&'a str>,
+}
+
+impl Copper<'_> {
+    fn net(&self) -> Option<Id> {
+        self.conductor.net()
+    }
 }
 
 impl BoardCopper {
-    /// Every connected pad and every via of `project` with its exact
-    /// outline.
+    /// Every land and every via of `project` with its exact outline.
     pub fn of(project: &Project) -> Self {
-        let pads = super::pads(project);
-        let rings = pads.iter().map(CopperRing::of_pad).collect();
+        let lands = super::physical::lands(project);
         let vias = project.vias.to_vec();
         let via_rings = vias.iter().map(CopperRing::of_via).collect();
         Self {
-            pads,
-            rings,
+            lands,
             vias,
             via_rings,
         }
@@ -277,27 +290,20 @@ impl BoardCopper {
         self.via_rings.get(index)
     }
 
-    /// The connected pads, in placement then pad order.
-    pub fn pads(&self) -> &[WorldPad] {
-        &self.pads
-    }
-
-    /// The copper outline of the pad at `index` in [`Self::pads`].
-    pub fn ring(&self, index: usize) -> Option<&CopperRing> {
-        self.rings.get(index)
+    /// The lands: pads in placement then pad order, then washers.
+    pub fn lands(&self) -> &[Land] {
+        &self.lands
     }
 
     fn shapes<'a>(&'a self, tracks: &[Track], track_rings: &'a [CopperRing]) -> Vec<Copper<'a>> {
-        let pads = self.pads.iter().zip(&self.rings).map(|(pad, ring)| Copper {
+        let lands = self.lands.iter().map(|land| Copper {
             kind: CopperObject::Pad,
-            net: pad.net,
-            layer: pad.layer.into(),
-            through: pad.through,
-            ring,
-            object: ObjectRef::Pad {
-                instance: pad.instance,
-                pad: pad.pad,
-            },
+            conductor: land.conductor,
+            layer: land.layer.into(),
+            through: land.through,
+            ring: &land.ring,
+            object: land.object(),
+            name: Some(land.name.as_str()),
         });
         // A through via has copper on every layer, as a plated barrel pad.
         let vias = self
@@ -306,21 +312,23 @@ impl BoardCopper {
             .zip(&self.via_rings)
             .map(|(v, ring)| Copper {
                 kind: CopperObject::Via,
-                net: v.net,
+                conductor: Conductor::Net(v.net),
                 layer: CopperLayer::Top,
                 through: true,
                 ring,
                 object: ObjectRef::Via { id: v.id },
+                name: None,
             });
         let tracks = tracks.iter().zip(track_rings).map(|(t, ring)| Copper {
             kind: CopperObject::Track,
-            net: t.net,
+            conductor: Conductor::Net(t.net),
             layer: t.layer,
             through: false,
             ring,
             object: ObjectRef::Track { id: t.id },
+            name: None,
         });
-        pads.chain(vias).chain(tracks).collect()
+        lands.chain(vias).chain(tracks).collect()
     }
 
     /// The board checks: placement, edge and clearance from these outlines,
@@ -339,22 +347,10 @@ impl BoardCopper {
                 vec![ObjectRef::Instance { id }],
             ));
         }
-        let labels = pad_labels(project);
-        let label = |shape: &Copper| match shape.object {
-            ObjectRef::Pad { instance, pad } => format!(
-                "{} pad {}",
-                project
-                    .instance(instance)
-                    .map(|i| i.designator.as_str())
-                    .unwrap_or("component"),
-                labels
-                    .get(&(instance, pad))
-                    .cloned()
-                    .unwrap_or_else(|| pad.to_string())
-            ),
-            ObjectRef::Track { .. } => format!("a track on {}", project.net_name(shape.net)),
-            ObjectRef::Via { .. } => format!("a via on {}", project.net_name(shape.net)),
-            _ => String::new(),
+        let label = |shape: &Copper| match (shape.name, shape.net()) {
+            (Some(name), _) => name.to_owned(),
+            (None, Some(net)) => format!("a {} on {}", shape.kind.label(), project.net_name(net)),
+            (None, None) => String::new(),
         };
         let track_rings: Vec<CopperRing> =
             project.tracks.iter().map(CopperRing::of_track).collect();
@@ -367,7 +363,7 @@ impl BoardCopper {
         let budget = check_pair_budget(shapes.len());
         let edges = BoardEdges::of(project);
         for (i, a) in shapes.iter().enumerate() {
-            let edge = || limits.clearance(a.kind, Some(a.net), CopperObject::BoardEdge, None);
+            let edge = || limits.clearance(a.kind, a.net(), CopperObject::BoardEdge, None);
             match edges.verdict(a.ring, edge()) {
                 EdgeVerdict::Clear => {}
                 EdgeVerdict::Outside => issues.push(Finding::new(
@@ -386,7 +382,7 @@ impl BoardCopper {
                 )),
                 EdgeVerdict::TooClose { gap, near } => {
                     let need =
-                        limits.clearance_need(a.kind, Some(a.net), CopperObject::BoardEdge, None);
+                        limits.clearance_need(a.kind, a.net(), CopperObject::BoardEdge, None);
                     issues.push(Finding::new(
                         "board.edge_clearance",
                         format!(
@@ -418,7 +414,7 @@ impl BoardCopper {
                     continue;
                 }
                 let (an, bn) = class_nets(a, b);
-                if a.net != b.net
+                if !a.conductor.same(b.conductor)
                     && a.ring
                         .closer_than(b.ring, limits.clearance(a.kind, an, b.kind, bn))
                 {
@@ -455,7 +451,7 @@ fn class_nets(a: &Copper<'_>, b: &Copper<'_>) -> (Option<Id>, Option<Id>) {
         (ObjectRef::Pad { instance: x, .. }, ObjectRef::Pad { instance: y, .. }) if x == y => {
             (None, None)
         }
-        _ => (Some(a.net), Some(b.net)),
+        _ => (a.net(), b.net()),
     }
 }
 

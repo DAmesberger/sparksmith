@@ -10,6 +10,7 @@ use super::board_edge::{BoardEdges, EdgeVerdict};
 use super::copper::check_reach;
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
+use super::physical::LandOwner;
 use super::{
     BoardCopper, CopperRing, EPS, Error, Result, RouteEditSet, RouteRequest, WorldPad,
     check_pair_budget, distance, invalid,
@@ -17,6 +18,7 @@ use super::{
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{Point, point_valid};
 use crate::ids::Id;
+use crate::model::board::BoardFeatureId;
 use crate::model::{CopperLayer, Project, Via, ViaSpan};
 use crate::rules::{CopperObject, RuleKey};
 use schemars::JsonSchema;
@@ -235,10 +237,21 @@ pub(super) fn check_clearance(project: &Project, id: Id) -> Result<()> {
             return refuse("track", CopperObject::Track, track.net);
         }
     }
-    for pad in super::pads(project).iter().filter(|p| p.net != via.net) {
-        let need = limits.clearance(me.0, me.1, CopperObject::Pad, Some(pad.net));
-        if shares_layer(via, pad, &layers) && ring.closer_than(&CopperRing::of_pad(pad), need) {
-            return refuse("pad", CopperObject::Pad, pad.net);
+    for land in super::physical::lands(project)
+        .iter()
+        .filter(|l| l.net() != Some(via.net))
+    {
+        let need = limits.clearance(me.0, me.1, CopperObject::Pad, land.net());
+        if layers.iter().any(|l| via.on(*l, &layers) && land.on(*l))
+            && ring.closer_than(&land.ring, need)
+        {
+            return Err(Error::Conflict(format!(
+                "Too close to {}: {}",
+                land.name,
+                limits
+                    .clearance_need(me.0, me.1, CopperObject::Pad, land.net())
+                    .short()
+            )));
         }
     }
     for other in project.vias.iter().filter(|v| v.net != via.net) {
@@ -254,37 +267,74 @@ pub(super) fn check_clearance(project: &Project, id: Id) -> Result<()> {
     Ok(())
 }
 
-/// Every copper shape a drilled hole is checked against, with its object,
-/// kind and net, in the order findings name them (pads, vias, tracks).
-/// `track_rings` are `project`'s tracks' outlines, in document order.
+/// One copper shape a drilled hole is checked against.
+pub(super) struct Drilled<'a> {
+    pub ring: &'a CopperRing,
+    pub object: ObjectRef,
+    pub kind: CopperObject,
+    pub net: Option<Id>,
+    /// A land's name ("J1 pad 3"); tracks and vias are named by net.
+    pub name: Option<&'a str>,
+    /// The mounting hole whose washer this is.
+    pub washer: Option<BoardFeatureId>,
+}
+
+impl Drilled<'_> {
+    /// How a hole message names it: "U1 pad 1 on GND", "a track on GND",
+    /// "the plated mounting hole at (5, 5) mm".
+    pub fn words(&self, project: &Project) -> String {
+        match (self.name, self.net) {
+            (Some(name), Some(net)) => format!("{name} on {}", project.net_name(net)),
+            (Some(name), None) => name.to_owned(),
+            (None, Some(net)) => format!("a {} on {}", self.kind.label(), project.net_name(net)),
+            (None, None) => format!("a {}", self.kind.label()),
+        }
+    }
+}
+
+/// Every copper shape a drilled hole is checked against, in the order
+/// findings name them (lands, vias, tracks). `track_rings` are
+/// `project`'s tracks' outlines, in document order.
 pub(super) fn drilled_copper<'a>(
     copper: &'a BoardCopper,
     project: &Project,
     track_rings: &'a [CopperRing],
-) -> Vec<(&'a CopperRing, ObjectRef, CopperObject, Id)> {
+) -> Vec<Drilled<'a>> {
     let mut shapes = Vec::new();
-    for (k, pad) in copper.pads().iter().enumerate() {
-        if let Some(ring) = copper.ring(k) {
-            let object = ObjectRef::Pad {
-                instance: pad.instance,
-                pad: pad.pad,
-            };
-            shapes.push((ring, object, CopperObject::Pad, pad.net));
-        }
+    for land in copper.lands() {
+        shapes.push(Drilled {
+            ring: &land.ring,
+            object: land.object(),
+            kind: CopperObject::Pad,
+            net: land.net(),
+            name: Some(land.name.as_str()),
+            washer: match land.owner {
+                LandOwner::Washer { hole } => Some(hole),
+                LandOwner::Pad { .. } => None,
+            },
+        });
     }
     for (k, via) in copper.vias().iter().enumerate() {
         if let Some(ring) = copper.via_ring(k) {
-            shapes.push((
+            shapes.push(Drilled {
                 ring,
-                ObjectRef::Via { id: via.id },
-                CopperObject::Via,
-                via.net,
-            ));
+                object: ObjectRef::Via { id: via.id },
+                kind: CopperObject::Via,
+                net: Some(via.net),
+                name: None,
+                washer: None,
+            });
         }
     }
     for (track, ring) in project.tracks.iter().zip(track_rings) {
-        let object = ObjectRef::Track { id: track.id };
-        shapes.push((ring, object, CopperObject::Track, track.net));
+        shapes.push(Drilled {
+            ring,
+            object: ObjectRef::Track { id: track.id },
+            kind: CopperObject::Track,
+            net: Some(track.net),
+            name: None,
+            washer: None,
+        });
     }
     shapes
 }
@@ -301,7 +351,6 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
     let tracks = &project.tracks;
     let limits = BoardRules::of(project);
     let edges = BoardEdges::of(project);
-    let drill_min = limits.need(RuleKey::DrillMin);
     let ring_min = limits.need(RuleKey::ViaAnnularRingMin);
     let aspect_max = limits.rules().holes.aspect_ratio_max;
     let thickness = project.stackup.thickness_mm();
@@ -312,7 +361,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
     let mut pairs = 0usize;
     let budget = check_pair_budget(
         copper
-            .pads()
+            .lands()
             .len()
             .saturating_add(vias.len())
             .saturating_add(tracks.len()),
@@ -331,7 +380,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
     };
     let copper_shapes = drilled_copper(copper, project, &track_rings);
     let reach = check_reach(&limits);
-    let shapes = BoundsGrid::new(copper_shapes.iter().map(|s| s.0.bounds), reach);
+    let shapes = BoundsGrid::new(copper_shapes.iter().map(|s| s.ring.bounds), reach);
     let holes = BoundsGrid::new(drills.iter().map(|d| d.bounds), reach);
     let mut near = Vec::new();
     // Via drills keep the via hole rules; a mounting hole its own kind's
@@ -342,17 +391,6 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
     for (i, (via, drill)) in vias.iter().zip(&drills).enumerate() {
         let me = ObjectRef::Via { id: via.id };
         let name = project.net_name(via.net);
-        if via.drill < drill_min.mm - EPS {
-            issues.push(Finding::new(
-                "board.via_drill_size",
-                format!(
-                    "A via on {name}: drill {} mm is under the minimum; {}",
-                    mm(via.drill),
-                    drill_min.text()
-                ),
-                vec![me],
-            ));
-        }
         if via.annular_ring() < ring_min.mm - EPS {
             issues.push(Finding::new(
                 "board.via_annular_ring",
@@ -398,27 +436,26 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
             continue;
         };
         shapes.near(&bounds, reach, &mut near);
-        for (ring, object, kind, net) in near
+        for shape in near
             .iter()
             .filter_map(|k| copper_shapes.get(*k))
-            .filter(|s| s.3 != via.net)
+            .filter(|s| s.net != Some(via.net))
         {
             if over(&mut pairs, &mut issues) {
                 return issues;
             }
-            let need = limits.clearance(hole, Some(via.net), *kind, Some(*net));
-            if drill.closer_than(ring, need) {
-                let need = limits.clearance_need(hole, Some(via.net), *kind, Some(*net));
+            let need = limits.clearance(hole, Some(via.net), shape.kind, shape.net);
+            if drill.closer_than(shape.ring, need) {
+                let need = limits.clearance_need(hole, Some(via.net), shape.kind, shape.net);
                 issues.push(Finding::new(
                     "board.via_drill_clearance",
                     format!(
-                        "A via on {name}: drill is {} mm from a {} on {}; {}",
-                        mm_against(drill.gap(ring, need.mm + 1.0), need.mm),
-                        kind.label(),
-                        project.net_name(*net),
+                        "A via on {name}: drill is {} mm from {}; {}",
+                        mm_against(drill.gap(shape.ring, need.mm + 1.0), need.mm),
+                        shape.words(project),
                         need.text()
                     ),
-                    vec![me, *object],
+                    vec![me, shape.object],
                 ));
             }
         }
@@ -471,15 +508,19 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
         };
         // Its own plated ring (if any) is not board copper here.
         shapes.near(&bounds, reach, &mut near);
-        for (other, object, other_kind, net) in near.iter().filter_map(|k| copper_shapes.get(*k)) {
+        for shape in near
+            .iter()
+            .filter_map(|k| copper_shapes.get(*k))
+            .filter(|s| s.washer != Some(mount.id))
+        {
             if over(&mut pairs, &mut issues) {
                 return issues;
             }
-            let need = limits.clearance(kind, None, *other_kind, Some(*net));
-            if ring.closer_than(other, need) {
-                let need = limits.clearance_need(kind, None, *other_kind, Some(*net));
-                let what = copper_words(project, object, *other_kind, *net);
-                let gap = ring.gap(other, need.mm + 1.0);
+            let need = limits.clearance(kind, None, shape.kind, shape.net);
+            if ring.closer_than(shape.ring, need) {
+                let need = limits.clearance_need(kind, None, shape.kind, shape.net);
+                let what = shape.words(project);
+                let gap = ring.gap(shape.ring, need.mm + 1.0);
                 // Touching or overlapping copper is said so, not "0 mm".
                 let how = if gap <= EPS {
                     format!("overlaps {what}")
@@ -489,7 +530,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 issues.push(Finding::new(
                     "board.hole_clearance",
                     format!("A mounting hole {how}; {}", need.text()),
-                    vec![ObjectRef::Board, *object],
+                    vec![ObjectRef::Board, shape.object],
                 ));
             }
         }
@@ -518,41 +559,6 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
         }
     }
     issues
-}
-
-/// A copper object in a mounting-hole message, named by its part or net:
-/// "U1 pad 1 on GND", "a track on GND", "a via on VCC".
-pub(super) fn copper_words(
-    project: &Project,
-    object: &ObjectRef,
-    kind: CopperObject,
-    net: Id,
-) -> String {
-    let net = project.net_name(net);
-    match *object {
-        ObjectRef::Pad { instance, pad } => {
-            let part = super::outline::part_name(project, instance);
-            let number = project
-                .placement_of(instance)
-                .and_then(|_| project.instance(instance))
-                .and_then(|i| crate::instances::resolve(&project.library, i).ok())
-                .and_then(|r| r.physical)
-                .and_then(|p| {
-                    p.footprint
-                        .definition
-                        .pads
-                        .iter()
-                        .find(|q| q.id == pad)
-                        .map(|q| q.number.clone())
-                })
-                .filter(|n| !n.is_empty());
-            match number {
-                Some(n) => format!("{part} pad {n} on {net}"),
-                None => format!("a pad of {part} on {net}"),
-            }
-        }
-        _ => format!("a {} on {net}", kind.label()),
-    }
 }
 
 pub(super) fn delete(project: &mut Project, id: Id) -> Result<()> {
