@@ -125,7 +125,7 @@ fn pcbway_admits_the_usb4105_footprint_under_its_minimum_values() -> Fallible {
 /// minimum values (the replay sets the profile, chooses `limits: minimum`
 /// and routes the USB pair with `layout.route_pair`, which takes its width
 /// and gap from the profile). It holds no waiver, and its production check
-/// finds only that it has no fiducials (a warning).
+/// finds nothing.
 #[test]
 fn the_example_board_passes_pcbway_4_layer_without_waivers() -> Fallible {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -151,12 +151,6 @@ fn the_example_board_passes_pcbway_4_layer_without_waivers() -> Fallible {
         .collect();
     assert_eq!(preflight.blocking, 0, "{found:#?}");
     assert_eq!(preflight.waived, 0, "{found:#?}");
-    // One warning, not blocking: the example has no fiducials yet, which
-    // PCBWay asks three of on a side it assembles.
-    assert_eq!(
-        found,
-        ["board.fiducials_too_few: The top side has 0 fiducials for its surface-mount parts"],
-        "{found:#?}"
-    );
+    assert!(found.is_empty(), "{found:#?}");
     Ok(())
 }

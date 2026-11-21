@@ -263,6 +263,22 @@ fn a_fiducial_on_both_sides_keeps_both_outer_layers_clear() -> TestResult {
         sparksmith_core::library::PackageModel::NoBody
     )));
     assert!(project.library.models.is_empty());
+    // Copper only: nothing to order or place, so neither the BOM nor
+    // pick-and-place lists it.
+    let instance = project.instance(f).ok_or("no fiducial")?;
+    let library = &project.library;
+    assert!(sparksmith_core::library::mechanical::copper_only(
+        library,
+        instance.component
+    ));
+    assert!(!sparksmith_core::library::mechanical::in_bom(
+        library,
+        instance.component
+    ));
+    assert!(!sparksmith_core::library::mechanical::in_pick_and_place(
+        library,
+        instance.component
+    ));
     let kept: Vec<KeepoutLayers> = sparksmith_core::layout::placed_keepouts(project)
         .into_iter()
         .filter(|k| k.instance == f)

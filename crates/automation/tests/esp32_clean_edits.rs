@@ -36,10 +36,7 @@ fn example() -> Fallible<Engine> {
 }
 
 /// No unwaived error, no warning and nothing waived.
-/// No blocking finding, one warning and nothing waived: the warning is
-/// that the example has no fiducials yet (`board.fiducials_too_few`, which
-/// `issues` checks by name), which no edit here changes.
-const CLEAN: (usize, usize, usize) = (0, 1, 0);
+const CLEAN: (usize, usize, usize) = (0, 0, 0);
 
 /// The production check's unwaived errors, warnings and waived findings,
 /// listed.
@@ -54,10 +51,7 @@ fn issues(engine: &Engine) -> Fallible<((usize, usize, usize), Vec<String>)> {
             let waived = if i.waiver.is_some() { " (waived)" } else { "" };
             format!("{:?} {}: {}{waived}", i.severity, i.code, i.title)
         })
-        .collect::<Vec<String>>();
-    let fiducials =
-        "Warning board.fiducials_too_few: The top side has 0 fiducials for its surface-mount parts";
-    assert!(items.iter().any(|i| i == fiducials), "{items:#?}");
+        .collect();
     Ok(((report.blocking, report.warnings, report.waived), items))
 }
 

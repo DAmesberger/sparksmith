@@ -40,6 +40,7 @@ try:
     if upto in ("route", "fab"):
         import build_route
         short = build_route.build(s, L, state["sch"], state["pcb"])
+        build_pcb.place_fiducials(s)
         s.op("project.rename", {"name": "ESP32-S31 dev board"})
         json.dump(short, open(out + "/route-short.json", "w"), indent=1)
         for x in short: print("SHORT", x)

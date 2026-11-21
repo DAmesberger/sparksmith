@@ -361,9 +361,7 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
         .rows
         .iter()
         .partition(|r| r.severity == sparksmith_core::issues::Severity::Info);
-    // One warning: the example has no fiducials yet.
-    let codes: Vec<&str> = counted.iter().map(|r| r.finding.code.as_str()).collect();
-    assert_eq!(codes, ["board.fiducials_too_few"], "{:?}", issues.counts);
+    assert_eq!(counted.len(), 0, "{:?}", issues.counts);
     assert!(
         info.iter().all(|r| r.finding.code == "fill.spokes_removed"),
         "{:?}",
@@ -371,8 +369,7 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
     );
     assert_eq!(preflight.blocking, 0);
     assert_eq!(preflight.waived, 0);
-    let items: Vec<&str> = preflight.items.iter().map(|i| i.code.as_str()).collect();
-    assert_eq!(items, ["board.fiducials_too_few"], "{:?}", preflight.items);
+    assert!(preflight.items.is_empty(), "{:?}", preflight.items);
     assert!(engine.project().production.waivers.is_empty());
     assert_eq!(only_production.len(), 0);
     Ok(())
