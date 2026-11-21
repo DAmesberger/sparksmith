@@ -148,16 +148,22 @@ pub fn courtyard(pads: &[Pad], body: Option<Box2>) -> Option<Vec<Point>> {
     Some(snapped.corners().to_vec())
 }
 
-/// The silkscreen keep-out of a pad: its box grown by its mask expansion
-/// (`default_mask_nm` where the pad follows the project's rule), the
-/// clearance and half the stroke.
-fn keep_out(pad: &Pad, default_mask_nm: i64) -> Box2 {
+/// A pad's effective solder-mask opening, as a box: its copper box grown
+/// by its own mask expansion, or `default_mask_nm` where it follows the
+/// project's rule (none when tented).
+pub fn opening_box(pad: &Pad, default_mask_nm: i64) -> Box2 {
     let grow = match pad.mask {
         Opening::Expansion(e) => e,
         Opening::Default => default_mask_nm,
         Opening::None | Opening::Windows(_) => 0,
     };
-    pad_box(pad).inflated(grow.max(0) + SILK_PAD_CLEARANCE_NM + SILK_STROKE_NM / 2)
+    pad_box(pad).inflated(grow.max(0))
+}
+
+/// The silkscreen keep-out of a pad: its opening ([`opening_box`]) grown
+/// by the clearance and half the stroke.
+fn keep_out(pad: &Pad, default_mask_nm: i64) -> Box2 {
+    opening_box(pad, default_mask_nm).inflated(SILK_PAD_CLEARANCE_NM + SILK_STROKE_NM / 2)
 }
 
 /// The pieces of the horizontal or vertical segment `a`–`b` outside every box.

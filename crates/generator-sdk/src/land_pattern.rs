@@ -23,8 +23,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use sparksmith_generator_abi::codec;
 use sparksmith_generator_abi::v1::{
-    Description, GENERATE_PART, Generation, Opening, Pad, PadKind, Param, ParamType, ParamValue,
-    Primitive, Problem, Request, limits,
+    Description, Fill, GENERATE_PART, Generation, Graphic, Opening, Pad, PadKind, Param, ParamType,
+    ParamValue, Primitive, Problem, Request, limits,
 };
 
 /// The parameter's key.
@@ -177,29 +177,17 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
         footprint.courtyard = courtyard;
     }
     // The outline broken round the new lands; the generator's other
-    // silkscreen kept where it clears every land.
+    // silkscreen kept where all of its ink (stroke and solid fill) clears
+    // every land's effective mask opening by the silkscreen clearance.
     let keep_outs: Vec<Box2> = pads
         .iter()
-        .map(|p| land::pad_box(p).inflated(DEFAULT_MASK_NM + land::SILK_PAD_CLEARANCE_NM))
+        .map(|p| land::opening_box(p, DEFAULT_MASK_NM).inflated(land::SILK_PAD_CLEARANCE_NM))
         .collect();
-    let clear = |p: &[i64; 2]| {
-        !keep_outs
-            .iter()
-            .any(|k| (k.min[0]..=k.max[0]).contains(&p[0]) && (k.min[1]..=k.max[1]).contains(&p[1]))
-    };
     let mut silk: Vec<_> = footprint
         .silk
         .iter()
         .filter(|g| !g.key.starts_with("outline-"))
-        .filter(|g| match &g.shape {
-            Primitive::Line { a, b } | Primitive::Rect { min: a, max: b } => clear(a) && clear(b),
-            Primitive::Polyline { points } | Primitive::Polygon { points } => {
-                points.iter().all(clear)
-            }
-            Primitive::Circle { center, .. } => clear(center),
-            Primitive::Arc { start, end, .. } => clear(start) && clear(end),
-            Primitive::Text { .. } => true,
-        })
+        .filter(|g| ink_clear(g, &keep_outs))
         .cloned()
         .collect();
     silk.extend(land::silk_outline(&pads, body, DEFAULT_MASK_NM));
@@ -210,6 +198,166 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
         footprint.pads.len()
     ));
     Ok(())
+}
+
+/// Whether all of `g`'s ink keeps out of every box: its stroke (half its
+/// width round its path) and, for a solid closed shape, its inside. A
+/// point or end test misses ink that reaches across a box. Distances are
+/// compared squared (no square roots in the module).
+fn ink_clear(g: &Graphic, boxes: &[Box2]) -> bool {
+    let half = g.stroke_nm.max(0) as f64 / 2.0;
+    let solid = g.fill != Fill::None;
+    let p = |q: &[i64; 2]| [q[0] as f64, q[1] as f64];
+    let path_clear = |points: &[[f64; 2]], closed: bool| {
+        let n = points.len();
+        let segments = if closed { n } else { n.saturating_sub(1) };
+        boxes.iter().all(|b| {
+            let edges_clear = (0..segments).all(|i| {
+                let (a, c) = (points[i], points[(i + 1) % n]);
+                segment_box_distance2(a, c, b) > half * half
+            });
+            let inside = closed
+                && solid
+                && (points.first().is_some_and(|q| box_contains(b, *q))
+                    || contains(points, box_centre(b)));
+            edges_clear && !inside
+        })
+    };
+    // A circle's ink (a disc, or a ring of the stroke) against each box:
+    // clear outside it, or for a ring wholly inside its hole.
+    let circle_clear = |c: [f64; 2], r: f64, solid: bool| {
+        boxes.iter().all(|b| {
+            let near = point_box_distance2(c, b);
+            let far = b
+                .corners()
+                .iter()
+                .map(|q| distance2(c, p(q)))
+                .fold(0.0, f64::max);
+            let outer = r + half;
+            let inner = r - half;
+            near > outer * outer || (!solid && inner > 0.0 && far < inner * inner)
+        })
+    };
+    match &g.shape {
+        Primitive::Line { a, b } => path_clear(&[p(a), p(b)], false),
+        Primitive::Rect { min, max } => path_clear(
+            &[
+                p(min),
+                [max[0] as f64, min[1] as f64],
+                p(max),
+                [min[0] as f64, max[1] as f64],
+            ],
+            true,
+        ),
+        Primitive::Polyline { points } => {
+            path_clear(&points.iter().map(p).collect::<Vec<_>>(), false)
+        }
+        Primitive::Polygon { points } => {
+            path_clear(&points.iter().map(p).collect::<Vec<_>>(), true)
+        }
+        Primitive::Circle { center, radius_nm } => {
+            circle_clear(p(center), *radius_nm as f64, solid)
+        }
+        // Judged as its whole circle's ring: never kept over a land, at
+        // worst dropped where only the rest of its circle would reach one.
+        Primitive::Arc { center, start, .. } => {
+            let c = p(center);
+            let r2 = distance2(c, p(start));
+            // The radius from its square, by Newton's method (no sqrt in
+            // core), to half a nanometre.
+            let mut r = r2.max(1.0);
+            for _ in 0..64 {
+                let next = 0.5 * (r + r2 / r);
+                if (r - next).abs() < 0.5 {
+                    r = next;
+                    break;
+                }
+                r = next;
+            }
+            circle_clear(c, r, false)
+        }
+        Primitive::Text { .. } => true,
+    }
+}
+
+fn distance2(a: [f64; 2], b: [f64; 2]) -> f64 {
+    let (dx, dy) = (a[0] - b[0], a[1] - b[1]);
+    dx * dx + dy * dy
+}
+
+fn box_contains(b: &Box2, q: [f64; 2]) -> bool {
+    (b.min[0] as f64..=b.max[0] as f64).contains(&q[0])
+        && (b.min[1] as f64..=b.max[1] as f64).contains(&q[1])
+}
+
+fn box_centre(b: &Box2) -> [f64; 2] {
+    [
+        (b.min[0] as f64 + b.max[0] as f64) / 2.0,
+        (b.min[1] as f64 + b.max[1] as f64) / 2.0,
+    ]
+}
+
+fn point_box_distance2(q: [f64; 2], b: &Box2) -> f64 {
+    let dx = (b.min[0] as f64 - q[0])
+        .max(q[0] - b.max[0] as f64)
+        .max(0.0);
+    let dy = (b.min[1] as f64 - q[1])
+        .max(q[1] - b.max[1] as f64)
+        .max(0.0);
+    dx * dx + dy * dy
+}
+
+fn point_segment_distance2(q: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
+    let d = [b[0] - a[0], b[1] - a[1]];
+    let len2 = d[0] * d[0] + d[1] * d[1];
+    let t = if len2 > 0.0 {
+        (((q[0] - a[0]) * d[0] + (q[1] - a[1]) * d[1]) / len2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    distance2(q, [a[0] + t * d[0], a[1] + t * d[1]])
+}
+
+/// Whether segments `a`–`b` and `c`–`d` cross or touch.
+fn segments_cross(a: [f64; 2], b: [f64; 2], c: [f64; 2], d: [f64; 2]) -> bool {
+    let side = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| {
+        (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+    };
+    let (d1, d2) = (side(c, d, a), side(c, d, b));
+    let (d3, d4) = (side(a, b, c), side(a, b, d));
+    (d1 * d2 <= 0.0) && (d3 * d4 <= 0.0)
+}
+
+/// The least squared distance from segment `a`–`c` to box `b` (0 when
+/// they meet).
+fn segment_box_distance2(a: [f64; 2], c: [f64; 2], b: &Box2) -> f64 {
+    if box_contains(b, a) || box_contains(b, c) {
+        return 0.0;
+    }
+    let corners = b.corners().map(|q| [q[0] as f64, q[1] as f64]);
+    if (0..4).any(|i| segments_cross(a, c, corners[i], corners[(i + 1) % 4])) {
+        return 0.0;
+    }
+    let ends = point_box_distance2(a, b).min(point_box_distance2(c, b));
+    corners
+        .iter()
+        .map(|q| point_segment_distance2(*q, a, c))
+        .fold(ends, f64::min)
+}
+
+/// Whether `q` lies inside the closed polygon `points` (even-odd).
+fn contains(points: &[[f64; 2]], q: [f64; 2]) -> bool {
+    let n = points.len();
+    let mut inside = false;
+    for i in 0..n {
+        let (a, b) = (points[i], points[(i + 1) % n]);
+        if (a[1] > q[1]) != (b[1] > q[1])
+            && q[0] < a[0] + (q[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0])
+        {
+            inside = !inside;
+        }
+    }
+    inside
 }
 
 #[cfg(test)]
@@ -415,6 +563,69 @@ mod tests {
         // Body, leads and model are the generator's.
         assert_eq!(made.package, own.package);
         assert_eq!(made.model, own.model);
+        Ok(())
+    }
+
+    /// The generator's silkscreen is kept only where all of its ink clears
+    /// the given lands' effective openings: a polarity dot whose centre is
+    /// clear but whose disc reaches the opening, and a line whose ends are
+    /// clear but which crosses a land, are left out. Land 1 (0.6 × 0.9 mm
+    /// at x = −0.75 mm) opens 0.05 mm wider (the default mask rule) and
+    /// keeps 0.1 mm of silkscreen clearance: no ink above y = 0.6 mm or
+    /// right of x = −0.3 mm may reach it.
+    #[test]
+    fn silkscreen_is_kept_only_where_all_its_ink_clears_the_lands() -> Result<(), Problem> {
+        let mut made = generate::<Two>(&request(Vec::new())).map_err(|mut p| p.remove(0))?;
+        let graphic = |key: &str, shape: Primitive, fill: Fill| Graphic {
+            key: key.into(),
+            shape,
+            stroke_nm: 150_000,
+            fill,
+        };
+        let dot = |key: &str, y: i64| {
+            graphic(
+                key,
+                Primitive::Circle {
+                    center: [-750_000, y],
+                    radius_nm: 200_000,
+                },
+                Fill::Solid,
+            )
+        };
+        made.footprint.silk = vec![
+            // Centre 0.15 mm above the keep-out; the disc and its stroke
+            // reach 0.125 mm into it.
+            dot("dot-over", 750_000),
+            // 1 mm up: its ink reaches down to 0.725 mm, clear.
+            dot("dot-clear", 1_000_000),
+            // Ends far left and right of every land, crossing both.
+            graphic(
+                "line-across",
+                Primitive::Line {
+                    a: [-1_500_000, 0],
+                    b: [1_500_000, 0],
+                },
+                Fill::None,
+            ),
+            graphic(
+                "line-clear",
+                Primitive::Line {
+                    a: [-1_500_000, 800_000],
+                    b: [1_500_000, 800_000],
+                },
+                Fill::None,
+            ),
+        ];
+        let lands: Vec<ParamValue> = made.footprint.pads.iter().map(json).collect();
+        apply(&lands, &mut made)?;
+        let kept: Vec<&str> = made
+            .footprint
+            .silk
+            .iter()
+            .map(|g| g.key.as_str())
+            .filter(|k| !k.starts_with("outline-"))
+            .collect();
+        assert_eq!(kept, vec!["dot-clear", "line-clear"]);
         Ok(())
     }
 
