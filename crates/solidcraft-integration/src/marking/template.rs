@@ -14,13 +14,19 @@
 //!   so a monochrome mark follows the etch or ink). Artwork that is not
 //!   installed draws nothing there, quietly: the rest of the template is
 //!   drawn.
+//! - `<use data-code="datamatrix" data-payload="…" x y width height/>`
+//!   becomes the generated 2D code of its payload (placeholders filled as
+//!   in text), its dark modules a square centred in the box, painted in
+//!   the marking's finish; an empty payload, or one the code cannot hold,
+//!   draws nothing.
 //!
 //! The pass copies the source between the events it keeps, so what it
 //! does not touch reaches the painter byte for byte.
 use crate::{Error, Result};
 use quick_xml::events::{BytesStart, Event};
 use sparksmith_core::library::marking::artwork::{
-    ART_ATTRIBUTE, CONDITION_ATTRIBUTE, condition_key, is_template,
+    ART_ATTRIBUTE, CODE_ATTRIBUTE, CONDITION_ATTRIBUTE, PAYLOAD_ATTRIBUTE, code_symbology,
+    condition_key, is_template,
 };
 use std::borrow::Cow;
 use std::collections::BTreeMap;
@@ -76,6 +82,12 @@ fn escape(text: &str) -> String {
 
 /// `raw` text content with its placeholders replaced by their values.
 fn substitute(raw: &str, bound: &BTreeMap<String, String>) -> String {
+    fill(raw, bound, escape)
+}
+
+/// `raw` with its placeholders replaced by their values, each passed
+/// through `put`.
+fn fill(raw: &str, bound: &BTreeMap<String, String>, put: fn(&str) -> String) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut rest = raw;
     while let Some(at) = rest.find(['{', '}']) {
@@ -95,7 +107,7 @@ fn substitute(raw: &str, bound: &BTreeMap<String, String>) -> String {
             Some(end) => {
                 let body = tail[1..end].trim();
                 if let Some(value) = bound.get(body) {
-                    out.push_str(&escape(value));
+                    out.push_str(&put(value));
                 }
                 rest = &tail[end + 1..];
             }
@@ -173,6 +185,53 @@ fn fitted_art(e: &BytesStart, art: ArtSource<'_>) -> Option<String> {
     ))
 }
 
+/// Codes one template may draw.
+const MAX_CODES: usize = 4;
+
+/// The generated 2D code a `use data-code` names, as a path of its dark
+/// modules (one rectangle per run of a row) centred in its box, or
+/// nothing.
+fn code_modules(e: &BytesStart, bound: &BTreeMap<String, String>) -> Option<String> {
+    use sparksmith_core::library::marking::matrix::{Ecc, encode};
+    let symbology = code_symbology(&attr(e, CODE_ATTRIBUTE)?)?;
+    let payload = fill(&attr(e, PAYLOAD_ATTRIBUTE)?, bound, str::to_owned);
+    let payload = payload.trim();
+    if payload.is_empty() {
+        return None;
+    }
+    let symbol = encode(symbology, payload, Ecc::Medium).ok()?;
+    let (x, y) = (number(e, "x").unwrap_or(0.0), number(e, "y").unwrap_or(0.0));
+    let (w, h) = (number(e, "width")?, number(e, "height")?);
+    if w <= 0.0 || h <= 0.0 || symbol.size == 0 {
+        return None;
+    }
+    let side = w.min(h);
+    let module = side / f64::from(symbol.size);
+    let (x0, y0) = (x + (w - side) / 2.0, y + (h - side) / 2.0);
+    let mut d = String::new();
+    for (row, bits) in symbol.rows.iter().enumerate() {
+        let bits = bits.as_bytes();
+        let mut col = 0usize;
+        while col < bits.len() {
+            if bits[col] != b'1' {
+                col += 1;
+                continue;
+            }
+            let start = col;
+            while col < bits.len() && bits[col] == b'1' {
+                col += 1;
+            }
+            let (left, top) = (x0 + start as f64 * module, y0 + row as f64 * module);
+            let run = (col - start) as f64 * module;
+            d.push_str(&format!(
+                "M{left:.4} {top:.4}h{run:.4}v{module:.4}h{:.4}z",
+                -run
+            ));
+        }
+    }
+    (!d.is_empty()).then(|| format!("<path fill=\"currentColor\" d=\"{d}\"/>"))
+}
+
 /// `svg` with `bound`'s values put in and installed artwork fitted, or
 /// `svg` itself when it is no template (nothing bound, no further art).
 pub fn apply<'s>(
@@ -180,7 +239,11 @@ pub fn apply<'s>(
     bound: &BTreeMap<String, String>,
     art: ArtSource<'_>,
 ) -> Result<Cow<'s, str>> {
-    if bound.is_empty() && !is_template(svg) && !svg.contains(ART_ATTRIBUTE) {
+    if bound.is_empty()
+        && !is_template(svg)
+        && !svg.contains(ART_ATTRIBUTE)
+        && !svg.contains(CODE_ATTRIBUTE)
+    {
         return Ok(Cow::Borrowed(svg));
     }
     let mut out = String::with_capacity(svg.len());
@@ -192,6 +255,7 @@ pub fn apply<'s>(
     let mut skip = 0usize;
     let mut open: Vec<Vec<u8>> = Vec::new();
     let mut fitted = 0usize;
+    let mut codes = 0usize;
     loop {
         let start = position(&reader)?;
         let event = reader
@@ -227,6 +291,15 @@ pub fn apply<'s>(
                     {
                         fitted += 1;
                         out.push_str(&group);
+                    }
+                    continue;
+                }
+                if e.local_name().as_ref() == b"use" && attr(&e, CODE_ATTRIBUTE).is_some() {
+                    if codes < MAX_CODES
+                        && let Some(path) = code_modules(&e, bound)
+                    {
+                        codes += 1;
+                        out.push_str(&path);
                     }
                     continue;
                 }
@@ -302,6 +375,42 @@ mod tests {
         assert!(!out.contains("{mpn}"));
         // Unbound conditions do not hold: neither group is drawn.
         assert!(!out.contains("<rect") && !out.contains("<text>"), "{out}");
+        Ok(())
+    }
+
+    /// A `use data-code` becomes its code's dark modules in the box, from
+    /// the bound payload; an unbound or empty payload draws nothing.
+    #[test]
+    fn a_code_element_draws_the_bound_payloads_modules() -> Result<()> {
+        use sparksmith_core::library::marking::matrix::{Ecc, Symbology, encode};
+        let label = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><use data-code="datamatrix" data-payload="{var:serial}" x="2" y="4" width="16" height="12"/></svg>"#;
+        let none = |_: &str| None;
+        let mut bound = BTreeMap::new();
+        bound.insert("var:serial".to_string(), "SN&1".to_string());
+        let out = apply(label, &bound, &none)?;
+        let symbol =
+            encode(Symbology::DataMatrix, "SN&1", Ecc::Medium).map_err(crate::Error::Invalid)?;
+        // A 12 mm square centred in the 16 × 12 box: from x 4, y 4.
+        let module = 12.0 / f64::from(symbol.size);
+        assert!(
+            out.contains("<path fill=\"currentColor\" d=\"M4.0000 4.0000h"),
+            "{out}"
+        );
+        // One rectangle per run of dark modules.
+        let runs: usize = symbol
+            .rows
+            .iter()
+            .map(|r| r.split('0').filter(|s| !s.is_empty()).count())
+            .sum();
+        assert_eq!(out.matches('z').count(), runs);
+        assert!(out.contains(&format!("v{module:.4}")));
+        assert!(!out.contains("data-code"));
+        // No payload bound: nothing drawn.
+        let empty = apply(label, &BTreeMap::new(), &none)?;
+        assert!(
+            !empty.contains("<path") && !empty.contains("data-code"),
+            "{empty}"
+        );
         Ok(())
     }
 

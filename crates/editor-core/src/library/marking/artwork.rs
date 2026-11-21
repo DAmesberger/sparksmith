@@ -22,6 +22,13 @@
 //! height/>`): the drawing side fits the installed library's artwork `ID`
 //! into the box, or draws nothing there when that artwork is not
 //! installed. The core keeps no artwork of its own.
+//!
+//! A generated 2D code is drawn from its payload (`<use
+//! data-code="datamatrix" data-payload="{var:serial}" x y width
+//! height/>`): the payload's placeholders bind like the text's, and the
+//! drawing side encodes the bound payload ([`super::matrix::encode`]) and
+//! draws its dark modules as a square centred in the box. An empty
+//! payload, or one the symbology cannot hold, draws nothing.
 use super::MarkingInputs;
 use super::template;
 use std::collections::BTreeMap;
@@ -34,6 +41,20 @@ const MAX_EXPRESSION: usize = 256;
 pub const CONDITION_ATTRIBUTE: &str = "data-if";
 /// The attribute that names further artwork by id on a `use` element.
 pub const ART_ATTRIBUTE: &str = "data-art";
+/// The attribute that makes a `use` element a generated 2D code, naming
+/// its symbology (`datamatrix` or `qr`).
+pub const CODE_ATTRIBUTE: &str = "data-code";
+/// The attribute holding a generated code's payload, a text template.
+pub const PAYLOAD_ATTRIBUTE: &str = "data-payload";
+
+/// The symbology a `data-code` attribute names.
+pub fn code_symbology(name: &str) -> Option<super::matrix::Symbology> {
+    match name.trim() {
+        "datamatrix" => Some(super::matrix::Symbology::DataMatrix),
+        "qr" => Some(super::matrix::Symbology::Qr),
+        _ => None,
+    }
+}
 
 /// The key a condition's value is bound under: `?` and the condition as
 /// written, trimmed. A placeholder's key is its body, trimmed.

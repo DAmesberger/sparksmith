@@ -265,7 +265,11 @@
     "ESP32-S3-WROOM-1-N16R16VA7=N16R16VA7"
    ],
    "label_fcc_id": "2AC7Z-ESPS3WROOM1",
-   "label_ce": "ce-mark"
+   "label_ce": "ce-mark",
+   "label_ic_id": "21098-ESPS3WROOM1",
+   "label_company": "espressif-company-zh",
+   "label_status": "XX",
+   "label_matrix": "datamatrix"
   },
   "citation": {
    "document": "Espressif ESP32-S3-WROOM-1 & ESP32-S3-WROOM-1U Datasheet, Figure 10-1 module dimensions and Figure 11-1 recommended PCB land pattern",
@@ -273,7 +277,7 @@
    "page": 42
   },
   "basis": "cited",
-  "note": "Outline, height, board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 7.49 mm below the antenna edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.8 × 17.6 mm, read 1.05 mm above the bottom edge) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-1, p. 45) from the datasheet. The antenna meander's trace, inset and turns are estimated from the top view; the emboss groove is estimated. Soldermask black, satin to matte, as product photographs of the module show (for example the DFRobot DFR0896 module, https://core-electronics.com.au/esp32-s3-wroom-1-n4-module-pcb-antenna.html, read 20 November 2026) and the datasheet's cover drawing (v1.8, p. 1); the antenna meander is black on black. Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, as on the datasheet's cover drawing (v1.8, p. 1), then the orderable variant of the placed part's number ({code}: the ordering codes of datasheet v1.8 Table 1-1, p. 3; ESP32-S3-WROOM-1-N16R8 prints N16R8). FCC ID 2AC7Z-ESPS3WROOM1 from the FCC grant for model ESPS3WROOM1 (2.4 GHz Wi-Fi & BT IoT module, granted 21 January 2022; fccid.io listing read 20 November 2026) and the CE mark (installed artwork `ce-mark`); their place on the can is estimated, as the cover drawing shows neither. The WROOM-1U prints no FCC line or CE mark until its own grant is checked."
+  "note": "Outline, height, board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 7.49 mm below the antenna edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.8 × 17.6 mm, read 1.05 mm above the bottom edge) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-1, p. 45) from the datasheet. The antenna meander's trace, inset and turns are estimated from the top view; the emboss groove is estimated. Soldermask black, satin to matte, as product photographs of the module show (for example the DFRobot DFR0896 module, https://core-electronics.com.au/esp32-s3-wroom-1-n4-module-pcb-antenna.html, read 20 November 2026) and the datasheet's cover drawing (v1.8, p. 1); the antenna meander is black on black. Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, as on the datasheet's cover drawing (v1.8, p. 1), then the orderable variant of the placed part's number ({code}: the ordering codes of datasheet v1.8 Table 1-1, p. 3; ESP32-S3-WROOM-1-N16R8 prints N16R8). FCC ID 2AC7Z-ESPS3WROOM1 from the FCC grant for model ESPS3WROOM1 (2.4 GHz Wi-Fi & BT IoT module, granted 21 January 2022; fccid.io listing read 20 November 2026) and the CE mark (installed artwork `ce-mark`); their place on the can is estimated, as the cover drawing shows neither. IC 21098-ESPS3WROOM1, the maker's name in Chinese (`espressif-company-zh`), the specification identifier (XX and {code}) and the Data Matrix as Espressif's laser-marking artwork for this module draws them (FCC 'Label' exhibit of 2AC7Z-ESPS3WROOM1, https://fccid.io/pdf.php?id=5637982, read 20 November 2026), laid out as the -1U's artwork (Espressif's WROOM-1 artwork centres the logo and name and prints no CE mark)."
  },
  {
   "key": "module-esp32-s3-wroom-1u",
@@ -350,6 +354,15 @@
    "mask_colour": "black",
    "label_name": "ESP32-S3-WROOM-1U",
    "label_logo": "espressif-logo",
+   "label_fcc_id": "2AC7Z-ESPS3WROOM1U",
+   "label_ce": "ce-mark",
+   "label_mic": "giteki-mark",
+   "label_mic_id": "201-220894",
+   "label_ic_id": "21098-ESPS3WROOMU",
+   "label_cmiit_id": "2022DP8926(M)",
+   "label_company": "espressif-company-zh",
+   "label_status": "XX",
+   "label_matrix": "datamatrix",
    "marking_codes": [
     "ESP32-S3-WROOM-1U-N4=N4",
     "ESP32-S3-WROOM-1U-N8=N8",
@@ -370,6 +383,6 @@
    "page": 42
   },
   "basis": "cited",
-  "note": "Outline (18 × 19.2 mm), height (3.2 mm), board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 1.19 mm below the top edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.65 × 17.5 mm, 1.1 mm above the bottom edge, its notch 4.9 × 4.4 mm from the 10.75 mm and 13.1 mm sections), the U.FL receptacle's centre (3 mm from the right edge, 2.46 mm from the top) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-2, p. 46) from the datasheet; the pads are the WROOM-1's at the same distance from the bottom edge. The can is centred across, as read from the top view (within 0.1 mm); the receptacle's body (2.6 mm square base, Ø2 mm shell, 1.25 mm tall) is a U.FL / MHF I receptacle's typical size, estimated. Soldermask black, as the datasheet's cover drawing (v1.8, p. 1) and Espressif's product image show, the same board as the ESP32-S3-WROOM-1 (no photograph of the -1U itself found, 20 November 2026). Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, as on the datasheet's cover drawing (v1.8, p. 1), then the orderable variant of the placed part's number ({code}: the ordering codes of datasheet v1.8 Table 1-1, p. 3; ESP32-S3-WROOM-1U-N16R8 prints N16R8)."
+  "note": "Outline (18 × 19.2 mm), height (3.2 mm), board thickness, pad rows (0.85 × 0.9 mm at 1.27 mm, pin 1 1.19 mm below the top edge, the bottom row from 2.015 mm), castellations (Ø0.55), the 3 × 3 ground array (0.9 mm pads in a 3.7 mm square, centred 7.5 mm from the left edge and 10.29 mm from the bottom), the can (15.65 × 17.5 mm, 1.1 mm above the bottom edge, its notch 4.9 × 4.4 mm from the 10.75 mm and 13.1 mm sections), the U.FL receptacle's centre (3 mm from the right edge, 2.46 mm from the top) and the lands (1.5 × 0.9 mm, 0.5 mm beyond the edge; Figure 11-2, p. 46) from the datasheet; the pads are the WROOM-1's at the same distance from the bottom edge. The can is centred across, as read from the top view (within 0.1 mm); the receptacle's body (2.6 mm square base, Ø2 mm shell, 1.25 mm tall) is a U.FL / MHF I receptacle's typical size, estimated. Soldermask black, as the datasheet's cover drawing (v1.8, p. 1) and Espressif's product image show, the same board as the ESP32-S3-WROOM-1 (no photograph of the -1U itself found, 20 November 2026). Shield label as Espressif's laser-marking artwork for this module draws it, at the can's size: the FCC 'Label' exhibit of FCC ID 2AC7Z-ESPS3WROOM1U ('ESP32-S3-WROOM-1U laser marking 20220401', https://fccid.io/pdf.php?id=5799920, grant of 31 March 2022 to Espressif Systems (Shanghai) for model ESPS3WROOM1U, read 20 November 2026), with the MIC row Espressif's PCN20230802 adds (Appendix I, after change: the Japanese conformity mark, R 201-220894; first shipped 15 October 2023) and the CMIIT ID 2022DP8926(M) the PCN's label images print (blank in the 2022 artwork). Lines and places from the artwork: Espressif's logo (installed artwork `espressif-logo`), the module name, the CE mark (`ce-mark`) and MIC row, FCC ID:2AC7Z-ESPS3WROOM1U, IC: 21098-ESPS3WROOMU, CMIIT ID, the maker's name in Chinese (`espressif-company-zh`, the artwork's own glyphs), the specification identifier bottom left and the Data Matrix bottom right. The identifier is XX (Espressif's ESP32-S3 module packaging information, Module Silk Marking: XX or MN, mass production) and the variant of the placed part's number ({code}: the ordering codes of datasheet v1.8 Table 1-1, p. 3; ESP32-S3-WROOM-1U-N16R8 prints XXN16R8). The Data Matrix encodes 18 characters (two reserved, the date code YYWW, the module's MAC; same source): the placed part's datamatrix variable when set, else the sample XXYYWWMACMACMACMAC. The artwork's fonts (Helvetica Neue Medium and regular) are drawn in the built-in Liberation Sans at the artwork's line widths, the medium lines heavier."
  }
 ]

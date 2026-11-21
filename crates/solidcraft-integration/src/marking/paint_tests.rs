@@ -260,8 +260,11 @@ fn text_is_drawn_in_the_built_in_font_with_its_counters_open() -> TestResult {
         [0.0, 0.0],
         [20.0, 10.0],
     )?;
-    assert_eq!(out.len(), 1);
-    assert_eq!(out[0].colour, Some([0x33; 3]));
+    // The O and the K are apart along the line, so each fills on its own,
+    // in order along x, both in the text's colour.
+    assert_eq!(out.len(), 2);
+    assert!(out.iter().all(|g| g.colour == Some([0x33; 3])));
+    assert!(box_of(&out[0..1])[2] < box_of(&out[1..2])[0]);
     let b = box_of(&out);
     // Fitted: at most the decal, touching it in one direction.
     assert!(b[2] - b[0] <= 20.0 + 1e-9 && b[3] - b[1] <= 10.0 + 1e-9);
@@ -274,6 +277,51 @@ fn text_is_drawn_in_the_built_in_font_with_its_counters_open() -> TestResult {
     // bounds matter once fitted, so check it still draws).
     let mid = one(r#"<text x="5" y="5" text-anchor="middle">AB</text>"#)?;
     assert!(!mid.is_empty());
+    Ok(())
+}
+
+/// A heavier `font-weight` strokes the glyph outlines (the built-in font
+/// has one face): bold covers more than medium, medium more than normal,
+/// and a lighter weight draws as normal. Two corner dots hold the fit, so
+/// every weight is drawn at the same scale.
+#[test]
+fn heavier_weights_widen_the_glyphs() -> TestResult {
+    let area_at = |weight: &str| -> std::result::Result<f64, Box<dyn std::error::Error>> {
+        let body = format!(
+            r##"<rect x="0" y="0" width="0.1" height="0.1" fill="#f00"/><rect x="99.9" y="29.9" width="0.1" height="0.1" fill="#f00"/><g font-weight="{weight}"><text x="2" y="20" font-size="20">HEIL</text></g>"##
+        );
+        let out = artwork(&svg(&body), [0.0, 0.0], [100.0, 30.0])?;
+        let mut total = 0.0;
+        for group in out.iter().filter(|g| g.colour == Some([0, 0, 0])) {
+            total += area(group)?;
+        }
+        Ok(total)
+    };
+    let (normal, medium, bold) = (area_at("normal")?, area_at("500")?, area_at("bold")?);
+    assert!(normal > 0.0);
+    assert!(medium > normal * 1.05, "{medium} vs {normal}");
+    assert!(bold > medium * 1.1, "{bold} vs {medium}");
+    assert!(near(area_at("lighter")?, normal, 1e-6));
+    assert!(near(area_at("400")?, normal, 1e-6));
+    Ok(())
+}
+
+/// A long line of text fills glyph run by glyph run: a module label's FCC
+/// line took about 41 000 triangles filled whole, a decal's budget is
+/// 65 536 for the whole label.
+#[test]
+fn a_long_line_fills_in_few_triangles() -> TestResult {
+    let out = artwork(
+        &svg(r#"<text x="0" y="10" font-size="10">FCC ID:2AC7Z-ESPS3WROOM1U</text>"#),
+        [0.0, 0.0],
+        [10.0, 0.6],
+    )?;
+    let mut triangles = 0;
+    for group in &out {
+        triangles += filled(group)?.triangles.len();
+    }
+    assert!(out.len() >= 20, "{} runs", out.len());
+    assert!(triangles < 4000, "{triangles} triangles");
     Ok(())
 }
 
