@@ -31,7 +31,7 @@ use crate::geometry::{Point, Shape, Transform2, rounded_path, signed_area2};
 use crate::ids::Id;
 use crate::layout::{self, PlacedPad};
 use crate::layout::{BoardDrawing, PlacedItem};
-use crate::library::{CHECK_CHORD_MM, MaskRule, Outline, PadKind, PadShape, PasteRule, Segment};
+use crate::library::{CHECK_CHORD_MM, Outline, PadKind, PadShape, PasteRule, Segment};
 use crate::model::board::{CutoutKind, arc_geometry};
 use crate::model::{CopperLayer, Layer, Project};
 use std::collections::BTreeMap;
@@ -356,10 +356,8 @@ fn mask(board: &Board<'_>, side: Layer, attributes: &[(&str, String)]) -> Result
         if !on {
             continue;
         }
-        let by = match pad.pad.mask {
-            MaskRule::Inherit => e,
-            MaskRule::Tented => continue,
-            MaskRule::Expansion(x) => x.to_mm_f64(),
+        let Some(by) = pad.mask_expansion(e) else {
+            continue;
         };
         let Some(shape) = pad.pad.shape.grown(by, CHECK_CHORD_MM) else {
             continue;

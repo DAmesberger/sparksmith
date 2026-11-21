@@ -446,7 +446,9 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
         positive("package size", v)?;
     }
     coordinate(geometry.seating_nm)?;
-    if !package_terminals.contains(geometry.pin1.as_str()) {
+    // A package without terminals (a fiducial) has no pin 1 and names none.
+    let no_pin1 = package_terminals.is_empty() && geometry.pin1.is_empty();
+    if !no_pin1 && !package_terminals.contains(geometry.pin1.as_str()) {
         return Err(invalid(format!(
             "The generator names pin 1 \"{}\", which the package does not have.",
             geometry.pin1

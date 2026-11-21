@@ -2010,6 +2010,8 @@ mod dimension_tests;
 #[cfg(test)]
 mod fabrication_tests;
 #[cfg(test)]
+mod fiducial_tests;
+#[cfg(test)]
 mod firmware_tests;
 #[cfg(test)]
 mod folder_tests;

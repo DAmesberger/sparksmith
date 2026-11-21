@@ -104,6 +104,7 @@ fn the_wroom3_has_99_terminals_and_nine_pads_numbered_95() -> Result<(), Vec<Pro
                 [11_000_000, 15_000_000],
                 [-11_000_000, 15_000_000]
             ],
+            side: None,
         }]
     );
     let (asset, v) = values(&g);

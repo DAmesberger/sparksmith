@@ -1462,6 +1462,7 @@ fn keepouts(d: &Dims) -> Vec<Keepout> {
     vec![Keepout {
         name: "antenna".into(),
         outline: vec![min, [max[0], min[1]], max, [min[0], max[1]]],
+        side: None,
     }]
 }
 

@@ -883,7 +883,8 @@ fn polarity(
     })
 }
 
-/// A generated copper keep-out: its polygon on every copper layer.
+/// A generated copper keep-out: its polygon on every copper layer, or on
+/// the outer layer its side names.
 fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
     let mm = |p: &v1::Point| point(*p).map(PointNm::to_mm_f64);
     let Some(first) = k.outline.first() else {
@@ -903,7 +904,11 @@ fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
     Ok(FootprintKeepout {
         name: k.name.clone(),
         outline: Outline { start, segments },
-        scope: KeepoutScope::AllCopper,
+        scope: match k.side {
+            None => KeepoutScope::AllCopper,
+            Some(v1::Side::Top) => KeepoutScope::ComponentSide,
+            Some(v1::Side::Bottom) => KeepoutScope::OppositeSide,
+        },
         forbid_pads: false,
     })
 }

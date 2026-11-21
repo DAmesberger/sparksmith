@@ -394,8 +394,9 @@ fn opening_a_file_refills_its_fills_before_answering() -> Fallible<()> {
         .filter_map(|i| i["code"].as_str())
         .collect();
     // The example is clean once filled: an unfilled or stale fill would
-    // show here as `fabrication.fill_unfilled` or `fill.stale`.
-    assert!(codes.is_empty(), "{codes:?}");
+    // show here as `fabrication.fill_unfilled` or `fill.stale`. It has no
+    // fiducials yet, the one warning its PCBWay profile gives.
+    assert_eq!(codes, ["board.fiducials_too_few"], "{codes:?}");
     Ok(())
 }
 

@@ -19,6 +19,7 @@ members = [
     "generators/buzzer",
     "generators/chip",
     "generators/electrolytic",
+    "generators/fiducial",
     "generators/grid",
     "generators/gull-wing",
     "generators/header",
