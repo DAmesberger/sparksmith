@@ -231,7 +231,7 @@ fn refusals_name_the_field_in_plain_words() {
 fn part_file(g: &Generation) -> Result<(&str, &v1::Params), String> {
     match &g.model {
         Some(v1::Model::PartFile { asset, values }) => Ok((asset, values)),
-        None => Err("no model".into()),
+        _ => Err("no part file".into()),
     }
 }
 
