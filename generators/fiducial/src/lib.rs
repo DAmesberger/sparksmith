@@ -1,6 +1,6 @@
 //! The fiducial generator: the optical alignment marks a pick-and-place
-//! machine and a stencil printer find the board by, as a symbol, package,
-//! footprint and 3D model.
+//! machine and a stencil printer find the board by, as a symbol, package
+//! and footprint, complete without a body.
 //!
 //! A fiducial is a round land of bare copper (a pad of kind fiducial, which
 //! lands no terminal and takes no paste) in a solder mask opening, inside a
@@ -10,7 +10,8 @@
 //! (no fill, track or via in it). The parameters are the assembler's
 //! guideline values, taken as given: `copper_diameter`, `mask_diameter` (the
 //! opening) and `clear_diameter`; `sides` puts a second dot on the far side
-//! of the board. The 3D model is the copper dot alone.
+//! of the board. The part has no body (`Model::NoBody`): the board plan
+//! draws the land, so the 3D view and the exports add nothing for it.
 #![cfg_attr(target_arch = "wasm32", no_std)]
 
 extern crate alloc;
@@ -35,10 +36,10 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`).
 const VERSION: u32 = 1;
 
-/// The copper dot's thickness in the 3D model: 1 oz outer copper, 35 µm
-/// (IPC-4562's nominal 34.8 µm, rounded as fabricators quote it; the fab
-/// profiles' copper weight). The board draws the land's copper itself;
-/// this is the part's own model of it.
+/// The package envelope's height: 1 oz outer copper, 35 µm (IPC-4562's
+/// nominal 34.8 µm, rounded as fabricators quote it; the fab profiles'
+/// copper weight), the land's own thickness. The part has no body: the
+/// board draws the land.
 const DOT_THICKNESS_NM: i64 = 35_000;
 
 /// Corners of the polygon that stands for the round clear area (courtyard
@@ -237,20 +238,6 @@ fn symbol() -> Symbol {
     }
 }
 
-mod parts {
-    include!(concat!(env!("OUT_DIR"), "/parts.rs"));
-}
-
-fn model(d: &Dims) -> v1::Model {
-    let mut values = v1::Params::new();
-    values.insert("diameter".into(), ParamValue::Int(d.copper));
-    values.insert("thickness".into(), ParamValue::Int(DOT_THICKNESS_NM));
-    v1::Model::PartFile {
-        asset: parts::FIDUCIAL_DOT.into(),
-        values,
-    }
-}
-
 fn dot(key: &str, side: Side, d: &Dims) -> Pad {
     Pad {
         key: key.into(),
@@ -331,10 +318,12 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         package,
         footprint,
         binding: Vec::new(),
-        model: Some(model(&d)),
+        // Complete without a body: the land is the whole part, and the
+        // board plan draws it.
+        model: Some(v1::Model::NoBody),
         fields: Vec::new(),
         notes: vec![
-            "The copper, mask opening and clear area are the assembler's guideline values as given; the 3D model is the copper dot, 35 µm (1 oz) thick.".into(),
+            "The copper, mask opening and clear area are the assembler's guideline values as given; the part has no body of its own: the board draws the land.".into(),
         ],
     })
 }

@@ -1,5 +1,5 @@
 //! The part files of the electromechanical generator families
-//! (`generators/{tactile,reed,buzzer,electrolytic,power-inductor,standoff,fiducial}`):
+//! (`generators/{tactile,reed,buzzer,electrolytic,power-inductor,standoff}`):
 //! original parametric recreations drawn by Solidcraft commands over plain
 //! parameters, each saved at the size of the manufacturer drawing it was
 //! measured from (cited in the file's sidecar). Original work (MIT OR
@@ -1869,36 +1869,5 @@ pub fn author_standoff(spigot: bool) -> Vec<u8> {
         ["0 mm", "0 mm", "length"],
         ["0.5 * outer_diameter", "0.5 * outer_diameter"],
     );
-    finish(&mut s)
-}
-
-/// The `fiducial` generator's copper dot: a bare copper disc of the
-/// fiducial's diameter and the board's outer copper thickness, on the
-/// seating plane. Nothing else: a fiducial is a land with no part on it.
-/// Saved at a 1.0 mm dot of 1 oz (35 µm) copper.
-pub fn author_fiducial() -> Vec<u8> {
-    let mut s = new_design("Fiducial copper dot");
-    params(
-        &mut s,
-        &[
-            ("diameter", "1 mm", "mm", "copper dot diameter"),
-            (
-                "thickness",
-                "0.035 mm",
-                "mm",
-                "outer copper thickness (1 oz, 35 µm)",
-            ),
-        ],
-    );
-    cyl(
-        &mut s,
-        "dot",
-        Op::New("dot"),
-        ["0 mm", "0 mm", "0 mm"],
-        [0, 0, 1],
-        "diameter",
-        "thickness",
-    );
-    assign_look(&mut s, &["dot"], MaterialId::CopperAlloy);
     finish(&mut s)
 }

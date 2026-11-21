@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "power-inductor.wasm",
-    "sha256": "2e5ad7245f54aca807f44b491534201bddda3af1b41111eb3756ff23159550f5"
+    "sha256": "80a1d153f73f15a069dc3c475d9f4f1dabb6affb533976460e9f2a2cb7f875b0"
   },
   "name": "power-inductor",
   "parts": [

@@ -257,6 +257,12 @@ fn a_fiducial_on_both_sides_keeps_both_outer_layers_clear() -> TestResult {
     )?;
     let f = fiducial(&mut session, &fid, [10.0, 10.0], "Bottom")?;
     let project = session.engine().project();
+    // No body of its own and no part file packed: the board draws the land.
+    assert!(project.library.packages.iter().all(|p| matches!(
+        p.definition.model,
+        sparksmith_core::library::PackageModel::NoBody
+    )));
+    assert!(project.library.models.is_empty());
     let kept: Vec<KeepoutLayers> = sparksmith_core::layout::placed_keepouts(project)
         .into_iter()
         .filter(|k| k.instance == f)

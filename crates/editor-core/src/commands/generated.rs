@@ -515,8 +515,23 @@ pub(crate) fn generate(
         _ => None,
     };
     let result = ContentHash(made.result_hash);
-    let supplied = supplied_model(&request, &made.generation)?;
-    let (held, new_model) = model_of(document, supplied)?;
+    // A part the generator marks complete without a body (a fiducial: the
+    // board's land is all of it) takes no Model; any other takes the part
+    // file the host evaluated.
+    let supplied = if expand::no_body(&made.generation) {
+        if request.model.is_some() {
+            return Err(Error::Invalid(
+                "generated.model: the host evaluated a 3D model for a part its generator makes without a body. Nothing was changed.".into(),
+            ));
+        }
+        None
+    } else {
+        Some(supplied_model(&request, &made.generation)?)
+    };
+    let (held, new_model) = match supplied {
+        Some(supplied) => model_of(document, supplied)?,
+        None => (None, None),
+    };
     // The bundle: the one the host named, or the one recorded with the
     // same module before.
     let bundle = request.bundle.or_else(|| {
@@ -529,15 +544,22 @@ pub(crate) fn generate(
             .and_then(|p| p.from.bundle)
     });
     let project = Arc::make_mut(&mut document.project);
-    let model_ref = match (held, &new_model) {
-        (Some(held), _) => held,
-        (None, _) => ModelRef::new(DefinitionId(project.allocate()?), Revision::FIRST),
+    let mut model_ref = None;
+    let package_model = match supplied {
+        Some(supplied) => {
+            let model = match held {
+                Some(held) => held,
+                None => ModelRef::new(DefinitionId(project.allocate()?), Revision::FIRST),
+            };
+            model_ref = Some(model);
+            PackageModel::PartFile(Box::new(PartFileModel {
+                model,
+                values: supplied.values.clone(),
+                derived: supplied.derived.clone(),
+            }))
+        }
+        None => PackageModel::NoBody,
     };
-    let package_model = PackageModel::PartFile(Box::new(PartFileModel {
-        model: model_ref,
-        values: supplied.values.clone(),
-        derived: supplied.derived.clone(),
-    }));
     let lineages: Vec<(DefinitionId, Option<Revision>)> = match &replaced {
         Some((lineages, _, _, _)) => lineages.clone(),
         None => {
@@ -717,7 +739,7 @@ pub(crate) fn generate(
             _ => "",
         }
     };
-    if let Some((meta, definition, fresh)) = new_model {
+    if let (Some((meta, definition, fresh)), Some(model_ref)) = (new_model, model_ref) {
         let project = Arc::make_mut(&mut document.project);
         if project.library.assets.len() + fresh.len() > MAX_ASSETS {
             return Err(Error::Limit(format!(

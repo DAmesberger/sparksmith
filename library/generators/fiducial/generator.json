@@ -2,16 +2,8 @@
   "format": 1,
   "module": {
     "file": "fiducial.wasm",
-    "sha256": "e57bff9c056e97c9b99f24ebc4d077a318b6d118f6bbdaa5af80ec59ca3b9954"
+    "sha256": "7467c0c2045a7fcd0223f4390f8ade75628d29f9814d50128b7b9be52a502c29"
   },
   "name": "fiducial",
-  "parts": [
-    {
-      "file": "parts/fiducial-dot.solidcraft",
-      "licence": "MIT OR Apache-2.0",
-      "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`, `author_fiducial`): a disc of the fiducial's copper diameter and 1 oz outer copper (35 µm, IPC-4562's nominal 34.8 µm rounded). No CAD or EDA library data was copied.",
-      "sha256": "5aaca0cdaca2b7aa13cf981ad9f476fc0ae2ee5f7703e656e3913bc8904dc706",
-      "title": "Fiducial copper dot"
-    }
-  ]
+  "parts": []
 }

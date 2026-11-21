@@ -368,8 +368,9 @@ const MAX_PASTE_WINDOWS: usize = 64;
 /// Longest part-file parameter name (as the document bounds it).
 const PART_PARAMETER: usize = 64;
 
-/// The 3D model: required, a part file named by its SHA-256 (64 lower-case
-/// hex digits), with at most [`limits::MODEL_VALUES`] whole-number values
+/// The 3D model: required, either none of its own (`Model::NoBody`, a
+/// part complete as its lands) or a part file named by its SHA-256 (64
+/// lower-case hex digits), with at most [`limits::MODEL_VALUES`] whole-number values
 /// within the 1 m bound under part-file parameter names. Whether the file
 /// is in the generator's bundle, and how it evaluates, the host checks
 /// when it makes the part.
@@ -380,10 +381,15 @@ fn model(g: &Generation) -> Result<(), Failure> {
             format!("{message} Nothing was changed."),
         )
     };
-    let Some(Model::PartFile { asset, values }) = &g.model else {
-        return Err(refuse(
-            "The generator made no 3D model; a part needs one.".into(),
-        ));
+    let (asset, values) = match &g.model {
+        Some(Model::PartFile { asset, values }) => (asset, values),
+        // Complete without a body: nothing to name or evaluate.
+        Some(Model::NoBody) => return Ok(()),
+        None => {
+            return Err(refuse(
+                "The generator made no 3D model; a part needs one.".into(),
+            ));
+        }
     };
     let hex = asset.len() == 64
         && asset

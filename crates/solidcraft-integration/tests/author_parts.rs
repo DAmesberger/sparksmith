@@ -5826,7 +5826,7 @@ fn author_parts() {
     let _context = context.enter();
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     type Author = fn() -> Vec<u8>;
-    let parts: [(&str, &str, Author); 78] = [
+    let parts: [(&str, &str, Author); 77] = [
         // The chip generator's bundle (`generators/chip/parts/`).
         (
             "generators/chip/parts",
@@ -6046,12 +6046,6 @@ fn author_parts() {
         ("generators/standoff/parts", "standoff-spigot", || {
             families::author_standoff(true)
         }),
-        // The fiducial generator's copper dot (`generators/fiducial/parts/`).
-        (
-            "generators/fiducial/parts",
-            "fiducial-dot",
-            families::author_fiducial,
-        ),
         // The wire-to-board generator's bundle
         // (`generators/wire-to-board/parts/`): side and top entry, each in
         // the three shroud colours.

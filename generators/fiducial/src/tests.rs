@@ -104,16 +104,8 @@ fn the_default_is_a_1_mm_dot_in_a_2_mm_clear_area() -> Result<(), Vec<Problem>> 
         .map(|c| (c.prefix.as_str(), c.terminals.len()));
     assert_eq!(component, Some(("FID", 0)));
     assert!(g.binding.is_empty());
-    let mut values = v1::Params::new();
-    values.insert("diameter".into(), ParamValue::Int(1_000_000));
-    values.insert("thickness".into(), ParamValue::Int(35_000));
-    assert_eq!(
-        g.model,
-        Some(v1::Model::PartFile {
-            asset: parts::FIDUCIAL_DOT.into(),
-            values,
-        })
-    );
+    // No body of its own: the board draws the land.
+    assert_eq!(g.model, Some(v1::Model::NoBody));
     Ok(())
 }
 

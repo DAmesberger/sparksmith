@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tactile.wasm",
-    "sha256": "1d352aa353374a39a663b897ab589183658d8ea4b50d1efa344b783d00eb1910"
+    "sha256": "b28a9a6c7f8f86395123c7328c40bb6d9e4d03610c396e5e2ad551c283212410"
   },
   "name": "tactile",
   "parts": [

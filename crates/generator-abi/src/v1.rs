@@ -1098,6 +1098,10 @@ pub enum Model {
         asset: String,
         values: BTreeMap<String, ParamValue>,
     },
+    /// No body of its own: the part is complete as its lands and markings
+    /// (a fiducial, whose copper the board draws). The package's model is
+    /// no body, which the 3D view and the exact export place nothing for.
+    NoBody,
 }
 
 /// A derived field value.
