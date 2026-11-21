@@ -483,7 +483,7 @@
  "SymbolKind": {"oneOf":[{"enum":["resistor","inductor","ferrite_bead","diode","zener","schottky","led","fuse","npn_bjt","pnp_bjt","n_mosfet","p_mosfet"],"type":"string"},{"const":"capacitor","type":"string"},{"const":"polarised_capacitor","type":"string"},{"const":"crystal","type":"string"},{"const":"switch","type":"string"},{"const":"pushbutton","type":"string"},{"const":"test_point","type":"string"},{"const":"ground","type":"string"},{"const":"power","type":"string"},{"const":"ic_box","type":"string"},{"const":"connector","type":"string"}]},
  "SymbolOccurrence": {"additionalProperties":false,"properties":{"id":{"format":"uint64","minimum":0,"type":"integer"},"instance":{"format":"uint64","minimum":0,"type":"integer"},"mirror":{"type":"boolean"},"position":{"$ref":"#/$defs/PointNm"},"rotation":{"$ref":"#/$defs/Rotation"},"sheet":{"$ref":"#/$defs/SheetId"},"unit":{"$ref":"#/$defs/UnitId"}},"required":["id","instance","unit","position","rotation","mirror"],"type":"object"},
  "SymbolRef": {"additionalProperties":false,"properties":{"id":{"$ref":"#/$defs/DefinitionId"},"revision":{"$ref":"#/$defs/Revision"}},"required":["id","revision"],"type":"object"},
- "Symbology": {"enum":["qr"],"type":"string"},
+ "Symbology": {"oneOf":[{"enum":["qr"],"type":"string"},{"const":"data_matrix","type":"string"}]},
  "TableRef": {"type":"string"},
  "Template": {"type":"string"},
  "TemplatePiece": {"oneOf":[{"additionalProperties":false,"properties":{"text":{"type":"string"}},"required":["text"],"type":"object"},{"additionalProperties":false,"properties":{"field":{"$ref":"#/$defs/DefinitionId"}},"required":["field"],"type":"object"}]},

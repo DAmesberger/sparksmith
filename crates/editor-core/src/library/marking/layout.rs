@@ -492,7 +492,7 @@ pub(super) fn run(spec: &MarkingSpec, inputs: &MarkingInputs) -> Result<MarkingL
                 let size_mm = size_nm.to_mm_f64();
                 if let Some(element) = code2d(&mut cx, *symbology, &payload.0, size_mm, *ecc) {
                     let (symbol, module) = element;
-                    let quiet = f64::from(super::matrix::QUIET_ZONE) * module;
+                    let quiet = f64::from(symbology.quiet_zone()) * module;
                     let boxed = [size_mm + 2.0 * quiet; 2];
                     if boxed[0] > w || boxed[1] > h {
                         cx.does_not_fit("The 2D code with its quiet zone");

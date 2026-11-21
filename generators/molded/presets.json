@@ -208,7 +208,9 @@
   "aliases": [
    "Case A",
    "EIA 3216-18",
-   "Tantalum A"
+   "Tantalum A",
+   "A",
+   "3216-18"
   ],
   "description": "Molded tantalum chip capacitor, EIA 3216-18: 3.2 × 1.6 × 1.6 mm.",
   "params": {
@@ -220,13 +222,14 @@
    "span": 3200000,
    "terminal_length": 800000,
    "terminal_width": 1200000,
-   "polarised": true
+   "polarised": true,
+   "marking_height": 550000
   },
   "citation": {
    "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
   },
   "basis": "cited_unverified",
-  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends. Marking: the pF code and the voltage letter on one line along the body beside the anode band, as the Kyocera AVX TAJ data sheet (TDS-PTNO-0024 Rev 3, Marking) draws every case; the text height is estimated from the case size (the marking drawings are not to scale)."
  },
  {
   "key": "molded-tantalum-b",
@@ -234,7 +237,9 @@
   "aliases": [
    "Case B",
    "EIA 3528-21",
-   "Tantalum B"
+   "Tantalum B",
+   "B",
+   "3528-21"
   ],
   "description": "Molded tantalum chip capacitor, EIA 3528-21: 3.5 × 2.8 × 1.9 mm.",
   "params": {
@@ -246,13 +251,14 @@
    "span": 3500000,
    "terminal_length": 800000,
    "terminal_width": 2200000,
-   "polarised": true
+   "polarised": true,
+   "marking_height": 700000
   },
   "citation": {
    "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
   },
   "basis": "cited_unverified",
-  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends. Marking: the pF code and the voltage letter on one line along the body beside the anode band, as the Kyocera AVX TAJ data sheet (TDS-PTNO-0024 Rev 3, Marking) draws every case; the text height is estimated from the case size (the marking drawings are not to scale)."
  },
  {
   "key": "molded-tantalum-c",
@@ -260,7 +266,9 @@
   "aliases": [
    "Case C",
    "EIA 6032-28",
-   "Tantalum C"
+   "Tantalum C",
+   "C",
+   "6032-28"
   ],
   "description": "Molded tantalum chip capacitor, EIA 6032-28: 6.0 × 3.2 × 2.5 mm.",
   "params": {
@@ -272,13 +280,14 @@
    "span": 6000000,
    "terminal_length": 1300000,
    "terminal_width": 2200000,
-   "polarised": true
+   "polarised": true,
+   "marking_height": 900000
   },
   "citation": {
    "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
   },
   "basis": "cited_unverified",
-  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends. Marking: the pF code and the voltage letter on one line along the body beside the anode band, as the Kyocera AVX TAJ data sheet (TDS-PTNO-0024 Rev 3, Marking) draws every case; the text height is estimated from the case size (the marking drawings are not to scale)."
  },
  {
   "key": "molded-tantalum-d",
@@ -286,7 +295,9 @@
   "aliases": [
    "Case D",
    "EIA 7343-31",
-   "Tantalum D"
+   "Tantalum D",
+   "D",
+   "7343-31"
   ],
   "description": "Molded tantalum chip capacitor, EIA 7343-31: 7.3 × 4.3 × 2.8 mm.",
   "params": {
@@ -298,13 +309,14 @@
    "span": 7300000,
    "terminal_length": 1300000,
    "terminal_width": 2400000,
-   "polarised": true
+   "polarised": true,
+   "marking_height": 1000000
   },
   "citation": {
    "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
   },
   "basis": "cited_unverified",
-  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends. Marking: the pF code and the voltage letter on one line along the body beside the anode band, as the Kyocera AVX TAJ data sheet (TDS-PTNO-0024 Rev 3, Marking) draws every case; the text height is estimated from the case size (the marking drawings are not to scale)."
  },
  {
   "key": "molded-tantalum-e",
@@ -312,7 +324,9 @@
   "aliases": [
    "Case E",
    "EIA 7343-43",
-   "Tantalum E"
+   "Tantalum E",
+   "E",
+   "7343-43"
   ],
   "description": "Molded tantalum chip capacitor, EIA 7343-43: 7.3 × 4.3 × 4.0 mm.",
   "params": {
@@ -324,12 +338,13 @@
    "span": 7300000,
    "terminal_length": 1300000,
    "terminal_width": 2400000,
-   "polarised": true
+   "polarised": true,
+   "marking_height": 1000000
   },
   "citation": {
    "document": "EIA-535-BAAC, fixed tantalum chip capacitor case sizes"
   },
   "basis": "cited_unverified",
-  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends."
+  "note": "Body length estimated as L − 0.6 mm: EIA-535 gives the overall length L; the J-lead terminations fold over the body ends. Marking: the pF code and the voltage letter on one line along the body beside the anode band, as the Kyocera AVX TAJ data sheet (TDS-PTNO-0024 Rev 3, Marking) draws every case; the text height is estimated from the case size (the marking drawings are not to scale)."
  }
 ]
