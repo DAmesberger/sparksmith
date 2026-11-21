@@ -415,9 +415,7 @@ pub(super) fn title(names: &Names<'_>, findings: &[&Finding]) -> String {
         // A mounting hole's washer is named by the board object, which says
         // nothing: the message names the hole ("the plated mounting hole
         // at (40, 20) mm / a track on GND").
-        "board.clearance"
-            if findings.len() == 1 && first.objects.contains(&ObjectRef::Board) =>
-        {
+        "board.clearance" if findings.len() == 1 && first.objects.contains(&ObjectRef::Board) => {
             let pair = message
                 .split_once(": ")
                 .map_or(message, |(_, rest)| rest)
