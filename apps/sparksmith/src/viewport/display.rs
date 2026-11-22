@@ -340,7 +340,10 @@ mod tests {
         for ((tris, was), (moved_tris, now)) in before.iter().zip(&after) {
             assert_eq!(tris, moved_tris, "the same shared triangles");
             assert_eq!(was.len(), now.len(), "every placement, large bodies too");
-            for (a, b) in was.chunks_exact(52).zip(now.chunks_exact(52)) {
+            for (a, b) in was
+                .chunks_exact(solidcraft_viewport_gpu::view::INSTANCE_SIZE)
+                .zip(now.chunks_exact(solidcraft_viewport_gpu::view::INSTANCE_SIZE))
+            {
                 for (row, by) in [(0, 5.0), (1, -2.0), (2, 1.0)] {
                     let shift = f(b, 4 * row + 3) - f(a, 4 * row + 3);
                     assert!((shift - by).abs() < 1e-4, "{shift} against {by}");

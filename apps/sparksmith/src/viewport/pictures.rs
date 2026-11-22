@@ -59,6 +59,7 @@ impl Gpu {
             samples: 1,
             tess: false,
             oit: false,
+            edges: false,
         };
         let scene = GpuTarget {
             depth: Some(wgpu::TextureFormat::Depth32Float),

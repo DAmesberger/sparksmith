@@ -1054,7 +1054,8 @@ fn segments(geometry: &[Geom2], scale: f64, tol: f64) -> Vec<Seg> {
                     out.push(Seg::Curve(cubic(*p0, *p1, *p2, *p3, tol)));
                 }
             }
-            Geom2::Spline { pts, .. } => {
+            // SVG paths give no NURBS (a DXF SPLINE does); its control polygon, as a spline's.
+            Geom2::Spline { pts, .. } | Geom2::Nurbs { pts, .. } => {
                 out.push(Seg::Curve(pts.iter().map(p).collect()));
             }
             Geom2::Conic { a, apex, b, .. } => {

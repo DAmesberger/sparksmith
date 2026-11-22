@@ -179,6 +179,7 @@ impl Instanced {
             },
             closed: false,
             graph: None,
+            edges: None,
         };
         for g in self.bodies.iter().filter_map(|i| geometry.get(*i)) {
             if !keep(g) {
@@ -239,6 +240,7 @@ impl Instanced {
             levels: Vec::new(),
             closed: false,
             graph: None,
+            edges: None,
         };
         for g in self.bodies.iter().filter_map(|i| geometry.get(*i)) {
             let (Some(place), Some(item)) = (g.place, g.item) else {
@@ -360,6 +362,7 @@ fn instance(geometry: &[Geometry], stack: &Stack) -> Result<Vec<Instanced>, Stri
                     levels,
                     closed: false,
                     graph: None,
+                    edges: None,
                 },
                 look,
                 bodies: Vec::new(),
