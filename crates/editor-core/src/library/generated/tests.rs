@@ -155,6 +155,7 @@ fn generation_with(
                     direction: Direction::Passive,
                     alternates: Vec::new(),
                     drive: None,
+                    unconnected: None,
                 })
                 .collect(),
             prefix: "R".into(),

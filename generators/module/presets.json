@@ -200,13 +200,13 @@
     "30=SD_D3:io",
     "31=SD_CLK:io",
     "32=SD_CMD:io",
-    "33=NC:passive",
-    "34=NC:passive",
-    "35=NC:passive",
-    "36=NC:passive",
-    "37=NC:passive",
-    "38=NC:passive",
-    "39=NC:passive",
+    "33=NC:nc",
+    "34=NC:nc",
+    "35=NC:nc",
+    "36=NC:nc",
+    "37=NC:nc",
+    "38=NC:nc",
+    "39=NC:nc",
     "40=USB_DP:passive",
     "41=USB_DM:passive",
     "42=IO33:io",
@@ -258,7 +258,7 @@
     "88=GND:power_input",
     "89=GND:power_input",
     "90=GND:power_input",
-    "91=NC:passive",
+    "91=NC:nc",
     "92=GND:power_input",
     "93=GND:power_input",
     "94=GND:power_input",
@@ -282,7 +282,7 @@
    "page": 64
   },
   "basis": "cited",
-  "note": "The pad rows, pitch, outline and land pattern are the datasheet's (Figure 10-1, p. 64; Figure 11-1, p. 67); the ground array's turn and pitch were checked against Espressif's published footprint and STEP model, used as a dimension source only. The ground pad nearest the antenna is chamfered on the module; it is drawn square. The can size, board thickness and antenna meander are estimated. Soldermask black: the datasheet's cover drawing (pre-release v0.7, p. 1) shows a black board under the can, as Espressif's ESP32-S3 modules are made (no product photograph of this module found, 20 November 2026). Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, laid out as on Espressif's ESP32-S3 module cover drawing (datasheet v1.8, p. 1); the S31's orderable variants and certification are not in the pre-release datasheet, so it prints no variant, FCC ID or conformity mark. The pin table (names; type P a power pin, I an input, I/O/T a GPIO) is Table 3-1 ESP32-S31-WROOM-3 Pin Definitions, pp. 14–15 of the same datasheet: GND 1, 2, 26, 47, 48, 72–90 and 92–99 (95 the ground array, 96–99 the corner pads), NC 33–39 and 91 (passive), USB_DP and USB_DM passive (USB data, no GPIO), IO362 read as IO36 with its footnote; the pins' alternate functions are not in the table: a pinout document gives them. The orderable part numbers (part_numbers) are Table 1-1 ESP32-S31-WROOM-3 (ANT) Series Comparison, pp. 3–4."
+  "note": "The pad rows, pitch, outline and land pattern are the datasheet's (Figure 10-1, p. 64; Figure 11-1, p. 67); the ground array's turn and pitch were checked against Espressif's published footprint and STEP model, used as a dimension source only. The ground pad nearest the antenna is chamfered on the module; it is drawn square. The can size, board thickness and antenna meander are estimated. Soldermask black: the datasheet's cover drawing (pre-release v0.7, p. 1) shows a black board under the can, as Espressif's ESP32-S3 modules are made (no product photograph of this module found, 20 November 2026). Shield label: Espressif's mark (installed library artwork `espressif-logo`, drawn only where installed) over the module name, laid out as on Espressif's ESP32-S3 module cover drawing (datasheet v1.8, p. 1); the S31's orderable variants and certification are not in the pre-release datasheet, so it prints no variant, FCC ID or conformity mark. The pin table (names; type P a power pin, I an input, I/O/T a GPIO) is Table 3-1 ESP32-S31-WROOM-3 Pin Definitions, pp. 14–15 of the same datasheet: GND 1, 2, 26, 47, 48, 72–90 and 92–99 (95 the ground array, 96–99 the corner pads), NC 33–39 and 91 (nc: device not-connected, never wired), USB_DP and USB_DM passive (USB data, no GPIO), IO362 read as IO36 with its footnote; the pins' alternate functions are not in the table: a pinout document gives them. The orderable part numbers (part_numbers) are Table 1-1 ESP32-S31-WROOM-3 (ANT) Series Comparison, pp. 3–4."
  },
  {
   "key": "module-esp32-s3-wroom-1",

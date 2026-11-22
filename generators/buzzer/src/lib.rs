@@ -419,6 +419,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     direction: Direction::Passive,
                     alternates: Vec::new(),
                     drive: None,
+                    unconnected: None,
                 })
                 .collect(),
             prefix: "BZ".into(),

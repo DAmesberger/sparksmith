@@ -21,7 +21,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use sparksmith_generator_abi::v1::{
     Description, Direction, Drive, GENERATE_PART, Generation, Param, ParamType, ParamValue,
-    Problem, Request, limits,
+    Problem, Request, Unconnected, limits,
 };
 
 /// The parameter's key.
@@ -56,6 +56,14 @@ pub const KINDS: [Kind; 9] = [
     ("power_output", Direction::PowerOutput, &[], None),
 ];
 
+/// The kinds of a pin with no function, each a device's own: `nc` (the
+/// datasheet's not-connected pin) and `reserved`. Never wired; the host
+/// keeps them as device NC and reserved terminals.
+pub const UNCONNECTED: [(&str, Unconnected); 2] = [
+    ("nc", Unconnected::NotConnected),
+    ("reserved", Unconnected::Reserved),
+];
+
 /// The `pin_table` parameter: at most [`limits::TERMINALS`] entries, none by
 /// default (the generator's names, every terminal passive).
 pub fn param() -> Param {
@@ -63,7 +71,7 @@ pub fn param() -> Param {
         key: KEY.into(),
         label: "Pin table".into(),
         help: Some(
-            "The part's pins from its datasheet's pin table, one NUMBER=NAME:KIND per entry: the package terminal's number as the footprint numbers it, the pin's name as the datasheet writes it, and its kind: power_input (supply and ground pins), power_output (a regulator's output), input, output, open_drain or open_source (an output that only sinks or only sources, as a power-good flag), io (a GPIO: an input that can be an output), bidirectional or passive (analog, no-connect and anything else). A terminal not listed keeps the generator's number as its name and is passive. Empty: no pin table."
+            "The part's pins from its datasheet's pin table, one NUMBER=NAME:KIND per entry: the package terminal's number as the footprint numbers it, the pin's name as the datasheet writes it, and its kind: power_input (supply and ground pins), power_output (a regulator's output), input, output, open_drain or open_source (an output that only sinks or only sources, as a power-good flag), io (a GPIO: an input that can be an output), bidirectional, nc (a pin the datasheet says is not connected: never wired), reserved (a pin the datasheet reserves: never wired) or passive (analog and anything else). A terminal not listed keeps the generator's number as its name and is passive. Empty: no pin table."
                 .into(),
         ),
         ty: ParamType::List {
@@ -131,6 +139,8 @@ pub struct Pin {
     pub direction: Direction,
     pub alternates: Vec<Direction>,
     pub drive: Option<Drive>,
+    /// `nc` or `reserved`: no function, never wired.
+    pub unconnected: Option<Unconnected>,
 }
 
 /// Read entry `n` (`NUMBER=NAME:KIND`; the name may itself hold `=` or
@@ -156,8 +166,22 @@ pub fn read(item: &ParamValue, n: usize) -> Result<Pin, Problem> {
             "Pin {number}'s name holds a control character."
         )));
     }
+    if let Some((_, unconnected)) = UNCONNECTED.iter().find(|k| k.0 == kind) {
+        return Ok(Pin {
+            number: number.into(),
+            name: name.into(),
+            direction: Direction::Passive,
+            alternates: Vec::new(),
+            drive: None,
+            unconnected: Some(*unconnected),
+        });
+    }
     let Some((_, direction, alternates, drive)) = KINDS.iter().find(|k| k.0 == kind) else {
-        let keys: Vec<&str> = KINDS.iter().map(|k| k.0).collect();
+        let keys: Vec<&str> = KINDS
+            .iter()
+            .map(|k| k.0)
+            .chain(UNCONNECTED.iter().map(|k| k.0))
+            .collect();
         return Err(problem(format!(
             "Pin {number}'s kind \"{kind}\" is not one of: {}.",
             keys.join(", ")
@@ -169,6 +193,7 @@ pub fn read(item: &ParamValue, n: usize) -> Result<Pin, Problem> {
         direction: *direction,
         alternates: alternates.to_vec(),
         drive: *drive,
+        unconnected: None,
     })
 }
 
@@ -223,7 +248,8 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
             && (other.name != pin.name
                 || other.direction != pin.direction
                 || other.alternates != pin.alternates
-                || other.drive != pin.drive)
+                || other.drive != pin.drive
+                || other.unconnected != pin.unconnected)
         {
             return Err(problem(format!(
                 "Pins {} and {} are one terminal of the part, so they need the same name and kind.",
@@ -238,6 +264,7 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
             terminal.direction = pin.direction;
             terminal.alternates.clone_from(&pin.alternates);
             terminal.drive = pin.drive;
+            terminal.unconnected = pin.unconnected;
         }
     }
     Ok(())
@@ -260,6 +287,7 @@ mod tests {
             direction: Direction::Passive,
             alternates: Vec::new(),
             drive: None,
+            unconnected: None,
         };
         let bind = |package: &str, terminal: &str| BindingEntry {
             package_terminal: package.into(),
@@ -360,6 +388,7 @@ mod tests {
                 direction: Direction::Input,
                 alternates: Vec::new(),
                 drive: None,
+                unconnected: None,
             }
         );
         // A GPIO is an input that can be an output.
@@ -375,6 +404,16 @@ mod tests {
         );
         // The name may hold "=" and ":"; the kind is after the last ":".
         assert_eq!(read(&text("5=A=B:C:passive"), 0)?.name, "A=B:C");
+        // A datasheet's NC and reserved pins have no function.
+        assert_eq!(
+            read(&text("33=NC:nc"), 0)?.unconnected,
+            Some(Unconnected::NotConnected)
+        );
+        assert_eq!(
+            read(&text("4=RSVD:reserved"), 0)?.unconnected,
+            Some(Unconnected::Reserved)
+        );
+        assert_eq!(read(&text("3=EN:input"), 0)?.unconnected, None);
         Ok(())
     }
 

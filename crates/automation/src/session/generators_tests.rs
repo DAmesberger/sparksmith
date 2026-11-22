@@ -1173,3 +1173,65 @@ fn a_withdrawn_part_number_does_not_follow_a_regenerated_part() -> TestResult {
     );
     Ok(())
 }
+
+/// Review §9: a pin the datasheet's table calls NC is device NC, not a
+/// passive terminal: the shipped TI DML0010A preset's NC pin cannot be
+/// wired and needs no decision, while its ON input, unconnected but a real
+/// pin, can be wired.
+#[test]
+fn a_generated_nc_pin_is_device_nc_and_refuses_wires() -> TestResult {
+    use sparksmith_core::library::TerminalClass;
+    use sparksmith_core::schematic::{SchematicCommand, WireTarget};
+    let temp = tempfile::tempdir()?;
+    let root = no_lead_library(temp.path())?;
+    let mut session = session(&root)?;
+    let made = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "no-lead", "scope": "component", "preset": "no-lead-ti-dml0010a"}),
+    );
+    assert_eq!(made["ok"], true, "{made}");
+    place_made(&mut session, &made)?;
+    place_made(&mut session, &made)?;
+    let project = session.engine().project();
+    let [u1, u2] = [&project.instances[0], &project.instances[1]];
+    let component = project
+        .library
+        .component(u1.component)
+        .ok_or("the part's component")?;
+    let terminal = |name: &str| {
+        component
+            .definition
+            .terminals
+            .iter()
+            .find(|t| t.name == name)
+            .ok_or(name.to_owned())
+    };
+    let nc = terminal("NC")?;
+    assert_eq!(nc.class, TerminalClass::DeviceNc);
+    let on = terminal("ON")?;
+    assert!(on.is_electrical());
+    let endpoint = |instance: u64, terminal: u32| sparksmith_core::Endpoint {
+        instance,
+        terminal: sparksmith_core::ids::TerminalId(terminal),
+    };
+    let (u1, u2, nc, on) = (u1.id, u2.id, nc.id.0, on.id.0);
+    let connect = |session: &mut Session, a, b| {
+        let operation = sparksmith_core::Operation::Schematic(SchematicCommand::Connect {
+            from: WireTarget::from(a),
+            to: WireTarget::from(b),
+        });
+        call(
+            session,
+            "project.apply",
+            json!({"operation": serde_json::to_value(operation).unwrap_or_default()}),
+        )
+    };
+    let revision = session.engine().revision();
+    let refused = connect(&mut session, endpoint(u1, nc), endpoint(u2, on));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert_eq!(session.engine().revision(), revision, "nothing changed");
+    let wired = connect(&mut session, endpoint(u1, on), endpoint(u2, on));
+    assert_eq!(wired["ok"], true, "{wired}");
+    Ok(())
+}

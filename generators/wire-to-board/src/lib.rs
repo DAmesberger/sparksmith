@@ -1043,6 +1043,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             direction: Direction::Passive,
             alternates: Vec::new(),
             drive: None,
+            unconnected: None,
         })
         .collect();
     terminals.push(Terminal {
@@ -1051,6 +1052,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         direction: Direction::Passive,
         alternates: Vec::new(),
         drive: None,
+        unconnected: None,
     });
     Ok(Generation {
         orderable: Vec::new(),
