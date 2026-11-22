@@ -156,12 +156,12 @@
               "openWorldHint": false,
               "readOnlyHint": true
             },
-            "description": "One entry's exact params schema and the call that sends it.",
+            "description": "One entry's parameter and reply schemas, the MCP call and its reply entry.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
                 "def": {
-                  "description": "A definition named in more_defs.",
+                  "description": "A key from more_defs or reply.more_defs, including its prefix.",
                   "type": "string"
                 },
                 "name": {
@@ -785,12 +785,12 @@
               "openWorldHint": false,
               "readOnlyHint": true
             },
-            "description": "One entry's exact params schema and the call that sends it.",
+            "description": "One entry's parameter and reply schemas, the MCP call and its reply entry.",
             "inputSchema": {
               "additionalProperties": false,
               "properties": {
                 "def": {
-                  "description": "A definition named in more_defs.",
+                  "description": "A key from more_defs or reply.more_defs, including its prefix.",
                   "type": "string"
                 },
                 "name": {
