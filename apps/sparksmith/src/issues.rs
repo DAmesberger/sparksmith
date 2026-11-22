@@ -196,6 +196,7 @@ pub enum Answer {
 }
 
 impl Answer {
+    #[cfg(test)]
     pub(crate) fn of(result: sparksmith_core::Result<QueryResult>) -> Self {
         match result {
             Ok(QueryResult::Issues(report)) => Self::Report(Arc::new(report)),

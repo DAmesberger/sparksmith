@@ -618,7 +618,12 @@ fn ten_thousand_vias_are_all_checked_within_a_budget() -> Result<()> {
         let found = start.elapsed();
         let _ = graph.airwires();
         let wired = start.elapsed();
-        findings = BoardCopper::of(project).checks(project, &graph);
+        findings = crate::layout::checks_on(
+            project,
+            &BoardCopper::of(project),
+            &graph,
+            &Default::default(),
+        );
         let checked = start.elapsed();
         for (slot, time) in
             best.iter_mut()

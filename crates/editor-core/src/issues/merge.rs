@@ -9,38 +9,66 @@ use super::names::Names;
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::ids::{DefinitionId, Id, PackageTerminalId};
 use crate::library::Definition;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Group findings by `key`, in first-seen order; findings without a key
 /// stay alone. Keys are internal and never shown.
-fn by_key<K: Ord>(
-    findings: Vec<Finding>,
-    key: impl Fn(&Finding) -> Option<K>,
-) -> Vec<Vec<Finding>> {
-    let mut out: Vec<Vec<Finding>> = Vec::new();
-    let mut at: BTreeMap<K, usize> = BTreeMap::new();
-    for finding in findings {
-        match key(&finding) {
+fn by_key<'a, K: std::hash::Hash + Eq>(
+    findings: &'a [Finding],
+    key: impl Fn(&'a Finding) -> Option<K>,
+) -> Vec<Vec<usize>> {
+    // Keys borrow the findings; [`take`] moves them into their groups.
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut at: HashMap<K, usize> = HashMap::with_capacity(findings.len());
+    for (index, finding) in findings.iter().enumerate() {
+        match key(finding) {
             Some(k) => match at.get(&k) {
                 Some(&i) => {
-                    if let Some(group) = out.get_mut(i) {
-                        group.push(finding);
+                    if let Some(group) = groups.get_mut(i) {
+                        group.push(index);
                     }
                 }
                 None => {
-                    at.insert(k, out.len());
-                    out.push(vec![finding]);
+                    at.insert(k, groups.len());
+                    groups.push(vec![index]);
                 }
             },
-            None => out.push(vec![finding]),
+            None => groups.push(vec![index]),
         }
     }
-    out
+    groups
+}
+
+/// `findings` moved into `groups` of their indices ([`by_key`]).
+fn take(findings: Vec<Finding>, groups: Vec<Vec<usize>>) -> Vec<Vec<Finding>> {
+    let mut slots: Vec<Option<Finding>> = findings.into_iter().map(Some).collect();
+    groups
+        .into_iter()
+        .map(|g| {
+            g.into_iter()
+                .filter_map(|i| slots.get_mut(i).and_then(Option::take))
+                .collect()
+        })
+        .collect()
 }
 
 /// Identical findings (code, message and objects) are one.
 fn identical(findings: Vec<Finding>) -> Vec<Vec<Finding>> {
-    by_key(findings, |f| Some((f.code.clone(), same(f))))
+    let groups = by_key(&findings, |f| Some((f.code.as_str(), same(f))));
+    take(findings, groups)
+}
+
+/// A merge key: a same-cause group, or the identity of one finding.
+#[derive(Hash, PartialEq, Eq)]
+enum Key<'a> {
+    /// One Part's findings that read the same past their instance.
+    Part(u64, &'a str),
+    /// One clearance pair of parties: (0, placement) or (1, track).
+    Parties([(u8, Id); 2]),
+    /// One net's unrouted pads.
+    Net(Id),
+    /// One finding, for exact-duplicate merging.
+    Same(Same<'a>),
 }
 
 fn local(finding: &Finding) -> impl Iterator<Item = (DefinitionId, u32)> + '_ {
@@ -200,33 +228,33 @@ fn pair_mappings(names: &Names<'_>, groups: &mut Vec<Entry>) {
 /// with each of them the same way is one row; ERC and completeness
 /// findings stay per object.
 pub(super) fn schematic(findings: Vec<Finding>) -> Vec<Vec<Finding>> {
-    by_key(findings, |f| {
+    let groups = by_key(&findings, |f| {
         let shared = f.code.starts_with("part.").then(|| {
             let part = definitions(f).next()?;
             let (_, rest) = f.message.split_once(": ")?;
-            Some((part.0, rest.to_owned()))
+            Some((part.0, rest))
         });
         Some(match shared.flatten() {
-            Some((part, rest)) => (f.code.clone(), part, rest),
-            None => (f.code.clone(), 0, same(f)),
+            Some((part, rest)) => (f.code.as_str(), Key::Part(part, rest)),
+            None => (f.code.as_str(), Key::Same(same(f))),
         })
-    })
+    });
+    take(findings, groups)
 }
 
-/// The identity of a finding for exact-duplicate merging.
-fn same(f: &Finding) -> String {
-    format!(
-        "{}\u{0}{}",
-        f.message,
-        serde_json::to_string(&f.objects).unwrap_or_default()
-    )
+/// The identity of a finding for exact-duplicate merging: its message
+/// and its objects.
+type Same<'a> = (&'a str, &'a [ObjectRef]);
+
+fn same(f: &Finding) -> Same<'_> {
+    (&f.message, &f.objects)
 }
 
 /// Board findings: every clearance violation between the same two parties
 /// (placements or tracks) is one row, and every unrouted pad of one net is
 /// one row.
 pub(super) fn board(findings: Vec<Finding>) -> Vec<Vec<Finding>> {
-    by_key(findings, |f| {
+    let groups = by_key(&findings, |f| {
         // A party is (0, placement) or (1, track).
         let mut parties: Vec<(u8, Id)> = f
             .objects
@@ -243,11 +271,10 @@ pub(super) fn board(findings: Vec<Finding>) -> Vec<Vec<Finding>> {
             _ => None,
         });
         Some(match (f.code.as_str(), parties.as_slice(), net) {
-            ("board.clearance", [a, b], _) => {
-                (f.code.clone(), format!("{} {} {} {}", a.0, a.1, b.0, b.1))
-            }
-            ("board.unrouted", _, Some(net)) => (f.code.clone(), net.to_string()),
-            _ => (f.code.clone(), same(f)),
+            ("board.clearance", [a, b], _) => (f.code.as_str(), Key::Parties([*a, *b])),
+            ("board.unrouted", _, Some(net)) => (f.code.as_str(), Key::Net(net)),
+            _ => (f.code.as_str(), Key::Same(same(f))),
         })
-    })
+    });
+    take(findings, groups)
 }

@@ -565,13 +565,23 @@ fn mm(v: f64) -> String {
 /// The pair, group and impedance findings of `project`, whose copper
 /// graph is `graph`, under the host's `settings`.
 pub fn checks(project: &Project, graph: &CopperGraph, settings: &CheckSettings) -> Vec<Finding> {
+    checks_from(project, &super::GraphSource::given(graph), settings)
+}
+
+/// [`checks`], asking `graph` for the copper graph only when a pair, a
+/// group or a signal target needs lengths.
+pub(crate) fn checks_from(
+    project: &Project,
+    graph: &super::GraphSource<'_>,
+    settings: &CheckSettings,
+) -> Vec<Finding> {
     let rules = &project.rules;
     let mut findings = Vec::new();
     let has_targets = rules.net_classes.iter().any(|c| !c.signal.is_empty());
     if rules.diff_pairs.is_empty() && rules.length_groups.is_empty() && !has_targets {
         return findings;
     }
-    let lengths = Measured::of(project, graph);
+    let lengths = Measured::of(project, graph.get());
     for pair in &rules.diff_pairs {
         check_pair(project, pair, &lengths, settings, &mut findings);
     }

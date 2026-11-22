@@ -24,7 +24,7 @@ use sparksmith_core::library::{
 };
 use sparksmith_core::{
     BindingRef, ComponentRef, DefinitionId, Engine, FieldRef, LibraryCommand, Operation, PartRef,
-    Query, QueryResult, Revision, Stage,
+    Revision, Stage,
 };
 use sparksmith_ui::ui_kit::{self, Button};
 use std::collections::BTreeMap;
@@ -173,8 +173,17 @@ pub struct PartProps {
     publish_next: bool,
     /// Typed rated values by field lineage.
     specs: BTreeMap<DefinitionId, FieldText>,
-    /// Issues blocking the primary, by revision, Part lineage and cascade.
-    blockers: Option<(u64, DefinitionId, bool, Option<usize>)>,
+    /// Issues blocking the primary, by the report and state they were
+    /// projected from, Part lineage and cascade.
+    blockers: Option<(
+        crate::issue_reports::ViewKey,
+        DefinitionId,
+        bool,
+        Option<usize>,
+    )>,
+    /// The window's one report of every issue, which the blockers are
+    /// projected from ([`crate::issue_reports`]).
+    pub(super) reports: crate::issue_reports::SharedReports,
     /// Fields added under Rated values that have no value typed yet. They
     /// join the draft once their text parses.
     pending: Vec<(FieldRef, SpecMeaning)>,
@@ -952,13 +961,19 @@ impl PartProps {
     }
 
     /// Issues that block publishing what the primary would publish: the
-    /// Part draft and, with the cascade, the component's drafts. From the
-    /// one `project.issues` query, once per revision; `None` when the checks
-    /// could not run, which never reads as "no issues".
+    /// Part draft and, with the cascade, the component's drafts. Projected
+    /// from the window's one report of every issue, once per report and
+    /// state; `None` when the checks could not run (or have not yet made
+    /// the first report), which never reads as "no issues".
     fn blockers(&mut self, engine: &Engine, set: &WorkingSet, cascade: bool) -> Option<usize> {
         let id = self.draft.as_ref()?.id;
-        if let Some((revision, open, with_cascade, count)) = self.blockers
-            && revision == engine.revision()
+        let whole = match self.reports.latest(engine) {
+            Some(crate::issues::Answer::Report(whole)) => whole,
+            _ => return None,
+        };
+        let at = crate::issue_reports::view_key(&whole, engine);
+        if let Some((key, open, with_cascade, count)) = self.blockers
+            && key == at
             && open == id
             && with_cascade == cascade
         {
@@ -973,19 +988,15 @@ impl PartProps {
                     .map(|id| ObjectRef::Definition { id }),
             );
         }
-        let count = match engine.query(Query::Issues {
-            scope: IssueScope::Selection { objects },
-        }) {
-            Ok(QueryResult::Issues(report)) => Some(
-                report
-                    .rows
-                    .iter()
-                    .filter(|r| r.blocks() == Some(Stage::Publish))
-                    .count(),
-            ),
-            _ => None,
-        };
-        self.blockers = Some((engine.revision(), id, cascade, count));
+        let report = whole.scoped(&IssueScope::Selection { objects }, engine.project());
+        let count = Some(
+            report
+                .rows
+                .iter()
+                .filter(|r| r.blocks() == Some(Stage::Publish))
+                .count(),
+        );
+        self.blockers = Some((at, id, cascade, count));
         count
     }
 

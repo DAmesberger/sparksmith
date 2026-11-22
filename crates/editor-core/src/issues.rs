@@ -10,6 +10,7 @@
 //! drafts and instances, `erc`, `layout`), merges same-cause findings into
 //! one row ([`IssueRow::also`]) and gives each row its severity, group and
 //! title ([`rules`]).
+pub mod incremental;
 mod merge;
 mod names;
 mod rules;
@@ -244,9 +245,35 @@ fn report_in(
     graph: &layout::CopperGraph,
     settings: &layout::CheckSettings,
 ) -> Result<IssueReport> {
+    Ok(assemble(
+        project,
+        drafts,
+        collect(project, drafts, graph, settings)?,
+        scope,
+        &|_| None,
+    ))
+}
+
+/// The report of `scope` from every raw finding of the project, by area:
+/// production waivers, same-cause merging, wording and order. The one way
+/// findings become rows, whether every check ran or a state's report was
+/// made from the last one's ([`incremental`]). `kept` may give an area's
+/// rows from an earlier report whose findings, waivers and names that
+/// area's rows read are unchanged; they are then used as they are.
+fn assemble(
+    project: &Project,
+    drafts: &Drafts,
+    areas: Vec<(IssueArea, Vec<Finding>)>,
+    scope: &IssueScope,
+    kept: &dyn Fn(IssueArea) -> Option<Vec<IssueRow>>,
+) -> IssueReport {
     let names = names::Names::new(project, drafts);
     let mut all = Vec::new();
-    for (area, mut findings) in collect(project, drafts, graph, settings)? {
+    for (area, mut findings) in areas {
+        if let Some(rows) = kept(area) {
+            all.extend(rows);
+            continue;
+        }
         // A production waiver accepts only the exact finding it names.
         // Filter before grouping, so waiving the primary never hides its
         // unwaived siblings, and titles/counts describe only what remains.
@@ -280,12 +307,12 @@ fn report_in(
         let selected = Selected::of(scope);
         move |r| in_scope(r, scope, &selected)
     });
-    Ok(IssueReport {
+    IssueReport {
         counts: counts(rows.iter()),
         elsewhere: elsewhere(rest.iter(), scope),
         rows,
         coverage: coverage(scope, project),
-    })
+    }
 }
 
 impl IssueReport {
@@ -529,12 +556,31 @@ fn collect(
     graph: &layout::CopperGraph,
     settings: &layout::CheckSettings,
 ) -> Result<Vec<(IssueArea, Vec<Finding>)>> {
-    let mut out = Vec::new();
+    let copper = layout::BoardCopper::of(project);
+    let graph = layout::GraphSource::given(graph);
+    let (families, _) = layout::check_families(project, &copper, &graph, settings, &mut |_| None);
+    Ok(vec![
+        (IssueArea::Component, component_findings(project, drafts)?),
+        (IssueArea::Schematic, schematic_findings(project)),
+        (
+            IssueArea::Board,
+            board_area(families.into_iter().flat_map(|(_, f)| f), project),
+        ),
+    ])
+}
+
+/// The publish findings and drawing lint of every draft.
+fn component_findings(project: &Project, drafts: &Drafts) -> Result<Vec<Finding>> {
     let mut component = Vec::new();
     for report in completeness::drafts(project, drafts)? {
         component.extend(report.findings);
     }
-    out.push((IssueArea::Component, component));
+    Ok(component)
+}
+
+/// The completeness, purchasing and electrical findings of every
+/// instance, import disagreements and variant findings.
+fn schematic_findings(project: &Project) -> Vec<Finding> {
     let mut schematic = Vec::new();
     for instance in &project.instances {
         match completeness::instance(project, instance.id) {
@@ -569,10 +615,14 @@ fn collect(
     schematic.extend(erc::checks(project));
     schematic.extend(crate::model::import_review::findings(project));
     schematic.extend(crate::instances::variants::findings(project));
-    out.push((IssueArea::Schematic, schematic));
-    let mut board = layout::checks_with(project, graph, settings);
-    board.extend(crate::interface::list::checks(project));
-    board.extend(crate::interface::assembly_link::checks(project));
-    out.push((IssueArea::Board, board));
-    Ok(out)
+    schematic
+}
+
+/// The Board area's findings: the board check families' (`board`), then
+/// the board interface's and the assembly link's.
+fn board_area(board: impl IntoIterator<Item = Finding>, project: &Project) -> Vec<Finding> {
+    let mut out: Vec<Finding> = board.into_iter().collect();
+    out.extend(crate::interface::list::checks(project));
+    out.extend(crate::interface::assembly_link::checks(project));
+    out
 }

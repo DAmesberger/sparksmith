@@ -13,8 +13,7 @@
 //! first). Without a worker thread (tests, or when the thread cannot
 //! start) the report is made on the calling thread, still once per key.
 use crate::issues::Answer;
-use sparksmith_core::issues::IssueScope;
-use sparksmith_core::{Engine, Query, ReportKey};
+use sparksmith_core::{Engine, ReportKey};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -37,10 +36,14 @@ pub struct Reports {
     pub(crate) computed: usize,
 }
 
+/// The engine's report of every area ([`Engine::issue_report`]): made
+/// from the last report it or a fork of it made, so a state that changed
+/// only tracks and vias checks only what reads them.
 fn compute(engine: &Engine) -> Answer {
-    Answer::of(engine.query(Query::Issues {
-        scope: IssueScope::All,
-    }))
+    match engine.issue_report() {
+        Ok(report) => Answer::Report(report),
+        Err(error) => Answer::Refused(crate::refusal::shown_error(&error)),
+    }
 }
 
 impl Reports {

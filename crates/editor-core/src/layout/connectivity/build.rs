@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// The farthest apart two outlines' bounds may be and still join.
 pub(super) const JOIN_REACH_MM: f64 = 2.0 * CURVE_SLACK_MM + 2.0 * JOIN_TOLERANCE_MM;
 /// Most joints per element; past it the graph is partial.
-const MAX_JOINTS_PER_ELEMENT: usize = 4;
+pub(super) const MAX_JOINTS_PER_ELEMENT: usize = 4;
 
 /// Whether two outlines join: their copper overlaps or touches within
 /// [`JOIN_TOLERANCE_MM`] plus the curve slack of either. The one joining rule.
@@ -492,8 +492,9 @@ impl CopperGraph {
             );
             self.groups.insert(net, Group { grid, members });
         }
-        let (joints, complete) = self.scan();
+        let (joints, complete, scanned) = self.scan();
         self.partial = !complete;
+        self.scanned = scanned;
         joints
     }
 
@@ -517,7 +518,7 @@ impl CopperGraph {
     /// its track end is joined exactly to nothing. Two tracks left with no
     /// joint, and not joined through other copper, meet at their nearest
     /// stations instead, so dropping a soft joint never splits an island.
-    fn scan(&self) -> (Vec<Joint>, bool) {
+    fn scan(&self) -> (Vec<Joint>, bool, BTreeMap<Id, (usize, usize)>) {
         let limit = self.elements.len().saturating_mul(MAX_JOINTS_PER_ELEMENT);
         let mut joints = Vec::new();
         // (pair, joint, the soft end's element and station)
@@ -526,7 +527,9 @@ impl CopperGraph {
         let mut near = Vec::new();
         let mut pairs = 0usize;
         let budget = check_pair_budget(self.shapes.len());
-        for group in self.groups.values() {
+        let mut scanned = BTreeMap::new();
+        for (net, group) in &self.groups {
+            let (pairs_before, joints_before) = (pairs, joints.len());
             for (local, &a) in group.members.iter().enumerate() {
                 let Some(ring_a) = self.shapes.get(a) else {
                     continue;
@@ -542,7 +545,7 @@ impl CopperGraph {
                 {
                     pairs += 1;
                     if pairs > budget || joints.len() > limit {
-                        return (joints, false);
+                        return (joints, false, BTreeMap::new());
                     }
                     let Some(ring_b) = self.shapes.get(b) else {
                         continue;
@@ -581,6 +584,7 @@ impl CopperGraph {
                     }
                 }
             }
+            scanned.insert(*net, (pairs - pairs_before, joints.len() - joints_before));
         }
         if !soft.is_empty() {
             let mut exact: HashMap<usize, Vec<f64>> = HashMap::new();
@@ -616,7 +620,7 @@ impl CopperGraph {
                 }
             }
         }
-        (joints, true)
+        (joints, true, scanned)
     }
 
     /// The joints of each fresh fill's islands with the copper of its net

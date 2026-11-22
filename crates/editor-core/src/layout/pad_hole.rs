@@ -79,98 +79,262 @@ struct Hole {
 pub(super) fn findings(
     copper: &BoardCopper,
     project: &Project,
-    graph: &CopperGraph,
+    graph: &super::GraphSource<'_>,
 ) -> Vec<Finding> {
-    let placed = placed_pads(project);
-    if placed.iter().all(|p| p.holes().is_empty())
-        && !project.board().holes.iter().any(|h| h.plated)
-    {
+    let Some(cx) = PadHoleCx::new(copper, project) else {
         return Vec::new();
-    }
-    let limits = BoardRules::of(project);
-    let labels = pad_labels(project);
-    let name = |pad: &PlacedPad| {
-        let part = super::outline::part_name(project, pad.instance);
-        let number = labels
-            .get(&(pad.instance, pad.pad.id))
-            .cloned()
-            .unwrap_or_else(|| pad.pad.id.to_string());
-        format!("{part} pad {number}")
     };
-    let mut issues = rings(project, &placed, &limits, &name);
-
-    // The board's holes ([`physical::holes`]), pad holes first, then via
-    // drills and mounting holes (plated board slots keep the profile's
-    // slot rules, not these).
-    let index: BTreeMap<(Id, PadId), usize> = placed
-        .iter()
-        .enumerate()
-        .map(|(k, p)| ((p.instance, p.pad.id), k))
-        .collect();
-    let all = physical::holes_of(project, &placed);
-    let hole_of = |h: &physical::Hole| {
-        let pad = match h.owner {
-            HoleOwner::Pad { instance, pad, .. } => index.get(&(instance, pad)).copied(),
-            _ => None,
-        };
-        Hole {
-            ring: h.feature.ring(),
-            kind: match h.owner {
-                HoleOwner::Via(_) => CopperObject::ViaHole,
-                _ => CopperObject::hole(h.plated),
-            },
-            pad,
-            object: h.object(),
-            name: match (pad.and_then(|k| placed.get(k)), h.owner) {
-                (Some(p), _) => name(p),
-                (None, HoleOwner::MountingHole(_)) => "a mounting hole".into(),
-                (None, _) => h.name.clone(),
-            },
-            what: h.what(),
-        }
-    };
-    let mut holes: Vec<Hole> = all
-        .iter()
-        .filter(|h| matches!(h.owner, HoleOwner::Pad { .. }))
-        .map(hole_of)
-        .collect();
-    let pad_holes = holes.len();
-    if pad_holes == 0 {
+    let mut issues = cx.rings();
+    if cx.pad_holes == 0 {
         return issues;
     }
-    holes.extend(
-        all.iter()
-            .filter(|h| matches!(h.owner, HoleOwner::Via(_) | HoleOwner::MountingHole(_)))
-            .map(hole_of),
-    );
-
-    let track_rings: Vec<CopperRing> = project.tracks.iter().map(CopperRing::of_track).collect();
-    let shapes = super::via::drilled_copper(copper, project, &track_rings);
-    let reach = check_reach(&limits);
-    let shape_grid = BoundsGrid::new(shapes.iter().map(|s| s.ring.bounds), reach);
-    let hole_grid = BoundsGrid::new(holes.iter().map(|h| h.ring.bounds), reach);
-    let joined = Joined::of(graph);
-    let mut near = Vec::new();
+    let shape_grid = BoundsGrid::new(cx.shape_bounds.iter().copied(), cx.reach);
+    let hole_grid = BoundsGrid::new(cx.hole_bounds.iter().copied(), cx.reach);
+    let joined = Joined::of(graph.get());
+    let (mut near_shapes, mut near_holes) = (Vec::new(), Vec::new());
     let mut pairs = 0usize;
-    let budget = check_pair_budget(shapes.len().saturating_add(holes.len()));
-    for (i, hole) in holes.iter().take(pad_holes).enumerate() {
-        let Some(pad) = hole.pad.and_then(|k| placed.get(k)) else {
+    let budget = cx.budget();
+    for i in 0..cx.pad_holes {
+        let Some(bounds) = cx.hole_bounds.get(i).copied().flatten() else {
             continue;
         };
-        let Some(bounds) = hole.ring.bounds else {
-            continue;
+        shape_grid.near(&bounds, cx.reach, &mut near_shapes);
+        hole_grid.near(&bounds, cx.reach, &mut near_holes);
+        match cx.hole(
+            i,
+            &joined,
+            &near_shapes,
+            &near_holes,
+            budget.saturating_sub(pairs),
+            &mut issues,
+        ) {
+            Ok(n) => pairs += n,
+            Err(()) => {
+                issues.push(limit_finding());
+                return issues;
+            }
+        }
+    }
+    issues
+}
+
+/// [`findings`] as items: the annular rings, then each pad hole's
+/// findings, made from `last` when given: an earlier state's items, what
+/// changed since and the nets whose islands may have changed. A pad hole
+/// is checked again when a changed shape is near it or its pad is on one
+/// of those nets. `graph` gives a copper graph holding at least the nets
+/// it is asked for (the nets of the pads checked again, for the copper
+/// joined to each). `None` when the check would stop at its pair limit.
+pub fn items(
+    copper: &BoardCopper,
+    project: &Project,
+    graph: &dyn Fn(&BTreeSet<Id>) -> Option<std::sync::Arc<CopperGraph>>,
+    last: Option<(&super::Items, &super::CopperChanges, &BTreeSet<Id>)>,
+) -> Option<super::Items> {
+    use super::ItemKey;
+    let Some(cx) = PadHoleCx::new(copper, project) else {
+        return super::Items::made(&[ItemKey::Rings], None, |_| Some((Vec::new(), 0)));
+    };
+    let keys: Vec<ItemKey> = std::iter::once(ItemKey::Rings)
+        .chain((0..cx.pad_holes).map(ItemKey::PadHole))
+        .collect();
+    // The pad holes to check again, and the nets of their pads.
+    let net_of = |i: usize| {
+        cx.holes
+            .get(i)
+            .and_then(|h| h.pad)
+            .and_then(|k| cx.placed.get(k))
+            .and_then(|p| p.net)
+    };
+    let remake: Vec<bool> = keys
+        .iter()
+        .enumerate()
+        .map(|(k, key)| match (last, k.checked_sub(1)) {
+            (None, _) => true,
+            (Some(_), None) => false,
+            (Some((_, changes, nets)), Some(i)) => {
+                changes.again(key, cx.hole_bounds.get(i), cx.reach)
+                    || net_of(i).is_some_and(|n| nets.contains(&n))
+            }
+        })
+        .collect();
+    let nets: BTreeSet<Id> = (0..cx.pad_holes)
+        .filter(|i| remake.get(i + 1).copied().unwrap_or(false))
+        .filter_map(net_of)
+        .collect();
+    let grids = last.is_none().then(|| {
+        (
+            BoundsGrid::new(cx.shape_bounds.iter().copied(), cx.reach),
+            BoundsGrid::new(cx.hole_bounds.iter().copied(), cx.reach),
+        )
+    });
+    let joined = if remake.iter().skip(1).any(|r| *r) {
+        Some(Joined::of(&*graph(&nets)?))
+    } else {
+        None
+    };
+    let (mut near_shapes, mut near_holes) = (Vec::new(), Vec::new());
+    let again = |k: usize, _: &ItemKey| remake.get(k).copied().unwrap_or(true);
+    let last = last.map(|(items, _, _)| (items, &again as &dyn Fn(usize, &ItemKey) -> bool));
+    let items = super::Items::made(&keys, last, |k| {
+        let Some(i) = k.checked_sub(1) else {
+            return Some((cx.rings(), 0));
         };
+        let mut out = Vec::new();
+        let Some(b) = cx.hole_bounds.get(i).copied().flatten() else {
+            return Some((out, 0));
+        };
+        match &grids {
+            Some((shapes, holes)) => {
+                shapes.near(&b, cx.reach, &mut near_shapes);
+                holes.near(&b, cx.reach, &mut near_holes);
+            }
+            None => {
+                super::copper::scan(&cx.shape_bounds, &b, cx.reach, &mut near_shapes);
+                super::copper::scan(&cx.hole_bounds, &b, cx.reach, &mut near_holes);
+            }
+        }
+        let pairs = cx
+            .hole(
+                i,
+                joined.as_ref()?,
+                &near_shapes,
+                &near_holes,
+                usize::MAX,
+                &mut out,
+            )
+            .ok()?;
+        Some((out, pairs))
+    })?;
+    (items.pairs() <= cx.budget()).then_some(items)
+}
+
+/// One state's pad hole checks: the placed pads, the board's holes (pad
+/// holes first), the copper they are measured against and the rules.
+struct PadHoleCx<'a> {
+    project: &'a Project,
+    placed: Vec<PlacedPad>,
+    limits: BoardRules<'a>,
+    labels: BTreeMap<(Id, PadId), String>,
+    holes: Vec<Hole>,
+    hole_bounds: Vec<Option<crate::geometry::Bounds>>,
+    pad_holes: usize,
+    shapes: Vec<super::via::Drilled<'a>>,
+    shape_bounds: Vec<Option<crate::geometry::Bounds>>,
+    reach: f64,
+}
+
+impl<'a> PadHoleCx<'a> {
+    /// `None` when the board has no pad hole and no plated mounting hole.
+    fn new(copper: &'a BoardCopper, project: &'a Project) -> Option<Self> {
+        let placed = placed_pads(project);
+        if placed.iter().all(|p| p.holes().is_empty())
+            && !project.board().holes.iter().any(|h| h.plated)
+        {
+            return None;
+        }
+        let limits = BoardRules::of(project);
+        let labels = pad_labels(project);
+        let name = |pad: &PlacedPad| pad_name(project, &labels, pad);
+        // The board's holes ([`physical::holes`]), pad holes first, then
+        // via drills and mounting holes (plated board slots keep the
+        // profile's slot rules, not these).
+        let index: BTreeMap<(Id, PadId), usize> = placed
+            .iter()
+            .enumerate()
+            .map(|(k, p)| ((p.instance, p.pad.id), k))
+            .collect();
+        let all = physical::holes_of(project, &placed);
+        let hole_of = |h: &physical::Hole| {
+            let pad = match h.owner {
+                HoleOwner::Pad { instance, pad, .. } => index.get(&(instance, pad)).copied(),
+                _ => None,
+            };
+            Hole {
+                ring: h.feature.ring(),
+                kind: match h.owner {
+                    HoleOwner::Via(_) => CopperObject::ViaHole,
+                    _ => CopperObject::hole(h.plated),
+                },
+                pad,
+                object: h.object(),
+                name: match (pad.and_then(|k| placed.get(k)), h.owner) {
+                    (Some(p), _) => name(p),
+                    (None, HoleOwner::MountingHole(_)) => "a mounting hole".into(),
+                    (None, _) => h.name.clone(),
+                },
+                what: h.what(),
+            }
+        };
+        let mut holes: Vec<Hole> = all
+            .iter()
+            .filter(|h| matches!(h.owner, HoleOwner::Pad { .. }))
+            .map(hole_of)
+            .collect();
+        let pad_holes = holes.len();
+        if pad_holes > 0 {
+            holes.extend(
+                all.iter()
+                    .filter(|h| matches!(h.owner, HoleOwner::Via(_) | HoleOwner::MountingHole(_)))
+                    .map(hole_of),
+            );
+        }
+        let shapes = super::via::drilled_copper(copper);
+        Some(Self {
+            project,
+            hole_bounds: holes.iter().map(|h| h.ring.bounds).collect(),
+            holes,
+            pad_holes,
+            shape_bounds: shapes.iter().map(|s| s.ring.bounds).collect(),
+            shapes,
+            reach: check_reach(&limits),
+            limits,
+            labels,
+            placed,
+        })
+    }
+
+    fn budget(&self) -> usize {
+        check_pair_budget(self.shapes.len().saturating_add(self.holes.len()))
+    }
+
+    fn rings(&self) -> Vec<Finding> {
+        let name = |pad: &PlacedPad| pad_name(self.project, &self.labels, pad);
+        rings(self.project, &self.placed, &self.limits, &name)
+    }
+
+    /// Pad hole `i` against the copper shapes `near_shapes` (but those
+    /// `joined` to its pad) and the holes `near_holes`, both ascending:
+    /// the pairs compared, or `Err` once more than `budget` would be.
+    fn hole(
+        &self,
+        i: usize,
+        joined: &Joined,
+        near_shapes: &[usize],
+        near_holes: &[usize],
+        budget: usize,
+        issues: &mut Vec<Finding>,
+    ) -> std::result::Result<usize, ()> {
+        let (project, limits) = (self.project, &self.limits);
+        let Some(hole) = self.holes.get(i) else {
+            return Ok(0);
+        };
+        let Some(pad) = hole.pad.and_then(|k| self.placed.get(k)) else {
+            return Ok(0);
+        };
+        if hole.ring.bounds.is_none() {
+            return Ok(0);
+        }
+        let mut pairs = 0usize;
         let net = pad.net.filter(|_| hole.kind == CopperObject::PthHole);
         let own = joined.island(pad);
-        shape_grid.near(&bounds, reach, &mut near);
-        for shape in near.iter().filter_map(|k| shapes.get(*k)) {
+        for shape in near_shapes.iter().filter_map(|k| self.shapes.get(*k)) {
             if shape.object == hole.object || joined.holds(own, &shape.object) {
                 continue;
             }
             pairs += 1;
             if pairs > budget {
-                issues.push(limit_finding());
-                return issues;
+                return Err(());
             }
             let need = limits.clearance(hole.kind, net, shape.kind, shape.net);
             if !hole.ring.closer_than(shape.ring, need) {
@@ -190,16 +354,14 @@ pub(super) fn findings(
                 vec![hole.object, shape.object],
             ));
         }
-        hole_grid.near(&bounds, reach, &mut near);
-        for other in near
+        for other in near_holes
             .iter()
-            .filter(|j| **j != i && (**j > i || **j >= pad_holes))
-            .filter_map(|j| holes.get(*j))
+            .filter(|j| **j != i && (**j > i || **j >= self.pad_holes))
+            .filter_map(|j| self.holes.get(*j))
         {
             pairs += 1;
             if pairs > budget {
-                issues.push(limit_finding());
-                return issues;
+                return Err(());
             }
             let spacing = limits.clearance(hole.kind, None, other.kind, None);
             if !hole.ring.closer_than(&other.ring, spacing) {
@@ -238,8 +400,18 @@ pub(super) fn findings(
             };
             issues.push(Finding::new("board.pad_hole_spacing", text, objects));
         }
+        Ok(pairs)
     }
-    issues
+}
+
+/// How a pad hole message names a pad: "J1 pad 5".
+fn pad_name(project: &Project, labels: &BTreeMap<(Id, PadId), String>, pad: &PlacedPad) -> String {
+    let part = super::outline::part_name(project, pad.instance);
+    let number = labels
+        .get(&(pad.instance, pad.pad.id))
+        .cloned()
+        .unwrap_or_else(|| pad.pad.id.to_string());
+    format!("{part} pad {number}")
 }
 
 /// `board.pth_annular_ring` for every plated pad hole and plated

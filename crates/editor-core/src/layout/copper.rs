@@ -12,11 +12,10 @@
 //! caps are exact instead: its gaps are measured from its centre line less
 //! its half-width.
 use super::board_edge::{BoardEdges, EdgeVerdict};
-use super::connectivity::CopperGraph;
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
 use super::physical::{Conductor, Land};
-use super::{CLEARANCE_MM, EPS, WorldPad, check_pair_budget, courtyard, sync_preview};
+use super::{CLEARANCE_MM, EPS, WorldPad, check_pair_budget, sync_preview};
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::{
     Bounds, Point, Shape, polygons_overlap, polyline_polygon_distance, segments_gap,
@@ -239,14 +238,52 @@ fn curved(shape: &PadShape) -> bool {
 }
 
 /// The board's lands ([`super::physical::lands`]: every pad with copper,
-/// netted or not, and every plated mounting hole's washer) and its vias
-/// with their copper outlines, built once per document revision, for the
-/// clearance and edge checks.
-#[derive(Clone, Debug, Default, PartialEq)]
+/// netted or not, and every plated mounting hole's washer), its vias and
+/// its tracks with their copper outlines, built once per document state
+/// for the clearance, hole and edge checks, which all read these outlines
+/// rather than each flattening its own. A next state's copper is made from
+/// the last one's ([`Self::next`]): an unchanged track or via keeps its
+/// outline.
+#[derive(Clone, Debug, Default)]
 pub struct BoardCopper {
-    lands: Vec<Land>,
+    lands: std::sync::Arc<Vec<Land>>,
     vias: Vec<Via>,
-    via_rings: Vec<CopperRing>,
+    via_rings: Vec<std::sync::Arc<CopperRing>>,
+    drill_rings: Vec<std::sync::Arc<CopperRing>>,
+    tracks: Vec<Track>,
+    track_rings: Vec<std::sync::Arc<CopperRing>>,
+}
+
+impl PartialEq for BoardCopper {
+    fn eq(&self, other: &Self) -> bool {
+        self.lands == other.lands && self.vias == other.vias && self.tracks == other.tracks
+    }
+}
+
+/// The outlines of `items`, each `make` of its item, reusing the outline
+/// of an equal item of `last` (with its outlines `rings`) when `last` has
+/// one with that identity. Collections stay in identity order but for
+/// undone deletions, so the lookup is a binary search with a scan when it
+/// misses.
+fn rings_of<T: PartialEq>(
+    items: &[T],
+    last: Option<(&[T], &[std::sync::Arc<CopperRing>])>,
+    id: impl Fn(&T) -> Id,
+    make: impl Fn(&T) -> CopperRing,
+) -> Vec<std::sync::Arc<CopperRing>> {
+    items
+        .iter()
+        .map(|item| {
+            let kept = last.and_then(|(old, rings)| {
+                let at = match old.binary_search_by_key(&id(item), &id) {
+                    Ok(k) => Some(k),
+                    Err(_) => old.iter().position(|o| id(o) == id(item)),
+                }?;
+                (old.get(at)? == item).then(|| rings.get(at).cloned())?
+            });
+            kept.unwrap_or_else(|| std::sync::Arc::new(make(item)))
+        })
+        .collect()
 }
 
 /// One copper shape the checks compare: a land, a via or a track.
@@ -268,15 +305,55 @@ impl Copper<'_> {
 }
 
 impl BoardCopper {
-    /// Every land and every via of `project` with its exact outline.
+    /// Every land, via and track of `project` with its exact outline.
     pub fn of(project: &Project) -> Self {
-        let lands = super::physical::lands(project);
-        let vias = project.vias.to_vec();
-        let via_rings = vias.iter().map(CopperRing::of_via).collect();
+        Self::build(
+            project,
+            None,
+            std::sync::Arc::new(super::physical::lands(project)),
+        )
+    }
+
+    /// The copper of `project`, a next state of the one `self` was made
+    /// of: tracks and vias equal to one of `self` keep its outlines. With
+    /// `same_lands` the caller has established that nothing the lands
+    /// are made of changed, and `self`'s lands are kept.
+    pub fn next(&self, project: &Project, same_lands: bool) -> Self {
+        let lands = if same_lands {
+            self.lands.clone()
+        } else {
+            std::sync::Arc::new(super::physical::lands(project))
+        };
+        Self::build(project, Some(self), lands)
+    }
+
+    fn build(project: &Project, last: Option<&Self>, lands: std::sync::Arc<Vec<Land>>) -> Self {
+        let via_id = |v: &Via| v.id;
+        let vias = |rings: fn(&Self) -> &[std::sync::Arc<CopperRing>]| {
+            last.map(|l| (l.vias.as_slice(), rings(l)))
+        };
         Self {
+            via_rings: rings_of(
+                &project.vias,
+                vias(|l| &l.via_rings),
+                via_id,
+                CopperRing::of_via,
+            ),
+            drill_rings: rings_of(
+                &project.vias,
+                vias(|l| &l.drill_rings),
+                via_id,
+                CopperRing::of_drill,
+            ),
+            track_rings: rings_of(
+                &project.tracks,
+                last.map(|l| (l.tracks.as_slice(), l.track_rings.as_slice())),
+                |t: &Track| t.id,
+                CopperRing::of_track,
+            ),
             lands,
-            vias,
-            via_rings,
+            vias: project.vias.to_vec(),
+            tracks: project.tracks.to_vec(),
         }
     }
 
@@ -287,7 +364,22 @@ impl BoardCopper {
 
     /// The annular-pad outline of the via at `index` in [`Self::vias`].
     pub fn via_ring(&self, index: usize) -> Option<&CopperRing> {
-        self.via_rings.get(index)
+        self.via_rings.get(index).map(|r| &**r)
+    }
+
+    /// The drilled-hole outline of the via at `index` in [`Self::vias`].
+    pub fn drill_ring(&self, index: usize) -> Option<&CopperRing> {
+        self.drill_rings.get(index).map(|r| &**r)
+    }
+
+    /// The board's tracks, in document order.
+    pub fn tracks(&self) -> &[Track] {
+        &self.tracks
+    }
+
+    /// The outline of each of [`Self::tracks`], in the same order.
+    pub fn track_rings(&self) -> impl ExactSizeIterator<Item = &CopperRing> + Clone {
+        self.track_rings.iter().map(|r| &**r)
     }
 
     /// The lands: pads in placement then pad order, then washers.
@@ -295,7 +387,7 @@ impl BoardCopper {
         &self.lands
     }
 
-    fn shapes<'a>(&'a self, tracks: &[Track], track_rings: &'a [CopperRing]) -> Vec<Copper<'a>> {
+    fn shapes(&self) -> Vec<Copper<'_>> {
         let lands = self.lands.iter().map(|land| Copper {
             kind: CopperObject::Pad,
             conductor: land.conductor,
@@ -309,7 +401,7 @@ impl BoardCopper {
         let vias = self
             .vias
             .iter()
-            .zip(&self.via_rings)
+            .zip(self.via_rings.iter().map(|r| &**r))
             .map(|(v, ring)| Copper {
                 kind: CopperObject::Via,
                 conductor: Conductor::Net(v.net),
@@ -319,139 +411,450 @@ impl BoardCopper {
                 object: ObjectRef::Via { id: v.id },
                 name: None,
             });
-        let tracks = tracks.iter().zip(track_rings).map(|(t, ring)| Copper {
-            kind: CopperObject::Track,
-            conductor: Conductor::Net(t.net),
-            layer: t.layer,
-            through: false,
-            ring,
-            object: ObjectRef::Track { id: t.id },
-            name: None,
-        });
+        let tracks = self
+            .tracks
+            .iter()
+            .zip(self.track_rings())
+            .map(|(t, ring)| Copper {
+                kind: CopperObject::Track,
+                conductor: Conductor::Net(t.net),
+                layer: t.layer,
+                through: false,
+                ring,
+                object: ObjectRef::Track { id: t.id },
+                name: None,
+            });
         lands.chain(vias).chain(tracks).collect()
     }
 
-    /// The board checks: placement, edge and clearance from these outlines,
-    /// then the connectivity findings of `graph` (the same revision's
-    /// copper graph), the via, pad hole and courtyard checks.
-    pub fn checks(&self, project: &Project, graph: &CopperGraph) -> Vec<Finding> {
+    /// Edge and clearance findings from these outlines, and whether the
+    /// check stopped at its pair limit (its last finding then says so).
+    pub(super) fn clearance(&self, project: &Project) -> (Vec<Finding>, bool) {
+        let cx = ClearanceCx::new(self, project);
+        let grid = BoundsGrid::new(cx.shapes.iter().map(|s| s.ring.bounds), cx.reach);
+        let budget = check_pair_budget(cx.shapes.len());
         let mut issues = Vec::new();
-        for id in sync_preview(project) {
+        let mut near = Vec::new();
+        let mut pairs = 0usize;
+        for i in 0..cx.shapes.len() {
+            cx.edge(i, &mut issues);
+            let Some(bounds) = cx.shapes.get(i).and_then(|a| a.ring.bounds) else {
+                continue;
+            };
+            grid.near(&bounds, cx.reach, &mut near);
+            match cx.pairs(i, &near, budget.saturating_sub(pairs), &mut issues) {
+                Ok(n) => pairs += n,
+                Err(()) => {
+                    issues.push(limit_finding());
+                    return (issues, true);
+                }
+            }
+        }
+        (issues, false)
+    }
+
+    /// [`Self::clearance`] as each shape's findings, made from `last`,
+    /// the items of an earlier state of this board, and `changes`, what
+    /// changed since: a shape is checked again when it changed or a
+    /// changed shape (in either state) is within the check's reach of it;
+    /// every other shape keeps its findings. `None` when the check would
+    /// stop at its pair limit, which only the full check reports.
+    pub fn clearance_items(
+        &self,
+        project: &Project,
+        last: Option<(&Items, &CopperChanges)>,
+    ) -> Option<Items> {
+        let cx = ClearanceCx::new(self, project);
+        let keys = self.shape_keys();
+        let bounds: Vec<Option<Bounds>> = cx.shapes.iter().map(|s| s.ring.bounds).collect();
+        let grid = last
+            .is_none()
+            .then(|| BoundsGrid::new(bounds.iter().copied(), cx.reach));
+        let mut near = Vec::new();
+        let make = |i: usize, near: &mut Vec<usize>| {
+            let mut out = Vec::new();
+            cx.edge(i, &mut out);
+            let Some(b) = bounds.get(i).copied().flatten() else {
+                return Some((out, 0));
+            };
+            match &grid {
+                Some(grid) => grid.near(&b, cx.reach, near),
+                None => scan(&bounds, &b, cx.reach, near),
+            }
+            let pairs = cx.pairs(i, near, usize::MAX, &mut out).ok()?;
+            Some((out, pairs))
+        };
+        let again = |i: usize, key: &ItemKey| {
+            last.is_some_and(|(_, changes)| changes.again(key, bounds.get(i), cx.reach))
+        };
+        let last = last.map(|(items, _)| (items, &again as &dyn Fn(usize, &ItemKey) -> bool));
+        let items = Items::made(&keys, last, |i| make(i, &mut near))?;
+        (items.pairs() <= check_pair_budget(cx.shapes.len())).then_some(items)
+    }
+
+    /// The identity of each shape the clearance check compares, in its
+    /// order: lands by index, then vias and tracks.
+    fn shape_keys(&self) -> Vec<ItemKey> {
+        (0..self.lands.len())
+            .map(ItemKey::Land)
+            .chain(self.vias.iter().map(|v| ItemKey::Via(v.id)))
+            .chain(self.tracks.iter().map(|t| ItemKey::Track(t.id)))
+            .collect()
+    }
+
+    /// What changed from `last`, an earlier state's copper with the same
+    /// lands, to this: the tracks and vias added or changed, and the
+    /// bounds and nets of every track and via added, changed or removed,
+    /// in either state.
+    pub fn changes_from(&self, last: &BoardCopper) -> CopperChanges {
+        let mut changes = CopperChanges::default();
+        diff_items(
+            &self.tracks,
+            &self.track_rings,
+            &last.tracks,
+            &last.track_rings,
+            |t| t.id,
+            |t| t.net,
+            ItemKey::Track,
+            &mut changes,
+        );
+        diff_items(
+            &self.vias,
+            &self.via_rings,
+            &last.vias,
+            &last.via_rings,
+            |v| v.id,
+            |v| v.net,
+            ItemKey::Via,
+            &mut changes,
+        );
+        changes
+    }
+}
+
+/// Which tracks and vias changed between two states of one board's copper
+/// ([`BoardCopper::changes_from`]).
+#[derive(Clone, Debug, Default)]
+pub struct CopperChanges {
+    /// The tracks and vias added or changed: their checks run again.
+    pub keys: std::collections::HashSet<ItemKey>,
+    /// The copper bounds, in either state, of every track and via added,
+    /// changed or removed: an unchanged shape near one is checked again.
+    pub bounds: Vec<Bounds>,
+    /// Their nets, in either state.
+    pub nets: std::collections::BTreeSet<Id>,
+}
+
+impl CopperChanges {
+    /// Whether nothing changed.
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty() && self.bounds.is_empty()
+    }
+
+    /// Whether the item `key` (with `bounds`) of a pairwise check must be
+    /// made again: it changed, or a changed shape is within `reach`.
+    pub fn again(&self, key: &ItemKey, bounds: Option<&Option<Bounds>>, reach: f64) -> bool {
+        self.keys.contains(key)
+            || bounds
+                .copied()
+                .flatten()
+                .is_some_and(|b| self.near(&b, reach))
+    }
+
+    /// Whether an unchanged shape with `bounds` is within `reach` of a
+    /// changed one, so its pairwise checks run again.
+    pub fn near(&self, bounds: &Bounds, reach: f64) -> bool {
+        self.bounds
+            .iter()
+            .any(|c| super::grid::within(bounds, c, reach))
+    }
+}
+
+/// Record in `changes` the items of `new` (with outlines `rings`) that
+/// differ from `old`'s, and the items of `old` that are gone.
+#[allow(clippy::too_many_arguments)]
+fn diff_items<T: PartialEq>(
+    new: &[T],
+    rings: &[std::sync::Arc<CopperRing>],
+    old: &[T],
+    old_rings: &[std::sync::Arc<CopperRing>],
+    id: impl Fn(&T) -> Id,
+    net: impl Fn(&T) -> Id,
+    key: impl Fn(Id) -> ItemKey,
+    changes: &mut CopperChanges,
+) {
+    let at = |items: &[T], wanted: Id| match items.binary_search_by_key(&wanted, &id) {
+        Ok(k) => Some(k),
+        Err(_) => items.iter().position(|o| id(o) == wanted),
+    };
+    let mut kept = 0usize;
+    for (item, ring) in new.iter().zip(rings) {
+        match at(old, id(item)).and_then(|k| Some((old.get(k)?, old_rings.get(k)?))) {
+            Some((before, _)) if before == item => kept += 1,
+            Some((before, old_ring)) => {
+                changes.keys.insert(key(id(item)));
+                changes
+                    .bounds
+                    .extend(ring.bounds.into_iter().chain(old_ring.bounds));
+                changes.nets.extend([net(item), net(before)]);
+                kept += 1;
+            }
+            None => {
+                changes.keys.insert(key(id(item)));
+                changes.bounds.extend(ring.bounds);
+                changes.nets.insert(net(item));
+            }
+        }
+    }
+    if kept == old.len() {
+        return;
+    }
+    // Some of `old` are gone.
+    let present: std::collections::HashSet<Id> = new.iter().map(&id).collect();
+    for (item, ring) in old.iter().zip(old_rings) {
+        if !present.contains(&id(item)) {
+            changes.bounds.extend(ring.bounds);
+            changes.nets.insert(net(item));
+        }
+    }
+}
+
+/// The identity of one item a pairwise board check keeps findings for
+/// ([`Items`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ItemKey {
+    /// A land, by index (lands are kept only while unchanged).
+    Land(usize),
+    Via(Id),
+    Track(Id),
+    /// A pad hole, by its index among the pad holes.
+    PadHole(usize),
+    /// A board mounting hole, by index.
+    Mount(usize),
+    /// The pad hole check's annular rings, which read no track or via.
+    Rings,
+}
+
+/// The findings and the number of pairs compared of each item of one
+/// pairwise board check, in the check's order: what a state keeps so the
+/// next state checks again only the items a change reaches.
+#[derive(Clone, Debug, Default)]
+pub struct Items {
+    items: Vec<(ItemKey, Vec<Finding>, usize)>,
+}
+
+impl Items {
+    /// The items of `keys` (in check order): each made by `make` when
+    /// there is no `last`, or when `last`'s test says it must be made
+    /// again; otherwise `last`'s findings for it. `None` when `make` gives
+    /// none (a check that must stop).
+    pub(super) fn made(
+        keys: &[ItemKey],
+        last: Option<(&Items, &dyn Fn(usize, &ItemKey) -> bool)>,
+        mut make: impl FnMut(usize) -> Option<(Vec<Finding>, usize)>,
+    ) -> Option<Self> {
+        let mut items = Vec::with_capacity(keys.len());
+        let mut cursor = 0usize;
+        for (i, key) in keys.iter().enumerate() {
+            let kept = last.and_then(|(old, again)| {
+                if again(i, key) {
+                    return None;
+                }
+                // Unchanged items keep their order, so a forward search
+                // from the last one found finds the next.
+                let at = old
+                    .items
+                    .get(cursor..)?
+                    .iter()
+                    .position(|(k, _, _)| k == key)?;
+                cursor += at + 1;
+                old.items.get(cursor - 1).map(|(_, f, p)| (f.clone(), *p))
+            });
+            let (findings, pairs) = match kept {
+                Some(item) => item,
+                None => make(i)?,
+            };
+            items.push((*key, findings, pairs));
+        }
+        Some(Self { items })
+    }
+
+    /// Every finding, in check order.
+    pub fn findings(&self) -> impl Iterator<Item = &Finding> {
+        self.items.iter().flat_map(|(_, f, _)| f)
+    }
+
+    /// The pairs compared, all items together.
+    pub fn pairs(&self) -> usize {
+        self.items
+            .iter()
+            .fold(0usize, |sum, (_, _, p)| sum.saturating_add(*p))
+    }
+}
+
+/// Every shape of `bounds` (by index, ascending) that a [`BoundsGrid`] of
+/// them would list near `near` within `reach`: the same filter, by a scan,
+/// for the few queries of a changed board.
+pub(super) fn scan(bounds: &[Option<Bounds>], near: &Bounds, reach: f64, out: &mut Vec<usize>) {
+    out.clear();
+    out.extend(
+        bounds
+            .iter()
+            .enumerate()
+            .filter(|(_, b)| b.is_some_and(|b| super::grid::within(near, &b, reach)))
+            .map(|(k, _)| k),
+    );
+}
+
+/// One state's clearance check: its shapes, rules, reach and edges.
+struct ClearanceCx<'a> {
+    project: &'a Project,
+    shapes: Vec<Copper<'a>>,
+    limits: BoardRules<'a>,
+    reach: f64,
+    edges: BoardEdges,
+}
+
+impl<'a> ClearanceCx<'a> {
+    fn new(copper: &'a BoardCopper, project: &'a Project) -> Self {
+        let limits = BoardRules::of(project);
+        Self {
+            project,
+            shapes: copper.shapes(),
+            reach: check_reach(&limits),
+            limits,
+            edges: BoardEdges::of(project),
+        }
+    }
+
+    fn label(&self, shape: &Copper) -> String {
+        match (shape.name, shape.net()) {
+            (Some(name), _) => name.to_owned(),
+            (None, Some(net)) => {
+                format!("a {} on {}", shape.kind.label(), self.project.net_name(net))
+            }
+            (None, None) => String::new(),
+        }
+    }
+
+    /// Shape `i` against the board's edges.
+    fn edge(&self, i: usize, issues: &mut Vec<Finding>) {
+        let Some(a) = self.shapes.get(i) else {
+            return;
+        };
+        let limits = &self.limits;
+        let edge = limits.clearance(a.kind, a.net(), CopperObject::BoardEdge, None);
+        match self.edges.verdict(a.ring, edge) {
+            EdgeVerdict::Clear => {}
+            EdgeVerdict::Outside => issues.push(Finding::new(
+                "board.outside_outline",
+                format!("{} extends beyond board outline", self.label(a)),
+                vec![a.object],
+            )),
+            EdgeVerdict::Inside(kind) => issues.push(Finding::new(
+                "board.outside_outline",
+                format!(
+                    "{} extends into {}",
+                    self.label(a),
+                    super::board_edge::EdgeLoopKind::Cutout(kind).describe()
+                ),
+                vec![a.object],
+            )),
+            EdgeVerdict::TooClose { gap, near } => {
+                let need = limits.clearance_need(a.kind, a.net(), CopperObject::BoardEdge, None);
+                issues.push(Finding::new(
+                    "board.edge_clearance",
+                    format!(
+                        "{} is {} mm from {}; {}",
+                        crate::library::names::capitalised(&self.label(a)),
+                        mm_against(gap, need.mm),
+                        near.describe(),
+                        need.text()
+                    ),
+                    vec![a.object],
+                ));
+            }
+        }
+    }
+
+    /// Shape `i` against each later shape of `near` (ascending): the pairs
+    /// compared, or `Err` once more than `budget` would be.
+    fn pairs(
+        &self,
+        i: usize,
+        near: &[usize],
+        budget: usize,
+        issues: &mut Vec<Finding>,
+    ) -> Result<usize, ()> {
+        let Some(a) = self.shapes.get(i) else {
+            return Ok(0);
+        };
+        let limits = &self.limits;
+        let mut pairs = 0usize;
+        for b in near
+            .iter()
+            .filter(|j| **j > i)
+            .filter_map(|j| self.shapes.get(*j))
+        {
+            pairs += 1;
+            if pairs > budget {
+                return Err(());
+            }
+            if a.layer != b.layer && !a.through && !b.through {
+                continue;
+            }
+            if a.conductor.same(b.conductor) {
+                continue;
+            }
+            let (an, bn) = class_nets(a, b);
+            let mut gap = limits.clearance(a.kind, an, b.kind, bn);
+            // The footprint exception spares the classes' fab spacing
+            // only: an isolation clearance between their classes still
+            // holds between two pads of one footprint.
+            let isolation = match (within_footprint(a, b), a.net(), b.net()) {
+                (true, Some(x), Some(y)) => limits.isolation(x, y),
+                _ => None,
+            }
+            .filter(|need| need.mm > gap);
+            if let Some(need) = &isolation {
+                gap = need.mm;
+            }
+            if a.ring.closer_than(b.ring, gap) {
+                let need =
+                    isolation.unwrap_or_else(|| limits.clearance_need(a.kind, an, b.kind, bn));
+                issues.push(Finding::new(
+                    "board.clearance",
+                    format!(
+                        "Clearance < {} mm: {} / {} ({})",
+                        mm(need.mm),
+                        self.label(a),
+                        self.label(b),
+                        need.cite()
+                    ),
+                    vec![a.object, b.object],
+                ));
+            }
+        }
+        Ok(pairs)
+    }
+}
+
+/// The parts the schematic has that the board does not place.
+pub(super) fn unplaced(project: &Project) -> Vec<Finding> {
+    sync_preview(project)
+        .into_iter()
+        .map(|id| {
             let reference = project
                 .instance(id)
                 .map(|i| i.designator.as_str())
                 .unwrap_or("component");
-            issues.push(Finding::new(
+            Finding::new(
                 "board.unplaced",
                 format!("{reference} is not placed on the board"),
                 vec![ObjectRef::Instance { id }],
-            ));
-        }
-        let label = |shape: &Copper| match (shape.name, shape.net()) {
-            (Some(name), _) => name.to_owned(),
-            (None, Some(net)) => format!("a {} on {}", shape.kind.label(), project.net_name(net)),
-            (None, None) => String::new(),
-        };
-        let track_rings: Vec<CopperRing> =
-            project.tracks.iter().map(CopperRing::of_track).collect();
-        let shapes = self.shapes(&project.tracks, &track_rings);
-        let limits = BoardRules::of(project);
-        let reach = check_reach(&limits);
-        let grid = BoundsGrid::new(shapes.iter().map(|s| s.ring.bounds), reach);
-        let mut near = Vec::new();
-        let mut pairs = 0usize;
-        let budget = check_pair_budget(shapes.len());
-        let edges = BoardEdges::of(project);
-        for (i, a) in shapes.iter().enumerate() {
-            let edge = || limits.clearance(a.kind, a.net(), CopperObject::BoardEdge, None);
-            match edges.verdict(a.ring, edge()) {
-                EdgeVerdict::Clear => {}
-                EdgeVerdict::Outside => issues.push(Finding::new(
-                    "board.outside_outline",
-                    format!("{} extends beyond board outline", label(a)),
-                    vec![a.object],
-                )),
-                EdgeVerdict::Inside(kind) => issues.push(Finding::new(
-                    "board.outside_outline",
-                    format!(
-                        "{} extends into {}",
-                        label(a),
-                        super::board_edge::EdgeLoopKind::Cutout(kind).describe()
-                    ),
-                    vec![a.object],
-                )),
-                EdgeVerdict::TooClose { gap, near } => {
-                    let need =
-                        limits.clearance_need(a.kind, a.net(), CopperObject::BoardEdge, None);
-                    issues.push(Finding::new(
-                        "board.edge_clearance",
-                        format!(
-                            "{} is {} mm from {}; {}",
-                            crate::library::names::capitalised(&label(a)),
-                            mm_against(gap, need.mm),
-                            near.describe(),
-                            need.text()
-                        ),
-                        vec![a.object],
-                    ));
-                }
-            }
-            let Some(bounds) = a.ring.bounds else {
-                continue;
-            };
-            grid.near(&bounds, reach, &mut near);
-            for b in near
-                .iter()
-                .filter(|j| **j > i)
-                .filter_map(|j| shapes.get(*j))
-            {
-                pairs += 1;
-                if pairs > budget {
-                    issues.push(limit_finding());
-                    return issues;
-                }
-                if a.layer != b.layer && !a.through && !b.through {
-                    continue;
-                }
-                if a.conductor.same(b.conductor) {
-                    continue;
-                }
-                let (an, bn) = class_nets(a, b);
-                let mut gap = limits.clearance(a.kind, an, b.kind, bn);
-                // The footprint exception spares the classes' fab spacing
-                // only: an isolation clearance between their classes still
-                // holds between two pads of one footprint.
-                let isolation = match (within_footprint(a, b), a.net(), b.net()) {
-                    (true, Some(x), Some(y)) => limits.isolation(x, y),
-                    _ => None,
-                }
-                .filter(|need| need.mm > gap);
-                if let Some(need) = &isolation {
-                    gap = need.mm;
-                }
-                if a.ring.closer_than(b.ring, gap) {
-                    let need =
-                        isolation.unwrap_or_else(|| limits.clearance_need(a.kind, an, b.kind, bn));
-                    issues.push(Finding::new(
-                        "board.clearance",
-                        format!(
-                            "Clearance < {} mm: {} / {} ({})",
-                            mm(need.mm),
-                            label(a),
-                            label(b),
-                            need.cite()
-                        ),
-                        vec![a.object, b.object],
-                    ));
-                }
-            }
-        }
-        issues.extend(graph.findings(project));
-        issues.extend(super::via::findings(self, project));
-        issues.extend(super::pad_hole::findings(self, project, graph));
-        issues.extend(courtyard::findings(project));
-        issues
-    }
+            )
+        })
+        .collect()
 }
 
 /// Whether `a` and `b` are two pads of one placed footprint: the

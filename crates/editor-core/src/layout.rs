@@ -1,6 +1,6 @@
 //! Placement and manual routing over the electrical document. Geometry here is
 //! electronics checking geometry; native 3D remains in the Solidcraft adapter.
-use crate::diagnostics::{Error, Finding, Result};
+use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::{Point, Shape, Transform2, point_valid};
 use crate::ids::{Endpoint, Id, PadId};
 use crate::instances;
@@ -57,13 +57,14 @@ pub mod staging;
 pub mod via;
 pub use crate::rules::signal::CheckSettings;
 pub use arrange::part_envelope;
-pub use connectivity::CopperGraph;
+pub use connectivity::{CopperGraph, NetCounts};
 #[cfg(test)]
 pub(crate) use copper::limit_finding as copper_limit_finding;
-pub use copper::{BoardCopper, CURVE_SLACK_MM, CopperRing};
+pub use copper::{BoardCopper, CURVE_SLACK_MM, CopperChanges, CopperRing, ItemKey, Items};
 #[cfg(test)]
 pub(crate) use courtyard::limit_finding as courtyard_limit_finding;
 pub use courtyard::{PlacedCourtyard, placed_courtyards};
+pub use pad_hole::items as pad_hole_items;
 pub use placed::{
     BoardDrawing, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout, PlacedPad, model_to_board,
     pick_graphic, pick_pad, placed_graphics, placed_keepouts, placed_pads, placement_transform,
@@ -1633,25 +1634,316 @@ pub fn checks_with(
 }
 
 /// [`checks_with`] on `copper`, the revision's [`BoardCopper`], for a
-/// host that already holds it (the PCB editor's per-revision cache).
+/// host that already holds it.
 pub fn checks_on(
     project: &Project,
     copper: &BoardCopper,
     graph: &CopperGraph,
     settings: &CheckSettings,
 ) -> Vec<Finding> {
-    let mut findings = copper.checks(project, graph);
-    findings.extend(physical::findings(project));
-    findings.extend(fill::findings(project));
-    findings.extend(outline::checks(project));
-    findings.extend(dimensions::checks(project));
-    findings.extend(length::checks(project, graph, settings));
-    findings.extend(etch::checks(project, graph));
-    findings.extend(bodies::checks(project));
-    findings.extend(mask_colour::findings(project));
-    findings.extend(profile_fit::findings(project));
-    findings.extend(fiducial::findings(project));
-    findings
+    let graph = GraphSource::given(graph);
+    let (families, _) = check_families(project, copper, &graph, settings, &mut |_| None);
+    families.into_iter().flat_map(|(_, f)| f).collect()
+}
+
+/// The copper graph a board check reads: one the caller holds, or one
+/// made when a check first asks for it, so checks whose rules need no
+/// connectivity never build it.
+pub struct GraphSource<'a> {
+    given: Option<&'a CopperGraph>,
+    make: Option<&'a dyn Fn() -> std::sync::Arc<CopperGraph>>,
+    made: std::cell::OnceCell<std::sync::Arc<CopperGraph>>,
+}
+
+impl<'a> GraphSource<'a> {
+    /// `graph`, already made.
+    pub fn given(graph: &'a CopperGraph) -> Self {
+        Self {
+            given: Some(graph),
+            make: None,
+            made: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// The graph `make` returns, asked for once, on first use.
+    pub fn lazy(make: &'a dyn Fn() -> std::sync::Arc<CopperGraph>) -> Self {
+        Self {
+            given: None,
+            make: Some(make),
+            made: std::cell::OnceCell::new(),
+        }
+    }
+
+    /// The graph made, when [`Self::lazy`] made it.
+    pub fn made(&self) -> Option<std::sync::Arc<CopperGraph>> {
+        self.made.get().cloned()
+    }
+
+    /// The graph.
+    pub fn get(&self) -> &CopperGraph {
+        if let Some(graph) = self.given {
+            return graph;
+        }
+        self.made.get_or_init(|| match self.make {
+            Some(make) => make(),
+            None => std::sync::Arc::new(CopperGraph::default()),
+        })
+    }
+}
+
+/// One family of board checks. [`checks_on`] runs them in
+/// [`BoardCheck::ALL`]'s order, which is the order their findings are
+/// listed in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BoardCheck {
+    /// Parts the schematic has that the board does not place.
+    Unplaced,
+    /// Copper to copper and copper to edge ([`BoardCopper`]).
+    Clearance,
+    /// The copper graph's findings: unrouted, dangling, unjoined islands.
+    Connectivity,
+    /// Via drills, rings and holes ([`via`]).
+    Vias,
+    /// Pad holes and their copper ([`pad_hole`]).
+    PadHoles,
+    Courtyards,
+    /// Track widths and drill sizes ([`physical`]).
+    Physical,
+    /// Fills and keepouts.
+    Fills,
+    Outline,
+    Dimensions,
+    Lengths,
+    Etch,
+    Bodies,
+    MaskColour,
+    ProfileFit,
+    Fiducials,
+}
+
+impl BoardCheck {
+    pub const ALL: [BoardCheck; 16] = [
+        Self::Unplaced,
+        Self::Clearance,
+        Self::Connectivity,
+        Self::Vias,
+        Self::PadHoles,
+        Self::Courtyards,
+        Self::Physical,
+        Self::Fills,
+        Self::Outline,
+        Self::Dimensions,
+        Self::Lengths,
+        Self::Etch,
+        Self::Bodies,
+        Self::MaskColour,
+        Self::ProfileFit,
+        Self::Fiducials,
+    ];
+
+    /// Whether the family reads the board's tracks or vias. A change to
+    /// tracks and vias alone leaves every other family's findings as they
+    /// were.
+    pub fn reads_copper(self) -> bool {
+        match self {
+            Self::Clearance
+            | Self::Connectivity
+            | Self::Vias
+            | Self::PadHoles
+            | Self::Physical
+            | Self::Fills
+            | Self::Lengths
+            | Self::Etch
+            | Self::Fiducials => true,
+            Self::Unplaced
+            | Self::Courtyards
+            | Self::Outline
+            | Self::Dimensions
+            | Self::Bodies
+            | Self::MaskColour
+            | Self::ProfileFit => false,
+        }
+    }
+
+    /// The findings of a family that checks item by item, as its items
+    /// ([`copper::Items`]), made from `last` (an earlier state's items and
+    /// what changed since) when given. `None` for the other families, and
+    /// when the check would stop at its pair limit, which only
+    /// [`check_families`] reports.
+    pub fn items(
+        self,
+        project: &Project,
+        copper: &BoardCopper,
+        last: Option<(&copper::Items, &copper::CopperChanges)>,
+    ) -> Option<copper::Items> {
+        match self {
+            Self::Clearance => copper.clearance_items(project, last),
+            Self::Vias => via::items(copper, project, last),
+            _ => None,
+        }
+    }
+
+    /// Whether the family is skipped once the clearance check stopped at
+    /// its pair limit: the copper after it is unchecked, which that
+    /// check's finding says.
+    fn after_copper_limit(self) -> bool {
+        matches!(
+            self,
+            Self::Connectivity | Self::Vias | Self::PadHoles | Self::Courtyards
+        )
+    }
+
+    fn run(
+        self,
+        project: &Project,
+        copper: &BoardCopper,
+        graph: &GraphSource<'_>,
+        settings: &CheckSettings,
+    ) -> (Vec<Finding>, bool) {
+        let findings = match self {
+            Self::Unplaced => copper::unplaced(project),
+            Self::Clearance => return copper.clearance(project),
+            Self::Connectivity => graph.get().findings(project),
+            Self::Vias => via::findings(copper, project),
+            Self::PadHoles => pad_hole::findings(copper, project, graph),
+            Self::Courtyards => courtyard::findings(project),
+            Self::Physical => physical::findings(project),
+            Self::Fills => fill::findings(project),
+            Self::Outline => outline::checks(project),
+            Self::Dimensions => dimensions::checks(project),
+            Self::Lengths => length::checks_from(project, graph, settings),
+            Self::Etch => etch::checks_from(project, graph),
+            Self::Bodies => bodies::checks(project),
+            Self::MaskColour => mask_colour::findings(project),
+            Self::ProfileFit => profile_fit::findings(project),
+            Self::Fiducials => fiducial::findings(project),
+        };
+        (findings, false)
+    }
+}
+
+/// Where the copper graph lists each connectivity finding
+/// ([`CopperGraph::findings`]): unrouted pads in pad order, dangling vias
+/// in via order, dangling tracks by their first track, then fills'
+/// unjoined islands in fill order. Findings of different nets made by
+/// graphs of some nets ([`CopperGraph::of_nets`]) merge into the whole
+/// board's list by it.
+pub struct ConnectivityOrder<'a> {
+    project: &'a Project,
+    pads: &'a std::collections::HashMap<(Id, PadId), usize>,
+}
+
+impl<'a> ConnectivityOrder<'a> {
+    /// The order on `project`, whose connected pads ([`pads`]) are at
+    /// `pads`' indices.
+    pub fn new(
+        project: &'a Project,
+        pads: &'a std::collections::HashMap<(Id, PadId), usize>,
+    ) -> Self {
+        Self { project, pads }
+    }
+
+    /// The index of each connected pad of `project` ([`pads`]).
+    pub fn pad_index(project: &Project) -> std::collections::HashMap<(Id, PadId), usize> {
+        pads(project)
+            .iter()
+            .enumerate()
+            .map(|(k, p)| ((p.instance, p.pad), k))
+            .collect()
+    }
+
+    /// The finding's place in the list.
+    pub fn key(&self, finding: &Finding) -> (u8, usize) {
+        let first = |index: &dyn Fn(&ObjectRef) -> Option<usize>| {
+            finding
+                .objects
+                .iter()
+                .filter_map(index)
+                .min()
+                .unwrap_or(usize::MAX)
+        };
+        let project = self.project;
+        match finding.code.as_str() {
+            "board.unrouted" => (
+                0,
+                first(&|o| match *o {
+                    ObjectRef::Pad { instance, pad } => self.pads.get(&(instance, pad)).copied(),
+                    _ => None,
+                }),
+            ),
+            "board.via_dangling" => (
+                1,
+                first(&|o| match *o {
+                    ObjectRef::Via { id } => at(&project.vias, id, |v| v.id),
+                    _ => None,
+                }),
+            ),
+            "board.track_dangling" => (
+                2,
+                first(&|o| match *o {
+                    ObjectRef::Track { id } => at(&project.tracks, id, |t| t.id),
+                    _ => None,
+                }),
+            ),
+            _ => (
+                3,
+                first(&|o| match *o {
+                    ObjectRef::Fill { id } => at(&project.fills, id, |f| f.id),
+                    _ => None,
+                }),
+            ),
+        }
+    }
+
+    /// The net a connectivity finding is about: its net, or its fill's.
+    pub fn net(&self, finding: &Finding) -> Option<Id> {
+        finding.objects.iter().find_map(|o| match *o {
+            ObjectRef::Net { id } => Some(id),
+            ObjectRef::Fill { id } => self.project.fill(id).and_then(|f| f.net),
+            _ => None,
+        })
+    }
+}
+
+/// The index of the item of `items` with identity `id`: a binary search
+/// (collections are kept in identity order but for undone deletions), with
+/// a scan when it misses.
+fn at<T>(items: &[T], id: Id, key: impl Fn(&T) -> Id) -> Option<usize> {
+    match items.binary_search_by_key(&id, &key) {
+        Ok(k) => Some(k),
+        Err(_) => items.iter().position(|item| key(item) == id),
+    }
+}
+
+/// Every board check family's findings, in [`BoardCheck::ALL`]'s order,
+/// and whether the clearance check stopped at its limit (the families
+/// after it in [`BoardCheck::after_copper_limit`] are then left out).
+/// `kept` may give a family's findings from an earlier state that the
+/// caller knows are unchanged; the family is then not run.
+pub fn check_families(
+    project: &Project,
+    copper: &BoardCopper,
+    graph: &GraphSource<'_>,
+    settings: &CheckSettings,
+    kept: &mut dyn FnMut(BoardCheck) -> Option<Vec<Finding>>,
+) -> (Vec<(BoardCheck, Vec<Finding>)>, bool) {
+    let mut out = Vec::with_capacity(BoardCheck::ALL.len());
+    let mut stopped = false;
+    for check in BoardCheck::ALL {
+        if stopped && check.after_copper_limit() {
+            continue;
+        }
+        let findings = match kept(check) {
+            Some(findings) => findings,
+            None => {
+                let (findings, stop) = check.run(project, copper, graph, settings);
+                stopped |= stop;
+                findings
+            }
+        };
+        out.push((check, findings));
+    }
+    (out, stopped)
 }
 
 /// Airwires between physically disconnected copper islands; see

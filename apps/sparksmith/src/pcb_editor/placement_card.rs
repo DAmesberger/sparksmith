@@ -349,19 +349,10 @@ impl PcbEditor {
     }
 
     /// The Connections rows of `instance`, from the cached board pads and
-    /// the core's unrouted findings.
+    /// the unrouted findings of the window's one report of every issue.
     pub(super) fn connections(&self, instance: Id) -> Vec<Connection> {
-        use sparksmith_core::diagnostics::ObjectRef;
-        let unrouted: std::collections::BTreeSet<_> = self
-            .issues
-            .iter()
-            .filter(|f| f.code == "board.unrouted")
-            .flat_map(|f| f.objects.iter())
-            .filter_map(|o| match o {
-                ObjectRef::Pad { instance, pad } => Some((*instance, *pad)),
-                _ => None,
-            })
-            .collect();
+        let none = std::collections::BTreeSet::new();
+        let unrouted = self.unrouted_pads().unwrap_or(&none);
         let pads_on = |net: Id| {
             self.board_pads
                 .iter()

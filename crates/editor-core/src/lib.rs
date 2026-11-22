@@ -805,6 +805,10 @@ pub struct Engine {
     /// The copper graph of this revision, built on first use and dropped
     /// with every new revision ([`Engine::copper_graph`]).
     copper: std::sync::OnceLock<Arc<layout::CopperGraph>>,
+    /// The last issue report made ([`Engine::issue_report`]), from which
+    /// the next state's is made. Shared with this engine's forks, so a
+    /// report a worker makes on a fork serves the engine it forked.
+    checked: Arc<std::sync::Mutex<Option<Arc<issues::incremental::Checked>>>>,
     /// What the last applied operation re-routed of the copper its moved
     /// parts dragged ([`Engine::rerouted`]).
     rerouted: layout::router::reroute::Rerouted,
@@ -943,6 +947,7 @@ impl Engine {
             waiver_reason_required: false,
             check_settings: layout::CheckSettings::default(),
             copper: std::sync::OnceLock::new(),
+            checked: Arc::default(),
             rerouted: layout::router::reroute::Rerouted::default(),
             generators: None,
             context: Self::fixture_context(),
@@ -1628,6 +1633,7 @@ impl Engine {
             waiver_reason_required: self.waiver_reason_required,
             check_settings: self.check_settings,
             copper: self.copper.clone(),
+            checked: self.checked.clone(),
             generators: self.generators.clone(),
             context: self.context.clone(),
             ..Engine::with_document(self.document.clone())
@@ -1699,6 +1705,7 @@ impl Engine {
             waiver_reason_required: self.waiver_reason_required,
             check_settings: self.check_settings,
             copper: self.copper.clone(),
+            checked: self.checked.clone(),
             rerouted: self.rerouted.clone(),
             generators: self.generators.clone(),
             context: self.context.clone(),
@@ -2009,7 +2016,10 @@ impl Engine {
             // the one the review showed; every other operation finalizes
             // here through the same function.
             if !reviewed {
-                let graph = self.copper_graph();
+                // Only parts that move and carry their copper read the
+                // graph; any other edit never makes it.
+                let make = || self.copper_graph();
+                let graph = layout::GraphSource::lazy(&make);
                 rerouted = updates::finalize::finalize(
                     &self.document.project,
                     project,
@@ -2348,13 +2358,13 @@ impl Engine {
                         .preview(),
                 )))
             }
-            Query::Issues { scope } => Ok(QueryResult::Issues(issues::report_on(
-                &self.document.project,
-                &self.document.drafts,
-                &scope,
-                &self.copper_graph(),
-                &self.check_settings,
-            )?)),
+            Query::Issues { scope } => {
+                let all = self.issue_report()?;
+                Ok(QueryResult::Issues(match scope {
+                    issues::IssueScope::All => all.as_ref().clone(),
+                    scope => all.scoped(&scope, &self.document.project),
+                }))
+            }
             Query::Models { query, fits, limit } => {
                 Ok(QueryResult::Models(catalog::models::search(
                     &self.document.project,
@@ -2659,6 +2669,48 @@ impl Engine {
     /// made no step yet.
     pub fn end_group(&mut self) -> Option<GroupMark> {
         self.group.take().and_then(|group| group.mark)
+    }
+
+    /// The report of every issue of this state ([`issues::IssueScope::All`]),
+    /// what `project.issues` answers and every view projects its scope
+    /// from ([`issues::IssueReport::scoped`]). Made once per state and
+    /// check settings, from the last report made on this engine or its
+    /// forks: a state that changed only tracks and vias checks only what
+    /// reads them ([`issues::incremental`]).
+    pub fn issue_report(&self) -> Result<Arc<issues::IssueReport>> {
+        self.issue_report_of(&self.document)
+    }
+
+    /// [`Self::issue_report`] of `document`, another state under this
+    /// engine's check settings (a host comparing the state before a
+    /// request with the one after), made from and kept as the last report
+    /// in the same way.
+    pub fn issue_report_of(&self, document: &Document) -> Result<Arc<issues::IssueReport>> {
+        let _context = self.enter_context();
+        let (project, drafts) = (&document.project, &document.drafts);
+        let settings = &self.check_settings;
+        let last = self.checked.lock().ok().and_then(|slot| slot.clone());
+        if let Some(last) = &last
+            && last.describes(project, drafts, settings)
+        {
+            return Ok(last.report().clone());
+        }
+        let current = Arc::ptr_eq(project, &self.document.project);
+        let graph = || {
+            if current {
+                self.copper_graph()
+            } else {
+                Arc::new(layout::CopperGraph::of(project))
+            }
+        };
+        let next = Arc::new(match &last {
+            Some(last) => last.next(project, drafts, settings, &graph)?,
+            None => issues::incremental::Checked::full(project, drafts, settings, &graph)?,
+        });
+        if let Ok(mut slot) = self.checked.lock() {
+            *slot = Some(next.clone());
+        }
+        Ok(next.report().clone())
     }
 
     /// The copper graph of the current revision: built once, on first use,
