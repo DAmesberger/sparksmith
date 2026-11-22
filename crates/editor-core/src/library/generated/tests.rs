@@ -1267,3 +1267,186 @@ fn regenerating_at_the_same_version_carries_a_part_left_on_an_older_revision() -
     assert_eq!(stale(&engine)?, ["part.spec_unrated"]);
     Ok(())
 }
+
+/// The pads of [`a_turned_pad_turns_its_drill_slot_and_paste_windows`]:
+/// a drilled 2 mm circle turned 90° at the origin with a paste window, a
+/// slotted one at (3, 0) mm and a drilled 2 × 1 mm rect turned 270° at
+/// (0, 3) mm, each drill (+0.2, 0) mm off centre in its pad frame.
+fn turned_drilled_pads() -> TestResult<Vec<crate::library::Pad>> {
+    let mut g = generation_with(1_600_000, 0, Scope::Component, b"part", false);
+    let first = g.footprint.pads.first().cloned().ok_or("a pad")?;
+    let drilled = |shape: PadShape, rot_mdeg: i64, hole: HoleShape| Pad {
+        shape,
+        at: [0, 0],
+        rot_mdeg,
+        hole: Some(Hole {
+            shape: hole,
+            plated: true,
+            offset: Some([200_000, 0]),
+        }),
+        ..first.clone()
+    };
+    let round = HoleShape::Round {
+        diameter_nm: 800_000,
+    };
+    let circle = PadShape::Circle {
+        diameter_nm: 2_000_000,
+    };
+    g.footprint.pads[0] = Pad {
+        paste: Opening::Windows(vec![Window::Rect {
+            min: [100_000, -100_000],
+            max: [500_000, 100_000],
+            radius_nm: 0,
+        }]),
+        ..drilled(circle.clone(), 90_000, round.clone())
+    };
+    g.footprint.pads[1] = Pad {
+        key: "2".into(),
+        terminal: "2".into(),
+        at: [3_000_000, 0],
+        ..drilled(
+            circle,
+            90_000,
+            HoleShape::Slot {
+                size: [600_000, 300_000],
+                rot_mdeg: None,
+            },
+        )
+    };
+    g.footprint.pads.push(Pad {
+        key: "3".into(),
+        terminal: "1".into(),
+        at: [0, 3_000_000],
+        ..drilled(
+            PadShape::Rect {
+                size: [2_000_000, 1_000_000],
+            },
+            270_000,
+            round,
+        )
+    });
+    Ok(super::expand::land_pattern(&g)?)
+}
+
+/// A pad turned by more than its outline's symmetry keeps its turn for
+/// everything inside it: a 2 mm circular land turned 90° counter-clockwise
+/// with its drill (+0.2, 0) mm off centre in the pad frame drills at
+/// (0, +0.2) mm from the land's centre, its x-long slot runs along y and
+/// its paste window at x 0.1…0.5 mm, y ±0.1 mm sits at x ±0.1 mm,
+/// y 0.1…0.5 mm. A rect turned 270° (its outline folds to 90°) moves the
+/// same drill to (0, −0.2) mm.
+#[test]
+fn a_turned_pad_turns_its_drill_slot_and_paste_windows() -> TestResult {
+    use crate::geometry::Bounds;
+    let pads = turned_drilled_pads()?;
+    let close = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).abs() < 1e-9 && (a[1] - b[1]).abs() < 1e-9;
+    let drill = |pad: &crate::library::Pad| -> TestResult<[f64; 2]> {
+        Ok(pad.to_footprint(pad.hole.ok_or("a hole")?.offset()))
+    };
+    assert!(
+        close(drill(&pads[0])?, [0.0, 0.2]),
+        "{:?}",
+        drill(&pads[0])?
+    );
+    let crate::library::PasteRule::Windows(windows) = &pads[0].paste else {
+        return Err("paste windows".into());
+    };
+    let window = Bounds::of(
+        windows[0]
+            .shape
+            .to_mm()
+            .transformed(&pads[0].frame())
+            .flatten(0.001),
+    )
+    .ok_or("a window")?;
+    assert!(close(window.min, [-0.1, 0.1]), "{window:?}");
+    assert!(close(window.max, [0.1, 0.5]), "{window:?}");
+    assert!(
+        close(drill(&pads[1])?, [3.0, 0.2]),
+        "{:?}",
+        drill(&pads[1])?
+    );
+    let Some(crate::library::Hole {
+        shape: crate::library::HoleShape::Slot { angle_mdeg, .. },
+        ..
+    }) = pads[1].hole
+    else {
+        return Err("a slot".into());
+    };
+    let along = pads[1].frame().apply_angle(angle_mdeg.to_degrees_f64());
+    assert!((along.rem_euclid(180.0) - 90.0).abs() < 1e-9, "{along}");
+    assert!(
+        close(drill(&pads[2])?, [0.0, 2.8]),
+        "{:?}",
+        drill(&pads[2])?
+    );
+    Ok(())
+}
+
+/// The turned pads on the board's bottom side: the demo's R1 footprint
+/// takes the drilled circle and the slotted one (keeping its pad ids and
+/// terminals), placed at (10, 20) mm turned 90° on the bottom. The bottom
+/// flip negates y, then the 90° turn maps (x, y) to (−y, x): the drill at
+/// (0, 0.2) mm in the footprint lands at (10.2, 20); the paste window
+/// (x ±0.1, y 0.1…0.5) at x 10.1…10.5, y 19.9…20.1; the slot centre at
+/// (3, 0.2) at (10.2, 23), its length along x.
+#[test]
+fn a_turned_pad_placed_on_the_bottom_drills_and_pastes_where_the_flip_puts_them() -> TestResult {
+    use crate::geometry::{Bounds, Shape};
+    use crate::model::Layer;
+    let pads = turned_drilled_pads()?;
+    let engine = Engine::demo()?;
+    let r1 = crate::tests::support::by_designator(&engine, "R1")?;
+    let mut project = engine.project().clone();
+    let footprint = &mut project.library.footprints[0].definition;
+    footprint.datum.offset = crate::units::PointNm::ORIGIN;
+    for (stored, turned) in footprint.pads.iter_mut().zip(&pads) {
+        *stored = crate::library::Pad {
+            id: stored.id,
+            terminal: stored.terminal,
+            number: stored.number.clone(),
+            ..turned.clone()
+        };
+    }
+    let placement = project
+        .placements
+        .iter_mut()
+        .find(|p| p.instance == r1)
+        .ok_or("R1 placement")?;
+    placement.position = [10.0, 20.0];
+    placement.rotation_deg = 90.0;
+    placement.layer = Layer::Bottom;
+    let placed: Vec<_> = crate::layout::placed_pads(&project)
+        .into_iter()
+        .filter(|p| p.instance == r1)
+        .collect();
+    let [drilled, slotted] = &placed[..] else {
+        return Err("two placed pads".into());
+    };
+    let close = |a: [f64; 2], b: [f64; 2]| (a[0] - b[0]).abs() < 1e-9 && (a[1] - b[1]).abs() < 1e-9;
+    let Shape::Circle { center, .. } = drilled.holes()[0].shape else {
+        return Err("a round drill".into());
+    };
+    assert!(close(center, [10.2, 20.0]), "{center:?}");
+    let crate::library::PasteRule::Windows(windows) = &drilled.pad.paste else {
+        return Err("paste windows".into());
+    };
+    let window = Bounds::of(
+        windows[0]
+            .shape
+            .to_mm()
+            .transformed(&drilled.pad_transform())
+            .flatten(0.001),
+    )
+    .ok_or("a window")?;
+    assert!(close(window.min, [10.1, 19.9]), "{window:?}");
+    assert!(close(window.max, [10.5, 20.1]), "{window:?}");
+    let slot = Bounds::of(slotted.holes()[0].shape.flatten(0.0001)).ok_or("a slot")?;
+    let middle = [
+        (slot.min[0] + slot.max[0]) / 2.0,
+        (slot.min[1] + slot.max[1]) / 2.0,
+    ];
+    assert!(close(middle, [10.2, 23.0]), "{slot:?}");
+    assert!(slot.size()[0] > slot.size()[1], "{slot:?}");
+    Ok(())
+}
