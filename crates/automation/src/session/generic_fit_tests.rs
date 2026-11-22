@@ -426,3 +426,98 @@ fn a_near_match_of_the_generic_part_is_not_mapped() -> TestResult {
     assert_eq!(designer.engine().revision(), revision);
     Ok(())
 }
+
+/// The other order: a folder Part imported before its generic part is
+/// placed. Making the generic part then finds the imported copy is exactly
+/// what the generator makes and records it as made, so there is one chip
+/// resistor 0603, the Part pins it, and the placed instance takes the Part.
+#[test]
+fn a_part_imported_first_is_the_generic_part_placed_later() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let folder = temp.path().join("parts");
+    let mut author = session(&temp.path().join("author"))?;
+    let hint = generic(&mut author, "resistor 0603")?;
+    let part = author_part(&mut author, &hint, FIRST)?;
+    let created = ok(
+        &mut author,
+        "library.source.create",
+        json!({"path": folder.display().to_string(), "name": "Import first"}),
+    )?;
+    let library = created["created"]["library"].clone();
+    ok(
+        &mut author,
+        "library.publish_to_folder",
+        json!({"root": part, "library": library}),
+    )?;
+
+    let mut designer = session(&temp.path().join("designer"))?;
+    ok(
+        &mut designer,
+        "library.source.add",
+        json!({"path": folder.display().to_string()}),
+    )?;
+    let found = folder_parts(&mut designer, "kind:part 10k 0603 1%")?;
+    let lineage = found.first().map(|(_, l)| l.clone()).ok_or("the Part")?;
+    let imported = ok(
+        &mut designer,
+        "library.import_from_folder",
+        json!({"library": library, "lineage": lineage}),
+    )?;
+    let root = imported["outcome"]["report"]["root"].clone();
+    let pinned = designer
+        .engine()
+        .project()
+        .library
+        .part(serde_json::from_value(
+            json!({"id": root["id"], "revision": root["revision"]}),
+        )?)
+        .map(|p| p.definition.component)
+        .ok_or("the imported Part")?;
+    let components = designer.engine().project().library.components.len();
+
+    let hint = generic(&mut designer, "10k 0603")?;
+    assert_eq!(
+        designer.engine().project().library.components.len(),
+        components,
+        "no second chip resistor 0603"
+    );
+    assert_eq!(hint["component"], serde_json::to_value(pinned)?);
+    let representation = designer
+        .engine()
+        .project()
+        .library
+        .component(pinned)
+        .and_then(|c| c.definition.representations.first().map(|r| r.id))
+        .ok_or("no symbol")?;
+    let placed = ok(
+        &mut designer,
+        "project.apply",
+        json!({"operation": {"editor": "Instance", "operation": {"command": "component.place",
+            "params": {"component": hint["component"], "designator": "R1",
+                "properties": hint["properties"], "representation": representation,
+                "unit": 1, "position": [0.0, 0.0], "physical": hint["physical"]}}}}),
+    )?;
+    let r1 = placed["outcome"]["instance"]
+        .as_u64()
+        .ok_or("no instance")?;
+    ok(
+        &mut designer,
+        "project.apply",
+        json!({"operation": {"editor": "Instance", "operation": {"command": "instance.assign_part",
+            "params": {"instances": [r1], "part": {"id": root["id"], "revision": root["revision"]}}}}}),
+    )?;
+    let bom = query(&mut designer, "project.bom", json!({}))?;
+    assert_eq!(bom["lines"][0]["mpn"], FIRST.1, "{bom}");
+    assert_eq!(bom["lines"][0]["unresolved"], false, "{bom}");
+    // Saved and reopened, the recorded part checks against its module.
+    let path = temp.path().join("board.sparksmith").display().to_string();
+    ok(&mut designer, "project.save", json!({"path": path}))?;
+    let mut reopened = session(&temp.path().join("reopened"))?;
+    let revision = reopened.engine().revision();
+    ok(
+        &mut reopened,
+        "project.open",
+        json!({"expected_revision": revision, "path": path}),
+    )?;
+    Ok(())
+}

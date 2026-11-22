@@ -14,11 +14,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x2-2.54",
@@ -35,11 +40,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x3-2.54",
@@ -56,11 +66,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x4-2.54",
@@ -77,11 +92,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x5-2.54",
@@ -98,11 +118,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x6-2.54",
@@ -119,11 +144,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x7-2.54",
@@ -140,11 +170,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x8-2.54",
@@ -161,11 +196,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x9-2.54",
@@ -182,11 +222,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x10-2.54",
@@ -203,11 +248,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x11-2.54",
@@ -224,11 +274,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x12-2.54",
@@ -245,11 +300,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x16-2.54",
@@ -266,11 +326,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x20-2.54",
@@ -287,11 +352,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x40-2.54",
@@ -308,11 +378,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x2-2.54",
@@ -329,11 +404,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x3-2.54",
@@ -350,11 +430,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x4-2.54",
@@ -371,11 +456,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x5-2.54",
@@ -392,11 +482,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x6-2.54",
@@ -413,11 +508,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x7-2.54",
@@ -434,11 +534,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x8-2.54",
@@ -455,11 +560,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x9-2.54",
@@ -476,11 +586,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x10-2.54",
@@ -497,11 +612,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x12-2.54",
@@ -518,11 +638,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x13-2.54",
@@ -539,11 +664,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x15-2.54",
@@ -560,11 +690,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x17-2.54",
@@ -581,11 +716,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x20-2.54",
@@ -602,11 +742,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x25-2.54",
@@ -623,11 +768,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x30-2.54",
@@ -644,11 +794,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-2x40-2.54",
@@ -665,11 +820,16 @@
    "row_pitch": 2540000,
    "body_height": 2540000,
    "pin_side": 640000,
-   "pin_above": 6000000,
-   "pin_below": 3000000
+   "pin_above": 5840000,
+   "pin_below": 2540000
   },
-  "basis": "estimated",
-  "note": "Estimated: typical square-post pin header proportions, not typed from one drawing. Confirm body height and post lengths against the chosen manufacturer's drawing."
+  "citation": {
+   "document": "Samtec TSW/HTSW series through-hole .025 in square post header, 2.54 mm pitch, catalog page F-226 (https://suddendocs.samtec.com/catalog_english/tsw_th.pdf): straight pin versions, lead style -07",
+   "revision": "file of 7 November 2025",
+   "page": 1
+  },
+  "basis": "cited",
+  "note": "Lead style -07 of Samtec's TSW drawing, the starter set's header Parts (TSW-1NN-07-T-S/D): post 5.84 mm above the 2.54 mm insulator, tail 2.54 mm, 10.92 mm overall; the 0.64 mm post is Samtec's .025 in square."
  },
  {
   "key": "header-1x2-2.0",

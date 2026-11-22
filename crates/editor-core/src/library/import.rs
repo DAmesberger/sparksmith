@@ -137,6 +137,19 @@ pub fn import(
     allocate: &mut dyn FnMut() -> Result<DefinitionId>,
 ) -> Result<ImportReport> {
     bundle::validate_bundle(bundle)?;
+    // A bundle that carries copies of the standard fields (a library
+    // folder's Part rates by them) takes the project's: they are imported
+    // first, and the copies are paired with them below.
+    if let Ok(standards) = super::standards::get() {
+        let standard = standards.fields.bundle();
+        if bundle.library != standard.library
+            && bundle.records.iter().any(|r| {
+                r.kind == DefinitionKind::Field && standards.fields.lineage(&r.meta.name).is_some()
+            })
+        {
+            import(library, standard, allocate)?;
+        }
+    }
     let mut map = mapping(library, bundle.library);
     let mut hashes = Vec::with_capacity(bundle.records.len());
     for record in &bundle.records {
@@ -158,16 +171,26 @@ pub fn import(
     // A generated part the project already holds is the same part: the
     // bundle's copy of it maps onto the project's revisions, so a Part
     // pinning it fits the generic part the person placed.
-    for (pairs, lineages) in generated_matches(library, bundle)? {
-        let fits = pairs.keys().all(|at| !map.revisions.contains_key(at))
-            && lineages
-                .iter()
-                .all(|(source, local)| map.lineages.get(source).is_none_or(|l| l == local));
+    let standard = standard_matches(library, bundle);
+    for (pairs, lineages) in generated_matches(library, bundle)?
+        .into_iter()
+        .chain(standard)
+    {
+        let fits = pairs.iter().all(|(at, local)| {
+            map.revisions
+                .get(at)
+                .is_none_or(|known| known.local == *local)
+        }) && lineages
+            .iter()
+            .all(|(source, local)| map.lineages.get(source).is_none_or(|l| l == local));
         if !fits {
             continue;
         }
         map.lineages.extend(lineages);
         for (at, local) in pairs {
+            if map.revisions.contains_key(&at) {
+                continue;
+            }
             let Some(i) = bundle
                 .records
                 .iter()
@@ -175,19 +198,28 @@ pub fn import(
             else {
                 continue;
             };
-            map.revisions.insert(
-                at,
-                OriginRecord {
-                    local,
-                    origin: Origin {
-                        library: bundle.library,
-                        lineage: at.lineage,
-                        revision: at.revision,
-                        content_hash: hashes[i],
-                    },
-                    direction: bundle::Direction::Imported,
+            let origin = OriginRecord {
+                local,
+                origin: Origin {
+                    library: bundle.library,
+                    lineage: at.lineage,
+                    revision: at.revision,
+                    content_hash: hashes[i],
                 },
-            );
+                direction: bundle::Direction::Imported,
+            };
+            map.revisions.insert(at, origin);
+            // Recorded where the lineages still correspond one to one, so
+            // promoting the project's revision back to this library writes
+            // to the same lineage instead of a new one.
+            let taken = library.origins.iter().any(|o| {
+                o.origin.library == bundle.library
+                    && (o.local.id == local.id || o.origin.lineage == at.lineage)
+            });
+            if !taken {
+                let k = library.origins.partition_point(|o| o.local <= origin.local);
+                library.origins.insert(k, origin);
+            }
         }
     }
     // Lineages first, so a lineage reference to a record later in the
@@ -385,6 +417,53 @@ fn generated_matches(library: &Library, bundle: &Bundle) -> Result<Vec<Pairing>>
         }
     }
     Ok(found)
+}
+
+/// The bundle's copies of the standard fields and their quantity kinds,
+/// each paired with the project's copy of the standard field of its name
+/// when it reads as exactly that revision.
+fn standard_matches(library: &Library, bundle: &Bundle) -> Vec<Pairing> {
+    let Some(source) = super::standard_fields::library_id() else {
+        return Vec::new();
+    };
+    if bundle.library == source {
+        return Vec::new();
+    }
+    let records: BTreeMap<SourceRevision, &RevisionRecord> = bundle
+        .records
+        .iter()
+        .map(|r| {
+            (
+                SourceRevision {
+                    lineage: r.lineage,
+                    revision: r.revision,
+                },
+                r,
+            )
+        })
+        .collect();
+    let mut found = Vec::new();
+    for record in bundle
+        .records
+        .iter()
+        .filter(|r| matches!(r.kind, DefinitionKind::Field | DefinitionKind::QuantityKind))
+    {
+        let at = SourceRevision {
+            lineage: record.lineage,
+            revision: record.revision,
+        };
+        let local = library.origins.iter().find(|o| {
+            o.origin.library == source
+                && o.local.kind == record.kind
+                && library
+                    .definition(o.local)
+                    .is_some_and(|(meta, _)| meta.name == record.meta.name)
+        });
+        if let Some(pairing) = local.and_then(|o| pair(library, &records, at, o.local)) {
+            found.push(pairing);
+        }
+    }
+    found
 }
 
 /// Pair the bundle record `at` with the project revision `local` and

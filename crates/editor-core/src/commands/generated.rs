@@ -619,6 +619,7 @@ pub(crate) fn generate(
         .as_ref()
         .map(|(_, _, _, ids)| ids.clone())
         .unwrap_or_default();
+    let model_again = package_model.clone();
     let (mut definitions, key_ids) = generated::expand_at(
         &made.generation,
         refs,
@@ -703,6 +704,31 @@ pub(crate) fn generate(
         }
     ));
     let part_description = bounded(preset.map(|p| p.description.clone()).unwrap_or_default());
+    // The same part imported from a library before it was made here: when
+    // this generation, laid onto a project component's revisions under the
+    // same name, is exactly those revisions, it is that part, and is
+    // recorded as made rather than made a second time.
+    let leads = generated::generation_leads(&made.generation)?;
+    let adopted = if scope == GeneratorScope::Component && replaced.is_none() && new_model.is_none()
+    {
+        imported_equal(&project.library, &base_name, |refs, expansion| {
+            let (mut again, ids) = generated::expand_at(
+                &made.generation,
+                refs,
+                expansion,
+                model_again.clone(),
+                &previous_ids,
+            )?;
+            if let Some((fields, template)) = &host_fields {
+                generated::select_fields(&mut again, fields, template.as_ref());
+            }
+            generated::set_marking(&mut again, host_marking.as_ref());
+            generated::set_leads(&mut again, &leads);
+            Ok((again, ids))
+        })?
+    } else {
+        None
+    };
     // The marking's artwork, packed as SVG once per hash.
     for asset in artwork {
         if project.library.assets.iter().any(|a| a.hash == asset.hash) {
@@ -758,24 +784,30 @@ pub(crate) fn generate(
         )?;
         ids.insert(0, model_ref.id);
     }
-    let library = &document.project.library;
-    let drafts_mut = Arc::make_mut(&mut document.drafts);
-    for ((r, definition), base) in definitions.into_iter().zip(bases) {
-        let meta = DefinitionMeta {
-            name: label(&base_name, suffix(r.kind)),
-            description: part_description.clone(),
-            provenance: provenance.clone(),
-        };
-        drafts::create(drafts_mut, library, r.id, base, meta, definition)?;
-    }
-    super::apply_library(
-        document,
-        super::LibraryCommand::Publish {
-            drafts: ids,
-            close: true,
-        },
-        None,
-    )?;
+    let (expansion, key_ids) = match adopted {
+        Some(found) => found,
+        None => {
+            let library = &document.project.library;
+            let drafts_mut = Arc::make_mut(&mut document.drafts);
+            for ((r, definition), base) in definitions.into_iter().zip(bases) {
+                let meta = DefinitionMeta {
+                    name: label(&base_name, suffix(r.kind)),
+                    description: part_description.clone(),
+                    provenance: provenance.clone(),
+                };
+                drafts::create(drafts_mut, library, r.id, base, meta, definition)?;
+            }
+            super::apply_library(
+                document,
+                super::LibraryCommand::Publish {
+                    drafts: ids,
+                    close: true,
+                },
+                None,
+            )?;
+            (expansion, key_ids)
+        }
+    };
     let root = expansion
         .first()
         .copied()
@@ -825,6 +857,92 @@ pub(crate) fn generate(
             notes,
         },
     })
+}
+
+/// The newest revisions of a component named `name` that no generator made
+/// in this project (a library import), whose generation `build` lays onto
+/// them is exactly what they hold: component, its first symbol, package,
+/// first footprint and first binding, in [`GeneratorScope::kinds`] order,
+/// with the key ids the generation gave them.
+fn imported_equal(
+    library: &crate::library::Library,
+    name: &str,
+    mut build: impl FnMut(
+        expand::Refs,
+        &[DefinitionRef],
+    ) -> Result<(
+        Vec<(DefinitionRef, crate::library::Definition)>,
+        expand::KeyIds,
+    )>,
+) -> Result<Option<(Vec<DefinitionRef>, expand::KeyIds)>> {
+    use crate::ids::DefinitionKind as K;
+    for component in library.latest_components() {
+        let root = DefinitionRef {
+            kind: K::Component,
+            id: component.id,
+            revision: component.revision,
+        };
+        if component.meta.name.trim() != name.trim()
+            || library
+                .generated
+                .iter()
+                .any(|g| g.expansion.contains(&root))
+        {
+            continue;
+        }
+        let (Some(symbol), Some(binding)) = (
+            component.definition.representations.first().copied(),
+            component.definition.implementations.first().copied(),
+        ) else {
+            continue;
+        };
+        let Some(bound) = library.binding(binding) else {
+            continue;
+        };
+        let Some(footprint) = bound.definition.footprints.first().copied() else {
+            continue;
+        };
+        let package = bound.definition.package;
+        let expansion = vec![
+            root,
+            DefinitionRef {
+                kind: K::Symbol,
+                id: symbol.id,
+                revision: symbol.revision,
+            },
+            DefinitionRef {
+                kind: K::Package,
+                id: package.id,
+                revision: package.revision,
+            },
+            DefinitionRef {
+                kind: K::Footprint,
+                id: footprint.id,
+                revision: footprint.revision,
+            },
+            DefinitionRef {
+                kind: K::Binding,
+                id: binding.id,
+                revision: binding.revision,
+            },
+        ];
+        let refs = expand::Refs {
+            component: Some((component.id, symbol, binding)),
+            package,
+            footprint,
+        };
+        // A generation that does not lay onto these revisions is not them.
+        let Ok((made, ids)) = build(refs, &expansion) else {
+            continue;
+        };
+        let equal = made
+            .iter()
+            .all(|(r, d)| library.definition(*r).is_some_and(|(_, held)| held == *d));
+        if equal {
+            return Ok(Some((expansion, ids)));
+        }
+    }
+    Ok(None)
 }
 
 /// How far a preset's values are backed, in words: its basis and the
