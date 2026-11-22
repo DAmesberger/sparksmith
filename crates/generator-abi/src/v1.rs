@@ -112,6 +112,13 @@ pub mod limits {
     pub const PADS: usize = 1024;
     /// Most terminals in a component or package.
     pub const TERMINALS: usize = 1024;
+    /// Most further functions of one terminal (`Terminal.alternates`):
+    /// one per other direction.
+    pub const TERMINAL_ALTERNATES: usize = 5;
+    /// Most orderable parts of one generation (`Generation.orderable`).
+    pub const ORDERABLE: usize = 64;
+    /// Most bytes of an orderable part's manufacturer or part number.
+    pub const ORDERABLE_BYTES: usize = 128;
     /// Most graphics in one symbol unit or one footprint layer list.
     pub const GRAPHICS: usize = 4096;
     /// Most points in one polyline or polygon.
@@ -577,6 +584,21 @@ pub struct Generation {
     /// its own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub marking: Option<Marking>,
+    /// The orderable manufacturer parts a complete part is exactly (a
+    /// module's ordering codes, the part number a datasheet names), each
+    /// published as a manufacturer Part of the component. Component scope
+    /// only; left out when empty; at most [`limits::ORDERABLE`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orderable: Vec<Orderable>,
+}
+
+/// An orderable manufacturer part: the maker's name and the complete part
+/// number, ordering suffixes included.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Orderable {
+    pub manufacturer: String,
+    pub mpn: String,
 }
 
 /// A default top marking: text lines, top to bottom. Each line is literal
@@ -716,7 +738,28 @@ pub struct Component {
 pub struct Terminal {
     pub key: String,
     pub name: String,
+    /// The terminal's function without a selection (its design default).
     pub direction: Direction,
+    /// Further functions the terminal can take, each once and none equal
+    /// to `direction`: a GPIO is an input that can be an output. Left out
+    /// when empty (a fixed terminal); at most
+    /// [`limits::TERMINAL_ALTERNATES`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alternates: Vec<Direction>,
+    /// How the default function drives its net when it is an output or
+    /// bidirectional: an open drain (a power-good flag) or an open source.
+    /// Left out for push-pull, the convention of a driving direction; only
+    /// a driving direction may give one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive: Option<Drive>,
+}
+
+/// A driving terminal's drive other than push-pull.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Drive {
+    OpenDrain,
+    OpenSource,
 }
 
 /// A terminal's electrical direction (Sparksmith's pin function vocabulary).

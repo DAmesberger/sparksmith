@@ -1,6 +1,6 @@
 //! Native tests: the golden hashes, hand-derived geometry and refusals.
 use super::*;
-use sparksmith_generator_sdk::golden;
+use sparksmith_generator_sdk::{self as sdk, golden};
 
 fn request(scope: Scope, overrides: &[(String, ParamValue)]) -> Request {
     let mut params = v1::Params::new();
@@ -57,7 +57,7 @@ fn presets_are_the_starter_rows_and_all_generate() -> Result<(), Vec<Problem>> {
             continue;
         }
         for scope in [Scope::Component, Scope::Package] {
-            let g = NoLead::generate(&request(scope, &preset(&p.key)))?;
+            let g = sdk::generate::<NoLead>(&request(scope, &preset(&p.key)))?;
             let pads = g.footprint.pads.len();
             assert_eq!(g.package.geometry.leads.len(), pads, "{}", p.key);
             assert_eq!(g.package.terminals.len(), pads, "{}", p.key);
@@ -81,7 +81,7 @@ fn qfn16_lands_keep_the_pad_clearance() -> Result<(), Vec<Problem>> {
     // copper gap allows it) and 0.8 mm long, centred 1.3 mm out. The heel
     // is 0.05 mm from the 1.7 mm pad, so 0.15 mm comes off it, keeping
     // the toe: 0.65 mm long, centred 1.375 mm out.
-    let g = NoLead::generate(&request(
+    let g = sdk::generate::<NoLead>(&request(
         Scope::Component,
         &preset("no-lead-qfn-16-3x3-0.5"),
     ))?;
@@ -164,7 +164,7 @@ fn corner_lands_give_up_their_heels_to_keep_the_copper_gap() -> Result<(), Vec<P
     // pin 16 x −1.7…−0.9, y −0.9…−0.6: they touch at (−0.9, −0.9). Pulling
     // both heels back by d opens d on both axes, so d = 0.2 / √2 =
     // 0.141 421 mm: 2 × 70 711 nm comes off each, the toe kept.
-    let g = NoLead::generate(&request(
+    let g = sdk::generate::<NoLead>(&request(
         Scope::Package,
         &[kv("terminal_width", 280_000), flag("exposed_pad", false)],
     ))?;
@@ -191,7 +191,7 @@ fn corner_lands_give_up_their_heels_to_keep_the_copper_gap() -> Result<(), Vec<P
 
 #[test]
 fn a_dfn_without_an_exposed_pad_numbers_two_rows() -> Result<(), Vec<Problem>> {
-    let g = NoLead::generate(&request(
+    let g = sdk::generate::<NoLead>(&request(
         Scope::Component,
         &[
             text("sides", "two"),
@@ -233,7 +233,7 @@ fn a_dfn_without_an_exposed_pad_numbers_two_rows() -> Result<(), Vec<Problem>> {
 
 #[test]
 fn package_scope_has_no_component_symbol_or_binding() -> Result<(), Vec<Problem>> {
-    let g = NoLead::generate(&request(Scope::Package, &[]))?;
+    let g = sdk::generate::<NoLead>(&request(Scope::Package, &[]))?;
     assert!(g.component.is_none() && g.symbol.is_none() && g.binding.is_empty());
     assert_eq!(g.footprint.pads.len(), 17);
     Ok(())
@@ -242,7 +242,7 @@ fn package_scope_has_no_component_symbol_or_binding() -> Result<(), Vec<Problem>
 #[test]
 fn refusals_name_the_field_in_plain_words() {
     let problems = |overrides: &[(String, ParamValue)]| -> Vec<(String, Option<String>, String)> {
-        NoLead::generate(&request(Scope::Component, overrides))
+        sdk::generate::<NoLead>(&request(Scope::Component, overrides))
             .err()
             .unwrap_or_default()
             .into_iter()
@@ -289,7 +289,7 @@ fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
         if p.key.starts_with("no-lead-ti-") {
             continue;
         }
-        let g = NoLead::generate(&request(Scope::Package, &preset(&p.key)))
+        let g = sdk::generate::<NoLead>(&request(Scope::Package, &preset(&p.key)))
             .map_err(|e| format!("{e:?}"))?;
         let Some(v1::Model::PartFile { asset, values }) = &g.model else {
             return Err(format!("{}: no model", p.key));
@@ -383,7 +383,7 @@ fn lands_of<'a>(g: &'a Generation, terminal: &str) -> Vec<&'a Pad> {
 
 #[test]
 fn ti_dml0010a_lands_its_comb_and_parks_unused_slots() -> Result<(), Vec<Problem>> {
-    let g = NoLead::generate(&request(Scope::Component, &preset("no-lead-ti-dml0010a")))?;
+    let g = sdk::generate::<NoLead>(&request(Scope::Component, &preset("no-lead-ti-dml0010a")))?;
     let terminals: Vec<&str> = g.package.terminals.iter().map(String::as_str).collect();
     assert_eq!(
         terminals,
@@ -422,7 +422,7 @@ fn ti_dml0010a_lands_its_comb_and_parks_unused_slots() -> Result<(), Vec<Problem
 /// code, and nothing for another part number.
 #[test]
 fn adi_lga_14_marks_each_orderable_part_its_code() -> Result<(), Vec<Problem>> {
-    let g = NoLead::generate(&request(
+    let g = sdk::generate::<NoLead>(&request(
         Scope::Component,
         &preset("no-lead-lga-14-3x5-0.8-adi-cc-14-1"),
     ))?;
@@ -446,7 +446,7 @@ fn adi_lga_14_marks_each_orderable_part_its_code() -> Result<(), Vec<Problem>> {
 
 #[test]
 fn ti_rxb0014a_lands_its_corners_round_pins_and_via() -> Result<(), Vec<Problem>> {
-    let g = NoLead::generate(&request(Scope::Package, &preset("no-lead-ti-rxb0014a")))?;
+    let g = sdk::generate::<NoLead>(&request(Scope::Package, &preset("no-lead-ti-rxb0014a")))?;
     assert_eq!(g.package.terminals.len(), 15);
     let one = lands_of(&g, "1");
     assert_eq!(one.len(), 2);
@@ -488,7 +488,7 @@ fn given_terminals_refuse_what_cannot_land() {
         ]
     };
     let refused = |o: Vec<(String, ParamValue)>| -> Vec<String> {
-        NoLead::generate(&request(Scope::Package, &o))
+        sdk::generate::<NoLead>(&request(Scope::Package, &o))
             .err()
             .unwrap_or_default()
             .into_iter()
@@ -508,11 +508,85 @@ fn given_terminals_refuse_what_cannot_land() {
     ]);
     assert_eq!(refused(stray), ["given_land_numbers", "given_land_numbers"]);
     // Estimated lands: the rectangle grown 0.025 mm a side.
-    let g = NoLead::generate(&request(Scope::Package, &rect("1", 0)));
+    let g = sdk::generate::<NoLead>(&request(Scope::Package, &rect("1", 0)));
     assert_eq!(
         g.map(|g| g.footprint.pads[0].shape.clone()).ok(),
         Some(PadShape::Rect {
             size: [550_000, 550_000]
         })
     );
+}
+
+/// Each terminal's name and default direction, by key.
+fn named(g: &Generation) -> Vec<(String, String, Direction)> {
+    g.component
+        .iter()
+        .flat_map(|c| &c.terminals)
+        .map(|t| (t.key.clone(), t.name.clone(), t.direction))
+        .collect()
+}
+
+/// The part presets carry their datasheets' pin tables; a package preset
+/// keeps its pins numbered.
+#[test]
+fn part_presets_name_and_type_their_pins() -> Result<(), Vec<Problem>> {
+    use Direction::{Input, Output, Passive, PowerInput, PowerOutput};
+    let row = |k: &str, n: &str, d| (k.to_string(), n.to_string(), d);
+    let g = sdk::generate::<NoLead>(&request(Scope::Component, &preset("no-lead-ti-dml0010a")))?;
+    assert_eq!(
+        named(&g),
+        [
+            row("1", "CT", Passive),
+            row("2", "NC", Passive),
+            row("3", "VIN", PowerInput),
+            row("4", "VBIAS", PowerInput),
+            row("5", "ON", Input),
+            row("6", "GND", PowerInput),
+            row("7", "PG", Output),
+            row("8", "VOUT", PowerOutput),
+            row("9", "VOUT", PowerOutput),
+            row("10", "VOUT", PowerOutput),
+            row("EP", "VIN", PowerInput),
+        ]
+    );
+    // PG is an open-drain flag: it never fights a pull-up or another flag.
+    let pg = g
+        .component
+        .iter()
+        .flat_map(|c| &c.terminals)
+        .find(|t| t.key == "7");
+    assert_eq!(pg.and_then(|t| t.drive), Some(v1::Drive::OpenDrain));
+    let g = sdk::generate::<NoLead>(&request(Scope::Component, &preset("no-lead-ti-rxb0014a")))?;
+    let rows = named(&g);
+    assert_eq!(rows.len(), 15);
+    assert_eq!(rows.first(), Some(&row("1", "EN/UVLO", Input)));
+    assert_eq!(rows.get(9), Some(&row("10", "VCC", PowerOutput)));
+    assert_eq!(rows.last(), Some(&row("15", "GND/DAP", PowerInput)));
+    let pg = g
+        .component
+        .iter()
+        .flat_map(|c| &c.terminals)
+        .find(|t| t.key == "14");
+    assert_eq!(pg.and_then(|t| t.drive), Some(v1::Drive::OpenDrain));
+    let g = sdk::generate::<NoLead>(&request(
+        Scope::Component,
+        &preset("no-lead-dfn-4-1.5x1.5-0.8-sensirion-sht4x"),
+    ))?;
+    assert_eq!(
+        named(&g),
+        [
+            row("1", "SDA", Input),
+            row("2", "SCL", Input),
+            row("3", "VDD", PowerInput),
+            row("4", "VSS", PowerInput),
+        ]
+    );
+    let sda = g.component.iter().flat_map(|c| &c.terminals).next();
+    assert_eq!(sda.map(|t| t.alternates.as_slice()), Some(&[Output][..]));
+    let g = sdk::generate::<NoLead>(&request(
+        Scope::Component,
+        &preset("no-lead-qfn-16-3x3-0.5"),
+    ))?;
+    assert!(named(&g).iter().all(|(k, n, d)| k == n && *d == Passive));
+    Ok(())
 }

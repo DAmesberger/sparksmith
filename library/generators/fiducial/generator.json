@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "fiducial.wasm",
-    "sha256": "4b2d0dba93ed307a9306b8048e48a085ea63fe1b3fb8ea34e823d6bf954b0775"
+    "sha256": "bcab3b01cd54e0940b9b7299d38558502cf5719f59e5971158ce1db4df627682"
   },
   "name": "fiducial",
   "parts": []

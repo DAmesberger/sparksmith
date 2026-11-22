@@ -49,7 +49,7 @@ fn answer(id: &str, step: &str, result: Value) -> Value {
 }
 
 fn plan() -> Value {
-    json!({"generator": "module", "params": crate::legacy::module_params(&module_values()),
+    json!({"generator": "module", "params": plan_params(),
         "why": "EXR-22 module, drawing on page 9",
         "pages": "exr22.pdf: pinout 1, drawing 2, land pattern 2"})
 }
@@ -117,6 +117,30 @@ fn apply_import() -> (String, ControlAnswer) {
     )
 }
 
+/// The published (not drafted) component's terminals: each name with its
+/// functions' directions, in terminal order.
+fn published_terminals(session: &Session) -> Fallible<Vec<(String, Vec<&'static str>)>> {
+    use sparksmith_core::library::TerminalClass;
+    let library = &session.engine().project().library;
+    let [component] = library.components.as_slice() else {
+        return Err(format!("one component, not {}", library.components.len()).into());
+    };
+    Ok(component
+        .definition
+        .terminals
+        .iter()
+        .map(|t| {
+            let directions = match &t.class {
+                TerminalClass::Electrical(f) => {
+                    f.functions.iter().map(|f| f.direction.wire()).collect()
+                }
+                _ => Vec::new(),
+            };
+            (t.name.clone(), directions)
+        })
+        .collect())
+}
+
 #[test]
 fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
     let loaded = shipped()?;
@@ -146,11 +170,13 @@ fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
         outcome.inputs["datasheets"],
         json!([{"title": "exr22.pdf", "pages": 2}])
     );
+    // The Read step gives each datasheet's outline, every page by its
+    // first lines; the model reads whole pages when it needs them.
     let read = &outcome.results["read"];
     assert!(
-        read[0]["text"]
+        read[0]["outline"]
             .as_str()
-            .is_some_and(|t| t.contains("EXR-22 PIN TABLE")),
+            .is_some_and(|t| t.starts_with("1: EXR-22 PIN TABLE") && t.lines().count() == 2),
         "{read}"
     );
     // The runtime pointers read what the replies hold.
@@ -181,6 +207,31 @@ fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
     // Pins came in from the pinout document.
     let pins = crate::pins::rows(&session.snapshot());
     assert_eq!(pins.len(), 23, "{pins:?}");
+    // E2E run 13: the part a person places before publishing the drafts
+    // is the one `make` published, so its pins carry the datasheet's
+    // names and kinds too, never bare numbers.
+    let published = published_terminals(&session)?;
+    assert_eq!(published.len(), 23, "{published:?}");
+    assert_eq!(published[0], ("GND1".to_owned(), vec!["power_input"]));
+    assert_eq!(published[1], ("VCC".to_owned(), vec!["power_input"]));
+    assert_eq!(published[2], ("IO0".to_owned(), vec!["input", "output"]));
+    assert_eq!(published[22], ("EPAD".to_owned(), vec!["power_input"]));
+    // E2E run 13: the BOM had no MPN for it. The part asked for is the
+    // component's published manufacturer Part, for the BOM once chosen.
+    let parts: Vec<(&str, &str)> = session
+        .engine()
+        .project()
+        .library
+        .latest_parts()
+        .into_iter()
+        .map(|p| {
+            (
+                p.definition.manufacturer.as_str(),
+                p.definition.mpn.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(parts, [("Exemplar Radio Works", "EXR-22")]);
     // The person saw the generator choice (it went on) and the impact card.
     let asked: Vec<&str> = person.asked.iter().map(|(s, _)| s.as_str()).collect();
     assert_eq!(asked, ["pick", "import"]);
@@ -456,5 +507,197 @@ fn the_host_lists_its_workflows_through_assist_workflows() -> Fallible {
     assert_eq!(first["id"], "datasheet-to-component");
     assert_eq!(first["source"], "shipped");
     assert!(first.get("why_not").is_none(), "{first}");
+    Ok(())
+}
+
+/// A 41-page datasheet (about 3 000 characters a page, a running header and
+/// footer on every page, the pin table on page 3), as a long real one reads.
+fn long_inputs(dir: &tempfile::TempDir) -> Fallible<serde_json::Map<String, Value>> {
+    let pages: Vec<String> = (1..=41u32)
+        .map(|n| {
+            let heading = match n {
+                3 => "6 Pin Configuration and Functions".to_owned(),
+                31 => "11 Mechanical Packaging and Orderable Information".to_owned(),
+                _ => format!("Section {n} Electrical Characteristics"),
+            };
+            let body: Vec<String> = (1..=40)
+                .map(|k| format!("BODY p{n} l{k} typical value under the stated test conditions"))
+                .collect();
+            format!(
+                "EXR-22 RADIO MODULE DATASHEET REV 3\n{heading}\n{}\nCopyright Example Radio Company",
+                body.join("\n")
+            )
+        })
+        .collect();
+    let refs: Vec<&str> = pages.iter().map(String::as_str).collect();
+    let path = dir.path().join("exr22.pdf");
+    std::fs::write(&path, crate::fixtures::text_pdf(&refs))?;
+    let mut inputs = serde_json::Map::new();
+    inputs.insert("datasheets".into(), json!([path.to_string_lossy()]));
+    inputs.insert("part".into(), json!("EXR-22"));
+    Ok(inputs)
+}
+
+#[test]
+fn a_long_datasheet_reaches_the_model_as_an_outline_and_the_pages_it_reads() -> Fallible {
+    let loaded = shipped()?;
+    let config = local_config(131_072)?;
+    let dir = tempfile::tempdir()?;
+    // The package step reads the pin page, then answers.
+    let mut replies = vec![chat_call(
+        "r1",
+        "query",
+        &json!({"name": "assist.document_text", "params": {"document": "exr22.pdf", "pages": "3"}})
+            .to_string(),
+    )];
+    replies.extend(script());
+    let mut backend = openai(replies, &config);
+    let mut session = profiled_session();
+    let mut person = Scripted {
+        answers: vec![apply_import()],
+        ..Scripted::default()
+    };
+    let outcome = start(
+        &loaded,
+        &config,
+        long_inputs(&dir)?,
+        &mut backend,
+        &mut session,
+        &mut person,
+    )?;
+    assert_eq!(outcome.end, RunEnd::Done, "{:#?}", person.events);
+    // The Read step is a map of the pages: every page by its first lines,
+    // without the running header and footer.
+    let outline = outcome.results["read"][0]["outline"]
+        .as_str()
+        .ok_or_else(|| format!("{}", outcome.results["read"]))?;
+    assert_eq!(outline.lines().count(), 41, "{outline}");
+    assert!(
+        outline.contains("3: 6 Pin Configuration and Functions"),
+        "{outline}"
+    );
+    assert!(!outline.contains("REV 3") && !outline.contains("Copyright"));
+    // No request carries a page the model did not ask for: only page 3's
+    // body ever reaches it, and only after it asked.
+    let posts = &backend.wire.posts;
+    assert_eq!(posts.len(), 4);
+    for (k, post) in posts.iter().enumerate() {
+        let sent = post.2["messages"].to_string();
+        for n in (1..=41u32).filter(|n| *n != 3) {
+            assert!(
+                !sent.contains(&format!("BODY p{n} l20 ")),
+                "request {k}: page {n}"
+            );
+        }
+        assert_eq!(sent.contains("BODY p3 l20 "), k == 1, "request {k}");
+    }
+    // A whole run is far inside the limit the person had set (350 000):
+    // every request's prompt, re-sent, adds up to well under it.
+    let sent: usize = posts.iter().map(|p| p.2.to_string().len()).sum();
+    assert!(sent / 3 < 100_000, "about {} tokens sent", sent / 3);
+    Ok(())
+}
+
+#[test]
+fn a_run_stopped_by_its_limit_names_what_it_kept_with_undo() -> Fallible {
+    let loaded = shipped()?;
+    let mut config = local_config(131_072)?;
+    // One request: the package step answers, the pinout step finds none.
+    config.budget.max_requests = 1;
+    let dir = tempfile::tempdir()?;
+    let mut backend = openai(script(), &config);
+    let mut session = profiled_session();
+    let mut person = Scripted::default();
+    let outcome = start(
+        &loaded,
+        &config,
+        inputs(&dir)?,
+        &mut backend,
+        &mut session,
+        &mut person,
+    )?;
+    assert!(
+        matches!(outcome.end, RunEnd::Limit { .. }),
+        "{:?}",
+        outcome.end
+    );
+    // The drafts it made stay, named on an unfinished result card that
+    // offers Undo run, before the run's end.
+    assert!(!session.engine().drafts().items.is_empty());
+    let card = person.events.iter().rev().find_map(|e| match e {
+        WorkflowEvent::Card {
+            card: ControlCard::Result {
+                title, items, undo, ..
+            },
+            ..
+        } => Some((title.clone(), items.clone(), *undo)),
+        _ => None,
+    });
+    let (title, items, undo) = card.ok_or("no result card")?;
+    assert_eq!(title, "Datasheet → component: EXR-22: unfinished");
+    assert!(undo);
+    let titles: Vec<&str> = items.iter().map(|i| i.title.as_str()).collect();
+    assert_eq!(titles.first(), Some(&"Unfinished"), "{titles:?}");
+    assert!(titles.contains(&"Drafts"), "{titles:?}");
+    let first = items
+        .first()
+        .map(|i| i.value.to_string())
+        .unwrap_or_default();
+    assert!(first.contains("Limit reached"), "{first}");
+    assert!(matches!(
+        person.events.last(),
+        Some(WorkflowEvent::Ended {
+            end: RunEnd::Limit { .. },
+            ..
+        })
+    ));
+    // Undo run removes them, as one step.
+    let undo = session.dispatch(json!({"command": "project.undo", "params": {"expected_revision": session.engine().revision()}}));
+    assert_eq!(undo["ok"], true, "{undo}");
+    assert!(session.engine().drafts().items.is_empty());
+    Ok(())
+}
+
+#[test]
+fn near_the_context_end_earlier_pages_give_way_to_stubs() -> Fallible {
+    let loaded = shipped()?;
+    let config = local_config(60_000)?;
+    let dir = tempfile::tempdir()?;
+    // The server counts 44 000 prompt tokens a request: past 70 % of the
+    // 60 000 context from the second request on.
+    let read = |id: &str, pages: &str| {
+        let mut reply = chat_call(
+            id,
+            "query",
+            &json!({"name": "assist.document_text", "params": {"document": "exr22.pdf", "pages": pages}})
+                .to_string(),
+        );
+        reply["usage"]["prompt_tokens"] = json!(44_000);
+        reply
+    };
+    let mut replies = vec![read("r1", "3"), read("r2", "10"), read("r3", "31")];
+    replies.extend(script());
+    let mut backend = openai(replies, &config);
+    let mut session = profiled_session();
+    let mut person = Scripted {
+        answers: vec![apply_import()],
+        ..Scripted::default()
+    };
+    let outcome = start(
+        &loaded,
+        &config,
+        long_inputs(&dir)?,
+        &mut backend,
+        &mut session,
+        &mut person,
+    )?;
+    assert_eq!(outcome.end, RunEnd::Done, "{:#?}", person.events);
+    // The package step's fourth request: the first page read is a stub
+    // naming its call, the last two rounds stay whole.
+    let fourth = backend.wire.posts.get(3).ok_or("a fourth request")?;
+    let sent = fourth.2["messages"].to_string();
+    assert!(sent.contains("[Cleared"), "{sent}");
+    assert!(!sent.contains("BODY p3 l20 "), "page 3 was sent again");
+    assert!(sent.contains("BODY p10 l20 ") && sent.contains("BODY p31 l20 "));
     Ok(())
 }

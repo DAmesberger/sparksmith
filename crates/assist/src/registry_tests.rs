@@ -77,6 +77,9 @@ struct Registry {
     needs_account: AtomicBool,
     /// Bundles answer 429 with `Retry-After: 300`.
     limited: AtomicBool,
+    /// Every request answers 401 with a Basic challenge and no body, as a
+    /// server behind a password does.
+    closed: AtomicBool,
     /// The answers of the next device-token polls, in order; `pending`
     /// once they run out.
     polls: Mutex<VecDeque<&'static str>>,
@@ -124,6 +127,13 @@ impl Registry {
     fn respond(&self, method: &str, path: &str, auth: Option<&str>, body: &[u8]) -> Answer {
         if let Ok(mut seen) = self.seen.lock() {
             seen.push((format!("{method} {path}"), auth.map(str::to_owned)));
+        }
+        if self.closed.load(Ordering::SeqCst) {
+            return (
+                401,
+                vec![("www-authenticate", "Basic realm=\"restricted\"".into())],
+                Vec::new(),
+            );
         }
         let bearer = auth == Some(&format!("Bearer {TOKEN}"));
         let body: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
@@ -335,6 +345,7 @@ fn registry(
         seen: Mutex::new(Vec::new()),
         needs_account: AtomicBool::new(false),
         limited: AtomicBool::new(false),
+        closed: AtomicBool::new(false),
         polls: Mutex::new(VecDeque::new()),
         bodies: Mutex::new(Vec::new()),
     }))
@@ -849,5 +860,21 @@ fn live_registry_round_trip() -> TestResult {
     let mirror = Mirror::open(cache.path(), &url)?;
     let shard = synced.shard(library).ok_or("no shard")?;
     assert_eq!(mirror.bundle(root, &shard.catalog)?.as_ref(), Some(&bundle));
+    Ok(())
+}
+
+/// A server behind a password answers 401 to a search: the refusal says
+/// the library is not open, never that searching needs a sign-in (E2E
+/// run 13 finding 3).
+#[test]
+fn a_registry_behind_a_password_says_it_is_not_open()
+-> std::result::Result<(), Box<dyn std::error::Error>> {
+    let registry = self::registry(None)?;
+    registry.closed.store(true, Ordering::SeqCst);
+    let store = Arc::new(Memory::default());
+    let client = client_with(&serve(registry)?, None, &store)?;
+    let refused = client.search("resistor", 5, 0).err().unwrap_or_default();
+    assert!(refused.contains("is not open to the public"), "{refused}");
+    assert_ne!(refused, account::SIGN_IN_NEEDED);
     Ok(())
 }

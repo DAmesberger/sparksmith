@@ -29,6 +29,13 @@ const OTHER: &[u8] = b"another generator";
 const INSERTED: &[u8] = b"v2 with a pad inserted";
 /// A module whose model names another part file than the host evaluated.
 const OTHER_PART: &[u8] = b"names another part file";
+/// A module whose terminal 1 is a GPIO (an input that can be an output)
+/// named `IO0` and terminal 2 a ground pin.
+const PIN_TABLE: &[u8] = b"with a pin table";
+/// A module whose complete part is two orderable part numbers.
+const ORDERABLE: &[u8] = b"with part numbers";
+/// A module whose terminal 1 is an open-drain flag named `PG`.
+const OPEN_DRAIN: &[u8] = b"with an open-drain flag";
 /// The stand-in's part file (the core never evaluates it).
 const PART: &[u8] = b"stand-in part file";
 
@@ -137,6 +144,7 @@ fn generation_with(
     let edge = x + 700_000;
     let component = scope == Scope::Component;
     Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component.then(|| Component {
             terminals: ["1", "2"]
@@ -145,6 +153,8 @@ fn generation_with(
                     key: (*k).into(),
                     name: (*k).into(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "R".into(),
@@ -299,7 +309,39 @@ impl GeneratorRuntime for StandIn {
         };
         let shift = if module == CHANGED { 10_000 } else { 0 };
         let part = if module == OTHER_PART { CHANGED } else { PART };
-        let generation = generation_with(length, shift, request.scope, part, module == INSERTED);
+        let mut generation =
+            generation_with(length, shift, request.scope, part, module == INSERTED);
+        if module == OPEN_DRAIN
+            && let Some(first) = generation
+                .component
+                .as_mut()
+                .and_then(|c| c.terminals.first_mut())
+        {
+            first.name = "PG".into();
+            first.direction = Direction::Output;
+            first.drive = Some(Drive::OpenDrain);
+        }
+        if module == ORDERABLE && request.scope == Scope::Component {
+            generation.orderable = ["SI-1000", "SI-1000-T"]
+                .iter()
+                .map(|mpn| Orderable {
+                    manufacturer: "Stand-in Parts".into(),
+                    mpn: (*mpn).into(),
+                })
+                .collect();
+        }
+        if module == PIN_TABLE
+            && let Some(component) = generation.component.as_mut()
+        {
+            for (t, (name, direction, alternates)) in component.terminals.iter_mut().zip([
+                ("IO0", Direction::Input, vec![Direction::Output]),
+                ("GND", Direction::PowerInput, Vec::new()),
+            ]) {
+                t.name = name.into();
+                t.direction = direction;
+                t.alternates = alternates;
+            }
+        }
         let canonical = sparksmith_generator_abi::encode(&generation)
             .map_err(|e| Failure::one("generator.invalid_output", e.to_string()))?;
         Ok(Generated {
@@ -1268,6 +1310,96 @@ fn regenerating_at_the_same_version_carries_a_part_left_on_an_older_revision() -
     Ok(())
 }
 
+/// A generated terminal's further functions expand after its default, the
+/// default being the design default; a fixed terminal keeps one function.
+#[test]
+fn a_terminal_with_alternates_expands_to_selectable_functions() -> TestResult {
+    use crate::functions::Direction as Core;
+    use crate::library::TerminalClass;
+    let mut engine = engine();
+    generate(
+        &mut engine,
+        request(PIN_TABLE, GeneratorScope::Component, 1_600_000),
+    )?;
+    let library = &engine.project().library;
+    let component = library.components.first().ok_or("no component")?;
+    let terminals = &component.definition.terminals;
+    let functions = |n: usize| match terminals.get(n).map(|t| &t.class) {
+        Some(TerminalClass::Electrical(f)) => Some(f),
+        _ => None,
+    };
+    assert_eq!(terminals.first().map(|t| t.name.as_str()), Some("IO0"));
+    let io = functions(0).ok_or("IO0 has no functions")?;
+    let directions: Vec<Core> = io.functions.iter().map(|f| f.direction).collect();
+    assert_eq!(directions, [Core::Input, Core::Output]);
+    assert_eq!(io.design_default, io.functions.first().map(|f| f.id));
+    let gnd = functions(1).ok_or("GND has no functions")?;
+    assert_eq!(gnd.functions.len(), 1);
+    assert_eq!(
+        gnd.functions.first().map(|f| f.direction),
+        Some(Core::PowerInput)
+    );
+    assert_eq!(gnd.design_default, None);
+    // The record checks on load like any generated part.
+    verify(&engine.to_file().project.library, &mut run)?;
+    Ok(())
+}
+
+/// E2E run 13: a generated IC had no MPN in the BOM. Its orderable part
+/// numbers are published as the component's manufacturer Parts in the
+/// same step, once each: the same request again adds none.
+#[test]
+fn orderable_parts_are_published_with_the_part() -> TestResult {
+    let mut engine = engine();
+    let report = generate(
+        &mut engine,
+        request(ORDERABLE, GeneratorScope::Component, 1_600_000),
+    )?;
+    let parts = |engine: &Engine| -> Vec<(String, String, crate::ids::ComponentRef)> {
+        engine
+            .project()
+            .library
+            .latest_parts()
+            .into_iter()
+            .map(|p| {
+                (
+                    p.definition.manufacturer.clone(),
+                    p.definition.mpn.clone(),
+                    p.definition.component,
+                )
+            })
+            .collect()
+    };
+    let root = crate::ids::ComponentRef::new(report.root.id, report.root.revision);
+    assert_eq!(
+        parts(&engine),
+        [
+            ("Stand-in Parts".to_owned(), "SI-1000".to_owned(), root),
+            ("Stand-in Parts".to_owned(), "SI-1000-T".to_owned(), root),
+        ]
+    );
+    assert!(engine.drafts().items.is_empty());
+    // One undo step takes the part and its Parts away.
+    engine.undo()?;
+    assert!(parts(&engine).is_empty());
+    assert!(engine.project().library.components.is_empty());
+    engine.redo()?;
+    let again = generate(
+        &mut engine,
+        request(ORDERABLE, GeneratorScope::Component, 1_600_000),
+    )?;
+    assert!(!again.created);
+    assert_eq!(parts(&engine).len(), 2);
+    // A package has no orderable parts.
+    let mut package = self::engine();
+    generate(
+        &mut package,
+        request(ORDERABLE, GeneratorScope::Package, 1_600_000),
+    )?;
+    assert!(parts(&package).is_empty());
+    Ok(())
+}
+
 /// The pads of [`a_turned_pad_turns_its_drill_slot_and_paste_windows`]:
 /// a drilled 2 mm circle turned 90° at the origin with a paste window, a
 /// slotted one at (3, 0) mm and a drilled 2 × 1 mm rect turned 270° at
@@ -1448,5 +1580,28 @@ fn a_turned_pad_placed_on_the_bottom_drills_and_pastes_where_the_flip_puts_them(
     ];
     assert!(close(middle, [10.2, 23.0]), "{slot:?}");
     assert!(slot.size()[0] > slot.size()[1], "{slot:?}");
+    Ok(())
+}
+
+/// An open-drain terminal expands to an output whose drive is an open
+/// drain, so ERC lets it share a net with a pull-up or another flag.
+#[test]
+fn an_open_drain_terminal_keeps_its_drive() -> TestResult {
+    use crate::library::TerminalClass;
+    let mut engine = engine();
+    generate(
+        &mut engine,
+        request(OPEN_DRAIN, GeneratorScope::Component, 1_600_000),
+    )?;
+    let library = &engine.project().library;
+    let component = library.components.first().ok_or("no component")?;
+    let Some(TerminalClass::Electrical(f)) =
+        component.definition.terminals.first().map(|t| &t.class)
+    else {
+        return Err("PG has no functions".into());
+    };
+    let first = f.functions.first().ok_or("no function")?;
+    assert_eq!(first.direction, crate::functions::Direction::Output);
+    assert_eq!(first.drive, crate::functions::Drive::OpenDrain);
     Ok(())
 }

@@ -183,6 +183,53 @@ pub fn pin_report(project: &Project, instance: Id) -> Result<PinReport> {
     })
 }
 
+/// Parts one `schematic.pins` call names.
+pub const MAX_PIN_PARTS: usize = 32;
+
+/// One pin as `schematic.pins` lists it: terminal id (what
+/// `schematic.connect` takes), pads, name and net name.
+pub type PinRow = (TerminalId, String, String, Option<String>);
+
+/// One part's pins, compact: what wiring needs and nothing more.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct PartPins {
+    pub designator: String,
+    pub instance: Id,
+    /// The rows' columns, once: `["terminal", "pads", "name", "net"]`.
+    pub columns: [String; 4],
+    pub pins: Vec<PinRow>,
+}
+
+/// `schematic.pins { designators }`: each named part's instance id and
+/// its pins, one row each, in declaration order. A designator no part has
+/// is refused, naming it.
+pub fn part_pins(project: &Project, designators: &[String]) -> Result<Vec<PartPins>> {
+    if designators.is_empty() || designators.len() > MAX_PIN_PARTS {
+        return Err(Error::Invalid(format!(
+            "name 1 to {MAX_PIN_PARTS} parts by designator"
+        )));
+    }
+    let mut out = Vec::with_capacity(designators.len());
+    for designator in designators {
+        let instance = project
+            .instance_by_designator(designator)
+            .ok_or_else(|| Error::NotFound(format!("no part is named {designator}")))?;
+        let report = pin_report(project, instance.id)?;
+        out.push(PartPins {
+            designator: report.designator,
+            instance: report.instance,
+            columns: ["terminal", "pads", "name", "net"].map(str::to_owned),
+            pins: report
+                .pins
+                .into_iter()
+                .map(|pin| (pin.terminal, pin.pads.join(","), pin.name, pin.net_name))
+                .collect(),
+        });
+    }
+    Ok(out)
+}
+
 /// What a report says about another instance on a net.
 struct Endpoints<'a> {
     designator: String,

@@ -845,7 +845,7 @@ fn libraries_rows(ui: &mut egui::Ui, page: &mut LibrariesPage) {
         ui,
         "Placing a part copies it into the project; nothing needs the network later",
         "Online rows come after your project and library folders and say whether a person \
-         reviewed them. Use parts.sparksmith.io once it is live, or a registry on this computer.",
+         reviewed them. The URL can name a registry on this computer instead.",
     );
 }
 

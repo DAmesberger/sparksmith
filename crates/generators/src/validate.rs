@@ -484,9 +484,13 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
     }
     match scope {
         Scope::Package => {
-            if g.component.is_some() || g.symbol.is_some() || !g.binding.is_empty() {
+            if g.component.is_some()
+                || g.symbol.is_some()
+                || !g.binding.is_empty()
+                || !g.orderable.is_empty()
+            {
                 return Err(invalid(
-                    "The generator returned a component, symbol or binding for a package-only request."
+                    "The generator returned a component, symbol, binding or orderable part for a package-only request."
                         .into(),
                 ));
             }
@@ -498,12 +502,59 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
                 ));
             };
             count("terminals", component.terminals.len(), limits::TERMINALS)?;
+            count("orderable parts", g.orderable.len(), limits::ORDERABLE)?;
+            let mut mpns = BTreeSet::new();
+            for part in &g.orderable {
+                let fits = |s: &str| {
+                    !s.trim().is_empty()
+                        && s.len() <= limits::ORDERABLE_BYTES
+                        && !s.chars().any(char::is_control)
+                };
+                if !fits(&part.manufacturer) || !fits(&part.mpn) {
+                    return Err(invalid(format!(
+                        "The generator returned an orderable part \"{} {}\" without a printable manufacturer and part number of at most {} bytes each.",
+                        part.manufacturer,
+                        part.mpn,
+                        limits::ORDERABLE_BYTES
+                    )));
+                }
+                if !mpns.insert(part.mpn.as_str()) {
+                    return Err(invalid(format!(
+                        "The generator returned the orderable part number {} twice.",
+                        part.mpn
+                    )));
+                }
+            }
             let terminals = unique(
                 "terminal",
                 component.terminals.iter().map(|t| t.key.as_str()),
             )?;
             for t in &component.terminals {
                 text("terminal name", &t.name)?;
+                count(
+                    "further functions of a terminal",
+                    t.alternates.len(),
+                    limits::TERMINAL_ALTERNATES,
+                )?;
+                if t.drive.is_some()
+                    && !matches!(
+                        t.direction,
+                        v1::Direction::Output | v1::Direction::Bidirectional
+                    )
+                {
+                    return Err(invalid(format!(
+                        "The generator gives terminal \"{}\" a drive, which only an output or bidirectional terminal has.",
+                        t.key
+                    )));
+                }
+                for (i, d) in t.alternates.iter().enumerate() {
+                    if *d == t.direction || t.alternates.get(..i).is_some_and(|a| a.contains(d)) {
+                        return Err(invalid(format!(
+                            "The generator gives terminal \"{}\" the same function twice.",
+                            t.key
+                        )));
+                    }
+                }
             }
             key("designator prefix", &component.prefix)?;
             text("component name", &component.name)?;
