@@ -10,7 +10,7 @@
 //! worker does (`compute_stale`, stored without an undo step); then the
 //! production check (`fabrication.preflight`) names the measured uncoupled
 //! USB tracks and finds no other issue. One undo restores the board exactly.
-#[path = "support/esp32_preflight.rs"]
+#[path = "../../io/tests/support/esp32_preflight.rs"]
 mod esp32_preflight;
 
 use esp32_preflight::{USB_UNCOUPLED_MM, assert_usb_preflight};

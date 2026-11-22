@@ -5,7 +5,7 @@
 //! undo as one step each.
 use super::*;
 
-#[path = "../../tests/support/esp32_preflight.rs"]
+#[path = "../../../io/tests/support/esp32_preflight.rs"]
 mod esp32_preflight;
 
 type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;

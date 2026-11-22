@@ -1,5 +1,9 @@
 //! The shipped USB-C receptacle (GCT USB4105) against the JLCPCB and PCBWay
 //! profiles on the ESP32 board (run 10, finding 4; run 11, finding 2).
+#[path = "support/esp32_preflight.rs"]
+mod esp32_preflight;
+
+use esp32_preflight::{USB_UNCOUPLED_MM, assert_usb_preflight};
 use sparksmith_core::layout;
 use std::path::Path;
 
@@ -124,8 +128,8 @@ fn pcbway_admits_the_usb4105_footprint_under_its_minimum_values() -> Fallible {
 /// The 4-layer example board is designed under PCBWay 4-layer at its
 /// minimum values (the replay sets the profile, chooses `limits: minimum`
 /// and routes the USB pair with `layout.route_pair`, which takes its width
-/// and gap from the profile). It holds no waiver, and its production check
-/// finds nothing.
+/// and gap from the profile). It holds no waiver. The only preflight item
+/// names the lengths excluded from the USB pair's impedance calculation.
 #[test]
 fn the_example_board_passes_pcbway_4_layer_without_waivers() -> Fallible {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -144,13 +148,6 @@ fn the_example_board_passes_pcbway_4_layer_without_waivers() -> Fallible {
         sparksmith_core::QueryResult::Preflight(report) => report,
         _ => return Err("preflight".into()),
     };
-    let found: Vec<String> = preflight
-        .items
-        .iter()
-        .map(|i| format!("{}: {}", i.code, i.title))
-        .collect();
-    assert_eq!(preflight.blocking, 0, "{found:#?}");
-    assert_eq!(preflight.waived, 0, "{found:#?}");
-    assert!(found.is_empty(), "{found:#?}");
+    assert_usb_preflight(&preflight, USB_UNCOUPLED_MM);
     Ok(())
 }
