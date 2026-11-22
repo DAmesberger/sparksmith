@@ -10,10 +10,41 @@ use super::Session;
 use crate::Result;
 use serde_json::{Value, json};
 use sparksmith_core::Operation;
+use sparksmith_core::ids::ContentHash;
 use sparksmith_core::interface::publish;
 use sparksmith_core::interface::{InterfaceCommand, PublishParams, PublishPreviewParams};
+use sparksmith_core::model::interface::Tier;
 use sparksmith_io::interface as files;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+/// The linked design file a publish is bound to: where it is and what
+/// its bytes hash to.
+type Linked = (PathBuf, ContentHash);
+
+/// The token binding a publish to its preview (review finding 12): the
+/// board revision, the tier, the destination's design and sidecar bytes,
+/// and the linked design file's identity and bytes. Anything else about
+/// the request may differ; any of these differing refuses the publish.
+fn publish_token(
+    revision: u64,
+    tier: Tier,
+    destination: (Option<ContentHash>, Option<ContentHash>),
+    linked: Option<&Linked>,
+) -> Result<String> {
+    use sha2::{Digest, Sha256};
+    let bound = json!({
+        "revision": revision,
+        "tier": tier,
+        "design": destination.0,
+        "sidecar": destination.1,
+        "linked": linked.map(|(path, hash)| json!({
+            "path": path.to_string_lossy(),
+            "sha256": hash,
+        })),
+    });
+    let digest = Sha256::digest(serde_json::to_vec(&bound)?);
+    Ok(format!("publish-{}", ContentHash(digest.into())))
+}
 
 /// A relative path as the project file keeps it: its parts joined with `/`
 /// whatever the host's separator, so a project published on one platform
@@ -78,6 +109,7 @@ impl Session {
         )?;
         // With the linked design named, the dry run on a scratch copy.
         let project = self.engine.project_arc().clone();
+        let mut dry_run_read = None;
         if let (Some(linked_design), Some(design), Some(source_id), Some(baseline)) = (
             params.assembly_path.as_deref(),
             params.path.as_deref(),
@@ -85,9 +117,89 @@ impl Session {
             baseline.as_ref(),
         ) {
             let candidate = publish::candidate(&project, preview.tier, source_id)?;
-            preview.dry_run = self.dry_run(linked_design, design, candidate, baseline)?;
+            let (dry_run, read) = self.dry_run(linked_design, design, candidate, baseline)?;
+            preview.dry_run = dry_run;
+            dry_run_read = Some(read);
         }
+        // The token binds the linked design's bytes the dry run read.
+        let linked = match params.assembly_path.as_deref() {
+            Some(path) => Some(self.linked_file(path, dry_run_read)?),
+            None => None,
+        };
+        preview.token = Some(publish_token(
+            self.engine.revision(),
+            preview.tier,
+            baseline
+                .as_ref()
+                .map_or((None, None), files::Baseline::identity),
+            linked.as_ref(),
+        )?);
         Ok(serde_json::to_value(preview)?)
+    }
+
+    /// The linked design file at `given` (relative to the project's
+    /// folder) and its bytes' hash: `read`, when a dry run read them, else
+    /// read now. Refused when the file is not there.
+    fn linked_file(&self, given: &str, read: Option<ContentHash>) -> Result<Linked> {
+        let file = self.assembly_path(given);
+        let hash = match read {
+            Some(hash) => hash,
+            None => sparksmith_io::assembly_link::hash(&file)?.ok_or_else(|| {
+                sparksmith_io::Error::Invalid(format!(
+                    "assembly.missing: The linked design file was not found at {}",
+                    file.display()
+                ))
+            })?,
+        };
+        let file = file.canonicalize().unwrap_or(file);
+        Ok((file, hash))
+    }
+
+    /// Refuse a publish that is not the one its preview showed (review
+    /// finding 12): with a linked design linked, or named, the preview's
+    /// token is required, and it must still bind this board revision,
+    /// tier, destination and linked design file.
+    fn check_publish_token(
+        &self,
+        params: &PublishParams,
+        baseline: &files::Baseline,
+    ) -> Result<()> {
+        let linked_project = self.engine.project().assembly_link.is_some();
+        let refuse = |message: &str| -> crate::Error {
+            sparksmith_core::diagnostics::Error::Conflict(message.to_owned()).into()
+        };
+        if linked_project && params.assembly_path.is_none() {
+            return Err(refuse(
+                "interface.token: a linked design is linked; preview the publish with it \
+                 (assembly_path) and publish with the preview's assembly_path and token",
+            ));
+        }
+        let Some(token) = params.token.as_deref() else {
+            if params.assembly_path.is_some() {
+                return Err(refuse(
+                    "interface.token: publish with the token of the preview that dry-ran the \
+                     linked design",
+                ));
+            }
+            return Ok(());
+        };
+        let linked = match params.assembly_path.as_deref() {
+            Some(path) => Some(self.linked_file(path, None)?),
+            None => None,
+        };
+        let now = publish_token(
+            self.engine.revision(),
+            params.tier,
+            baseline.identity(),
+            linked.as_ref(),
+        )?;
+        if now != token {
+            return Err(refuse(
+                "interface.preview_changed: the board, the published files or the linked design \
+                 changed since the preview; preview again",
+            ));
+        }
+        Ok(())
     }
 
     /// Write the interface design and its sidecar at `path`, then record
@@ -120,6 +232,7 @@ impl Session {
             return Err(sparksmith_core::interface::findings::publish_blocked(&blockers).into());
         }
         let baseline = files::Publication::open(design)?.baseline()?;
+        self.check_publish_token(params, &baseline)?;
         let previous = baseline.sidecar.as_ref();
         let recorded = project.interface.source_id;
         let source_id = match (recorded, previous) {
@@ -145,6 +258,25 @@ impl Session {
         }
         let sidecar = publish::candidate(&project, params.tier, source_id)?;
         let exported = sparksmith_solidcraft::interface::build(&project, sidecar)?;
+        let check = exported.check.clone();
+        // A test's model that does not fit its plan.
+        #[cfg(test)]
+        let check = self.interface_check.clone().or(check);
+        // The standalone export's fit policy: bodies that differ from the
+        // board plan are refused, writing nothing, unless asked otherwise.
+        if let Some(check) = check.as_ref() {
+            sparksmith_solidcraft::export::check_fit(
+                &project,
+                exported.sidecar.tier,
+                check,
+                if params.write_anyway {
+                    sparksmith_solidcraft::export::Unfit::Write
+                } else {
+                    sparksmith_solidcraft::export::Unfit::Refuse
+                },
+                Default::default(),
+            )?;
+        }
         let text = exported.sidecar.text()?;
         let temporary =
             sparksmith_io::persistence::StagedNew::new(&files::temporary_design(design)?)?;
@@ -173,9 +305,9 @@ impl Session {
             "tier": exported.sidecar.tier,
             "datums": exported.sidecar.datums.len(),
         });
-        // Section 2 checked against the board plan (A5): reported, the
-        // files written all the same.
-        if let Some(check) = exported.check {
+        // Section 2 checked against the board plan (A5): reported; past
+        // the fit policy only when written anyway.
+        if let Some(check) = check {
             let report = sparksmith_solidcraft::export::report(
                 exported.sidecar.tier,
                 0,

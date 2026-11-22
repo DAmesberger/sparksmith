@@ -28,7 +28,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "files",
-        (1, 2),
+        (1, 3),
         "Files",
         "New, open and save a project file.",
     ),
@@ -73,8 +73,9 @@ pub const MODULES: &[ModuleDecl] = &[
         "Fabrication",
         "Fabrication output, the schematic PDF and firmware pin configuration.",
     ),
-    module(
+    module_at(
         "model3d",
+        (2, 0),
         "3D model",
         "The exact 3D export, the board interface, the assembly link and part files.",
     ),

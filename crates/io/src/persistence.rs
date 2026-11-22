@@ -12,7 +12,7 @@ use std::{
 pub mod container;
 
 pub fn check_project_path(path: &Path) -> Result<()> {
-    if path.extension().is_none_or(|e| e != format::EXTENSION) {
+    if !format::is_project_path(path) {
         return Err(Error::Invalid("use a .sparksmith project filename".into()));
     }
     if path.as_os_str().len() > 4096 {
@@ -24,14 +24,210 @@ pub fn check_project_path(path: &Path) -> Result<()> {
 /// Read and validate a project container of the one format version;
 /// anything else is refused.
 pub fn read_project(path: &Path) -> Result<EditorFile> {
-    check_project_path(path)?;
-    container::read_container(path)
+    Ok(open_project(path)?.0)
 }
 
-/// Validate, encode and atomically replace a project container.
+/// Validate, encode and atomically replace a project container, whatever
+/// the file holds now. A save of a file that was opened goes through
+/// [`save_project`] instead, which notices another writer's save.
 pub fn write_project(path: &Path, file: &EditorFile) -> Result<()> {
+    save_project(path, file, None).map(|_| ())
+}
+
+/// What a project file held when it was read or written: the SHA-256 of
+/// its bytes. A save carries the identity its document was opened (or
+/// last saved) with, so a file another window or program saved since is
+/// never silently replaced (review finding 9).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DiskIdentity(pub sparksmith_core::ids::ContentHash);
+
+impl std::fmt::Display for DiskIdentity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// A save that found the file changed on disk since its document was
+/// opened or saved. Both versions are kept: the file on disk as the other
+/// writer left it, and this save's document at `kept`, a new file beside
+/// it, which the saving host takes as its file from now on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Conflict {
+    /// The file this save was for, left as the other writer saved it.
+    pub path: PathBuf,
+    /// The new file holding this save's document.
+    pub kept: PathBuf,
+    /// The identity of `kept`.
+    pub identity: DiskIdentity,
+}
+
+/// [`read_project`], with the identity of the bytes it read. The hash and
+/// the container are read through one open file: a writer replaces the
+/// file by renaming a new one over it, so both see the same bytes.
+pub fn open_project(path: &Path) -> Result<(EditorFile, DiskIdentity)> {
     check_project_path(path)?;
-    container::write_container(path, file)
+    let mut file = File::open(path)?;
+    let identity = identity_of(&mut file)?;
+    let read = container::read_open(file)?;
+    Ok((read, identity))
+}
+
+/// Validate, encode and atomically replace a project container. With
+/// `expected`, the identity its document was opened or last saved with,
+/// the replacement happens only while the file still holds those bytes:
+/// writers that save this way lock the file, check it and rename over it
+/// as one step. A file that changed meanwhile is kept and this document
+/// is written to a new file beside it ([`Error::Conflict`]). Without
+/// `expected` (Save As to a file the person chose) any file is replaced.
+/// Returns the identity of the saved file.
+pub fn save_project(
+    path: &Path,
+    file: &EditorFile,
+    expected: Option<DiskIdentity>,
+) -> Result<DiskIdentity> {
+    check_project_path(path)?;
+    container::save_container(path, file, expected)
+}
+
+/// The SHA-256 of `file`'s bytes, read from its start (bounded by the
+/// container's size limit); the file is left at its start.
+fn identity_of(file: &mut File) -> Result<DiskIdentity> {
+    use sha2::{Digest, Sha256};
+    use std::io::Seek;
+    file.rewind()?;
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 64 * 1024];
+    let mut total: u64 = 0;
+    loop {
+        let read = file.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        total += read as u64;
+        if total > format::CONTAINER_MAX_BYTES {
+            return Err(Error::TooLarge(format!(
+                "project container exceeds {} MiB",
+                format::CONTAINER_MAX_BYTES / (1024 * 1024)
+            )));
+        }
+        hasher.update(&buffer[..read]);
+    }
+    file.rewind()?;
+    Ok(DiskIdentity(sparksmith_core::ids::ContentHash(
+        hasher.finalize().into(),
+    )))
+}
+
+/// Publish the finished `temporary` at `path` as one step among writers
+/// that save through here: the file at `path` is locked, checked against
+/// `expected` and replaced while the lock is held, so two saves of one
+/// file cannot both pass the check. On a mismatch the temporary file is
+/// published beside `path` instead ([`Conflict`]).
+pub(crate) fn replace_checked(
+    mut temporary: tempfile::NamedTempFile,
+    path: &Path,
+    expected: Option<DiskIdentity>,
+) -> Result<DiskIdentity> {
+    let identity = identity_of(temporary.as_file_mut())?;
+    // A bounded number of tries: each one that fails lost a race with a
+    // writer that replaced or created the file meanwhile.
+    for _ in 0..16 {
+        let mut current = match File::open(path) {
+            Ok(file) => file,
+            // No file (a first save, or the opened one was moved away):
+            // this document takes the name without replacing anything.
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match temporary.persist_noclobber(path) {
+                    Ok(_) => {
+                        sync_directory(parent_of(path))?;
+                        return Ok(identity);
+                    }
+                    Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
+                        temporary = error.file;
+                        continue;
+                    }
+                    Err(error) => return Err(Error::Io(error.error)),
+                }
+            }
+            Err(error) => return Err(error.into()),
+        };
+        current.lock()?;
+        if !still_at(&current, path)? {
+            // Another writer renamed a new file over the one we locked.
+            continue;
+        }
+        if let Some(expected) = expected
+            && identity_of(&mut current)? != expected
+        {
+            drop(current);
+            return Err(keep_beside(temporary, path, identity));
+        }
+        temporary.persist(path).map_err(|e| Error::Io(e.error))?;
+        // The lock is released once the new file is in place.
+        drop(current);
+        sync_directory(parent_of(path))?;
+        return Ok(identity);
+    }
+    Err(Error::Invalid(format!(
+        "{} keeps changing while it is being saved; try again",
+        path.display()
+    )))
+}
+
+/// Whether the locked `file` is still the one `path` names.
+#[cfg(unix)]
+fn still_at(file: &File, path: &Path) -> Result<bool> {
+    use std::os::unix::fs::MetadataExt;
+    let locked = file.metadata()?;
+    match std::fs::metadata(path) {
+        Ok(named) => Ok(named.dev() == locked.dev() && named.ino() == locked.ino()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Elsewhere the check is the identity comparison alone.
+#[cfg(not(unix))]
+fn still_at(_file: &File, path: &Path) -> Result<bool> {
+    Ok(path.exists())
+}
+
+/// Publish `temporary` as a new file beside `path` ("board (conflict
+/// 1).sparksmith", the first free number) and say so.
+fn keep_beside(
+    mut temporary: tempfile::NamedTempFile,
+    path: &Path,
+    identity: DiskIdentity,
+) -> Error {
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let extension = path
+        .extension()
+        .map(|e| e.to_string_lossy().into_owned())
+        .unwrap_or_else(|| format::EXTENSION.to_owned());
+    for n in 1..=99 {
+        let kept = parent_of(path).join(format!("{stem} (conflict {n}).{extension}"));
+        match temporary.persist_noclobber(&kept) {
+            Ok(_) => {
+                let _ = sync_directory(parent_of(path));
+                return Error::Conflict(Box::new(Conflict {
+                    path: path.to_path_buf(),
+                    kept,
+                    identity,
+                }));
+            }
+            Err(error) if error.error.kind() == std::io::ErrorKind::AlreadyExists => {
+                temporary = error.file;
+            }
+            Err(error) => return Error::Io(error.error),
+        }
+    }
+    Error::Invalid(format!(
+        "{} changed on disk since it was opened, and no free name was found beside it to keep this version; use Save As",
+        path.display()
+    ))
 }
 
 /// Validate, encode and create a project without replacing another file,
@@ -167,6 +363,19 @@ fn parent_of(path: &Path) -> &Path {
         .unwrap_or_else(|| Path::new("."))
 }
 
+/// Let `fill` write a sibling temporary file for `path` and sync it; the
+/// caller publishes it.
+pub(crate) fn staged_with(
+    path: &Path,
+    access: Access,
+    fill: impl FnOnce(&mut File) -> Result<()>,
+) -> Result<tempfile::NamedTempFile> {
+    let mut temporary = temporary_in(parent_of(path), path, access, std::ffi::OsStr::new(""))?;
+    fill(temporary.as_file_mut())?;
+    temporary.as_file().sync_all()?;
+    Ok(temporary)
+}
+
 /// [`atomic_write_with`], replacing `path` only when `replace` is set;
 /// otherwise an existing `path` is an `AlreadyExists` error.
 pub(crate) fn write_with(
@@ -175,9 +384,7 @@ pub(crate) fn write_with(
     access: Access,
     fill: impl FnOnce(&mut File) -> Result<()>,
 ) -> Result<()> {
-    let mut temporary = temporary_in(parent_of(path), path, access, std::ffi::OsStr::new(""))?;
-    fill(temporary.as_file_mut())?;
-    temporary.as_file().sync_all()?;
+    let temporary = staged_with(path, access, fill)?;
     persist(temporary.into_temp_path(), path, replace)
 }
 

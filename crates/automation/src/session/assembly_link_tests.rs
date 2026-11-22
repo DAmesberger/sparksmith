@@ -568,3 +568,214 @@ fn a_publish_between_preview_reads_refuses_mixed_generations() -> TestResult {
     )?;
     Ok(())
 }
+
+/// The publish request bound to `preview`: its token and linked design.
+fn bound_publish(
+    session: &Session,
+    design: &Path,
+    assembly_link: &Path,
+    tier: &str,
+    token: &Value,
+) -> Value {
+    json!({"command": "interface.publish", "params": {
+        "path": design.display().to_string(), "tier": tier,
+        "expected_revision": session.engine().revision(),
+        "assembly_path": assembly_link.display().to_string(),
+        "token": token}})
+}
+
+/// The bytes of the published design and its sidecar.
+fn publication(design: &Path) -> TestResult<(Vec<u8>, Vec<u8>)> {
+    Ok((
+        std::fs::read(design)?,
+        std::fs::read(sparksmith_io::interface::sidecar_path(design))?,
+    ))
+}
+
+/// Review finding 12: the publish writes only what its preview showed.
+/// With the board linked, the preview dry-runs the linked design and
+/// gives a token; changing only the linked design between preview and
+/// publish refuses the publish, and neither publication file changes. A
+/// publish without the token is refused too; a new preview's token
+/// publishes.
+#[test]
+fn a_publish_is_refused_when_the_linked_design_changed_since_its_preview() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let assembly_link = dir.path().join("assembly.solidcraft");
+    let mut session = open(dir.path())?;
+    let opening = format!("i{}.opening", instance(&session, "J1")?);
+    publish(&mut session, &design, "interface")?;
+    save_linked_design(&design, &opening, FAR_WALL_Y, &assembly_link)?;
+    link(&mut session, &assembly_link, &design)?;
+    super::interface_publish_tests::move_j1(&mut session, 2.0)?;
+    let preview = ok(
+        &mut session,
+        json!({"command": "interface.publish_preview", "params": {
+            "path": design.display().to_string(), "tier": "interface",
+            "assembly_path": assembly_link.display().to_string()}}),
+    )?;
+    assert!(preview["dry_run"]["effects"].is_array(), "{preview}");
+    let token = preview["token"].clone();
+    assert!(
+        token.as_str().is_some_and(|t| t.starts_with("publish-")),
+        "{preview}"
+    );
+    let before = publication(&design)?;
+
+    // Only the linked design changes: it gains a wall after the preview.
+    save_linked_design(&design, &opening, FAR_WALL_Y + 1.0, &assembly_link)?;
+    let revision = session.engine().revision();
+    let refused = session.dispatch(bound_publish(
+        &session,
+        &design,
+        &assembly_link,
+        "interface",
+        &token,
+    ));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert_eq!(
+        refused["error"]["rule"], "interface.preview_changed",
+        "{refused}"
+    );
+    assert_eq!(publication(&design)?, before, "nothing written");
+    assert_eq!(session.engine().revision(), revision, "nothing recorded");
+
+    // Without a token, a linked board's publish is refused as well.
+    let unbound = session.dispatch(json!({"command": "interface.publish", "params": {
+        "path": design.display().to_string(), "tier": "interface",
+        "expected_revision": revision}}));
+    assert_eq!(unbound["ok"], false, "{unbound}");
+    assert_eq!(unbound["error"]["rule"], "interface.token", "{unbound}");
+    assert_eq!(publication(&design)?, before, "nothing written");
+
+    // A new preview of the changed linked design publishes.
+    let preview = ok(
+        &mut session,
+        json!({"command": "interface.publish_preview", "params": {
+            "path": design.display().to_string(), "tier": "interface",
+            "assembly_path": assembly_link.display().to_string()}}),
+    )?;
+    let published = session.dispatch(bound_publish(
+        &session,
+        &design,
+        &assembly_link,
+        "interface",
+        &preview["token"],
+    ));
+    assert_eq!(published["ok"], true, "{published}");
+    assert_ne!(publication(&design)?, before);
+    Ok(())
+}
+
+/// The native publication's fit policy is the standalone export's: a
+/// linked publication whose bodies do not fit the board plan is refused,
+/// naming them and writing nothing, unless written anyway.
+#[test]
+fn an_unfit_linked_publication_is_refused_unless_written_anyway() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let assembly_link = dir.path().join("assembly.solidcraft");
+    let mut session = open(dir.path())?;
+    let opening = format!("i{}.opening", instance(&session, "J1")?);
+    publish(&mut session, &design, "mechanical")?;
+    save_linked_design(&design, &opening, FAR_WALL_Y, &assembly_link)?;
+    link(&mut session, &assembly_link, &design)?;
+    super::interface_publish_tests::move_j1(&mut session, 2.0)?;
+    // A model built with one track 0.1 mm narrower than the plan reads.
+    let project = session.engine().project().clone();
+    let unfit = {
+        let _context = session.engine().enter_context();
+        let model = sparksmith_solidcraft::project::build(&project)?;
+        let mut planned = project.clone();
+        let track = planned
+            .tracks
+            .iter_mut()
+            .next()
+            .ok_or("the example has a track")?;
+        track.width += 0.1;
+        let plan = sparksmith_solidcraft::project::plan::of(&planned)?;
+        sparksmith_solidcraft::project::plan::check(&plan, &model, &mut || Ok(()))?
+    };
+    assert!(!unfit.differences.is_empty());
+    session.interface_check = Some(unfit);
+
+    let preview = ok(
+        &mut session,
+        json!({"command": "interface.publish_preview", "params": {
+            "path": design.display().to_string(), "tier": "mechanical",
+            "assembly_path": assembly_link.display().to_string()}}),
+    )?;
+    let before = publication(&design)?;
+    let refused = session.dispatch(bound_publish(
+        &session,
+        &design,
+        &assembly_link,
+        "mechanical",
+        &preview["token"],
+    ));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert_eq!(refused["error"]["code"], "export_unfit", "{refused}");
+    assert_eq!(publication(&design)?, before, "nothing written");
+
+    let mut anyway = bound_publish(
+        &session,
+        &design,
+        &assembly_link,
+        "mechanical",
+        &preview["token"],
+    );
+    anyway["params"]["write_anyway"] = json!(true);
+    let written = session.dispatch(anyway);
+    assert_eq!(written["ok"], true, "{written}");
+    assert_eq!(
+        written["result"]["published"]["check"]["differs"], true,
+        "{written}"
+    );
+    Ok(())
+}
+
+/// ECAD/MCAD receipts come only from completed host transactions: applied
+/// directly through any transport, each is refused and changes nothing.
+#[test]
+fn receipts_of_file_transactions_are_refused_when_applied_directly() -> TestResult {
+    let dir = tempfile::tempdir()?;
+    let design = dir.path().join("board.solidcraft");
+    let mut session = open(dir.path())?;
+    let published = publish(&mut session, &design, "interface")?;
+    assert!(published["published"]["revision"].is_u64(), "{published}");
+    let record = session
+        .engine()
+        .project()
+        .interface
+        .published
+        .clone()
+        .ok_or("a recorded publish")?;
+    let source_id = session
+        .engine()
+        .project()
+        .interface
+        .source_id
+        .ok_or("a source id")?;
+    let mut later = record;
+    later.revision += 1;
+    let revision = session.engine().revision();
+    let forged = serde_json::to_value(Operation::Interface(
+        sparksmith_core::interface::InterfaceCommand::RecordPublish {
+            source_id,
+            record: later,
+        },
+    ))?;
+    for request in [
+        json!({"command": "project.apply", "params": {
+            "expected_revision": revision, "operation": forged}}),
+        json!({"command": "project.apply_all", "params": {
+            "expected_revision": revision, "operations": [forged]}}),
+    ] {
+        let refused = session.dispatch(request);
+        assert_eq!(refused["ok"], false, "{refused}");
+        assert_eq!(refused["error"]["rule"], "receipt.host_only", "{refused}");
+        assert_eq!(session.engine().revision(), revision);
+    }
+    Ok(())
+}

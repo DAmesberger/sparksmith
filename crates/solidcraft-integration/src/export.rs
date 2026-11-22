@@ -514,22 +514,17 @@ fn write(
     let started = clock();
     let checked = check_against(plan, model, watch)?;
     let check_ms = since(started);
-    if !checked.differences.is_empty() && unfit == Unfit::Refuse {
-        let report = report(
-            tier,
-            0,
-            Some(checked),
-            Timings {
-                build,
-                check: check_ms,
-                save: None,
-            },
-        );
-        return Err(Error::Unfit {
-            message: refusal(board, &report),
-            report: Box::new(report),
-        });
-    }
+    check_fit(
+        board,
+        tier,
+        &checked,
+        unfit,
+        Timings {
+            build,
+            check: check_ms,
+            save: None,
+        },
+    )?;
     watch.enter(Stage::Saving)?;
     let started = clock();
     save_whole(model, output, watch)?;
@@ -545,6 +540,27 @@ fn write(
             save,
         },
     ))
+}
+
+/// The one fit policy of every native delivery, the standalone export and
+/// the board interface's publication alike: a model whose bodies differ
+/// from the board plan is refused ([`Error::Unfit`], naming them) unless
+/// `unfit` says to write it all the same.
+pub fn check_fit(
+    board: &Project,
+    tier: Tier,
+    checked: &Check,
+    unfit: Unfit,
+    ms: Timings,
+) -> Result<()> {
+    if checked.differences.is_empty() || unfit == Unfit::Write {
+        return Ok(());
+    }
+    let report = report(tier, 0, Some(checked.clone()), ms);
+    Err(Error::Unfit {
+        message: refusal(board, &report),
+        report: Box::new(report),
+    })
 }
 
 /// A report of `check`, its differences past [`MAX_REPORTED`] counted.

@@ -154,4 +154,10 @@ pub struct PublishPreview {
     pub blocked: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dry_run: Option<DryRun>,
+    /// What `interface.publish` takes as its `token`: the board revision,
+    /// tier, published files and linked design this preview was made on.
+    /// A publish whose files or linked design changed since is refused.
+    /// Set by the host that reads the files.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token: Option<String>,
 }

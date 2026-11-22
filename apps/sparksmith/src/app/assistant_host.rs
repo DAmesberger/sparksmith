@@ -658,7 +658,7 @@ impl App {
             }
         }
         let busy = if allowed { None } else { self.live_busy(ctx) };
-        let path = self.files.path().map(std::path::Path::to_path_buf);
+        let host = self.files.host_file();
         let mut unasked: Vec<String> = reach.unasked.clone();
         unasked.extend(self.assistant.allowed_session.iter().cloned());
         let mut asker = ChatAsker {
@@ -674,7 +674,7 @@ impl App {
         let from = (self.engine.revision(), self.engine.document().clone());
         let (mut window, engine, assistant) = self.window_for_assistant(busy);
         let entry = request.run.as_ref().is_some_and(|run| run.entry);
-        let reply = assistant.session.lend(engine, path.as_deref(), |session| {
+        let (reply, changes) = assistant.session.lend_file(engine, &host, |session| {
             let input = request.input.clone();
             if entry {
                 let before = session.engine().revision();
@@ -710,6 +710,9 @@ impl App {
         {
             turn.called(from, &self.engine);
         }
+        // An open, new project or save the call made: the file workflow
+        // takes it on with the engine (review finding 8).
+        self.file_changes(changes);
         let asked = self.asks.shown.take();
         match (asker.question, asked) {
             (Some(question), _) if !allowed => self.hold(request, question),

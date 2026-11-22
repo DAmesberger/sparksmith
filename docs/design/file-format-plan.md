@@ -16,7 +16,7 @@ Status words used here: **measured** (I ran it on the repository today), **read*
 
 | Fact | Source |
 |---|---|
-| `.sparksmith` is a ZIP: one `project.json` (pretty JSON, capped at 16 MiB) and `assets/sha256/<hash>`. Unknown entries are refused. Bytes are reproducible. | read: `crates/editor-core/src/format.rs`, `crates/io/src/persistence/container.rs` |
+| `.sparksmith` is a ZIP: one `project.json` (pretty JSON, capped at 64 MiB when read and written alike) and `assets/sha256/<hash>`. Unknown entries are refused. Bytes are reproducible. | read: `crates/editor-core/src/format.rs`, `crates/io/src/persistence/container.rs` |
 | `FILE_VERSION` is 1 and has never changed, though the format has changed incompatibly several times. `cargo xtask convert-v1` converts in place, idempotently, with no version to tell which files need it. | read: `format.rs`, `xtask/src/convert_v1/` |
 | The ESP32 example's `project.json` is 5,138,110 bytes. Computed fill copper is 3,624,289 bytes of that (four fills). Without it: 943,205 bytes pretty, 353,647 bytes compact. | measured |
 | Git sees the example as binary: its last four commits each read `Bin 529032 -> 529602 bytes`. | measured: `git log --stat` |
@@ -182,7 +182,7 @@ Notes:
 - **Counters** stay in the manifest. Two branches that both add objects conflict on the `next` line by design (R6).
 - **Every file carries the tree's version.** A tree whose files disagree was merged from a branch saved by another version, and is refused with that explanation.
 - **Tracks** get a `path` so arcs fit without another break; the arc representation itself belongs to U3 (proposed: end point and mid point, integers, no bulge float).
-- **Bounds** move from one 16 MiB document to per-file and per-tree limits: 4 MiB per document file (the library folder's limit today), 64 MiB per `.jsonl` file, the existing asset and container limits. All targets.
+- **Bounds** move from one 64 MiB document to per-file and per-tree limits: 4 MiB per document file (the library folder's limit today), 64 MiB per `.jsonl` file, the existing asset and container limits. All targets.
 
 ### 4.3 Derived and local data
 
@@ -266,7 +266,7 @@ Estimates are agent hours. F1 is the contract; F2 to F4 are serial in the core; 
 | F0 | Version discipline: version 1, every other version refused, AGENTS.md rule | A file of another version is refused, naming both versions. Examples and the golden file regenerated. | 4–6 |
 | F1 | Contract: `docs/file-format.md`, layout A and B writers on the existing canonical codec, `FileSet` type, table annotations | Property tests: decode of encode is identity; the layout re-parses to the same value; same bytes on macOS and Linux; compiles for wasm. Generator module bytes unchanged. | 6–9 |
 | F2 | Derived data out and order: computed fills to a cache, collections sorted by id, order audit, sketch and waiver keys as real JSON | Open then save is byte-identical. A refill with unchanged inputs changes no byte. The ESP32 Gerbers are byte-identical before and after. The example document drops from 5.1 MB to under 1 MB. | 8–12 |
-| F3 | Tree encode and decode in the core, ZIP store on the tree, per-file bounds replace the 16 MiB cap | Round-trip property test. Unknown entry refused by name. Mixed-version tree refused with the merge explanation. Open and save measured on the example and on a synthetic 10,000-via, 50,000-track board. | 10–14 |
+| F3 | Tree encode and decode in the core, ZIP store on the tree, per-file bounds replace the 64 MiB document cap | Round-trip property test. Unknown entry refused by name. Mixed-version tree refused with the merge explanation. Open and save measured on the example and on a synthetic 10,000-via, 50,000-track board. | 10–14 |
 | F4 | Folder store: journaled save, changed-files-only, lock, external-change detection, `.gitattributes`, LFS pointer message | A fault injected after every file operation reopens as exactly the old or the new project. An unchanged save writes no file. Moving one track changes one line in one file. A checkout under an open project is detected. | 10–14 |
 | F5 | App and CLI: open a folder, Save As folder or single file, `pack`, `unpack`, `fmt`, `check`, recent projects, examples as folders | Checked in the VM: create, save as folder, commit, edit, diff, share as one file, reopen. Programmatic calls open no dialog. | 6–9 |
 | F6 | Recovery on the tree: shared asset store, folder projects, conversion of snapshots | Kill during editing restores the work for a folder and a ZIP project. A snapshot of the previous version restores. | 4–6 |

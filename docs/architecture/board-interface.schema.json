@@ -4456,6 +4456,13 @@
         "format": "uint32",
         "minimum": 0,
         "type": "integer"
+      },
+      "token": {
+        "description": "What `interface.publish` takes as its `token`: the board revision,\ntier, published files and linked design this preview was made on.\nA publish whose files or linked design changed since is refused.\nSet by the host that reads the files.",
+        "type": [
+          "string",
+          "null"
+        ]
       }
     },
     "required": [
@@ -4495,6 +4502,15 @@
     "additionalProperties": false,
     "description": "`interface.publish` (a host request; Ask, because it writes files):\nwrite the exported design and its sidecar atomically at `path`, then\nrecord the publish. Refused, writing nothing, when the document is not\nat `expected_revision`.",
     "properties": {
+      "assembly_path": {
+        "default": null,
+        "description": "The linked design the preview dry-ran, as its `assembly_path`\nnamed it. Required while a linked design is linked.",
+        "type": [
+          "string",
+          "null"
+        ],
+        "x-kind": "path"
+      },
       "expected_revision": {
         "description": "The document revision the preview was made at.",
         "format": "uint64",
@@ -4509,6 +4525,19 @@
       "tier": {
         "$ref": "#/$defs/Tier",
         "default": "mechanical"
+      },
+      "token": {
+        "default": null,
+        "description": "The preview's `token`: it binds the board revision, the tier, the\nfiles at `path` and the linked design file's identity and bytes, so\nthe publish writes only what the preview showed. Required while a\nlinked design is linked, or when `assembly_path` is given.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "write_anyway": {
+        "default": false,
+        "description": "Write the design even when its bodies do not fit the board plan, as\n`project.export_native`'s `write_anyway` does; refused otherwise.",
+        "type": "boolean"
       }
     },
     "required": [

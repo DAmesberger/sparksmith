@@ -479,7 +479,8 @@ fn a_new_project_asks_for_its_fab_profile_on_the_pcb() -> Fallible {
     let mut ax = Ax::new(Workspace::Pcb)?;
     assert!(!ax.has(Role::Button, "Use profile"), "an opened design");
     // The document File › New opens for a user without a default.
-    ax.app.replace(Engine::default().to_file(), None, false);
+    ax.app
+        .replace(Engine::default().to_file(), None, None, false);
     ax.settle();
     ax.button("Use profile")?;
     ax.until("the profile", |ax| {

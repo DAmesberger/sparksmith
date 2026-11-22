@@ -126,4 +126,18 @@ pub struct PublishParams {
     pub tier: Tier,
     /// The document revision the preview was made at.
     pub expected_revision: u64,
+    /// The linked design the preview dry-ran, as its `assembly_path`
+    /// named it. Required while a linked design is linked.
+    #[serde(default)]
+    pub assembly_path: Option<crate::permission::FilePath>,
+    /// The preview's `token`: it binds the board revision, the tier, the
+    /// files at `path` and the linked design file's identity and bytes, so
+    /// the publish writes only what the preview showed. Required while a
+    /// linked design is linked, or when `assembly_path` is given.
+    #[serde(default)]
+    pub token: Option<String>,
+    /// Write the design even when its bodies do not fit the board plan, as
+    /// `project.export_native`'s `write_anyway` does; refused otherwise.
+    #[serde(default)]
+    pub write_anyway: bool,
 }

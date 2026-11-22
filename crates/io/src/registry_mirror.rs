@@ -271,8 +271,12 @@ fn read_limited(path: &Path, limit: u64) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn write_new(path: &Path, bytes: &[u8]) -> Result<()> {
-    if path.is_file() {
+/// Keep `bytes`, already checked against the content hash `path` is
+/// named by, at `path`. A file already there with the same bytes is kept;
+/// one with other bytes is damaged (its name is their hash) and is
+/// replaced atomically, so a valid download repairs it.
+fn write_verified(path: &Path, bytes: &[u8]) -> Result<()> {
+    if path.is_file() && read_limited(path, bytes.len() as u64).is_ok_and(|held| held == bytes) {
         return Ok(());
     }
     if let Some(parent) = path.parent() {
@@ -336,7 +340,7 @@ impl Mirror {
     /// Check and keep a shard's bytes; returns it decoded.
     pub fn store_shard(&self, bytes: &[u8], hash: ContentHash) -> Result<Shard> {
         let shard = decode_shard(bytes, hash)?;
-        write_new(&self.shard_path(hash), bytes)?;
+        write_verified(&self.shard_path(hash), bytes)?;
         Ok(shard)
     }
 
@@ -369,11 +373,11 @@ impl Mirror {
         let mut records = Vec::with_capacity(bundle.records.len());
         for record in &bundle.records {
             let hash = content_hash(record)?;
-            write_new(&self.record_path(hash), &serde_json::to_vec(record)?)?;
+            write_verified(&self.record_path(hash), &serde_json::to_vec(record)?)?;
             records.push(hash);
         }
         for asset in &bundle.assets {
-            write_new(&self.asset_path(asset.hash), asset.data.as_slice())?;
+            write_verified(&self.asset_path(asset.hash), asset.data.as_slice())?;
         }
         let file = BundleFile {
             library: bundle.library,

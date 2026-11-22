@@ -3,7 +3,9 @@
 //! Dialogs stay in the app. Reads, writes, native export and recovery run outside
 //! the UI thread; every result retains its document epoch and captured content.
 use crate::kit::severity::Level;
+use sparksmith_automation::{FileChange, HostFile};
 use sparksmith_core::{Document, Engine, Project, format::EditorFile};
+use sparksmith_io::DiskIdentity;
 use sparksmith_io::recovery::{self, RecoveryEntry, RecoveryStore};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button};
@@ -17,6 +19,13 @@ use std::{
 };
 
 type Outcome<T> = Result<T, String>;
+
+/// Seconds without an edit before a recovery snapshot is taken.
+const SNAPSHOT_IDLE: f64 = 2.0;
+/// Seconds of continuous editing after which a snapshot is taken anyway:
+/// every edit restarts the idle wait, so without this bound steady work
+/// would never be kept (review: crash recovery cadence).
+pub(crate) const MAX_SNAPSHOT_INTERVAL: f64 = 30.0;
 
 /// Seconds a save or import may take before the app bar says what the
 /// system may be holding it for.
@@ -83,6 +92,9 @@ struct Controller {
     current: Stamp,
     saved: Option<Stamp>,
     path: Option<PathBuf>,
+    /// What `path` held when it was opened or last saved here: a save
+    /// replaces it only while it still does (review finding 9).
+    disk: Option<DiskIdentity>,
     serial: u64,
     flight: Option<Flight>,
     prompt: Option<Transition>,
@@ -96,6 +108,7 @@ impl Controller {
             saved: Some(current.clone()),
             current,
             path: None,
+            disk: None,
             serial: 0,
             flight: None,
             prompt: None,
@@ -169,12 +182,18 @@ impl Controller {
             self.prompt = flight.continuation;
         }
     }
-    fn saved(&mut self, ticket: &Ticket, path: PathBuf) -> Option<(bool, Option<Transition>)> {
+    fn saved(
+        &mut self,
+        ticket: &Ticket,
+        path: PathBuf,
+        identity: DiskIdentity,
+    ) -> Option<(bool, Option<Transition>)> {
         let flight = self.take_flight(ticket, Kind::Save)?;
         if ticket.stamp.epoch != self.current.epoch {
             return None;
         }
         self.path = Some(path);
+        self.disk = Some(identity);
         self.saved = Some(ticket.stamp.clone());
         let current = ticket.stamp == self.current;
         if !current {
@@ -186,7 +205,13 @@ impl Controller {
     fn accept(&mut self, ticket: &Ticket, kind: Kind) -> bool {
         self.take_flight(ticket, kind).is_some() && ticket.stamp == self.current
     }
-    fn adopt(&mut self, revision: u64, path: Option<PathBuf>, recovered: bool) -> Outcome<()> {
+    fn adopt(
+        &mut self,
+        revision: u64,
+        path: Option<PathBuf>,
+        identity: Option<DiskIdentity>,
+        recovered: bool,
+    ) -> Outcome<()> {
         let epoch = self
             .current
             .epoch
@@ -198,6 +223,7 @@ impl Controller {
         } else {
             Some(self.current.clone())
         };
+        self.disk = identity.filter(|_| path.is_some());
         self.path = path;
         self.flight = None;
         self.prompt = None;
@@ -237,6 +263,8 @@ pub enum Effect {
     Replace {
         document: Box<EditorFile>,
         path: Option<PathBuf>,
+        /// What the opened file held, for its next save.
+        identity: Option<DiskIdentity>,
         recovered: bool,
     },
     /// A save of an Untitled project wrote it under its file's name
@@ -268,7 +296,9 @@ pub enum Effect {
 enum Job {
     Read(Ticket, PathBuf),
     Import(Ticket, PathBuf),
-    Write(Ticket, PathBuf, Document),
+    /// Write the document; replace the file only while it holds the
+    /// identity, when one is given.
+    Write(Ticket, PathBuf, Document, Option<DiskIdentity>),
     SchematicPdf(Ticket, PathBuf, Arc<Project>),
     Recover(Ticket, Document, Option<PathBuf>),
     ClearRecovery(Ticket, bool),
@@ -280,19 +310,28 @@ enum Job {
 enum Event {
     Startup(Outcome<recovery::Listing>),
     Picked(Ticket, Kind, Option<PathBuf>),
-    Read(Ticket, PathBuf, Outcome<EditorFile>),
+    Read(Ticket, PathBuf, Outcome<(EditorFile, DiskIdentity)>),
     Imported(
         Ticket,
         PathBuf,
         Outcome<Box<(EditorFile, sparksmith_automation::kicad_import::Report)>>,
     ),
-    Written(Ticket, PathBuf, Outcome<()>),
+    Written(Ticket, PathBuf, Outcome<Wrote>),
     PdfExported(Ticket, PathBuf, Outcome<usize>),
     Recovered(Ticket, bool, bool, Outcome<()>),
     Restored(Ticket, PathBuf, Outcome<EditorFile>),
     Discarded(PathBuf, Outcome<()>),
     /// The older sessions that are gone, and why the rest are not.
     DiscardedOlder(Vec<PathBuf>, Outcome<()>),
+}
+
+/// What a save wrote.
+enum Wrote {
+    /// The file it was for, now holding this identity.
+    Saved(DiskIdentity),
+    /// The file changed on disk since it was opened: it is kept, and this
+    /// document went to a new file beside it.
+    Kept(Box<sparksmith_io::Conflict>),
 }
 
 /// The file worker. Without a recovery folder (`directory` is the reason)
@@ -322,7 +361,7 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
         while let Ok(job) = jobs.recv() {
             let result = match job {
                 Job::Read(ticket, path) => {
-                    let value = sparksmith_io::read_project(&path).map_err(|e| e.to_string());
+                    let value = sparksmith_io::open_project(&path).map_err(|e| e.to_string());
                     Event::Read(ticket, path, value)
                 }
                 Job::Import(ticket, path) => {
@@ -332,11 +371,17 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                         .map(|imported| Box::new((imported.engine.to_file(), imported.report)));
                     Event::Imported(ticket, path, value)
                 }
-                Job::Write(ticket, path, document) => {
+                Job::Write(ticket, path, document, expected) => {
                     // The deep copy into the file form happens here, off the UI thread.
-                    let result =
-                        sparksmith_io::write_project(&path, &EditorFile::from_document(&document))
-                            .map_err(|e| e.to_string());
+                    let result = match sparksmith_io::save_project(
+                        &path,
+                        &EditorFile::from_document(&document),
+                        expected,
+                    ) {
+                        Ok(identity) => Ok(Wrote::Saved(identity)),
+                        Err(sparksmith_io::Error::Conflict(conflict)) => Ok(Wrote::Kept(conflict)),
+                        Err(error) => Err(error.to_string()),
+                    };
                     Event::Written(ticket, path, result)
                 }
                 Job::SchematicPdf(ticket, path, project) => {
@@ -440,6 +485,8 @@ pub struct FileUi {
     /// The worker's startup listing of earlier sessions has arrived.
     started: bool,
     changed_at: f64,
+    /// When the first edit no snapshot was started for happened.
+    unkept_since: Option<f64>,
     recovery_retry_at: f64,
     now: f64,
     /// Quitting was asked for while a file operation ran: ask once it ends.
@@ -509,6 +556,7 @@ impl FileUi {
             recovery_choice_pending: false,
             started: false,
             changed_at: 0.0,
+            unkept_since: None,
             recovery_retry_at: 0.0,
             now: 0.0,
             close_pending: false,
@@ -524,6 +572,7 @@ impl FileUi {
         if self.controller.observe(engine.revision()) {
             self.document = engine.document().clone();
             self.changed_at = now;
+            self.unkept_since.get_or_insert(now);
             if self.controller.dirty()
                 && self.saved_document.as_ref().is_some_and(|saved| {
                     same_content(saved, &self.document) || only_unedited_drafts(saved, engine)
@@ -628,17 +677,22 @@ impl FileUi {
     /// recovery snapshot keeps it, and quitting asks), and its first save
     /// proposes the KiCad project's folder and name.
     pub fn adopt_imported(&mut self, engine: &Engine, source: PathBuf) -> Outcome<()> {
-        self.adopt(engine, None, true)?;
+        self.adopt(engine, None, None, true)?;
         self.restored_origin = Some(source);
         Ok(())
     }
+    /// The engine holds a new document: opened from `path` (whose bytes
+    /// had `identity`), new, or `recovered`. Path, saved state, disk
+    /// identity and the recovery snapshot change together.
     pub fn adopt(
         &mut self,
         engine: &Engine,
         path: Option<PathBuf>,
+        identity: Option<DiskIdentity>,
         recovered: bool,
     ) -> Outcome<()> {
-        self.controller.adopt(engine.revision(), path, recovered)?;
+        self.controller
+            .adopt(engine.revision(), path, identity, recovered)?;
         if !recovered {
             self.restored_origin = None;
         }
@@ -648,6 +702,73 @@ impl FileUi {
         self.clear_recovery(false);
         Ok(())
     }
+    /// The window's file, as the engine is lent with it
+    /// ([`sparksmith_automation::Session::lend_file`]): a lent session may
+    /// open or start a project only when nothing is unsaved, and none of
+    /// the three while this workflow runs or asks about a file.
+    pub fn host_file(&self) -> HostFile {
+        HostFile {
+            path: self.controller.path.clone(),
+            identity: self.controller.disk,
+            unsaved: self.controller.dirty(),
+            busy: self.busy() || self.prompting(),
+        }
+    }
+
+    /// Take on what a lent session did to the window's file, in order
+    /// (review finding 8): this workflow stays the one owner of the file,
+    /// its saved state and the recovery snapshot.
+    pub fn hosted(&mut self, engine: &Engine, changes: Vec<FileChange>) -> Outcome<()> {
+        for change in changes {
+            match change {
+                FileChange::Opened {
+                    path,
+                    identity,
+                    revision,
+                } => {
+                    self.controller
+                        .adopt(revision, Some(path), Some(identity), false)?;
+                    self.adopted(engine, revision);
+                }
+                FileChange::New { revision } => {
+                    self.controller.adopt(revision, None, None, false)?;
+                    self.adopted(engine, revision);
+                }
+                FileChange::Saved {
+                    path,
+                    identity,
+                    revision,
+                } => {
+                    let stamp = Stamp {
+                        epoch: self.controller.current.epoch,
+                        revision,
+                    };
+                    self.controller.path = Some(path);
+                    self.controller.disk = Some(identity);
+                    self.controller.saved = Some(stamp);
+                    self.saved_document =
+                        (revision == engine.revision()).then(|| engine.document().clone());
+                    if revision == engine.revision() {
+                        self.clear_recovery(false);
+                    }
+                }
+            }
+        }
+        self.observe(engine, self.now);
+        Ok(())
+    }
+
+    /// A lent session replaced the document, which the file at `revision`
+    /// (or none, for a new project) holds.
+    fn adopted(&mut self, engine: &Engine, revision: u64) {
+        self.restored_origin = None;
+        self.restored_source = None;
+        self.document = engine.document().clone();
+        self.saved_document = (revision == engine.revision()).then(|| self.document.clone());
+        self.changed_at = self.now;
+        self.clear_recovery(false);
+    }
+
     /// The app is ending without a Save or Don't Save answer (Dock › Quit,
     /// a logout, a signal): write unsaved work to this session's recovery
     /// snapshot now, waiting at most `wait`, so the next launch offers it.
@@ -682,7 +803,7 @@ impl FileUi {
         self.controller.recovered.as_ref() == Some(&self.controller.current)
     }
     fn send(&mut self, job: Job) {
-        if let Job::Write(ticket, path, _) = &job {
+        if let Job::Write(ticket, path, ..) = &job {
             self.writing = Some(ticket.id);
             self.access = (self.now, path.clone());
         }
@@ -756,6 +877,7 @@ impl FileUi {
                 Ok(engine) => self.effects.push(Effect::Replace {
                     document: Box::new(engine.to_file()),
                     path: None,
+                    identity: None,
                     recovered: false,
                 }),
                 Err(error) => self.status = Some((Level::Error, error)),
@@ -798,7 +920,8 @@ impl FileUi {
             return;
         };
         if !save_as && let Some(path) = self.controller.path.clone() {
-            self.write(ticket, path);
+            let expected = self.controller.disk;
+            self.write(ticket, path, expected);
         } else {
             self.pick(ticket, Kind::Save);
         }
@@ -807,7 +930,7 @@ impl FileUi {
     /// Untitled takes the file's name (`sparksmith_core::name_by_file`):
     /// on its first save, and on the next save of a file that was written
     /// without one (an import, or a save that failed to name it).
-    fn write(&mut self, ticket: Ticket, path: PathBuf) {
+    fn write(&mut self, ticket: Ticket, path: PathBuf, expected: Option<DiskIdentity>) {
         let Some(mut document) = self.captured.clone() else {
             return;
         };
@@ -822,7 +945,7 @@ impl FileUi {
             self.identifying = Some((ticket.id, id));
             self.captured = Some(document.clone());
         }
-        self.send(Job::Write(ticket, path, document));
+        self.send(Job::Write(ticket, path, document, expected));
     }
     /// The folder and file name the project's save panel proposes: its
     /// own file's, else (a restored session) the file it was restored
@@ -957,9 +1080,16 @@ impl FileUi {
             && self.controller.recovered.as_ref() != Some(&self.controller.current)
             && self.now >= self.recovery_retry_at
         {
-            let wait = (2.0 - (self.now - self.changed_at)).max(0.0);
+            // Two quiet seconds, or at most the maximum interval since the
+            // first edit no snapshot holds.
+            let idle = SNAPSHOT_IDLE - (self.now - self.changed_at);
+            let bound = self.unkept_since.map_or(f64::INFINITY, |since| {
+                MAX_SNAPSHOT_INTERVAL - (self.now - since)
+            });
+            let wait = idle.min(bound).max(0.0);
             if wait == 0.0 {
                 if let Ok(ticket) = self.controller.allocate() {
+                    self.unkept_since = None;
                     self.controller.recovery_flight = Some(ticket.clone());
                     self.send(Job::Recover(
                         ticket,
@@ -1015,7 +1145,9 @@ impl FileUi {
                     self.folder = parent.to_path_buf();
                 }
                 match kind {
-                    Kind::Save => self.write(ticket, path),
+                    // Save As: the person chose the file, and its panel
+                    // asked before replacing one.
+                    Kind::Save => self.write(ticket, path, None),
                     Kind::Open if ticket.stamp == self.controller.current => {
                         self.send(Job::Read(ticket, path))
                     }
@@ -1046,22 +1178,32 @@ impl FileUi {
                 }
             }
             Event::Written(ticket, path, result) => match result {
-                Ok(()) => {
+                Ok(wrote) => {
+                    // A conflict kept both versions: this document is in
+                    // the new file, which is the window's file from now on.
+                    let (path, identity, conflict) = match wrote {
+                        Wrote::Saved(identity) => (path, identity, None),
+                        Wrote::Kept(conflict) => (
+                            conflict.kept.clone(),
+                            conflict.identity,
+                            Some(sparksmith_io::Error::Conflict(conflict).to_string()),
+                        ),
+                    };
                     if let Some((current, continuation)) =
-                        self.controller.saved(&ticket, path.clone())
+                        self.controller.saved(&ticket, path.clone(), identity)
                     {
                         self.saved_document = self.captured.take();
-                        self.status = Some((
-                            Level::Ok,
-                            if current {
-                                format!("Saved {}", path.display())
-                            } else {
+                        self.status = Some(match conflict {
+                            Some(conflict) => (Level::Warning, conflict),
+                            None if current => (Level::Ok, format!("Saved {}", path.display())),
+                            None => (
+                                Level::Ok,
                                 format!(
                                     "Saved captured version to {}; newer edits remain unsaved",
                                     path.display()
-                                )
-                            },
-                        ));
+                                ),
+                            ),
+                        });
                         if current {
                             self.clear_recovery(false);
                         }
@@ -1096,9 +1238,10 @@ impl FileUi {
                     return;
                 }
                 match result {
-                    Ok(document) => self.effects.push(Effect::Replace {
+                    Ok((document, identity)) => self.effects.push(Effect::Replace {
                         document: Box::new(document),
                         path: Some(path),
+                        identity: Some(identity),
                         recovered: false,
                     }),
                     Err(error) => {
@@ -1198,6 +1341,7 @@ impl FileUi {
                         self.effects.push(Effect::Replace {
                             document: Box::new(document),
                             path: None,
+                            identity: None,
                             recovered: true,
                         });
                     }
@@ -1585,6 +1729,11 @@ mod tests {
     use super::*;
 
     /// Recoveries are told apart by age and size, not only by name.
+    /// Some disk identity, for the controller's own bookkeeping.
+    fn identity() -> DiskIdentity {
+        DiskIdentity(sparksmith_core::ids::ContentHash([7; 32]))
+    }
+
     #[test]
     fn recovery_rows_name_age_and_instances() {
         let entry = RecoveryEntry {
@@ -1640,7 +1789,11 @@ mod tests {
         controller.observe(2);
         let ticket = controller.start(Kind::Save, None)?;
         let chosen = PathBuf::from("/x/USB sensor board.sparksmith");
-        assert!(controller.saved(&ticket, chosen.clone()).is_some());
+        assert!(
+            controller
+                .saved(&ticket, chosen.clone(), identity())
+                .is_some()
+        );
         assert_eq!(controller.path.as_deref(), Some(chosen.as_path()));
         assert_eq!(
             chosen.file_stem().and_then(|s| s.to_str()),
@@ -1657,7 +1810,7 @@ mod tests {
         assert!(controller.dirty());
         let ticket = controller.start(Kind::Save, None)?;
         controller.observe(3);
-        let saved = controller.saved(&ticket, PathBuf::from("/tmp/x.sparksmith"));
+        let saved = controller.saved(&ticket, PathBuf::from("/tmp/x.sparksmith"), identity());
         assert_eq!(saved.map(|(current, _)| current), Some(false));
         assert!(controller.dirty(), "the newer edit stays unsaved");
         Ok(())
@@ -1709,7 +1862,7 @@ mod tests {
         controller.observe(2);
         assert_eq!(controller.request(Transition::Close), None);
         assert_eq!(controller.prompt, Some(Transition::Close));
-        controller.adopt(5, None, false)?;
+        controller.adopt(5, None, None, false)?;
         assert!(!controller.dirty());
         assert!(controller.prompt.is_none());
         Ok(())

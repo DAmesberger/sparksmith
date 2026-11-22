@@ -60,6 +60,28 @@ fn shards_are_checked_against_their_name_and_marked_online() -> Result<()> {
     Ok(())
 }
 
+/// A damaged mirrored shard (its bytes no longer hash to its name) is
+/// left out offline, and the next valid download of it replaces it.
+#[test]
+fn a_valid_download_replaces_a_damaged_shard() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let (_, _, bytes, hash) = fixture(dir.path())?;
+    let mirror = Mirror::open(dir.path(), "http://localhost:8787")?;
+    mirror.store_shard(&bytes, hash)?;
+    let path = mirror.shard_path(hash);
+    let mut damaged = bytes.clone();
+    damaged.truncate(bytes.len() / 2);
+    std::fs::write(&path, &damaged)?;
+    assert!(mirror.shard(hash).is_err(), "the damage is found");
+    mirror.store_shard(&bytes, hash)?;
+    assert_eq!(std::fs::read(&path)?, bytes);
+    assert!(mirror.shard(hash).is_ok());
+    // A good copy is kept as it is.
+    mirror.store_shard(&bytes, hash)?;
+    assert_eq!(std::fs::read(&path)?, bytes);
+    Ok(())
+}
+
 #[test]
 fn a_bundle_whose_record_hash_differs_is_refused_and_nothing_is_stored() -> Result<()> {
     let dir = tempfile::tempdir()?;

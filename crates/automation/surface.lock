@@ -22,7 +22,7 @@
   {"name":"variant.set_population","class":"edit","schema":"f4a0d51125490c0e","fields":[["instances","6eed743aac2b3e81"],["population","b8b0924b1f19efc2"],["variant","c5454bd7e46f4b53"]],"required":["instances"]},
   {"name":"variant.substitutes","class":"read","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]}
  ]},
- {"id": "files", "version": "1.2", "digest": "sha256:4b2e5a87d339cc58ef3d3ce5ca029dc26b0595d7ca950143550e78f52adafcb4", "entries": [
+ {"id": "files", "version": "1.3", "digest": "sha256:4b2e5a87d339cc58ef3d3ce5ca029dc26b0595d7ca950143550e78f52adafcb4", "entries": [
   {"name":"project.new","class":"ask","schema":"43bf9816859c9897","fields":[["expected_revision","9295ea67127970c6"],["profile","d032b1a883282f01"]],"required":["expected_revision"]},
   {"name":"project.open","class":"ask","schema":"7317cdb697af20e5","fields":[["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"]],"required":["expected_revision","path"]},
   {"name":"project.save","class":"ask","schema":"d6b27c72606417bf","fields":[["path","40bd5b57f4261fe2"]],"required":[]}
@@ -272,7 +272,7 @@
   {"name":"project.pin_config","class":"read","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
   {"name":"schematic.export_pdf","class":"ask","schema":"25eb940b6114128a","fields":[["path","f186891b5656c9ae"],["sheets","43c73dc4f3bbbf88"]],"required":["path"]}
  ]},
- {"id": "model3d", "version": "1.0", "digest": "sha256:f7b822ddbcae94cfef947b98c31a02d1de4a73689dade1e93aa0aa868dcee7eb", "entries": [
+ {"id": "model3d", "version": "2.0", "digest": "sha256:6861978797524bd9355929783995bf1eb3e2c611c2fe1d4dc26bee7547661e28", "entries": [
   {"name":"assembly.follow","class":"ask","schema":"17fdb7c01b03424b","fields":[["assembly_param","40bd5b57f4261fe2"],["board_param","40bd5b57f4261fe2"],["body","40bd5b57f4261fe2"],["design","f186891b5656c9ae"],["expected_revision","9295ea67127970c6"],["face","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"],["path","f186891b5656c9ae"],["pick","60be797d51410d16"]],"required":["design","expected_revision","path"]},
   {"name":"assembly.preview","class":"read","schema":"d81d9ab4c291ff99","fields":[["design","f186891b5656c9ae"],["path","f186891b5656c9ae"]],"required":["design","path"]},
   {"name":"assembly.record_binding","class":"edit","schema":"a5c5d22903ed2827","fields":[["binding","2ddd70c41a214bde"]],"required":["binding"]},
@@ -287,7 +287,7 @@
   {"name":"interface.auto","class":"edit","schema":"a2f859dc7c551627","fields":[["on","90c3f0cfcf6ff8f0"],["rule","71eee240ee95e32f"]],"required":["on","rule"]},
   {"name":"interface.export","class":"edit","schema":"05d7ea349015c3f7","fields":[["name","40bd5b57f4261fe2"],["target","94bb6d1f891fc493"]],"required":["target"]},
   {"name":"interface.list","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
-  {"name":"interface.publish","class":"ask","schema":"8ca13e337171f12a","fields":[["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"],["tier","f68f07ffbe12713d"]],"required":["expected_revision","path"]},
+  {"name":"interface.publish","class":"ask","schema":"6609a1e45512ad08","fields":[["assembly_path","40bd5b57f4261fe2"],["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"],["tier","f68f07ffbe12713d"],["token","40bd5b57f4261fe2"],["write_anyway","e3ce44acd037492c"]],"required":["expected_revision","path"]},
   {"name":"interface.publish_preview","class":"read","schema":"c5d68723ec82a718","fields":[["assembly_path","40bd5b57f4261fe2"],["path","40bd5b57f4261fe2"],["tier","c3fbb7780a5890a7"]],"required":[]},
   {"name":"interface.record_publish","class":"edit","schema":"0f2a893b0b12043c","fields":[["record","bb209bb2b22f2e6e"],["source_id","661ab81fdf807860"]],"required":["record","source_id"]},
   {"name":"interface.rename","class":"edit","schema":"a69afd1d463fc9bc","fields":[["datum","dd016f7f1c3e2ab4"],["name","40bd5b57f4261fe2"]],"required":["datum"]},

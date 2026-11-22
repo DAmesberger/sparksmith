@@ -982,10 +982,7 @@ impl PcbEditor {
     fn preview_publish(&mut self, ctx: &egui::Context, engine: &Engine) {
         let project = engine.project();
         let design = self.design_path(project);
-        let linked_design = project
-            .assembly_link
-            .as_deref()
-            .map(|l| resolved(self.project_path.as_deref(), &l.assembly_hint));
+        let linked_design = self.linked_design_path(project);
         let project_path = self.project_path.clone();
         let Some(review) = &mut self.interface.review else {
             return;
@@ -1001,12 +998,16 @@ impl PcbEditor {
                 .map(|d| d.to_string_lossy().into_owned().into()),
             assembly_path: linked_design.map(|e| e.to_string_lossy().into_owned().into()),
         };
-        let params = PublishPreviewParams {
-            assembly_path: params.assembly_path.filter(|_| params.path.is_some()),
-            ..params
-        };
         review.running =
             interface_host::start(ctx, engine, project_path, Job::PublishPreview(params));
+    }
+
+    /// The linked design file, resolved against the project's folder.
+    fn linked_design_path(&self, project: &sparksmith_core::Project) -> Option<PathBuf> {
+        project
+            .assembly_link
+            .as_deref()
+            .map(|l| resolved(self.project_path.as_deref(), &l.assembly_hint))
     }
 
     /// Open the linked design preview, and compute it.
@@ -1459,6 +1460,8 @@ impl PcbEditor {
             self.preview_publish(&ctx, engine);
         }
         let design = self.design_path(engine.project());
+        // The linked design the preview dry-ran, which the publish names.
+        let linked_design = self.linked_design_path(engine.project());
         let Some(mut review) = self.interface.review.take() else {
             return CardResponse::output(None);
         };
@@ -1534,10 +1537,17 @@ impl PcbEditor {
                                 Some(path) => {
                                     *publishing = true;
                                     review.refusal = None;
+                                    // Bound to what the preview showed:
+                                    // its token and linked design.
                                     start = Some(Job::Publish(PublishParams {
                                         path: path.to_string_lossy().into_owned().into(),
                                         tier: *tier,
                                         expected_revision: engine.revision(),
+                                        assembly_path: linked_design
+                                            .as_ref()
+                                            .map(|e| e.to_string_lossy().into_owned().into()),
+                                        token: p.token.clone(),
+                                        write_anyway: false,
                                     }));
                                 }
                                 None => choose = true,

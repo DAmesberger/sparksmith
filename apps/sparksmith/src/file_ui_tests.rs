@@ -216,13 +216,13 @@ fn save_after_a_restore_proposes_the_original_file() -> Fallible {
         })
     })?;
     // The app adopts it as an unsaved document without a path.
-    h.files.adopt(&h.engine, None, true)?;
+    h.files.adopt(&h.engine, None, None, true)?;
     let (folder, name) = h.files.save_proposal();
     assert_eq!(Some(folder), original.parent());
     assert_eq!(name, "board.sparksmith");
     // Once the project has a file of its own, that one is proposed.
     let own = h.dir.path().join("own.sparksmith");
-    h.files.adopt(&h.engine, Some(own), false)?;
+    h.files.adopt(&h.engine, Some(own), None, false)?;
     assert_eq!(h.files.save_proposal().1, "own.sparksmith");
     Ok(())
 }
@@ -383,7 +383,7 @@ fn dont_save_closes_and_removes_the_recovery_copy() -> Fallible {
 fn save_writes_the_file_then_closes() -> Fallible {
     let mut h = Harness::new()?;
     let path = h.dir.path().join("board.sparksmith");
-    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.files.adopt(&h.engine, Some(path.clone()), None, false)?;
     h.edit("Saved on quit")?;
     h.files.request(Action::Close);
     h.click("Save")?;
@@ -400,7 +400,7 @@ fn save_writes_the_file_then_closes() -> Fallible {
 fn quitting_during_a_save_quits_once_it_is_written() -> Fallible {
     let mut h = Harness::new()?;
     let path = h.dir.path().join("board.sparksmith");
-    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.files.adopt(&h.engine, Some(path.clone()), None, false)?;
     h.edit("Written first")?;
     h.files.request(Action::Save);
     assert!(h.files.busy());
@@ -482,7 +482,7 @@ fn saving_an_untitled_project_under_its_file_names_it() -> Fallible {
     let path = h.dir.path().join("blinkpad-imported.sparksmith");
     assert_eq!(h.engine.project().name, sparksmith_core::UNTITLED);
     // Opened from its file, as the app opens an imported project.
-    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.files.adopt(&h.engine, Some(path.clone()), None, false)?;
     h.files.request(Action::Save);
     h.until("the write", |h| !h.files.busy())?;
     let renames: Vec<_> = h
@@ -524,7 +524,7 @@ fn a_save_into_a_folder_that_refuses_its_sync_is_saved() -> Fallible {
     let folder = h.dir.path().join("documents");
     std::fs::create_dir(&folder)?;
     let path = folder.join("blinker.sparksmith");
-    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.files.adopt(&h.engine, Some(path.clone()), None, false)?;
     h.edit("Protected")?;
     h.snapshot("Protected")?;
     std::fs::set_permissions(&folder, std::fs::Permissions::from_mode(0o300))?;
@@ -554,7 +554,7 @@ fn a_save_into_a_folder_that_refuses_its_sync_is_saved() -> Fallible {
 fn a_save_says_it_runs_until_it_is_written() -> Fallible {
     let mut h = Harness::new()?;
     let path = h.dir.path().join("board.sparksmith");
-    h.files.adopt(&h.engine, Some(path.clone()), false)?;
+    h.files.adopt(&h.engine, Some(path.clone()), None, false)?;
     assert!(!h.files.saving());
     h.edit("Saving")?;
     h.files.request(Action::Save);
@@ -603,7 +603,7 @@ fn an_unanswered_exit_keeps_the_latest_edit_for_recovery() -> Fallible {
 fn undo_to_the_saved_content_is_not_unsaved() -> Fallible {
     let mut h = Harness::new()?;
     let path = h.dir.path().join("board.sparksmith");
-    h.files.adopt(&h.engine, Some(path), false)?;
+    h.files.adopt(&h.engine, Some(path), None, false)?;
     h.edit("Edited")?;
     h.engine.undo()?;
     h.frame(vec![]);
@@ -632,7 +632,7 @@ fn an_unedited_draft_is_not_unsaved() -> Fallible {
         )?;
     }
     let path = h.dir.path().join("board.sparksmith");
-    h.files.adopt(&h.engine, Some(path), false)?;
+    h.files.adopt(&h.engine, Some(path), None, false)?;
     h.frame(vec![]);
     assert!(!h.files.dirty());
     let published = h
@@ -684,7 +684,7 @@ fn a_clean_quit_leaves_no_recovery_file() -> Fallible {
         })?;
         assert_eq!(h.recovery_files()?, Vec::<PathBuf>::new(), "at launch");
         let path = h.dir.path().join("board.sparksmith");
-        h.files.adopt(&h.engine, Some(path), false)?;
+        h.files.adopt(&h.engine, Some(path), None, false)?;
         h.frame(vec![]);
         if edit {
             h.edit("Discarded")?;
@@ -772,5 +772,87 @@ fn older_sessions_past_the_limit_are_named_and_discardable() -> Fallible {
         recovery::MAX_ENTRIES,
         "still offered"
     );
+    Ok(())
+}
+
+/// Review finding 9 in the window: another window (or the CLI) saved the
+/// project after it was opened here. Save keeps both versions: the file
+/// as the other writer left it, and this window's document in a new file
+/// beside it, which is the window's file from then on.
+#[test]
+fn a_save_after_another_writer_keeps_both_versions() -> Fallible {
+    let mut h = Harness::new()?;
+    let path = h.dir.path().join("board.sparksmith");
+    sparksmith_io::write_project(&path, &h.engine.to_file())?;
+    let (_, identity) = sparksmith_io::open_project(&path)?;
+    h.files
+        .adopt(&h.engine, Some(path.clone()), Some(identity), false)?;
+    let mut other = Engine::demo()?;
+    other.apply(
+        other.revision(),
+        Operation::Schematic(SchematicCommand::RenameProject {
+            name: "Other window".into(),
+        }),
+    )?;
+    sparksmith_io::write_project(&path, &other.to_file())?;
+    h.edit("This window")?;
+    h.files.request(Action::Save);
+    h.until("the save", |h| !h.files.busy())?;
+    let kept = h.dir.path().join("board (conflict 1).sparksmith");
+    assert_eq!(
+        sparksmith_io::read_project(&path)?.project.name,
+        "Other window"
+    );
+    assert_eq!(
+        sparksmith_io::read_project(&kept)?.project.name,
+        "This window"
+    );
+    assert_eq!(h.files.path(), Some(kept.as_path()));
+    assert!(!h.files.dirty());
+    let status = h.files.take_status();
+    assert!(
+        matches!(&status, Some((Level::Warning, text)) if text.contains("changed on disk")),
+        "{status:?}"
+    );
+    // The next save goes to the kept file and leaves the other alone.
+    h.edit("This window, later")?;
+    h.files.request(Action::Save);
+    h.until("the second save", |h| !h.files.busy())?;
+    assert_eq!(
+        sparksmith_io::read_project(&kept)?.project.name,
+        "This window, later"
+    );
+    assert_eq!(
+        sparksmith_io::read_project(&path)?.project.name,
+        "Other window"
+    );
+    Ok(())
+}
+
+/// Crash recovery cadence: edits every half second never leave two quiet
+/// seconds, yet a snapshot is taken once the maximum interval since the
+/// first unkept edit has passed. The clock is the test's.
+#[test]
+fn continuous_editing_is_snapshotted_within_the_maximum_interval() -> Fallible {
+    let mut h = Harness::new()?;
+    let mut n = 0;
+    while h.now < MAX_SNAPSHOT_INTERVAL - 0.5 {
+        h.now += 0.5;
+        n += 1;
+        h.edit(&format!("Edit {n}"))?;
+        assert!(
+            h.recovery_files()?.is_empty(),
+            "no snapshot yet at {}",
+            h.now
+        );
+    }
+    h.now += 1.0;
+    n += 1;
+    h.edit(&format!("Edit {n}"))?;
+    let name = format!("Edit {n}");
+    // The clock stands still now: only the maximum interval can be due.
+    h.until("a snapshot during continuous editing", |h| {
+        h.recoverable().is_ok_and(|names| names == [name.as_str()])
+    })?;
     Ok(())
 }

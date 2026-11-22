@@ -20,6 +20,8 @@ pdf-writer.workspace = true
 thiserror.workspace = true
 tempfile.workspace = true
 getrandom.workspace = true
+# The content identity of a project file on disk (review finding 9).
+sha2.workspace = true
 # Race-safe, root-anchored vendor model reads (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT).
 cap-std = "4.0.3"
 # The `.sparksmith` ZIP container (D0). MIT; DEFLATE through flate2 and

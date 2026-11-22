@@ -46,7 +46,7 @@ fn refused(message: String) -> crate::Error {
 impl Session {
     /// A path as the user gave it, resolved against the project's folder
     /// when it is relative.
-    fn assembly_path(&self, given: &str) -> PathBuf {
+    pub(super) fn assembly_path(&self, given: &str) -> PathBuf {
         let path = Path::new(given);
         match (
             path.is_relative(),
@@ -327,13 +327,14 @@ impl Session {
     /// candidate design built into the copy's scratch folder, the copy's
     /// board link pointed at it. `design` is the published design the
     /// assembly links. `None` when the board was not published there yet.
+    /// With it, the hash of the linked design bytes the dry run read.
     pub(super) fn dry_run(
         &self,
         linked_design: &str,
         design: &str,
         candidate: Sidecar,
         expected: &sparksmith_io::interface::Baseline,
-    ) -> Result<Option<DryRun>> {
+    ) -> Result<(Option<DryRun>, sparksmith_core::ids::ContentHash)> {
         let link = self.linked()?;
         self.same_files(&link, Some(linked_design), design)?;
         let mut opened = self.open_linked_design(linked_design, design)?;
@@ -345,8 +346,9 @@ impl Session {
                     .into(),
             ));
         }
+        let read = opened.copy.hash;
         let Some(published) = opened.published.take() else {
-            return Ok(None);
+            return Ok((None, read));
         };
         let project = self.engine.project_arc().clone();
         let exported = sparksmith_solidcraft::interface::build(&project, candidate)?;
@@ -359,10 +361,13 @@ impl Session {
             &published,
             &exported.sidecar,
         )?;
-        Ok(Some(DryRun {
-            linked_design: linked_design.to_owned(),
-            effects,
-        }))
+        Ok((
+            Some(DryRun {
+                linked_design: linked_design.to_owned(),
+                effects,
+            }),
+            read,
+        ))
     }
 }
 

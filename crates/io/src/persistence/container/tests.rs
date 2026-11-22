@@ -266,8 +266,8 @@ fn duplicate_entry_names_are_refused() -> Result<()> {
 fn bounds_are_measured_on_decompressed_bytes_and_entry_counts() -> Result<()> {
     let dir = tempfile::tempdir()?;
     let path = dir.path().join("bounds.sparksmith");
-    // A deflate bomb: 16 MiB + 1 of spaces as the document.
-    let bomb = vec![b' '; MAX_FILE_BYTES + 1];
+    // A deflate bomb: one byte more of spaces than a document may hold.
+    let bomb = vec![b' '; sparksmith_core::format::CONTAINER_MAX_DOCUMENT_BYTES + 1];
     raw_zip(&path, &[(CONTAINER_DOCUMENT, &bomb, D)])?;
     assert!(std::fs::metadata(&path)?.len() < 1024 * 1024);
     assert!(matches!(read_container(&path), Err(Error::TooLarge(_))));

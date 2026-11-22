@@ -7134,6 +7134,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "sparksmith-core",
  "sparksmith-generators",
  "tempfile",

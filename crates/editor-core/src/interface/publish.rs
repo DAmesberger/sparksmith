@@ -522,5 +522,6 @@ pub fn preview(
         tier,
         changes,
         dry_run: None,
+        token: None,
     })
 }

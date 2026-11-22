@@ -105,7 +105,12 @@ impl Ax {
             &engine,
             dir.path().to_path_buf(),
         );
-        files.adopt(&engine, Some(dir.path().join("board.sparksmith")), false)?;
+        files.adopt(
+            &engine,
+            Some(dir.path().join("board.sparksmith")),
+            None,
+            false,
+        )?;
         let mut app = App::with_parts(
             &ctx,
             viewport::Viewport::detached(),

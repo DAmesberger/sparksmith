@@ -222,7 +222,7 @@ impl Registry {
             if let Ok(mut s) = self.searched.lock() {
                 s.push(text.clone());
             }
-            return match search_shards(std::slice::from_ref(&self.shard), &text, 30) {
+            return match search_shards(std::slice::from_ref(&self.shard), &text, 30, 0) {
                 Ok(report) => {
                     let rows: Vec<serde_json::Value> = report
                         .results
@@ -423,6 +423,38 @@ fn the_mirror_answers_search_and_bundles_when_the_registry_is_down() -> TestResu
     assert!(
         OnlineSource::bundle(&offline, LibraryId(1), registry.bundle.root.lineage, None)?.is_none()
     );
+    Ok(())
+}
+
+/// The offline fallback pages as the registry does: page two of a search
+/// follows page one instead of repeating it.
+#[test]
+fn the_offline_fallback_keeps_the_page_offset() -> TestResult {
+    let registry = registry(None)?;
+    let cache = tempfile::tempdir()?;
+    let url = serve(registry.clone())?;
+    let client = plain(&url, Some(cache.path()))?;
+    client.sync()?;
+    registry.up.store(false, Ordering::SeqCst);
+    let offline = plain(&url, Some(cache.path()))?;
+    let ids = |report: &OnlineReport| -> Vec<String> {
+        report.results.iter().map(|r| r.id.clone()).collect()
+    };
+    let all = offline.search("kind:part", 10, 0)?;
+    assert!(all.offline.is_some(), "{all:?}");
+    for offset in 0..=all.results.len() {
+        let page = offline.search("kind:part", 1, offset)?;
+        assert_eq!(
+            ids(&page),
+            ids(&all)
+                .into_iter()
+                .skip(offset)
+                .take(1)
+                .collect::<Vec<_>>(),
+            "offline page at {offset}"
+        );
+        assert_eq!(page.total, all.total, "the total is the whole search's");
+    }
     Ok(())
 }
 
@@ -789,7 +821,7 @@ fn live_registry_round_trip() -> TestResult {
             report.took_us,
             started.elapsed().as_secs_f64() * 1000.0
         );
-        let offline = search_shards(&synced.shards, text, 30)?;
+        let offline = search_shards(&synced.shards, text, 30, 0)?;
         assert_eq!(
             offline.total, report.total,
             "{text}: mirror and registry agree"

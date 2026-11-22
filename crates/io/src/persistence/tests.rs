@@ -66,15 +66,28 @@ fn the_golden_project_opens_and_saves_byte_for_byte() -> Result<()> {
     Ok(())
 }
 
-/// Only a `.sparksmith` file name is a project.
+/// Only a `.sparksmith` file name, in any letter case, is a project.
 #[test]
 fn other_extensions_are_refused() {
     let dir = Path::new("/nonexistent");
-    for refused in ["board.json", "board.pcbcraft", "board.SPARKSMITH", "board"] {
+    for refused in ["board.json", "board.pcbcraft", "board"] {
         assert!(read_project(&dir.join(refused)).is_err(), "{refused}");
         assert!(check_project_path(&dir.join(refused)).is_err(), "{refused}");
     }
     assert!(check_project_path(&dir.join("board.sparksmith")).is_ok());
+}
+
+/// A name the platform recognises as a project (any letter case, as
+/// Finder matches it) is one persistence opens and saves: one predicate.
+#[test]
+fn an_upper_case_extension_opens_and_saves() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("BOARD.SPARKSMITH");
+    assert!(sparksmith_core::format::is_project_path(&path));
+    let file = Engine::demo()?.to_file();
+    write_project(&path, &file)?;
+    assert_eq!(read_project(&path)?, file);
+    Ok(())
 }
 
 #[test]
@@ -360,5 +373,273 @@ fn creating_a_project_never_replaces_an_existing_container() -> Result<()> {
     );
     assert_eq!(std::fs::read(&path)?, bytes);
     assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
+    Ok(())
+}
+
+/// Bytes past which the indented document used to be refused on save
+/// (review finding 11): the reproductions below need more than this.
+const OLD_SAVE_CAP: usize = 16 * 1024 * 1024;
+
+/// The showcase project with `count` copies of one of its tracks, as a
+/// document read from a file would hold them.
+fn with_tracks(count: usize) -> Result<format::EditorFile> {
+    let mut file = Engine::showcase()?.to_file();
+    let project = &mut file.project;
+    let track = project
+        .tracks
+        .first()
+        .cloned()
+        .ok_or_else(|| Error::Invalid("the showcase has a track".into()))?;
+    let mut next = project.next_id;
+    for _ in 0..count {
+        let mut copy = track.clone();
+        copy.id = next;
+        next += 1;
+        project.tracks.push(copy);
+    }
+    project.next_id = next;
+    file.validate()?;
+    Ok(file)
+}
+
+/// A container whose document is written compact, as another writer (or
+/// an older build) may leave it: smaller than what this build writes.
+fn write_compact(path: &Path, file: &format::EditorFile) -> Result<()> {
+    use zip::write::SimpleFileOptions;
+    let zipped = |e: zip::result::ZipError| Error::Invalid(e.to_string());
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(path)?);
+    let mut stripped = file.clone();
+    for asset in &mut stripped.project.library.assets {
+        asset.data = Default::default();
+    }
+    zip.start_file(format::CONTAINER_DOCUMENT, SimpleFileOptions::default())
+        .map_err(zipped)?;
+    zip.write_all(&serde_json::to_vec(&stripped)?)?;
+    for asset in &file.project.library.assets {
+        zip.start_file(
+            container::asset_name(asset.hash),
+            SimpleFileOptions::default(),
+        )
+        .map_err(zipped)?;
+        zip.write_all(&asset.data[..])?;
+    }
+    zip.finish().map_err(zipped)?;
+    Ok(())
+}
+
+/// Read path of finding 11: a project that opens from a compact document
+/// under the old cap, whose indented form is past it, saves, keeps a
+/// recovery snapshot and reopens unchanged.
+#[test]
+fn a_project_that_opens_from_a_compact_file_saves_and_recovers() -> Result<()> {
+    let file = with_tracks(70_000)?;
+    let compact = serde_json::to_vec(&file)?.len();
+    let indented = format::container_document_len(&file, usize::MAX)?;
+    assert!(compact < OLD_SAVE_CAP, "compact {compact}");
+    assert!(indented > OLD_SAVE_CAP, "indented {indented}");
+    let dir = tempfile::tempdir()?;
+    let opened = dir.path().join("compact.sparksmith");
+    write_compact(&opened, &file)?;
+    let read = read_project(&opened)?;
+    let saved = dir.path().join("saved.sparksmith");
+    write_project(&saved, &read)?;
+    assert_eq!(read_project(&saved)?, read);
+    let store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
+    store.write(&read, Some(&opened))?;
+    let snapshot = store
+        .path()
+        .ok_or_else(|| Error::Invalid("a snapshot path".into()))?;
+    assert_eq!(crate::recovery::read(snapshot)?.document, read);
+    Ok(())
+}
+
+/// Authoring path of finding 11: notes added through the engine grow the
+/// saved document past the old cap; the project still saves, recovers
+/// and reopens as the engine holds it.
+#[test]
+fn a_project_authored_past_the_old_cap_saves_and_recovers() -> Result<()> {
+    use sparksmith_core::SheetItem;
+    use sparksmith_core::schematic::SchematicCommand;
+    use sparksmith_core::units::{Nm, PointNm};
+    let mut engine = Engine::demo()?;
+    // Quotes are escaped when saved: each note writes about 8 KiB.
+    let text = format!("{}a", "\"".repeat(4095));
+    let note = |n: usize| -> Result<Operation> {
+        let mm = |v: i64| Nm::try_new(v * 1_000_000).ok_or_else(|| Error::Invalid("nm".into()));
+        Ok(Operation::Schematic(SchematicCommand::AddDrawing {
+            sheet: None,
+            item: SheetItem::Text {
+                at: PointNm {
+                    x_nm: mm((n % 200) as i64)?,
+                    y_nm: mm((n / 200) as i64)?,
+                },
+                text: text.clone(),
+                height_nm: mm(2)?,
+                rotation: Default::default(),
+            },
+        }))
+    };
+    for batch in 0..9 {
+        let operations = (0..sparksmith_core::MAX_BATCH)
+            .map(|n| note(batch * sparksmith_core::MAX_BATCH + n))
+            .collect::<Result<Vec<_>>>()?;
+        engine.apply_all_hosted(engine.revision(), operations, Default::default())?;
+    }
+    let file = engine.to_file();
+    let indented = format::container_document_len(&file, usize::MAX)?;
+    assert!(indented > OLD_SAVE_CAP, "indented {indented}");
+    let dir = tempfile::tempdir()?;
+    let saved = dir.path().join("authored.sparksmith");
+    write_project(&saved, &file)?;
+    assert_eq!(Engine::from_file(read_project(&saved)?)?.to_file(), file);
+    let store = crate::recovery::RecoveryStore::new(&dir.path().join("recovery"))?;
+    store.write(&file, None)?;
+    let snapshot = store
+        .path()
+        .ok_or_else(|| Error::Invalid("a snapshot path".into()))?;
+    assert_eq!(
+        Engine::from_file(crate::recovery::read(snapshot)?.document)?.to_file(),
+        file
+    );
+    Ok(())
+}
+
+/// A document the writer could not write again is refused when read,
+/// naming why, so no project opens that cannot be saved.
+#[test]
+fn a_project_too_large_to_save_again_is_refused_at_open() -> Result<()> {
+    let file = with_tracks(10)?;
+    let len = format::container_document_len(&file, usize::MAX)?;
+    assert!(container::admit(&file, len).is_ok());
+    let refused = container::admit(&file, len - 1)
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
+    assert!(
+        refused.contains("not opened because it could not be saved again"),
+        "{refused}"
+    );
+    Ok(())
+}
+
+/// Finding 9: two editors open one project. The first save replaces it;
+/// the second, still holding what it opened, finds the file changed and
+/// keeps both versions: the first editor's file as it saved it, and the
+/// second's document in a new file beside it.
+#[test]
+fn a_second_save_of_one_opened_file_keeps_both_versions() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("shared.sparksmith");
+    write_project(&path, &Engine::demo()?.to_file())?;
+    let (_, opened_a) = open_project(&path)?;
+    let (_, opened_b) = open_project(&path)?;
+    assert_eq!(opened_a, opened_b);
+
+    let mut a = Engine::demo()?;
+    unfinished(&mut a)?;
+    let a = a.to_file();
+    let b = Engine::profiled()?.to_file();
+    let saved_a = save_project(&path, &a, Some(opened_a))?;
+    assert_eq!(open_project(&path)?, (a.clone(), saved_a));
+
+    let Err(Error::Conflict(conflict)) = save_project(&path, &b, Some(opened_b)) else {
+        return Err(Error::Invalid(
+            "the second save must find a conflict".into(),
+        ));
+    };
+    assert_eq!(conflict.path, path);
+    assert_eq!(
+        conflict.kept,
+        dir.path().join("shared (conflict 1).sparksmith")
+    );
+    assert_eq!(open_project(&path)?, (a, saved_a), "the first save is kept");
+    assert_eq!(
+        open_project(&conflict.kept)?,
+        (b.clone(), conflict.identity)
+    );
+    let message = Error::Conflict(conflict.clone()).to_string();
+    assert!(
+        message.contains("changed on disk since it was opened"),
+        "{message}"
+    );
+    assert!(
+        message.contains("shared (conflict 1).sparksmith"),
+        "{message}"
+    );
+    // The kept file is the second editor's file now: its next save there
+    // goes through.
+    save_project(&conflict.kept, &b, Some(conflict.identity))?;
+    // No temporary file is left behind.
+    assert_eq!(std::fs::read_dir(dir.path())?.count(), 2);
+    Ok(())
+}
+
+/// A program that rewrites the file in place (not through these
+/// writers) is noticed too: the identity is of the bytes, not the inode.
+#[test]
+fn a_file_rewritten_in_place_is_not_replaced() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("board.sparksmith");
+    write_project(&path, &Engine::demo()?.to_file())?;
+    let (_, opened) = open_project(&path)?;
+    let other = dir.path().join("other.sparksmith");
+    write_project(&other, &Engine::profiled()?.to_file())?;
+    std::fs::write(&path, std::fs::read(&other)?)?;
+    let before = std::fs::read(&path)?;
+    assert!(matches!(
+        save_project(&path, &Engine::demo()?.to_file(), Some(opened)),
+        Err(Error::Conflict(_))
+    ));
+    assert_eq!(std::fs::read(&path)?, before);
+    Ok(())
+}
+
+/// Two writers saving one opened file at once: the check and the
+/// replacement are one step, so exactly one replaces it and the other
+/// keeps its version beside it.
+#[test]
+fn concurrent_saves_of_one_opened_file_replace_it_once() -> Result<()> {
+    let dir = tempfile::tempdir()?;
+    let path = dir.path().join("race.sparksmith");
+    write_project(&path, &Engine::demo()?.to_file())?;
+    let (_, opened) = open_project(&path)?;
+    let a = Engine::profiled()?.to_file();
+    let mut b = Engine::demo()?;
+    unfinished(&mut b)?;
+    let b = b.to_file();
+    for _ in 0..8 {
+        write_project(&path, &Engine::demo()?.to_file())?;
+        for entry in std::fs::read_dir(dir.path())? {
+            let entry = entry?.path();
+            if entry != path {
+                std::fs::remove_file(entry)?;
+            }
+        }
+        let ready = std::sync::Barrier::new(2);
+        let (ra, rb) = std::thread::scope(|scope| {
+            let save = |file: format::EditorFile| {
+                let (path, ready) = (&path, &ready);
+                scope.spawn(move || {
+                    ready.wait();
+                    save_project(path, &file, Some(opened))
+                })
+            };
+            let (first, second) = (save(a.clone()), save(b.clone()));
+            (first.join(), second.join())
+        });
+        let (ra, rb) = (
+            ra.map_err(|_| Error::Invalid("a saver panicked".into()))?,
+            rb.map_err(|_| Error::Invalid("a saver panicked".into()))?,
+        );
+        let replaced = usize::from(ra.is_ok()) + usize::from(rb.is_ok());
+        assert_eq!(replaced, 1, "{ra:?} {rb:?}");
+        let (winner, loser, kept) = match (&ra, &rb) {
+            (Ok(_), Err(Error::Conflict(c))) => (&a, &b, c),
+            (Err(Error::Conflict(c)), Ok(_)) => (&b, &a, c),
+            other => return Err(Error::Invalid(format!("{other:?}"))),
+        };
+        assert_eq!(&read_project(&path)?, winner);
+        assert_eq!(&read_project(&kept.kept)?, loser);
+    }
     Ok(())
 }
