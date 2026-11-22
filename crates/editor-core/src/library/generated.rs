@@ -131,39 +131,11 @@ impl ParamValue {
 }
 
 /// The request for `given` parameters in `scope`, every default filled
-/// from the description, checked with the ABI's own parameter check (as
-/// `sparksmith_generators::params::complete` does on the host). Defaults
-/// are filled before hashing, so a default that changes in a later module
-/// can never change a part's key.
-pub fn complete(
-    description: &v1::Description,
-    scope: v1::Scope,
-    given: &v1::Params,
-) -> std::result::Result<v1::Request, Failure> {
-    if !description.scopes().contains(&scope) {
-        let what = match scope {
-            v1::Scope::Component => "complete parts",
-            v1::Scope::Package => "packages on their own",
-        };
-        return Err(Failure::one(
-            "param.scope",
-            format!("The {} generator does not make {what}.", description.title),
-        ));
-    }
-    let mut params = given.clone();
-    for param in description.params() {
-        params
-            .entry(param.key.clone())
-            .or_insert_with(|| param.default.clone());
-    }
-    sparksmith_generator_abi::params::check(description, &params)
-        .map_err(|problems| Failure { problems })?;
-    Ok(v1::Request {
-        abi: v1::ABI,
-        scope,
-        params,
-    })
-}
+/// from the description and checked: the ABI's one completion, the same the
+/// host runs (`sparksmith_generators::params::complete`). Defaults are
+/// filled before hashing, so a default that changes in a later module can
+/// never change a part's key.
+pub use sparksmith_generator_abi::params::complete;
 
 /// The value of a project setting a parameter declares as its context, if
 /// the core knows the setting.

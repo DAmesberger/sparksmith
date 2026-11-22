@@ -927,3 +927,64 @@ fn the_shipped_module_groups_its_row_lists_as_rows() -> TestResult {
     assert!(rows.iter().all(|p| p["group"] == "rows"), "{rows:?}");
     Ok(())
 }
+
+/// Every shipped generator's defaults and presets, in every scope it
+/// offers, complete to the same canonical bytes in the core and on the host
+/// (the bytes a part's params hash covers), and leaving the defaults out
+/// gives the bytes of giving every one. Prints a digest over all of them,
+/// so a run before and after a change to completion can be compared.
+#[test]
+fn shipped_requests_complete_to_the_same_bytes_in_core_and_host() -> TestResult {
+    use sparksmith_generator_abi::v1::Params;
+    use sparksmith_generator_abi::{encode, hex, sha256};
+    let host = |d: &_, s, p: &Params| sparksmith_generators::params::complete(d, s, p);
+    let core = |d: &_, s, p: &Params| sparksmith_core::library::generated::complete(d, s, p);
+    let bytes = |request: Result<_, sparksmith_generator_abi::Failure>| -> TestResult<Vec<u8>> {
+        let request = request.map_err(|f| format!("{:?}", f.problems))?;
+        encode(&request).map_err(|e| format!("{e:?}").into())
+    };
+    let library = ShippedLibrary::locate()?;
+    let runtime = sparksmith_generators::WasmiRuntime::new(sparksmith_generators::Limits::DEFAULT);
+    let mut all = Vec::new();
+    let mut count = 0;
+    for name in library.generators()? {
+        let bundle = library.generator(&name)?;
+        let description = runtime
+            .load(&bundle.module)
+            .and_then(|loaded| loaded.describe())
+            .map_err(|f| format!("{name}: {:?}", f.problems))?;
+        let defaults: Params = description
+            .params()
+            .iter()
+            .map(|p| (p.key.clone(), p.default.clone()))
+            .collect();
+        let mut requests = vec![("defaults".to_owned(), Params::new())];
+        for preset in description.presets() {
+            requests.push((format!("preset {}", preset.key), preset.params.clone()));
+        }
+        for &scope in description.scopes() {
+            let implicit = bytes(core(&description, scope, &Params::new()))?;
+            assert_eq!(
+                implicit,
+                bytes(core(&description, scope, &defaults))?,
+                "{name}: implicit and explicit defaults differ"
+            );
+            for (what, params) in &requests {
+                let from_core = bytes(core(&description, scope, params))?;
+                assert_eq!(
+                    from_core,
+                    bytes(host(&description, scope, params))?,
+                    "{name} {what} {scope:?}"
+                );
+                all.extend_from_slice(name.as_bytes());
+                all.push(0);
+                all.extend_from_slice(&from_core);
+                all.push(0);
+                count += 1;
+            }
+        }
+    }
+    assert!(count > 18, "only {count} shipped requests");
+    println!("{count} shipped requests, digest {}", hex(&sha256(&all)));
+    Ok(())
+}
