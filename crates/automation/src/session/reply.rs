@@ -3,13 +3,17 @@
 //! `verbose: true` the same request returns the snapshot instead.
 //!
 //! The ids are found by diffing the serialized document, so a collection the
-//! document gains later is reported without changing this module.
+//! document gains later is reported without changing this module. Only the
+//! sections a transaction wrote are serialized: a copy-on-write section
+//! ([`Shared`]) both states still share is left out of both
+//! ([`unshared`]), so a local edit never serializes packed assets or
+//! collections it did not touch.
 use super::{InspectParams, Request, Session};
 use crate::Result;
 use crate::front::{self, AlreadyAllowed, Asker, CallCx, NoOne, Surface, Target, from_request};
 use crate::gate::Caller;
 use serde_json::{Map, Value, json};
-use sparksmith_core::{Class, Document, Finding, Project, Query, QueryResult, erc, layout};
+use sparksmith_core::{Class, Document, Finding, Project, Query, QueryResult, Shared, erc, layout};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -26,11 +30,10 @@ const MAX_DRAFT_FINDINGS: usize = 40;
 const WHOLE: &[&str] = &["rules.profile"];
 
 /// The last project a compact reply described, kept so the next mutation
-/// serializes and checks only its result. Holding the `Arc` keeps the
-/// pointer comparison sound.
+/// checks only its result. Holding the `Arc` keeps the pointer comparison
+/// sound.
 pub(super) struct Baseline {
     project: Arc<Project>,
-    value: Value,
     findings: Vec<Finding>,
 }
 
@@ -38,10 +41,63 @@ impl Baseline {
     fn of(project: &Arc<Project>, settings: &layout::CheckSettings) -> Result<Self> {
         Ok(Self {
             project: project.clone(),
-            value: serde_json::to_value(project.as_ref())?,
             findings: design_findings(project, settings),
         })
     }
+}
+
+/// `before` and `after` as JSON without the copy-on-write sections they
+/// share: a [`Shared`] section both still hold, unchanged by construction,
+/// is left out of both, so the diff serializes only what the transaction
+/// wrote (a via edit: the vias, never the packed assets). Every other field
+/// is serialized and compared in full, so a field the document gains later
+/// is still reported.
+fn unshared(before: &Project, after: &Project) -> Result<(Value, Value)> {
+    let mut old = before.clone();
+    let mut new = after.clone();
+    macro_rules! leave_out_shared {
+        ($($($field:ident).+),* $(,)?) => {
+            $(
+                if Shared::ptr_eq(&old.$($field).+, &new.$($field).+) {
+                    old.$($field).+ = Shared::default();
+                    new.$($field).+ = Shared::default();
+                }
+            )*
+        };
+    }
+    leave_out_shared!(
+        instances,
+        occurrences,
+        wires,
+        junctions,
+        nets,
+        placements,
+        tracks,
+        vias,
+        part_dimensions,
+        model_traces,
+        fills,
+        keepouts,
+        labels,
+        sheet_symbols,
+        drawings,
+        interface,
+        library.components,
+        library.symbols,
+        library.packages,
+        library.footprints,
+        library.bindings,
+        library.quantity_kinds,
+        library.fields,
+        library.parts,
+        library.models,
+        library.package_rows,
+        library.origins,
+        library.assets,
+        library.generated,
+        library.reviews,
+    );
+    Ok((serde_json::to_value(&old)?, serde_json::to_value(&new)?))
 }
 
 fn design_findings(project: &Project, settings: &layout::CheckSettings) -> Vec<Finding> {
@@ -214,7 +270,8 @@ impl Session {
                 _ => Baseline::of(&before.project, &settings)?,
             };
             let new = Baseline::of(&after.project, &settings)?;
-            changes.diff("", &old.value, &new.value);
+            let (old_value, new_value) = unshared(&before.project, &after.project)?;
+            changes.diff("", &old_value, &new_value);
             design = Some(findings_delta(&old.findings, &new.findings));
             self.baseline = Some(new);
         }
@@ -643,10 +700,11 @@ pub fn difference(
     if !Arc::ptr_eq(&before.project, &after.project) {
         let old = Baseline::of(&before.project, settings)?;
         let new = Baseline::of(&after.project, settings)?;
-        changes.diff("", &old.value, &new.value);
-        name_listed(&old.value, &changes.removed, &mut names);
-        name_listed(&new.value, &changes.added, &mut names);
-        name_listed(&new.value, &changes.changed, &mut names);
+        let (old_value, new_value) = unshared(&before.project, &after.project)?;
+        changes.diff("", &old_value, &new_value);
+        name_listed(&old_value, &changes.removed, &mut names);
+        name_listed(&new_value, &changes.added, &mut names);
+        name_listed(&new_value, &changes.changed, &mut names);
         out.insert(
             "findings".to_owned(),
             findings_delta(&old.findings, &new.findings),
