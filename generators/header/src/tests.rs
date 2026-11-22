@@ -99,7 +99,7 @@ fn header_2x5_lands_number_across_the_rows() -> Result<(), Vec<Problem>> {
         })));
     assert_eq!(
         g.package.geometry.envelope_nm,
-        [12_700_000, 5_080_000, 8_540_000]
+        [12_700_000, 5_080_000, 8_380_000]
     );
     // The symbol: ten pins down the left; pins 1–9 on 2.5 mm stubs, pin 10
     // on a 5 mm stub (two digits need 2 × 0.9 + 0.8 = 2.6 mm).

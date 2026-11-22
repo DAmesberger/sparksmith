@@ -137,18 +137,13 @@ pub fn import(
     allocate: &mut dyn FnMut() -> Result<DefinitionId>,
 ) -> Result<ImportReport> {
     bundle::validate_bundle(bundle)?;
-    // A bundle that carries copies of the standard fields (a library
-    // folder's Part rates by them) takes the project's: they are imported
-    // first, and the copies are paired with them below.
-    if let Ok(standards) = super::standards::get() {
-        let standard = standards.fields.bundle();
-        if bundle.library != standard.library
-            && bundle.records.iter().any(|r| {
-                r.kind == DefinitionKind::Field && standards.fields.lineage(&r.meta.name).is_some()
-            })
-        {
-            import(library, standard, allocate)?;
-        }
+    // A bundle of a generated part carries copies of the standard fields
+    // its family selects (and its Parts rate by): the project's are
+    // imported first, and the copies are paired with them below.
+    if generic_with_standard_fields(bundle)
+        && let Ok(standards) = super::standards::get()
+    {
+        import(library, standards.fields.bundle(), allocate)?;
     }
     let mut map = mapping(library, bundle.library);
     let mut hashes = Vec::with_capacity(bundle.records.len());
@@ -419,6 +414,23 @@ fn generated_matches(library: &Library, bundle: &Bundle) -> Result<Vec<Pairing>>
     Ok(found)
 }
 
+/// Whether `bundle`, from another source than the standard fields, holds a
+/// generated component and a field named as a standard field: the copies
+/// a generic part's family selects.
+fn generic_with_standard_fields(bundle: &Bundle) -> bool {
+    let Ok(standards) = super::standards::get() else {
+        return false;
+    };
+    bundle.library != standards.fields.library()
+        && bundle
+            .records
+            .iter()
+            .any(|r| r.kind == DefinitionKind::Component && r.generated.is_some())
+        && bundle.records.iter().any(|r| {
+            r.kind == DefinitionKind::Field && standards.fields.lineage(&r.meta.name).is_some()
+        })
+}
+
 /// The bundle's copies of the standard fields and their quantity kinds,
 /// each paired with the project's copy of the standard field of its name
 /// when it reads as exactly that revision.
@@ -426,7 +438,7 @@ fn standard_matches(library: &Library, bundle: &Bundle) -> Vec<Pairing> {
     let Some(source) = super::standard_fields::library_id() else {
         return Vec::new();
     };
-    if bundle.library == source {
+    if !generic_with_standard_fields(bundle) {
         return Vec::new();
     }
     let records: BTreeMap<SourceRevision, &RevisionRecord> = bundle
