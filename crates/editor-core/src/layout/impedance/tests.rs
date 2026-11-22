@@ -118,7 +118,8 @@ fn layers_find_their_reference_planes() -> Result<()> {
         return Err(Error::Invalid("stripline".into()));
     };
     assert!(
-        (h1 - 0.2).abs() < 1e-9 && (h2 - 1.165).abs() < 1e-9,
+        // The 1.06 mm core less Inner 2's 35 µm foil.
+        (h1 - 0.2).abs() < 1e-9 && (h2 - 1.025).abs() < 1e-9,
         "{h1} {h2}"
     );
     // Only Inner 2 a plane: Inner 1 is embedded microstrip under the top

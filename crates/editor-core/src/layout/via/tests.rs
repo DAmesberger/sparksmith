@@ -473,7 +473,8 @@ fn stackup_heights_stack_from_the_bottom_dielectric_face() -> Result<()> {
         .ok_or_else(missing)?;
     assert!((inner.1 - 0.2).abs() < 1e-12, "{inner:?}");
     assert_eq!(four.copper_span(CopperLayer::Inner(3)), None);
-    assert!((four.thickness_mm() - 1.74).abs() < 1e-12);
+    // 0.2 + 1.06 + 0.2 mm of dielectric and four 35 µm foils.
+    assert!((four.thickness_mm() - 1.6).abs() < 1e-12);
     Ok(())
 }
 
