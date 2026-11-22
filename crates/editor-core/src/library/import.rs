@@ -137,6 +137,14 @@ pub fn import(
     allocate: &mut dyn FnMut() -> Result<DefinitionId>,
 ) -> Result<ImportReport> {
     bundle::validate_bundle(bundle)?;
+    // A bundle of a generated part carries copies of the standard fields
+    // its family selects (and its Parts rate by): the project's are
+    // imported first, and the copies are paired with them below.
+    if generic_with_standard_fields(bundle)
+        && let Ok(standards) = super::standards::get()
+    {
+        import(library, standards.fields.bundle(), allocate)?;
+    }
     let mut map = mapping(library, bundle.library);
     let mut hashes = Vec::with_capacity(bundle.records.len());
     for record in &bundle.records {
@@ -154,6 +162,60 @@ pub fn import(
             )));
         }
         hashes.push(hash);
+    }
+    // A generated part the project already holds is the same part: the
+    // bundle's copy of it maps onto the project's revisions, so a Part
+    // pinning it fits the generic part the person placed.
+    let standard = standard_matches(library, bundle);
+    for (pairs, lineages) in generated_matches(library, bundle)?
+        .into_iter()
+        .chain(standard)
+    {
+        let fits = pairs.iter().all(|(at, local)| {
+            map.revisions
+                .get(at)
+                .is_none_or(|known| known.local == *local)
+        }) && lineages
+            .iter()
+            .all(|(source, local)| map.lineages.get(source).is_none_or(|l| l == local));
+        if !fits {
+            continue;
+        }
+        map.lineages.extend(lineages);
+        for (at, local) in pairs {
+            if map.revisions.contains_key(&at) {
+                continue;
+            }
+            let Some(i) = bundle
+                .records
+                .iter()
+                .position(|r| r.lineage == at.lineage && r.revision == at.revision)
+            else {
+                continue;
+            };
+            let origin = OriginRecord {
+                local,
+                origin: Origin {
+                    library: bundle.library,
+                    lineage: at.lineage,
+                    revision: at.revision,
+                    content_hash: hashes[i],
+                },
+                direction: bundle::Direction::Imported,
+            };
+            map.revisions.insert(at, origin);
+            // Recorded where the lineages still correspond one to one, so
+            // promoting the project's revision back to this library writes
+            // to the same lineage instead of a new one.
+            let taken = library.origins.iter().any(|o| {
+                o.origin.library == bundle.library
+                    && (o.local.id == local.id || o.origin.lineage == at.lineage)
+            });
+            if !taken {
+                let k = library.origins.partition_point(|o| o.local <= origin.local);
+                library.origins.insert(k, origin);
+            }
+        }
     }
     // Lineages first, so a lineage reference to a record later in the
     // bundle (a symbol's owning component) resolves.
@@ -288,6 +350,228 @@ pub fn import(
         root,
         revisions: done.into_values().collect(),
     })
+}
+
+/// Source revisions paired with project revisions, and source lineages with
+/// project lineages.
+type Pairing = (
+    BTreeMap<SourceRevision, DefinitionRef>,
+    BTreeMap<SourceLineageId, DefinitionId>,
+);
+
+/// The bundle's generated parts the project already holds. A component
+/// record whose recipe (generator, version, complete parameters) and name
+/// equal a part the project generated in component scope is paired with
+/// it, and so is everything it reaches, reference by reference; the pairing
+/// stands only when every paired record, read through it, is exactly the
+/// project's revision. A recipe is the regenerate rule's identity
+/// (`library.generate` keeps the part the same version made from the same
+/// parameters), and the equality check means nothing the project holds is
+/// ever replaced by different content.
+fn generated_matches(library: &Library, bundle: &Bundle) -> Result<Vec<Pairing>> {
+    let records: BTreeMap<SourceRevision, &RevisionRecord> = bundle
+        .records
+        .iter()
+        .map(|r| {
+            (
+                SourceRevision {
+                    lineage: r.lineage,
+                    revision: r.revision,
+                },
+                r,
+            )
+        })
+        .collect();
+    let mut found = Vec::new();
+    for record in &bundle.records {
+        let Some(recipe) = record
+            .generated
+            .as_ref()
+            .filter(|_| record.kind == DefinitionKind::Component)
+        else {
+            continue;
+        };
+        let candidates = library.generated.iter().filter(|part| {
+            part.from.scope == super::generated::GeneratorScope::Component
+                && part.from.generator == recipe.generator
+                && part.from.version == recipe.version
+                && part.from.params == recipe.params
+                && library
+                    .definition(part.root)
+                    .is_some_and(|(meta, _)| meta.name.trim() == record.meta.name.trim())
+        });
+        for part in candidates {
+            let at = SourceRevision {
+                lineage: record.lineage,
+                revision: record.revision,
+            };
+            if let Some(pairing) = pair(library, &records, at, part.root) {
+                found.push(pairing);
+                break;
+            }
+        }
+    }
+    Ok(found)
+}
+
+/// Whether `bundle`, from another source than the standard fields, holds a
+/// generated component and a field named as a standard field: the copies
+/// a generic part's family selects.
+fn generic_with_standard_fields(bundle: &Bundle) -> bool {
+    let Ok(standards) = super::standards::get() else {
+        return false;
+    };
+    bundle.library != standards.fields.library()
+        && bundle
+            .records
+            .iter()
+            .any(|r| r.kind == DefinitionKind::Component && r.generated.is_some())
+        && bundle.records.iter().any(|r| {
+            r.kind == DefinitionKind::Field && standards.fields.lineage(&r.meta.name).is_some()
+        })
+}
+
+/// The bundle's copies of the standard fields and their quantity kinds,
+/// each paired with the project's copy of the standard field of its name
+/// when it reads as exactly that revision.
+fn standard_matches(library: &Library, bundle: &Bundle) -> Vec<Pairing> {
+    let Some(source) = super::standard_fields::library_id() else {
+        return Vec::new();
+    };
+    if !generic_with_standard_fields(bundle) {
+        return Vec::new();
+    }
+    let records: BTreeMap<SourceRevision, &RevisionRecord> = bundle
+        .records
+        .iter()
+        .map(|r| {
+            (
+                SourceRevision {
+                    lineage: r.lineage,
+                    revision: r.revision,
+                },
+                r,
+            )
+        })
+        .collect();
+    let mut found = Vec::new();
+    for record in bundle
+        .records
+        .iter()
+        .filter(|r| matches!(r.kind, DefinitionKind::Field | DefinitionKind::QuantityKind))
+    {
+        let at = SourceRevision {
+            lineage: record.lineage,
+            revision: record.revision,
+        };
+        let local = library.origins.iter().find(|o| {
+            o.origin.library == source
+                && o.local.kind == record.kind
+                && library
+                    .definition(o.local)
+                    .is_some_and(|(meta, _)| meta.name == record.meta.name)
+        });
+        if let Some(pairing) = local.and_then(|o| pair(library, &records, at, o.local)) {
+            found.push(pairing);
+        }
+    }
+    found
+}
+
+/// Pair the bundle record `at` with the project revision `local` and
+/// everything they reach, if their references line up kind by kind and
+/// every paired record reads as exactly its project revision.
+fn pair(
+    library: &Library,
+    records: &BTreeMap<SourceRevision, &RevisionRecord>,
+    at: SourceRevision,
+    local: DefinitionRef,
+) -> Option<Pairing> {
+    let mut pairs: BTreeMap<SourceRevision, DefinitionRef> = BTreeMap::new();
+    let mut lineages: BTreeMap<SourceLineageId, DefinitionId> = BTreeMap::new();
+    let link = |lineages: &mut BTreeMap<SourceLineageId, DefinitionId>,
+                source: SourceLineageId,
+                id: DefinitionId| { *lineages.entry(source).or_insert(id) == id };
+    let mut queue = vec![(at, local)];
+    while let Some((at, local)) = queue.pop() {
+        if let Some(paired) = pairs.get(&at) {
+            if *paired != local {
+                return None;
+            }
+            continue;
+        }
+        let record = records.get(&at)?;
+        if record.kind != local.kind || !link(&mut lineages, at.lineage, local.id) {
+            return None;
+        }
+        let (_, ours) = library.definition(local)?;
+        let mine = bundle::references(&ours).ok()?;
+        let theirs = bundle::references(&record.definition).ok()?;
+        if mine.len() != theirs.len() {
+            return None;
+        }
+        let source = |id: DefinitionId| {
+            record
+                .links
+                .iter()
+                .find(|l| l.local == id)
+                .map(|l| l.lineage)
+        };
+        for (mine, theirs) in mine.into_iter().zip(theirs) {
+            match (mine, theirs) {
+                (
+                    bundle::RefSite::Exact { target: ours },
+                    bundle::RefSite::Exact { target: theirs },
+                ) if ours.kind == theirs.kind => {
+                    let lineage = source(theirs.id)?;
+                    queue.push((
+                        SourceRevision {
+                            lineage,
+                            revision: theirs.revision,
+                        },
+                        ours,
+                    ));
+                }
+                (
+                    bundle::RefSite::Lineage { kind, id: ours },
+                    bundle::RefSite::Lineage {
+                        kind: other,
+                        id: theirs,
+                    },
+                ) if kind == other => {
+                    if !link(&mut lineages, source(theirs)?, ours) {
+                        return None;
+                    }
+                }
+                _ => return None,
+            }
+        }
+        pairs.insert(at, local);
+    }
+    for (at, local) in &pairs {
+        let record = records.get(at)?;
+        let read = bundle::from_record(
+            record,
+            &mut |kind, source| {
+                pairs
+                    .get(&source)
+                    .copied()
+                    .filter(|r| r.kind == kind)
+                    .ok_or_else(|| Error::NotFound(String::new()))
+            },
+            &mut |_, source| {
+                lineages
+                    .get(&source)
+                    .copied()
+                    .ok_or_else(|| Error::NotFound(String::new()))
+            },
+        )
+        .ok()?;
+        if library.definition(*local).map(|(_, body)| body) != Some(read) {
+            return None;
+        }
+    }
+    Some((pairs, lineages))
 }
 
 /// The pin review `record` carries, kept beside its project copy `local`

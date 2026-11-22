@@ -528,6 +528,16 @@ pub fn recipe(library: &Library, root: DefinitionRef) -> Option<super::bundle::G
     })
 }
 
+/// The SHA-256 of a generated part's recipe in component scope: its
+/// generator, version and complete parameters, the identity under which
+/// `library.import` takes a bundle's copy of the part as the project's own
+/// one. The catalog tells by it which folder Parts fit a generic part the
+/// project made.
+pub fn recipe_hash(generator: &str, version: u32, params: &GeneratorParams) -> Result<ContentHash> {
+    let bytes = serde_json::to_vec(&(generator, version, params))?;
+    Ok(ContentHash(Sha256::digest(&bytes).into()))
+}
+
 /// The newest record with `key` (highest version, then revision), if the
 /// project holds that part.
 pub fn find<'a>(library: &'a Library, key: &PartKey) -> Option<&'a GeneratedPart> {

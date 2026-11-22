@@ -345,6 +345,47 @@ pub fn import_for_update(
     })
 }
 
+/// Choose part on a folder Part: `library.import` of its bundle and
+/// `instance.assign_part` on `instances`, as one undo step. A Part whose
+/// generic part the project already made pins that placed part (the import
+/// maps the folder's copy onto it); any refusal changes nothing. Returns
+/// the Part's MPN.
+pub fn assign_from(
+    engine: &mut Engine,
+    bundle: Bundle,
+    instances: Vec<sparksmith_core::Id>,
+) -> Result<String, String> {
+    // The project copy the import makes, found on a copy of the project
+    // the same way the command finds it, so both steps go in one batch.
+    let mut project = engine.project().clone();
+    let mut library = std::mem::take(&mut project.library);
+    let mut allocate = || project.allocate().map(DefinitionId);
+    let report = sparksmith_core::library::import::import(&mut library, &bundle, &mut allocate)
+        .map_err(|e| e.to_string())?;
+    let part = sparksmith_core::PartRef::new(report.root.id, report.root.revision);
+    let mpn = library
+        .part(part)
+        .map(|p| p.definition.mpn.clone())
+        .ok_or("the bundle's root is not a manufacturer part")?;
+    let operations = vec![
+        Operation::Library(LibraryCommand::Import {
+            bundle: Box::new(bundle),
+        }),
+        crate::resolve_parts::assign(instances, Some(part)),
+    ];
+    engine
+        .apply_all_hosted(
+            engine.revision(),
+            operations,
+            sparksmith_core::Evaluators {
+                footprint: Some(&sparksmith_solidcraft::footprint::SketchEvaluator),
+                board: None,
+            },
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(mpn)
+}
+
 /// `library.duplicate` of a component revision into new draft lineages;
 /// returns the new component lineage.
 pub fn duplicate(
@@ -512,6 +553,9 @@ pub enum BundlePurpose {
     Place(OtherRevision),
     /// "Update project copy", for these instances only when given.
     Update(Option<Vec<sparksmith_core::Id>>),
+    /// Choose part: import the folder Part and assign it to these
+    /// instances.
+    Assign(Vec<sparksmith_core::Id>),
 }
 
 /// A finished bundle read.

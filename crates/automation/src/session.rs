@@ -2267,6 +2267,8 @@ mod generated_model_tests;
 #[cfg(test)]
 mod generators_tests;
 #[cfg(test)]
+mod generic_fit_tests;
+#[cfg(test)]
 mod high_speed_tests;
 #[cfg(test)]
 mod interface_publish_tests;

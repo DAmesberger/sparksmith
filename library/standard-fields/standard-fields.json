@@ -572,6 +572,122 @@
         }
       },
       "links": []
+    },
+    {
+      "lineage": "3e91c07d5a2b4f86b1d4e0a7c95f2368",
+      "revision": 1,
+      "kind": "quantity_kind",
+      "meta": {
+        "name": "Temperature coefficient",
+        "description": "Built-in quantity kind: a relative change per kelvin, as a resistor's TCR is stated.",
+        "provenance": "Built into Sparksmith."
+      },
+      "definition": {
+        "kind": "quantity_kind",
+        "body": {
+          "units": {
+            "dimension": [0, 0, 0, 0, -1, 0, 0],
+            "units": [
+              {
+                "symbol": "ppm",
+                "aliases": [],
+                "scale": 1e-06,
+                "si_prefixes": false
+              },
+              {
+                "symbol": "K⁻¹",
+                "aliases": [],
+                "scale": 1.0,
+                "si_prefixes": false
+              }
+            ]
+          },
+          "default_unit": "ppm"
+        }
+      },
+      "links": []
+    },
+    {
+      "lineage": "a7d40e6c2b9f4153a8e1c6d07b3f5924",
+      "revision": 1,
+      "kind": "field",
+      "meta": {
+        "name": "Temperature coefficient",
+        "description": "Built-in field: the most a value changes per kelvin either way, as a resistor's TCR (±100 ppm per kelvin).",
+        "provenance": "Built into Sparksmith."
+      },
+      "definition": {
+        "kind": "field",
+        "body": {
+          "next_local": 1,
+          "value_type": {
+            "type": "tolerance",
+            "basis": {
+              "basis": "absolute",
+              "kind": {
+                "id": 1,
+                "revision": 1
+              }
+            }
+          },
+          "default": null,
+          "required_at": null
+        }
+      },
+      "links": [
+        {
+          "local": 1,
+          "lineage": "3e91c07d5a2b4f86b1d4e0a7c95f2368"
+        }
+      ]
+    },
+    {
+      "lineage": "c5f28b1e7d3a4096bc2e9f41a6d08b73",
+      "revision": 1,
+      "kind": "field",
+      "meta": {
+        "name": "Dielectric",
+        "description": "Built-in field: a ceramic capacitor's dielectric class by its EIA code.",
+        "provenance": "Built into Sparksmith."
+      },
+      "definition": {
+        "kind": "field",
+        "body": {
+          "next_local": 7,
+          "value_type": {
+            "type": "enum",
+            "choices": [
+              {
+                "id": 1,
+                "label": "C0G"
+              },
+              {
+                "id": 2,
+                "label": "X5R"
+              },
+              {
+                "id": 3,
+                "label": "X6S"
+              },
+              {
+                "id": 4,
+                "label": "X7R"
+              },
+              {
+                "id": 5,
+                "label": "X7S"
+              },
+              {
+                "id": 6,
+                "label": "Y5V"
+              }
+            ]
+          },
+          "default": null,
+          "required_at": null
+        }
+      },
+      "links": []
     }
   ],
   "assets": []
