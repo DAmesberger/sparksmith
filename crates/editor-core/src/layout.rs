@@ -46,6 +46,7 @@ pub mod pair;
 mod part;
 mod placed;
 pub mod posture;
+pub mod profile_fit;
 pub mod restack;
 pub mod router;
 pub mod several;
@@ -1484,6 +1485,7 @@ fn trim_mm(mm: f64) -> String {
 
 pub fn validate(project: &Project) -> Result<()> {
     mask_colour::check(project)?;
+    profile_fit::check(project)?;
     if !project
         .board_size
         .iter()
@@ -1795,6 +1797,7 @@ pub fn checks_on(
     findings.extend(etch::checks(project, graph));
     findings.extend(bodies::checks(project));
     findings.extend(mask_colour::findings(project));
+    findings.extend(profile_fit::findings(project));
     findings
 }
 

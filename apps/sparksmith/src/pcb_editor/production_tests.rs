@@ -271,7 +271,7 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
     {
         let d = dialog(&mut editor)?;
         d.report = Some((
-            engine.revision(),
+            engine.report_key(),
             Pick::Board,
             Ok(report_with_error(&engine)),
         ));
@@ -314,7 +314,7 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
     {
         let d = dialog(&mut editor)?;
         d.report = Some((
-            engine.revision(),
+            engine.report_key(),
             Pick::Board,
             Ok(report_with_error(&engine)),
         ));
@@ -359,7 +359,7 @@ fn a_waiver_without_a_reason_is_committed_by_default() -> TestResult {
     let mut editor = open(&engine)?;
     let ctx = context();
     dialog(&mut editor)?.report = Some((
-        engine.revision(),
+        engine.report_key(),
         Pick::Board,
         Ok(report_with_error(&engine)),
     ));
@@ -552,7 +552,7 @@ fn a_whole_group_is_waived_with_one_reason_in_one_undo_step() -> TestResult {
     let mut editor = open(&engine)?;
     let ctx = context();
     dialog(&mut editor)?.report = Some((
-        engine.revision(),
+        engine.report_key(),
         Pick::Board,
         Ok(report_like_the_run(&engine)),
     ));
@@ -659,7 +659,7 @@ fn run_dialog(engine: &Engine) -> Result<PcbEditor, Box<dyn std::error::Error>> 
     let mut editor = open(engine)?;
     let d = dialog(&mut editor)?;
     d.report = Some((
-        engine.revision(),
+        engine.report_key(),
         Pick::Board,
         Ok(report_like_the_run(engine)),
     ));
@@ -744,5 +744,29 @@ fn group_titles_fit_a_narrow_column() -> TestResult {
         assert!(!cut.contains(title), "{title} is cut: {cut:?}");
         assert!(shown.contains(title), "{title} is not shown: {shown:?}");
     }
+    Ok(())
+}
+
+/// A check settings change (the impedance tolerance in Settings) takes no
+/// revision, yet the production check computed before it is not the
+/// current one any more: the dialog checks again under the new settings.
+#[test]
+fn a_check_settings_change_refreshes_the_production_check() -> TestResult {
+    let mut engine = Engine::showcase()?;
+    let mut editor = open(&engine)?;
+    let ctx = context();
+    dialog(&mut editor)?.wait_check(&ctx, &engine);
+    assert!(dialog(&mut editor)?.current(&engine).is_some());
+    let revision = engine.revision();
+    engine.set_check_settings(sparksmith_core::layout::CheckSettings {
+        impedance_tolerance: Some(10.0),
+    })?;
+    assert_eq!(engine.revision(), revision);
+    assert!(
+        dialog(&mut editor)?.current(&engine).is_none(),
+        "a report of other settings is not shown as current"
+    );
+    dialog(&mut editor)?.wait_check(&ctx, &engine);
+    assert!(dialog(&mut editor)?.current(&engine).is_some());
     Ok(())
 }

@@ -13,6 +13,7 @@
 
 mod compare;
 mod expected;
+mod identity;
 mod preflight;
 mod units;
 

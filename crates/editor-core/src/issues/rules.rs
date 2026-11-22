@@ -53,6 +53,10 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         | "board.shape_unsolved"
         // The fabricator does not make the board in this colour.
         | "board.mask_colour_not_offered"
+        // The profile's numbers are not for this board.
+        | "board.profile_layers"
+        | "board.fab_choice_thickness"
+        | "board.fab_choice_finish"
         | "board.shape_open"
         | "board.shape_invalid"
         | "board.reference_lost"
@@ -119,6 +123,9 @@ pub fn group_title(code: &str) -> String {
         "impedance.no_tolerance" => "Impedance targets without a tolerance",
         "board.shape_unsolved" => "Board shape does not solve",
         "board.mask_colour_not_offered" => "Solder mask colour not offered",
+        "board.profile_layers" => "Fab profile for another layer count",
+        "board.fab_choice_thickness" => "Fab option needs a thinner board",
+        "board.fab_choice_finish" => "Fab option needs another finish",
         "board.shape_open" => "Board outline not closed",
         "board.shape_invalid" => "Board outline not one board",
         "board.param_idle" => "Board parameters that drive no edge",
@@ -262,6 +269,15 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "board.shape_unsolved" => "Fix the board sketch's dimensions",
         "board.mask_colour_not_offered" => {
             "Choose a colour the fab profile offers in Board › Fabrication, or another fab profile"
+        }
+        "board.profile_layers" => {
+            "Choose a fab profile for the board's layer count (Board › Rules)"
+        }
+        "board.fab_choice_thickness" => {
+            "Choose another option in Board › Rules, or a thinner stackup"
+        }
+        "board.fab_choice_finish" => {
+            "Choose another option in Board › Rules, or the finish it needs in Board › Fabrication"
         }
         "board.shape_open" => "Join the open ends in Board shape",
         "board.shape_invalid" => "Fix the crossing or move the hole inside the board",
@@ -557,6 +573,8 @@ pub const KNOWN_CODES: &[&str] = &[
     "board.courtyard_clearance",
     "board.courtyard_overlap",
     "board.edge_clearance",
+    "board.fab_choice_finish",
+    "board.fab_choice_thickness",
     "board.hole_clearance",
     "board.mask_colour_not_offered",
     "board.npth_annular_ring",
@@ -564,6 +582,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "board.pad_hole_clearance",
     "board.pad_hole_spacing",
     "board.param_idle",
+    "board.profile_layers",
     "board.pth_annular_ring",
     "board.reference_inexact",
     "board.reference_lost",

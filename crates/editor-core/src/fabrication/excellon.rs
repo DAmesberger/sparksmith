@@ -17,6 +17,7 @@
 use super::artwork;
 use super::drill::{self, DrillHole, DrillTable, HoleFeature};
 use super::gerber::{Aperture, Seg, Writer};
+use super::snapshot::Identity;
 use super::{FabFile, FabricationOptions, FileGroup, MAX_FILE_BYTES};
 use crate::diagnostics::{Error, Result};
 use crate::geometry::Point;
@@ -56,7 +57,12 @@ fn fixed(v: f64) -> String {
 }
 
 /// The drill files, drill map and table of `project`.
-pub fn files(project: &Project, options: &FabricationOptions, stem: &str) -> Result<Vec<FabFile>> {
+pub fn files(
+    project: &Project,
+    identity: &Identity,
+    options: &FabricationOptions,
+    stem: &str,
+) -> Result<Vec<FabFile>> {
     let holes = drill::holes(project);
     let table = drill::table(&holes);
     let layers = project.stackup.copper.len();
@@ -74,7 +80,7 @@ pub fn files(project: &Project, options: &FabricationOptions, stem: &str) -> Res
             name: format!("{stem}-{name}.drl"),
             group: FileGroup::Drill,
             description: description.into(),
-            bytes: excellon(project, options, &holes, &table, plated, layers)?,
+            bytes: excellon(project, identity, options, &holes, &table, plated, layers)?,
         });
     }
     if !holes.is_empty() {
@@ -82,7 +88,7 @@ pub fn files(project: &Project, options: &FabricationOptions, stem: &str) -> Res
             name: format!("{stem}-drill-map.gbr"),
             group: FileGroup::Drill,
             description: "Drill map (one symbol per tool)".into(),
-            bytes: drill_map(project, options, &holes, &table)?,
+            bytes: drill_map(project, identity, options, &holes, &table)?,
         });
     }
     out.push(FabFile {
@@ -97,6 +103,7 @@ pub fn files(project: &Project, options: &FabricationOptions, stem: &str) -> Res
 /// One Excellon file of the plated or non-plated holes.
 pub fn excellon(
     project: &Project,
+    identity: &Identity,
     options: &FabricationOptions,
     holes: &[DrillHole],
     table: &DrillTable,
@@ -112,7 +119,7 @@ pub fn excellon(
         env!("CARGO_PKG_VERSION"),
         if plated { "plated" } else { "non-plated" }
     );
-    for (name, value) in artwork::common_attributes(project, options) {
+    for (name, value) in artwork::common_attributes(identity, options) {
         if value.is_empty() {
             let _ = writeln!(s, "; #@! TF.{name}");
         } else {
@@ -179,11 +186,12 @@ pub fn excellon(
 /// centre line between two symbols.
 fn drill_map(
     project: &Project,
+    identity: &Identity,
     options: &FabricationOptions,
     holes: &[DrillHole],
     table: &DrillTable,
 ) -> Result<Vec<u8>> {
-    let mut attributes = artwork::common_attributes(project, options);
+    let mut attributes = artwork::common_attributes(identity, options);
     attributes.push(("FileFunction", "Drillmap".into()));
     attributes.push(("FilePolarity", "Positive".into()));
     let mut w = Writer::new(&attributes);

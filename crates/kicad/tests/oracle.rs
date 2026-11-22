@@ -34,7 +34,10 @@ fn synthetic_footprints_match_kicad_within_a_micron() -> Fallible<()> {
     std::fs::write(&source, &text)?;
     let theirs = reference::plot(&source, None, board.copper, &dir)?;
     let imported = support::import(text.as_bytes())?;
-    let set = fabrication::generate(imported.engine.project(), &FabricationOptions::default())?;
+    let set = fabrication::generate(
+        &fabrication::ProductionSnapshot::resolve(imported.engine.project(), None),
+        &FabricationOptions::default(),
+    )?;
     let ours: Vec<File> = set
         .files
         .iter()

@@ -14,11 +14,12 @@ The Gerber writer follows Ucamco's public Gerber Layer Format Specification. The
   - It lists the pre-flight report, computed on a worker, grouped by kind of finding. Tick findings (Shift-click ticks a run, a group's box ticks the whole group), or use a row's or a group's Waive…. The reason form opens under that row or group, and Waive applies one optional reason to every ticked finding as one undo step. A waived finding offers Restore.
   - Export runs on a worker and shows progress; the result lists the written files.
 - **Shared path:** all of these call `sparksmith_io::fabrication::export`. The pure generation is `sparksmith_core::fabrication::generate`, the PDF drawings are `sparksmith_io::fab_drawings`, and `sparksmith_io::pdf` is a small generic PDF canvas that schematic printing can reuse.
+- **One production snapshot:** an export resolves the project and the chosen profile once (`fabrication::ProductionSnapshot`): the project with that profile in place of its own, its choices following the board's solder mask colour, the overrides and net classes kept, and the active variant, the waivers, the stackup and the computed fills as the project holds them. The production check and every writer (Gerber, Excellon, the drill map and table, the job file, pick-and-place, both BOMs and both drawings) read that one project, so the job file's design rules, the drill files' plated-hole sizes and the mask openings are the profile's the check passed.
 - **Writing:** a folder is written to a sibling staging folder and then renamed into place. A ZIP is written atomically, entries in set order with a fixed timestamp.
 
 ## Production check (`fabrication.preflight`)
 
-The check reports every project issue under the chosen fabrication profile. Overrides and net classes are kept; a profile that conflicts with an override is itself an error. It adds production findings to those issues. The query's `profile` is an id of the user's profile library or a shipped profile (as for an export) or a whole profile; omitted, the project's own rules apply. A board without a fab profile is blocked (`rules.no_fab_profile`, not waivable).
+The check reports every project issue under the chosen fabrication profile, on the [production snapshot](#one-command). Overrides and net classes are kept; a profile that conflicts with an override is itself an error. A profile for other boards (another copper layer count) or a chosen option whose prerequisites the board does not meet (thickness, finish) is an error too ([which boards a profile is for](board-rules-and-shape.md)). It adds production findings to those issues. The query's `profile` is an id of the user's profile library or a shipped profile (as for an export) or a whole profile; omitted, the project's own rules apply. A board without a fab profile is blocked (`rules.no_fab_profile`, not waivable).
 
 **Errors** (they block export):
 - unrouted connections and unplaced parts;
@@ -65,7 +66,7 @@ The check reports every project issue under the chosen fabrication profile. Over
 
 - **Format:** `%FSLAX46Y46*%` and `%MOMM*%` (1 nm), absolute coordinates, `G75` multi-quadrant arcs, `M02`. Unchanged coordinates are left out; `D01`/`D02`/`D03` are always written.
 - **Apertures:** each is defined once, numbered from D10 in first-use order, with its `.AperFunction` set by `%TA` before its `%AD`.
-- **File attributes:** `.GenerationSoftware`, `.CreationDate` (only when asked), `.ProjectId` (the project name set by `project.rename`, a stable GUID derived from the name, revision 1), `.SameCoordinates`, `.FileFunction` and `.FilePolarity`.
+- **File attributes:** `.GenerationSoftware`, `.CreationDate` (only when asked), `.ProjectId` (see [release identity](#release-identity)), `.SameCoordinates`, `.FileFunction` and `.FilePolarity`.
 - **Copper order:**
   1. Fill regions, largest first: each region dark, its holes clear (`%LPC`). An island inside another region's hole is smaller, so it is drawn after that hole is cleared; nothing drawn after the fills is erased.
   2. Tracks, as round-aperture `D01` draws, so their ends are exactly round.
@@ -87,6 +88,14 @@ The check reports every project issue under the chosen fabrication profile. Over
   - Text uses Sparksmith's stroke font (`layout::legend`, now shared with the 3D silkscreen films).
   - The legend is not clipped at mask openings; the check warns instead.
   - Text an instance moved (`instance.set_text_placement`) prints where it was moved. The offset is in the footprint's own axes, so it turns and flips with the part; the turn is added in quarter turns. An offset is at most 1000 mm. The placement stays with the instance through new revisions of the same footprint, and goes when its footprint or text does.
+
+### Release identity
+
+Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job file (`GeneralSpecs.ProjectId`) and both drawings' title blocks (Release, Project id) state one identity:
+
+- **Name:** the project's name (`project.rename`).
+- **GUID:** the project's own identity, `Project.production.project_id`, saved with the project. A project takes it when it is first saved: a digest of the file's name, the whole document at that moment and, in the desktop, random bytes, so two boards of one name are two projects. A session (CLI, MCP) adds no random bytes, so a replay saved under the same file name reproduces it byte for byte. It is kept through renames, edits, undo and redo, and a copy saved elsewhere keeps it. A project never saved has none; its files use the release digest in its place.
+- **Revision:** the release, 16 hex digits of the SHA-256 of every file of the set written without an identity (the creation date left out). The same files give the same revision; any change to what a file says changes it, and an edit that changes no file (a construction line) does not. The CSV files carry no identity: their formats have no place for one.
 
 ### Excellon conventions
 
@@ -143,6 +152,6 @@ Format tests check attributes, polarities, D-code reuse, macro text, escapes, de
 - **Holes:** blind and buried vias are not modelled, so there are no drill-pair files. A plated board slot that is not straight is refused by the check.
 - **Legend:** it is not clipped at mask openings or the outline (the fabricator clips; the check warns). The desktop's Designator section moves the silkscreen designator only; the command takes any footprint text.
 - **Assembly variants:** the assembly files and drawing follow the active variant ([assembly variants](assembly-variants.md)); one export writes one variant.
-- **Profile check:** the check compares profiles only by id. A changed user profile file is read fresh at each export.
+- **Profile check:** the desktop dialog keys its check on the profile's id: a user profile file changed while the dialog is open is read fresh at the export, not in the shown check. The check is computed again when the document or the check settings (Settings → impedance tolerance) change.
 - **Drawings:** text widths use Helvetica's metrics; bold text is measured with the regular widths.
 - **Desktop dialog:** the pre-flight time on large boards was not measured; the check runs on a worker. Cancelling during an export closes the dialog while the worker finishes writing.

@@ -308,7 +308,10 @@ fn the_legend_gerber_prints_the_moved_text_where_the_command_put_it() -> Fallibl
     let mut engine = Engine::showcase()?;
     let id = part_at(&mut engine, 90.0, Layer::Top)?;
     let legend = |engine: &Engine| -> Fallible<BTreeSet<(i64, i64)>> {
-        let set = fabrication::generate(engine.project(), &FabricationOptions::default())?;
+        let set = fabrication::generate(
+            &fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &FabricationOptions::default(),
+        )?;
         let file = set
             .files
             .iter()

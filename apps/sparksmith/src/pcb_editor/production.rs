@@ -16,7 +16,8 @@
 //!
 //! The pre-flight check and the export run off the UI thread on a snapshot
 //! of the document (shared handles, no copy). A report computed for an
-//! older revision or another profile is dropped and computed again; an
+//! older document, other check settings or another profile is dropped and
+//! computed again; an
 //! export keeps the snapshot it started from.
 use super::PcbEditor;
 use crate::kit::{
@@ -35,7 +36,7 @@ use sparksmith_core::fabrication::{
 use sparksmith_core::issues::Severity;
 use sparksmith_core::model::Document;
 use sparksmith_core::rules::RuleProfile;
-use sparksmith_core::{Engine, Operation};
+use sparksmith_core::{Engine, Operation, ReportKey};
 use sparksmith_io::fabrication::{ExportReport, ExportRequest, Progress};
 use sparksmith_io::rule_profiles::ProfileLibrary;
 use sparksmith_ui::theme::Tokens;
@@ -86,8 +87,9 @@ pub(super) enum Format {
     Zip,
 }
 
-/// A pre-flight report, for one revision and profile.
-type Checked = (u64, Pick, Result<PreflightReport, String>);
+/// A pre-flight report, for one document state, check settings and
+/// profile ([`Engine::report_key`]).
+type Checked = (ReportKey, Pick, Result<PreflightReport, String>);
 
 enum ExportMessage {
     Progress(Progress),
@@ -105,7 +107,7 @@ pub(super) struct ProductionDialog {
     pub(super) options: FabricationOptions,
     /// The current report and what it was computed for.
     pub(super) report: Option<Checked>,
-    checking: Option<(u64, Pick, Receiver<Checked>)>,
+    checking: Option<(ReportKey, Pick, Receiver<Checked>)>,
     /// Ticked findings and the reason being typed.
     pub(super) waiving: Waiving,
     picking: Option<Receiver<Option<PathBuf>>>,
@@ -164,10 +166,10 @@ impl ProductionDialog {
         out
     }
 
-    /// Start or take the pre-flight report for the current revision and
-    /// profile. A result for an older revision or profile is dropped.
+    /// Start or take the pre-flight report for the current document, check
+    /// settings and profile. A result for an older one is dropped.
     fn check(&mut self, ctx: &egui::Context, engine: &Engine) {
-        let wanted = (engine.revision(), self.pick.clone());
+        let wanted = (engine.report_key(), self.pick.clone());
         if let Some((revision, pick, receiver)) = &self.checking {
             match receiver.try_recv() {
                 Ok(checked) => {
@@ -220,11 +222,12 @@ impl ProductionDialog {
         }
     }
 
-    /// The report for the current revision and profile, if computed.
+    /// The report for the current document, check settings and profile,
+    /// if computed.
     pub(super) fn current(&self, engine: &Engine) -> Option<&Result<PreflightReport, String>> {
         self.report
             .as_ref()
-            .filter(|(r, p, _)| *r == engine.revision() && *p == self.pick)
+            .filter(|(r, p, _)| *r == engine.report_key() && *p == self.pick)
             .map(|(_, _, report)| report)
     }
 

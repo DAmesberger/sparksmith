@@ -1144,7 +1144,7 @@ fn a_curve_over_a_filleted_edge_keeps_the_board_parameters_driving_it() -> Falli
 /// showcase.
 #[test]
 fn a_construction_line_leaves_the_fabrication_output_unchanged() -> Fallible<()> {
-    use sparksmith_core::fabrication::{FabricationOptions, generate};
+    use sparksmith_core::fabrication::{FabricationOptions, ProductionSnapshot, generate};
     let plain = Engine::showcase_hosted_fixture(hosted())?;
     let mut engine = Engine::showcase_hosted_fixture(hosted())?;
     edit(
@@ -1160,8 +1160,14 @@ fn a_construction_line_leaves_the_fabrication_output_unchanged() -> Fallible<()>
     assert_ne!(sketch(&engine)?.sketch, sketch(&plain)?.sketch);
     let options = FabricationOptions::default();
     assert_eq!(
-        generate(engine.project(), &options)?,
-        generate(plain.project(), &options)?
+        generate(
+            &ProductionSnapshot::resolve(engine.project(), None),
+            &options
+        )?,
+        generate(
+            &ProductionSnapshot::resolve(plain.project(), None),
+            &options
+        )?
     );
     Ok(())
 }
