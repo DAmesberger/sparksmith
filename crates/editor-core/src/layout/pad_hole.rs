@@ -23,6 +23,7 @@ use super::connectivity::CopperGraph;
 use super::copper::{check_reach, limit_finding};
 use super::grid::BoundsGrid;
 use super::limits::{BoardRules, mm, mm_against};
+use super::physical::{self, HoleOwner};
 use super::{BoardCopper, CopperRing, EPS, PlacedPad, check_pair_budget, pad_labels, placed_pads};
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::Shape;
@@ -98,60 +99,55 @@ pub(super) fn findings(
     };
     let mut issues = rings(project, &placed, &limits, &name);
 
-    let mut holes = Vec::new();
-    for (k, pad) in placed.iter().enumerate() {
-        // `holes` lists the pad's own hole first, then its via-in-pad holes.
-        let own = pad.pad.hole.iter().count();
-        for (n, hole) in pad.holes().into_iter().enumerate() {
-            let what = if n >= own {
-                "via-in-pad hole"
-            } else if matches!(hole.shape, Shape::Circle { .. }) {
-                "hole"
-            } else {
-                "slot"
-            };
-            holes.push(Hole {
-                ring: CopperRing::of_hole(&hole.shape),
-                kind: CopperObject::hole(hole.plated),
-                pad: Some(k),
-                object: ObjectRef::Pad {
-                    instance: pad.instance,
-                    pad: pad.pad.id,
-                },
-                name: name(pad),
-                what,
-            });
+    // The board's holes ([`physical::holes`]), pad holes first, then via
+    // drills and mounting holes (plated board slots keep the profile's
+    // slot rules, not these).
+    let index: BTreeMap<(Id, PadId), usize> = placed
+        .iter()
+        .enumerate()
+        .map(|(k, p)| ((p.instance, p.pad.id), k))
+        .collect();
+    let all = physical::holes_of(project, &placed);
+    let hole_of = |h: &physical::Hole| {
+        let pad = match h.owner {
+            HoleOwner::Pad { instance, pad, .. } => index.get(&(instance, pad)).copied(),
+            _ => None,
+        };
+        Hole {
+            ring: h.feature.ring(),
+            kind: match h.owner {
+                HoleOwner::Via(_) => CopperObject::ViaHole,
+                _ => CopperObject::hole(h.plated),
+            },
+            pad,
+            object: h.object(),
+            name: match (pad.and_then(|k| placed.get(k)), h.owner) {
+                (Some(p), _) => name(p),
+                (None, HoleOwner::MountingHole(_)) => "a mounting hole".into(),
+                (None, _) => h.name.clone(),
+            },
+            what: h.what(),
         }
-    }
+    };
+    let mut holes: Vec<Hole> = all
+        .iter()
+        .filter(|h| matches!(h.owner, HoleOwner::Pad { .. }))
+        .map(hole_of)
+        .collect();
     let pad_holes = holes.len();
     if pad_holes == 0 {
         return issues;
     }
-    for via in copper.vias() {
-        holes.push(Hole {
-            ring: CopperRing::of_drill(via),
-            kind: CopperObject::ViaHole,
-            pad: None,
-            object: ObjectRef::Via { id: via.id },
-            name: format!("a via on {}", project.net_name(via.net)),
-            what: "hole",
-        });
-    }
-    for mount in &project.board().holes {
-        holes.push(Hole {
-            ring: CopperRing::of_circle(mount.at, mount.drill),
-            kind: CopperObject::hole(mount.plated),
-            pad: None,
-            object: ObjectRef::Board,
-            name: "a mounting hole".into(),
-            what: "hole",
-        });
-    }
+    holes.extend(
+        all.iter()
+            .filter(|h| matches!(h.owner, HoleOwner::Via(_) | HoleOwner::MountingHole(_)))
+            .map(hole_of),
+    );
 
     let track_rings: Vec<CopperRing> = project.tracks.iter().map(CopperRing::of_track).collect();
     let shapes = super::via::drilled_copper(copper, project, &track_rings);
     let reach = check_reach(&limits);
-    let shape_grid = BoundsGrid::new(shapes.iter().map(|s| s.0.bounds), reach);
+    let shape_grid = BoundsGrid::new(shapes.iter().map(|s| s.ring.bounds), reach);
     let hole_grid = BoundsGrid::new(holes.iter().map(|h| h.ring.bounds), reach);
     let joined = Joined::of(graph);
     let mut near = Vec::new();
@@ -167,8 +163,8 @@ pub(super) fn findings(
         let net = pad.net.filter(|_| hole.kind == CopperObject::PthHole);
         let own = joined.island(pad);
         shape_grid.near(&bounds, reach, &mut near);
-        for (ring, object, kind, other) in near.iter().filter_map(|k| shapes.get(*k)) {
-            if *object == hole.object || joined.holds(own, object) {
+        for shape in near.iter().filter_map(|k| shapes.get(*k)) {
+            if shape.object == hole.object || joined.holds(own, &shape.object) {
                 continue;
             }
             pairs += 1;
@@ -176,13 +172,13 @@ pub(super) fn findings(
                 issues.push(limit_finding());
                 return issues;
             }
-            let need = limits.clearance(hole.kind, net, *kind, Some(*other));
-            if !hole.ring.closer_than(ring, need) {
+            let need = limits.clearance(hole.kind, net, shape.kind, shape.net);
+            if !hole.ring.closer_than(shape.ring, need) {
                 continue;
             }
-            let need = limits.clearance_need(hole.kind, net, *kind, Some(*other));
-            let what = super::via::copper_words(project, object, *kind, *other);
-            let gap = hole.ring.gap(ring, need.mm + 1.0);
+            let need = limits.clearance_need(hole.kind, net, shape.kind, shape.net);
+            let what = shape.words(project);
+            let gap = hole.ring.gap(shape.ring, need.mm + 1.0);
             let how = if gap <= EPS {
                 format!("overlaps {what}")
             } else {
@@ -191,7 +187,7 @@ pub(super) fn findings(
             issues.push(Finding::new(
                 "board.pad_hole_clearance",
                 format!("{}: hole {how}; {}", hole.name, need.text()),
-                vec![hole.object, *object],
+                vec![hole.object, shape.object],
             ));
         }
         hole_grid.near(&bounds, reach, &mut near);

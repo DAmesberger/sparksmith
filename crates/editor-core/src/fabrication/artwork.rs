@@ -29,6 +29,7 @@ use super::{FabFile, FabricationOptions, FileGroup};
 use crate::diagnostics::Result;
 use crate::geometry::{Point, Shape, Transform2, rounded_path, signed_area2};
 use crate::ids::Id;
+use crate::layout::physical::LandOwner;
 use crate::layout::{self, PlacedPad};
 use crate::layout::{BoardDrawing, PlacedItem};
 use crate::library::{CHECK_CHORD_MM, Outline, PadKind, PadShape, PasteRule, Segment};
@@ -303,14 +304,31 @@ fn copper(board: &Board<'_>, layer: CopperLayer, attributes: &[(&str, String)]) 
         w.object(&[("N", board.net(Some(via.net)))]);
         w.flash(d, via.position)?;
     }
-    for hole in project.board().holes.iter() {
-        if let (true, Some(diameter)) = (hole.plated, hole.pad_diameter) {
-            let d = w.aperture(Aperture::circle(diameter)?, Some("WasherPad"));
+    // Every land of the board's physical inventory on this layer: the
+    // washers of plated mounting holes, then the pads with copper, with
+    // or without a net (what the checks measure is what is plotted).
+    let lands = layout::physical::lands_of(project, &board.pads);
+    for land in lands.iter().filter(|l| l.on(layer)) {
+        if let (LandOwner::Washer { .. }, Shape::Circle { center, radius }) =
+            (land.owner, &land.outline)
+        {
+            let d = w.aperture(Aperture::circle(2.0 * radius)?, Some("WasherPad"));
             w.object(&[]);
-            w.flash(d, hole.at)?;
+            w.flash(d, *center)?;
         }
     }
-    for pad in board.pads.iter().filter(|p| p.on_copper(layer)) {
+    let placed: BTreeMap<(Id, crate::ids::PadId), &PlacedPad> = board
+        .pads
+        .iter()
+        .map(|p| ((p.instance, p.pad.id), p))
+        .collect();
+    for copper in lands.iter().filter(|l| l.on(layer)) {
+        let LandOwner::Pad { instance, pad } = copper.owner else {
+            continue;
+        };
+        let Some(pad) = placed.get(&(instance, pad)) else {
+            continue;
+        };
         let Some(shape) = pad.pad.shape.grown(0.0, CHECK_CHORD_MM) else {
             continue;
         };

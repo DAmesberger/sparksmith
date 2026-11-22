@@ -422,7 +422,10 @@ mod tests {
             let mut colours: Vec<u32> = scene
                 .selected_instanced
                 .iter()
-                .flat_map(|m| m.instances.chunks_exact(52))
+                .flat_map(|m| {
+                    m.instances
+                        .chunks_exact(solidcraft_viewport_gpu::view::INSTANCE_SIZE)
+                })
                 .filter_map(|p| p.get(48..52).and_then(|b| b.try_into().ok()))
                 .map(u32::from_le_bytes)
                 .collect();

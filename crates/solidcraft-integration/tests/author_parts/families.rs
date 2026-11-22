@@ -193,7 +193,7 @@ fn finish(s: &mut Session) -> Vec<u8> {
             eprintln!("  {}: {:.6} mm³", b.name, m.volume);
         }
     }
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 // ---------------------------------------------------------------------

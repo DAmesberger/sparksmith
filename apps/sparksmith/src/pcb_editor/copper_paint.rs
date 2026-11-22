@@ -82,7 +82,8 @@ impl LayoutCopper {
                             .push((layer, center, radius));
                     }
                 }
-                Origin::Fill { .. } | Origin::Laminate(_) => {}
+                // A washer is drawn with its mounting hole (Board shape).
+                Origin::Fill { .. } | Origin::Laminate(_) | Origin::Washer { .. } => {}
             }
         }
         for fill in &plan.fills {

@@ -4,7 +4,7 @@ use crate::diagnostics::{Error, Finding, Result};
 use crate::geometry::{Point, Shape, Transform2, point_valid};
 use crate::ids::{Endpoint, Id, PadId};
 use crate::instances;
-use crate::library::{PAD_ARC_TOLERANCE_MM, PadCopper, PadKind, PadShape, PadSide};
+use crate::library::{PAD_ARC_TOLERANCE_MM, PadCopper, PadKind, PadShape};
 use crate::model::{
     CopperLayer, EditPolicy, Fabrication, Layer, PhysicalChoice, Placement, Project, Stackup, Track,
 };
@@ -45,6 +45,7 @@ pub mod outline;
 mod pad_hole;
 pub mod pair;
 mod part;
+pub mod physical;
 mod placed;
 pub mod posture;
 pub mod restack;
@@ -571,79 +572,41 @@ pub fn pad_rows(project: &Project, designators: &[String], net: Option<Id>) -> R
     Ok(rows)
 }
 
-/// Connected copper pads with their exact shapes. [`BoardCopper::of`]
-/// adds their board outlines.
+/// Connected copper pads with their exact shapes: the placed pads
+/// ([`placed_pads`]) with copper and a net. The copper graph joins these;
+/// clearance reads every land, netted or not ([`physical::lands`]).
 pub fn pads(project: &Project) -> Vec<WorldPad> {
-    let net_by_terminal: BTreeMap<Endpoint, Id> = project
-        .nets
+    placed_pads(project)
         .iter()
-        .flat_map(|net| {
-            net.terminals
-                .iter()
-                .map(move |terminal| (*terminal, net.id))
-        })
-        .collect();
-    let mut result = Vec::new();
-    for placement in &project.placements {
-        let Some(instance) = project.instance(placement.instance) else {
-            continue;
-        };
-        let Some(physical) = instances::resolve(&project.library, instance)
-            .ok()
-            .and_then(|r| r.physical)
-        else {
-            continue;
-        };
-        let footprint = &physical.footprint.definition;
-        let datum = &footprint.datum;
-        for pad in &footprint.pads {
-            // A bare hole has no copper, so it joins nothing.
-            if pad.kind.copper() == PadCopper::None {
-                continue;
-            }
-            let Some(electrical) = pad
-                .terminal
-                .and_then(|t| physical.binding.definition.terminal_of(t))
-            else {
-                continue;
-            };
-            let terminal = Endpoint {
-                instance: instance.id,
-                terminal: electrical,
-            };
-            let Some(net) = net_by_terminal.get(&terminal) else {
-                continue;
-            };
-            // Pad rotation relative to the datum, reflected on the bottom.
-            let local = pad.rotation_deg() - datum.rotation_deg();
-            let local = if placement.layer == Layer::Bottom {
-                -local
-            } else {
-                local
-            };
-            result.push(WorldPad {
-                instance: instance.id,
-                pad: pad.id,
-                terminal,
-                net: *net,
-                position: placed_point(
-                    placement,
-                    placed::undo_datum_rotation(pad.position(), datum),
-                    datum.offset(),
-                ),
-                size: pad.shape.extent(),
-                shape: pad.shape.clone(),
-                rotation_deg: placement.rotation_deg + local,
-                layer: match pad.side {
-                    PadSide::Top => placement.layer,
-                    PadSide::Bottom => placed::opposite(placement.layer),
-                },
-                through: pad.kind.copper() == PadCopper::Through,
-                mirrored: placement.layer == Layer::Bottom,
-            });
+        .filter_map(WorldPad::of_placed)
+        .collect()
+}
+
+impl WorldPad {
+    /// `pad` as a connected pad: `None` for a bare hole or a pad without a
+    /// net.
+    pub fn of_placed(pad: &PlacedPad) -> Option<Self> {
+        if pad.pad.kind.copper() == PadCopper::None {
+            return None;
         }
+        let (Some(terminal), Some(net)) = (pad.terminal, pad.net) else {
+            return None;
+        };
+        let t = pad.pad_transform();
+        Some(Self {
+            instance: pad.instance,
+            pad: pad.pad.id,
+            terminal,
+            net,
+            position: t.translate,
+            size: pad.pad.shape.extent(),
+            shape: pad.pad.shape.clone(),
+            rotation_deg: t.rotation_deg,
+            layer: pad.layer,
+            through: pad.pad.kind.copper() == PadCopper::Through,
+            mirrored: t.mirror,
+        })
     }
-    result
 }
 
 /// One copper pad of a placed part: its component terminal, its label
@@ -1197,127 +1160,8 @@ fn apply_routes(project: &mut Project, edits: RouteEditSet) -> Result<()> {
         });
     }
     validate(project)?;
-    let copper = BoardCopper::of(project);
-    let limits = limits::BoardRules::of(project);
-    let track_rings: Vec<CopperRing> = project.tracks.iter().map(CopperRing::of_track).collect();
-    let layers = project.stackup.layers();
-    let via_rings: Vec<CopperRing> = project.vias.iter().map(CopperRing::of_via).collect();
-    let reach = copper::check_reach(&limits);
-    let track_grid = grid::BoundsGrid::new(track_rings.iter().map(|r| r.bounds), reach);
-    let via_grid = grid::BoundsGrid::new(via_rings.iter().map(|r| r.bounds), reach);
-    let pad_grid = grid::BoundsGrid::new(
-        (0..copper.pads().len()).map(|k| copper.ring(k).and_then(|r| r.bounds)),
-        reach,
-    );
-    let mut near = Vec::new();
-    let mut check_pairs = 0usize;
-    let pair_budget = check_pair_budget(
-        track_rings
-            .len()
-            .saturating_add(via_rings.len())
-            .saturating_add(copper.pads().len()),
-    );
-    use crate::rules::CopperObject::{Pad, Track as TrackObject, Via as ViaObject};
-    let mut budget = |pairs: usize| {
-        check_pairs = check_pairs.saturating_add(pairs);
-        if check_pairs > pair_budget {
-            return Err(Error::Limit(
-                "routing clearance budget exceeded; split this routing edit into smaller transactions".into(),
-            ));
-        }
-        Ok(())
-    };
-    for (track, ring) in project
-        .tracks
-        .iter()
-        .zip(&track_rings)
-        .filter(|(t, _)| changed.contains(&t.id))
-    {
-        let Some(bounds) = ring.bounds else {
-            continue;
-        };
-        track_grid.near(&bounds, reach, &mut near);
-        budget(near.len())?;
-        for (other, other_ring) in near
-            .iter()
-            .filter_map(|k| Some((project.tracks.get(*k)?, track_rings.get(*k)?)))
-        {
-            if other.id != track.id
-                && other.layer == track.layer
-                && other.net != track.net
-                && ring.closer_than(
-                    other_ring,
-                    limits.clearance(TrackObject, Some(track.net), TrackObject, Some(other.net)),
-                )
-            {
-                return Err(Error::Conflict(format!(
-                    "Too close to a track on {}: {}",
-                    project.net_name(other.net),
-                    limits
-                        .clearance_need(TrackObject, Some(track.net), TrackObject, Some(other.net))
-                        .short()
-                )));
-            }
-        }
-        via_grid.near(&bounds, reach, &mut near);
-        budget(near.len())?;
-        let via_need = |via: &crate::model::Via| {
-            limits.clearance(TrackObject, Some(track.net), ViaObject, Some(via.net))
-        };
-        if let Some(via) = near
-            .iter()
-            .filter_map(|k| Some((project.vias.get(*k)?, via_rings.get(*k)?)))
-            .find(|(via, via_ring)| {
-                via.net != track.net
-                    && via.on(track.layer, &layers)
-                    && ring.closer_than(via_ring, via_need(via))
-            })
-            .map(|(via, _)| via)
-        {
-            let need =
-                limits.clearance_need(TrackObject, Some(track.net), ViaObject, Some(via.net));
-            return Err(Error::Conflict(format!(
-                "Too close to a via on {}: {}",
-                project.net_name(via.net),
-                need.short()
-            )));
-        }
-        pad_grid.near(&bounds, reach, &mut near);
-        budget(near.len())?;
-        for index in near.iter().copied() {
-            let Some(pad) = copper.pads().get(index) else {
-                continue;
-            };
-            if pad.on(track.layer)
-                && pad.net != track.net
-                && copper.ring(index).is_some_and(|pad_ring| {
-                    ring.closer_than(
-                        pad_ring,
-                        limits.clearance(TrackObject, Some(track.net), Pad, Some(pad.net)),
-                    )
-                })
-            {
-                let label = pad_labels(project)
-                    .get(&(pad.instance, pad.pad))
-                    .cloned()
-                    .unwrap_or_else(|| pad.pad.to_string());
-                let designator = project
-                    .instance(pad.instance)
-                    .map_or("a part", |i| i.designator.as_str());
-                return Err(Error::Conflict(format!(
-                    "Too close to {designator} pad {label} ({}): {}",
-                    project.net_name(pad.net),
-                    limits
-                        .clearance_need(TrackObject, Some(track.net), Pad, Some(pad.net))
-                        .short()
-                )));
-            }
-        }
-    }
-    for id in added_vias.into_iter().chain(moved_vias) {
-        via::check_clearance(project, id)?;
-    }
-    Ok(())
+    let vias: BTreeSet<Id> = added_vias.into_iter().chain(moved_vias).collect();
+    router::check_committed(project, &changed, &vias)
 }
 
 fn request_from(track: &Track) -> RouteRequest {
@@ -1566,13 +1410,19 @@ pub fn in_working_area(point: Point) -> bool {
 /// fabricated. Exact (the caps are true half circles); the checks, the
 /// Layout view and the Solidcraft adapter all use this outline.
 pub fn track_shape(track: &Track) -> Shape {
-    let half = track.width * 0.5;
-    let dx = track.end[0] - track.start[0];
-    let dy = track.end[1] - track.start[1];
+    stadium_shape(track.start, track.end, track.width)
+}
+
+/// The points within `width / 2` of the segment `start`–`end`: a track's
+/// copper, a slot's drill.
+pub fn stadium_shape(start: Point, end: Point, width: f64) -> Shape {
+    let half = width * 0.5;
+    let dx = end[0] - start[0];
+    let dy = end[1] - start[1];
     let length = dx.hypot(dy).max(EPS);
     let along = [dx / length * half, dy / length * half];
     let normal = [-along[1], along[0]];
-    let (a, b) = (sub(track.start, along), add(track.end, along));
+    let (a, b) = (sub(start, along), add(end, along));
     Shape::Polygon {
         points: vec![
             sub(a, normal),
@@ -1789,6 +1639,7 @@ pub fn checks_on(
     settings: &CheckSettings,
 ) -> Vec<Finding> {
     let mut findings = copper.checks(project, graph);
+    findings.extend(physical::findings(project));
     findings.extend(fill::findings(project));
     findings.extend(outline::checks(project));
     findings.extend(dimensions::checks(project));

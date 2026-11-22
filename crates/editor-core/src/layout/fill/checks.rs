@@ -16,8 +16,9 @@ use super::FILL_CHORD_MM;
 use super::compute::Ctx;
 use super::geom::{self, Region, RegionIndex};
 use crate::diagnostics::{Finding, ObjectRef};
-use crate::geometry::{Point, polygons_overlap};
+use crate::geometry::{Point, polygon_contains, polygons_overlap};
 use crate::ids::Id;
+use crate::layout::physical::{self, HoleFeature, HoleOwner};
 use crate::model::fill::FilledCopper;
 use crate::model::{CopperLayer, Fill, Project};
 use crate::rules::CopperObject;
@@ -130,9 +131,10 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                 vec![me],
             ));
         }
-        if stale {
-            clearance(&mut ctx, fill, &label, &mut out);
-        } else {
+        // Stored copper is checked whether stale or not: a current key says
+        // which board it was computed for, not that its regions are right.
+        clearance(&mut ctx, fill, &label, stale, &mut out);
+        if !stale {
             spokes_removed(&ctx, fill, copper, &label, &mut out);
         }
     }
@@ -140,8 +142,11 @@ pub fn findings(project: &Project) -> Vec<Finding> {
     out
 }
 
-/// Other-net copper on a fill's layer that overlaps its stale copper.
-fn clearance(ctx: &mut Ctx<'_>, fill: &Fill, label: &str, out: &mut Vec<Finding>) {
+/// Other-net copper on a fill's layer, and any hole it does not own, that
+/// its stored copper overlaps: a short or a drill through copper, which a
+/// stale fill's refill cuts away and a fresh fill should never hold (a
+/// worker may store regions computed wrongly under a current key).
+fn clearance(ctx: &mut Ctx<'_>, fill: &Fill, label: &str, stale: bool, out: &mut Vec<Finding>) {
     let project = ctx.project;
     let regions = regions_of(fill);
     let Some(bounds) = geom::bounds(regions.iter().flatten()) else {
@@ -152,32 +157,26 @@ fn clearance(ctx: &mut Ctx<'_>, fill: &Fill, label: &str, out: &mut Vec<Finding>
     let other = |net: Option<Id>| fill.net.is_none() || net != fill.net;
     // (object, outline ring, required gap)
     let mut objects: Vec<(ObjectRef, Vec<Point>, f64)> = Vec::new();
-    for pad in &ctx.pads {
-        // Holes pass through every layer: any but a plated hole of the
-        // fill's own net (drilled out of the copper it joins) is a short
-        // or a drill through copper.
-        for hole in pad.holes() {
-            if !hole.plated || other(pad.net) {
-                objects.push((
-                    ObjectRef::Pad {
-                        instance: pad.instance,
-                        pad: pad.pad.id,
-                    },
-                    hole.shape.flatten(FILL_CHORD_MM),
-                    0.0,
-                ));
-            }
+    // Holes pass through every layer: any but a plated hole of the fill's
+    // own net (drilled out of the copper it joins) is a short or a drill
+    // through copper. Via drills lie inside their vias' copper.
+    for hole in physical::holes_of(project, &ctx.pads) {
+        if matches!(hole.owner, HoleOwner::Via(_)) || (hole.plated && !other(hole.net)) {
+            continue;
         }
-        if pad.on_copper(fill.layer) && other(pad.net) {
-            let gap = ctx.required(fill, CopperObject::Pad, pad.net);
-            objects.push((
-                ObjectRef::Pad {
-                    instance: pad.instance,
-                    pad: pad.pad.id,
-                },
-                pad.outline().flatten(FILL_CHORD_MM),
-                gap,
-            ));
+        let ring = match hole.feature {
+            HoleFeature::Round { at, diameter } => geom::circle(at, diameter / 2.0, FILL_CHORD_MM),
+            HoleFeature::Slot { from, to, width } => {
+                geom::stadium(from, to, width / 2.0, FILL_CHORD_MM)
+            }
+        };
+        objects.push((hole.object(), ring, 0.0));
+    }
+    // Every land: pads with or without a net, and mounting-hole washers.
+    for land in physical::lands_of(project, &ctx.pads) {
+        if land.on(fill.layer) && other(land.net()) {
+            let gap = ctx.required(fill, CopperObject::Pad, land.net());
+            objects.push((land.object(), land.outline.flatten(FILL_CHORD_MM), gap));
         }
     }
     for v in &project.vias {
@@ -209,7 +208,11 @@ fn clearance(ctx: &mut Ctx<'_>, fill: &Fill, label: &str, out: &mut Vec<Finding>
             continue;
         }
         let n = ring.len();
-        let inside = ring.first().and_then(|p| index.region_at(*p)).is_some();
+        let inside = ring.first().and_then(|p| index.region_at(*p)).is_some()
+            || regions
+                .iter()
+                .filter_map(|r| r.first().and_then(|outer| outer.first()))
+                .any(|p| polygon_contains(&ring, *p));
         let touches = inside
             || (0..n)
                 .any(|i| index.segment_distance(ring[i], ring[(i + 1) % n], FILL_CHORD_MM) <= 0.0);
@@ -218,10 +221,15 @@ fn clearance(ctx: &mut Ctx<'_>, fill: &Fill, label: &str, out: &mut Vec<Finding>
             if hits > 256 {
                 break;
             }
+            let what = if stale {
+                format!("{label} (stale)")
+            } else {
+                label.to_owned()
+            };
             out.push(Finding::new(
                 "fill.clearance",
                 format!(
-                    "Overlap: {label} (stale) / {}; refill it",
+                    "Overlap: {what} / {}; refill it",
                     describe(project, &object)
                 ),
                 vec![me, object],
@@ -294,6 +302,7 @@ fn describe(project: &Project, object: &ObjectRef) -> String {
                 .instance(instance)
                 .map_or("component", |i| i.designator.as_str())
         ),
+        ObjectRef::Board => "a mounting hole or board slot".into(),
         _ => "copper".into(),
     }
 }

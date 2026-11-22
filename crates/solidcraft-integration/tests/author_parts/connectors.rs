@@ -244,7 +244,7 @@ pub fn finish(mut s: Session) -> Vec<u8> {
         .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
         .collect();
     assert!(errors.is_empty(), "{errors:?}");
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 // ---------------------------------------------------------------------

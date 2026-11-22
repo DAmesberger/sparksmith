@@ -328,6 +328,7 @@ fn example_boards_mesh_as_their_plan() {
                 pads: Vec::new(),
                 tracks: Vec::new(),
                 vias: Vec::new(),
+                washers: Vec::new(),
                 laminate: slabs,
             };
             let start = Instant::now();

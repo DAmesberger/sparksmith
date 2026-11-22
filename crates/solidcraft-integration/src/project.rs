@@ -25,7 +25,7 @@ use solidcraft_viewport::surface::OpaqueSurface;
 use sparksmith_core::geometry::{Transform3, cos_sin};
 use sparksmith_core::library::model3d::{LibraryModel, ModelDefinition as LibraryModelDefinition};
 use sparksmith_core::library::{
-    ModelPlacement, PackageDefinition, PackageModel, Pad, PadCopper, PadDefaults, PadShape,
+    ModelPlacement, PackageDefinition, PackageModel, Pad, PadCopper, PadShape,
 };
 use sparksmith_core::{
     CopperLayer, Fabrication, Id, Layer, PadId, Placement, Point, Project, Stackup, instances,
@@ -872,8 +872,9 @@ struct PlacedPad<'a> {
     placed: layout::PlacedPad,
     placement: &'a Placement,
     designator: &'a str,
-    /// The footprint's mask and paste defaults.
-    defaults: PadDefaults,
+    /// The board's effective mask expansion, which a pad's inherited mask
+    /// rule takes ([`layout::PlacedPad::mask_expansion`]).
+    mask_expansion: f64,
     /// The pad origin on the board.
     origin: Point,
 }
@@ -996,7 +997,7 @@ fn placed_pads(project: &Project) -> Result<Vec<PlacedPad<'_>>> {
             *slot = Some(instance);
         }
     }
-    let mut defaults_of = std::collections::HashMap::new();
+    let mask_expansion = project.rules.effective().mask.expansion;
     placed
         .into_iter()
         .map(|placed| {
@@ -1005,25 +1006,13 @@ fn placed_pads(project: &Project) -> Result<Vec<PlacedPad<'_>>> {
                 .copied()
                 .ok_or_else(|| Error::Invalid("missing pad placement".into()))?;
             let instance = instance.ok_or_else(|| Error::Invalid("missing pad instance".into()))?;
-            let defaults = match defaults_of.get(&instance.id) {
-                Some(defaults) => *defaults,
-                None => {
-                    let defaults = instances::resolve(&project.library, instance)
-                        .ok()
-                        .and_then(|r| r.physical)
-                        .map(|p| p.footprint.definition.defaults)
-                        .ok_or_else(|| Error::Invalid("missing pad definition".into()))?;
-                    defaults_of.insert(instance.id, defaults);
-                    defaults
-                }
-            };
             let designator = instance.designator.as_str();
             let origin = placed.transform.apply(placed.pad.position());
             Ok(PlacedPad {
                 placed,
                 placement,
                 designator,
-                defaults,
+                mask_expansion,
                 origin,
             })
         })
@@ -1975,6 +1964,7 @@ fn build_on(mut b: Builder, project: &Project) -> Result<NativeModel> {
         // The laminate last: its sketches hold every drill, which each
         // command after it would otherwise read again.
         b.native.activate(substrate.component)?;
+        washers(&mut b, project, &plan.washers)?;
         laminate(&mut b, project, &plan.laminate)?;
         // Every joint goes in once the parts are built, solved together (one
         // by one, each would solve all the joints made before it); a copy of
@@ -2015,7 +2005,10 @@ fn pad_lands(pad: &PlacedPad<'_>, pick: u64, lands: &mut Vec<Land>) -> Result<Op
         .filter(|l| pad.placed.on_copper(*l))
         .collect();
     let shape = pad_outline::shape_contour(&local.shape, 0.0);
-    let mask = pad_outline::mask_opening(local, &pad.defaults);
+    let mask = pad
+        .placed
+        .mask_expansion(pad.mask_expansion)
+        .and_then(|by| pad_outline::shape_contour(&local.shape, by));
     let drills: Vec<Vec<Point>> = pad
         .drills()
         .iter()
@@ -2247,6 +2240,35 @@ fn via_style(
         origin: None,
         first: created.occurrence,
     })
+}
+
+/// The washers of plated mounting holes, in the board's own component
+/// (the mounting holes are its sketch's), each ring on its layer as a via
+/// ring stands: outer rings on the laminate's faces, inner rings in the
+/// circle the foil level leaves for them.
+fn washers(b: &mut Builder, project: &Project, planned: &[plan::WasherPlan]) -> Result<()> {
+    for body in planned.iter().flat_map(|w| &w.bodies) {
+        let plan::Origin::Washer { layer, .. } = body.source else {
+            return Err(Error::Verification(format!(
+                "a washer's plan holds body {}",
+                body.name
+            )));
+        };
+        let height = copper_param(layer);
+        let offset: Expr = match layer {
+            CopperLayer::Top => "board_thickness".into(),
+            CopperLayer::Bottom => format!("- {height}").into(),
+            CopperLayer::Inner(_) => inner_base(&project.stackup, layer)?.into(),
+        };
+        b.native.profile_body(ProfileBody {
+            name: &body.name,
+            offset,
+            contours: &body.loops,
+            height: height.as_str().into(),
+        })?;
+        b.record(&body.name, BodyKind::PadCopper)?;
+    }
+    Ok(())
 }
 
 /// A length in body and component names: `0.3` → `0p3`.
