@@ -443,14 +443,12 @@ pub(super) fn make(
             ));
         }
     };
-    generate.model = Some(
-        crate::session::generated_models::generated_model(
-            engine,
-            &made.generation,
-            Some(&candidate.bundle),
-        )
-        .map_err(|e| e.to_string())?,
-    );
+    generate.model = crate::session::generated_models::model_for(
+        engine,
+        &made.generation,
+        Some(&candidate.bundle),
+    )
+    .map_err(|e| e.to_string())?;
     // Made on a fork: kept only when the part's lands are the source's.
     let mut staged = engine.fork();
     let outcome = staged

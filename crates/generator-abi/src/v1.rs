@@ -876,7 +876,8 @@ pub struct PackageGeometry {
     pub seating_nm: i64,
     /// Where each terminal touches the board.
     pub leads: Vec<Lead>,
-    /// The package terminal that is pin 1.
+    /// The package terminal that is pin 1; empty for a package without
+    /// terminals (a fiducial).
     pub pin1: String,
 }
 
@@ -906,7 +907,8 @@ pub struct Footprint {
 }
 
 /// A copper keep-out of the host board under a footprint: a closed polygon
-/// in the footprint frame, applying to every copper layer.
+/// in the footprint frame, applying to every copper layer unless `side`
+/// names one outer layer.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Keepout {
@@ -914,6 +916,11 @@ pub struct Keepout {
     pub name: String,
     /// The outline, at least three points, closed back to the first.
     pub outline: Vec<Point>,
+    /// Only this outer layer, as a pad's side says it: `top` the side the
+    /// part is placed on, `bottom` the other (a fiducial's clear area).
+    /// Every copper layer when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side: Option<Side>,
 }
 
 /// A pad.
@@ -1091,6 +1098,10 @@ pub enum Model {
         asset: String,
         values: BTreeMap<String, ParamValue>,
     },
+    /// No body of its own: the part is complete as its lands and markings
+    /// (a fiducial, whose copper the board draws). The package's model is
+    /// no body, which the 3D view and the exact export place nothing for.
+    NoBody,
 }
 
 /// A derived field value.

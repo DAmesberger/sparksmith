@@ -91,6 +91,20 @@ fn find(
     }
 }
 
+/// What `library.generate` takes as `model` for `generation`: nothing for
+/// a part its generator makes without a body (`Model::NoBody`), else its
+/// part file evaluated ([`generated_model`]).
+pub(crate) fn model_for(
+    engine: &Engine,
+    generation: &v1::Generation,
+    bundle: Option<&GeneratorBundle>,
+) -> Result<Option<GeneratedModel>> {
+    if matches!(generation.model, Some(v1::Model::NoBody)) {
+        return Ok(None);
+    }
+    generated_model(engine, generation, bundle).map(Some)
+}
+
 /// The model of `generation` for `library.generate`: its part file
 /// evaluated at its values and checked against the generation.
 pub(crate) fn generated_model(

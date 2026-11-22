@@ -427,6 +427,23 @@
         "value": 0.2,
         "source": "Sparksmith's land estimator margin (an original rule of thumb, not a JLCPCB value); the estimators do not read profiles yet."
       },
+      "fiducial_count_min": {
+        "value": 3,
+        "source": "JLCPCB Help Center, \"How to Add Edge Rails and Fiducials for PCB Assembly Orders\" (https://jlcpcb.com/help/article/how-to-add-edge-rails-fiducials-for-pcb-assembly-order, last updated 2026-09-09, read 2026-11-21): \"Edge rails and fiducials are required for standard PCB assembly at JLCPCB.\" and \"Three to four fiducial markers should be placed along the board edges to ensure optimal placement accuracy.\" Per side: \"For a double-sided SMT assembly, you must have a set of global fiducials on both the top and bottom sides of the board.\" (JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21)). Checked on each side that carries surface-mount parts; boards JLCPCB does not assemble need none.",
+        "cases": [
+          {
+            "when": {
+              "limits": "minimum"
+            },
+            "value": 2,
+            "source": "JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21): \"A minimum of two, but three fiducial marks are strongly recommended.\""
+          }
+        ]
+      },
+      "fiducials_asymmetric": {
+        "value": true,
+        "source": "JLCPCB blog, \"Fiducial Marks in PCB and SMT Assembly\" (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21): \"They should be placed in an \"L\" configuration\" and, for round boards, \"in a non-symmetrical, non-linear \"L\" pattern.\" Checked as: the side's fiducials may not map onto themselves under a half turn about the board outline's centre."
+      },
       "fill_clearance": {
         "value": 0.2,
         "source": "Profile author's choice (a default, not a JLCPCB limit)."

@@ -152,6 +152,6 @@ Format tests check attributes, polarities, D-code reuse, macro text, escapes, de
 - **Holes:** blind and buried vias are not modelled, so there are no drill-pair files. A plated board slot that is not straight is refused by the check.
 - **Legend:** it is not clipped at mask openings or the outline (the fabricator clips; the check warns). The desktop's Designator section moves the silkscreen designator only; the command takes any footprint text.
 - **Assembly variants:** the assembly files and drawing follow the active variant ([assembly variants](assembly-variants.md)); one export writes one variant.
-- **Profile check:** the desktop dialog keys its check on the profile's id: a user profile file changed while the dialog is open is read fresh at the export, not in the shown check. The check is computed again when the document or the check settings (Settings → impedance tolerance) change.
+- **Profile check:** the desktop dialog keys its check on the document, the check settings (Settings → impedance tolerance) and the picked profile's content. It reads the user's profiles when it opens and again at Export: a profile file edited since the check refuses that Export ("The fab profile's file changed since the check"), and the dialog checks the new rules first.
 - **Drawings:** text widths use Helvetica's metrics; bold text is measured with the regular widths.
 - **Desktop dialog:** the pre-flight time on large boards was not measured; the check runs on a worker. Cancelling during an export closes the dialog while the worker finishes writing.

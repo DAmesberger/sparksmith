@@ -88,12 +88,12 @@ fn profile_region(file: &GerberFile, grid: &Bitmap) -> Fallible<Bitmap> {
 /// The XOR limit for a layer: an area band 2 µm wide along every edge
 /// (curves are flattened within 0.5 µm by both renderings, and a pixel
 /// centre falls in the band with that probability), at least 4 pixels.
-fn allowed(c: &Comparison, perimeter_mm: f64) -> f64 {
+pub(super) fn allowed(c: &Comparison, perimeter_mm: f64) -> f64 {
     (perimeter_mm * 0.002).max(4.0 * c.pixel * c.pixel)
 }
 
 /// A rough perimeter of a rendering's dark area, from its edge pixels.
-fn perimeter(b: &Bitmap) -> f64 {
+pub(super) fn perimeter(b: &Bitmap) -> f64 {
     let (w, h) = (b.width, b.height);
     let mut edges = 0u64;
     for j in 0..h {

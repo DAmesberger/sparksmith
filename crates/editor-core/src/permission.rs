@@ -22,7 +22,7 @@ pub use sparksmith_generator_abi::surface::{
 pub const MODULES: &[ModuleDecl] = &[
     module_at(
         "project",
-        (7, 16),
+        (7, 17),
         "Project",
         "The open design: inspect, properties, undo, redo, turns, bill of materials, assembly variants.",
     ),
@@ -46,13 +46,13 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "rules",
-        (2, 2),
+        (2, 3),
         "Rules",
         "Design rules, fab profiles, net classes and impedance.",
     ),
     module_at(
         "library",
-        (3, 15),
+        (3, 16),
         "Library",
         "Component definitions, drafts, publishing, folders, updates and pinout import.",
     ),

@@ -6660,6 +6660,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-gen-fiducial"
+version = "0.1.0"
+dependencies = [
+ "sparksmith-generator-sdk",
+]
+
+[[package]]
 name = "sparksmith-gen-fixture"
 version = "0.1.0"
 dependencies = [

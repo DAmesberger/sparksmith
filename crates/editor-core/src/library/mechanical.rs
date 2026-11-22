@@ -399,15 +399,36 @@ pub fn implemented_mechanically(library: &Library, component: &ComponentDefiniti
         })
 }
 
-/// Whether instances of `component` belong in the BOM (true for every
-/// component that is not a mechanical part excluded from it).
-pub fn in_bom(library: &Library, component: ComponentRef) -> bool {
-    mechanical_of(library, component).is_none_or(|m| m.bom)
+/// Whether `component` is copper only, with nothing to order or place: no
+/// terminals, and every implementation's package has no body (a fiducial,
+/// a logo: the board's own copper is all of it).
+pub fn copper_only(library: &Library, component: ComponentRef) -> bool {
+    let Some(published) = library.component(component) else {
+        return false;
+    };
+    let definition = &published.definition;
+    definition.terminals.is_empty()
+        && !definition.implementations.is_empty()
+        && definition.implementations.iter().all(|b| {
+            library
+                .binding(*b)
+                .and_then(|b| library.package(b.definition.package))
+                .is_some_and(|p| matches!(p.definition.model, PackageModel::NoBody))
+        })
 }
 
-/// Whether instances of `component` belong in pick-and-place.
+/// Whether instances of `component` belong in the BOM (true for every
+/// component that is not copper only ([`copper_only`]) or a mechanical
+/// part excluded from it).
+pub fn in_bom(library: &Library, component: ComponentRef) -> bool {
+    !copper_only(library, component) && mechanical_of(library, component).is_none_or(|m| m.bom)
+}
+
+/// Whether instances of `component` belong in pick-and-place (not copper
+/// only, and not a mechanical part excluded from it).
 pub fn in_pick_and_place(library: &Library, component: ComponentRef) -> bool {
-    mechanical_of(library, component).is_none_or(|m| m.pick_and_place)
+    !copper_only(library, component)
+        && mechanical_of(library, component).is_none_or(|m| m.pick_and_place)
 }
 
 /// The Model `spec` uses: an existing revision, or a new one to publish

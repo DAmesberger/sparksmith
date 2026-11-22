@@ -1,5 +1,6 @@
-//! Obstacle queries: every other net's copper (tracks, vias and pads)
-//! with its layers and exact outline, filed in a grid, and the clearance
+//! Obstacle queries: every other net's copper (tracks, vias and the
+//! board's lands, [`super::physical::lands`]: pads with or without a net
+//! and mounting-hole washers) with its layers and exact outline, filed in a grid, and the clearance
 //! test a proposed track must pass. The length tuner (`meander`) asks it
 //! for room; a future push-and-shove router asks the same index which
 //! copper a proposed segment collides with (`hits`) before it moves that
@@ -20,14 +21,15 @@ use crate::rules::CopperObject;
 pub enum ObstacleKind {
     Track(Id),
     Via(Id),
-    /// A placed pad: (instance, index in `layout::pads`).
-    Pad(Id, usize),
+    /// A land: its index in [`super::physical::lands`].
+    Land(usize),
 }
 
-/// One piece of copper of some net.
+/// One piece of copper, of a net or of none (a fiducial, a tab, an
+/// unconnected pin, a washer: every route keeps clear of it).
 #[derive(Clone, Debug)]
 pub struct Obstacle {
-    pub net: Id,
+    pub net: Option<Id>,
     pub kind: ObstacleKind,
     /// The copper layers it occupies.
     pub layers: Vec<CopperLayer>,
@@ -39,7 +41,7 @@ impl Obstacle {
         match self.kind {
             ObstacleKind::Track(_) => CopperObject::Track,
             ObstacleKind::Via(_) => CopperObject::Via,
-            ObstacleKind::Pad(..) => CopperObject::Pad,
+            ObstacleKind::Land(_) => CopperObject::Pad,
         }
     }
 }
@@ -57,7 +59,7 @@ pub struct Obstacles {
 }
 
 impl Obstacles {
-    /// Every track, via and connected pad of `project`.
+    /// Every track, via and land of `project`.
     pub fn of(project: &Project) -> Self {
         let layers = project.stackup.layers();
         let mut items = Vec::new();
@@ -65,7 +67,7 @@ impl Obstacles {
         let mut objects = Vec::new();
         for track in &project.tracks {
             items.push(Obstacle {
-                net: track.net,
+                net: Some(track.net),
                 kind: ObstacleKind::Track(track.id),
                 layers: vec![track.layer],
                 ring: CopperRing::of_track(track),
@@ -75,7 +77,7 @@ impl Obstacles {
         }
         for via in &project.vias {
             items.push(Obstacle {
-                net: via.net,
+                net: Some(via.net),
                 kind: ObstacleKind::Via(via.id),
                 layers: layers
                     .iter()
@@ -87,28 +89,17 @@ impl Obstacles {
             labels.push(format!("a via on {}", project.net_name(via.net)));
             objects.push(ObjectRef::Via { id: via.id });
         }
-        let names = super::pad_labels(project);
-        for (index, pad) in super::pads(project).into_iter().enumerate() {
-            let label = names
-                .get(&(pad.instance, pad.pad))
-                .cloned()
-                .unwrap_or_else(|| pad.pad.to_string());
-            let designator = project
-                .instance(pad.instance)
-                .map_or("a part", |i| i.designator.as_str());
-            labels.push(format!(
-                "{designator} pad {label} ({})",
-                project.net_name(pad.net)
-            ));
-            objects.push(ObjectRef::Pad {
-                instance: pad.instance,
-                pad: pad.pad,
+        for (index, land) in super::physical::lands(project).into_iter().enumerate() {
+            labels.push(match land.net() {
+                Some(net) => format!("{} ({})", land.name, project.net_name(net)),
+                None => land.name.clone(),
             });
+            objects.push(land.object());
             items.push(Obstacle {
-                net: pad.net,
-                kind: ObstacleKind::Pad(pad.instance, index),
-                layers: layers.iter().copied().filter(|l| pad.on(*l)).collect(),
-                ring: CopperRing::of_pad(&pad),
+                net: land.net(),
+                kind: ObstacleKind::Land(index),
+                layers: layers.iter().copied().filter(|l| land.on(*l)).collect(),
+                ring: land.ring,
             });
         }
         let reach = copper::check_reach(&BoardRules::of(project));
@@ -172,16 +163,11 @@ impl Obstacles {
         near.into_iter()
             .filter(|k| {
                 self.items.get(*k).is_some_and(|o| {
-                    o.net != net
+                    o.net != Some(net)
                         && o.layers.contains(&layer)
                         && ring.closer_than(
                             &o.ring,
-                            rules.clearance(
-                                CopperObject::Track,
-                                Some(net),
-                                o.object(),
-                                Some(o.net),
-                            ),
+                            rules.clearance(CopperObject::Track, Some(net), o.object(), o.net),
                         )
                 })
             })
@@ -203,7 +189,7 @@ impl Obstacles {
     ) -> Option<String> {
         let first = *self.hits(rules, net, layer, a, b, width).first()?;
         let o = self.items.get(first)?;
-        let need = rules.clearance_need(CopperObject::Track, Some(net), o.object(), Some(o.net));
+        let need = rules.clearance_need(CopperObject::Track, Some(net), o.object(), o.net);
         Some(format!(
             "Too close to {}: {}",
             self.labels.get(first).map_or("copper", String::as_str),

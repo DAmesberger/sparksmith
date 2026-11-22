@@ -991,6 +991,14 @@
         "value": 0.2,
         "source": "Sparksmith's land estimator margin (an original rule of thumb, not a PCBWay value); the estimators do not read profiles yet."
       },
+      "fiducial_count_min": {
+        "value": 3,
+        "source": "PCBWay, \"Design Instruction - PCB Panelization, Breakaway Rails, Fiducial Marks, Tooling Holes\" (https://pcbway.com/helpcenter/design_instruction/PCB_Panelization__Breakaway_Rails__Fiducial_Marks__Tooling_Holes.html, last updated 2024-05-17, read 2026-11-21): \"there should be at least three fiducial marks arranged in an L shape\"; \"as long as there are surface-mount devices on the PCB, fiducial marks should be placed\"; \"If components are populated on both sides, each side should have fiducial marks.\" Checked on each side that carries surface-mount parts."
+      },
+      "fiducials_asymmetric": {
+        "value": true,
+        "source": "PCBWay, \"Design Instruction - PCB Panelization, Breakaway Rails, Fiducial Marks, Tooling Holes\" (https://pcbway.com/helpcenter/design_instruction/PCB_Panelization__Breakaway_Rails__Fiducial_Marks__Tooling_Holes.html, last updated 2024-05-17, read 2026-11-21): \"with the diagonal fiducial marks asymmetrical about the center\"; \"If four fiducial marks are desired, they can be symmetrically arranged around the center at first, and then shift one mark\". Checked as: the side's fiducials may not map onto themselves under a half turn about the board outline's centre."
+      },
       "fill_clearance": {
         "value": 0.2,
         "source": "Profile author's choice (a default, not a PCBWay limit)."

@@ -13,8 +13,9 @@ use crate::layout::connectivity::keeps_joint;
 use crate::layout::grid::BoundsGrid;
 use crate::layout::limits::BoardRules;
 use crate::layout::obstacles::{ObstacleKind, Obstacles};
+use crate::layout::physical::{self, HoleOwner};
 use crate::layout::posture::Posture;
-use crate::layout::{CURVE_SLACK_MM, CopperRing, placed_keepouts, placed_pads};
+use crate::layout::{CURVE_SLACK_MM, CopperRing, placed_keepouts};
 use crate::model::{BoardShape, CopperLayer, Keepout, Project, Track, Via};
 use crate::rules::CopperObject;
 use crate::rules::signal::{DiffPair, DiffPairId};
@@ -113,40 +114,24 @@ struct Hole {
 }
 
 impl Hole {
+    /// The board's pad holes and mounting holes ([`physical::holes`]);
+    /// via drills keep their rules as part of their via, board slots as
+    /// cutouts.
     fn all(project: &Project) -> Vec<Self> {
-        let labels = crate::layout::pad_labels(project);
-        let mut out = Vec::new();
-        for pad in placed_pads(project) {
-            let number = labels
-                .get(&(pad.instance, pad.pad.id))
-                .cloned()
-                .unwrap_or_else(|| pad.pad.number.clone());
-            let designator = project
-                .instance(pad.instance)
-                .map_or("a part", |i| i.designator.as_str());
-            for hole in pad.holes() {
-                out.push(Self {
-                    ring: CopperRing::of_shape(&hole.shape, true),
-                    kind: CopperObject::hole(hole.plated),
-                    net: pad.net.filter(|_| hole.plated),
-                    name: format!("{designator} pad {number}"),
-                    object: ObjectRef::Pad {
-                        instance: pad.instance,
-                        pad: pad.pad.id,
-                    },
-                });
-            }
-        }
-        for mount in &project.board().holes {
-            out.push(Self {
-                ring: CopperRing::of_circle(mount.at, mount.drill),
-                kind: CopperObject::hole(mount.plated),
-                net: None,
-                name: "a mounting hole".into(),
-                object: ObjectRef::Board,
-            });
-        }
-        out
+        physical::holes(project)
+            .into_iter()
+            .filter(|h| matches!(h.owner, HoleOwner::Pad { .. } | HoleOwner::MountingHole(_)))
+            .map(|h| Self {
+                ring: h.feature.ring(),
+                kind: CopperObject::hole(h.plated),
+                net: h.net,
+                object: h.object(),
+                name: match h.owner {
+                    HoleOwner::MountingHole(_) => "a mounting hole".into(),
+                    _ => h.name,
+                },
+            })
+            .collect()
     }
 }
 
@@ -422,7 +407,10 @@ impl<'a> Ctx<'a> {
             let Some(o) = items.get(k) else {
                 continue;
             };
-            if state.hidden.contains(&k) || !foreign(o.net) || !shares(&probe.layers, &o.layers) {
+            if state.hidden.contains(&k)
+                || o.net.is_some_and(|n| !foreign(n))
+                || !shares(&probe.layers, &o.layers)
+            {
                 continue;
             }
             let drill = self.base_via(k).map(CopperRing::of_drill);
@@ -430,7 +418,7 @@ impl<'a> Ctx<'a> {
                 && push(
                     Hit {
                         target: Target::Base(k),
-                        net: Some(o.net),
+                        net: o.net,
                     },
                     out,
                 )
@@ -549,7 +537,7 @@ impl<'a> Ctx<'a> {
                 &other.ring,
                 other.drill.as_ref(),
                 other.object,
-                other.net,
+                Some(other.net),
             )
     }
 
@@ -562,10 +550,10 @@ impl<'a> Ctx<'a> {
         ring: &CopperRing,
         drill: Option<&CopperRing>,
         object: CopperObject,
-        net: Id,
+        net: Option<Id>,
     ) -> bool {
         let hole = CopperObject::ViaHole;
-        let gap = |a: CopperObject, b: CopperObject| self.clearance(a, probe.net, b, Some(net));
+        let gap = |a: CopperObject, b: CopperObject| self.clearance(a, probe.net, b, net);
         probe.ring.closer_than(ring, gap(probe.object, object))
             || drill.is_some_and(|d| probe.ring.closer_than(d, gap(probe.object, hole)))
             || probe.drill.as_ref().is_some_and(|own| {
@@ -626,7 +614,7 @@ impl<'a> Ctx<'a> {
                         Some(&CopperRing::of_drill(v)),
                     );
                 }
-                let need = self.clearance(object, net, o.object(), Some(o.net));
+                let need = self.clearance(object, net, o.object(), o.net);
                 Hull::of_points(&o.ring.ring, o.ring.slack + need + grow + MARGIN, facets)
             }
             Target::Line(l, s) => {
@@ -734,6 +722,56 @@ impl<'a> Ctx<'a> {
             Target::Base(k) => self.index.obstacles.object(k),
             Target::Hole(i) => self.index.holes.get(i).map(|h| h.object),
             _ => None,
+        }
+    }
+
+    /// Why the committed board refuses `probe` for `hit`, with the rule
+    /// it misses: "Too close to a via on GND: needs 0.2 mm (Fine 4/4)",
+    /// "Crosses keepout Antenna".
+    pub fn refusal(&self, probe: &Piece, hit: &Hit) -> String {
+        let need = |object: CopperObject, net: Option<Id>| {
+            self.rules
+                .clearance_need(probe.object, Some(probe.net), object, net)
+                .short()
+        };
+        match hit.target {
+            Target::Base(k) => match self.index.obstacles.items().get(k) {
+                Some(o) => format!(
+                    "Too close to {}: {}",
+                    self.index.obstacles.label(k),
+                    need(o.object(), o.net)
+                ),
+                None => self.describe(hit),
+            },
+            Target::Hole(i) => match self.index.holes.get(i) {
+                Some(h) => format!(
+                    "Too close to the hole of {}: {}",
+                    h.name,
+                    need(h.kind, h.net)
+                ),
+                None => self.describe(hit),
+            },
+            Target::Keepout(i) => {
+                let name = self
+                    .index
+                    .keepouts
+                    .get(i)
+                    .map_or("", |(k, _)| k.name.as_str());
+                if name.is_empty() {
+                    "Crosses a keepout".into()
+                } else {
+                    format!("Crosses keepout {name}")
+                }
+            }
+            Target::Cutout(_) => format!(
+                "Too close to a cutout: {}",
+                need(CopperObject::BoardEdge, None)
+            ),
+            Target::Edge => format!(
+                "Too close to the board edge: {}",
+                need(CopperObject::BoardEdge, None)
+            ),
+            _ => self.describe(hit),
         }
     }
 

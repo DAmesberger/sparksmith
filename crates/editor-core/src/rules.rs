@@ -79,6 +79,9 @@ impl ProfileChoice {
 
 /// Largest length rule, in mm.
 pub const MAX_RULE_MM: f64 = 25.0;
+/// Bound of the least fiducial count a profile may ask for (an input
+/// bound, not an assembler's limit).
+pub const MAX_FIDUCIAL_COUNT: u32 = 64;
 /// The range `board.outline_fit` takes, mm: finer fits need more arcs than
 /// an outline holds, coarser ones would move the board edge visibly.
 pub const OUTLINE_FIT_RANGE_MM: std::ops::RangeInclusive<f64> = 0.001..=1.0;
@@ -385,6 +388,31 @@ impl EtchRules {
     }
 }
 
+/// The assembler's fiducial rules (`board.fiducials_too_few`,
+/// `board.fiducials_symmetric`): what its pick-and-place machines need to
+/// find the board. Optional in a profile, since a fabricator that does not
+/// assemble publishes none; unset means not checked.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct AssemblyRules {
+    /// Least number of fiducials on each board side that carries surface
+    /// parts; `None` (or 0): not checked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fiducial_count_min: Option<u32>,
+    /// Whether a side's fiducials must not be symmetric about the board's
+    /// centre, so a board turned half round cannot be read as the right
+    /// way up; `None`: not checked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fiducials_asymmetric: Option<bool>,
+}
+
+impl AssemblyRules {
+    /// Neither rule is set (the default, left out of saved rules).
+    pub fn is_unset(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// Land-pattern estimator margins (original rules of thumb, not a
 /// land-pattern standard), read by `library::samples` and the footprint
 /// templates.
@@ -424,6 +452,8 @@ pub struct DesignRules {
     #[serde(default, skip_serializing_if = "EtchRules::is_unset")]
     pub etch: EtchRules,
     pub board: BoardRules,
+    #[serde(default, skip_serializing_if = "AssemblyRules::is_unset")]
+    pub assembly: AssemblyRules,
 }
 
 /// The board shape's rules.
@@ -498,6 +528,7 @@ impl DesignRules {
             },
             etch: EtchRules::default(),
             board: BoardRules { outline_fit: 0.0 },
+            assembly: AssemblyRules::default(),
         }
     }
 }
@@ -566,6 +597,7 @@ impl Default for DesignRules {
             },
             etch: EtchRules::default(),
             board: BoardRules { outline_fit: 0.01 },
+            assembly: AssemblyRules::default(),
         }
     }
 }
@@ -638,6 +670,8 @@ pub enum RuleKey {
     PairGapToleranceShare,
     NpthAnnularRingMin,
     ThermalAngleRound,
+    FiducialCountMin,
+    FiducialsAsymmetric,
 }
 
 /// A rule's value.
@@ -707,6 +741,8 @@ impl RuleKey {
             Self::SilkTextStrokeShare,
             Self::PairGapTolerance,
             Self::PairGapToleranceShare,
+            Self::FiducialCountMin,
+            Self::FiducialsAsymmetric,
         ]);
         keys
     }
@@ -730,12 +766,16 @@ impl RuleKey {
         Self::all().into_iter().find(|k| k.name() == name)
     }
 
-    /// Whether a profile may leave this key out. Only
-    /// [`Self::ThermalAngleRound`] may: without it, round pads and vias
-    /// take [`Self::ThermalAngle`] as every other pad does, as profiles
-    /// written before it was added say.
+    /// Whether a profile may leave this key out. [`Self::ThermalAngleRound`]
+    /// may: without it, round pads and vias take [`Self::ThermalAngle`] as
+    /// every other pad does, as profiles written before it was added say.
+    /// So may the assembly rules ([`AssemblyRules`]): a fabricator that
+    /// does not assemble boards publishes none, and they are not checked.
     pub fn optional(self) -> bool {
-        self == Self::ThermalAngleRound
+        matches!(
+            self,
+            Self::ThermalAngleRound | Self::FiducialCountMin | Self::FiducialsAsymmetric
+        )
     }
 
     /// Whether `rules` sets this key: every key but an optional one left
@@ -743,6 +783,8 @@ impl RuleKey {
     pub fn is_set(self, rules: &DesignRules) -> bool {
         match self {
             Self::ThermalAngleRound => rules.fill.thermal_angle_round.is_some(),
+            Self::FiducialCountMin => rules.assembly.fiducial_count_min.is_some(),
+            Self::FiducialsAsymmetric => rules.assembly.fiducials_asymmetric.is_some(),
             _ => true,
         }
     }
@@ -788,7 +830,9 @@ impl RuleKey {
             | Self::SilkTextStrokeShare => RuleGroup::Silkscreen,
             Self::PairGapTolerance | Self::PairGapToleranceShare => RuleGroup::Copper,
             Self::PasteReduction => RuleGroup::Paste,
-            Self::CourtyardClearance => RuleGroup::Placement,
+            Self::CourtyardClearance | Self::FiducialCountMin | Self::FiducialsAsymmetric => {
+                RuleGroup::Placement
+            }
             Self::FillClearance
             | Self::FillWidthMin
             | Self::ThermalSpokeWidth
@@ -854,6 +898,8 @@ impl RuleKey {
                 Self::SilkTextStrokeShare => "silkscreen text stroke share",
                 Self::PairGapTolerance => "min pair gap tolerance",
                 Self::PairGapToleranceShare => "pair gap tolerance share",
+                Self::FiducialCountMin => "min fiducials per assembled side",
+                Self::FiducialsAsymmetric => "fiducials not symmetric",
                 Self::Clearance { .. } => "clearance",
             }
             .to_string(),
@@ -910,6 +956,8 @@ impl RuleKey {
             Self::SilkTextStrokeShare => Fraction(rules.silkscreen.text_stroke_share),
             Self::PairGapTolerance => Length(rules.pair.gap_tolerance),
             Self::PairGapToleranceShare => Fraction(rules.pair.gap_tolerance_share),
+            Self::FiducialCountMin => Count(rules.assembly.fiducial_count_min.unwrap_or(0)),
+            Self::FiducialsAsymmetric => Flag(rules.assembly.fiducials_asymmetric.unwrap_or(false)),
         }
     }
 
@@ -1014,6 +1062,16 @@ impl RuleKey {
                 rules.pair.gap_tolerance_share = f;
                 return Ok(());
             }
+            Self::FiducialCountMin => {
+                let Count(n) = value else { return wrong() };
+                rules.assembly.fiducial_count_min = Some(n);
+                return Ok(());
+            }
+            Self::FiducialsAsymmetric => {
+                let Flag(f) = value else { return wrong() };
+                rules.assembly.fiducials_asymmetric = Some(f);
+                return Ok(());
+            }
         };
         let Some(mm) = length(value) else {
             return wrong();
@@ -1056,6 +1114,7 @@ impl DesignRules {
                 }
                 RuleValue::Angle(d) => d.is_finite() && (-360.0..=360.0).contains(&d),
                 RuleValue::Ratio(r) => r.is_none_or(|r| r.is_finite() && (1.0..=50.0).contains(&r)),
+                RuleValue::Count(n) if key == RuleKey::FiducialCountMin => n <= MAX_FIDUCIAL_COUNT,
                 RuleValue::Count(n) => key != RuleKey::ThermalSpokeCount || (1..=8).contains(&n),
                 RuleValue::Flag(_) | RuleValue::Connection(_) => true,
             };

@@ -6,7 +6,7 @@
 use crate::{Error, Result};
 use sparksmith_core::Point;
 use sparksmith_core::geometry::Shape;
-use sparksmith_core::library::{Hole, HoleShape, Outline, Pad, PadDefaults, PadShape, Segment};
+use sparksmith_core::library::{Hole, HoleShape, Outline, PadShape, Segment};
 
 /// Plated barrel wall: copper plated onto a drilled hole's wall, 25 µm,
 /// IPC-6012's least average hole-wall copper for class 3 (class 2 asks
@@ -399,10 +399,6 @@ pub fn plated_drill_radius(finished: f64) -> f64 {
 
 /// The solder-mask opening of a pad in the pad frame, or `None` when the
 /// pad is tented.
-pub fn mask_opening(pad: &Pad, defaults: &PadDefaults) -> Option<Contour> {
-    shape_contour(&pad.shape, pad.mask_expansion(defaults)?)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

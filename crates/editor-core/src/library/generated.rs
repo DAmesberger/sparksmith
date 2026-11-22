@@ -958,6 +958,14 @@ pub fn check_model(
     generation: &v1::Generation,
     model: &PackageModel,
 ) -> Result<()> {
+    if expand::no_body(generation) {
+        return match model {
+            PackageModel::NoBody => Ok(()),
+            _ => Err(Error::Invalid(
+                "generated.model: its generator makes the package without a body, but it has a 3D model".into(),
+            )),
+        };
+    }
     let (asset, values) = expand::part_file(generation)?;
     let PackageModel::PartFile(part) = model else {
         return Err(Error::Invalid(

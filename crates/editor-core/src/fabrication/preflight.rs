@@ -13,7 +13,7 @@ use crate::ids::{DefinitionId, Id};
 use crate::issues::{IssueArea, IssueRow, Severity};
 use crate::layout::board_edge::{BoardEdges, EdgeLoopKind, EdgeVerdict};
 use crate::layout::{self, BoardDrawing, CopperRing, PlacedItem};
-use crate::library::{Drafts, MaskRule, PackageModel};
+use crate::library::{Drafts, PackageModel};
 use crate::model::board::CutoutKind;
 use crate::model::production::{MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Waiver};
 use crate::model::{CopperLayer, Layer, Project, Track};
@@ -594,10 +594,8 @@ fn silk_over_pads(project: &Project, items: &mut Vec<PreflightItem>) {
     let tol = 0.01;
     let mut openings: Vec<(Layer, Vec<Point>, Bounds)> = Vec::new();
     for pad in layout::placed_pads(project) {
-        let by = match pad.pad.mask {
-            MaskRule::Inherit => rules.mask.expansion,
-            MaskRule::Tented => continue,
-            MaskRule::Expansion(e) => e.to_mm_f64(),
+        let Some(by) = pad.mask_expansion(rules.mask.expansion) else {
+            continue;
         };
         let Some(shape) = pad.pad.shape.grown(by, tol) else {
             continue;

@@ -14,6 +14,7 @@
 mod compare;
 mod expected;
 mod identity;
+mod inventory;
 mod preflight;
 mod units;
 
