@@ -445,7 +445,7 @@ pub fn reconcile(project: &mut Project) -> Result<NetChanges> {
         .iter()
         .flat_map(|net| net.terminals.iter().map(move |t| (*t, net.id)))
         .collect();
-    let routed: BTreeSet<Id> = project.tracks.iter().map(|t| t.net).collect();
+    let routed = project.routed_nets();
     // Overlap of each old net with each group; the largest overlap is its home.
     let mut overlap: BTreeMap<Id, BTreeMap<usize, usize>> = BTreeMap::new();
     for (group, members) in groups.iter().enumerate() {

@@ -826,6 +826,17 @@ impl Project {
     pub fn via(&self, id: Id) -> Option<&Via> {
         by_id(&self.vias, id, |v| v.id)
     }
+    /// The nets that own copper: those with a track or a via. The one
+    /// answer to which net keeps its ID through a merge
+    /// (`nets::reconcile`) and which nets a direct edit may not
+    /// change (`schematic::protect_routed_nets`).
+    pub fn routed_nets(&self) -> std::collections::BTreeSet<Id> {
+        self.tracks
+            .iter()
+            .map(|t| t.net)
+            .chain(self.vias.iter().map(|v| v.net))
+            .collect()
+    }
     pub fn fill(&self, id: Id) -> Option<&Fill> {
         by_id(&self.fills, id, |f| f.id)
     }

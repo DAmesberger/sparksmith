@@ -678,7 +678,10 @@ fn a_copied_part_keeps_its_default_population() -> Result<()> {
         return Err(Error::Invalid(format!("{report:?}")));
     };
     assert_eq!(
-        engine.project().instance(copy.instance).map(|i| i.population),
+        engine
+            .project()
+            .instance(copy.instance)
+            .map(|i| i.population),
         Some(Population::NotPopulated)
     );
     sync_onto_board(engine)?;
