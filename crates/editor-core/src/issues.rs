@@ -220,6 +220,27 @@ pub fn report_on(
     report_in(project, drafts, scope, graph, settings)
 }
 
+/// Finding codes that block export and cannot be waived: an unrouted
+/// connection (a waiver would make an unfinished board look finished and
+/// export it as if complete: route it), a lost or inexact dimension
+/// reference (docs/board-sketch-references.md §5.5) and a loop through
+/// positions between the board and its linked design. A broken assembly
+/// reference blocks only publishing to the linked design
+/// (docs/architecture/board-interface.md, "Findings").
+pub const NO_WAIVER: &[&str] = &[
+    "board.unrouted",
+    layout::dimensions::REFERENCE_LOST,
+    layout::dimensions::REFERENCE_INEXACT,
+    crate::interface::findings::ASSEMBLY_CYCLE,
+    "rules.no_fab_profile",
+];
+
+/// Whether a finding of `code` may be waived (it is not in [`NO_WAIVER`]).
+/// A saved waiver of one that may not is ignored.
+pub fn can_waive(code: &str) -> bool {
+    !NO_WAIVER.contains(&code)
+}
+
 /// Every raw finding, with its own severity and wording, including findings
 /// waived for production. Production checks must gate and match waivers by
 /// individual identity before any display grouping can combine findings.
@@ -253,7 +274,7 @@ fn report_in(
         findings.retain(|finding| {
             project.production.is_default()
                 || finding.blocks.is_some()
-                || !crate::fabrication::preflight::can_waive(&finding.code)
+                || !can_waive(&finding.code)
                 || project
                     .production
                     .waiver(&crate::model::production::waiver_key(
