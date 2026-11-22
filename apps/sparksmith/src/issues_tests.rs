@@ -578,9 +578,8 @@ fn every_object_kind_locates_in_the_workspace_that_shows_it() -> Fallible<()> {
     )?;
     let project = engine.project();
     let track = project.tracks.first().ok_or("a track")?.id;
-    let pad = sparksmith_core::layout::BoardCopper::of(project)
-        .pads()
-        .iter()
+    let pad = sparksmith_core::layout::pads(project)
+        .into_iter()
         .find(|p| p.instance == r1)
         .ok_or("an R1 pad")?
         .pad;

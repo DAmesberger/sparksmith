@@ -18,8 +18,11 @@ use super::{PlacedPad, mm_slug, other, placed_pads, polygon, track_outline, with
 use crate::material::{self, BodyKind, Material};
 use crate::pad_outline::{self, Contour, FLATTEN_TOLERANCE_MM};
 use crate::{Error, Result};
+use sparksmith_core::geometry::Shape;
+use sparksmith_core::layout::physical::LandOwner;
 use sparksmith_core::library::PadCopper;
 use sparksmith_core::model::Fill;
+use sparksmith_core::model::board::BoardFeatureId;
 use sparksmith_core::model::fill::FilledRegion;
 use sparksmith_core::{CopperLayer, Fabrication, Id, Layer, PadId, Point, Project, ViaSpan};
 
@@ -123,6 +126,12 @@ pub enum Origin {
     Via {
         via: Id,
         part: ViaPart,
+    },
+    /// The copper ring of a plated mounting hole on one copper layer
+    /// (the board's physical inventory's washer).
+    Washer {
+        hole: BoardFeatureId,
+        layer: CopperLayer,
     },
     Fill {
         fill: Id,
@@ -258,6 +267,14 @@ pub struct ViaPlan {
     pub bodies: Vec<PlanBody>,
 }
 
+/// A plated mounting hole's washer: a ring on every copper layer, between
+/// the washer's diameter and the drilled hole, in board coordinates.
+#[derive(Clone, Debug)]
+pub struct WasherPlan {
+    pub hole: BoardFeatureId,
+    pub bodies: Vec<PlanBody>,
+}
+
 /// The board's flat bodies, grouped by the objects they come from in the
 /// order the native build makes them.
 #[derive(Clone, Debug)]
@@ -267,6 +284,7 @@ pub struct BoardPlan {
     pub pads: Vec<PadPlan>,
     pub tracks: Vec<TrackPlan>,
     pub vias: Vec<ViaPlan>,
+    pub washers: Vec<WasherPlan>,
     /// The slabs, top down.
     pub laminate: Vec<PlanBody>,
 }
@@ -280,6 +298,7 @@ impl BoardPlan {
             .chain(self.pads.iter().flat_map(|p| &p.bodies))
             .chain(self.tracks.iter().map(|t| &t.body))
             .chain(self.vias.iter().flat_map(|v| &v.bodies))
+            .chain(self.washers.iter().flat_map(|w| &w.bodies))
             .chain(&self.laminate)
     }
 
@@ -361,8 +380,59 @@ fn of_pads_copper(project: &Project, pads: &[PlacedPad<'_>], memo: &mut Memo) ->
             .collect::<Result<_>>()?,
         tracks: tracks(project)?,
         vias: vias(project)?,
+        washers: washers(project)?,
         laminate: Vec::new(),
     })
+}
+
+/// Each washer of the board's physical inventory
+/// ([`sparksmith_core::layout::physical::washers`]): a ring on every copper
+/// layer round the mounting hole's drill.
+fn washers(project: &Project) -> Result<Vec<WasherPlan>> {
+    let drills: std::collections::BTreeMap<_, f64> = project
+        .board()
+        .holes
+        .iter()
+        .map(|h| (h.id, h.drill))
+        .collect();
+    let layers = project.stackup.layers();
+    sparksmith_core::layout::physical::washers(project)
+        .into_iter()
+        .filter_map(|land| {
+            let LandOwner::Washer { hole } = land.owner else {
+                return None;
+            };
+            let Shape::Circle { center, radius } = land.outline else {
+                return None;
+            };
+            let bore = drills.get(&hole).copied().unwrap_or(0.0) / 2.0;
+            let bodies = layers
+                .iter()
+                .map(|layer| {
+                    PlanBody::new(
+                        format!("washer_{}_{}", hole.0, super::layer_slug(*layer)),
+                        BodyKind::PadCopper,
+                        Origin::Washer {
+                            hole,
+                            layer: *layer,
+                        },
+                        None,
+                        Some(*layer),
+                        span(project, *layer)?,
+                        Frame::BOARD,
+                        vec![
+                            Contour::Circle { center, radius },
+                            Contour::Circle {
+                                center,
+                                radius: bore,
+                            },
+                        ],
+                    )
+                })
+                .collect::<Result<Vec<_>>>();
+            Some(bodies.map(|bodies| WasherPlan { hole, bodies }))
+        })
+        .collect()
 }
 
 /// A copper layer's z span.
@@ -828,6 +898,8 @@ impl Origin {
             Self::Pad { instance, pad, .. } => Object::Pad(instance, pad),
             Self::Track(track) => Object::Track(track),
             Self::Via { via, .. } => Object::Via(via),
+            // A washer belongs to the board's sketch, which no pick names.
+            Self::Washer { .. } => Object::Board,
             Self::Fill { fill, .. } => Object::Fill(fill),
         }
     }
@@ -1207,7 +1279,7 @@ pub fn check(
             kind: body.kind,
             object: body.source.object(),
             layer: match body.source {
-                Origin::Via { .. } => None,
+                Origin::Via { .. } | Origin::Washer { .. } => None,
                 _ => body.layer,
             },
             min,

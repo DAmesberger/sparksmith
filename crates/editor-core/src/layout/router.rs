@@ -37,7 +37,7 @@ mod world;
 mod tests;
 
 use self::walk::Walker;
-use self::world::{Ctx, Hit, Piece, State};
+use self::world::{Ctx, Hit, Piece, State, Target};
 use super::pair::{self, PairStep, PairStepRequest};
 use super::posture::{self, Posture, StepRequest};
 use super::{RouteEditSet, RouteRequest, ViaMove, ViaRequest};
@@ -48,6 +48,49 @@ use crate::model::{CopperLayer, Project, Track, Via};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 pub use world::RouteIndex;
+
+/// The final check of a routing edit on the committed board: every track
+/// in `tracks` and via in `vias` against the obstacles, holes, keepouts
+/// and edges the router plans against ([`RouteIndex`]), so a plan an
+/// automation caller supplies meets the rules a planned step meets. The
+/// first rule broken refuses the edit, naming what is in the way. Board
+/// edge and cutout clearance stay a board-check finding (copper may run to
+/// a plated edge by intent); leaving the board is refused by validation.
+pub(crate) fn check_committed(
+    project: &Project,
+    tracks: &std::collections::BTreeSet<Id>,
+    vias: &std::collections::BTreeSet<Id>,
+) -> Result<()> {
+    if tracks.is_empty() && vias.is_empty() {
+        return Ok(());
+    }
+    let index = RouteIndex::of(project);
+    let ctx = Ctx::new(project, &index);
+    let state = State::default();
+    let stack = project.stackup.layers();
+    let pieces = project
+        .tracks
+        .iter()
+        .filter(|t| tracks.contains(&t.id))
+        .map(|t| Piece::track(t.net, t.layer, t.start, t.end, t.width))
+        .chain(
+            project
+                .vias
+                .iter()
+                .filter(|v| vias.contains(&v.id))
+                .map(|v| Piece::via(v, &stack)),
+        );
+    for piece in pieces {
+        if let Some(hit) = ctx
+            .hits(&state, &piece, &[piece.net])
+            .iter()
+            .find(|h| !matches!(h.target, Target::Edge | Target::Cutout(_)))
+        {
+            return Err(Error::Conflict(ctx.refusal(&piece, hit)));
+        }
+    }
+    Ok(())
+}
 
 /// What a route step does about other nets' copper in its way.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]

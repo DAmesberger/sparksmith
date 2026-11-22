@@ -2,71 +2,15 @@
 //! vias, pad holes and slots, pad-owned vias, board mounting holes and
 //! plated board slots. Non-plated board cutouts and slots are milled along
 //! the profile layer instead (`artwork`).
-use crate::geometry::{Point, distance};
 use crate::ids::Id;
-use crate::layout::{self};
-use crate::library::{HoleShape, Outline, Segment};
+use crate::layout;
+pub use crate::layout::physical::{HoleFeature, HoleFunction, stadium};
 use crate::model::Project;
-use crate::model::board::{CutoutKind, arc_geometry};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Diameters within this many mm share one tool.
 pub const TOOL_RESOLUTION_MM: f64 = 0.001;
-
-/// A round hit or a routed slot (round ends of `width`, centre line from
-/// `from` to `to`), board millimetres.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(rename_all = "snake_case", tag = "kind")]
-pub enum HoleFeature {
-    Round { at: Point, diameter: f64 },
-    Slot { from: Point, to: Point, width: f64 },
-}
-
-impl HoleFeature {
-    /// The tool diameter: the drill or the slot width.
-    pub fn diameter(&self) -> f64 {
-        match *self {
-            Self::Round { diameter, .. } => diameter,
-            Self::Slot { width, .. } => width,
-        }
-    }
-    pub fn is_slot(&self) -> bool {
-        matches!(self, Self::Slot { .. })
-    }
-}
-
-/// What a hole is for (the X2 `.AperFunction` of drill files).
-#[derive(
-    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum HoleFunction {
-    /// A board via (`ViaDrill`).
-    Via,
-    /// A component lead or pad hole, or a pad-owned via (`ComponentDrill`).
-    ComponentPin,
-    /// A board mounting hole or a footprint's bare hole (`MechanicalDrill`).
-    Mechanical,
-}
-
-impl HoleFunction {
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Via => "via",
-            Self::ComponentPin => "component",
-            Self::Mechanical => "mechanical",
-        }
-    }
-    /// The Gerber X2 aperture function of the hole.
-    pub fn aper_function(self) -> &'static str {
-        match self {
-            Self::Via => "ViaDrill",
-            Self::ComponentPin => "ComponentDrill",
-            Self::Mechanical => "MechanicalDrill",
-        }
-    }
-}
 
 /// One hole and what it belongs to.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -136,146 +80,30 @@ fn tool_key(hole: &DrillHole) -> (bool, i64, bool, HoleFunction) {
 }
 
 /// Every hole of `project` in a fixed order: vias, then pad holes in
-/// placement and pad order, then board mounting holes and plated slots.
+/// placement and pad order, then board mounting holes and plated slots:
+/// the board's physical holes ([`layout::physical::holes`]), which the
+/// checks measure.
 pub fn holes(project: &Project) -> Vec<DrillHole> {
-    let mut out: Vec<DrillHole> = project
-        .vias
-        .iter()
-        .map(|via| DrillHole {
-            feature: HoleFeature::Round {
-                at: via.position,
-                diameter: via.drill,
-            },
-            plated: true,
-            function: HoleFunction::Via,
-            net: Some(via.net),
-            component: None,
-            pad: None,
-        })
-        .collect();
     let labels = layout::pad_labels(project);
-    for placed in layout::placed_pads(project) {
-        let t = placed.pad_transform();
-        let label = labels.get(&(placed.instance, placed.pad.id)).cloned();
-        if let Some(hole) = &placed.pad.hole {
-            let feature = match hole.shape {
-                HoleShape::Round { diameter_nm } => HoleFeature::Round {
-                    at: t.apply(hole.offset()),
-                    diameter: diameter_nm.to_mm_f64(),
-                },
-                HoleShape::Slot {
-                    width_nm,
-                    length_nm,
-                    angle_mdeg,
-                } => {
-                    let (width, length) = (width_nm.to_mm_f64(), length_nm.to_mm_f64());
-                    let half = (length.max(width) - width) / 2.0;
-                    let (c, s) = crate::geometry::cos_sin(angle_mdeg.to_degrees_f64());
-                    let o = hole.offset();
-                    HoleFeature::Slot {
-                        from: t.apply([o[0] - c * half, o[1] - s * half]),
-                        to: t.apply([o[0] + c * half, o[1] + s * half]),
-                        width,
-                    }
+    layout::physical::holes(project)
+        .into_iter()
+        .map(|hole| {
+            let (component, pad) = match hole.owner {
+                layout::physical::HoleOwner::Pad { instance, pad, .. } => {
+                    (Some(instance), labels.get(&(instance, pad)).cloned())
                 }
+                _ => (None, None),
             };
-            out.push(DrillHole {
-                feature,
+            DrillHole {
+                feature: hole.feature,
                 plated: hole.plated,
-                function: if hole.plated {
-                    HoleFunction::ComponentPin
-                } else {
-                    HoleFunction::Mechanical
-                },
-                net: placed.net.filter(|_| hole.plated),
-                component: Some(placed.instance),
-                pad: label.clone(),
-            });
-        }
-        for via in &placed.pad.vias {
-            out.push(DrillHole {
-                feature: HoleFeature::Round {
-                    at: t.apply(via.at()),
-                    diameter: via.drill(),
-                },
-                plated: true,
-                function: HoleFunction::ComponentPin,
-                net: placed.net,
-                component: Some(placed.instance),
-                pad: label.clone(),
-            });
-        }
-    }
-    let board = project.board();
-    for hole in &board.holes {
-        out.push(DrillHole {
-            feature: HoleFeature::Round {
-                at: hole.at,
-                diameter: hole.drill,
-            },
-            plated: hole.plated,
-            function: HoleFunction::Mechanical,
-            net: None,
-            component: None,
-            pad: None,
-        });
-    }
-    for cutout in &board.cutouts {
-        if cutout.kind == (CutoutKind::Slot { plated: true })
-            && let Some(feature) = stadium(&cutout.outline)
-        {
-            out.push(DrillHole {
-                feature,
-                plated: true,
-                function: HoleFunction::Mechanical,
-                net: None,
-                component: None,
-                pad: None,
-            });
-        }
-    }
-    out
-}
-
-/// A closed outline that is a straight slot (two half-turn arcs joined by
-/// two lines, or a circle of two half turns) as a routed slot or a round
-/// hit; `None` for any other shape.
-pub fn stadium(outline: &Outline) -> Option<HoleFeature> {
-    let mut from = outline.start;
-    let mut arcs = Vec::new();
-    let mut lines = 0;
-    for s in &outline.segments {
-        let to = s.to();
-        match *s {
-            Segment::Line { .. } if distance(from, to) > 1e-9 => lines += 1,
-            Segment::Line { .. } => {}
-            Segment::Arc { bulge, .. } => {
-                let arc = arc_geometry(from, to, bulge)?;
-                if (arc.sweep.abs() - std::f64::consts::PI).abs() > 1e-6 {
-                    return None;
-                }
-                arcs.push(arc);
+                function: hole.function,
+                net: hole.net,
+                component,
+                pad,
             }
-        }
-        from = to;
-    }
-    let [a, b] = arcs.as_slice() else {
-        return None;
-    };
-    if (a.radius - b.radius).abs() > 1e-6 || !(lines == 2 || lines == 0) {
-        return None;
-    }
-    if distance(a.center, b.center) <= 1e-6 {
-        return Some(HoleFeature::Round {
-            at: a.center,
-            diameter: 2.0 * a.radius,
-        });
-    }
-    (lines == 2).then_some(HoleFeature::Slot {
-        from: a.center,
-        to: b.center,
-        width: 2.0 * a.radius,
-    })
+        })
+        .collect()
 }
 
 /// The tool table of `holes`: plated tools first, then non-plated, each by
