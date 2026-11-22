@@ -503,12 +503,7 @@ impl App {
             return;
         };
         let context = context["result"].clone();
-        self.assistant.turn = Some(OpenTurn {
-            id: turn,
-            label,
-            before: self.engine.document().clone(),
-            revision: self.engine.revision(),
-        });
+        self.assistant.turn = Some(OpenTurn::new(turn, label, &self.engine));
         // The message's files: attached to the conversation (a workflow's
         // files input is filled from them) and named to the model.
         let files = std::mem::take(&mut self.assistant.files);
@@ -676,6 +671,7 @@ impl App {
             // Edits follow the person's rule too: the gate asks about each.
             grant.mode = sparksmith_automation::Mode::AskEveryTime;
         }
+        let from = (self.engine.revision(), self.engine.document().clone());
         let (mut window, engine, assistant) = self.window_for_assistant(busy);
         let entry = request.run.as_ref().is_some_and(|run| run.entry);
         let reply = assistant.session.lend(engine, path.as_deref(), |session| {
@@ -708,6 +704,12 @@ impl App {
                 )
             }
         });
+        // The chat's own call: what it changed is the turn's.
+        if request.run.is_none()
+            && let Some(turn) = self.assistant.turn.as_mut()
+        {
+            turn.called(from, &self.engine);
+        }
         let asked = self.asks.shown.take();
         match (asker.question, asked) {
             (Some(question), _) if !allowed => self.hold(request, question),
@@ -873,7 +875,7 @@ impl App {
             card.answer = Some(assistant::questions::Answered::Stopped);
         }
         self.assistant.history = history;
-        let Some(turn) = self.assistant.turn.take() else {
+        let Some(mut turn) = self.assistant.turn.take() else {
             return;
         };
         if let Ok((grant, _)) = self.chat_grant() {
@@ -891,14 +893,19 @@ impl App {
                 );
             });
         }
-        let difference = sparksmith_automation::session::difference(
-            &turn.before,
-            self.engine.document(),
-            self.engine.check_settings(),
-        )
-        .unwrap_or_default();
+        // The turn's own calls' changes, and others' made meanwhile apart
+        // from them, each stretch compared on its own.
+        turn.caught_up(self.engine.revision(), self.engine.document());
+        let settings = *self.engine.check_settings();
+        let delta = |spans: &[(sparksmith_core::Document, sparksmith_core::Document)]| {
+            aggregate(spans.iter().filter_map(|(before, after)| {
+                sparksmith_automation::session::difference(before, after, &settings).ok()
+            }))
+        };
+        let (own, others) = (delta(&turn.own), delta(&turn.others));
         let id = self.assistant.conversation.next_id();
-        let card = summary_card(id, &turn, &difference, &outcome, &self.engine);
+        let mut card = summary_card(id, &turn, &own, &outcome, &self.engine);
+        card.others = change_lines(&others, &self.engine).0;
         self.assistant.conversation.ended(card, &outcome.end);
     }
 
@@ -932,7 +939,7 @@ impl App {
 }
 
 /// The summary card of `turn`, which ended with `outcome`, from what
-/// `difference` found between the document before it and now.
+/// `difference` found its own calls changed.
 fn summary_card(
     id: u64,
     turn: &OpenTurn,
@@ -940,6 +947,42 @@ fn summary_card(
     outcome: &Outcome,
     engine: &sparksmith_core::Engine,
 ) -> TurnSummary {
+    let (lines, mut show) = change_lines(difference, engine);
+    show.truncate(sparksmith_automation::view::MAX_SELECT);
+    let findings = &difference["findings"];
+    let new: Vec<&Value> = findings["new"].as_array().into_iter().flatten().collect();
+    let issues_new = new.len() + findings["omitted"].as_u64().unwrap_or(0) as usize;
+    let issues_resolved = findings["resolved"].as_object().map_or(0, |r| {
+        r.values().filter_map(Value::as_u64).sum::<u64>() as usize
+    });
+    let end = match &outcome.end {
+        End::Answered => None,
+        End::Stopped => Some("Stopped by you.".to_owned()),
+        other => Some(format!("{}.", capital(&other.to_string()))),
+    };
+    TurnSummary {
+        id,
+        label: turn.label.clone(),
+        changes: lines,
+        others: Vec::new(),
+        issues_new,
+        issues_resolved,
+        new_issues: new
+            .iter()
+            .filter_map(|f| f["message"].as_str().map(str::to_owned))
+            .take(NAMED_ISSUES)
+            .collect(),
+        usage: outcome.usage,
+        before: turn.revision,
+        after: engine.revision(),
+        show,
+        end,
+    }
+}
+
+/// One line per collection `difference` changed ("Vias: 2 added"), and
+/// the ids of the objects it added or changed that `engine` still has.
+fn change_lines(difference: &Value, engine: &sparksmith_core::Engine) -> (Vec<String>, Vec<u64>) {
     let changes = &difference["changes"];
     let names = &difference["names"];
     let mut lines = Vec::new();
@@ -975,35 +1018,91 @@ fn summary_card(
     if changes["fields"].as_array().is_some_and(|f| !f.is_empty()) {
         lines.push("Project settings changed".to_owned());
     }
-    show.truncate(sparksmith_automation::view::MAX_SELECT);
-    let findings = &difference["findings"];
-    let new: Vec<&Value> = findings["new"].as_array().into_iter().flatten().collect();
-    let issues_new = new.len() + findings["omitted"].as_u64().unwrap_or(0) as usize;
-    let issues_resolved = findings["resolved"].as_object().map_or(0, |r| {
-        r.values().filter_map(Value::as_u64).sum::<u64>() as usize
-    });
-    let end = match &outcome.end {
-        End::Answered => None,
-        End::Stopped => Some("Stopped by you.".to_owned()),
-        other => Some(format!("{}.", capital(&other.to_string()))),
-    };
-    TurnSummary {
-        id,
-        label: turn.label.clone(),
-        changes: lines,
-        issues_new,
-        issues_resolved,
-        new_issues: new
-            .iter()
-            .filter_map(|f| f["message"].as_str().map(str::to_owned))
-            .take(NAMED_ISSUES)
-            .collect(),
-        usage: outcome.usage,
-        before: turn.revision,
-        after: engine.revision(),
-        show,
-        end,
+    (lines, show)
+}
+
+/// One difference from several in order (stretches of a turn): an object
+/// added then changed is added, added then removed is gone, removed then
+/// added is changed; names, fields and findings add up.
+fn aggregate(differences: impl Iterator<Item = Value>) -> Value {
+    #[derive(Clone, Copy, PartialEq)]
+    enum Was {
+        Added,
+        Changed,
+        Removed,
     }
+    let mut all: Vec<Value> = differences.collect();
+    if all.len() < 2 {
+        return all.pop().unwrap_or_default();
+    }
+    let mut seen: std::collections::BTreeMap<(String, String), (Value, Was)> = Default::default();
+    let (mut fields, mut names, mut omitted) = (Vec::new(), serde_json::Map::new(), 0);
+    let (mut new, mut new_omitted, mut resolved) = (Vec::new(), 0, serde_json::Map::new());
+    for difference in &all {
+        let changes = &difference["changes"];
+        for (kind, was) in [
+            ("added", Was::Added),
+            ("changed", Was::Changed),
+            ("removed", Was::Removed),
+        ] {
+            for (path, ids) in changes[kind].as_object().into_iter().flatten() {
+                for id in ids.as_array().into_iter().flatten() {
+                    let key = (path.clone(), id.to_string());
+                    let then = seen.get(&key).map(|(_, then)| *then);
+                    let now = match (then, was) {
+                        (Some(Was::Added), Was::Removed) => {
+                            seen.remove(&key);
+                            continue;
+                        }
+                        (Some(Was::Added), _) => Was::Added,
+                        (Some(Was::Removed), Was::Added) => Was::Changed,
+                        _ => was,
+                    };
+                    seen.insert(key, (id.clone(), now));
+                }
+            }
+        }
+        for field in changes["fields"].as_array().into_iter().flatten() {
+            if !fields.contains(field) {
+                fields.push(field.clone());
+            }
+        }
+        omitted += changes["omitted"].as_u64().unwrap_or(0);
+        if let Some(more) = difference["names"].as_object() {
+            names.extend(more.clone());
+        }
+        let findings = &difference["findings"];
+        new.extend(findings["new"].as_array().into_iter().flatten().cloned());
+        new_omitted += findings["omitted"].as_u64().unwrap_or(0);
+        for (code, count) in findings["resolved"].as_object().into_iter().flatten() {
+            let sum = resolved.get(code).and_then(Value::as_u64).unwrap_or(0);
+            resolved.insert(code.clone(), json!(sum + count.as_u64().unwrap_or(0)));
+        }
+    }
+    let mut changes = json!({});
+    for ((path, _), (id, was)) in seen {
+        let kind = match was {
+            Was::Added => "added",
+            Was::Changed => "changed",
+            Was::Removed => "removed",
+        };
+        if let Some(list) = changes[kind][path.as_str()].as_array_mut() {
+            list.push(id);
+        } else {
+            changes[kind][path.as_str()] = json!([id]);
+        }
+    }
+    if !fields.is_empty() {
+        changes["fields"] = json!(fields);
+    }
+    if omitted > 0 {
+        changes["omitted"] = json!(omitted);
+    }
+    json!({
+        "changes": changes,
+        "names": names,
+        "findings": {"new": new, "omitted": new_omitted, "resolved": resolved},
+    })
 }
 
 /// A collection's path as a person reads it: "layout.tracks" is "Tracks".

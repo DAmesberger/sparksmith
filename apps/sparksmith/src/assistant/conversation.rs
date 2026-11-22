@@ -111,6 +111,9 @@ pub struct TurnSummary {
     pub label: String,
     /// "Vias: 2 added", "Parts: U1 changed", one line per collection.
     pub changes: Vec<String>,
+    /// What others changed during the turn (the person's edit, an undo),
+    /// as `changes` words it: not the assistant's.
+    pub others: Vec<String>,
     pub issues_new: usize,
     pub issues_resolved: usize,
     /// The new issues' messages, as core words them (first few).

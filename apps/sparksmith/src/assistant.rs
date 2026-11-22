@@ -33,6 +33,7 @@ use egui::{Ui, vec2};
 use sparksmith_assist::chat::ChatLibrary;
 use sparksmith_assist::model::Message;
 use sparksmith_automation::Session;
+use sparksmith_core::Document;
 use sparksmith_ui::chat_cards;
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit::{self, Button, type_face};
@@ -94,13 +95,58 @@ pub enum Action {
     },
 }
 
-/// The turn a message opened: its handle, its undo label, and the document
-/// and revision before it, for its summary.
+/// The turn a message opened: its handle, its undo label, the revision
+/// before it, and, for its summary, what its own calls changed apart from
+/// what others changed meanwhile (the person's edit, an undo, a workflow
+/// run's calls).
 pub struct OpenTurn {
     pub id: String,
     pub label: String,
-    pub before: sparksmith_core::Document,
     pub revision: u64,
+    /// Each stretch of the turn's own edits with no one else's revision in
+    /// between, as the documents it started and ended at.
+    pub own: Vec<(Document, Document)>,
+    /// Each stretch of others' revisions during the turn, likewise.
+    pub others: Vec<(Document, Document)>,
+    /// The revision and document where the turn's last call left off.
+    at: (u64, Document),
+}
+
+impl OpenTurn {
+    pub fn new(id: String, label: String, engine: &sparksmith_core::Engine) -> Self {
+        Self {
+            id,
+            label,
+            revision: engine.revision(),
+            own: Vec::new(),
+            others: Vec::new(),
+            at: (engine.revision(), engine.document().clone()),
+        }
+    }
+
+    /// One of the turn's calls ran from `from` (revision and document) to
+    /// where `engine` stands now.
+    pub fn called(&mut self, from: (u64, Document), engine: &sparksmith_core::Engine) {
+        let joined = from.0 == self.at.0;
+        self.caught_up(from.0, &from.1);
+        if engine.revision() == from.0 {
+            return;
+        }
+        let now = engine.document().clone();
+        match self.own.last_mut() {
+            Some(last) if joined => last.1 = now.clone(),
+            _ => self.own.push((from.1, now.clone())),
+        }
+        self.at = (engine.revision(), now);
+    }
+
+    /// Others' revisions since the turn's last call, up to `revision`.
+    pub fn caught_up(&mut self, revision: u64, document: &Document) {
+        if revision != self.at.0 {
+            self.others.push((self.at.1.clone(), document.clone()));
+            self.at = (revision, document.clone());
+        }
+    }
 }
 
 /// A tool call waiting for the person's Allow or Deny on card `ask`.
@@ -1111,6 +1157,12 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, actions: &mut Vec<Action>
         }
         for line in &card.changes {
             kit::note(ui, line);
+        }
+        if !card.others.is_empty() {
+            kit::note(ui, "Changed outside this turn:");
+            for line in &card.others {
+                kit::note(ui, line);
+            }
         }
         if card.issues_new > 0 || card.issues_resolved > 0 {
             kit::note(
