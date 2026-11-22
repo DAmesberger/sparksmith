@@ -33,7 +33,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+/// 4: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 4;
 
 /// Estimates: the orientation bevel (at most an eighth of the case), the
 /// top round (a tenth of the height), the sound port (a sixth of the case,
@@ -406,6 +408,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.bw).trim_end_matches(" mm"),
     );
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals: [("1", "+"), ("2", "−")]
@@ -414,6 +417,8 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: (*key).into(),
                     name: (*name).into(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "BZ".into(),

@@ -565,6 +565,7 @@ pub(crate) fn converse(
     let mut last_prompt = 0u64;
     let mut appended = 0u64;
     let mut first = true;
+    let fixed_chars = (system.len() + serde_json::to_string(specs).map_or(0, |t| t.len())) as u64;
     // Refused calls by tool and exact input since the last call that
     // succeeded, to notice a model repeating one.
     let mut refused: HashMap<(String, String), u32> = HashMap::new();
@@ -588,6 +589,40 @@ pub(crate) fn converse(
         if allowance.output < u64::from(limit) {
             break Stop::Budget(format!("{} output tokens", budget.max_output_tokens));
         }
+        // Near the context's end, earlier tool replies give way to stubs
+        // naming their calls, as in the chat (`chat::context::condense`):
+        // the model reads a page again when it needs it.
+        let mut condensed_now = false;
+        if !first {
+            // What the server counted last, and what came since; after
+            // clearing, the characters left.
+            let grown = last_prompt + appended / CHARS_PER_TOKEN + ESTIMATE_MARGIN;
+            let counted = |_: &[Message]| grown;
+            if let Some(condensed) = crate::chat::context::condense(
+                &mut messages,
+                // Of the whole context: a run's history only grows, so its
+                // prompt cache holds until the context truly fills.
+                &crate::chat::Policy {
+                    window_tokens: u64::MAX,
+                    ..crate::chat::Policy::CHAT
+                },
+                profile.capabilities.context_tokens,
+                &counted,
+            ) {
+                let after = messages
+                    .iter()
+                    .map(|m| appended_chars(&m.content))
+                    .fold(fixed_chars, u64::saturating_add)
+                    .div_ceil(CHARS_PER_TOKEN);
+                events(Event::Condensed(crate::chat::Condensed {
+                    after_tokens: after,
+                    ..condensed
+                }));
+                last_prompt = after;
+                appended = 0;
+                condensed_now = true;
+            }
+        }
         let mut request = ModelRequest {
             system,
             tools: specs,
@@ -601,6 +636,8 @@ pub(crate) fn converse(
                 Ok(Some(n)) => n,
                 _ => first_estimate,
             }
+        } else if condensed_now {
+            last_prompt + ESTIMATE_MARGIN
         } else {
             last_prompt + appended / CHARS_PER_TOKEN + ESTIMATE_MARGIN
         };

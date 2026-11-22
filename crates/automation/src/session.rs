@@ -1229,6 +1229,9 @@ pub struct Session {
     descriptions: std::sync::OnceLock<Vec<generators::v1::Description>>,
     /// The online registry the host installed (`online::OnlineSource`).
     online: Option<std::sync::Arc<dyn online::OnlineSource>>,
+    /// The document states this session answered at, which a caller's
+    /// stale edit can be rebased from (`rebase`).
+    seen: rebase::Seen,
 }
 
 /// A test fixture, never in the product: a session on the core's fixture
@@ -1273,6 +1276,7 @@ impl Session {
             turns: turns::Turns::default(),
             descriptions: std::sync::OnceLock::new(),
             online: None,
+            seen: rebase::Seen::default(),
         }
     }
     /// A session without a project of its own, for a host that only lends
@@ -1484,6 +1488,9 @@ impl Session {
                     _ => None,
                 };
                 let summarised = matches!(query, Query::CheckDrafts { detail: false });
+                // The pins a wiring apply reads come with the revision it
+                // is prepared against.
+                let wiring = matches!(query, Query::PartPins { .. });
                 let mut reply = serde_json::to_value(self.engine.query_using(
                     query,
                     &self.sources.context(),
@@ -1495,6 +1502,9 @@ impl Session {
                 }
                 if summarised {
                     reply::summarise_finding_objects(&mut reply["result"]);
+                }
+                if wiring {
+                    reply["revision"] = json!(self.engine.revision());
                 }
                 return Ok(reply);
             }
@@ -2222,6 +2232,7 @@ pub mod part_files;
 pub mod paths;
 mod pinout;
 mod preview;
+pub(crate) mod rebase;
 mod replace;
 mod reply;
 pub use reply::difference;

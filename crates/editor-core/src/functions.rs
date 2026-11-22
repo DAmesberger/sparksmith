@@ -477,6 +477,26 @@ impl TerminalFunctions {
         }
     }
 
+    /// [`fixed`](Self::fixed) followed by further functions of the same
+    /// conventional behavior, the first being the design default (a GPIO:
+    /// an input that can be selected as an output). Without alternates it
+    /// is [`fixed`](Self::fixed).
+    pub fn with_alternates(
+        id: FunctionId,
+        direction: Direction,
+        alternates: &[(FunctionId, Direction)],
+    ) -> Self {
+        let mut out = Self::fixed(id, direction);
+        if alternates.is_empty() {
+            return out;
+        }
+        for (id, direction) in alternates {
+            out.functions.extend(Self::fixed(*id, *direction).functions);
+        }
+        out.design_default = Some(id);
+        out
+    }
+
     pub fn function(&self, id: FunctionId) -> Option<&Function> {
         self.functions.iter().find(|f| f.id == id)
     }

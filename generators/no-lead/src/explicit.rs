@@ -514,6 +514,7 @@ pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Pr
         super::short_mm(e.body[1])
     );
     Ok(Generation {
+        orderable: Vec::new(),
         marking: crate::marking(args).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
@@ -522,6 +523,8 @@ pub fn generate(request: &Request, args: &Args<'_>) -> Result<Generation, Vec<Pr
                     key: key.clone(),
                     name: key.clone(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "U".into(),

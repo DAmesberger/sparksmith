@@ -890,6 +890,11 @@
     "ADXL343BCCZ=343B",
     "ADXL343BCCZ-RL=343B",
     "ADXL343BCCZ-RL7=343B"
+   ],
+   "part_numbers": [
+    "Analog Devices=ADXL343BCCZ",
+    "Analog Devices=ADXL343BCCZ-RL",
+    "Analog Devices=ADXL343BCCZ-RL7"
    ]
   },
   "citation": {
@@ -897,7 +902,7 @@
    "page": 35
   },
   "basis": "cited_unverified",
-  "note": "Lands 1.01 mm from the centre across the long sides and 0.49 mm from the ends, as the outline gives; the long axis is x here (the outline draws it upright). The top mark per orderable part number from the same data sheet: Package Information, Figure 2 and Table 4, p. 5 (branding key 343B, \"Part identifier for the ADXL343\"), and the Ordering Guide, p. 35 (ADXL343BCCZ, ADXL343BCCZ-RL and ADXL343BCCZ-RL7, all CC-14-1), so 343B on each of the three; no mark for another part number. The date code, lot code and country lines under it are not drawn."
+  "note": "Lands 1.01 mm from the centre across the long sides and 0.49 mm from the ends, as the outline gives; the long axis is x here (the outline draws it upright). The top mark per orderable part number from the same data sheet: Package Information, Figure 2 and Table 4, p. 5 (branding key 343B, \"Part identifier for the ADXL343\"), and the Ordering Guide, p. 35 (ADXL343BCCZ, ADXL343BCCZ-RL and ADXL343BCCZ-RL7, all CC-14-1), so 343B on each of the three; no mark for another part number. The date code, lot code and country lines under it are not drawn. The orderable part numbers (part_numbers) are the marking table's, the same ordering information."
  },
  {
   "key": "no-lead-dfn-4-1.5x1.5-0.8-sensirion-sht4x",
@@ -921,14 +926,20 @@
    "terminal_width": 300000,
    "exposed_pad": false,
    "construction": "sensor_window",
-   "window_diameter": 600000
+   "window_diameter": 600000,
+   "pin_table": [
+    "1=SDA:io",
+    "2=SCL:input",
+    "3=VDD:power_input",
+    "4=VSS:power_input"
+   ]
   },
   "citation": {
    "document": "Sensirion SHT4x datasheet, version 7.3 (June 2026), 5.2 Package Outline",
    "page": 15
   },
   "basis": "cited_unverified",
-  "note": "Sensirion recommends no copper under the die pad, so the package has no exposed pad land. The terminals face along y here (the datasheet draws them along x)."
+  "note": "Sensirion recommends no copper under the die pad, so the package has no exposed pad land. The terminals face along y here (the datasheet draws them along x). The pin table is 5.4 Pin Assignment & Laser Marking of the same datasheet (version 7.3, p. 17): SDA serial data, bidirectional (an input that can drive), SCL an input, VDD and VSS power."
  },
  {
   "key": "no-lead-ti-dml0010a",
@@ -1151,6 +1162,25 @@
     "TPS22990DMLT=RB990",
     "TPS22990NDMLR=RB990N",
     "TPS22990NDMLT=RB990N"
+   ],
+   "pin_table": [
+    "1=CT:passive",
+    "2=NC:passive",
+    "3=VIN:power_input",
+    "4=VBIAS:power_input",
+    "5=ON:input",
+    "6=GND:power_input",
+    "7=PG:open_drain",
+    "8=VOUT:power_output",
+    "9=VOUT:power_output",
+    "10=VOUT:power_output",
+    "EP=VIN:power_input"
+   ],
+   "part_numbers": [
+    "Texas Instruments=TPS22990DMLR",
+    "Texas Instruments=TPS22990DMLT",
+    "Texas Instruments=TPS22990NDMLR",
+    "Texas Instruments=TPS22990NDMLT"
    ]
   },
   "citation": {
@@ -1159,7 +1189,7 @@
    "page": 31
   },
   "basis": "cited",
-  "note": "Body, terminals (0.25 mm long, 0.24 and 0.28 mm wide, pins 8–10 at 0.56 mm from 0.02 mm off the centre line, lugs 0.125 mm), thermal pad and the land pattern (0.45 mm lands at 1.95 mm, the comb's lugs as unnumbered lands) from the drawing; the height is the drawing's 0.8 mm, the only height it gives (a maximum; standoff 0–0.05 mm); the top marks per orderable part number from the datasheet's package option addendum (p. 27, 3 May 2025: RB990 for TPS22990DMLR and DMLT, RB990N for TPS22990NDMLR and NDMLT), no mark for another part number; the thermal pad's optional pin-1 chamfer is not made. Terminal finish NiPdAu."
+  "note": "Body, terminals (0.25 mm long, 0.24 and 0.28 mm wide, pins 8–10 at 0.56 mm from 0.02 mm off the centre line, lugs 0.125 mm), thermal pad and the land pattern (0.45 mm lands at 1.95 mm, the comb's lugs as unnumbered lands) from the drawing; the height is the drawing's 0.8 mm, the only height it gives (a maximum; standoff 0–0.05 mm); the top marks per orderable part number from the datasheet's package option addendum (p. 27, 3 May 2025: RB990 for TPS22990DMLR and DMLT, RB990N for TPS22990NDMLR and NDMLT), no mark for another part number; the thermal pad's optional pin-1 chamfer is not made. Terminal finish NiPdAu. The pin table is the TPS22990 datasheet's Pin Functions (SLVSDK1C, p. 3): CT (type O, the slew-rate capacitor) passive, VIN and VBIAS power inputs, ON an input, PG an open-drain output, VOUT (8–10) power outputs, the thermal pad EP VIN. The orderable part numbers (part_numbers) are the marking table's, the same ordering information."
  },
  {
   "key": "no-lead-ti-rxb0014a",
@@ -1579,6 +1609,37 @@
     "LMQ66430MA5RXBRQ1=3MA5Q",
     "LMQ66430MC3RXBRQ1=3MC3Q",
     "LMQ66430MC5RXBRQ1=3MC5Q"
+   ],
+   "pin_table": [
+    "1=EN/UVLO:input",
+    "2=NC:passive",
+    "3=VIN:power_input",
+    "4=NC:passive",
+    "5=NC:passive",
+    "6=PGND:power_input",
+    "7=SW:passive",
+    "8=BOOT:passive",
+    "9=NC:passive",
+    "10=VCC:power_output",
+    "11=VOUT/FB:input",
+    "12=NC:passive",
+    "13=MODE/SYNC:input",
+    "14=PG:open_drain",
+    "15=GND/DAP:power_input"
+   ],
+   "part_numbers": [
+    "Texas Instruments=LMQ66410MA3RXBRQ1",
+    "Texas Instruments=LMQ66410MA5RXBRQ1",
+    "Texas Instruments=LMQ66410MC3RXBRQ1",
+    "Texas Instruments=LMQ66410MC5RXBRQ1",
+    "Texas Instruments=LMQ66420MA3RXBRQ1",
+    "Texas Instruments=LMQ66420MA5RXBRQ1",
+    "Texas Instruments=LMQ66420MC3RXBRQ1",
+    "Texas Instruments=LMQ66420MC5RXBRQ1",
+    "Texas Instruments=LMQ66430MA3RXBRQ1",
+    "Texas Instruments=LMQ66430MA5RXBRQ1",
+    "Texas Instruments=LMQ66430MC3RXBRQ1",
+    "Texas Instruments=LMQ66430MC5RXBRQ1"
    ]
   },
   "citation": {
@@ -1587,6 +1648,6 @@
    "page": 55
   },
   "basis": "cited",
-  "note": "Body, terminals (0.25 mm wide, 0.5 mm from the edge, L corners 0.675 mm along the edge, each with a 0.18 mm neck lifted 0.1 mm for the outer 0.1 mm, section A-A) and the 1 mm thermal pad from the outline; the lands are TI's CAD footprint for the package (L-shaped lands 1 and 12 as two rectangles each, small round lands 5 and 8, a plated via in the thermal pad), where the datasheet's example draws 5 and 8 as L-shaped lands too; the top marks per orderable part number from the datasheet's package option addendum (pp. 48–49: LMQ664x0MyzRXBRQ1 marked xMyzQ, for example 3MC3Q on LMQ66430MC3RXBRQ1), no mark for another part number; the thermal pad's pin-1 chamfer and the terminals' corner rounds are not made. Terminal finish NiPdAu. Checked against the outline (20 November 2026): body 2.5–2.7 mm, height 0.95–1.05 mm, pitch 0.5 mm, terminals 0.2–0.3 mm wide and 0.4–0.6 mm long (corner legs 0.575–0.775 mm), thermal pad 1 ± 0.1 mm."
+  "note": "Body, terminals (0.25 mm wide, 0.5 mm from the edge, L corners 0.675 mm along the edge, each with a 0.18 mm neck lifted 0.1 mm for the outer 0.1 mm, section A-A) and the 1 mm thermal pad from the outline; the lands are TI's CAD footprint for the package (L-shaped lands 1 and 12 as two rectangles each, small round lands 5 and 8, a plated via in the thermal pad), where the datasheet's example draws 5 and 8 as L-shaped lands too; the top marks per orderable part number from the datasheet's package option addendum (pp. 48–49: LMQ664x0MyzRXBRQ1 marked xMyzQ, for example 3MC3Q on LMQ66430MC3RXBRQ1), no mark for another part number; the thermal pad's pin-1 chamfer and the terminals' corner rounds are not made. Terminal finish NiPdAu. Checked against the outline (20 November 2026): body 2.5–2.7 mm, height 0.95–1.05 mm, pitch 0.5 mm, terminals 0.2–0.3 mm wide and 0.4–0.6 mm long (corner legs 0.575–0.775 mm), thermal pad 1 ± 0.1 mm. The pin table is Table 5-1 Pin Functions of the same datasheet (SNVSBV1F, p. 5), one pinout for the three devices: EN/UVLO, VOUT/FB and MODE/SYNC inputs, VIN, PGND and the thermal pad (GND/DAP, terminal 15 here) power inputs, VCC (the internal LDO, usable as a logic supply) a power output, PG an open-drain output, SW and BOOT passive. The orderable part numbers (part_numbers) are the marking table's, the same ordering information."
  }
 ]

@@ -45,7 +45,9 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`): 2 marks a radial
 /// polarised capacitor's sleeve ([`marking`]); 4 sets its text at the height its preset gives
 /// (`marking_height`).
-const VERSION: u32 = 4;
+/// 5: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 5;
 
 /// The share of a radial body's height its part file's `marking-sleeve`
 /// spans (`marking_sleeve_l = 0.8 * body_height`), in tenths.
@@ -1148,6 +1150,8 @@ fn terminals(d: &Dims) -> Vec<Terminal> {
                 _ => k.to_string(),
             },
             direction: Direction::Passive,
+            alternates: Vec::new(),
+            drive: None,
         })
         .collect()
 }
@@ -1229,6 +1233,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         two_lead_symbol(d.symbol, args.text("resistor_style").map_err(|p| vec![p])?)
     };
     Ok(Generation {
+        orderable: Vec::new(),
         marking: marking(
             &d,
             sparksmith_generator_sdk::marking::height(&args).map_err(|p| vec![p])?,

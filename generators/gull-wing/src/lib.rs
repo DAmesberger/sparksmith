@@ -38,7 +38,9 @@ const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 4 sets the marking
 /// text at the height its preset gives (`marking_height`).
-const VERSION: u32 = 4;
+/// 5: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 5;
 
 /// Most leads on one side: the part files' lead looks are named up to
 /// this count, and four sides of it are the core's 512 leads of a form.
@@ -669,6 +671,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     };
     let component_part = request.scope == Scope::Component;
     Ok(Generation {
+        orderable: Vec::new(),
         marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
@@ -677,6 +680,8 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: key.clone(),
                     name: key.clone(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "U".into(),

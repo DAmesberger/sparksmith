@@ -34,9 +34,25 @@ Work in this order and read each reply before the next step. Put several operati
    - A generic hit with `component` is in the project: place it with its `physical` and `properties` (the value goes on each placed instance, and the schematic and BOM show it). To change a placed part's value later, apply instance.set_properties {"instance": id, "edits": [{"field": lineage, "input": {"input": "text", "value": "4.7k"}}]}; the field lineages are in the search hit's `properties`.
    - A generic hit with `make` is not yet made: apply that one operation once, then search the same words again for its `component` and `properties`. One generic part serves every value; never make a part per value, and never draft a passive or a connector by hand.
    - A specific IC the search does not find needs its datasheet: say so and offer the datasheet workflow rather than inventing it.
-2. **Schematic.** component.place {"component": {...}, "physical": {...}, "properties": [...]}: leave out position (it lands in the next free spot inside the sheet), representation and unit (the first are used). Use the `physical` a search hit gives, so the part has a footprint. Wire pins with schematic.connect; describe it first. Check the schematic and take its review stop before continuing to the board.
+2. **Schematic.** component.place {"component": {...}, "physical": {...}, "properties": [...]}: leave out position (it lands in the next free spot inside the sheet), representation and unit (the first are used). Use the `physical` a search hit gives, so the part has a footprint. Wire pins as below. Check the schematic and take its review stop before continuing to the board.
 3. **Board.** layout.sync brings the placed parts and their nets to the board. Size the board (layout.set_board_size), then layout.place each part inside it, close together, connected pins near each other.
 4. **Route** every net with layout.route; add a ground fill (fill.add) when the person wants one.
 5. **Check.** query project.issues; fix what it reports, then report the result in a sentence or two and take the placement/routing review stop.
+
+## Wiring parts that are placed
+
+Read once, plan, apply once. A sub-circuit (a reset button, a boot strap, an LED, I2C pull-ups) takes one read and one apply.
+
+1. **Read.** query schematic.pins {"designators": ["U1", "R3", "C3", "SW1"]}: each part's `instance` and its pins as rows `[terminal, pads, name, net]`. That is everything wiring needs: do not read the whole project, the nets or the library to find terminal ids.
+2. **Plan** in a sentence the person can check: "EN gets a 10 k pull-up to 3V3 (R3), 1 µF to GND (C3) and the button SW1 to GND."
+3. **Apply** every connection in one apply, terminal to terminal, at the revision schematic.pins answered with:
+   `apply {"expected_revision": 41, "operations": [`
+   `{"op": "schematic.connect", "params": {"from": {"instance": 12, "terminal": 2}, "to": {"instance": 5, "terminal": 3}}},`
+   `{"op": "schematic.connect", "params": {"from": {"instance": 13, "terminal": 1}, "to": {"instance": 5, "terminal": 3}}},`
+   `{"op": "schematic.connect", "params": {"from": {"instance": 14, "terminal": 1}, "to": {"instance": 5, "terminal": 3}}}]}`
+   A pin that goes to a supply or ground connects to a pin already on that net (its `net` column says which).
+4. **Check** with query project.issues {"scope": {"kind": "all"}} once and say what is connected.
+
+If the person goes on editing meanwhile, an apply still goes through unless you both changed the same parts; a refusal names them, so read only those again.
 
 Keep replies small: ask project.inspect {"at": "/path"} or a filtered query rather than the whole document, and do not repeat a query whose reply you have. A long reply is shortened and says how to ask for less. To show the person what you made, show view.select {"designators": ["U1", "R1"]} or the ids the reply gave.

@@ -52,7 +52,7 @@ fn step_mut<'a>(value: &'a mut Value, id: &str) -> Option<&'a mut Value> {
 fn the_shipped_datasheet_workflow_passes_its_check() -> Fallible {
     let workflow = shipped()?;
     assert_eq!(workflow.id, DATASHEET);
-    assert_eq!(workflow.version(), Some((1, 1)));
+    assert_eq!(workflow.version(), Some((1, 2)));
     assert_eq!(
         workflow.offer_when,
         vec![Signal::Attachment("application/pdf".into())]
@@ -144,7 +144,7 @@ fn the_shipped_index_stays_under_one_kib() -> Fallible {
     let workflow = shipped()?;
     let index = index(&[&workflow]);
     assert!(index.len() < 1024, "{} bytes: {index}", index.len());
-    assert!(index.starts_with("datasheet-to-component v1.1: "));
+    assert!(index.starts_with("datasheet-to-component v1.2: "));
     Ok(())
 }
 
@@ -156,7 +156,7 @@ impl Catalog for Fake {
         match id {
             "library" => Some((3, 1)),
             "generators" => Some((1, 2)),
-            "assist" => Some((1, 0)),
+            "assist" => Some((1, 4)),
             _ => None,
         }
     }
@@ -224,9 +224,9 @@ fn a_folder_loads_with_its_digest_and_a_user_workflow_replaces_a_shipped_one() -
         loaded.digest
     );
 
-    // The user's copy, version 1.1, takes the shipped one's place; a
+    // The user's copy, version 1.3, takes the shipped one's place; a
     // broken folder is listed with the reason.
-    copy_folder(&theirs, DATASHEET, &text.replace("\"1.0\"", "\"1.1\""))?;
+    copy_folder(&theirs, DATASHEET, &text.replace("\"1.2\"", "\"1.3\""))?;
     copy_folder(&theirs, "broken", "{\"format\": 2}")?;
     let listed = load::list(Some(&ours), Some(&theirs), &Fake);
     let ids: Vec<&str> = listed.iter().map(|l| l.id.as_str()).collect();
@@ -242,7 +242,7 @@ fn a_folder_loads_with_its_digest_and_a_user_workflow_replaces_a_shipped_one() -
     assert!(user.available(), "{:?}", user.why_not);
     assert_eq!(
         user.loaded.as_ref().map(|l| l.workflow.version.as_str()),
-        Some("1.1")
+        Some("1.3")
     );
     Ok(())
 }
@@ -760,7 +760,7 @@ fn an_offer_names_the_inputs_still_missing() -> Fallible {
     inputs.insert("datasheets".into(), json!(["tlv757p.pdf"]));
     let one = Offer::check(&listed, DATASHEET, inputs, "A PDF was dropped")?;
     assert_eq!(one.missing, ["part"]);
-    assert_eq!(one.version, "1.1");
+    assert_eq!(one.version, "1.2");
     let long = "x".repeat(401);
     let Err(why) = Offer::check(&listed, DATASHEET, serde_json::Map::new(), &long) else {
         return Err("a long why was taken".into());

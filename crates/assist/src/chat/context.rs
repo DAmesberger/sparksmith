@@ -45,6 +45,13 @@ pub struct Policy {
     pub trigger: f64,
     /// Summarise earlier prose when, cleared, it is still above this share.
     pub target: f64,
+    /// The context the shares are of, at most: every request re-sends the
+    /// conversation, so on a model with a very large context the trigger
+    /// is of this working size, not of the whole context.
+    pub window_tokens: u64,
+    /// Tokens a turn may spend after its last change (or its start) with
+    /// no edit or action succeeding before it stops, saying so.
+    pub idle_tokens: u64,
 }
 
 impl Policy {
@@ -56,6 +63,13 @@ impl Policy {
         batch_chars: 18_000,
         trigger: 0.70,
         target: 0.35,
+        // E2E run 13: on a 1 000 000-token model the 70 % trigger never
+        // came, and each request re-sent about 80 000 tokens of earlier
+        // turns. Condense at 56 000, down to 28 000.
+        window_tokens: 80_000,
+        // The same run read the project 8 times for 791 000 tokens and
+        // changed nothing.
+        idle_tokens: 250_000,
     };
 
     /// Nothing shortened or cleared: the conversation as it grew (what the
@@ -67,7 +81,14 @@ impl Policy {
         batch_chars: usize::MAX,
         trigger: f64::INFINITY,
         target: f64::INFINITY,
+        window_tokens: u64::MAX,
+        idle_tokens: u64::MAX,
     };
+
+    /// The context the trigger and the target are shares of.
+    pub fn window(&self, context_tokens: u64) -> u64 {
+        context_tokens.min(self.window_tokens)
+    }
 }
 
 /// What one condensing did, for the chat's divider row.
@@ -333,7 +354,7 @@ pub fn condense(
     estimate: &dyn Fn(&[Message]) -> u64,
 ) -> Option<Condensed> {
     let before = estimate(history);
-    if (before as f64) <= policy.trigger * context_tokens as f64 {
+    if (before as f64) <= policy.trigger * policy.window(context_tokens) as f64 {
         return None;
     }
     let record = record(history);

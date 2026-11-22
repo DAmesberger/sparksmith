@@ -354,6 +354,10 @@ pub enum Query {
     /// listed too (C2).
     #[serde(rename = "project.pin_report")]
     PinReport { instance: Id },
+    /// The named parts' pins, one compact row each: terminal id, pads,
+    /// name and net. What wiring with `schematic.connect` needs.
+    #[serde(rename = "schematic.pins")]
+    PartPins { designators: Vec<String> },
     /// C4: the firmware pin-configuration IR of one instance.
     #[serde(rename = "project.pin_config")]
     PinConfig { instance: Id },
@@ -530,6 +534,7 @@ declare_entries!(Query in project {
     PinoutPreview "library.pinout_preview" Read "Preview a pinout import" [in library, long, link],
     SuggestPins "functions.suggest" Read "Suggest pin assignments" [in schematic, link],
     PinReport "project.pin_report" Read "Pin report" [in schematic, link],
+    PartPins "schematic.pins" Read "List parts' pins" [in schematic, link, since(1, 7)],
     PinConfig "project.pin_config" Read "Firmware pin configuration" [in fab, link],
     Marking "instance.marking" Read "Resolve an instance's marking" [in schematic],
     RulesEffective "rules.effective" Read "Effective rules" [in rules, link],
@@ -580,6 +585,7 @@ pub enum QueryResult {
     PinoutPlan(Box<library::pinout::PinoutPlan>),
     SuggestPins(functions::suggest::SuggestReport),
     PinReport(Box<pins::PinReport>),
+    PartPins(Vec<pins::PartPins>),
     PinConfig(Box<firmware::PinConfigReport>),
     Marking(Option<library::marking::MarkingLayout>),
     Rules(Box<rules::RulesReport>),
@@ -2390,6 +2396,10 @@ impl Engine {
             Query::PinReport { instance } => Ok(QueryResult::PinReport(Box::new(
                 pins::pin_report(&self.document.project, instance)?,
             ))),
+            Query::PartPins { designators } => Ok(QueryResult::PartPins(pins::part_pins(
+                &self.document.project,
+                &designators,
+            )?)),
             Query::PinConfig { instance } => Ok(QueryResult::PinConfig(Box::new(
                 firmware::pin_config(&self.document.project, instance)?,
             ))),

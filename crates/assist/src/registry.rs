@@ -324,9 +324,17 @@ impl RegistryClient {
         }
     }
 
-    /// A public read: never with the sign-in.
+    /// A public read: never with the sign-in. Searching and the index
+    /// need no account, so a 401 here is the server closed to the public
+    /// (a password in front of it), not a missing sign-in.
     fn get(&self, path: &str, timeout: Duration, limit: u64) -> Result<Vec<u8>, String> {
         let reply = self.send(Method::Get, path, None, None, timeout, limit)?;
+        if reply.status == 401 {
+            return Err(format!(
+                "{} is not open to the public: it asked for a password to search, which needs no account. Use another online library, or wait until this one opens",
+                self.host
+            ));
+        }
         if reply.status >= 300 {
             return Err(self.refusal(&reply));
         }

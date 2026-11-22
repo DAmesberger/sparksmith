@@ -39,7 +39,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+/// 3: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 3;
 
 /// A microSD card's eight contacts, by number: their signal names.
 const SIGNALS: [&str; 8] = [
@@ -684,6 +686,8 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             key: (i + 1).to_string(),
             name: (*name).into(),
             direction: Direction::Passive,
+            alternates: Vec::new(),
+            drive: None,
         })
         .collect();
     for key in ["CD_A", "CD_B", "SHIELD"] {
@@ -691,9 +695,12 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             key: key.into(),
             name: key.into(),
             direction: Direction::Passive,
+            alternates: Vec::new(),
+            drive: None,
         });
     }
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals,

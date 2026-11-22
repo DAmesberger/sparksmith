@@ -55,7 +55,9 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`): 4 sets the marking
 /// text at the height its preset gives (`marking_height`); 5 stands a land
 /// grid's lands proud of the body (the part files' `land_proud`).
-const VERSION: u32 = 5;
+/// 6: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 6;
 
 /// Most rows or columns of one grid (the host's grid form allows as many).
 const MAX_SIDE: i64 = 64;
@@ -855,6 +857,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         ));
     }
     Ok(Generation {
+        orderable: Vec::new(),
         marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
@@ -863,6 +866,8 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: key.clone(),
                     name: key.clone(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "U".into(),

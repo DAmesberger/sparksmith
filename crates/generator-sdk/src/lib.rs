@@ -30,6 +30,8 @@ pub mod host;
 pub mod land;
 pub mod land_pattern;
 pub mod marking;
+pub mod orderable;
+pub mod pins;
 pub mod units;
 
 pub use sparksmith_generator_abi as abi;
@@ -44,6 +46,18 @@ pub trait Generator {
     fn describe() -> Description;
     /// The part body for `request`, or the parameter problems in plain words.
     fn generate(request: &Request) -> Result<Generation, Vec<Problem>>;
+}
+
+/// The description a module reports: the generator's own with the
+/// parameters the SDK applies around it (the land pattern, the pin table
+/// and the part numbers).
+pub fn described<G: Generator>() -> Description {
+    orderable::declare(pins::declare(land_pattern::declare(G::describe())))
+}
+
+/// `G` run for `request` with every parameter the SDK applies around it.
+pub fn generate<G: Generator>(request: &Request) -> Result<Generation, Vec<Problem>> {
+    orderable::generate::<G>(request)
 }
 
 /// Parse a generator's preset table: a JSON array of [`v1::Preset`]s,

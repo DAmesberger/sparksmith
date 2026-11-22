@@ -1,7 +1,7 @@
 {
   "format": 1,
   "id": "datasheet-to-body",
-  "version": "1.0",
+  "version": "1.1",
   "title": "Datasheet → 3D body",
   "summary": "Give a placed part a 3D body recreated by a generator from the datasheet's drawing, fitted to the footprint it keeps, every value cited.",
   "intents": [
@@ -12,7 +12,7 @@
   "needs": [
     {"module": "library", "major": 3, "minor": 4},
     {"module": "generators", "major": 1, "minor": 4},
-    {"module": "assist", "major": 1}
+    {"module": "assist", "major": 1, "minor": 4}
   ],
   "reach": {"project": "read", "library": "read", "generators": "edit", "assist": "edit", "view": "show"},
   "budget": {"requests": 30, "output_tokens": 120000, "minutes": 30},
@@ -42,7 +42,7 @@
   },
   "steps": [
     {"id": "ask", "kind": "input", "title": "Inputs", "inputs": ["datasheets", "part", "photos", "notes"]},
-    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title"}},
+    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title", "outline": true}},
     {"id": "target", "kind": "tool", "title": "Part", "call": "library.body_fit", "params": {"designator": "/inputs/part"}},
     {"id": "gens", "kind": "tool", "title": "Generators", "call": "library.generators", "params": {}},
     {"id": "plan", "kind": "model", "title": "Body", "goal": "Read the mechanical drawing; choose the generator and preset that make this body and give every value the drawing states, or say why no generator makes it.", "method": "method.md#procedure", "output": "body_plan", "check": "fit", "retries": 2},

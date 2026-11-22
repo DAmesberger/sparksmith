@@ -119,12 +119,24 @@ impl Surface for Session {
         let verbose = cx.verbose | take_verbose_params(&mut call.params);
         unsupported(&call)?;
         let target = read(&call)?;
+        // An agent's edit may go on top of what someone else changed since
+        // it last looked: only when the document moved without this
+        // session answering at the state it is in now.
+        let agent = cx.who.grant().is_some();
+        let moved_by_others = agent && !self.seen_now();
+        // The state the call finds is one a reply may name next.
+        if agent {
+            self.keep_seen();
+        }
         let view = crate::view::Request::of(&target.request);
         if view.is_some() && cx.window.is_none() {
             return Err(crate::view::unavailable(&call.entry));
         }
         // A call naming a turn joins it, after the gate's own rules.
         let gated = self.gate(&cx.who, &target.request);
+        // A change a person allowed was allowed as they saw it: it never
+        // moves onto another state.
+        let asked = matches!(gated, Decision::Ask(_));
         let turn = match &call.turn {
             Some(id) => {
                 let admitted = self.turns.admit(id, &call.entry);
@@ -187,6 +199,17 @@ impl Surface for Session {
                 view,
             );
         }
+        // An edit prepared before the person's latest changes goes on top
+        // of them unless both change the same objects.
+        let onto = self.engine().revision();
+        let (target, rebased) = if call.dry_run {
+            (target, None)
+        } else {
+            let Target { request, expected } = target;
+            let (request, expected, rebased) =
+                self.rebase(moved_by_others && !asked, request, expected)?;
+            (Target { request, expected }, rebased)
+        };
         // A turn's edits join its one undo step (a dry run keeps nothing).
         let grouped = match &turn {
             Some((_, admitted)) if !call.dry_run => {
@@ -214,6 +237,15 @@ impl Surface for Session {
             };
             self.turns.ran(&id, mark);
         }
+        if agent {
+            self.keep_seen();
+        }
+        let result = result.map(|mut reply| {
+            if let Some(from) = rebased {
+                crate::session::rebase::note(&mut reply, from, onto);
+            }
+            reply
+        });
         result.map_err(|error| match error {
             crate::Error::Refused(error) => error,
             error => Box::new(from_diagnostic(error.diagnostic())),
@@ -257,16 +289,22 @@ impl Session {
     }
 }
 
+/// Entries that only put a card in the chat, which the busy rule lets
+/// through.
+const CHAT_CARDS: [&str; 2] = ["assist.ask", "assist.offer"];
+
 /// The busy rule: while the person holds `window` (typing, dragging, a
 /// menu, dialog or review), a call of `class` other than a read or a dry
-/// run is refused with `live.busy`, naming why.
+/// run is refused with `live.busy`, naming why; a chat card never is.
 pub fn busy(
     window: &dyn WindowHost,
     subject: &str,
     class: sparksmith_core::Class,
     dry_run: bool,
 ) -> Option<Box<Error>> {
-    if class == sparksmith_core::Class::Read || dry_run {
+    // A card in the chat (a question, an offer) changes neither the
+    // document nor what the person is working on.
+    if class == sparksmith_core::Class::Read || dry_run || CHAT_CARDS.contains(&subject) {
         return None;
     }
     window.busy().map(|reason| {

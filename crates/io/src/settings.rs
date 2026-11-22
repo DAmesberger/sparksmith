@@ -52,9 +52,10 @@ const APP_NAME: &str = sparksmith_core::product::NAME;
 pub const MAX_REGISTRIES: usize = 4;
 /// Bytes of a registry URL.
 pub const MAX_REGISTRY_URL: usize = 256;
-/// The registry URL Settings › Libraries offers until the hosted registry
-/// is deployed: a registry server on this machine.
-pub const DEFAULT_REGISTRY_URL: &str = "http://localhost:8787";
+/// The registry URL Settings › Libraries offers: the hosted production
+/// registry. A registry on this machine (development) is set there as the
+/// URL, never shipped as the default.
+pub const DEFAULT_REGISTRY_URL: &str = "https://parts.sparksmith.io";
 
 /// One online parts registry (part-search §6, registry R0 §10), searched
 /// after every local source. Off unless the person turns it on.
@@ -1092,6 +1093,12 @@ mod tests {
             assert!(bad.check().is_err(), "{position:?} {size:?}");
         }
         Ok(())
+    }
+
+    #[test]
+    fn the_shipped_default_registry_is_the_production_one() -> Result<()> {
+        assert_eq!(DEFAULT_REGISTRY_URL, "https://parts.sparksmith.io");
+        check_registry_url(DEFAULT_REGISTRY_URL)
     }
 
     #[test]

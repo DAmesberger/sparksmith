@@ -34,7 +34,8 @@ use super::{Definition, Library, PackageModel};
 use crate::diagnostics::{Error, Result};
 use crate::fields::{FieldSelection, ValueTemplate};
 use crate::ids::{
-    BindingRef, ContentHash, DefinitionKind, DefinitionRef, FootprintRef, PackageRef, SymbolRef,
+    BindingRef, ComponentRef, ContentHash, DefinitionKind, DefinitionRef, FootprintRef, PackageRef,
+    PartRef, SymbolRef,
 };
 use crate::units::{Nm, PointNm};
 use schemars::JsonSchema;
@@ -472,6 +473,39 @@ impl GeneratedPart {
 /// The record of a revision `root`, if a generator made it.
 pub fn record_of(library: &Library, root: DefinitionRef) -> Option<&GeneratedPart> {
     library.generated.iter().find(|g| g.root == root)
+}
+
+/// The SDK's parameter of a generation's orderable part numbers
+/// (`sparksmith_generator_sdk::orderable`): `MANUFACTURER=MPN` entries,
+/// recorded with the part's complete parameters.
+pub const ORDERABLE_PARAM: &str = "part_numbers";
+
+/// The one manufacturer Part a placed instance of `component` is fitted
+/// with: when `component` is a generated part whose generation named
+/// exactly one orderable part number, the latest Part of that number
+/// pinning exactly this revision (the one `library.generate` published, or
+/// carried to it). `None` for any other component, for a generation of no
+/// or several part numbers (a module's ordering codes: the person
+/// chooses), or when that Part is gone.
+pub fn sole_orderable(library: &Library, component: ComponentRef) -> Option<PartRef> {
+    let record = record_of(library, component.erased())?;
+    let [ParamValue::Text(entry)] = (match record.from.params.get(ORDERABLE_PARAM)? {
+        ParamValue::List(items) => items.as_slice(),
+        _ => return None,
+    }) else {
+        return None;
+    };
+    let (manufacturer, mpn) = entry.rsplit_once('=')?;
+    let (manufacturer, mpn) = (manufacturer.trim(), mpn.trim());
+    library
+        .latest_parts()
+        .into_iter()
+        .find(|p| {
+            p.definition.component == component
+                && p.definition.manufacturer == manufacturer
+                && p.definition.mpn == mpn
+        })
+        .map(|p| PartRef::new(p.id, p.revision))
 }
 
 /// The recipe a library record of `root` carries when a generator made

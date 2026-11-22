@@ -1,7 +1,7 @@
 //! Native tests: the golden hashes, hand-derived lands and keep-out, the
 //! part-file values (slots, parking, the ground array's turn) and refusals.
 use super::*;
-use sparksmith_generator_sdk::golden;
+use sparksmith_generator_sdk::{self as sdk, golden};
 
 fn request(scope: Scope, overrides: &[(String, ParamValue)]) -> Request {
     let mut params = v1::Params::new();
@@ -63,7 +63,7 @@ fn presets_generate_in_both_scopes() -> Result<(), Vec<Problem>> {
     assert_eq!(description.presets().len(), 4);
     for p in description.presets() {
         for scope in [Scope::Component, Scope::Package] {
-            let g = Module::generate(&request(scope, &preset(&p.key)))?;
+            let g = sdk::generate::<Module>(&request(scope, &preset(&p.key)))?;
             assert_eq!(
                 g.package.geometry.leads.len(),
                 g.package.terminals.len(),
@@ -77,7 +77,7 @@ fn presets_generate_in_both_scopes() -> Result<(), Vec<Problem>> {
 
 #[test]
 fn the_wroom3_has_99_terminals_and_nine_pads_numbered_95() -> Result<(), Vec<Problem>> {
-    let g = Module::generate(&request(Scope::Component, &preset(WROOM)))?;
+    let g = sdk::generate::<Module>(&request(Scope::Component, &preset(WROOM)))?;
     assert_eq!(g.package.terminals.len(), 99);
     let pads = &g.footprint.pads;
     assert_eq!(pads.len(), 94 + 9 + 4);
@@ -131,7 +131,7 @@ fn the_wroom3_has_99_terminals_and_nine_pads_numbered_95() -> Result<(), Vec<Pro
 
 #[test]
 fn castellated_rows_land_outward_and_contact_under_their_plating() -> Result<(), Vec<Problem>> {
-    let g = Module::generate(&request(Scope::Package, &[]))?;
+    let g = sdk::generate::<Module>(&request(Scope::Package, &[]))?;
     let pads = &g.footprint.pads;
     // Pin 1 at (−8.4, 5.5): its 1.5 × 0.9 mm land reaches 0.3 mm beyond
     // the −9 mm edge.
@@ -177,7 +177,7 @@ fn the_wroom1_lands_where_its_datasheet_lays_them() -> Result<(), Vec<Problem>> 
     // −8.0), pin 1 7.49 mm below the +y edge, pin 15 2.015 mm in from the
     // −x edge; nine 0.9 mm ground pads numbered 41 at 1.4 mm about
     // (−1.5, −2.46); castellations Ø0.55; the can embossed.
-    let g = Module::generate(&request(
+    let g = sdk::generate::<Module>(&request(
         Scope::Component,
         &preset("module-esp32-s3-wroom-1"),
     ))?;
@@ -231,8 +231,9 @@ fn the_wroom1u_is_the_wroom1_pads_without_the_antenna_end() -> Result<(), Vec<Pr
     // 19.2 mm PCB (all 3.15 mm up in the centred frame); no antenna or
     // keep-out; the can notched 4.9 × 4.4 mm at its +x +y corner for the
     // U.FL receptacle 3 mm from the right edge and 2.46 mm from the top.
-    let one = Module::generate(&request(Scope::Package, &preset("module-esp32-s3-wroom-1")))?;
-    let u = Module::generate(&request(
+    let one =
+        sdk::generate::<Module>(&request(Scope::Package, &preset("module-esp32-s3-wroom-1")))?;
+    let u = sdk::generate::<Module>(&request(
         Scope::Package,
         &preset("module-esp32-s3-wroom-1u"),
     ))?;
@@ -274,7 +275,7 @@ fn a_ground_array_turned_a_quarter_swaps_its_counts_in_the_part_file() -> Result
         kv("ground_columns", 3),
         kv("ground_rotation", 90_000),
     ];
-    let g = Module::generate(&request(Scope::Package, &over))?;
+    let g = sdk::generate::<Module>(&request(Scope::Package, &over))?;
     let (asset, v) = values(&g);
     assert_eq!(asset, parts::MODULE_CASTELLATED);
     assert_eq!((int(v, "ground_rows"), int(v, "ground_columns")), (3, 2));
@@ -292,14 +293,14 @@ fn a_ground_array_turned_a_quarter_swaps_its_counts_in_the_part_file() -> Result
     assert_eq!(Some(int(v, "ground_x")), min_x);
     assert_eq!(Some(int(v, "ground_y")), max_y);
     over.push(kv("ground_rotation", 30_000));
-    let refused = Module::generate(&request(Scope::Package, &over));
+    let refused = sdk::generate::<Module>(&request(Scope::Package, &over));
     assert!(refused.is_err_and(|p| p.iter().any(|p| p.message.contains("45°"))));
     Ok(())
 }
 
 #[test]
 fn no_antenna_parks_the_meander_and_drops_the_keep_out() -> Result<(), Vec<Problem>> {
-    let g = Module::generate(&request(
+    let g = sdk::generate::<Module>(&request(
         Scope::Package,
         &[kv("antenna_length", 0), kv("can_y", 0)],
     ))?;
@@ -325,14 +326,14 @@ fn inconsistent_values_are_named() {
         ),
         ("row_y".to_string(), ParamValue::List(ints(&[0, 0, 0]))),
     ];
-    let refused = Module::generate(&request(Scope::Package, &three_left));
+    let refused = sdk::generate::<Module>(&request(Scope::Package, &three_left));
     assert!(refused.is_err_and(|p| p.iter().any(|p| p.message.contains("2 a side"))));
-    let refused = Module::generate(&request(
+    let refused = sdk::generate::<Module>(&request(
         Scope::Package,
         &[("ground_number".into(), ParamValue::Text("3".into()))],
     ));
     assert!(refused.is_err_and(|p| p.iter().any(|p| p.message.contains("unique"))));
-    let refused = Module::generate(&request(Scope::Package, &[kv("can_y", 3_000_000)]));
+    let refused = sdk::generate::<Module>(&request(Scope::Package, &[kv("can_y", 3_000_000)]));
     assert!(refused.is_err_and(|p| p.iter().any(|p| p.message.contains("shield can"))));
 }
 
@@ -341,7 +342,7 @@ fn inconsistent_values_are_named() {
 /// a module whose preset leaves a line empty drops that line.
 #[test]
 fn the_wroom1u_label_carries_every_line_of_the_makers_artwork() -> Result<(), Vec<Problem>> {
-    let g = Module::generate(&request(
+    let g = sdk::generate::<Module>(&request(
         Scope::Package,
         &preset("module-esp32-s3-wroom-1u"),
     ))?;
@@ -387,7 +388,7 @@ fn the_wroom1u_label_carries_every_line_of_the_makers_artwork() -> Result<(), Ve
     );
 
     // The S31-WROOM-3 names only its module and maker: no other line.
-    let g = Module::generate(&request(
+    let g = sdk::generate::<Module>(&request(
         Scope::Package,
         &preset("module-esp32-s31-wroom-3"),
     ))?;
@@ -407,5 +408,88 @@ fn the_wroom1u_label_carries_every_line_of_the_makers_artwork() -> Result<(), Ve
     ] {
         assert!(!svg.contains(gone), "{gone} in {svg}");
     }
+    Ok(())
+}
+
+/// The terminal keyed `key`: its name, default direction and further ones.
+fn pin<'a>(g: &'a Generation, key: &str) -> Option<(&'a str, Direction, &'a [Direction])> {
+    g.component
+        .as_ref()?
+        .terminals
+        .iter()
+        .find(|t| t.key == key)
+        .map(|t| (t.name.as_str(), t.direction, t.alternates.as_slice()))
+}
+
+/// E2E run 13: the ESP32 presets made 41 passive pins named 1…41. Their
+/// pins carry Espressif's names and types (Table 3-1).
+#[test]
+fn the_esp32_presets_name_and_type_their_pins() -> Result<(), Vec<Problem>> {
+    use Direction::{Input, Output, Passive, PowerInput};
+    for key in ["module-esp32-s3-wroom-1", "module-esp32-s3-wroom-1u"] {
+        let g = sdk::generate::<Module>(&request(Scope::Component, &preset(key)))?;
+        let terminals = g.component.as_ref().map_or(0, |c| c.terminals.len());
+        assert_eq!(terminals, 41, "{key}");
+        assert_eq!(pin(&g, "1"), Some(("GND", PowerInput, &[][..])), "{key}");
+        assert_eq!(pin(&g, "2"), Some(("3V3", PowerInput, &[][..])), "{key}");
+        assert_eq!(pin(&g, "3"), Some(("EN", Input, &[][..])), "{key}");
+        assert_eq!(pin(&g, "27"), Some(("IO0", Input, &[Output][..])), "{key}");
+        assert_eq!(pin(&g, "13"), Some(("IO19", Input, &[Output][..])), "{key}");
+        assert_eq!(pin(&g, "36"), Some(("RXD0", Input, &[Output][..])), "{key}");
+        assert_eq!(pin(&g, "37"), Some(("TXD0", Input, &[Output][..])), "{key}");
+        assert_eq!(pin(&g, "41"), Some(("EPAD", PowerInput, &[][..])), "{key}");
+        // No pin is left a bare number or passive.
+        for t in g.component.iter().flat_map(|c| &c.terminals) {
+            assert!(t.name != t.key && t.direction != Passive, "{key}: {t:?}");
+        }
+    }
+    let g = sdk::generate::<Module>(&request(Scope::Component, &preset(WROOM)))?;
+    assert_eq!(pin(&g, "5"), Some(("EN", Input, &[][..])));
+    assert_eq!(pin(&g, "33"), Some(("NC", Passive, &[][..])));
+    assert_eq!(pin(&g, "40"), Some(("USB_DP", Passive, &[][..])));
+    assert_eq!(pin(&g, "45"), Some(("IO36", Input, &[Output][..])));
+    assert_eq!(pin(&g, "68"), Some(("TX0", Input, &[Output][..])));
+    assert_eq!(pin(&g, "95"), Some(("GND", PowerInput, &[][..])));
+    assert_eq!(pin(&g, "99"), Some(("GND", PowerInput, &[][..])));
+    let numbered: Vec<&str> = g
+        .component
+        .iter()
+        .flat_map(|c| &c.terminals)
+        .filter(|t| t.name == t.key)
+        .map(|t| t.key.as_str())
+        .collect();
+    assert!(numbered.is_empty(), "{numbered:?}");
+    // The ordering codes are the component's orderable parts; a package
+    // has none.
+    let g = sdk::generate::<Module>(&request(
+        Scope::Component,
+        &preset("module-esp32-s3-wroom-1"),
+    ))?;
+    assert_eq!(g.orderable.len(), 11);
+    assert_eq!(
+        g.orderable
+            .first()
+            .map(|o| (o.manufacturer.as_str(), o.mpn.as_str())),
+        Some(("Espressif Systems", "ESP32-S3-WROOM-1-N4"))
+    );
+    let g = sdk::generate::<Module>(&request(Scope::Package, &preset("module-esp32-s3-wroom-1")))?;
+    assert!(g.orderable.is_empty());
+    let g = sdk::generate::<Module>(&request(Scope::Component, &preset(WROOM)))?;
+    assert_eq!(
+        g.orderable
+            .iter()
+            .map(|o| o.mpn.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "ESP32-S31-WROOM-3-N16R8V",
+            "ESP32-S31-WROOM-3-N8R16V",
+            "ESP32-S31-WROOM-3-N16R16V",
+            "ESP32-S31-WROOM-3-N32R16V",
+            "ESP32-S31-WROOM-3-N16R32V"
+        ]
+    );
+    // The synthetic module has no pin table: its pins stay numbered.
+    let g = sdk::generate::<Module>(&request(Scope::Component, &preset("module-typical-18x25")))?;
+    assert_eq!(pin(&g, "1"), Some(("1", Passive, &[][..])));
     Ok(())
 }

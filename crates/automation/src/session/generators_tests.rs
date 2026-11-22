@@ -988,3 +988,76 @@ fn shipped_requests_complete_to_the_same_bytes_in_core_and_host() -> TestResult 
     println!("{count} shipped requests, digest {}", hex(&sha256(&all)));
     Ok(())
 }
+
+/// A shipped library in `dir` holding only the no-lead generator's bundle.
+fn no_lead_library(dir: &Path) -> TestResult<PathBuf> {
+    let root = dir.join("library");
+    std::fs::create_dir_all(root.join("generators"))?;
+    std::fs::write(root.join(MARKER), "{\"format\":1}\n")?;
+    copy_dir(
+        &Path::new(BUNDLE).join("../no-lead"),
+        &root.join("generators/no-lead"),
+    )?;
+    Ok(root)
+}
+
+/// Place the root component a `library.generate_part` reply made, by its
+/// first symbol and binding; the instance's fitted Part, if any.
+fn place_made(session: &mut Session, made: &Value) -> TestResult<Option<u64>> {
+    let revisions = made["result"]["outcome"]["report"]["revisions"].clone();
+    let component = revisions[0].clone();
+    let placed = call(
+        session,
+        "project.apply",
+        json!({"operation": {"editor": "Instance", "operation": {"command": "component.place",
+            "params": {"component": {"id": component["id"], "revision": component["revision"]},
+                "properties": [], "representation": revisions[1]["id"], "unit": 1,
+                "physical": {"binding": revisions[4]["id"], "footprint": revisions[3]["id"]}}}}}),
+    );
+    assert_eq!(placed["ok"], true, "{placed}");
+    let project = session.engine().project();
+    let instance = project.instances.last().ok_or("no instance")?;
+    Ok(instance.part.map(|p| p.id.0))
+}
+
+/// E2E run 13 (finding 41): a generated IC had no Value or MPN in the
+/// BOM. A part made for exactly one orderable part number is fitted with
+/// that Part when placed, so the BOM names it; one made for several (a
+/// preset's ordering codes) is left for the person to choose.
+#[test]
+fn a_part_made_for_one_part_number_is_fitted_with_it_when_placed() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = no_lead_library(temp.path())?;
+    let mut session = session(&root)?;
+    let one = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "no-lead", "scope": "component", "preset": "no-lead-ti-dml0010a",
+            "name": "TPS22990DMLR",
+            "params": {"part_numbers": ["Texas Instruments=TPS22990DMLR"]}}),
+    );
+    assert_eq!(one["ok"], true, "{one}");
+    assert!(place_made(&mut session, &one)?.is_some());
+    let bom = session.dispatch(json!({"command": "project.bom", "params": {}}));
+    let lines = bom["result"]["result"]["lines"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        lines
+            .iter()
+            .any(|l| l["mpn"] == "TPS22990DMLR" && l["manufacturer"] == "Texas Instruments"),
+        "{bom}"
+    );
+    // The preset's four ordering codes: four Parts, none chosen.
+    let several = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "no-lead", "scope": "component", "preset": "no-lead-ti-dml0010a"}),
+    );
+    assert_eq!(several["ok"], true, "{several}");
+    assert_eq!(place_made(&mut session, &several)?, None);
+    let parts = session.engine().project().library.latest_parts().len();
+    assert_eq!(parts, 1 + 4);
+    Ok(())
+}

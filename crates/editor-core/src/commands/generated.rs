@@ -785,6 +785,10 @@ pub(crate) fn generate(
     // the update that moves the instances takes them along.
     if scope == GeneratorScope::Component {
         super::library::carry_parts(document, ComponentRef::new(root.id, root.revision))?;
+        // The generation's orderable parts become the component's
+        // manufacturer Parts, those it does not have yet (a regeneration
+        // carried the others above), in the same step.
+        super::library::publish_orderable(document, root.id, &made.generation.orderable)?;
     }
     let part = GeneratedPart {
         root,

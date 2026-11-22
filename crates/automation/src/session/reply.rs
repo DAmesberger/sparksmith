@@ -822,6 +822,65 @@ pub fn difference(
 
 /// The person's name of each id in `lists` (collection path to ids) that
 /// `root` holds and that has one.
+/// What changed between two documents, without the findings: each object
+/// added, changed or removed, by its collection's path and its id, with
+/// its designator or name where it has one; and the changed places that
+/// are no collection of objects.
+pub(crate) struct Touched {
+    pub(crate) objects: BTreeMap<(String, String), Option<String>>,
+    pub(crate) fields: Vec<String>,
+}
+
+/// [`Touched`] from `before` to `after`; only the sections that differ are
+/// read.
+pub(crate) fn touched(before: &Document, after: &Document) -> Result<Touched> {
+    let mut objects = BTreeMap::new();
+    let mut fields = Vec::new();
+    let mut compare = |path: &str, old: Value, new: Value| {
+        let mut changes = Changes::default();
+        changes.diff(path, &old, &new);
+        let mut names = Map::new();
+        let root = |value: Value| {
+            let mut map = Map::new();
+            map.insert(path.to_owned(), value);
+            Value::Object(map)
+        };
+        let (old, new) = if path.is_empty() {
+            (old, new)
+        } else {
+            (root(old), root(new))
+        };
+        name_listed(&old, &changes.removed, &mut names);
+        name_listed(&new, &changes.added, &mut names);
+        name_listed(&new, &changes.changed, &mut names);
+        for lists in [&changes.added, &changes.changed, &changes.removed] {
+            for (list, ids) in lists {
+                for id in ids {
+                    let id = id.to_string();
+                    let name = names.get(&id).and_then(Value::as_str).map(str::to_owned);
+                    objects.insert((list.clone(), id), name);
+                }
+            }
+        }
+        fields.extend(changes.fields);
+    };
+    if !Arc::ptr_eq(&before.project, &after.project) {
+        compare(
+            "",
+            serde_json::to_value(before.project.as_ref())?,
+            serde_json::to_value(after.project.as_ref())?,
+        );
+    }
+    if !Arc::ptr_eq(&before.drafts, &after.drafts) {
+        compare(
+            "drafts",
+            serde_json::to_value(before.drafts.as_ref())?,
+            serde_json::to_value(after.drafts.as_ref())?,
+        );
+    }
+    Ok(Touched { objects, fields })
+}
+
 fn name_listed(root: &Value, lists: &BTreeMap<String, Vec<Value>>, names: &mut Map<String, Value>) {
     for (path, ids) in lists {
         let Some(Value::Array(items)) = path.split('.').try_fold(root, |value, key| value.get(key))
