@@ -85,9 +85,8 @@ fn the_upgrade_checks_the_input_constraints_format_one_recorded() {
             new: Some(&updated)
         }
         .classify("example")
-        .expect("known entry")
-        .change,
-        compat::Change::Major
+        .map(|outcome| outcome.change),
+        Some(compat::Change::Major)
     );
 }
 
