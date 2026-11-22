@@ -401,7 +401,7 @@ pub fn holes(project: &Project) -> Vec<Hole> {
 }
 
 /// A via's drilled hole.
-fn via_hole(project: &Project, via: &crate::model::Via) -> Hole {
+pub(crate) fn via_hole(project: &Project, via: &crate::model::Via) -> Hole {
     Hole {
         feature: HoleFeature::Round {
             at: via.position,
@@ -422,6 +422,14 @@ pub fn holes_of(project: &Project, placed: &[PlacedPad]) -> Vec<Hole> {
         .iter()
         .map(|via| via_hole(project, via))
         .collect();
+    out.extend(holes_but_vias(project, placed));
+    out
+}
+
+/// [`holes_of`] without the via drills: the holes of `placed`, then the
+/// board's own holes, in the same order.
+pub(crate) fn holes_but_vias(project: &Project, placed: &[PlacedPad]) -> Vec<Hole> {
+    let mut out = Vec::new();
     let labels = super::pad_labels(project);
     for pad in placed {
         let label = labels

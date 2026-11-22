@@ -63,6 +63,7 @@ pub fn annular_ring(pad: &Shape, hole: &Shape) -> f64 {
 }
 
 /// One drilled hole the checks compare.
+#[derive(Debug)]
 struct Hole {
     ring: CopperRing,
     kind: CopperObject,
@@ -82,7 +83,7 @@ pub(super) fn findings(
     project: &Project,
     graph: &super::GraphSource<'_>,
 ) -> Vec<Finding> {
-    let Some(cx) = PadHoleCx::new(copper, project) else {
+    let Some(cx) = PadHoleCx::new(copper, project, None) else {
         return Vec::new();
     };
     let mut issues = cx.rings();
@@ -145,7 +146,14 @@ pub fn items(
     {
         return Some((old.clone(), index.clone()));
     }
-    made(copper, project, graph, last.map(|(i, _, c, n)| (i, c, n)))
+    let part = last.and_then(|(_, index, _, _)| index.part.clone());
+    made(
+        copper,
+        project,
+        graph,
+        last.map(|(i, _, c, n)| (i, c, n)),
+        part,
+    )
 }
 
 /// Where a board's pad holes are and which nets their pads carry, which a
@@ -157,6 +165,8 @@ pub struct PadHoleIndex {
     holes: Vec<(Option<crate::geometry::Bounds>, Option<Id>)>,
     reach: f64,
     mounts: usize,
+    /// The pad holes and what they are made of, kept for a next state.
+    part: Option<std::sync::Arc<PadPart>>,
 }
 
 impl PadHoleIndex {
@@ -188,9 +198,10 @@ fn made(
     project: &Project,
     graph: &dyn Fn(&BTreeSet<Id>) -> Option<std::sync::Arc<CopperGraph>>,
     last: Option<(&super::Items, &super::CopperChanges, &BTreeSet<Id>)>,
+    part: Option<std::sync::Arc<PadPart>>,
 ) -> Option<(super::Items, PadHoleIndex)> {
     use super::ItemKey;
-    let Some(cx) = PadHoleCx::new(copper, project) else {
+    let Some(cx) = PadHoleCx::new(copper, project, part) else {
         let items = super::Items::made(&[ItemKey::Rings], None, |_| Some((Vec::new(), 0)))?;
         return Some((items, PadHoleIndex::default()));
     };
@@ -199,10 +210,9 @@ fn made(
         .collect();
     // The pad holes to check again, and the nets of their pads.
     let net_of = |i: usize| {
-        cx.holes
-            .get(i)
+        cx.hole_at(i)
             .and_then(|h| h.pad)
-            .and_then(|k| cx.placed.get(k))
+            .and_then(|k| cx.part.placed.get(k))
             .and_then(|p| p.net)
     };
     let remake: Vec<bool> = keys
@@ -270,22 +280,101 @@ fn made(
             .map(|i| (cx.hole_bounds.get(i).copied().flatten(), net_of(i)))
             .collect(),
         reach: cx.reach,
-        mounts: cx
-            .holes
-            .len()
-            .saturating_sub(cx.pad_holes + copper.vias().len()),
+        mounts: cx.part.mounts.len(),
+        part: Some(cx.part.clone()),
     };
     (items.pairs() <= cx.budget()).then_some((items, index))
 }
 
+/// What a pad hole check reads that a change of tracks and vias alone
+/// leaves as it was: the placed pads, their labels, the pad holes and the
+/// mounting holes. A next state's check keeps it ([`PadHoleIndex`]).
+#[derive(Debug)]
+pub struct PadPart {
+    placed: Vec<PlacedPad>,
+    labels: BTreeMap<(Id, PadId), String>,
+    pad_holes: Vec<Hole>,
+    mounts: Vec<Hole>,
+}
+
+impl PadPart {
+    /// `None` when the board has no pad hole and no plated mounting hole.
+    fn of(project: &Project) -> Option<Self> {
+        let placed = placed_pads(project);
+        if placed.iter().all(|p| p.holes().is_empty())
+            && !project.board().holes.iter().any(|h| h.plated)
+        {
+            return None;
+        }
+        let labels = pad_labels(project);
+        // The board's holes ([`physical::holes`]), pad holes first, then
+        // via drills and mounting holes (plated board slots keep the
+        // profile's slot rules, not these).
+        let index: BTreeMap<(Id, PadId), usize> = placed
+            .iter()
+            .enumerate()
+            .map(|(k, p)| ((p.instance, p.pad.id), k))
+            .collect();
+        let all = physical::holes_of(project, &placed);
+        let of = |h: &physical::Hole| {
+            let pad = match h.owner {
+                HoleOwner::Pad { instance, pad, .. } => index.get(&(instance, pad)).copied(),
+                _ => None,
+            };
+            hole_of(h, pad, |k| {
+                placed.get(k).map(|p| pad_name(project, &labels, p))
+            })
+        };
+        let pad_holes: Vec<Hole> = all
+            .iter()
+            .filter(|h| matches!(h.owner, HoleOwner::Pad { .. }))
+            .map(of)
+            .collect();
+        let mounts: Vec<Hole> = all
+            .iter()
+            .filter(|h| {
+                matches!(
+                    h.owner,
+                    HoleOwner::MountingHole(_) | HoleOwner::BoardSlot(_)
+                )
+            })
+            .map(of)
+            .collect();
+        Some(Self {
+            placed,
+            labels,
+            pad_holes,
+            mounts,
+        })
+    }
+}
+
+/// The check's hole for `h`, of the placed pad at `pad` (named by `name`).
+fn hole_of(h: &physical::Hole, pad: Option<usize>, name: impl Fn(usize) -> Option<String>) -> Hole {
+    Hole {
+        ring: h.feature.ring(),
+        kind: match h.owner {
+            HoleOwner::Via(_) => CopperObject::ViaHole,
+            _ => CopperObject::hole(h.plated),
+        },
+        pad,
+        object: h.object(),
+        name: match (pad.and_then(&name), h.owner) {
+            (Some(n), _) => n,
+            (None, _) => h.name.clone(),
+        },
+        what: h.what(),
+    }
+}
+
 /// One state's pad hole checks: the placed pads, the board's holes (pad
-/// holes first), the copper they are measured against and the rules.
+/// holes, then via drills and mounting holes), the copper they are
+/// measured against and the rules.
 struct PadHoleCx<'a> {
     project: &'a Project,
-    placed: Vec<PlacedPad>,
+    part: std::sync::Arc<PadPart>,
+    via_holes: Vec<Hole>,
     limits: BoardRules<'a>,
-    labels: BTreeMap<(Id, PadId), String>,
-    holes: Vec<Hole>,
     hole_bounds: Vec<Option<crate::geometry::Bounds>>,
     pad_holes: usize,
     shapes: Vec<super::via::Drilled<'a>>,
@@ -296,88 +385,78 @@ struct PadHoleCx<'a> {
 
 impl<'a> PadHoleCx<'a> {
     /// `None` when the board has no pad hole and no plated mounting hole.
-    fn new(copper: &'a BoardCopper, project: &'a Project) -> Option<Self> {
-        let placed = placed_pads(project);
-        if placed.iter().all(|p| p.holes().is_empty())
-            && !project.board().holes.iter().any(|h| h.plated)
-        {
-            return None;
-        }
-        let limits = BoardRules::of(project);
-        let labels = pad_labels(project);
-        let name = |pad: &PlacedPad| pad_name(project, &labels, pad);
-        // The board's holes ([`physical::holes`]), pad holes first, then
-        // via drills and mounting holes (plated board slots keep the
-        // profile's slot rules, not these).
-        let index: BTreeMap<(Id, PadId), usize> = placed
-            .iter()
-            .enumerate()
-            .map(|(k, p)| ((p.instance, p.pad.id), k))
-            .collect();
-        let all = physical::holes_of(project, &placed);
-        let hole_of = |h: &physical::Hole| {
-            let pad = match h.owner {
-                HoleOwner::Pad { instance, pad, .. } => index.get(&(instance, pad)).copied(),
-                _ => None,
-            };
-            Hole {
-                ring: h.feature.ring(),
-                kind: match h.owner {
-                    HoleOwner::Via(_) => CopperObject::ViaHole,
-                    _ => CopperObject::hole(h.plated),
-                },
-                pad,
-                object: h.object(),
-                name: match (pad.and_then(|k| placed.get(k)), h.owner) {
-                    (Some(p), _) => name(p),
-                    (None, _) => h.name.clone(),
-                },
-                what: h.what(),
-            }
+    /// `part`, when given, is an earlier state's, which the caller knows
+    /// is this state's too.
+    fn new(
+        copper: &'a BoardCopper,
+        project: &'a Project,
+        part: Option<std::sync::Arc<PadPart>>,
+    ) -> Option<Self> {
+        let part = match part {
+            Some(part) => part,
+            None => std::sync::Arc::new(PadPart::of(project)?),
         };
-        let mut holes: Vec<Hole> = all
-            .iter()
-            .filter(|h| matches!(h.owner, HoleOwner::Pad { .. }))
-            .map(hole_of)
-            .collect();
-        let pad_holes = holes.len();
-        if pad_holes > 0 {
-            holes.extend(
-                all.iter()
-                    .filter(|h| {
-                        matches!(
-                            h.owner,
-                            HoleOwner::Via(_)
-                                | HoleOwner::MountingHole(_)
-                                | HoleOwner::BoardSlot(_)
-                        )
-                    })
-                    .map(hole_of),
-            );
-        }
+        let limits = BoardRules::of(project);
+        let pad_holes = part.pad_holes.len();
+        let via_holes: Vec<Hole> = if pad_holes > 0 {
+            copper
+                .vias()
+                .iter()
+                .map(|v| hole_of(&physical::via_hole(project, v), None, |_| None))
+                .collect()
+        } else {
+            Vec::new()
+        };
         let shapes = super::via::drilled_copper(copper);
-        Some(Self {
+        let mut cx = Self {
             project,
-            edges: super::board_edge::BoardEdges::of(project),
-            hole_bounds: holes.iter().map(|h| h.ring.bounds).collect(),
-            holes,
+            part,
+            via_holes,
+            hole_bounds: Vec::new(),
             pad_holes,
             shape_bounds: shapes.iter().map(|s| s.ring.bounds).collect(),
             shapes,
             reach: check_reach(&limits),
             limits,
-            labels,
-            placed,
-        })
+            edges: super::board_edge::BoardEdges::of(project),
+        };
+        cx.hole_bounds = (0..cx.holes())
+            .map(|i| cx.hole_at(i).and_then(|h| h.ring.bounds))
+            .collect();
+        Some(cx)
+    }
+
+    /// The number of holes: pad holes, then (when there are any) via
+    /// drills and mounting holes.
+    fn holes(&self) -> usize {
+        if self.pad_holes == 0 {
+            0
+        } else {
+            self.pad_holes + self.via_holes.len() + self.part.mounts.len()
+        }
+    }
+
+    /// Hole `i` in that order.
+    fn hole_at(&self, i: usize) -> Option<&Hole> {
+        if let Some(h) = self.part.pad_holes.get(i) {
+            return Some(h);
+        }
+        if self.pad_holes == 0 {
+            return None;
+        }
+        let i = i - self.pad_holes;
+        self.via_holes
+            .get(i)
+            .or_else(|| self.part.mounts.get(i.checked_sub(self.via_holes.len())?))
     }
 
     fn budget(&self) -> usize {
-        check_pair_budget(self.shapes.len().saturating_add(self.holes.len()))
+        check_pair_budget(self.shapes.len().saturating_add(self.holes()))
     }
 
     fn rings(&self) -> Vec<Finding> {
-        let name = |pad: &PlacedPad| pad_name(self.project, &self.labels, pad);
-        rings(self.project, &self.placed, &self.limits, &name)
+        let name = |pad: &PlacedPad| pad_name(self.project, &self.part.labels, pad);
+        rings(self.project, &self.part.placed, &self.limits, &name)
     }
 
     /// Pad hole `i` against the copper shapes `near_shapes` (but those
@@ -393,10 +472,10 @@ impl<'a> PadHoleCx<'a> {
         issues: &mut Vec<Finding>,
     ) -> std::result::Result<usize, ()> {
         let (project, limits) = (self.project, &self.limits);
-        let Some(hole) = self.holes.get(i) else {
+        let Some(hole) = self.hole_at(i) else {
             return Ok(0);
         };
-        let Some(pad) = hole.pad.and_then(|k| self.placed.get(k)) else {
+        let Some(pad) = hole.pad.and_then(|k| self.part.placed.get(k)) else {
             return Ok(0);
         };
         if hole.ring.bounds.is_none() {
@@ -447,7 +526,7 @@ impl<'a> PadHoleCx<'a> {
         for other in near_holes
             .iter()
             .filter(|j| **j != i && (**j > i || **j >= self.pad_holes))
-            .filter_map(|j| self.holes.get(*j))
+            .filter_map(|j| self.hole_at(*j))
         {
             pairs += 1;
             if pairs > budget {

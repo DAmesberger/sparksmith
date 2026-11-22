@@ -218,6 +218,12 @@ pub fn via_pad_clearance_conflict(
 /// Refuse a via closer than the clearance rule to another net's copper on
 /// a layer it joins, as routing refuses a track.
 pub(super) fn check_clearance(project: &Project, id: Id) -> Result<()> {
+    clearance_of(project, id, false)
+}
+
+/// [`check_clearance`]; with `every`, every object's outline is made and
+/// measured, not only those whose bounds are within reach (tests).
+fn clearance_of(project: &Project, id: Id, every: bool) -> Result<()> {
     let via = project
         .via(id)
         .ok_or_else(|| Error::NotFound("unknown via".into()))?;
@@ -232,13 +238,37 @@ pub(super) fn check_clearance(project: &Project, id: Id) -> Result<()> {
             limits.clearance_need(me.0, me.1, object, Some(net)).short()
         )))
     };
-    for track in project.tracks.iter().filter(|t| t.net != via.net) {
+    // Copper whose bounds are farther than any clearance (and both
+    // outlines' slack) cannot be too close: its outline is not made.
+    let reach = limits.max_clearance() + 1.0;
+    let near = |a: Point, b: Point, r: f64| {
+        every
+            || ring.bounds.is_some_and(|rb| {
+                let ob = Bounds {
+                    min: [a[0].min(b[0]) - r, a[1].min(b[1]) - r],
+                    max: [a[0].max(b[0]) + r, a[1].max(b[1]) + r],
+                };
+                super::grid::within(&rb, &ob, reach)
+            })
+    };
+    for track in project
+        .tracks
+        .iter()
+        .filter(|t| t.net != via.net && near(t.start, t.end, t.width / 2.0))
+    {
         let need = limits.clearance(me.0, me.1, CopperObject::Track, Some(track.net));
         if via.on(track.layer, &layers) && ring.closer_than(&CopperRing::of_track(track), need) {
             return refuse("track", CopperObject::Track, track.net);
         }
     }
-    for land in super::physical::lands(project)
+    let placed: Vec<super::PlacedPad> = super::placed_pads(project)
+        .into_iter()
+        .filter(|p| {
+            let b = p.outline().bounds(0.0);
+            near(b.min, b.max, 0.0)
+        })
+        .collect();
+    for land in super::physical::lands_of(project, &placed)
         .iter()
         .filter(|l| l.net() != Some(via.net))
     {
@@ -255,7 +285,11 @@ pub(super) fn check_clearance(project: &Project, id: Id) -> Result<()> {
             )));
         }
     }
-    for other in project.vias.iter().filter(|v| v.net != via.net) {
+    for other in project
+        .vias
+        .iter()
+        .filter(|v| v.net != via.net && near(v.position, v.position, v.diameter / 2.0))
+    {
         let need = limits.clearance(me.0, me.1, CopperObject::Via, Some(other.net));
         if layers
             .iter()
