@@ -52,6 +52,24 @@ impl RouteIndex {
     }
 
     pub fn of(project: &Project) -> Self {
+        Self::filtered(project, &|_| true)
+    }
+
+    /// The index of `project` for queries near `area` alone: the copper
+    /// and holes within reach of it, in [`Self::of`]'s order, and every
+    /// keepout, cutout and edge, so a query of a piece within `area`
+    /// finds what the whole board's index finds, in the same order.
+    pub(crate) fn near(project: &Project, area: &Bounds) -> Self {
+        let rules = BoardRules::of(project);
+        // The obstacle grid's reach and the hole grid's, and a margin.
+        let reach = crate::layout::copper::check_reach(&rules).max(rules.max_clearance()) + 1.0;
+        let area = *area;
+        Self::filtered(project, &move |b: &Bounds| {
+            crate::layout::grid::within(&area, b, reach)
+        })
+    }
+
+    fn filtered(project: &Project, keep: &dyn Fn(&Bounds) -> bool) -> Self {
         let ring = |outline: &crate::library::Outline| {
             let ring = outline.flatten(CURVE_SLACK_MM);
             CopperRing {
@@ -83,13 +101,17 @@ impl RouteIndex {
                 .filter(|r| r.ring.len() >= 3)
                 .collect(),
         };
-        let holes = Hole::all(project);
+        let placed = crate::layout::obstacles::kept_pads(project, keep);
+        let holes: Vec<Hole> = Hole::all(project, &placed)
+            .into_iter()
+            .filter(|h| h.ring.bounds.is_some_and(|b| keep(&b)))
+            .collect();
         let hole_grid = BoundsGrid::new(
             holes.iter().map(|h| h.ring.bounds),
             BoardRules::of(project).max_clearance(),
         );
         Self {
-            obstacles: Obstacles::of(project),
+            obstacles: Obstacles::filtered_on(project, keep, &placed),
             holes,
             hole_grid,
             keepouts,
@@ -114,11 +136,12 @@ struct Hole {
 }
 
 impl Hole {
-    /// The board's pad holes and mounting holes ([`physical::holes`]);
+    /// The pad holes of `placed` and the board's mounting holes
+    /// ([`physical::holes`]);
     /// via drills keep their rules as part of their via, board slots as
     /// cutouts.
-    fn all(project: &Project) -> Vec<Self> {
-        physical::holes(project)
+    fn all(project: &Project, placed: &[crate::layout::PlacedPad]) -> Vec<Self> {
+        physical::holes_but_vias(project, placed)
             .into_iter()
             .filter(|h| matches!(h.owner, HoleOwner::Pad { .. } | HoleOwner::MountingHole(_)))
             .map(|h| Self {
@@ -331,8 +354,7 @@ impl<'a> Ctx<'a> {
         let ObstacleKind::Via(id) = item.kind else {
             return None;
         };
-        let at = k.checked_sub(self.project.tracks.len())?;
-        self.project.vias.get(at).filter(|v| v.id == id)
+        self.project.via(id)
     }
 
     pub fn clearance(&self, a: CopperObject, an: Id, b: CopperObject, bn: Option<Id>) -> f64 {

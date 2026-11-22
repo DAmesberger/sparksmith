@@ -21,7 +21,8 @@ use crate::rules::CopperObject;
 pub enum ObstacleKind {
     Track(Id),
     Via(Id),
-    /// A land: its index in [`super::physical::lands`].
+    /// A land: its index among the lands the index was made of
+    /// ([`super::physical::lands`] for a whole board's).
     Land(usize),
 }
 
@@ -58,14 +59,56 @@ pub struct Obstacles {
     objects: Vec<ObjectRef>,
 }
 
+/// The placed pads of `project` whose extent `keep` takes: a pad's land
+/// and holes lie within its extent, so only these are made.
+pub(crate) fn kept_pads(
+    project: &Project,
+    keep: &dyn Fn(&crate::geometry::Bounds) -> bool,
+) -> Vec<super::PlacedPad> {
+    super::placed_pads(project)
+        .into_iter()
+        .filter(|p| keep(&p.extent()))
+        .collect()
+}
+
 impl Obstacles {
     /// Every track, via and land of `project`.
     pub fn of(project: &Project) -> Self {
+        Self::filtered(project, &|_| true)
+    }
+
+    /// The tracks, vias and lands of `project` whose bounds `keep` takes,
+    /// in [`Self::of`]'s order: an index that answers every query near
+    /// the kept area as the whole board's does.
+    pub(crate) fn filtered(
+        project: &Project,
+        keep: &dyn Fn(&crate::geometry::Bounds) -> bool,
+    ) -> Self {
+        Self::filtered_on(project, keep, &kept_pads(project, keep))
+    }
+
+    /// [`Self::filtered`] with `placed`, the placed pads whose extent
+    /// `keep` takes ([`kept_pads`]).
+    pub(crate) fn filtered_on(
+        project: &Project,
+        keep: &dyn Fn(&crate::geometry::Bounds) -> bool,
+        placed: &[super::PlacedPad],
+    ) -> Self {
         let layers = project.stackup.layers();
         let mut items = Vec::new();
         let mut labels = Vec::new();
         let mut objects = Vec::new();
-        for track in &project.tracks {
+        let kept = |a: Point, b: Point, r: f64| {
+            keep(&crate::geometry::Bounds {
+                min: [a[0].min(b[0]) - r, a[1].min(b[1]) - r],
+                max: [a[0].max(b[0]) + r, a[1].max(b[1]) + r],
+            })
+        };
+        for track in project
+            .tracks
+            .iter()
+            .filter(|t| kept(t.start, t.end, t.width / 2.0))
+        {
             items.push(Obstacle {
                 net: Some(track.net),
                 kind: ObstacleKind::Track(track.id),
@@ -75,7 +118,11 @@ impl Obstacles {
             labels.push(format!("a track on {}", project.net_name(track.net)));
             objects.push(ObjectRef::Track { id: track.id });
         }
-        for via in &project.vias {
+        for via in project
+            .vias
+            .iter()
+            .filter(|v| kept(v.position, v.position, v.diameter / 2.0))
+        {
             items.push(Obstacle {
                 net: Some(via.net),
                 kind: ObstacleKind::Via(via.id),
@@ -89,7 +136,13 @@ impl Obstacles {
             labels.push(format!("a via on {}", project.net_name(via.net)));
             objects.push(ObjectRef::Via { id: via.id });
         }
-        for (index, land) in super::physical::lands(project).into_iter().enumerate() {
+        for (index, land) in super::physical::lands_of(project, placed)
+            .into_iter()
+            .enumerate()
+        {
+            if !land.ring.bounds.is_some_and(|b| keep(&b)) {
+                continue;
+            }
             labels.push(match land.net() {
                 Some(net) => format!("{} ({})", land.name, project.net_name(net)),
                 None => land.name.clone(),

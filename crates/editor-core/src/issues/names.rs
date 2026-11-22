@@ -122,10 +122,11 @@ impl<'a> Names<'a> {
             ObjectRef::Instance { id } => self.designator(id),
             ObjectRef::Terminal { endpoint } => self.terminal(endpoint.instance, endpoint.terminal),
             ObjectRef::Net { id } => self.net(id),
-            ObjectRef::Track { id } => self.project.tracks.iter().find(|t| t.id == id).map_or_else(
-                || "a track".into(),
-                |t| format!("track on {}", self.net(t.net)),
-            ),
+            ObjectRef::Track { id } => crate::model::by_id(&self.project.tracks, id, |t| t.id)
+                .map_or_else(
+                    || "a track".into(),
+                    |t| format!("track on {}", self.net(t.net)),
+                ),
             ObjectRef::Pad { instance, pad } => match self.pads.get(&(instance, pad)) {
                 Some(label) => format!("{} pad {label}", self.designator(instance)),
                 None => format!("a pad of {}", self.designator(instance)),
