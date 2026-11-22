@@ -337,15 +337,14 @@ fn paste_symbol(
             instances::add_occurrence(project, id, unit.unit, shift(unit.position)?, sheet)?;
         orient(project, added, &unit);
     }
+    // A copy is the same part ([`ComponentInstance::duplicate`]), on the
+    // sheet: its units are drawn here, so it is not board-only.
     let instance = instances::instance_mut(project, id)?;
-    instance.properties = source.properties;
-    instance.unused_units = source.unused_units;
-    instance.no_connect = source.no_connect;
-    instance.functions = source.functions;
-    instance.part = source.part;
-    instance.pin_config = source.pin_config;
-    instance.marking = source.marking;
-    instance.text_placements = source.text_placements;
+    let designator = std::mem::take(&mut instance.designator);
+    *instance = ComponentInstance {
+        board_only: false,
+        ..source.duplicate(id, designator)
+    };
     instances::check_instance(project, id)?;
     Ok((id, occurrence))
 }

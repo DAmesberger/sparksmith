@@ -99,6 +99,53 @@ pub struct ComponentInstance {
     pub population: Population,
 }
 
+impl ComponentInstance {
+    /// A copy of this part as a new instance `id` named `designator`: the
+    /// same component, symbol, physical implementation, fields, unused
+    /// units, no-connect pins, functions, Part, pin configuration, marking,
+    /// text placements, board-only state and default population. A copy is
+    /// the same part, so a part left off by default stays off. Variant
+    /// overrides belong to their variants, not to the instance, and are
+    /// not copied. Every field is named, so a new one does not compile
+    /// until its copy is decided here.
+    pub fn duplicate(&self, id: Id, designator: String) -> ComponentInstance {
+        let ComponentInstance {
+            id: _,
+            component,
+            designator: _,
+            properties,
+            representation,
+            physical,
+            unused_units,
+            no_connect,
+            functions,
+            part,
+            pin_config,
+            marking,
+            text_placements,
+            board_only,
+            population,
+        } = self;
+        ComponentInstance {
+            id,
+            component: *component,
+            designator,
+            properties: properties.clone(),
+            representation: *representation,
+            physical: *physical,
+            unused_units: unused_units.clone(),
+            no_connect: no_connect.clone(),
+            functions: functions.clone(),
+            part: *part,
+            pin_config: pin_config.clone(),
+            marking: marking.clone(),
+            text_placements: text_placements.clone(),
+            board_only: *board_only,
+            population: *population,
+        }
+    }
+}
+
 /// Where one instance prints a text of its footprint, relative to where the
 /// footprint prints it. It belongs to the part: it turns and flips with the
 /// placement.

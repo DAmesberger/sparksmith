@@ -39,7 +39,7 @@ All of them are document edits in the `project` module: one undo step each, refu
 | `variant.list` | Query: the variants, the active one, and each bought part's default and per-variant state. |
 | `variant.substitutes { instance }` | Query: the project library's Parts that fit the instance's footprint. |
 
-Overrides of a removed part are dropped with it. The variants' invariants (bounded count and names, unique names, overrides of existing parts, substitutes in the library, the active variant listed) are checked on every edit and on open.
+Overrides of a removed part are dropped with it. A copied part (`schematic.paste`) is the same part (`ComponentInstance::duplicate`): it keeps the default population, so a part left off by default is pasted left off; variant overrides belong to their variants and are not copied. The variants' invariants (bounded count and names, unique names, overrides of existing parts, substitutes in the library, the active variant listed) are checked on every edit and on open.
 
 ## Outputs and checks
 

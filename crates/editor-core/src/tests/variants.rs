@@ -641,3 +641,50 @@ fn a_substitute_left_behind_by_the_library_is_an_issue_not_a_silent_swap() -> Re
     assert!(!fitted.substituted, "the default part is fitted");
     Ok(())
 }
+
+/// A copy is the same part: pasting a part left off by default gives a
+/// copy left off too, in the BOM and on the board, not a fitted one.
+#[test]
+fn a_copied_part_keeps_its_default_population() -> Result<()> {
+    let mut b = board()?;
+    let engine = &mut b.engine;
+    variant(
+        engine,
+        VariantCommand::SetPopulation {
+            instances: vec![b.r2],
+            variant: None,
+            population: Some(Population::NotPopulated),
+        },
+    )?;
+    let QueryResult::SheetClip(clip) = engine.query(Query::SheetCopy {
+        sheet: None,
+        objects: vec![crate::schematic::ClipObject::Instance { id: b.r2 }],
+    })?
+    else {
+        return Err(Error::Invalid("not a clip".into()));
+    };
+    let Outcome::Pasted { report } = apply(
+        engine,
+        Operation::Schematic(crate::schematic::SchematicCommand::Paste {
+            sheet: None,
+            clip,
+            offset: pt([0.0, 30.0]),
+        }),
+    )?
+    else {
+        return Err(Error::Invalid("not pasted".into()));
+    };
+    let [copy] = report.symbols.as_slice() else {
+        return Err(Error::Invalid(format!("{report:?}")));
+    };
+    assert_eq!(
+        engine.project().instance(copy.instance).map(|i| i.population),
+        Some(Population::NotPopulated)
+    );
+    sync_onto_board(engine)?;
+    let (fitted, not) = bom_split(engine)?;
+    assert!(not.contains(&copy.designator), "{not:?}");
+    assert!(!fitted.contains(&copy.designator), "{fitted:?}");
+    assert!(!placed_designators(engine)?.contains(&copy.designator));
+    Ok(())
+}
