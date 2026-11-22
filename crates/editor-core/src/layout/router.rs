@@ -64,11 +64,8 @@ pub(crate) fn check_committed(
     if tracks.is_empty() && vias.is_empty() {
         return Ok(());
     }
-    let index = RouteIndex::of(project);
-    let ctx = Ctx::new(project, &index);
-    let state = State::default();
     let stack = project.stackup.layers();
-    let pieces = project
+    let pieces: Vec<Piece> = project
         .tracks
         .iter()
         .filter(|t| tracks.contains(&t.id))
@@ -79,14 +76,30 @@ pub(crate) fn check_committed(
                 .iter()
                 .filter(|v| vias.contains(&v.id))
                 .map(|v| Piece::via(v, &stack)),
-        );
+        )
+        .collect();
+    // Only copper near the committed pieces can be hit: index that alone.
+    let Some(area) = pieces
+        .iter()
+        .filter_map(|p| p.ring.bounds)
+        .reduce(crate::geometry::Bounds::union)
+    else {
+        return Ok(());
+    };
+    check_pieces(project, &RouteIndex::near(project, &area), &pieces)
+}
+
+/// The first refusal of `pieces` against `index`, an index of `project`.
+fn check_pieces(project: &Project, index: &RouteIndex, pieces: &[Piece]) -> Result<()> {
+    let ctx = Ctx::new(project, index);
+    let state = State::default();
     for piece in pieces {
         if let Some(hit) = ctx
-            .hits(&state, &piece, &[piece.net])
+            .hits(&state, piece, &[piece.net])
             .iter()
             .find(|h| !matches!(h.target, Target::Edge | Target::Cutout(_)))
         {
-            return Err(Error::Conflict(ctx.refusal(&piece, hit)));
+            return Err(Error::Conflict(ctx.refusal(piece, hit)));
         }
     }
     Ok(())
