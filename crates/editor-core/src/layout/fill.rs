@@ -26,8 +26,11 @@ pub(crate) mod geom;
 #[cfg(test)]
 mod tests;
 
+pub use checks::{
+    AUDIT_SLACK_MM, BOARD_EDGE, CLEARANCE_UNLISTED, KEEPOUT_FILL, MAX_FILL_ROWS, fill_label,
+    findings,
+};
 pub(crate) use checks::{Fresh, fresh, fresh_on};
-pub use checks::{fill_label, findings};
 pub(crate) use compute::{KeyReach, key_reaches};
 pub(crate) use geom::RegionIndex;
 

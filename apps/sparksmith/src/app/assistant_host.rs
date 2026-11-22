@@ -27,8 +27,8 @@ use crate::kit::severity::Level;
 use serde_json::{Value, json};
 use sparksmith_assist::chat::{self, ChatConfig, End, Outcome, ReachProfile};
 use sparksmith_assist::desk::{self, Called};
-use sparksmith_assist::model::{Budget, Connection, KeySource, Message, Part, Provider};
-use sparksmith_assist::settings::{self as ai, AssistSettings, Permissions, Rule, Shipped};
+use sparksmith_assist::model::{Connection, KeySource, Message, Part, Provider};
+use sparksmith_assist::settings::{self as ai, AssistSettings, Limits, Permissions, Rule, Shipped};
 use sparksmith_automation::front::{self, Answer, Asker, Call, CallCx, NoOne, Surface};
 use sparksmith_automation::workflow::ask::AskReply;
 use sparksmith_automation::{Grant, Principal, Question, WindowHost};
@@ -169,6 +169,14 @@ pub(super) fn turn_label(text: &str) -> String {
     format!("AI assistant: {label}")
 }
 
+/// What a chat turn runs on ([`App::chat_model`]).
+pub(super) struct ChatChoice {
+    pub model: ChatModel,
+    /// The person's limits; none: the chat runs unbounded.
+    pub limits: Option<Limits>,
+    pub permissions: Permissions,
+}
+
 impl App {
     /// The chat's grant and reach: the shipped reach profile, with the
     /// open project's folder the only one a path may name.
@@ -179,17 +187,21 @@ impl App {
         Ok((grant, reach))
     }
 
-    /// The model the chat uses, its budget and the person's permissions:
-    /// Settings › AI's endpoint for the assistant, its limits when the
-    /// person set any (none by default: no per-turn caps), and its rules
-    /// per kind of action. A key comes from the keychain for the endpoint,
-    /// else for Anthropic `ANTHROPIC_API_KEY` when it is set; a hosted
-    /// model without either is not connected
-    /// ([`super::settings_ai::readiness`]).
-    pub(super) fn chat_model(&mut self) -> Result<(ChatModel, Budget, Permissions), String> {
+    /// The model the chat uses, the person's limits if they set any (none
+    /// by default: the chat runs until it is done or stopped) and their
+    /// permissions: Settings › AI's endpoint for the assistant and its
+    /// rules per kind of action. A test's model has the test's limits. A
+    /// key comes from the keychain for the endpoint, else for Anthropic
+    /// `ANTHROPIC_API_KEY` when it is set; a hosted model without either is
+    /// not connected ([`super::settings_ai::readiness`]).
+    pub(super) fn chat_model(&mut self) -> Result<ChatChoice, String> {
         if let Some(model) = &self.assistant.model {
             let shipped = Shipped::locate().map_err(|e| e.to_string())?;
-            return Ok((model.clone(), chat::unbounded(), shipped.permissions));
+            return Ok(ChatChoice {
+                model: model.clone(),
+                limits: self.assistant.model_limits,
+                permissions: shipped.permissions,
+            });
         }
         let page = &self.settings_window.ai;
         let keyring = page.keyring();
@@ -213,18 +225,17 @@ impl App {
         };
         let connection = Connection { endpoint, key };
         let declared = profile.clone();
-        let budget = ai::run_budget(settings.limits.as_ref(), None).unwrap_or_else(chat::unbounded);
-        Ok((
-            ChatModel {
+        Ok(ChatChoice {
+            model: ChatModel {
                 profile,
                 connect: Arc::new(move || {
                     sparksmith_assist::model::connect(&declared, &connection)
                         .map_err(|e| e.to_string())
                 }),
             },
-            budget,
-            settings.permissions_or(&shipped),
-        ))
+            limits: settings.limits,
+            permissions: settings.permissions_or(&shipped),
+        })
     }
 
     /// Always allow on a card: Settings › AI's rule for the kind becomes
@@ -352,6 +363,16 @@ impl App {
             Action::Stop => self.assistant.stop(),
             Action::Answer { id, allow } => self.assistant_answer(ctx, id, allow),
             Action::Show(id) => self.assistant_show(id),
+            Action::Continue(id) => {
+                if self.assistant.conversation.continue_from(id) {
+                    let typed = std::mem::replace(
+                        &mut self.assistant.composer,
+                        assistant::CONTINUE_MESSAGE.to_owned(),
+                    );
+                    self.assistant_send(ctx);
+                    self.assistant.composer = typed;
+                }
+            }
             Action::UndoTurn(id) => {
                 let undoable = self.assistant.conversation.summary(id).is_some_and(|card| {
                     card.after != card.before
@@ -445,7 +466,11 @@ impl App {
         if text.is_empty() {
             return;
         }
-        let (model, budget, permissions) = match self.chat_model() {
+        let ChatChoice {
+            model,
+            limits,
+            permissions,
+        } = match self.chat_model() {
             Ok(chosen) => chosen,
             Err(why) => {
                 self.assistant.conversation.state = State::NotSetUp(why);
@@ -453,6 +478,9 @@ impl App {
             }
         };
         self.assistant.permissions = Some(permissions);
+        // The person's limits when they set any; else none.
+        self.assistant.conversation.limits = limits;
+        let budget = ai::run_budget(limits.as_ref(), None).unwrap_or_else(chat::unbounded);
         let (grant, _) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {
@@ -980,6 +1008,8 @@ fn summary_card(
         after: engine.revision(),
         show,
         end,
+        spend: Vec::new(),
+        limit: None,
     }
 }
 

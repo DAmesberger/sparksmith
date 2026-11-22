@@ -994,12 +994,29 @@ impl UserSettings {
     }
 }
 
-/// The check settings of the user's settings file and the located shipped
-/// library, as every headless host (CLI, MCP) sets them. An unreadable
-/// settings file or a missing defaults file is an error naming it.
-pub fn check_settings_from_env() -> Result<sparksmith_core::layout::CheckSettings> {
-    let settings = read_settings(&UserDirs::from_env()?.settings_path())?;
-    Ok(settings.check_settings(&SettingsDefaults::shipped()?))
+impl UserSettings {
+    /// Set up `engine` as these settings ask, as every host does it (the
+    /// desktop, CLI and MCP sessions): whether a waiver needs a reason, and
+    /// what its checks take ([`Self::check_settings`]). The waiver setting
+    /// is applied first, so it holds even when `defaults` cannot be read.
+    pub fn configure(
+        &self,
+        engine: &mut sparksmith_core::Engine,
+        defaults: impl FnOnce() -> Result<SettingsDefaults>,
+    ) -> Result<()> {
+        engine.require_waiver_reason(self.require_waiver_reason);
+        engine.set_check_settings(self.check_settings(&defaults()?))?;
+        Ok(())
+    }
+}
+
+/// [`UserSettings::configure`] with the user's settings file and the
+/// located shipped library, as every headless host (CLI, MCP) sets up its
+/// engine. An unreadable settings file or a missing defaults file is an
+/// error naming it.
+pub fn configure_from_env(engine: &mut sparksmith_core::Engine) -> Result<()> {
+    read_settings(&UserDirs::from_env()?.settings_path())?
+        .configure(engine, SettingsDefaults::shipped)
 }
 
 #[cfg(test)]

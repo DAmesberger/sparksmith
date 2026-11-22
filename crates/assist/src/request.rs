@@ -1,5 +1,6 @@
 //! One authorization/accounting path for every generative request,
 //! including the chat's otherwise invisible context summary.
+use crate::chat::Hit;
 use crate::model::{Budget, Delta, ModelBackend, ModelReply, ModelRequest, StopReason};
 use crate::usage::Tally;
 use crate::workflow::control::Gauge;
@@ -18,7 +19,8 @@ pub(crate) struct Driver<'a> {
 
 pub(crate) enum Stopped {
     Cancelled,
-    Limit(String),
+    /// Which limit, and the numbers in words.
+    Limit(Hit, String),
     Failed(String),
 }
 
@@ -26,7 +28,7 @@ impl From<Stopped> for crate::Stop {
     fn from(stop: Stopped) -> Self {
         match stop {
             Stopped::Cancelled => Self::Cancelled,
-            Stopped::Limit(why) => Self::Budget(why),
+            Stopped::Limit(_, why) => Self::Budget(why),
             Stopped::Failed(why) => Self::Failed(why),
         }
     }
@@ -51,30 +53,30 @@ impl Driver<'_> {
             return Err(Stopped::Cancelled);
         }
         if self.tally.requests >= self.budget.max_requests {
-            return Err(Stopped::Limit(format!(
-                "{} requests",
-                self.budget.max_requests
-            )));
+            return Err(Stopped::Limit(
+                Hit::Requests,
+                format!("{} requests", self.budget.max_requests),
+            ));
         }
         let duration = self
             .budget
             .max_duration
             .saturating_sub(self.started.elapsed());
         if duration.is_zero() {
-            return Err(Stopped::Limit(format!(
-                "{} seconds of run time",
-                self.budget.max_duration.as_secs()
-            )));
+            return Err(Stopped::Limit(
+                Hit::Time,
+                format!("{} seconds of run time", self.budget.max_duration.as_secs()),
+            ));
         }
         let output = self
             .budget
             .max_output_tokens
             .saturating_sub(self.tally.usage.output_tokens);
         if output == 0 {
-            return Err(Stopped::Limit(format!(
-                "{} output tokens",
-                self.budget.max_output_tokens
-            )));
+            return Err(Stopped::Limit(
+                Hit::OutputTokens,
+                format!("{} output tokens", self.budget.max_output_tokens),
+            ));
         }
         Ok(Allowance { output, duration })
     }
@@ -90,10 +92,10 @@ impl Driver<'_> {
         let allowance = self.allowance()?;
         let output = u64::from(request.max_output_tokens);
         if output == 0 || output > allowance.output {
-            return Err(Stopped::Limit(format!(
-                "{} output tokens",
-                self.budget.max_output_tokens
-            )));
+            return Err(Stopped::Limit(
+                Hit::OutputTokens,
+                format!("{} output tokens", self.budget.max_output_tokens),
+            ));
         }
         let used = self
             .tally
@@ -101,11 +103,14 @@ impl Driver<'_> {
             .prompt()
             .saturating_add(self.tally.usage.output_tokens);
         if used.saturating_add(prompt).saturating_add(output) > self.budget.max_total_tokens {
-            return Err(Stopped::Limit(format!(
-                "{} tokens: {used} used, and the next request could take {}",
-                self.budget.max_total_tokens,
-                prompt.saturating_add(output)
-            )));
+            return Err(Stopped::Limit(
+                Hit::Tokens,
+                format!(
+                    "{} tokens: {used} used, and the next request could take {}",
+                    self.budget.max_total_tokens,
+                    prompt.saturating_add(output)
+                ),
+            ));
         }
         let request = ModelRequest {
             system: request.system,
@@ -148,10 +153,13 @@ impl Driver<'_> {
                 return Err(if self.cancel.load(Ordering::Relaxed) {
                     Stopped::Cancelled
                 } else if self.started.elapsed() >= self.budget.max_duration {
-                    Stopped::Limit(format!(
-                        "{} seconds of run time, during request {n}",
-                        self.budget.max_duration.as_secs()
-                    ))
+                    Stopped::Limit(
+                        Hit::Time,
+                        format!(
+                            "{} seconds of run time, during request {n}",
+                            self.budget.max_duration.as_secs()
+                        ),
+                    )
                 } else {
                     Stopped::Failed(error.to_string())
                 });
@@ -169,10 +177,13 @@ impl Driver<'_> {
             reply.stop = StopReason::Stopped;
             None
         } else if self.started.elapsed() >= self.budget.max_duration {
-            Some(Stopped::Limit(format!(
-                "{} seconds of run time, during request {n}",
-                self.budget.max_duration.as_secs()
-            )))
+            Some(Stopped::Limit(
+                Hit::Time,
+                format!(
+                    "{} seconds of run time, during request {n}",
+                    self.budget.max_duration.as_secs()
+                ),
+            ))
         } else {
             None
         };
@@ -207,6 +218,7 @@ fn meter(tally: &Tally, budget: &Budget, started: Instant) -> Meter {
             used: started.elapsed().as_secs() / 60,
             limit: budget.max_duration.as_secs().div_ceil(60),
         },
+        reported: tally.usage,
     }
 }
 
@@ -278,7 +290,7 @@ mod tests {
             assert_eq!(driver.send(&request, 10, false).is_err(), fail);
             assert!(matches!(
                 driver.send(&request, 10, true),
-                Err(Stopped::Limit(_))
+                Err(Stopped::Limit(..))
             ));
             assert_eq!(model.calls, 1);
             assert_eq!(tally.requests, 1);

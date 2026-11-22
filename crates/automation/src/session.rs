@@ -1548,9 +1548,9 @@ impl Session {
                     &mut project.rules,
                     sparksmith_core::rules::RulesCommand::set_profile(profile, false),
                 )?;
-                sparksmith_core::layout::mask_colour::follow(
-                    &mut project.rules,
-                    project.fabrication.mask_colour,
+                sparksmith_core::layout::restack::reconcile_rules(
+                    &mut project,
+                    sparksmith_core::layout::restack::Foils::Follow,
                 )?;
                 self.engine.replace_document(EditorFile {
                     version: sparksmith_core::format::FILE_VERSION,

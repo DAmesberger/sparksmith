@@ -122,7 +122,16 @@ fn summary_requests_share_the_turn_budget_and_usage() -> Fallible {
     assert_eq!(model.sent.len(), 1, "the summary consumes the one request");
     assert_eq!(outcome.usage.requests, 1);
     assert_eq!(outcome.usage.tokens, 110);
-    assert!(matches!(outcome.end, End::Limit(_)), "{outcome:?}");
+    assert!(
+        matches!(
+            outcome.end,
+            End::Limit {
+                hit: Hit::Requests,
+                ..
+            }
+        ),
+        "{outcome:?}"
+    );
     Ok(())
 }
 
@@ -175,7 +184,16 @@ fn summary_output_uses_the_same_remaining_token_budget() -> Fallible {
     );
     assert_eq!(model.sent.len(), 1);
     assert_eq!(outcome.usage.output_tokens, 10);
-    assert!(matches!(outcome.end, End::Limit(_)), "{outcome:?}");
+    assert!(
+        matches!(
+            outcome.end,
+            End::Limit {
+                hit: Hit::OutputTokens,
+                ..
+            }
+        ),
+        "{outcome:?}"
+    );
     Ok(())
 }
 
@@ -257,7 +275,10 @@ fn late_replies_are_counted_without_using_answers_or_summaries() -> Fallible {
             },
             &AtomicBool::new(false),
         );
-        assert!(matches!(outcome.end, End::Limit(_)), "{outcome:?}");
+        assert!(
+            matches!(outcome.end, End::Limit { hit: Hit::Time, .. }),
+            "{outcome:?}"
+        );
         assert_eq!(outcome.usage.requests, 1);
         assert_eq!(outcome.usage.tokens, 110);
         assert_eq!(&history[..original.len()], original.as_slice());
@@ -484,7 +505,13 @@ fn a_turn_stops_at_its_request_limit_and_a_failed_backend_says_why() -> Fallible
         &mut |_| {},
         &AtomicBool::new(false),
     );
-    assert_eq!(outcome.end, End::Limit("1 requests".into()));
+    assert_eq!(
+        outcome.end,
+        End::Limit {
+            hit: Hit::Requests,
+            why: "1 requests".into()
+        }
+    );
     config.budget.max_requests = 5;
     let outcome = turn(
         &config,

@@ -69,9 +69,8 @@ pub struct GeneratePartParams {
 const MAX_FILTER: usize = 128;
 
 /// `library.generators`: which shipped generators to list, and how much of
-/// each. Without filters every one is listed; without `generator` or
-/// `detail`, each by name, title, families, scopes, version and its
-/// presets' keys (with their names when `family` or `text` filters).
+/// each. The unfiltered listing gives a preset count for each generator.
+/// A `family` or `text` filter lists preset keys and names.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratorsParams {
@@ -165,10 +164,8 @@ fn compact_presets(description: &mut Value, full: Option<&str>) {
     }
 }
 
-/// A shipped generator as the default listing gives it: what a caller
-/// needs to pick one, and its presets by key, with their names when the
-/// listing is filtered (`named`): unfiltered, the names of every shipped
-/// preset would outgrow a model's reply budget.
+/// Summarize a shipped generator with its preset count. A filtered listing
+/// includes the keys and names of its presets.
 fn listed(shipped: &ShippedGenerator, named: bool) -> Value {
     let mut out = serde_json::json!({"name": shipped.name});
     if let Some(d) = &shipped.description {
@@ -176,17 +173,17 @@ fn listed(shipped: &ShippedGenerator, named: bool) -> Value {
         out["families"] = serde_json::json!(d.families);
         out["scopes"] = serde_json::json!(d.scopes);
         out["version"] = Value::from(d.version);
-        out["presets"] = d
-            .presets
-            .iter()
-            .map(|p| {
-                if named {
-                    serde_json::json!({"key": p.key, "name": p.name})
-                } else {
-                    serde_json::json!({"key": p.key})
-                }
-            })
-            .collect();
+        // Unfiltered, a count: every key of every generator made the
+        // listing about 14 KB, past what the chat keeps of one reply.
+        if named {
+            out["presets"] = d
+                .presets
+                .iter()
+                .map(|p| serde_json::json!({"key": p.key, "name": p.name}))
+                .collect();
+        } else {
+            out["preset_count"] = Value::from(d.presets.len());
+        }
     }
     if let Some(refused) = &shipped.refused {
         out["refused"] = Value::from(refused.clone());
@@ -465,7 +462,7 @@ impl Session {
             let named = params.family.is_some() || params.text.is_some();
             value["shipped"] = report.shipped.iter().map(|g| listed(g, named)).collect();
             value["detail"] = Value::from(
-                "library.generators {generator: <name>} gives one generator's parameters, rules and presets by key, name and basis; {preset: <key>} adds one preset's values; {family} or {text} adds the presets' names",
+                "library.generators {family} or {text} (part of a key, e.g. \"0603\") lists the matching generators' presets by key and name; {generator: <name>} gives one generator's parameters, rules and presets by key, name and basis; {preset: <key>} adds one preset's values",
             );
         }
         Ok(value)

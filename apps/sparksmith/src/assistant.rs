@@ -79,6 +79,9 @@ pub enum Action {
     Show(u64),
     /// Undo the turn of summary `id`.
     UndoTurn(u64),
+    /// Go on after the person's limit the turn of summary `id` stopped at:
+    /// one more turn within the same limits.
+    Continue(u64),
     Fold(bool),
     Dock(Dock),
     Close,
@@ -231,6 +234,9 @@ pub struct Assistant {
     pub session: Session,
     /// The model the chat uses instead of the one set up (tests).
     pub model: Option<ChatModel>,
+    /// With `model`: the limits its turns run within, as the person's
+    /// would be (none: unbounded) (tests).
+    pub model_limits: Option<sparksmith_assist::settings::Limits>,
     library: Option<Result<ChatLibrary, String>>,
     /// Transcript items shown expanded (tool rows, reasoning).
     expanded: HashSet<usize>,
@@ -268,6 +274,7 @@ impl Default for Assistant {
             prefetched: false,
             session: Session::lending(),
             model: None,
+            model_limits: None,
             library: None,
             expanded: HashSet::new(),
             allowed_session: HashSet::new(),
@@ -461,6 +468,9 @@ impl Assistant {
         let t = Tokens::get();
         let mut toggled = None;
         let asking = self.asking.as_ref().map(|a| a.card.clone());
+        let last = (!self.conversation.state.busy())
+            .then(|| self.conversation.last_summary())
+            .flatten();
         for (index, item) in self.conversation.items.iter_mut().enumerate() {
             ui.add_space(t.space_6);
             let open = self.expanded.contains(&index);
@@ -514,13 +524,13 @@ impl Assistant {
                         });
                     }
                 }
-                Item::Summary(card) => summary(ui, card, now, actions),
+                Item::Summary(card) => summary(ui, card, now, last == Some(card.id), actions),
                 Item::Workflow(key) => {
                     if let Some(action) = cards.show_key(ui, *key) {
                         actions.push(Action::Card(action));
                     }
                 }
-                Item::Condensed { line, record } => {
+                Item::Condensed { line, record } | Item::Nudged { line, note: record } => {
                     kit::rule(ui);
                     if disclosure(ui, open, line, "", None).clicked() {
                         toggled = Some(index);
@@ -836,6 +846,12 @@ impl Assistant {
     }
 }
 
+/// The limit card's action.
+pub const CONTINUE: &str = "Continue (raise this turn's limit)";
+/// What Continue tells the model.
+pub const CONTINUE_MESSAGE: &str =
+    "Continue where you stopped: the person raised the limit for this.";
+
 /// The height the composer, its chips and its context line take.
 fn composer_height(ui: &Ui, chips: bool) -> f32 {
     let t = Tokens::get();
@@ -1136,24 +1152,45 @@ fn ask(ui: &mut Ui, card: &AskCard, actions: &mut Vec<Action>) {
     actions.push(Action::Answer { id: card.id, allow });
 }
 
-/// The card at the end of a turn.
-fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, actions: &mut Vec<Action>) {
+/// The card's title: how the turn ended and whether it is one undo step.
+pub fn summary_title(card: &TurnSummary) -> &'static str {
+    let changed = card.after != card.before;
+    match (&card.limit, &card.end, changed) {
+        (Some(_), _, true) => "Stopped at a limit · 1 undo step",
+        (Some(_), _, false) => "Stopped at a limit · nothing changed",
+        (None, None, true) => "Done · 1 undo step",
+        (None, None, false) => "Done · nothing changed",
+        (None, Some(_), true) => "Ended early · 1 undo step",
+        (None, Some(_), false) => "Ended early · nothing changed",
+    }
+}
+
+/// The card at the end of a turn. A turn stopped at a limit says which,
+/// what it did so far and, on the last card, offers Continue.
+fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, last: bool, actions: &mut Vec<Action>) {
     let t = Tokens::get();
     let changed = card.after != card.before;
     card_frame(ui, |ui| {
-        let title = match (&card.end, changed) {
-            (None, true) => "Done · 1 undo step",
-            (None, false) => "Done · nothing changed",
-            (Some(_), true) => "Ended early · 1 undo step",
-            (Some(_), false) => "Ended early · nothing changed",
-        };
         ui.label(
-            egui::RichText::new(title)
+            egui::RichText::new(summary_title(card))
                 .font(type_face::semibold(t.font_body))
                 .color(t.text),
         );
+        if let Some(limit) = &card.limit {
+            kit::note(ui, &format!("{} was reached.", limit.which));
+        }
         if let Some(end) = &card.end {
             kit::note(ui, end);
+        }
+        if card.limit.is_some() {
+            kit::note(
+                ui,
+                if card.changes.is_empty() {
+                    "Done so far: nothing in the design."
+                } else {
+                    "Done so far:"
+                },
+            );
         }
         for line in &card.changes {
             kit::note(ui, line);
@@ -1180,6 +1217,9 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, actions: &mut Vec<Action>
             ui,
             &usage_line(card.usage.requests, card.usage.tokens, card.usage.seconds),
         );
+        for line in &card.spend {
+            kit::note(ui, line);
+        }
         let undoable = changed
             && now.revision == card.after
             && now.undo_label.as_deref() == Some(card.label.as_str());
@@ -1189,6 +1229,11 @@ fn summary(ui: &mut Ui, card: &TurnSummary, now: &Now, actions: &mut Vec<Action>
             }
             if ui_kit::button(ui, "Show", Button::Enabled(!card.show.is_empty())).clicked() {
                 actions.push(Action::Show(card.id));
+            }
+            if let Some(limit) = &card.limit
+                && ui_kit::button(ui, CONTINUE, Button::Enabled(last && !limit.continued)).clicked()
+            {
+                actions.push(Action::Continue(card.id));
             }
         });
     });

@@ -46,7 +46,7 @@ fn listing(cx: &mut Builder) -> Value {
         array(json!({"anyOf":[cx.typed::<v1::Preset>(), compact_preset]}));
     let mut shipped = cx.typed::<ShippedGenerator>();
     shipped["properties"]["description"] = description;
-    let mut short_preset = object(&[("key", text.clone())], &[("name", text.clone())]);
+    let mut short_preset = object(&[("key", text.clone()), ("name", text.clone())], &[]);
     short_preset["additionalProperties"] = false.into();
     let mut summary = object(
         &[("name", text.clone())],
@@ -56,6 +56,7 @@ fn listing(cx: &mut Builder) -> Value {
             ("scopes", cx.typed::<Vec<v1::Scope>>()),
             ("version", cx.typed::<u32>()),
             ("presets", array(short_preset)),
+            ("preset_count", cx.typed::<usize>()),
             ("refused", text.clone()),
         ],
     );

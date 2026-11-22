@@ -151,7 +151,14 @@ impl App {
             return;
         };
         let (model, budget, permissions) = match self.chat_model() {
-            Ok(chosen) => chosen,
+            Ok(chosen) => (
+                chosen.model,
+                // The runner holds the workflow's own budget within the
+                // person's limits, when they set any.
+                sparksmith_assist::settings::run_budget(chosen.limits.as_ref(), None)
+                    .unwrap_or_else(sparksmith_assist::chat::unbounded),
+                chosen.permissions,
+            ),
             Err(why) => {
                 self.assistant.conversation.state = State::NotSetUp(why);
                 return;

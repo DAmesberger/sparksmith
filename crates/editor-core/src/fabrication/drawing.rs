@@ -557,7 +557,7 @@ mod tests {
         use crate::model::production::{Waiver, waiver_key};
         let mut project = Engine::showcase()?.project().clone();
         let before = data(
-            &super::super::ProductionSnapshot::resolve(&project, None),
+            &super::super::ProductionSnapshot::resolve(&project, None)?,
             &Default::default(),
             &Default::default(),
         )?
@@ -600,7 +600,7 @@ mod tests {
         ];
         project.production.waivers.sort_by(|a, b| a.key.cmp(&b.key));
         let notes = data(
-            &super::super::ProductionSnapshot::resolve(&project, None),
+            &super::super::ProductionSnapshot::resolve(&project, None)?,
             &Default::default(),
             &Default::default(),
         )?
@@ -635,7 +635,7 @@ mod tests {
         let engine = Engine::showcase()?;
         let project = engine.project();
         let d = data(
-            &super::super::ProductionSnapshot::resolve(project, None),
+            &super::super::ProductionSnapshot::resolve(project, None)?,
             &Default::default(),
             &Default::default(),
         )?;

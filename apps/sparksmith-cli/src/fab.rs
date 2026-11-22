@@ -30,7 +30,10 @@ pub fn run(args: &[String]) -> Result<()> {
     while let Some(flag) = flags.next() {
         match flag.as_str() {
             "--zip" => zip = true,
-            "--profile" => profile = flags.next().cloned(),
+            "--profile" => match flags.next() {
+                Some(id) if !id.starts_with("--") => profile = Some(id.clone()),
+                _ => return Err("--profile needs a profile id or file".into()),
+            },
             "--date" => {
                 date = match flags.next().map(String::as_str) {
                     Some("none") => None,
@@ -210,6 +213,39 @@ mod tests {
             assert!(error.contains(title), "{title} in {error}");
         }
         assert!(!out.exists(), "nothing is written");
+        Ok(())
+    }
+
+    /// `--profile` without a value is refused before anything is written,
+    /// never read as "the saved profile": the showcase exports cleanly, so
+    /// a dangling flag would otherwise write its files.
+    #[test]
+    fn a_profile_flag_needs_a_value() -> super::Result<()> {
+        let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+        let dir = tempfile::tempdir()?;
+        let project = dir.path().join("board.sparksmith");
+        let arg = |p: &std::path::Path| p.display().to_string();
+        let mut session =
+            sparksmith_automation::session::Session::new(sparksmith_automation::session::showcase(
+                sparksmith_core::library::standards::Context::fixture()?,
+                &sparksmith_core::StackupPresets::fixture()?,
+                sparksmith_core::rules::fixtures::prototype()?,
+            )?);
+        super::execute(
+            &mut session,
+            json!({"command": "project.save", "params": {"path": arg(&project)}}),
+        )?;
+        let out = dir.path().join("out");
+        for tail in [&["--profile"][..], &["--profile", "--zip"][..]] {
+            let mut args = vec![arg(&project), arg(&out)];
+            args.extend(tail.iter().map(|s| (*s).to_owned()));
+            let error = run(&args).err().ok_or("a dangling --profile is refused")?;
+            assert!(error.to_string().contains("--profile needs"), "{error}");
+            assert!(!out.exists(), "nothing is written");
+        }
+        // The control: the same export without the flag writes the files.
+        run(&[arg(&project), arg(&out), "--date".into(), "none".into()])?;
+        assert!(out.is_dir());
         Ok(())
     }
 

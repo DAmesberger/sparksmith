@@ -100,12 +100,12 @@ impl Land {
         self.conductor.net()
     }
 
-    /// The document object a finding names for it: the pad, or the board
-    /// for a mounting hole's washer.
+    /// The document object a finding names for it: the pad, or the
+    /// mounting hole of a washer.
     pub fn object(&self) -> ObjectRef {
         match self.owner {
             LandOwner::Pad { instance, pad } => ObjectRef::Pad { instance, pad },
-            LandOwner::Washer { .. } => ObjectRef::Board,
+            LandOwner::Washer { hole } => ObjectRef::BoardFeature { feature: hole.0 },
         }
     }
 }
@@ -118,6 +118,28 @@ pub fn mounting_hole_name(plated: bool, at: Point) -> String {
         super::limits::mm(at[0]),
         super::limits::mm(at[1])
     )
+}
+
+/// How a board feature is named in issue titles: "plated mounting hole at
+/// (40, 20) mm", "plated board slot at (5, 5) mm", "cutout at …".
+pub fn feature_name(project: &Project, id: BoardFeatureId) -> String {
+    let board = project.board();
+    if let Some(hole) = board.holes.iter().find(|h| h.id == id) {
+        let name = mounting_hole_name(hole.plated, hole.at);
+        return name.strip_prefix("the ").unwrap_or(&name).to_owned();
+    }
+    let Some(cutout) = board.cutouts.iter().find(|c| c.id == Some(id)) else {
+        return "a board feature".into();
+    };
+    let what = match cutout.kind {
+        CutoutKind::Cutout => "cutout",
+        CutoutKind::Slot { plated: true } => "plated board slot",
+        CutoutKind::Slot { plated: false } => "board slot",
+    };
+    match stadium(&cutout.outline).map(|f| f.at()) {
+        Some(at) => format!("{what} at ({}, {}) mm", mm(at[0]), mm(at[1])),
+        None => format!("a {what}"),
+    }
 }
 
 /// Every land of `project`: each placed pad with copper, in placement then
@@ -294,12 +316,31 @@ pub struct Hole {
 }
 
 impl Hole {
-    /// The document object a finding names for it.
+    /// The document object a finding names for it: each hole its own, so
+    /// a finding (and a waiver) about one hole never names another. A
+    /// board slot without a feature id (none is saved without one) is the
+    /// board.
     pub fn object(&self) -> ObjectRef {
         match self.owner {
             HoleOwner::Via(id) => ObjectRef::Via { id },
-            HoleOwner::Pad { instance, pad, .. } => ObjectRef::Pad { instance, pad },
-            HoleOwner::MountingHole(_) | HoleOwner::BoardSlot(_) => ObjectRef::Board,
+            HoleOwner::Pad {
+                instance,
+                pad,
+                via: None,
+            } => ObjectRef::Pad { instance, pad },
+            HoleOwner::Pad {
+                instance,
+                pad,
+                via: Some(k),
+            } => ObjectRef::PadVia {
+                instance,
+                pad,
+                index: u32::try_from(k).unwrap_or(u32::MAX),
+            },
+            HoleOwner::MountingHole(id) | HoleOwner::BoardSlot(Some(id)) => {
+                ObjectRef::BoardFeature { feature: id.0 }
+            }
+            HoleOwner::BoardSlot(None) => ObjectRef::Board,
         }
     }
 
@@ -419,6 +460,14 @@ pub(crate) fn holes_but_vias(project: &Project, placed: &[PlacedPad]) -> Vec<Hol
             });
         }
     }
+    out.extend(board_holes(project));
+    out
+}
+
+/// The holes of the board shape: each mounting hole, then each plated
+/// board slot, in the board's order ([`holes`] ends with these).
+pub fn board_holes(project: &Project) -> Vec<Hole> {
+    let mut out = Vec::new();
     let board = project.board();
     for hole in &board.holes {
         out.push(Hole {
