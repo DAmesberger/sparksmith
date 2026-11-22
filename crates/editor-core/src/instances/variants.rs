@@ -12,10 +12,12 @@ use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::fields;
 use crate::ids::{ComponentRef, FootprintRef, Id, PartRef, TerminalId};
 use crate::library::{FootprintDefinition, Library, Pad, PartDefinition};
+use crate::ids::ContentHash;
 use crate::model::variants::{
     MAX_EXCEPTION_REASON, MAX_EXCEPTIONS, MAX_VARIANT_NAME, MAX_VARIANTS, RequirementException,
-    SubstituteReview,
+    ReviewBasis, SubstituteReview,
 };
+use sha2::{Digest, Sha256};
 use crate::model::{
     AssemblyVariant, AssemblyVariants, ComponentInstance, Population, Project, VariantOverride,
 };
@@ -701,12 +703,14 @@ pub fn apply(project: &mut Project, command: VariantCommand) -> Result<Option<Id
             equivalent,
             exceptions,
         } => {
-            if project.instance(instance).is_none() {
-                return Err(Error::NotFound("Unknown component instance.".into()));
-            }
+            let found = project
+                .instance(instance)
+                .ok_or_else(|| Error::NotFound("Unknown component instance.".into()))?;
             check_exceptions(&exceptions)?;
-            let v = variant_mut(&mut project.variants, variant)?;
-            let part = v
+            let part = project
+                .variants
+                .get(variant)
+                .ok_or_else(|| Error::NotFound("That assembly variant no longer exists.".into()))?
                 .overrides
                 .get(&instance)
                 .and_then(|o| o.part)
@@ -716,10 +720,13 @@ pub fn apply(project: &mut Project, command: VariantCommand) -> Result<Option<Id
                             .into(),
                     )
                 })?;
+            let basis = review_basis(&project.library, found, part);
+            let v = variant_mut(&mut project.variants, variant)?;
             let next = (equivalent || !exceptions.is_empty()).then_some(SubstituteReview {
                 part,
                 equivalent,
                 exceptions,
+                basis,
             });
             if v.reviews.get(&instance) != next.as_ref() {
                 match next {
@@ -900,6 +907,76 @@ pub fn ids(project: &Project) -> impl Iterator<Item = Id> + '_ {
     project.variants.list.iter().map(|v| v.id)
 }
 
+fn digest<T: Serialize>(value: &T) -> ContentHash {
+    // Serializing plain library data cannot fail; an error still yields a
+    // digest that matches no review, so the review is asked for again.
+    let bytes = serde_json::to_vec(value).unwrap_or_default();
+    ContentHash(Sha256::digest(&bytes).into())
+}
+
+/// The inputs a review of substitute `r` on `instance` decides on, as
+/// they are now: the component revisions, the pad-to-terminal maps of the
+/// instance's own implementation and the substitute's, the instance's
+/// requirements and both Parts' rated specs.
+pub fn review_basis(library: &Library, instance: &ComponentInstance, r: PartRef) -> ReviewBasis {
+    let substitute = library.part(r).map(|p| &p.definition);
+    let own_part = instance
+        .part
+        .and_then(|own| library.part(own))
+        .map(|p| &p.definition);
+    // Each pad by number with the terminal it carries: the instance's own
+    // implementation's and the substitute's on the matched lands.
+    let pins = |view: Option<PhysicalView<'_>>| {
+        view.map(|v| {
+            let mut pads: Vec<(String, Option<TerminalId>)> = v
+                .footprint
+                .definition
+                .pads
+                .iter()
+                .map(|pad| {
+                    (
+                        pad.number.clone(),
+                        pad.terminal.and_then(|t| v.binding.definition.terminal_of(t)),
+                    )
+                })
+                .collect();
+            pads.sort();
+            pads
+        })
+    };
+    let own_pins = pins(resolve(library, instance).ok().and_then(|v| v.physical));
+    let substitute_pins = pins(substitute_fit(library, instance, r).ok());
+    let requirements = super::requirements(library, instance).map(|list| {
+        list.into_iter()
+            .map(|q| (q.field, q.value))
+            .collect::<Vec<_>>()
+    });
+    let requirements = match &requirements {
+        Ok(list) => digest(list),
+        Err(error) => digest(&error.to_string()),
+    };
+    ReviewBasis {
+        component: digest(&(instance.component, substitute.map(|p| p.component))),
+        pins: digest(&(own_pins, substitute_pins)),
+        requirements,
+        ratings: digest(&(substitute.map(|p| &p.specs), own_part.map(|p| &p.specs))),
+    }
+}
+
+/// What differs between the basis a review was made on and the current
+/// one, in words.
+fn changed_inputs(reviewed: &ReviewBasis, now: &ReviewBasis) -> Vec<&'static str> {
+    [
+        (reviewed.component != now.component, "the component revision"),
+        (reviewed.pins != now.pins, "the pad-to-terminal map"),
+        (reviewed.requirements != now.requirements, "the requirements"),
+        (reviewed.ratings != now.ratings, "the rated values"),
+    ]
+    .into_iter()
+    .filter_map(|(changed, what)| changed.then_some(what))
+    .collect()
+}
+
 /// What stands between a fitted substitute and a resolved purchase, beyond
 /// fitting: no review of its electrical equivalence
 /// ([`SUBSTITUTE_UNREVIEWED`]), and each requirement of the instance it
@@ -912,20 +989,36 @@ pub fn substitute_findings(
     instance: &ComponentInstance,
     r: PartRef,
 ) -> Vec<Finding> {
-    let review = variant
-        .reviews
-        .get(&instance.id)
-        .filter(|review| review.part == r);
     let Some(part) = library.part(r) else {
         return Vec::new();
     };
+    let reviewed = variant
+        .reviews
+        .get(&instance.id)
+        .filter(|review| review.part == r);
+    // A review stands only while what it decided on is unchanged.
+    let changed = reviewed
+        .map(|review| changed_inputs(&review.basis, &review_basis(library, instance, r)))
+        .unwrap_or_default();
+    let review = reviewed.filter(|_| changed.is_empty());
     let mpn = &part.definition.mpn;
     let objects = vec![
         ObjectRef::Instance { id: instance.id },
         ObjectRef::Definition { id: r.id },
     ];
     let mut out = Vec::new();
-    if !review.is_some_and(|review| review.equivalent) {
+    if !changed.is_empty() {
+        out.push(Finding::new(
+            SUBSTITUTE_UNREVIEWED,
+            format!(
+                "Variant “{}”: the review of {mpn} on {} no longer applies, since {} changed after it was made; review it again.",
+                variant.name,
+                instance.designator,
+                changed.join(", ")
+            ),
+            objects,
+        ));
+    } else if !review.is_some_and(|review| review.equivalent) {
         out.push(Finding::new(
             SUBSTITUTE_UNREVIEWED,
             format!(

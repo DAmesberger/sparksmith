@@ -817,3 +817,191 @@ fn a_substitute_is_resolved_only_after_review_and_within_its_requirements() -> R
     assert_eq!(unresolved_r1(engine)?, [unmet]);
     Ok(())
 }
+
+/// A board whose Alt variant fits a 1 kΩ substitute on R1 (which asks for
+/// 10 kΩ), reviewed as equivalent with the resistance excepted: resolved.
+fn reviewed_substitute() -> Result<(Board, Id, PartRef)> {
+    let mut b = board()?;
+    let engine = &mut b.engine;
+    let r1 = engine
+        .project()
+        .instance(b.r1)
+        .ok_or_else(|| Error::NotFound("R1".into()))?
+        .clone();
+    let resistance = crate::instances::requirements(&engine.project().library, &r1)?
+        .into_iter()
+        .find(|r| r.label == "Resistance")
+        .ok_or_else(|| Error::NotFound("R1 requires a resistance".into()))?;
+    let demo = demo_fixture(engine)?;
+    let mut body = part(
+        "EX-R0603-1K",
+        ComponentRef::new(demo.component, Revision::FIRST),
+        BindingRef::new(demo.binding, Revision::FIRST),
+    );
+    body.specs = vec![crate::fields::RatedSpec {
+        field: resistance.field,
+        value: crate::fields::FieldValue::Quantity {
+            si: dec(1_000.0),
+            display_unit: Some("Ω".into()),
+        },
+        meaning: crate::fields::SpecMeaning::ExactNominal,
+    }];
+    let lower = publish_part(engine, body)?;
+    let alt = add(engine, "Alt")?;
+    activate(engine, Some(alt))?;
+    variant(
+        engine,
+        VariantCommand::SetPart {
+            instance: b.r1,
+            variant: alt,
+            part: Some(lower),
+        },
+    )?;
+    variant(
+        engine,
+        VariantCommand::ReviewSubstitute {
+            instance: b.r1,
+            variant: alt,
+            equivalent: true,
+            exceptions: vec![crate::model::variants::RequirementException {
+                field: resistance.field.id,
+                reason: "1 kΩ is the bias the Alt build needs".into(),
+            }],
+        },
+    )?;
+    assert!(unresolved_r1(engine)?.is_empty());
+    Ok((b, alt, lower))
+}
+
+/// The messages of R1's variant findings in `project`.
+fn r1_messages(project: &crate::model::Project, r1: Id) -> Vec<String> {
+    variants::findings(project)
+        .into_iter()
+        .filter(|f| f.objects.contains(&crate::ObjectRef::Instance { id: r1 }))
+        .map(|f| f.message)
+        .collect()
+}
+
+/// Move R1 to the demo component's next revision, published after `change`
+/// edits the drafts.
+fn revise_r1(
+    b: &mut Board,
+    change: impl FnOnce(&mut Engine) -> Result<()>,
+) -> Result<()> {
+    let f = demo_fixture(&b.engine)?;
+    let target = cascade(&mut b.engine, &f, change)?;
+    let revision = b.engine.revision();
+    b.engine.apply_update(
+        revision,
+        crate::updates::Change::ComponentRevision {
+            instances: vec![b.r1],
+            target,
+            resolutions: Default::default(),
+        },
+        true,
+    )
+}
+
+/// A review is bound to exactly what the person decided on: the component
+/// revisions, each pad's terminal, the requirements and the rated values.
+/// Changing any one of them voids it (Issues names what changed and the
+/// purchase is unresolved again); the stored decision stays, and undo
+/// brings back the state it applied to.
+#[test]
+fn a_substitute_review_stands_only_while_what_it_decided_on_is_unchanged() -> Result<()> {
+    let unreviewed = variants::SUBSTITUTE_UNREVIEWED;
+    let unmet = variants::SUBSTITUTE_UNMET;
+
+    // The requirement the exception accepted moves from 10 kΩ to 220 kΩ.
+    let (mut b, alt, _) = reviewed_substitute()?;
+    let resistance = crate::instances::requirements(
+        &b.engine.project().library,
+        b.engine
+            .project()
+            .instance(b.r1)
+            .ok_or_else(|| Error::NotFound("R1".into()))?,
+    )?
+    .into_iter()
+    .find(|r| r.label == "Resistance")
+    .ok_or_else(|| Error::NotFound("resistance".into()))?;
+    set_properties(
+        &mut b.engine,
+        b.r1,
+        vec![text(resistance.field, "220 kΩ")],
+    )?;
+    assert_eq!(unresolved_r1(&b.engine)?, [unmet, unreviewed]);
+    let messages = r1_messages(b.engine.project(), b.r1);
+    assert!(
+        messages.iter().any(|m| m.contains("no longer applies")
+            && m.contains("the requirements")
+            && !m.contains("pad-to-terminal")),
+        "{messages:?}"
+    );
+    assert!(
+        b.engine.project().variants.get(alt).is_some_and(|v| v.reviews.contains_key(&b.r1)),
+        "the earlier decision is kept, not erased"
+    );
+    b.engine.undo()?;
+    assert!(unresolved_r1(&b.engine)?.is_empty(), "undo restores what was reviewed");
+
+    // A new component revision that changes nothing else.
+    let (mut b, _, _) = reviewed_substitute()?;
+    revise_r1(&mut b, |_| Ok(()))?;
+    let messages = r1_messages(b.engine.project(), b.r1);
+    // The voided review takes its exception with it.
+    assert_eq!(unresolved_r1(&b.engine)?, [unmet, unreviewed], "{messages:?}");
+    assert!(
+        messages.iter().any(|m| m.contains("the component revision changed")),
+        "{messages:?}"
+    );
+
+    // The base part's pad 1 now carries terminal 2 (and pad 2 terminal 1);
+    // the substitute still lands pad 1 on terminal 1.
+    let (mut b, _, lower) = reviewed_substitute()?;
+    let f = demo_fixture(&b.engine)?;
+    revise_r1(&mut b, |engine| {
+        with(engine, f.binding, binding_body, |binding| {
+            let first = binding.mappings[0].terminal;
+            binding.mappings[0].terminal = binding.mappings[1].terminal;
+            binding.mappings[1].terminal = first;
+        })
+    })?;
+    {
+        let project = b.engine.project();
+        let r1 = project
+            .instance(b.r1)
+            .ok_or_else(|| Error::NotFound("R1".into()))?;
+        assert!(
+            variants::substitute_fit(&project.library, r1, lower).is_ok(),
+            "the substitute still fits physically"
+        );
+    }
+    let messages = r1_messages(b.engine.project(), b.r1);
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("no longer applies") && m.contains("the pad-to-terminal map")),
+        "{messages:?}"
+    );
+    assert!(unresolved_r1(&b.engine)?.contains(&unreviewed.to_owned()));
+
+    // The substitute's rated value differs from the one reviewed.
+    let (b, _, lower) = reviewed_substitute()?;
+    let mut project = b.engine.project().clone();
+    for p in &mut project.library.parts {
+        if p.id == lower.id
+            && let Some(crate::fields::FieldValue::Quantity { si, .. }) =
+                p.definition.specs.first_mut().map(|s| &mut s.value)
+        {
+            *si = dec(2_000.0);
+        }
+    }
+    let messages = r1_messages(&project, b.r1);
+    assert!(
+        messages
+            .iter()
+            .any(|m| m.contains("the rated values") && !m.contains("the requirements")),
+        "{messages:?}"
+    );
+    Ok(())
+}
