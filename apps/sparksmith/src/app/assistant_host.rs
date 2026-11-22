@@ -28,7 +28,6 @@ use serde_json::{Value, json};
 use sparksmith_assist::chat::{self, ChatConfig, End, Outcome, ReachProfile};
 use sparksmith_assist::desk::{self, Called};
 use sparksmith_assist::model::{Connection, KeySource, Message, Part, Provider};
-use sparksmith_assist::price::{Price, Prices};
 use sparksmith_assist::settings::{self as ai, AssistSettings, Limits, Permissions, Rule, Shipped};
 use sparksmith_automation::front::{self, Answer, Asker, Call, CallCx, NoOne, Surface};
 use sparksmith_automation::workflow::ask::AskReply;
@@ -173,9 +172,8 @@ pub(super) fn turn_label(text: &str) -> String {
 /// What a chat turn runs on ([`App::chat_model`]).
 pub(super) struct ChatChoice {
     pub model: ChatModel,
-    /// None: a test's model with no limits, which runs unbounded.
+    /// The person's limits; none: the chat runs unbounded.
     pub limits: Option<Limits>,
-    pub price: Option<Price>,
     pub permissions: Permissions,
 }
 
@@ -189,12 +187,11 @@ impl App {
         Ok((grant, reach))
     }
 
-    /// The model the chat uses, its limits, its price and the person's
-    /// permissions: Settings › AI's endpoint for the assistant, its limits
-    /// (the shipped ones until the person sets their own), the library's
-    /// price for the endpoint's model when it has one, and the rules per
-    /// kind of action. A test's model has the test's limits and price. A key
-    /// comes from the keychain for the endpoint, else for Anthropic
+    /// The model the chat uses, the person's limits if they set any (none
+    /// by default: the chat runs until it is done or stopped) and their
+    /// permissions: Settings › AI's endpoint for the assistant and its
+    /// rules per kind of action. A test's model has the test's limits. A
+    /// key comes from the keychain for the endpoint, else for Anthropic
     /// `ANTHROPIC_API_KEY` when it is set; a hosted model without either is
     /// not connected ([`super::settings_ai::readiness`]).
     pub(super) fn chat_model(&mut self) -> Result<ChatChoice, String> {
@@ -203,7 +200,6 @@ impl App {
             return Ok(ChatChoice {
                 model: model.clone(),
                 limits: self.assistant.model_limits,
-                price: self.assistant.model_price.clone(),
                 permissions: shipped.permissions,
             });
         }
@@ -229,13 +225,6 @@ impl App {
         };
         let connection = Connection { endpoint, key };
         let declared = profile.clone();
-        // A missing or broken price file shows tokens only; it never stops
-        // the chat.
-        let price = Prices::locate().ok().and_then(|prices| {
-            prices
-                .find(setting.provider, &setting.base_url, &profile.model)
-                .cloned()
-        });
         Ok(ChatChoice {
             model: ChatModel {
                 profile,
@@ -244,8 +233,7 @@ impl App {
                         .map_err(|e| e.to_string())
                 }),
             },
-            limits: Some(settings.limits_or(&shipped)),
-            price,
+            limits: settings.limits,
             permissions: settings.permissions_or(&shipped),
         })
     }
@@ -481,7 +469,6 @@ impl App {
         let ChatChoice {
             model,
             limits,
-            price,
             permissions,
         } = match self.chat_model() {
             Ok(chosen) => chosen,
@@ -491,22 +478,9 @@ impl App {
             }
         };
         self.assistant.permissions = Some(permissions);
-        // The turn's limits, its tokens held within what is left of the
-        // conversation's.
-        let conversation = &mut self.assistant.conversation;
-        let budget = match limits {
-            Some(limits) => {
-                let (budget, bound) =
-                    limits.turn_budget(conversation.spent_tokens(), conversation.raised);
-                conversation.limits = Some(assistant::TurnLimits { limits, bound });
-                budget
-            }
-            None => {
-                conversation.limits = None;
-                chat::unbounded()
-            }
-        };
-        conversation.price = price;
+        // The person's limits when they set any; else none.
+        self.assistant.conversation.limits = limits;
+        let budget = ai::run_budget(limits.as_ref(), None).unwrap_or_else(chat::unbounded);
         let (grant, _) = match self.chat_grant() {
             Ok(both) => both,
             Err(why) => {

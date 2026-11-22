@@ -1,7 +1,6 @@
 //! Token usage a model reports, in neutral names, and the run's tally of
 //! it. The run's caps (requests, output tokens, total tokens, time) are
-//! checked against the tally; what tokens cost is data
-//! ([`crate::price`]).
+//! checked against the tally; Sparksmith keeps no prices and no spend.
 use serde::{Deserialize, Serialize};
 
 /// Token counts of one response, in neutral names.

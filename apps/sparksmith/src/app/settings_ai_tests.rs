@@ -151,7 +151,7 @@ fn the_first_screen_is_connection_and_the_rest_is_folded() -> Fallible {
             "CONNECTION",
             "ADVANCED",
             "PERMISSIONS",
-            "CHAT LIMITS",
+            "RUN LIMITS",
             "PROFILES",
             "WORKFLOWS",
         ] {
@@ -181,7 +181,7 @@ fn the_first_screen_is_connection_and_the_rest_is_folded() -> Fallible {
         assert_eq!(quick.draft.model, default);
         // Folded: none of Advanced's, the permissions' or the limits' rows,
         // and no word of jargon on the screen.
-        for hidden in ["Edit the design", "Model requests a message", "Add a model"] {
+        for hidden in ["Edit the design", "Limit model runs", "Add a model"] {
             assert!(!ax.has(Role::Label, hidden), "{hidden} shows at {size:?}");
         }
         for word in [
@@ -206,22 +206,16 @@ fn the_first_screen_is_connection_and_the_rest_is_folded() -> Fallible {
         assert!(ax.texts.iter().any(|t| t == "Always allow"));
         assert!(ax.texts.iter().any(|t| t == "Ask every time"));
         assert!(!ax.has(Role::Label, "Edits") && !ax.has(Role::Label, "Calls"));
-        // The chat is limited by default, per message and per
-        // conversation, with the shipped values; nothing is stored until
-        // the person changes one.
-        unfold(&mut ax, "Chat limits")?;
-        scroll_to(&mut ax, Role::Label, "Model requests a message")?;
-        for label in [
-            "Tokens a message",
-            "Output tokens a message",
-            "Time a message",
-            "Tokens a conversation",
-        ] {
-            assert!(ax.has(Role::Label, label), "{label}:\n{}", ax.dump());
-        }
-        assert!(!ax.has(Role::Button, "Use the defaults"));
+        // Model runs are not limited by default; turned on, the limits
+        // start from the shipped values (45 minutes, Q7) and are kept.
+        unfold(&mut ax, "Run limits")?;
+        let check = scroll_to(&mut ax, Role::CheckBox, "Limit model runs")?;
+        assert_eq!(check.toggled, Some(false));
+        ax.click_at(check.center());
+        ax.settle();
+        assert!(ax.has(Role::Label, "Model requests"), "{}", ax.dump());
         let saved = stored::read(&stored::user_file(&ax.dir.path().join("config")))?;
-        assert_eq!(saved.limits, None);
+        assert_eq!(saved.limits.map(|l| l.minutes), Some(45));
         unfold(&mut ax, "Workflows")?;
         assert!(
             ax.texts.iter().any(|t| {
@@ -238,7 +232,7 @@ fn the_first_screen_is_connection_and_the_rest_is_folded() -> Fallible {
                 "{text:?} runs off the window at {size:?}: {rect:?}"
             );
         }
-        // Settings shows no prices: the chat's cards estimate cost.
+        // No prices in the product.
         assert!(
             !ax.texts
                 .iter()
@@ -645,24 +639,13 @@ fn limits_are_kept_and_checked_and_permissions_unset_stay_shipped() -> Fallible 
     let settings = state.settings.clone()?;
     let shipped = Shipped::locate()?;
     let mut next = settings.clone();
-    let mut limits = shipped.limits;
+    let mut limits = shipped.limits_start;
     limits.minutes = 90;
     next.limits = Some(limits);
     assert!(state.commit(next));
     let saved = stored::read(&stored::user_file(dir.path()))?;
     assert_eq!(saved.limits.map(|l| l.minutes), Some(90));
     assert_eq!(saved.permissions, None);
-    // The shipped values are not kept as the person's own.
-    let mut back = saved.clone();
-    back.limits = None;
-    assert!(state.commit(back.clone()));
-    assert_eq!(stored::read(&stored::user_file(dir.path()))?, back);
-    let saved = {
-        let mut again = back;
-        again.limits = Some(limits);
-        assert!(state.commit(again.clone()));
-        again
-    };
     // A limit out of bounds is refused and nothing changes.
     let mut over = saved.clone();
     limits.minutes = 0;

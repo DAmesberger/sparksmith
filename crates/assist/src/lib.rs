@@ -35,7 +35,6 @@ pub mod fixtures;
 pub mod legacy;
 pub mod model;
 pub mod pins;
-pub mod price;
 pub mod profile;
 pub mod registry;
 pub mod report;
@@ -145,6 +144,9 @@ pub enum Event {
     /// The chat condensed what the model is sent (`docs/assistant-panel.md`
     /// §6.5): the divider row. The transcript is unchanged.
     Condensed(chat::context::Condensed),
+    /// The harness sent the model its nudge (`note`) after `tokens` of
+    /// reading with nothing changed; the turn goes on.
+    Nudged { tokens: u64, note: String },
 }
 
 /// Where a tool call is.

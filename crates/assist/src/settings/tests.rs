@@ -28,23 +28,13 @@ fn agent(name: &str) -> AgentSetting {
     }
 }
 
-/// The shipped defaults read and check: the chat's limits sized from E2E
-/// run 13 (a turn far below the 4 000 000 tokens it once allowed, above
-/// the chat's 250 000-token idle stop, and a conversation of several
-/// turns), 45 minutes a turn (Q7), edits
+/// The shipped defaults read and check: 45 minutes a run (Q7), edits
 /// without asking, files and publishing to a library asked, and every
 /// preset a valid starting point.
 #[test]
 fn the_shipped_settings_load() -> Fallible {
     let shipped = Shipped::locate()?;
-    let limits = shipped.limits;
-    assert_eq!(limits.minutes, 45);
-    assert_eq!(limits.total_tokens, 400_000);
-    assert_eq!(limits.requests, 20);
-    assert_eq!(limits.output_tokens, 100_000);
-    assert_eq!(limits.conversation_tokens, 2_000_000);
-    assert!(limits.total_tokens > crate::chat::Policy::CHAT.idle_tokens);
-    assert!(limits.conversation_tokens >= 5 * limits.total_tokens);
+    assert_eq!(shipped.limits_start.minutes, 45);
     assert_eq!(shipped.permissions.edits, Rule::Always);
     assert_eq!(shipped.permissions.files, Rule::Ask);
     assert_eq!(shipped.permissions.publish_library, Rule::Ask);
@@ -79,7 +69,7 @@ fn settings_round_trip_and_a_missing_file_is_empty() -> Fallible {
             publish_library: Rule::Deny,
             view: Rule::Always,
         }),
-        limits: Some(Shipped::locate()?.limits),
+        limits: Some(Shipped::locate()?.limits_start),
         ..AssistSettings::default()
     };
     write(&path, &settings)?;
@@ -162,22 +152,9 @@ fn every_rule_is_checked_with_its_reason() {
                 output_tokens: 1,
                 total_tokens: 1,
                 minutes: 0,
-                conversation_tokens: 1,
             });
         },
         "minutes",
-    );
-    refused(
-        &|s| {
-            s.limits = Some(Limits {
-                requests: 1,
-                output_tokens: 1,
-                total_tokens: 1,
-                minutes: 1,
-                conversation_tokens: 0,
-            });
-        },
-        "tokens of a conversation",
     );
     // The Messages API declares its own capabilities.
     let mut anthropic = base.clone();
@@ -203,37 +180,25 @@ fn an_endpoint_gives_the_model_as_declared() -> Fallible {
     Ok(())
 }
 
-/// The chat runs within the shipped limits until the person sets their
-/// own; a turn's tokens are held within what is left of the
-/// conversation's, and a Continue past the conversation's limit raises it.
+/// The chat runs unlimited unless the person sets limits; the datasheet
+/// workflow keeps its own budget, held within the person's limits.
 #[test]
-fn a_turn_budget_is_the_turns_limits_within_the_conversations() -> Fallible {
-    let shipped = Shipped::locate()?;
-    let none = AssistSettings::default();
-    assert_eq!(none.limits_or(&shipped), shipped.limits);
-    let mut own = shipped.limits;
-    own.total_tokens = 1_000;
-    own.conversation_tokens = 2_500;
-    own.minutes = 10;
-    let settings = AssistSettings {
-        limits: Some(own),
-        ..AssistSettings::default()
-    };
-    let limits = settings.limits_or(&shipped);
-    let (fresh, bound) = limits.turn_budget(0, 0);
-    assert_eq!(bound, Bound::Turn);
-    assert_eq!(fresh.max_total_tokens, 1_000);
-    assert_eq!(fresh.max_requests, own.requests);
-    assert_eq!(fresh.max_output_tokens, own.output_tokens);
-    assert_eq!(fresh.max_duration, Duration::from_secs(10 * 60));
-    let (late, bound) = limits.turn_budget(2_000, 0);
-    assert_eq!(bound, Bound::Conversation);
-    assert_eq!(late.max_total_tokens, 500);
-    let (spent, _) = limits.turn_budget(3_000, 0);
-    assert_eq!(spent.max_total_tokens, 0, "nothing is left to send");
-    let (raised, bound) = limits.turn_budget(3_000, 1_000);
-    assert_eq!(bound, Bound::Conversation);
-    assert_eq!(raised.max_total_tokens, 500);
+fn a_run_budget_is_the_workflows_own_within_the_persons_limits() -> Fallible {
+    assert_eq!(run_budget(None, None), None, "the chat is not capped");
+    let library = ShippedLibrary::locate().map_err(|e| e.to_string())?;
+    let datasheet = workflow_budget(&library, "datasheet-to-component")?;
+    let own = run_budget(None, Some(&datasheet)).ok_or("a budget")?;
+    assert_eq!(own.max_requests, datasheet.requests);
+    assert_eq!(
+        own.max_duration,
+        Duration::from_secs(u64::from(datasheet.minutes) * 60)
+    );
+    let mut limits = Shipped::locate()?.limits_start;
+    limits.minutes = 10;
+    let held = run_budget(Some(&limits), Some(&datasheet)).ok_or("a budget")?;
+    assert_eq!(held.max_duration, Duration::from_secs(10 * 60));
+    let chat = run_budget(Some(&limits), None).ok_or("the person's limits")?;
+    assert_eq!(chat.max_requests, limits.requests);
     Ok(())
 }
 

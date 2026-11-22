@@ -25,7 +25,7 @@ pub mod questions;
 pub mod worker;
 
 pub use conversation::{
-    Allow, AskCard, Conversation, Item, RowState, State, TurnLimits, TurnSummary, context_line,
+    Allow, AskCard, Conversation, Item, RowState, State, TurnSummary, context_line,
 };
 
 use crate::kit;
@@ -79,8 +79,8 @@ pub enum Action {
     Show(u64),
     /// Undo the turn of summary `id`.
     UndoTurn(u64),
-    /// Go on after the limit the turn of summary `id` stopped at: one more
-    /// turn's worth, past the conversation's limit when that was reached.
+    /// Go on after the person's limit the turn of summary `id` stopped at:
+    /// one more turn within the same limits.
     Continue(u64),
     Fold(bool),
     Dock(Dock),
@@ -234,10 +234,9 @@ pub struct Assistant {
     pub session: Session,
     /// The model the chat uses instead of the one set up (tests).
     pub model: Option<ChatModel>,
-    /// With `model`: the limits its turns run within (none: unbounded)
-    /// and its price (tests).
+    /// With `model`: the limits its turns run within, as the person's
+    /// would be (none: unbounded) (tests).
     pub model_limits: Option<sparksmith_assist::settings::Limits>,
-    pub model_price: Option<sparksmith_assist::price::Price>,
     library: Option<Result<ChatLibrary, String>>,
     /// Transcript items shown expanded (tool rows, reasoning).
     expanded: HashSet<usize>,
@@ -276,7 +275,6 @@ impl Default for Assistant {
             session: Session::lending(),
             model: None,
             model_limits: None,
-            model_price: None,
             library: None,
             expanded: HashSet::new(),
             allowed_session: HashSet::new(),
@@ -532,7 +530,7 @@ impl Assistant {
                         actions.push(Action::Card(action));
                     }
                 }
-                Item::Condensed { line, record } => {
+                Item::Condensed { line, record } | Item::Nudged { line, note: record } => {
                     kit::rule(ui);
                     if disclosure(ui, open, line, "", None).clicked() {
                         toggled = Some(index);
@@ -842,11 +840,7 @@ impl Assistant {
             }
             if self.conversation.state == State::Running {
                 let usage = &self.conversation.usage;
-                let mut line = usage_line(usage.requests, usage.tokens, usage.seconds);
-                if let Some(price) = &self.conversation.price {
-                    line = format!("{line} · {}", price.estimate(&usage.reported));
-                }
-                kit::note(ui, &line);
+                kit::note(ui, &usage_line(usage.requests, usage.tokens, usage.seconds));
             }
         });
     }

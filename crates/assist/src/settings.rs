@@ -1,8 +1,7 @@
 //! Settings › AI as stored: the connections (model endpoints and ACP
 //! agents), the permissions per kind of action, a model run's limits and
 //! which connection the assistant uses (`docs/assistant-panel.md` §6).
-//! A chat turn and a conversation have token, request and time limits; the
-//! shipped values are data, and the person may raise or lower them.
+//! There are no per-turn caps on edits or calls (founder, 16 November).
 //!
 //! A person's settings are `<config>/assist/settings.json`, apart from the
 //! app's `settings.json`, so no entry that reads or writes general settings
@@ -312,32 +311,18 @@ pub struct Permissions {
     pub view: Rule,
 }
 
-/// The chat's limits: per turn (requests, output tokens, all tokens,
-/// minutes) and per conversation (all tokens over its turns). The shipped
-/// ones ([`Shipped::limits`]) apply until the person sets their own. A
-/// workflow run brings its own budget ([`crate::workflow::Budget`]).
+/// Limits the person may set on every model run, hosted or local. Unset
+/// by default, so the chat can build a whole board; a workflow brings its
+/// own budget ([`crate::workflow::Budget`]), held within these when set
+/// ([`run_budget`]). There are no per-turn caps on edits or calls.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Limits {
-    /// Model requests in one turn.
     pub requests: u32,
-    /// Output tokens in one turn.
     pub output_tokens: u64,
-    /// Prompt plus output tokens in one turn.
+    /// Prompt plus output tokens.
     pub total_tokens: u64,
-    /// Minutes of one turn.
     pub minutes: u32,
-    /// Prompt plus output tokens over all of a conversation's turns.
-    pub conversation_tokens: u64,
-}
-
-/// Which of the chat's limits a turn's budget was bound by.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Bound {
-    /// The turn's own token limit.
-    Turn,
-    /// What was left of the conversation's.
-    Conversation,
 }
 
 impl Limits {
@@ -356,36 +341,47 @@ impl Limits {
         if !(1..=MAX_MINUTES).contains(&self.minutes) {
             return bad("minutes", MAX_MINUTES.to_string());
         }
-        if !(1..=MAX_TOTAL_TOKENS).contains(&self.conversation_tokens) {
-            return bad("tokens of a conversation", MAX_TOTAL_TOKENS.to_string());
-        }
         Ok(())
     }
 
-    /// One chat turn's budget, in a conversation that has used `used`
-    /// tokens and been allowed `raised` beyond its limit (each Continue
-    /// after the conversation's limit adds a turn's tokens): the turn's
-    /// limits, its tokens held within what is left of the conversation's,
-    /// and which of the two bounds the tokens.
-    pub fn turn_budget(&self, used: u64, raised: u64) -> (Budget, Bound) {
-        let left = self
-            .conversation_tokens
-            .saturating_add(raised)
-            .saturating_sub(used);
-        let (tokens, bound) = if left < self.total_tokens {
-            (left, Bound::Conversation)
-        } else {
-            (self.total_tokens, Bound::Turn)
-        };
-        (
-            Budget {
-                max_requests: self.requests,
-                max_output_tokens: self.output_tokens,
-                max_total_tokens: tokens,
-                max_duration: Duration::from_secs(u64::from(self.minutes) * 60),
-            },
-            bound,
-        )
+    /// `budget` held within these limits.
+    pub fn cap(&self, budget: Budget) -> Budget {
+        Budget {
+            max_requests: budget.max_requests.min(self.requests),
+            max_output_tokens: budget.max_output_tokens.min(self.output_tokens),
+            max_total_tokens: budget.max_total_tokens.min(self.total_tokens),
+            max_duration: budget
+                .max_duration
+                .min(Duration::from_secs(u64::from(self.minutes) * 60)),
+        }
+    }
+}
+
+/// A model run's budget: a workflow's own, held within the person's
+/// limits when they are set; the person's limits alone for a run with no
+/// budget of its own (the chat); none when neither is set, so the chat
+/// runs until it is done or stopped. A workflow budget without a total
+/// token figure takes the format's bound.
+pub fn run_budget(
+    limits: Option<&Limits>,
+    workflow: Option<&crate::workflow::Budget>,
+) -> Option<Budget> {
+    let own = workflow.map(|w| Budget {
+        max_requests: w.requests,
+        max_output_tokens: w.output_tokens,
+        max_total_tokens: w.total_tokens.unwrap_or(crate::workflow::MAX_TOTAL_TOKENS),
+        max_duration: Duration::from_secs(u64::from(w.minutes) * 60),
+    });
+    match (own, limits) {
+        (Some(own), Some(limits)) => Some(limits.cap(own)),
+        (Some(own), None) => Some(own),
+        (None, Some(limits)) => Some(Budget {
+            max_requests: limits.requests,
+            max_output_tokens: limits.output_tokens,
+            max_total_tokens: limits.total_tokens,
+            max_duration: Duration::from_secs(u64::from(limits.minutes) * 60),
+        }),
+        (None, None) => None,
     }
 }
 
@@ -423,7 +419,7 @@ pub struct AssistSettings {
     /// None: the shipped ones.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permissions: Option<Permissions>,
-    /// None: the shipped ones ([`Shipped::limits`]).
+    /// None: no limits of the person's own ([`run_budget`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limits: Option<Limits>,
 }
@@ -497,11 +493,6 @@ impl AssistSettings {
 
     pub fn permissions_or(&self, shipped: &Shipped) -> Permissions {
         self.permissions.unwrap_or(shipped.permissions)
-    }
-
-    /// The chat's limits: the person's, else the shipped ones.
-    pub fn limits_or(&self, shipped: &Shipped) -> Limits {
-        self.limits.unwrap_or(shipped.limits)
     }
 
     /// A name for a new connection from `base` not taken yet.
@@ -590,7 +581,7 @@ struct ShippedFile {
     #[serde(default, rename = "about")]
     _about: String,
     permissions: Permissions,
-    limits: Limits,
+    limits_start: Limits,
     endpoint_presets: Vec<EndpointPreset>,
     agent_presets: Vec<AgentPreset>,
     #[serde(default, rename = "sources")]
@@ -602,8 +593,8 @@ struct ShippedFile {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shipped {
     pub permissions: Permissions,
-    /// The chat's limits until the person sets their own.
-    pub limits: Limits,
+    /// The values the limits start from when the person turns them on.
+    pub limits_start: Limits,
     pub endpoint_presets: Vec<EndpointPreset>,
     pub agent_presets: Vec<AgentPreset>,
 }
@@ -629,7 +620,7 @@ impl Shipped {
                 file.format
             )));
         }
-        file.limits.check().map_err(|e| bad(&e))?;
+        file.limits_start.check().map_err(|e| bad(&e))?;
         if file.endpoint_presets.len() > MAX_CONNECTIONS
             || file.agent_presets.len() > MAX_CONNECTIONS
         {
@@ -654,7 +645,7 @@ impl Shipped {
         }
         Ok(Self {
             permissions: file.permissions,
-            limits: file.limits,
+            limits_start: file.limits_start,
             endpoint_presets: file.endpoint_presets,
             agent_presets: file.agent_presets,
         })

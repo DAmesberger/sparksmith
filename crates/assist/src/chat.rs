@@ -34,6 +34,8 @@ pub const PROMPT_FILE: &str = "chat-prompt.md";
 pub const PLAYBOOK_FILE: &str = "chat-playbook.md";
 /// The summariser's instructions for condensing earlier turns.
 pub const CONDENSE_FILE: &str = "condense-prompt.md";
+/// The note a turn that reads without changing anything is sent.
+pub const NUDGE_FILE: &str = "nudge-prompt.md";
 /// The chat's reach profile, `assist/reach/chat.json`.
 pub const REACH: &str = "chat";
 /// Largest shipped file read.
@@ -52,6 +54,8 @@ pub struct ChatLibrary {
     pub reach: ReachProfile,
     /// The summariser's instructions ([`context::summarise`]).
     pub condense: String,
+    /// The harness's note after a long read-only stretch.
+    pub nudge: String,
 }
 
 impl ChatLibrary {
@@ -89,6 +93,7 @@ impl ChatLibrary {
             nonempty(PLAYBOOK_FILE)?.trim_end()
         );
         let condense = nonempty(CONDENSE_FILE)?;
+        let nudge = nonempty(NUDGE_FILE)?;
         let file = format!("{}/{REACH}.json", crate::profile::REACH_FOLDER);
         let origin = folder.join(&file).display().to_string();
         let reach = ReachProfile::parse(&read(&file)?, &origin)?;
@@ -106,6 +111,7 @@ impl ChatLibrary {
             system: product(&system),
             reach,
             condense: product(&condense),
+            nudge: product(&nudge),
         })
     }
 }
@@ -134,6 +140,8 @@ pub struct ChatConfig {
     pub policy: Policy,
     /// The summariser's instructions.
     pub condense: String,
+    /// The note after a long read-only stretch ([`Policy::nudge_tokens`]).
+    pub nudge: String,
 }
 
 impl ChatConfig {
@@ -147,6 +155,7 @@ impl ChatConfig {
             tools: crate::verbs::tools(),
             policy: Policy::CHAT,
             condense: library.condense.clone(),
+            nudge: library.nudge.clone(),
         }
     }
 
@@ -196,8 +205,6 @@ pub enum Hit {
     /// Prompt plus output tokens.
     Tokens,
     Time,
-    /// Reading past the policy's allowance with nothing changed.
-    Idle,
 }
 
 /// How a turn ended. What its calls changed stays, as one undo step.
@@ -343,19 +350,22 @@ pub fn turn(
     if let Some(condensed) = condensed {
         events(Event::Condensed(condensed));
     }
-    // Tokens at the turn's last change: reading past the policy's idle
-    // allowance with nothing changed ends the turn with what to do.
+    // Tokens at the turn's last change (or nudge): reading past the
+    // policy's allowance with nothing changed sends the model the nudge,
+    // with the tool results it reads next; the turn goes on.
     let mut changed_at = 0u64;
     let end = loop {
         let spent = usage(&tally).tokens;
-        if spent.saturating_sub(changed_at) > policy.idle_tokens {
-            break End::Limit {
-                hit: Hit::Idle,
-                why: format!(
-                    "about {} k tokens of reading without a change, so nothing more was sent. Say exactly what to change and on which parts (\"connect R3 pin 2 to U1 EN\"), or select them, and ask again",
-                    spent.saturating_sub(changed_at) / 1_000
-                ),
-            };
+        if spent.saturating_sub(changed_at) > policy.nudge_tokens
+            && let Some(last) = history.last_mut()
+            && last.role == Role::User
+        {
+            last.content.push(Part::text(config.nudge.clone()));
+            events(Event::Nudged {
+                tokens: spent.saturating_sub(changed_at),
+                note: config.nudge.clone(),
+            });
+            changed_at = spent;
         }
         let allowance = match (crate::request::Driver {
             backend,
