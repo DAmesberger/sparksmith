@@ -131,6 +131,7 @@ pub fn group_title(code: &str) -> String {
         "pair.gap" => "Pair gap",
         "length.mismatch" => "Length mismatch",
         "impedance.mismatch" => "Impedance off target",
+        "impedance.uncoupled" => "Pair lengths excluded from the impedance check",
         "impedance.no_tolerance" => "Impedance targets without a tolerance",
         "board.shape_unsolved" => "Board shape does not solve",
         "board.mask_colour_not_offered" => "Solder mask colour not offered",
@@ -294,6 +295,7 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "pair.gap" => "Reroute the pair at its gap",
         "impedance.mismatch" => "Route at the width the Route card shows for the layer",
         "impedance.no_tolerance" => "Set Impedance tolerance in Settings or on the net class",
+        "impedance.uncoupled" => "Review the uncoupled length or route the halves at the pair gap",
         "board.shape_unsolved" => "Fix the board sketch's dimensions",
         "board.mask_colour_not_offered" => {
             "Choose a colour the fab profile offers in Board › Fabrication, or another fab profile"
@@ -753,6 +755,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "assembly.unexported_face",
     "impedance.mismatch",
     "impedance.no_tolerance",
+    "impedance.uncoupled",
     "import.board_joins_nets",
     "import.board_splits_net",
     "instance.field_required",

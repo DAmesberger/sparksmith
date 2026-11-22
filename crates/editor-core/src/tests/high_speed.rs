@@ -554,6 +554,119 @@ fn length_groups_report_and_flag_mismatches() -> Result<()> {
     Ok(())
 }
 
+/// Two straight 20 mm pad-to-pad tracks, without a fan-out. Moving the pads
+/// with the track keeps the electrical endpoints on the same two paths.
+fn straight_pair_at_gap(usb: &Usb, width: f64, gap: f64) -> Result<Engine> {
+    let mut file = usb.engine.to_file();
+    let r3 = by_designator(&usb.engine, "R3")?;
+    let r4 = by_designator(&usb.engine, "R4")?;
+    let placement = file
+        .project
+        .placements
+        .iter_mut()
+        .find(|p| p.instance == r4)
+        .ok_or_else(|| Error::NotFound("R4 placement".into()))?;
+    placement.position[0] = 30.0;
+    let footprint = &mut file
+        .project
+        .library
+        .footprints
+        .first_mut()
+        .ok_or_else(|| Error::NotFound("footprint".into()))?
+        .definition;
+    let [positive, negative] = footprint.pads.as_mut_slice() else {
+        return Err(Error::Invalid("expected two pads".into()));
+    };
+    for (pad, x) in [(positive, 0.0), (negative, width + gap)] {
+        pad.position = pt([x, 0.0]);
+        pad.shape = crate::library::PadShape::Circle {
+            diameter_nm: nm(width),
+        };
+    }
+    let mut engine = Engine::from_file(file)?;
+    for (net, terminal) in usb.nets.into_iter().zip([1, 2]) {
+        let start = pad_of(&engine, r3, terminal)?;
+        let end = pad_of(&engine, r4, terminal)?;
+        apply(
+            &mut engine,
+            Operation::Layout(LayoutCommand::Route {
+                request: layout::RouteRequest {
+                    net,
+                    start,
+                    end,
+                    width,
+                    layer: CopperLayer::Top,
+                },
+            }),
+        )?;
+    }
+    Ok(engine)
+}
+
+#[test]
+fn impedance_names_the_uncoupled_length_without_an_uncoupled_limit() -> Result<()> {
+    let mut usb = usb(SignalRules {
+        diff_impedance: Some(90.0),
+        impedance_tolerance: Some(10.0),
+        ..Default::default()
+    })?;
+    let mut class = usb.engine.project().rules.net_classes[0].clone();
+    class.diff_pair_gap = Some(0.2);
+    apply(
+        &mut usb.engine,
+        Operation::Rules(RulesCommand::EditNetClass { class }),
+    )?;
+    let (width, gap) =
+        layout::impedance::pair_width_gap(usb.engine.project(), usb.nets[0], CopperLayer::Top);
+    // Pads lie on the document nanometre grid. Use that width for the tracks
+    // too, so their edge gap can equal the fabrication minimum exactly.
+    let width = nm(width).to_mm_f64();
+    for (actual_gap, uncoupled) in [(gap, 0.0), (5.0, 20.0)] {
+        let engine = straight_pair_at_gap(&usb, width, actual_gap)?;
+        let lengths = report(&engine)?;
+        let row = &lengths.pairs[0];
+        assert!(row.paths.is_some(), "{row:?}");
+        for (value, expected) in [
+            (row.positive, 20.0),
+            (row.negative, 20.0),
+            (row.uncoupled, uncoupled),
+        ] {
+            assert!((value - expected).abs() < 1e-6, "{row:?}");
+        }
+        let findings = layout::checks(engine.project(), engine.check_settings());
+        assert!(
+            !findings.iter().any(|f| f.code == "pair.uncoupled"),
+            "{findings:?}"
+        );
+        let coverage: Vec<_> = findings
+            .iter()
+            .filter(|f| f.code == "impedance.uncoupled")
+            .collect();
+        if uncoupled == 0.0 {
+            assert!(coverage.is_empty(), "{coverage:?}");
+        } else {
+            let [finding] = coverage.as_slice() else {
+                return Err(Error::Invalid(format!(
+                    "expected one impedance coverage finding: {findings:?}"
+                )));
+            };
+            assert!(finding.message.contains("90 Ω"), "{finding:?}");
+            for id in usb.nets {
+                let net = engine.project().net_name(id);
+                assert!(
+                    finding.message.contains(&format!("20 mm of {net}")),
+                    "{finding:?}"
+                );
+                assert!(
+                    finding.objects.contains(&crate::ObjectRef::Net { id }),
+                    "{finding:?}"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn a_narrow_pair_gap_and_an_off_target_width_are_found() -> Result<()> {
     let mut usb = usb(usb90())?;
@@ -600,7 +713,9 @@ fn a_narrow_pair_gap_and_an_off_target_width_are_found() -> Result<()> {
             },
         }),
     )?;
-    assert!(board_codes(&usb.engine).contains(&"pair.gap".to_owned()));
+    let codes = board_codes(&usb.engine);
+    assert!(codes.contains(&"pair.gap".to_owned()));
+    assert!(!codes.contains(&"impedance.uncoupled".to_owned()));
     Ok(())
 }
 
@@ -624,9 +739,15 @@ fn impedance_is_checked_against_the_class_tolerance_else_the_settings_one() -> R
         }),
     )?;
     let impedance = |engine: &Engine| -> Vec<(String, String)> {
-        layout::checks(engine.project(), engine.check_settings())
+        let (coverage, comparisons): (Vec<_>, Vec<_>) =
+            layout::checks(engine.project(), engine.check_settings())
+                .into_iter()
+                .filter(|f| f.code.starts_with("impedance."))
+                .partition(|f| f.code == "impedance.uncoupled");
+        // The fan-out remains outside the calculation at either tolerance.
+        assert_eq!(coverage.len(), 1, "{coverage:?}");
+        comparisons
             .into_iter()
-            .filter(|f| f.code.starts_with("impedance."))
             .map(|f| (f.code, f.message))
             .collect()
     };

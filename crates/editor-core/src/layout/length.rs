@@ -721,6 +721,23 @@ fn check_pair(
         ));
     }
     if let Some(target) = signal.diff_impedance {
+        // Use the signal-path lengths from the length report. The coupled-line
+        // model supplies no impedance value on these uncoupled track stretches.
+        if uncoupled.into_iter().any(|length| length > 1e-6) {
+            findings.push(Finding::new(
+                "impedance.uncoupled",
+                format!(
+                    "{}: the {} Ω differential impedance check excludes {} mm of {} and {} mm of {} where the tracks run uncoupled",
+                    pair.name,
+                    mm(target),
+                    super::limits::mm_against(uncoupled[0], 0.0),
+                    project.net_name(pair.positive),
+                    super::limits::mm_against(uncoupled[1], 0.0),
+                    project.net_name(pair.negative),
+                ),
+                objects.clone(),
+            ));
+        }
         match signal.tolerance_pct(settings) {
             Some(tolerance) => impedance_of_runs(project, pair, target, tolerance, &c, findings),
             None if !c.coupled_runs.is_empty() => findings.push(no_tolerance(&pair.name, objects)),
