@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 /// The cache file's own format; any other is rebuilt, never migrated.
-pub const INDEX_FORMAT: u32 = 1;
+pub const INDEX_FORMAT: u32 = 2;
 
 /// One cached index.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]

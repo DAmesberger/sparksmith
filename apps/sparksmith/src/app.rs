@@ -834,7 +834,9 @@ impl App {
         let mutating = events.iter().any(|e| {
             matches!(
                 e,
-                PaletteEvent::PlaceFrom { .. } | PaletteEvent::UpdateProjectCopy(_)
+                PaletteEvent::PlaceFrom { .. }
+                    | PaletteEvent::UpdateProjectCopy(_)
+                    | PaletteEvent::AssignFrom { .. }
             )
         }) || instance_update.is_some()
             || matches!(
@@ -857,6 +859,10 @@ impl App {
                     .read_bundle(pick, BundlePurpose::Place(other_revision)),
                 PaletteEvent::UpdateProjectCopy(pick) => {
                     self.sources.read_bundle(pick, BundlePurpose::Update(None));
+                }
+                PaletteEvent::AssignFrom { pick, instances } => {
+                    self.sources
+                        .read_bundle(pick, BundlePurpose::Assign(instances));
                 }
                 PaletteEvent::ManageSources => self.sources.open_card(),
                 PaletteEvent::PlacePartFile(name) => {
@@ -904,7 +910,9 @@ impl App {
                 Err(error) => {
                     match read.purpose {
                         BundlePurpose::Place(_) => self.schematic.palette_mut().refuse(error),
-                        BundlePurpose::Update(_) => self.say(Level::Error, error),
+                        BundlePurpose::Update(_) | BundlePurpose::Assign(_) => {
+                            self.say(Level::Error, error)
+                        }
                     }
                     continue;
                 }
@@ -915,6 +923,22 @@ impl App {
                 }
                 BundlePurpose::Update(only) => {
                     self.update_project_copy(read.pick, bundle, only.as_deref());
+                }
+                BundlePurpose::Assign(instances) => {
+                    let designators: Vec<String> = instances
+                        .iter()
+                        .filter_map(|id| self.engine.project().instance(*id))
+                        .map(|i| i.designator.clone())
+                        .collect();
+                    let who = crate::resolve_parts::designator_summary(&designators);
+                    match library_sources::assign_from(&mut self.engine, bundle, instances) {
+                        Ok(mpn) => self.say_with(
+                            Level::Ok,
+                            format!("Assigned {mpn} to {who}"),
+                            vec![ToastAction::Undo],
+                        ),
+                        Err(error) => self.say(Level::Error, error),
+                    }
                 }
             }
         }

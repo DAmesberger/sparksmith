@@ -151,6 +151,12 @@ pub enum PaletteEvent {
     /// "Update project copy": import the folder revision, then review
     /// updating the project's instances to it.
     UpdateProjectCopy(FolderPick),
+    /// Choose part on a folder Part: import it and assign it to these
+    /// instances, as one undo step.
+    AssignFrom {
+        pick: FolderPick,
+        instances: Vec<Id>,
+    },
     /// Open the Library sources card.
     ManageSources,
     /// A shipped mechanical part file, by name: place it on the board
@@ -816,11 +822,17 @@ impl PlacePalette {
                         .filter_map(|id| engine.project().instance(*id))
                         .map(|i| i.component.id)
                         .collect();
-                    // Folder entries are catalog-local: only project Parts
-                    // can be assigned.
-                    report.results.retain(|h| {
-                        h.entry.source == Source::Project
-                            && h.entry.implements.is_some_and(|c| lineages.contains(&c.id))
+                    // Folder entries are catalog-local: a folder Part is
+                    // listed when it pins the generic part these instances
+                    // place (`fits`), and is imported when chosen.
+                    report.results.retain(|h| match h.entry.source {
+                        Source::Project => {
+                            h.entry.implements.is_some_and(|c| lineages.contains(&c.id))
+                        }
+                        _ => {
+                            h.entry.kind == DefinitionKind::Part
+                                && h.entry.fits.iter().any(|c| lineages.contains(&c.id))
+                        }
                     });
                     report.total = report.results.len();
                 }
@@ -1059,6 +1071,14 @@ impl PlacePalette {
         let instances = instances.clone();
         let hit = self.highlighted_hit()?;
         let name = hit.entry.name.clone();
+        if hit.entry.source != Source::Project
+            && let Some(pick) = FolderPick::of(&hit.entry)
+        {
+            self.notice = None;
+            self.events
+                .push(PaletteEvent::AssignFrom { pick, instances });
+            return Some(PaletteAction::Close);
+        }
         let newer = self.newer_target(&hit.entry);
         match part_of(&hit.entry) {
             Some(part) => {
@@ -1616,8 +1636,10 @@ impl PlacePalette {
         } else {
             "Choose"
         };
+        let folder = hit.is_some_and(|h| h.entry.source != Source::Project);
         let disabled = match (part, count) {
             (Some(_), _) => None,
+            (None, _) if folder => None,
             (None, 0) => Some("No fitting part to choose"),
             (None, _) => Some("Select a manufacturer part first"),
         };
@@ -1779,6 +1801,11 @@ impl PlacePalette {
                             refusal::clip(&format!("Assigned {name} to {who}"), MAX_TITLE),
                         ));
                         Some(ChooseAction::Assign { instances, part })
+                    }
+                    // A folder Part: the app imports and assigns it.
+                    Some(PaletteAction::Close) => {
+                        self.close();
+                        None
                     }
                     Some(PaletteAction::UpdateAndAssign {
                         instances,
@@ -2193,7 +2220,10 @@ fn folder_preview(ui: &mut Ui, entry: &CatalogEntry, source: &str) {
 /// The revision a Part entry's component is newer than every one of
 /// `targets` (instances of the same lineage), if it is.
 fn newer_than(entry: &CatalogEntry, targets: &[ComponentRef]) -> Option<ComponentRef> {
-    let implements = entry.implements?;
+    // A folder entry's ids are catalog-local.
+    let implements = entry
+        .implements
+        .filter(|_| entry.source == Source::Project)?;
     (!targets.is_empty()
         && targets
             .iter()
@@ -2203,7 +2233,7 @@ fn newer_than(entry: &CatalogEntry, targets: &[ComponentRef]) -> Option<Componen
 
 /// The exact Part revision of a Part entry.
 fn part_of(entry: &CatalogEntry) -> Option<PartRef> {
-    (entry.kind == DefinitionKind::Part)
+    (entry.kind == DefinitionKind::Part && entry.source == Source::Project)
         .then_some(entry.revision)
         .flatten()
         .map(|r| PartRef::new(entry.lineage, r))
@@ -3240,7 +3270,8 @@ mod tests {
     /// Assign mode lists project Parts only: a folder entry's ids are
     /// catalog-local and can never name the instances' component.
     #[test]
-    fn assign_mode_never_lists_folder_entries() -> Result<(), Box<dyn std::error::Error>> {
+    fn assign_mode_lists_a_folder_part_only_when_it_fits() -> Result<(), Box<dyn std::error::Error>>
+    {
         let mut engine = Engine::demo()?;
         let part = crate::resolve_parts::demo_part(&mut engine, "EX-R0603-10K0-F")?;
         let library = sparksmith_core::ids::LibraryId(7);
@@ -3263,26 +3294,56 @@ mod tests {
             .find(|i| Some(i.component) == folder_part.implements)
             .map(|i| i.id)
             .ok_or("an instance of the Part's component")?;
+        // A folder Part pinning the generic part the instance places.
+        let component = engine
+            .project()
+            .instance(instance)
+            .map(|i| i.component)
+            .ok_or("the instance")?;
+        let mut fitting = folder_part.clone();
+        fitting.source_lineage = Some(sparksmith_core::ids::SourceLineageId(10));
+        fitting.name = "FOLDER-FIT".into();
+        fitting.fits = vec![component];
         let mut palette = PlacePalette::default();
         palette.set_context(1, || CatalogContext {
             sources: vec![std::sync::Arc::new(catalog::SourceCatalog {
                 library,
                 name: "Team".into(),
-                entries: vec![folder_part],
+                entries: vec![folder_part.clone(), fitting.clone()],
                 ..Default::default()
             })],
             ..Default::default()
         });
         palette.open_assign("kind:part".into(), vec![instance]);
         palette.refresh(&engine);
-        assert!(!palette.hits().is_empty());
-        assert!(
-            palette
-                .hits()
-                .iter()
-                .all(|h| h.entry.source == Source::Project)
-        );
+        let names: Vec<String> = palette
+            .hits()
+            .iter()
+            .map(|h| h.entry.name.clone())
+            .collect();
+        assert!(!names.iter().any(|n| n == "FOLDER-PART"), "{names:?}");
+        assert!(names.iter().any(|n| n == "FOLDER-FIT"), "{names:?}");
+        let project = names
+            .iter()
+            .position(|n| *n != "FOLDER-FIT")
+            .ok_or("the project Part")?;
+        palette.highlighted = project;
         assert_eq!(palette.highlighted_part(), Some(part));
+        // Choosing the folder Part asks the app to import and assign it.
+        palette.highlighted = names
+            .iter()
+            .position(|n| *n == "FOLDER-FIT")
+            .ok_or("the folder Part")?;
+        assert_eq!(palette.highlighted_part(), None);
+        assert_eq!(palette.choose_part(), Some(PaletteAction::Close));
+        let pick = FolderPick::of(&fitting).ok_or("a pick")?;
+        assert!(
+            palette.take_events().contains(&PaletteEvent::AssignFrom {
+                pick,
+                instances: vec![instance]
+            }),
+            "the folder Part is imported and assigned"
+        );
         Ok(())
     }
 

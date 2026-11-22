@@ -716,6 +716,7 @@ fn part_predicates_are_decided_by_satisfies() {
         test,
         value_type: Some(value_type),
         display: String::new(),
+        unitless: false,
     };
     // An operating range of −40 … 125 °C rated as a minimum.
     let range = ValueType::Range { kind };
@@ -798,6 +799,40 @@ fn part_predicates_are_decided_by_satisfies() {
     assert!(!meets(&ohms(Some(10e3)), &percent(0.0025)));
     // Without a nominal the bases cannot be compared: no hit.
     assert!(!meets(&ohms(None), &percent(0.01)));
+    // A 25 V minimum rating meets 16 V written with its unit, but a bare
+    // value without one names a value, not a rating: `100n` is not "at
+    // least 100 nV".
+    let quantity = ValueType::Quantity {
+        kind,
+        min: None,
+        max: None,
+    };
+    let volts = rated(
+        FieldValue::Quantity {
+            si: dec(25.0),
+            display_unit: None,
+        },
+        quantity.clone(),
+        SpecMeaning::MinimumRating,
+        None,
+    );
+    let written = |value, unitless| FieldTest {
+        unitless,
+        ..test(Test::Compare { op: Op::Eq, value }, quantity.clone())
+    };
+    assert!(meets(&volts, &written(16.0, false)));
+    assert!(!meets(&volts, &written(1e-7, true)));
+    // An exact nominal still meets a unitless value equal to it.
+    let farads = rated(
+        FieldValue::Quantity {
+            si: dec(1e-7),
+            display_unit: None,
+        },
+        quantity.clone(),
+        SpecMeaning::ExactNominal,
+        None,
+    );
+    assert!(meets(&farads, &written(1e-7, true)));
 }
 
 /// An exact decimal from a finite fixture literal.
