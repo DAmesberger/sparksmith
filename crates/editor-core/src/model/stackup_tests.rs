@@ -22,18 +22,26 @@ fn every_even_count_up_to_the_bound_has_a_symmetric_preset_that_passes_the_rules
                 Some(DielectricKind::Prepreg)
             );
         }
-        let dielectric = s.dielectric_mm();
-        if count <= 10 {
-            assert!((dielectric - 1.6).abs() < 0.01, "{count}: {dielectric}");
+        // A multilayer preset finishes at 1.6 mm with its foils (within
+        // half a µm a core, as the cores are rounded to the µm), up to ten
+        // layers (e2e run 13,
+        // finding 2: the 4-layer preset was 1.74 mm).
+        let finished = s.thickness_mm();
+        if count == 2 {
+            assert!((s.dielectric_mm() - 1.6).abs() < 1e-9, "{count}");
+        } else if count <= 10 {
+            assert!((finished - 1.6).abs() < 0.0025, "{count}: {finished}");
         } else {
-            assert!(dielectric > 1.6, "{count}: {dielectric}");
+            assert!(finished > 1.6, "{count}: {finished}");
         }
     }
     // The common presets keep their builds.
     assert_eq!(Stackup::preset(2)?, Stackup::default());
     let four = Stackup::preset(4)?;
     let thick: Vec<f64> = four.dielectrics.iter().map(|d| d.thickness_mm).collect();
-    assert_eq!(thick, vec![0.2, 1.2, 0.2]);
+    // 1.6 mm less four 35 µm foils and two 0.2 mm prepregs: a 1.06 mm core.
+    assert_eq!(thick, vec![0.2, 1.06, 0.2]);
+    assert!((four.thickness_mm() - 1.6).abs() < 1e-9);
     Ok(())
 }
 
