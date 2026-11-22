@@ -4,13 +4,17 @@
 //! every hole against the board edge, and one waiver per hole and per
 //! board side. Each case asserts the objects named and the measured gap,
 //! hand-derived from the fixture's coordinates.
-use super::tests::gate_board_with;
-use super::*;
+use crate::diagnostics::ObjectRef;
 use crate::diagnostics::{Error, Finding, Result};
 use crate::fabrication::preflight::{self, PreflightReport};
 use crate::fabrication::{FabricationCommand, ProductionSnapshot};
+use crate::ids::{Id, PadId};
 use crate::layout::fill::{FillCommand, inputs_key};
+use crate::layout::physical::tests::{gate_board_with, rect};
 use crate::library::{Hole as PadHoleSpec, Pad, PadKind, PadShape, PadSide, PadVia};
+use crate::library::{Outline, Segment};
+use crate::model::Project;
+use crate::model::board::{BoardFeatureId, CutoutKind};
 use crate::model::board::{BoardShape, SolvedCutout, SolvedMountingHole};
 use crate::model::fill::{FillSpec, FilledCopper, FilledRegion};
 use crate::model::{CopperLayer, Track, Via, ViaSpan};
@@ -266,7 +270,7 @@ fn two_fills_of_other_nets_keep_the_fill_to_fill_gap() -> Result<()> {
                 net: Some(gate.net_a),
                 layer: CopperLayer::Bottom,
                 region: Default::default(),
-                outline: super::tests::rect([45.0, 20.0], [55.0, 29.0]),
+                outline: rect([45.0, 20.0], [55.0, 29.0]),
                 priority: 0,
                 settings: Default::default(),
             }),

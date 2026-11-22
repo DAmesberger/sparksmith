@@ -661,6 +661,4 @@ pub fn stadium(outline: &Outline) -> Option<HoleFeature> {
 }
 
 #[cfg(test)]
-mod release_tests;
-#[cfg(test)]
 pub(crate) mod tests;
