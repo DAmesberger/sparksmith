@@ -802,7 +802,7 @@ mod tests {
     fn showcase() -> Result<DrawingData> {
         let engine = Engine::showcase()?;
         Ok(drawing::data(
-            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None)?,
             &Default::default(),
             engine.check_settings(),
         )?)
@@ -870,7 +870,7 @@ mod tests {
     fn an_empty_board_still_draws() -> Result<()> {
         let engine = Engine::default();
         let data = drawing::data(
-            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None)?,
             &Default::default(),
             engine.check_settings(),
         )?;

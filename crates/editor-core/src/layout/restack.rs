@@ -126,7 +126,7 @@ pub(super) fn apply(project: &mut Project, edit: StackupEdit) -> Result<()> {
 /// (`FabChoice::outer_copper_um`): a stackup edit that changes them is
 /// refused, naming the option to choose instead (`rules.set_fab_options`
 /// sets the foils with the choice).
-fn check_outer_copper(project: &Project, stackup: &Stackup) -> Result<()> {
+pub(crate) fn check_outer_copper(project: &Project, stackup: &Stackup) -> Result<()> {
     let Some(profile) = &project.rules.profile else {
         return Ok(());
     };

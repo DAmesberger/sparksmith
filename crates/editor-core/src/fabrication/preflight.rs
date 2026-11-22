@@ -234,8 +234,10 @@ fn severity(row: &IssueRow) -> Option<Severity> {
 
 /// The pre-flight report of `project` checked under `profile` (the
 /// project's own rules when `None`; overrides and net classes are kept):
-/// [`check`] of the [`ProductionSnapshot`] they resolve to. An export
-/// resolves the snapshot once and checks and writes from it.
+/// [`check`] of the [`ProductionSnapshot`] they resolve to; a profile the
+/// design cannot take is refused (`fabrication.profile_refused`), with no
+/// report and nothing to waive. An export resolves the snapshot once and
+/// checks and writes from it.
 pub fn report(
     project: &Project,
     drafts: &Drafts,
@@ -243,7 +245,7 @@ pub fn report(
     settings: &crate::layout::CheckSettings,
 ) -> Result<PreflightReport> {
     check(
-        &ProductionSnapshot::resolve(project, profile),
+        &ProductionSnapshot::resolve(project, profile)?,
         drafts,
         settings,
     )
@@ -258,7 +260,7 @@ pub fn check(
     drafts: &Drafts,
     settings: &crate::layout::CheckSettings,
 ) -> Result<PreflightReport> {
-    let mut items = snapshot.findings().to_vec();
+    let mut items = Vec::new();
     let p: &Project = snapshot.project();
     for row in &crate::issues::production_rows(p, drafts, settings)? {
         let Some(severity) = severity(row) else {
@@ -307,7 +309,7 @@ pub fn check(
     })
 }
 
-pub(super) fn item(
+fn item(
     code: &str,
     severity: Severity,
     title: String,

@@ -1161,11 +1161,11 @@ fn a_construction_line_leaves_the_fabrication_output_unchanged() -> Fallible<()>
     let options = FabricationOptions::default();
     assert_eq!(
         generate(
-            &ProductionSnapshot::resolve(engine.project(), None),
+            &ProductionSnapshot::resolve(engine.project(), None)?,
             &options
         )?,
         generate(
-            &ProductionSnapshot::resolve(plain.project(), None),
+            &ProductionSnapshot::resolve(plain.project(), None)?,
             &options
         )?
     );

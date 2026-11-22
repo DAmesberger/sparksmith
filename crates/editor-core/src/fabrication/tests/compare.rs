@@ -369,7 +369,7 @@ fn the_showcase_layers_match_the_core_geometry() -> Fallible<()> {
     let project = showcase()?;
     let start = Instant::now();
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
     )?;
     eprintln!(
@@ -393,7 +393,7 @@ fn the_polygon_path_agrees_with_the_raster_on_every_layer() -> Fallible<()> {
     use sparksmith_fabcheck::{compare, polygons};
     for (label, project) in [("showcase", showcase()?), ("sketched", sketched()?)] {
         let set = fabrication::generate(
-            &fabrication::ProductionSnapshot::resolve(&project, None),
+            &fabrication::ProductionSnapshot::resolve(&project, None)?,
             &FabricationOptions::default(),
         )?;
         let grid = expected::board_bitmap(&project, 1.003_17, PIXEL)?;
@@ -426,7 +426,7 @@ fn the_polygon_path_agrees_with_the_raster_on_every_layer() -> Fallible<()> {
 fn a_sketched_board_with_arcs_cutouts_slots_and_holes_matches() -> Fallible<()> {
     let project = sketched()?;
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
     )?;
     compare_all(&project, &set, "sketched")?;
@@ -450,7 +450,7 @@ fn a_sketched_board_with_arcs_cutouts_slots_and_holes_matches() -> Fallible<()> 
 fn layers_carry_their_file_aperture_and_object_attributes() -> Fallible<()> {
     let project = sketched()?;
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
     )?;
     let top = gerber(&set, "-copper-l1-top.gbr")?;
@@ -625,16 +625,16 @@ fn layers_carry_their_file_aperture_and_object_attributes() -> Fallible<()> {
 fn the_same_design_gives_the_same_bytes_and_a_date_only_when_asked() -> Fallible<()> {
     let project = sketched()?;
     let a = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
     )?;
     let b = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
     )?;
     assert_eq!(a, b);
     let dated = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions {
             creation_date: Some("2026-11-02T12:00:00Z".into()),
             ..Default::default()
@@ -706,7 +706,7 @@ fn a_ten_thousand_via_board_is_written_in_seconds() -> Fallible<()> {
     refill(&mut project)?;
     let start = Instant::now();
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
     )?;
     let elapsed = start.elapsed();
@@ -777,7 +777,7 @@ fn a_twelve_layer_board_names_every_layer_and_spans_its_drills() -> Fallible<()>
     )?;
     let project = engine.project().clone();
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
     )?;
     let copper: Vec<&str> = set

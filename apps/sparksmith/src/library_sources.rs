@@ -1109,12 +1109,12 @@ impl LibrarySources {
         }
     }
 
-    /// What the engine's checks take from Settings
-    /// ([`sparksmith_core::Engine::set_check_settings`]).
-    pub fn check_settings(&self) -> sparksmith_io::Result<sparksmith_core::layout::CheckSettings> {
-        Ok(self
-            .settings
-            .check_settings(&settings::SettingsDefaults::shipped()?))
+    /// Set up `engine` from Settings as every host does
+    /// ([`settings::UserSettings::configure`]): a waiver's required reason
+    /// and what the checks take.
+    pub fn configure(&self, engine: &mut sparksmith_core::Engine) -> sparksmith_io::Result<()> {
+        self.settings
+            .configure(engine, settings::SettingsDefaults::shipped)
     }
 
     /// Whether the app's waivers need a reason (Settings).

@@ -701,11 +701,42 @@ impl Step {
     }
 }
 
+/// What a rules change does to the board's outer copper foils
+/// ([`reconcile_rules`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Foils {
+    /// The foils follow the profile's copper weight: a rules edit and its
+    /// preview, where the stackup changes with the choice.
+    Follow,
+    /// The foils stay as designed and the profile's copper weight must
+    /// order them: a production snapshot, which never changes the board it
+    /// releases.
+    Keep,
+}
+
+/// The one reconciliation of a board with rules that changed, shared by a
+/// rules edit, its preview and the production snapshot
+/// ([`fabrication::ProductionSnapshot`]): the profile's colour option
+/// follows the board's solder mask colour, and the outer foils follow the
+/// profile's copper weight ([`Foils::Follow`]) or must already be the ones
+/// it orders ([`Foils::Keep`], refused with `stackup.outer_copper`).
+/// Returns the before and after top foil (µm) when they changed.
+pub fn reconcile_rules(project: &mut Project, foils: Foils) -> Result<Option<(f64, f64)>> {
+    layout::mask_colour::follow(&mut project.rules, project.fabrication.mask_colour)?;
+    match foils {
+        Foils::Follow => follow_outer_copper(project),
+        Foils::Keep => {
+            layout::restack::check_outer_copper(project, &project.stackup)?;
+            Ok(None)
+        }
+    }
+}
+
 /// The stackup's outer foils follow the fab profile's copper weight
 /// (`FabChoice::outer_copper_um`) after a rules change; the before and
 /// after top foil in µm when they changed. A stackup edit cannot depart
 /// from the choice (`stackup.outer_copper`).
-pub fn follow_outer_copper(project: &mut Project) -> Result<Option<(f64, f64)>> {
+fn follow_outer_copper(project: &mut Project) -> Result<Option<(f64, f64)>> {
     let Some(um) = project
         .rules
         .profile
@@ -1926,7 +1957,7 @@ impl Engine {
                 if next != candidate.project.rules {
                     let project = Arc::make_mut(&mut candidate.project);
                     project.rules = next;
-                    follow_outer_copper(project)?;
+                    reconcile_rules(project, Foils::Follow)?;
                     // A sketch board follows `board.outline_fit`.
                     layout::outline::refit(project, evaluators.board)?;
                 }
@@ -2090,7 +2121,7 @@ impl Engine {
         }
         let mut candidate = current.as_ref().clone();
         candidate.rules = next;
-        match follow_outer_copper(&mut candidate) {
+        match reconcile_rules(&mut candidate, Foils::Follow) {
             Ok(change) => impact.outer_copper_um = change,
             Err(error) => {
                 impact.refusal = Some(error.to_string());
