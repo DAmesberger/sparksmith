@@ -25,8 +25,7 @@ use sparksmith_core::library::mechanical::PadUse;
 use sparksmith_core::model::Layer;
 use sparksmith_core::model::PhysicalChoice;
 use sparksmith_core::{
-    BoardPlace, ComponentRef, DefinitionId, Engine, Id, InstanceCommand, Operation, Point,
-    Project,
+    BoardPlace, ComponentRef, DefinitionId, Engine, Id, InstanceCommand, Operation, Point, Project,
 };
 use sparksmith_solidcraft::models::part_file::PartValues;
 
@@ -68,7 +67,10 @@ pub(super) fn place_operation(
 /// The symbol and footprint `component.place_board_only` takes for
 /// `component`, when it can go on the board alone: it has a footprint and
 /// no pins.
-pub fn board_part(project: &Project, component: ComponentRef) -> Option<(DefinitionId, PhysicalChoice)> {
+pub fn board_part(
+    project: &Project,
+    component: ComponentRef,
+) -> Option<(DefinitionId, PhysicalChoice)> {
     let published = project.library.component(component)?;
     if !published.definition.terminals.is_empty() {
         return None;

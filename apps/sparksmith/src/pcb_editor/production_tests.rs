@@ -631,13 +631,38 @@ fn a_shift_click_ticks_a_run_and_the_form_follows_the_row() -> TestResult {
     let report = report_like_the_run(&engine);
     let groups = groups(&report);
     let mut w = Waiving::default();
-    tick_row(&mut w, &groups, r#"purchasing.no_part [{"kind":"instance","id":2}]"#, false);
-    assert_eq!(w.at, Some(At::Row(r#"purchasing.no_part [{"kind":"instance","id":2}]"#.into())));
-    tick_row(&mut w, &groups, r#"purchasing.no_part [{"kind":"instance","id":6}]"#, true);
+    tick_row(
+        &mut w,
+        &groups,
+        r#"purchasing.no_part [{"kind":"instance","id":2}]"#,
+        false,
+    );
+    assert_eq!(
+        w.at,
+        Some(At::Row(
+            r#"purchasing.no_part [{"kind":"instance","id":2}]"#.into()
+        ))
+    );
+    tick_row(
+        &mut w,
+        &groups,
+        r#"purchasing.no_part [{"kind":"instance","id":6}]"#,
+        true,
+    );
     assert_eq!(w.ticked.len(), 5, "R2 to R6: {:?}", w.ticked);
-    assert_eq!(w.at, Some(At::Row(r#"purchasing.no_part [{"kind":"instance","id":6}]"#.into())));
+    assert_eq!(
+        w.at,
+        Some(At::Row(
+            r#"purchasing.no_part [{"kind":"instance","id":6}]"#.into()
+        ))
+    );
     // A plain click unticks one; the last untick closes the form.
-    tick_row(&mut w, &groups, r#"purchasing.no_part [{"kind":"instance","id":6}]"#, false);
+    tick_row(
+        &mut w,
+        &groups,
+        r#"purchasing.no_part [{"kind":"instance","id":6}]"#,
+        false,
+    );
     assert_eq!(w.ticked.len(), 4);
     for n in 2..=5 {
         tick_row(
@@ -650,8 +675,11 @@ fn a_shift_click_ticks_a_run_and_the_form_follows_the_row() -> TestResult {
     assert!(w.ticked.is_empty());
     assert!(w.at.is_none());
     // A row of a folded group keeps its form under the group's header.
-    w.ticked.insert(r#"purchasing.no_part [{"kind":"instance","id":12}]"#.into());
-    w.at = Some(At::Row(r#"purchasing.no_part [{"kind":"instance","id":12}]"#.into()));
+    w.ticked
+        .insert(r#"purchasing.no_part [{"kind":"instance","id":12}]"#.into());
+    w.at = Some(At::Row(
+        r#"purchasing.no_part [{"kind":"instance","id":12}]"#.into(),
+    ));
     let lines = entries(&w, &groups);
     let form = lines.iter().position(|e| matches!(e, Entry::Form));
     let header = lines

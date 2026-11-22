@@ -419,7 +419,10 @@ fn a_board_only_part_is_placed_on_the_board_in_one_step() -> Result<()> {
             .is_some_and(|i| i.board_only)
     );
     engine.undo()?;
-    assert!(engine.project().instance(instance).is_none(), "one undo step");
+    assert!(
+        engine.project().instance(instance).is_none(),
+        "one undo step"
+    );
     assert!(engine.project().placement_of(instance).is_none());
     Ok(())
 }
