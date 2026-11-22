@@ -415,9 +415,11 @@ pub(crate) fn generate(
                     // Parts an earlier regeneration left on an older
                     // revision are carried to this one.
                     None if scope == GeneratorScope::Component => {
+                        let declared = generated::declared_orderables(part);
                         super::library::carry_parts(
                             document,
                             ComponentRef::new(root.id, root.revision),
+                            Some(&declared),
                         )?;
                         Ok(same)
                     }
@@ -816,7 +818,17 @@ pub(crate) fn generate(
     // the older revisions are carried to the new one in the same step, so
     // the update that moves the instances takes them along.
     if scope == GeneratorScope::Component {
-        super::library::carry_parts(document, ComponentRef::new(root.id, root.revision))?;
+        let declared: Vec<(String, String)> = made
+            .generation
+            .orderable
+            .iter()
+            .map(|o| (o.manufacturer.trim().to_owned(), o.mpn.trim().to_owned()))
+            .collect();
+        super::library::carry_parts(
+            document,
+            ComponentRef::new(root.id, root.revision),
+            Some(&declared),
+        )?;
         // The generation's orderable parts become the component's
         // manufacturer Parts, those it does not have yet (a regeneration
         // carried the others above), in the same step.

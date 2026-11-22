@@ -79,6 +79,10 @@ pub struct LibPin {
     /// Of type "not connected": it joins nothing, even where it meets
     /// other pins.
     pub no_connect: bool,
+    /// Its electrical type as the source declares it (`input`, `output`,
+    /// `power_in`, …; the pin's first argument), read into the core's
+    /// functions by `pins::class`.
+    pub electrical: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -243,6 +247,7 @@ fn lib_symbol(node: &Node) -> Result<LibSymbol> {
                     .to_owned(),
                 hidden_power: hidden && pin.arg(0) == Some("power_in"),
                 no_connect: pin.arg(0) == Some("no_connect"),
+                electrical: pin.arg(0).unwrap_or_default().to_owned(),
             });
         }
         for r in n.children("rectangle") {

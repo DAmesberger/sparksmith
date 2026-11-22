@@ -139,3 +139,31 @@ fn only_a_power_output_supplies_a_power_net() -> Result<()> {
     assert!(on_net(&engine, net).is_empty());
     Ok(())
 }
+
+/// Review §12: power sourcing is judged by the same matrix as logic drive.
+/// Two power outputs on one net fight (a parallel supply is a deliberate
+/// waiver, so the finding may be waived), a logic output against a rail
+/// fights as against a push-pull driver, and an input strapped to a rail
+/// (an enable) is driven.
+#[test]
+fn power_outputs_are_drivers_in_the_one_matrix() -> Result<()> {
+    use Drive::{OpenDrain as Od, OpenSource as Os, PushPull as Pp};
+    let (engine, net) = pair(power_out(), power_out())?;
+    assert_eq!(on_net(&engine, net), ["erc.power_output_conflict"]);
+    assert!(crate::issues::can_waive("erc.power_output_conflict"));
+    let expected: [(Drive, &str); 3] = [
+        (Pp, "erc.driver_conflict"),
+        (Od, "erc.open_drain_contention"),
+        (Os, "erc.open_source_contention"),
+    ];
+    for (drive, code) in expected {
+        let (engine, net) = pair(power_out(), driver(drive))?;
+        assert_eq!(on_net(&engine, net), [code], "a rail against {drive:?}");
+    }
+    let (engine, net) = pair(input(), power_out())?;
+    assert!(on_net(&engine, net).is_empty(), "{:?}", all_codes(&engine));
+    // Inputs alone are still undriven.
+    let (engine, net) = pair(input(), input())?;
+    assert_eq!(on_net(&engine, net), ["erc.input_only_net"]);
+    Ok(())
+}

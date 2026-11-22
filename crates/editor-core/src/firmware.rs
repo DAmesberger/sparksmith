@@ -111,7 +111,8 @@ pub const MAX_FIRMWARE_NAME: usize = crate::functions::pin_config::MAX_FIRMWARE_
 
 /// `project.pin_config`: the firmware IR of one instance, built from
 /// `project.pin_report` (the one place nets, endpoints and active functions
-/// are joined) plus the instance's device identity.
+/// are joined) plus the device the active variant fits
+/// (`completeness::assembly`).
 pub fn pin_config(project: &Project, instance: Id) -> Result<PinConfigReport> {
     let report = crate::pins::pin_report(project, instance)?;
     from_pin_report(project, &report)
@@ -142,14 +143,30 @@ pub fn from_pin_report(project: &Project, report: &PinReport) -> Result<PinConfi
                 instance.designator, instance.component
             ))
         })?;
-    let purchasing = crate::completeness::purchasing(project, instance);
+    // The device the active variant fits (review §12): its Part and MPN.
+    // A substitute of another component is another device whose pins this
+    // report does not describe, so it is refused, naming the variant.
+    let decision = crate::completeness::assembly(project, instance);
+    if decision.fitted.component != instance.component {
+        let variant = project
+            .variants
+            .active()
+            .map_or_else(String::new, |v| format!(" “{}”", v.name));
+        return Err(Error::Conflict(format!(
+            "firmware.variant_device: the active variant{variant} fits {} on {}, another component than {}; its pins are not the ones this report describes. Choose the default (or a variant that fits {}) for its firmware.",
+            decision.purchase.mpn.as_deref().unwrap_or("another part"),
+            instance.designator,
+            component.meta.name,
+            component.meta.name,
+        )));
+    }
     let device = FirmwareDevice {
         instance: instance.id,
         designator: instance.designator.clone(),
         component: instance.component,
         component_name: component.meta.name.clone(),
-        part: instance.part,
-        mpn: purchasing.mpn,
+        part: decision.purchase.part,
+        mpn: decision.purchase.mpn,
     };
 
     let mut pins = Vec::new();

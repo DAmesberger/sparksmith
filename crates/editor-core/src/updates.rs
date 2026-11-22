@@ -934,6 +934,7 @@ fn stage_change(
             preserve_copper: false,
             reviewed: true,
             assembly_command: false,
+            sheet_move: false,
         },
     )?;
     Ok(next)
@@ -1173,6 +1174,10 @@ fn revise_instance(
                 .instance(id)
                 .ok_or_else(|| not_found("Unknown component instance."))?;
             if let Some(part) = instances::republished_part(&next.library, instance) {
+                instances::instance_mut(next, id)?.part = Some(part);
+            } else if let Some(part) = generator_successor(&next.library, instance, target) {
+                // The generator withdrew the Part this placement bought
+                // (review §10): it takes the one the target declares.
                 instances::instance_mut(next, id)?.part = Some(part);
             }
         }
@@ -2507,6 +2512,28 @@ fn findings_after(
     all.into_iter()
         .filter(|f| !off_board(f) && !follows(f))
         .collect()
+}
+
+/// For a placement whose Part is one the generator of `target`'s lineage
+/// declared and the generation of `target` no longer declares: the Part
+/// `target` declares as its sole orderable part, if it has one.
+fn generator_successor(
+    library: &crate::library::Library,
+    instance: &crate::model::ComponentInstance,
+    target: ComponentRef,
+) -> Option<crate::ids::PartRef> {
+    use crate::library::generated;
+    let part = library.part(instance.part?)?;
+    let key = (
+        part.definition.manufacturer.clone(),
+        part.definition.mpn.clone(),
+    );
+    let now = generated::declared_orderables(generated::record_of(library, target.erased())?);
+    let withdrawn =
+        generated::owned_orderables(library, target.id).contains(&key) && !now.contains(&key);
+    withdrawn
+        .then(|| generated::sole_orderable(library, target))
+        .flatten()
 }
 
 /// Preview never mutates the source. Apply recomputes this plan at its bound revision.

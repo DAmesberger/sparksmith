@@ -16,7 +16,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
+mod assembly;
 mod purchasing;
+pub use assembly::{Assembly, assembly};
 pub use purchasing::{
     BomLine, BomReport, BomValue, PurchasingReport, PurchasingState, ResolveGroup, ResolveReport,
     bom, purchasing, requirement_query, resolve_groups,

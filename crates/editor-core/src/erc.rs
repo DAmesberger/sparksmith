@@ -89,17 +89,21 @@ fn net_checks(
                 ],
             ));
         }
-        // Every pair of drivers, judged by the one matrix; each kind of
-        // fight is reported once per net.
-        let drives: Vec<Drive> = active
+        // Every pair of drivers, logic outputs and power outputs alike,
+        // judged by the one matrix; each kind of fight is reported once per
+        // net.
+        let drivers: Vec<Driver> = active
             .iter()
-            .filter(|(_, f)| matches!(f.direction, Direction::Output | Direction::Bidirectional))
-            .map(|(_, f)| f.drive)
+            .filter_map(|(_, f)| match f.direction {
+                Direction::Output | Direction::Bidirectional => Some(Driver::Logic(f.drive)),
+                Direction::PowerOutput => Some(Driver::Supply),
+                _ => None,
+            })
             .collect();
         let mut fights = BTreeSet::new();
-        for (i, a) in drives.iter().enumerate() {
-            for b in drives.get(i + 1..).unwrap_or_default() {
-                if let Some(fight) = contention(*a, *b) {
+        for (i, a) in drivers.iter().enumerate() {
+            for b in drivers.get(i + 1..).unwrap_or_default() {
+                if let Some(fight) = driver_contention(*a, *b) {
                     fights.insert(fight);
                 }
             }
@@ -112,10 +116,13 @@ fn net_checks(
             ));
         }
         let has = |direction: Direction| active.iter().any(|(_, f)| f.direction == direction);
+        // A power output drives its net: an enable strapped to a rail is
+        // driven.
         if has(Direction::Input)
             && !has(Direction::Output)
             && !has(Direction::Bidirectional)
             && !has(Direction::Passive)
+            && !has(Direction::PowerOutput)
         {
             out.push(Finding::new(
                 "erc.input_only_net",
@@ -156,6 +163,34 @@ pub enum Contention {
     /// An open-source driver against a push-pull driver or an open-drain
     /// sink: it sources high while the other pulls low.
     OpenSource,
+    /// Two power outputs on one net, each regulating it. A parallel supply
+    /// meant to share the net (load-sharing regulators, an OR-ing
+    /// controller) is a deliberate decision: waive the finding with its
+    /// reason.
+    Supplies,
+}
+
+/// A terminal that drives its net: a logic output with its drive, or a
+/// power output, which holds its net at its level as a push-pull driver
+/// does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Driver {
+    Logic(Drive),
+    Supply,
+}
+
+/// The drive compatibility of two drivers, logic or power, from the one
+/// matrix: two supplies fight as [`Contention::Supplies`]; a supply
+/// against a logic output fights as a push-pull driver would
+/// ([`contention`]). Symmetric.
+pub fn driver_contention(a: Driver, b: Driver) -> Option<Contention> {
+    match (a, b) {
+        (Driver::Supply, Driver::Supply) => Some(Contention::Supplies),
+        (Driver::Supply, Driver::Logic(d)) | (Driver::Logic(d), Driver::Supply) => {
+            contention(Drive::PushPull, d)
+        }
+        (Driver::Logic(a), Driver::Logic(b)) => contention(a, b),
+    }
 }
 
 impl Contention {
@@ -164,6 +199,7 @@ impl Contention {
             Self::PushPull => "erc.driver_conflict",
             Self::OpenDrain => "erc.open_drain_contention",
             Self::OpenSource => "erc.open_source_contention",
+            Self::Supplies => "erc.power_output_conflict",
         }
     }
 
@@ -176,6 +212,9 @@ impl Contention {
             Self::OpenSource => {
                 format!("{net}: an open-source driver shares the net with a driver that pulls low.")
             }
+            Self::Supplies => format!(
+                "{net}: two power outputs drive the net. If they are meant to share it (a parallel supply), waive this with the reason."
+            ),
         }
     }
 }

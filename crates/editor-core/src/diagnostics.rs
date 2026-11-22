@@ -223,6 +223,36 @@ pub enum ObjectRef {
     Wire {
         id: Id,
     },
+    /// One side of the board, for a finding about everything assembled on
+    /// that side (its fiducials). Its own identity, so a waiver of one
+    /// side's finding never covers the other's. Locating it frames the
+    /// board.
+    BoardSide {
+        side: BoardSide,
+    },
+}
+
+/// A side of the board an assembly finding is about.
+#[derive(
+    Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq, PartialOrd, Ord, Hash,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum BoardSide {
+    Top,
+    Bottom,
+}
+
+impl BoardSide {
+    pub fn of(top: bool) -> Self {
+        if top { Self::Top } else { Self::Bottom }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Top => "top",
+            Self::Bottom => "bottom",
+        }
+    }
 }
 
 /// A derived completeness state a finding can block. Nothing stores these

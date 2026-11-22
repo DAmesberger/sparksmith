@@ -34,8 +34,8 @@ use super::{Definition, Library, PackageModel};
 use crate::diagnostics::{Error, Result};
 use crate::fields::{FieldSelection, ValueTemplate};
 use crate::ids::{
-    BindingRef, ComponentRef, ContentHash, DefinitionKind, DefinitionRef, FootprintRef, PackageRef,
-    PartRef, SymbolRef,
+    BindingRef, ComponentRef, ContentHash, DefinitionId, DefinitionKind, DefinitionRef,
+    FootprintRef, PackageRef, PartRef, SymbolRef,
 };
 use crate::units::{Nm, PointNm};
 use schemars::JsonSchema;
@@ -489,23 +489,49 @@ pub const ORDERABLE_PARAM: &str = "part_numbers";
 /// chooses), or when that Part is gone.
 pub fn sole_orderable(library: &Library, component: ComponentRef) -> Option<PartRef> {
     let record = record_of(library, component.erased())?;
-    let [ParamValue::Text(entry)] = (match record.from.params.get(ORDERABLE_PARAM)? {
-        ParamValue::List(items) => items.as_slice(),
-        _ => return None,
-    }) else {
-        return None;
-    };
-    let (manufacturer, mpn) = entry.rsplit_once('=')?;
-    let (manufacturer, mpn) = (manufacturer.trim(), mpn.trim());
+    let [(manufacturer, mpn)] = declared_orderables(record).try_into().ok()?;
+    // The Part of this exact revision, whatever later revisions the Part
+    // has: a placement pinned to an older component revision takes the
+    // Part revision that pins it.
     library
-        .latest_parts()
-        .into_iter()
-        .find(|p| {
+        .parts
+        .iter()
+        .filter(|p| {
             p.definition.component == component
                 && p.definition.manufacturer == manufacturer
                 && p.definition.mpn == mpn
         })
+        .max_by_key(|p| p.revision)
         .map(|p| PartRef::new(p.id, p.revision))
+}
+
+/// The orderable parts (manufacturer, part number) a generated part's
+/// recorded `part_numbers` declare, each `MANUFACTURER=MPN` entry trimmed.
+pub fn declared_orderables(part: &GeneratedPart) -> Vec<(String, String)> {
+    let Some(ParamValue::List(items)) = part.from.params.get(ORDERABLE_PARAM) else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .filter_map(|item| match item {
+            ParamValue::Text(entry) => entry
+                .rsplit_once('=')
+                .map(|(m, n)| (m.trim().to_owned(), n.trim().to_owned())),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The orderable parts any generation of `component`'s lineage declared:
+/// the manufacturer Parts the generator owns there, as opposed to ones a
+/// person added.
+pub fn owned_orderables(library: &Library, component: DefinitionId) -> Vec<(String, String)> {
+    library
+        .generated
+        .iter()
+        .filter(|g| g.root.id == component)
+        .flat_map(declared_orderables)
+        .collect()
 }
 
 /// The recipe a library record of `root` carries when a generator made

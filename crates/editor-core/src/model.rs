@@ -97,13 +97,25 @@ pub struct ComponentInstance {
     /// (docs/assembly-variants.md). A variant may override it.
     #[serde(default, skip_serializing_if = "Population::is_populated")]
     pub population: Population,
+    /// Kept off the bill of materials, whatever is fitted (a test point or
+    /// logo a source design excludes from its BOM): nothing is bought for
+    /// it. Independent of population and placement
+    /// (`completeness::assembly`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bom_excluded: bool,
+    /// Kept out of the pick-and-place files, whatever is fitted (a part a
+    /// source design excludes from its position files). Independent of
+    /// population and purchasing.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub placement_excluded: bool,
 }
 
 impl ComponentInstance {
     /// A copy of this part as a new instance `id` named `designator`: the
     /// same component, symbol, physical implementation, fields, unused
     /// units, no-connect pins, functions, Part, pin configuration, marking,
-    /// text placements, board-only state and default population. A copy is
+    /// text placements, board-only state, default population and BOM and
+    /// placement exclusions. A copy is
     /// the same part, so a part left off by default stays off. Variant
     /// overrides belong to their variants, not to the instance, and are
     /// not copied. Every field is named, so a new one does not compile
@@ -125,6 +137,8 @@ impl ComponentInstance {
             text_placements,
             board_only,
             population,
+            bom_excluded,
+            placement_excluded,
         } = self;
         ComponentInstance {
             id,
@@ -142,6 +156,8 @@ impl ComponentInstance {
             text_placements: text_placements.clone(),
             board_only: *board_only,
             population: *population,
+            bom_excluded: *bom_excluded,
+            placement_excluded: *placement_excluded,
         }
     }
 }

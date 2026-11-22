@@ -1061,3 +1061,115 @@ fn a_part_made_for_one_part_number_is_fitted_with_it_when_placed() -> TestResult
     assert_eq!(parts, 1 + 4);
     Ok(())
 }
+
+/// Review §10: a chip resistor made for part number A, placed, then made
+/// again with B as its only part number. A was the generator's and is
+/// withdrawn: the new revision has only B, the moved placement buys B, a
+/// placement of the old revision still buys A (its exact revision's Part)
+/// and a placement of the new one buys B. A Part a person added is
+/// carried whatever the generator declares.
+#[test]
+fn a_withdrawn_part_number_does_not_follow_a_regenerated_part() -> TestResult {
+    use sparksmith_core::completeness::{PurchasingState, purchasing};
+    let temp = tempfile::tempdir()?;
+    let root = library(temp.path())?;
+    let mut session = session(&root)?;
+    let numbers = |mpn: &str| json!([format!("ExampleCo={mpn}")]);
+    let first = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "chip", "scope": "component", "preset": "resistor-0603",
+            "params": {"part_numbers": numbers("EX-A")}}),
+    );
+    assert_eq!(first["ok"], true, "{first}");
+    let component = first["result"]["outcome"]["report"]["root"].clone();
+    place_made(&mut session, &first)?;
+    let moved = session.engine().project().instances[0].id;
+    // A Part a person added for the same component.
+    let own = call(
+        &mut session,
+        "project.apply",
+        json!({"operation": {"editor": "Library", "operation": {"command": "library.draft_part",
+            "params": {"component": component["id"], "manufacturer": "OtherCo", "mpn": "EX-OWN"}}}}),
+    );
+    assert_eq!(own["ok"], true, "{own}");
+    let draft = session
+        .engine()
+        .drafts()
+        .items
+        .last()
+        .map(|d| d.id)
+        .ok_or("the Part draft")?;
+    let published = call(
+        &mut session,
+        "project.apply",
+        json!({"operation": {"editor": "Library", "operation": {"command": "library.publish",
+            "params": {"drafts": [draft], "close": true}}}}),
+    );
+    assert_eq!(published["ok"], true, "{published}");
+    let again = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "chip", "scope": "component", "preset": "resistor-0603",
+            "params": {"part_numbers": numbers("EX-B"), "length": 1_700_000},
+            "replaces": component}),
+    );
+    assert_eq!(again["ok"], true, "{again}");
+    let update = &again["result"]["update"];
+    let applied = call(
+        &mut session,
+        "project.apply_update",
+        json!({"change": update["change"], "remove_conflicting_tracks": false}),
+    );
+    assert_eq!(applied["ok"], true, "{applied}");
+    let new_root = &again["result"]["outcome"]["report"]["root"];
+    // The new revision's Parts: B and the person's, never A.
+    let project = session.engine().project();
+    let on_new: Vec<&str> = project
+        .library
+        .parts
+        .iter()
+        .filter(|p| {
+            json!(p.definition.component.id) == new_root["id"]
+                && json!(p.definition.component.revision) == new_root["revision"]
+        })
+        .map(|p| p.definition.mpn.as_str())
+        .collect();
+    assert!(
+        on_new.contains(&"EX-B") && on_new.contains(&"EX-OWN"),
+        "{on_new:?}"
+    );
+    assert!(!on_new.contains(&"EX-A"), "A is withdrawn: {on_new:?}");
+    let bought = |session: &Session, id: u64| -> TestResult<(Option<String>, PurchasingState)> {
+        let project = session.engine().project();
+        let instance = project.instance(id).ok_or("instance")?;
+        let q = purchasing(project, instance);
+        Ok((q.mpn.clone(), q.state))
+    };
+    assert_eq!(
+        bought(&session, moved)?,
+        (Some("EX-B".into()), PurchasingState::Resolved),
+        "the moved placement buys B"
+    );
+    // A fresh placement of each revision buys that revision's own Part.
+    place_made(&mut session, &first)?;
+    let old = session.engine().project().instances.last().ok_or("old")?.id;
+    assert_eq!(
+        bought(&session, old)?,
+        (Some("EX-A".into()), PurchasingState::Resolved),
+        "revision 1 still buys A"
+    );
+    place_made(&mut session, &again)?;
+    let fresh = session
+        .engine()
+        .project()
+        .instances
+        .last()
+        .ok_or("fresh")?
+        .id;
+    assert_eq!(
+        bought(&session, fresh)?,
+        (Some("EX-B".into()), PurchasingState::Resolved)
+    );
+    Ok(())
+}

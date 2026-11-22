@@ -72,7 +72,9 @@ pub enum SchematicCommand {
         sheet: Option<SheetId>,
     },
     /// Move a unit; wires follow its pins, the segment on each pin staying
-    /// horizontal or vertical. A pin moved onto a wire connects to it.
+    /// horizontal or vertical. A free pin moved onto a wire connects to it;
+    /// a move that would join two nets that already connect pins is
+    /// refused (`net.moved_merge`).
     #[serde(rename = "symbol.move_unit")]
     MoveUnit {
         occurrence: Id,
@@ -461,6 +463,25 @@ pub enum SchematicCommand {
         #[schemars(with = "[crate::units::Length; 2]")]
         offset: PointNm,
     },
+}
+
+impl SchematicCommand {
+    /// A move of drawn objects on the sheet, not a connection: it may
+    /// connect a free pin where it lands but never join two nets
+    /// (`nets::refuse_moved_merges`). Drawing a wire, connecting pins and
+    /// moving a wire's end onto a pin are connections.
+    pub fn is_move(&self) -> bool {
+        matches!(
+            self,
+            Self::MoveUnit { .. }
+                | Self::Arrange { .. }
+                | Self::OrientUnit { .. }
+                | Self::MoveWireCorner { .. }
+                | Self::MoveWireSegment { .. }
+                | Self::MoveLabel { .. }
+                | Self::MoveSheetSymbol { .. }
+        )
+    }
 }
 
 // A new command chooses its permission class here.

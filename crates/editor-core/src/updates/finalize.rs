@@ -28,6 +28,10 @@ pub(crate) struct Finalize<'a> {
     /// Only the assembly link's own commands move what the linked design
     /// drives.
     pub assembly_command: bool,
+    /// A move on the sheet (a symbol, label, sheet symbol or wire segment
+    /// dragged): it may connect a free pin where it lands, never join two
+    /// nets that already connect pins ([`nets::refuse_moved_merges`]).
+    pub sheet_move: bool,
 }
 
 /// What a finalization changed besides the candidate itself.
@@ -53,7 +57,11 @@ pub(crate) fn finalize(
         schematic::tidy(project)?;
         // A removed part takes its variant overrides with it.
         instances::variants::follow_instances(project);
-        nets::reconcile(project)?
+        let changes = nets::reconcile(project)?;
+        if f.sheet_move && !f.reviewed {
+            nets::refuse_moved_merges(base, project)?;
+        }
+        changes
     } else {
         nets::NetChanges::default()
     };

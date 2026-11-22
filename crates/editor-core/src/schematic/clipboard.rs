@@ -101,7 +101,8 @@ impl ClipLibrary {
 #[serde(deny_unknown_fields)]
 pub struct ClipRevision {
     pub at: DefinitionRef,
-    /// SHA-256 of its stored name, metadata and body ([`revision_digest`]).
+    /// SHA-256 of its stored name, metadata and body, and a component's
+    /// pending pin review ([`revision_digest`]).
     pub digest: ContentHash,
     pub source: SourceRevision,
 }
@@ -312,14 +313,21 @@ pub fn terminal_pads(library: &Library, instance: &ComponentInstance) -> Result<
         .collect())
 }
 
-/// SHA-256 of a revision's stored metadata and body: equal digests under
-/// one id are the same revision in any project.
+/// SHA-256 of a revision's stored metadata and body, and for a component
+/// the pin review it was published with (`Library::reviews`): equal
+/// digests under one id are the same revision with the same pins still to
+/// review in any project, so a paste that reuses the destination's copy
+/// never drops a pending review (review §11).
 pub fn revision_digest(library: &Library, at: DefinitionRef) -> Result<ContentHash> {
     use sha2::{Digest, Sha256};
     let (meta, body) = library
         .definition(at)
         .ok_or_else(|| not_found("A copied part names a library revision that is missing."))?;
-    let bytes = serde_json::to_vec(&(at, meta, body))
+    let review = (at.kind == DefinitionKind::Component)
+        .then(|| library.review_of(crate::ids::ComponentRef::new(at.id, at.revision)))
+        .flatten()
+        .filter(|r| !r.is_empty());
+    let bytes = serde_json::to_vec(&(at, meta, body, review))
         .map_err(|e| Error::Invalid(format!("a definition could not be written: {e}")))?;
     let mut hasher = Sha256::new();
     hasher.update(b"sparksmith.clip-revision\0");

@@ -10,19 +10,19 @@
 use super::{PhysicalView, designator_key, instance_mut, invalid, resolve};
 use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::fields;
+use crate::ids::ContentHash;
 use crate::ids::{ComponentRef, FootprintRef, Id, PartRef, TerminalId};
 use crate::library::{FootprintDefinition, Library, Pad, PartDefinition};
-use crate::ids::ContentHash;
 use crate::model::variants::{
     MAX_EXCEPTION_REASON, MAX_EXCEPTIONS, MAX_VARIANT_NAME, MAX_VARIANTS, RequirementException,
     ReviewBasis, SubstituteReview,
 };
-use sha2::{Digest, Sha256};
 use crate::model::{
     AssemblyVariant, AssemblyVariants, ComponentInstance, Population, Project, VariantOverride,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Instances one `variant.set_population` names.
@@ -90,6 +90,20 @@ pub enum VariantCommand {
         #[serde(default)]
         part: Option<PartRef>,
     },
+    /// Keep parts off the bill of materials (`bom`) or out of the
+    /// pick-and-place files (`placement`), in every variant; each given
+    /// flag is set, an omitted one left as it is. Independent of whether
+    /// a part is fitted: a test point kept off the BOM is still placed, and
+    /// a part kept out of the position files is still bought. Refused whole
+    /// when an instance is unknown.
+    #[serde(rename = "variant.set_exclusions")]
+    SetExclusions {
+        instances: Vec<Id>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bom: Option<bool>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        placement: Option<bool>,
+    },
     /// Record a person's review of a variant's substitute part. It says
     /// whether the substitute is electrically equivalent to the part it
     /// replaces (its pinout, beyond the land pattern and pad grouping that
@@ -116,6 +130,7 @@ declare_entries!(VariantCommand in project {
     SetPopulation "variant.set_population" Edit "Set whether parts are fitted" [since(7, 13)],
     SetPart "variant.set_part" Edit "Fit another part in a variant" [since(7, 13)],
     ReviewSubstitute "variant.review_substitute" Ask "Review a variant's substitute part" [since(7, 18)],
+    SetExclusions "variant.set_exclusions" Edit "Keep parts off the BOM or pick-and-place" [since(7, 21)],
 });
 
 /// What one variant fits for one part.
@@ -511,7 +526,7 @@ pub fn report(project: &Project) -> Result<VariantsReport> {
     let mut instances: Vec<&ComponentInstance> = project
         .instances
         .iter()
-        .filter(|i| crate::library::mechanical::in_bom(library, i.component))
+        .filter(|i| super::on_bom(library, i))
         .collect();
     instances.sort_by(|a, b| {
         designator_key(&a.designator)
@@ -668,6 +683,35 @@ pub fn apply(project: &mut Project, command: VariantCommand) -> Result<Option<Id
             population,
         } => {
             set_population(project, &instances, variant, population)?;
+            Ok(None)
+        }
+        VariantCommand::SetExclusions {
+            instances,
+            bom,
+            placement,
+        } => {
+            let ids: BTreeSet<Id> = instances.iter().copied().collect();
+            if ids.is_empty() || ids.len() > MAX_POPULATION_EDIT {
+                return Err(invalid(format!(
+                    "variant.set_exclusions names 1–{MAX_POPULATION_EDIT} parts"
+                )));
+            }
+            if ids.iter().any(|id| project.instance(*id).is_none()) {
+                return Err(Error::NotFound("Unknown component instance.".into()));
+            }
+            for id in ids {
+                let current = project
+                    .instance(id)
+                    .map(|i| (i.bom_excluded, i.placement_excluded));
+                let next = current.map(|(b, p)| (bom.unwrap_or(b), placement.unwrap_or(p)));
+                if current != next
+                    && let Some((b, p)) = next
+                {
+                    let instance = instance_mut(project, id)?;
+                    instance.bom_excluded = b;
+                    instance.placement_excluded = p;
+                }
+            }
             Ok(None)
         }
         VariantCommand::SetPart {
@@ -936,7 +980,8 @@ pub fn review_basis(library: &Library, instance: &ComponentInstance, r: PartRef)
                 .map(|pad| {
                     (
                         pad.number.clone(),
-                        pad.terminal.and_then(|t| v.binding.definition.terminal_of(t)),
+                        pad.terminal
+                            .and_then(|t| v.binding.definition.terminal_of(t)),
                     )
                 })
                 .collect();
@@ -967,9 +1012,15 @@ pub fn review_basis(library: &Library, instance: &ComponentInstance, r: PartRef)
 /// one, in words.
 fn changed_inputs(reviewed: &ReviewBasis, now: &ReviewBasis) -> Vec<&'static str> {
     [
-        (reviewed.component != now.component, "the component revision"),
+        (
+            reviewed.component != now.component,
+            "the component revision",
+        ),
         (reviewed.pins != now.pins, "the pad-to-terminal map"),
-        (reviewed.requirements != now.requirements, "the requirements"),
+        (
+            reviewed.requirements != now.requirements,
+            "the requirements",
+        ),
         (reviewed.ratings != now.ratings, "the rated values"),
     ]
     .into_iter()

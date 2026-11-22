@@ -753,6 +753,46 @@ fn joined_by(before: &Project, after: &Project, net: Id) -> Vec<ObjectRef> {
     out
 }
 
+/// Refuse a move (a symbol, label, sheet symbol or wire segment dragged
+/// on the sheet) that joins nets which each already connected two or more
+/// pins: dropping a pin on a wire connects a pin that was free, but a move
+/// never shorts two circuits by where it lands (E2E run 13: C3 moved by its
+/// Position fields merged EN into GND). The person connects them on
+/// purpose with a wire, or, for named nets, through a reviewed update.
+pub fn refuse_moved_merges(before: &Project, after: &Project) -> Result<()> {
+    let before_net: BTreeMap<Endpoint, Id> = before
+        .nets
+        .iter()
+        .filter(|net| net.terminals.len() >= 2)
+        .flat_map(|net| net.terminals.iter().map(move |t| (*t, net.id)))
+        .collect();
+    for net in &after.nets {
+        let joined: BTreeSet<Id> = net
+            .terminals
+            .iter()
+            .filter_map(|t| before_net.get(t).copied())
+            .collect();
+        if joined.len() < 2 {
+            continue;
+        }
+        let names: Vec<String> = joined
+            .iter()
+            .map(|id| {
+                before
+                    .nets
+                    .iter()
+                    .find(|n| n.id == *id)
+                    .map_or_else(|| format!("N{id}"), |n| described(before, n))
+            })
+            .collect();
+        return Err(Error::Conflict(format!(
+            "net.moved_merge: this move would join {} into one net by where it lands. Move it elsewhere, or connect them on purpose with a wire.",
+            names.join(" and ")
+        )));
+    }
+    Ok(())
+}
+
 /// Refuse a change from `before` to `after` that makes a [`NamedMerge`]:
 /// the caller previews it and applies it as a reviewed update that asks
 /// for the merge.

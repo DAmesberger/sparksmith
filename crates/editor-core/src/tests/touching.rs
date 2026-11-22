@@ -623,3 +623,58 @@ fn a_free_end_on_a_ports_drawing_attaches_to_it() -> Result<()> {
     );
     Ok(())
 }
+
+/// E2E run 13: moving C3 by its Position fields dragged its wires so EN
+/// merged into GND with no warning. A move connects a pin that was free
+/// where it lands (above), but never joins two nets that already connect
+/// pins: the move is refused, naming both, and nothing changes. Connecting
+/// them on purpose with a wire still works.
+#[test]
+fn a_move_never_joins_two_connected_nets_by_where_it_lands() -> Result<()> {
+    let mut engine = Engine::default();
+    let resistor = two_pin(&mut engine)?;
+    let (u1, _) = place(&mut engine, &resistor, "U1", 1, [0.0, 0.0])?;
+    let (u2, _) = place(&mut engine, &resistor, "U2", 1, [40.0, 0.0])?;
+    connect(&mut engine, ep(u1, 2), ep(u2, 1))?;
+    let (u3, u3_occurrence) = place(&mut engine, &resistor, "U3", 1, [20.0, 20.0])?;
+    let (u4, _) = place(&mut engine, &resistor, "U4", 1, [60.0, 20.0])?;
+    connect(&mut engine, ep(u3, 2), ep(u4, 1))?;
+    let a = net_of(&engine, ep(u1, 2))?;
+    let b = net_of(&engine, ep(u3, 2))?;
+    assert_ne!(a, b);
+    // Dropping U3 onto U1–U2's wire would put both its pins on it.
+    let kept = Snapshot::of(&engine);
+    let moved = engine.apply(
+        engine.revision(),
+        Operation::Schematic(SchematicCommand::MoveUnit {
+            occurrence: u3_occurrence,
+            position: pt([20.0, 0.0]),
+        }),
+    );
+    assert!(
+        matches!(&moved, Err(Error::Conflict(m)) if m.contains("net.moved_merge")
+            && m.contains("U1") && m.contains("U4")),
+        "{moved:?}"
+    );
+    kept.assert_kept(&engine, "a move that joins two nets");
+    // The same move as part of a group drag is refused too.
+    let arranged = engine.apply(
+        engine.revision(),
+        Operation::Schematic(SchematicCommand::Arrange {
+            sheet: None,
+            objects: vec![crate::schematic::ClipObject::Instance { id: u3 }],
+            action: crate::schematic::Arrangement::Move {
+                by: pt([0.0, -20.0]),
+            },
+        }),
+    );
+    assert!(
+        matches!(&arranged, Err(Error::Conflict(m)) if m.contains("net.moved_merge")),
+        "{arranged:?}"
+    );
+    kept.assert_kept(&engine, "a group drag that joins two nets");
+    // Joining them on purpose is a wire.
+    connect(&mut engine, ep(u3, 2), ep(u1, 2))?;
+    assert_eq!(net_of(&engine, ep(u3, 2))?, net_of(&engine, ep(u1, 2))?);
+    Ok(())
+}

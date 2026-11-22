@@ -1736,6 +1736,7 @@ impl Engine {
         // Only the assembly link's own commands move the board-sketch
         // geometry its references own.
         let assembly_command = matches!(operation, Operation::Assembly(_));
+        let sheet_move = matches!(&operation, Operation::Schematic(c) if c.is_move());
         let preserve_copper = matches!(
             operation,
             Operation::Board(_)
@@ -2037,6 +2038,7 @@ impl Engine {
                         preserve_copper,
                         reviewed,
                         assembly_command,
+                        sheet_move,
                     },
                 )?
                 .rerouted;

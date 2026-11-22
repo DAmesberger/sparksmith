@@ -3605,7 +3605,10 @@ impl crate::issues::Locate for PcbEditor {
             return true;
         }
         let Some((instance, track, net)) = locate(refs) else {
-            if refs.contains(&ObjectRef::Board) {
+            if refs
+                .iter()
+                .any(|r| matches!(r, ObjectRef::Board | ObjectRef::BoardSide { .. }))
+            {
                 self.set_selection(None, None, None);
                 self.frame_request = Some([[0.0, 0.0], project.board_size]);
                 return true;

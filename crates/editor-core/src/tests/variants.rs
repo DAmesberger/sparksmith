@@ -884,10 +884,7 @@ fn r1_messages(project: &crate::model::Project, r1: Id) -> Vec<String> {
 
 /// Move R1 to the demo component's next revision, published after `change`
 /// edits the drafts.
-fn revise_r1(
-    b: &mut Board,
-    change: impl FnOnce(&mut Engine) -> Result<()>,
-) -> Result<()> {
+fn revise_r1(b: &mut Board, change: impl FnOnce(&mut Engine) -> Result<()>) -> Result<()> {
     let f = demo_fixture(&b.engine)?;
     let target = cascade(&mut b.engine, &f, change)?;
     let revision = b.engine.revision();
@@ -924,11 +921,7 @@ fn a_substitute_review_stands_only_while_what_it_decided_on_is_unchanged() -> Re
     .into_iter()
     .find(|r| r.label == "Resistance")
     .ok_or_else(|| Error::NotFound("resistance".into()))?;
-    set_properties(
-        &mut b.engine,
-        b.r1,
-        vec![text(resistance.field, "220 kΩ")],
-    )?;
+    set_properties(&mut b.engine, b.r1, vec![text(resistance.field, "220 kΩ")])?;
     assert_eq!(unresolved_r1(&b.engine)?, [unmet, unreviewed]);
     let messages = r1_messages(b.engine.project(), b.r1);
     assert!(
@@ -938,20 +931,33 @@ fn a_substitute_review_stands_only_while_what_it_decided_on_is_unchanged() -> Re
         "{messages:?}"
     );
     assert!(
-        b.engine.project().variants.get(alt).is_some_and(|v| v.reviews.contains_key(&b.r1)),
+        b.engine
+            .project()
+            .variants
+            .get(alt)
+            .is_some_and(|v| v.reviews.contains_key(&b.r1)),
         "the earlier decision is kept, not erased"
     );
     b.engine.undo()?;
-    assert!(unresolved_r1(&b.engine)?.is_empty(), "undo restores what was reviewed");
+    assert!(
+        unresolved_r1(&b.engine)?.is_empty(),
+        "undo restores what was reviewed"
+    );
 
     // A new component revision that changes nothing else.
     let (mut b, _, _) = reviewed_substitute()?;
     revise_r1(&mut b, |_| Ok(()))?;
     let messages = r1_messages(b.engine.project(), b.r1);
     // The voided review takes its exception with it.
-    assert_eq!(unresolved_r1(&b.engine)?, [unmet, unreviewed], "{messages:?}");
+    assert_eq!(
+        unresolved_r1(&b.engine)?,
+        [unmet, unreviewed],
+        "{messages:?}"
+    );
     assert!(
-        messages.iter().any(|m| m.contains("the component revision changed")),
+        messages
+            .iter()
+            .any(|m| m.contains("the component revision changed")),
         "{messages:?}"
     );
 
@@ -1002,6 +1008,98 @@ fn a_substitute_review_stands_only_while_what_it_decided_on_is_unchanged() -> Re
             .iter()
             .any(|m| m.contains("the rated values") && !m.contains("the requirements")),
         "{messages:?}"
+    );
+    Ok(())
+}
+
+/// Review §12: the firmware device is the part the active variant fits:
+/// its Part and MPN, as the BOM buys it. A substitute of another component
+/// is another device, and its firmware is refused naming the variant.
+#[test]
+fn firmware_names_the_device_the_active_variant_fits() -> Result<()> {
+    let (mut b, alt, lower) = reviewed_substitute()?;
+    let device = crate::firmware::pin_config(b.engine.project(), b.r1)?.device;
+    assert_eq!(device.part, Some(lower));
+    assert_eq!(device.mpn.as_deref(), Some("EX-R0603-1K"));
+    activate(&mut b.engine, None)?;
+    let device = crate::firmware::pin_config(b.engine.project(), b.r1)?.device;
+    assert_eq!(
+        device.part,
+        b.engine.project().instance(b.r1).and_then(|i| i.part)
+    );
+    // Another component on the same lands: not this report's device.
+    activate(&mut b.engine, Some(alt))?;
+    variant(
+        &mut b.engine,
+        VariantCommand::SetPart {
+            instance: b.r1,
+            variant: alt,
+            part: Some(b.cap),
+        },
+    )?;
+    let refused = crate::firmware::pin_config(b.engine.project(), b.r1);
+    assert!(
+        matches!(&refused, Err(Error::Conflict(m)) if m.contains("“Alt”") && m.contains("EX-C0603-100N")),
+        "{refused:?}"
+    );
+    Ok(())
+}
+
+/// The one assembly decision keeps purchasing, population and placement
+/// apart: a part kept off the BOM is still fitted and placed, a part kept
+/// out of the position files is still bought, and a part not fitted is
+/// listed but neither fitted nor placed.
+#[test]
+fn purchasing_population_and_placement_are_separate_answers() -> Result<()> {
+    let b = board()?;
+    let mut file = b.engine.to_file();
+    for i in &mut file.project.instances {
+        if i.id == b.r1 {
+            i.bom_excluded = true;
+        }
+        if i.id == b.r2 {
+            i.placement_excluded = true;
+        }
+    }
+    let mut engine = Engine::from_file(file)?;
+    let decide = |engine: &Engine, id: Id| -> Result<(bool, bool, bool)> {
+        let project = engine.project();
+        let i = project
+            .instance(id)
+            .ok_or_else(|| Error::NotFound("instance".into()))?;
+        let d = crate::completeness::assembly(project, i);
+        Ok((d.purchasing, d.populated(), d.placement))
+    };
+    assert_eq!(decide(&engine, b.r1)?, (false, true, true));
+    assert_eq!(decide(&engine, b.r2)?, (true, true, false));
+    let (fitted, not) = bom_split(&engine)?;
+    assert!(!fitted.contains(&"R1".to_owned()) && !not.contains(&"R1".to_owned()));
+    assert!(fitted.contains(&"R2".to_owned()), "{fitted:?}");
+    let placed = placed_designators(&engine)?;
+    assert!(placed.contains(&"R1".to_owned()), "{placed:?}");
+    assert!(!placed.contains(&"R2".to_owned()), "{placed:?}");
+    let parts = assembly::bom_parts_csv(engine.project())?;
+    assert!(!parts.contains("\nR1,"), "{parts}");
+    assert!(parts.contains("\nR2,"), "{parts}");
+    // Not fitted: still listed, not fitted, not placed.
+    variant(
+        &mut engine,
+        VariantCommand::SetPopulation {
+            instances: vec![b.r2],
+            variant: None,
+            population: Some(Population::NotPopulated),
+        },
+    )?;
+    assert_eq!(decide(&engine, b.r2)?, (true, false, false));
+    // The flags survive saving and a copy keeps them.
+    let bytes = format::encode(&format::EditorFile::from_document(engine.document()))?;
+    let reopened = format::decode(&bytes)?;
+    assert!(
+        reopened
+            .project
+            .instances
+            .iter()
+            .any(|i| i.id == b.r1 && i.bom_excluded)
     );
     Ok(())
 }

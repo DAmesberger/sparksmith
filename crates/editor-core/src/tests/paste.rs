@@ -493,3 +493,122 @@ fn a_paste_into_another_project_never_changes_a_pin_mapping() -> Result<()> {
     assert_eq!(same.project().library.revisions().len(), before);
     Ok(())
 }
+
+/// A pin review still pending travels with the part, whichever way it is
+/// reused (review §11): a portable paste into a project that holds the
+/// same revision bodies under the same ids without the obligation, a
+/// paste again over the copy, a bundle import into a project that already
+/// holds that copy with another obligation (the two are joined), and undo
+/// and redo of each.
+#[test]
+fn a_pending_pin_review_survives_paste_and_import_reuse() -> Result<()> {
+    use crate::library::pinout::{ImportReview, PublishedReview};
+    let pending = |t: u32| ImportReview {
+        unreviewed: [TerminalId(t)].into(),
+        ..Default::default()
+    };
+    let plain = Engine::demo()?;
+    let r1 = by_designator(&plain, "R1")?;
+    let component = plain
+        .project()
+        .instance(r1)
+        .map(|i| i.component)
+        .ok_or_else(|| Error::NotFound("R1".into()))?;
+    // The source: the same project with R1's terminal 1 still to review.
+    let mut file = plain.to_file();
+    file.project.library.reviews.push(PublishedReview {
+        component,
+        review: pending(1),
+    });
+    let source = Engine::from_file(file)?;
+    let clip = |engine: &Engine| match engine.query(Query::SheetCopy {
+        sheet: None,
+        objects: vec![ClipObject::Instance { id: r1 }],
+        portable: true,
+    })? {
+        QueryResult::SheetClip(clip) => Ok(clip),
+        other => Err(Error::Invalid(format!("unexpected {other:?}"))),
+    };
+    let review_of = |engine: &Engine, instance: Id| {
+        engine
+            .project()
+            .instance(instance)
+            .and_then(|i| engine.project().library.review_of(i.component))
+            .cloned()
+    };
+
+    // Paste into a project with equal bodies under the same ids and no
+    // obligation.
+    let mut destination = Engine::demo()?;
+    let report = pasted(&mut destination, *clip(&source)?, [0.0, 30.0])?;
+    let copy = report.symbols[0].instance;
+    assert_eq!(review_of(&destination, copy), Some(pending(1)), "pasted");
+    destination.undo()?;
+    assert!(destination.project().instance(copy).is_none());
+    destination.redo()?;
+    assert_eq!(review_of(&destination, copy), Some(pending(1)), "redone");
+    // Pasting again reuses the copy and its obligation.
+    let again = pasted(&mut destination, *clip(&source)?, [0.0, 60.0])?;
+    assert_eq!(
+        review_of(&destination, again.symbols[0].instance),
+        Some(pending(1))
+    );
+    // The source's own R1 is unaffected in a project without the review.
+    assert_eq!(review_of(&destination, r1), None);
+
+    // A bundle import of the same part into a project that holds the
+    // same revisions under the same ids without the obligation.
+    let bundle = clip(&source)?
+        .library
+        .bundles
+        .first()
+        .cloned()
+        .ok_or_else(|| Error::NotFound("a portable bundle".into()))?;
+    let import = |bundle: &crate::library::bundle::Bundle| {
+        Operation::Library(crate::LibraryCommand::Import {
+            bundle: Box::new(bundle.clone()),
+        })
+    };
+    let mut holder = Engine::demo()?;
+    let before = holder.project().clone();
+    let Outcome::Imported { report } = apply(&mut holder, import(&bundle))? else {
+        return Err(Error::Invalid("not imported".into()));
+    };
+    let root = report.root;
+    let held = crate::ids::ComponentRef::new(root.id, root.revision);
+    assert_ne!(held, component, "a copy, not the project's own revision");
+    assert_eq!(holder.project().library.review_of(held), Some(&pending(1)));
+    holder.undo()?;
+    assert_eq!(holder.project(), &before, "undo takes the import back");
+    holder.redo()?;
+    assert_eq!(holder.project().library.review_of(held), Some(&pending(1)));
+    // A paste of the same part then reuses that copy and its obligation.
+    let reused = pasted(&mut holder, *clip(&source)?, [0.0, 30.0])?;
+    let copy = reused.symbols[0].instance;
+    assert_eq!(
+        holder.project().instance(copy).map(|i| i.component),
+        Some(held)
+    );
+    assert_eq!(review_of(&holder, copy), Some(pending(1)));
+
+    // The same source revision with another pending review is another
+    // record of it: refused, never merged silently over the held copy.
+    let mut other_file = plain.to_file();
+    other_file.project.library.reviews.push(PublishedReview {
+        component,
+        review: pending(2),
+    });
+    let other = clip(&Engine::from_file(other_file)?)?
+        .library
+        .bundles
+        .first()
+        .cloned()
+        .ok_or_else(|| Error::NotFound("a portable bundle".into()))?;
+    let kept = Snapshot::of(&holder);
+    assert!(matches!(
+        holder.apply(holder.revision(), import(&other)),
+        Err(Error::Conflict(_))
+    ));
+    kept.assert_kept(&holder, "a differently reviewed copy");
+    Ok(())
+}

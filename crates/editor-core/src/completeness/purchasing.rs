@@ -163,10 +163,12 @@ pub fn bom(project: &Project) -> Result<BomReport> {
     })
 }
 
-/// `row` as the active variant fits it: not fitted, or another Part on the
-/// same footprint (listed by the Part and its rated values).
+/// `row` as the active variant fits it ([`super::assembly`]): not fitted,
+/// or another Part on the same footprint (listed by the Part and its rated
+/// values).
 fn fitted_row<'a>(project: &'a Project, mut row: Row<'a>) -> Result<Row<'a>> {
-    let fitted = instances::variants::fitted(project, row.instance);
+    let decision = super::assembly(project, row.instance);
+    let fitted = decision.fitted;
     row.fitted = fitted.populated();
     if !fitted.substituted {
         return Ok(row);
@@ -182,26 +184,7 @@ fn fitted_row<'a>(project: &'a Project, mut row: Row<'a>) -> Result<Row<'a>> {
         part.map(|p| spec_values(library, &p.definition.specs))
             .unwrap_or_default(),
     );
-    // Fitting the lands is not buying the right part: the substitute is
-    // resolved only once its electrical equivalence is reviewed and the
-    // instance's requirements are met or deliberately excepted.
-    let findings = match (project.variants.active(), fitted.part) {
-        (Some(variant), Some(r)) => {
-            instances::variants::substitute_findings(library, variant, row.instance, r)
-        }
-        _ => Vec::new(),
-    };
-    row.report = PurchasingReport {
-        state: if findings.is_empty() {
-            PurchasingState::Resolved
-        } else {
-            PurchasingState::Unresolved
-        },
-        part: fitted.part,
-        manufacturer: part.map(|p| p.definition.manufacturer.clone()),
-        mpn: part.map(|p| p.definition.mpn.clone()),
-        findings,
-    };
+    row.report = decision.purchase;
     Ok(row)
 }
 
@@ -244,11 +227,11 @@ struct Row<'a> {
 }
 
 /// Every instance in designator order (prefix, then number, then text),
-/// without mechanical parts kept out of the BOM.
+/// without parts kept off the BOM ([`instances::on_bom`]).
 fn rows(project: &Project) -> Result<Vec<Row<'_>>> {
     let mut out = Vec::with_capacity(project.instances.len());
     for instance in &project.instances {
-        if !crate::library::mechanical::in_bom(&project.library, instance.component) {
+        if !instances::on_bom(&project.library, instance) {
             continue;
         }
         let resolved = instances::resolve(&project.library, instance)?;

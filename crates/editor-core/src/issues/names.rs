@@ -161,6 +161,7 @@ impl<'a> Names<'a> {
                 },
             ),
             ObjectRef::Board => "the board".into(),
+            ObjectRef::BoardSide { side } => format!("the board's {} side", side.name()),
             ObjectRef::Label { id } => self.project.label(id).map_or_else(
                 || "a label".into(),
                 |l| format!("{} {}", l.kind.noun(), l.name),

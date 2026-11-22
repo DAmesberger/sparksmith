@@ -273,6 +273,10 @@ pub enum Case {
     /// Variant data in the source files, not imported (KiCad's public
     /// file-format documentation does not describe it).
     VariantsNotImported,
+    /// Pins whose KiCad electrical type has no core equivalent
+    /// (`tri_state`), imported passive; each named with its type. Every
+    /// other declared type keeps its direction and drive.
+    PinTypeKept,
 }
 
 impl Case {
@@ -694,6 +698,11 @@ impl Case {
                 "P7",
                 Report,
                 "variant data in the source files, not imported",
+            ),
+            Self::PinTypeKept => (
+                "-",
+                Approximate,
+                "pins of a type with no equivalent (tri-state), imported passive",
             ),
         }
     }
