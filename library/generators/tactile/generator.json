@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tactile.wasm",
-    "sha256": "de044113e9b736d92d664f708e760865065955c9d4ce0b5f1203bcf48fc44d4b"
+    "sha256": "d7cfc2f88af8f711780b4072f00fa893f50fa9c1851c7125237aeed9dc262559"
   },
   "name": "tactile",
   "parts": [
@@ -17,7 +17,7 @@
       "file": "parts/tactile-mini-ground.solidcraft",
       "licence": "MIT OR Apache-2.0",
       "provenance": "Original work, authored through SolidCraft's commands by `cargo test -p sparksmith-solidcraft --test author_parts -- --ignored` (`author_parts/families.rs`); dimensions from Panasonic's public catalogue Tactile Switches EVQP2/EVQP9/EVQ3P2 (ANCTB19E 202204, p. 5, EVQP2V02M; https://industrial.panasonic.com/ac/e/, downloaded 18 November 2026), the ground tab 1 × 0.3 mm; sheet thicknesses, J-bend and rounds estimated. No CAD or EDA library data was copied; product photographs were only looked at for comparison.",
-      "sha256": "20408ac11e7094217a0bab181be78c1464d7534b4cde78bb804d4fda8dee36b2",
+      "sha256": "349de0644ace07d15d592d8c3f6ab83be653cf9da17a9150ecba07364cba3fcd",
       "title": "Tactile switch, mini, top push, ground tab"
     },
     {
