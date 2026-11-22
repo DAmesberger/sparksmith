@@ -119,6 +119,8 @@ impl Surface for Session {
         let verbose = cx.verbose | take_verbose_params(&mut call.params);
         unsupported(&call)?;
         let target = read(&call)?;
+        // The state the call finds is one a reply may name next.
+        self.keep_seen();
         let view = crate::view::Request::of(&target.request);
         if view.is_some() && cx.window.is_none() {
             return Err(crate::view::unavailable(&call.entry));
@@ -187,6 +189,17 @@ impl Surface for Session {
                 view,
             );
         }
+        // An edit prepared before the person's latest changes goes on top
+        // of them unless both change the same objects.
+        let onto = self.engine().revision();
+        let (target, rebased) = if call.dry_run {
+            (target, None)
+        } else {
+            let Target { request, expected } = target;
+            let (request, expected, rebased) =
+                self.rebase(cx.who.grant().is_some(), request, expected)?;
+            (Target { request, expected }, rebased)
+        };
         // A turn's edits join its one undo step (a dry run keeps nothing).
         let grouped = match &turn {
             Some((_, admitted)) if !call.dry_run => {
@@ -214,6 +227,13 @@ impl Surface for Session {
             };
             self.turns.ran(&id, mark);
         }
+        self.keep_seen();
+        let result = result.map(|mut reply| {
+            if let Some(from) = rebased {
+                crate::session::rebase::note(&mut reply, from, onto);
+            }
+            reply
+        });
         result.map_err(|error| match error {
             crate::Error::Refused(error) => error,
             error => Box::new(from_diagnostic(error.diagnostic())),

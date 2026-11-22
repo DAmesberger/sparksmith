@@ -1229,6 +1229,9 @@ pub struct Session {
     descriptions: std::sync::OnceLock<Vec<generators::v1::Description>>,
     /// The online registry the host installed (`online::OnlineSource`).
     online: Option<std::sync::Arc<dyn online::OnlineSource>>,
+    /// The document states this session answered at, which a caller's
+    /// stale edit can be rebased from (`rebase`).
+    seen: rebase::Seen,
 }
 
 /// A test fixture, never in the product: a session on the core's fixture
@@ -1273,6 +1276,7 @@ impl Session {
             turns: turns::Turns::default(),
             descriptions: std::sync::OnceLock::new(),
             online: None,
+            seen: rebase::Seen::default(),
         }
     }
     /// A session without a project of its own, for a host that only lends
@@ -2223,6 +2227,7 @@ pub mod paths;
 mod pinout;
 mod preview;
 mod replace;
+pub(crate) mod rebase;
 mod reply;
 pub use reply::difference;
 pub mod shipped_parts;
