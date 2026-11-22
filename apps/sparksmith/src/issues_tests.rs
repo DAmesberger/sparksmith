@@ -6,6 +6,7 @@
 
 use super::*;
 use egui::{Event, PointerButton, Pos2, RawInput};
+use sparksmith_core::Query;
 use sparksmith_core::issues::{AreaCount, KNOWN_CODES};
 
 type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -14,6 +15,7 @@ fn report(engine: &Engine, scope: IssueScope) -> Fallible<Arc<IssueReport>> {
     match Answer::of(engine.query(Query::Issues { scope })) {
         Answer::Report(report) => Ok(report),
         Answer::Refused(why) => Err(why.into()),
+        Answer::Pending => Err("a query answers at once".into()),
     }
 }
 

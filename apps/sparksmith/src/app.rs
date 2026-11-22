@@ -319,9 +319,14 @@ impl App {
             engine.set_generators(sparksmith_automation::session::generators::runtime());
         }
         let mut pcb = pcb_editor::PcbEditor::default();
+        // One report of every issue, made off the UI thread, for the
+        // Issues surface and the PCB and Schematic inspectors.
+        let reports = crate::issue_reports::SharedReports::start(ctx.clone());
+        pcb.share_reports(reports.clone());
         *pcb.filter_mut() = sources.selection_filter();
         // The starting document's first page, framed like an opened one.
         let mut schematic = schematic_editor::SchematicEditor::default();
+        schematic.share_reports(reports.clone());
         schematic.document_opened(engine.project());
         // What the shipped generators offer, read once off the UI thread.
         let shelf = crate::generators::Shelf::load(ctx);
@@ -346,7 +351,7 @@ impl App {
             live: Default::default(),
             assistant: Default::default(),
             system_fonts: false,
-            issues: Default::default(),
+            issues: crate::issues::Surface::with_reports(reports),
             undo_revision: None,
             history_toast: None,
             browser: chrome::BrowserMode::Auto,
@@ -427,7 +432,9 @@ impl App {
         .then(|| {
             (
                 self.engine.project_arc().clone(),
-                self.issues.summary(&self.engine, self.workspace).counts(),
+                self.issues
+                    .counted_now(&self.engine, self.workspace)
+                    .counts(),
             )
         });
         match self.engine.apply_hosted(
@@ -500,7 +507,11 @@ impl App {
         let total =
             |c: sparksmith_core::issues::IssueCounts| c.error + c.warning + c.to_do + c.info;
         let added = counts
-            .zip(self.issues.summary(&self.engine, self.workspace).counts())
+            .zip(
+                self.issues
+                    .counted_now(&self.engine, self.workspace)
+                    .counts(),
+            )
             .map_or(0, |(a, b)| total(b).saturating_sub(total(a)));
         let mut actions = vec![ToastAction::Undo];
         let issues = match added {

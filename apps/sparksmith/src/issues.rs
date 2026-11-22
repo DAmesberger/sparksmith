@@ -29,7 +29,7 @@ use sparksmith_core::issues::{
     IssueArea, IssueCounts, IssueReport, IssueRow, IssueScope, Severity,
 };
 use sparksmith_core::library::Definition;
-use sparksmith_core::{DefinitionId, Engine, Id, ObjectRef, Operation, Query, QueryResult};
+use sparksmith_core::{DefinitionId, Engine, Id, ObjectRef, Operation, QueryResult};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit;
 use std::collections::{BTreeMap, BTreeSet};
@@ -185,16 +185,18 @@ fn area_label(area: IssueArea) -> &'static str {
 }
 
 /// One `project.issues` answer. A refusal is kept as such, so no surface
-/// mistakes it for "no issues".
+/// mistakes it for "no issues"; nor is a report still being made.
 #[derive(Clone, Debug)]
 pub enum Answer {
     Report(Arc<IssueReport>),
     /// The query refused; the text says why, in plain words.
     Refused(String),
+    /// The first report is still being made (off the UI thread).
+    Pending,
 }
 
 impl Answer {
-    fn of(result: sparksmith_core::Result<QueryResult>) -> Self {
+    pub(crate) fn of(result: sparksmith_core::Result<QueryResult>) -> Self {
         match result {
             Ok(QueryResult::Issues(report)) => Self::Report(Arc::new(report)),
             Ok(_) => Self::Refused("The checks gave an unexpected answer".into()),
@@ -205,17 +207,19 @@ impl Answer {
     pub fn report(&self) -> Option<&Arc<IssueReport>> {
         match self {
             Self::Report(report) => Some(report),
-            Self::Refused(_) => None,
+            Self::Refused(_) | Self::Pending => None,
         }
     }
-}
 
-/// What a cached answer was computed from.
-#[derive(Clone, Debug, PartialEq)]
-struct Key {
-    revision: u64,
-    project: usize,
-    scope: IssueScope,
+    /// The answer for `scope`, from this answer for every area
+    /// ([`IssueReport::scoped`]).
+    pub fn scoped(&self, scope: &IssueScope, project: &sparksmith_core::Project) -> Self {
+        match (self, scope) {
+            (Self::Report(_), IssueScope::All) => self.clone(),
+            (Self::Report(report), scope) => Self::Report(Arc::new(report.scoped(scope, project))),
+            (Self::Refused(_) | Self::Pending, _) => self.clone(),
+        }
+    }
 }
 
 fn document(engine: &Engine) -> (u64, usize) {
@@ -225,29 +229,35 @@ fn document(engine: &Engine) -> (u64, usize) {
     )
 }
 
-/// One query's answer, recomputed only when the document or scope changes.
+/// The identity of an answer for every area: its report's allocation.
+fn identity(answer: &Answer) -> Option<usize> {
+    answer.report().map(|r| Arc::as_ptr(r) as usize)
+}
+
+/// One view's answer, projected from the one report of every area
+/// ([`crate::issue_reports`]) and kept until that report or the scope
+/// changes: a selection change projects, it never runs a check.
 #[derive(Default)]
 struct Slot {
-    cached: Option<(Key, Answer)>,
+    cached: Option<(usize, IssueScope, Answer)>,
 }
 
 impl Slot {
-    fn get(&mut self, engine: &Engine, scope: IssueScope) -> Answer {
-        let (revision, project) = document(engine);
-        let key = Key {
-            revision,
-            project,
-            scope,
+    fn get(&mut self, engine: &Engine, all: &Option<Answer>, scope: IssueScope) -> Answer {
+        let Some(all) = all else {
+            return Answer::Pending;
         };
-        if let Some((cached, answer)) = &self.cached
-            && *cached == key
+        let Some(at) = identity(all) else {
+            return all.clone();
+        };
+        if let Some((cached, cached_scope, answer)) = &self.cached
+            && *cached == at
+            && *cached_scope == scope
         {
             return answer.clone();
         }
-        let answer = Answer::of(engine.query(Query::Issues {
-            scope: key.scope.clone(),
-        }));
-        self.cached = Some((key, answer.clone()));
+        let answer = all.scoped(&scope, engine.project());
+        self.cached = Some((at, scope, answer.clone()));
         answer
     }
 }
@@ -271,6 +281,7 @@ impl Summary {
         match answer {
             Answer::Report(report) => Self::from_report(report),
             Answer::Refused(why) => Self::NotCounted(why.clone()),
+            Answer::Pending => Self::NotCounted(CHECKING.into()),
         }
     }
 
@@ -316,6 +327,9 @@ fn nothing_selected(summary: &Summary, workspace: Workspace) -> String {
 
 /// Shown on the bar while the issues cannot be counted, in place of counts.
 const NOT_COUNTED: &str = "Not counted";
+
+/// Why nothing is counted yet: the first report is being made.
+const CHECKING: &str = "The checks are still running";
 
 /// Which issues the card lists. The bar always counts the workspace.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -598,11 +612,12 @@ pub struct Surface {
     /// Rows whose details are disclosed, by their list key.
     open: BTreeSet<RowKey>,
     shown: Option<Shown>,
+    /// The one report of every area, shared with the PCB inspector.
+    reports: crate::issue_reports::SharedReports,
     area: Slot,
-    all: Slot,
     selection: Slot,
     names: Option<Names>,
-    badges: Option<((u64, usize), Arc<Badges>)>,
+    badges: Option<(crate::issue_reports::ViewKey, Arc<Badges>)>,
     waived: Option<Arc<WaivedRows>>,
     waiving: Option<Waiving>,
     /// A row's right-click menu, by the row's key.
@@ -628,6 +643,20 @@ pub fn row_menu(row: &IssueRow) -> crate::context_menu::Rows<RowAct> {
 }
 
 impl Surface {
+    /// A surface whose views project from `reports`, the window's one
+    /// report of every area.
+    pub fn with_reports(reports: crate::issue_reports::SharedReports) -> Self {
+        Self {
+            reports,
+            ..Self::default()
+        }
+    }
+
+    /// The newest report of every area ([`crate::issue_reports`]).
+    fn whole(&self, engine: &Engine) -> Option<Answer> {
+        self.reports.latest(engine)
+    }
+
     pub fn expanded(&self) -> bool {
         self.expanded
     }
@@ -656,26 +685,52 @@ impl Surface {
     /// The bar's counts: always the active workspace, whatever the card
     /// lists, so a blocker is never out of the count.
     pub fn summary(&mut self, engine: &Engine, workspace: Workspace) -> Summary {
+        let whole = self.whole(engine);
         Summary::of(&self.area.get(
             engine,
+            &whole,
             IssueScope::Area {
                 area: area(workspace),
             },
         ))
     }
 
+    /// The bar's counts of `engine`'s current state, checked here when its
+    /// report has not arrived: what a step that reports its new issues
+    /// (a placement's toast) compares, before and after.
+    pub fn counted_now(&mut self, engine: &Engine, workspace: Workspace) -> Summary {
+        let whole = Some(self.reports.current(engine));
+        Summary::of(&self.area.get(
+            engine,
+            &whole,
+            IssueScope::Area {
+                area: area(workspace),
+            },
+        ))
+    }
+
+    /// Wait up to `patience` for the report of `engine`'s current state
+    /// (tests that check what a view shows right after an edit).
+    #[cfg(test)]
+    pub(crate) fn wait_current(&self, engine: &Engine, patience: std::time::Duration) -> bool {
+        self.reports.wait(engine, patience)
+    }
+
     /// The answer the card lists for its scope.
     fn listed(&mut self, engine: &Engine, workspace: Workspace, selection: &[ObjectRef]) -> Answer {
+        let whole = self.whole(engine);
         match self.scope {
             Scope::Workspace => self.area.get(
                 engine,
+                &whole,
                 IssueScope::Area {
                     area: area(workspace),
                 },
             ),
-            Scope::All => self.all.get(engine, IssueScope::All),
+            Scope::All => whole.unwrap_or(Answer::Pending),
             Scope::Selection => self.selection.get(
                 engine,
+                &whole,
                 IssueScope::Selection {
                     objects: selection.to_vec(),
                 },
@@ -756,6 +811,7 @@ impl Surface {
             ui.set_clip_rect(ui.clip_rect().intersect(body));
             match &answer {
                 Answer::Refused(why) => hint(ui, "The issues could not be counted", why),
+                Answer::Pending => hint(ui, "Checking the design", CHECKING),
                 Answer::Report(report) => {
                     let (asked, height) =
                         self.list(ui, engine, report, selection, &idle, body.height());
@@ -1253,16 +1309,16 @@ impl Surface {
 
     /// The Browser's severity dots, from every issue of the project.
     pub fn badges(&mut self, engine: &Engine) -> Arc<Badges> {
-        let at = document(engine);
+        let Some(Answer::Report(report)) = self.whole(engine) else {
+            return Arc::new(Badges::default());
+        };
+        let at = crate::issue_reports::view_key(&report, engine);
         if let Some((key, badges)) = &self.badges
             && *key == at
         {
             return badges.clone();
         }
-        let badges = Arc::new(match self.all.get(engine, IssueScope::All) {
-            Answer::Report(report) => Badges::of(engine, &report),
-            Answer::Refused(_) => Badges::default(),
-        });
+        let badges = Arc::new(Badges::of(engine, &report));
         self.badges = Some((at, badges.clone()));
         badges
     }

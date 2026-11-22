@@ -495,6 +495,46 @@ fn a_selection_scope_lists_the_issues_of_those_objects() -> Fallible<()> {
     Ok(())
 }
 
+/// Every view projected from the one report of every area equals the
+/// query of that view: each area (with what it leaves out elsewhere), a
+/// selection of a part and of a track, an empty selection, and every area.
+#[test]
+fn a_view_projected_from_the_whole_report_equals_its_query() -> Fallible<()> {
+    let engine = Engine::showcase()?;
+    let project = engine.project();
+    let whole = all(&engine)?;
+    assert!(whole.rows.len() > 3, "the showcase has issues to project");
+    let part = project.instances.first().ok_or("a part")?.id;
+    let track = project.tracks.first().ok_or("a track")?.id;
+    let mut scopes = vec![
+        IssueScope::All,
+        IssueScope::Selection { objects: vec![] },
+        IssueScope::Selection {
+            objects: vec![
+                ObjectRef::Instance { id: part },
+                ObjectRef::Track { id: track },
+            ],
+        },
+    ];
+    for area in [IssueArea::Component, IssueArea::Schematic, IssueArea::Board] {
+        scopes.push(IssueScope::Area { area });
+    }
+    // Objects the rows name, one at a time.
+    for object in whole.rows.iter().flat_map(|r| r.objects()).take(40) {
+        scopes.push(IssueScope::Selection {
+            objects: vec![*object],
+        });
+    }
+    for scope in scopes {
+        assert_eq!(
+            whole.scoped(&scope, project),
+            issues(&engine, scope.clone())?,
+            "{scope:?}"
+        );
+    }
+    Ok(())
+}
+
 /// Broken drafts of every kind: each finding's title follows the style
 /// and each raw message names objects by their names.
 #[test]
