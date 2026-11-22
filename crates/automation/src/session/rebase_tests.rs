@@ -158,11 +158,21 @@ fn undo_and_unseen_revisions_stay_strict() -> Fallible {
     let params = add_via(&session, 1.0);
     run(&mut session, agent, call("layout.add_via", params, start)).map_err(failed)?;
     let seen = session.engine().revision();
-    // The person makes two edits in the window.
+    // The person adds a via in the window; the agent's edit at the
+    // revision it saw goes on top.
     let params = add_via(&session, 3.0);
     edit_directly(&mut session, "layout.add_via", params)?;
-    let unseen = session.engine().revision();
+    let vias = session.engine().project().vias.len();
+    let params = add_via(&session, 7.0);
+    let rebased = run(&mut session, agent, call("layout.add_via", params, seen)).map_err(failed)?;
+    assert_eq!(rebased["rebased"]["from"], json!(seen), "{rebased}");
+    assert_eq!(session.engine().project().vias.len(), vias + 1);
+    let seen = session.engine().revision();
+    // The person makes two more edits.
     let params = add_via(&session, 4.0);
+    edit_directly(&mut session, "layout.add_via", params)?;
+    let unseen = session.engine().revision();
+    let params = add_via(&session, 5.0);
     edit_directly(&mut session, "layout.add_via", params)?;
     // Undo at the agent's revision would undo the person's edits: refused.
     let Err(undo) = run(&mut session, agent, call("project.undo", json!({}), seen)) else {
@@ -170,13 +180,13 @@ fn undo_and_unseen_revisions_stay_strict() -> Fallible {
     };
     assert_eq!(undo.code, "stale_revision", "{undo:?}");
     // A revision this session never answered at is refused as before.
-    let params = add_via(&session, 5.0);
+    let params = add_via(&session, 6.0);
     let Err(refused) = run(&mut session, agent, call("layout.add_via", params, unseen)) else {
         return Err("an edit at an unseen revision ran".into());
     };
     assert_eq!(refused.code, "stale_revision", "{refused:?}");
     // The person's own calls are never rebased.
-    let params = add_via(&session, 6.0);
+    let params = add_via(&session, 8.0);
     let Err(person) = run(
         &mut session,
         Principal::Person,
@@ -185,11 +195,12 @@ fn undo_and_unseen_revisions_stay_strict() -> Fallible {
         return Err("the person's stale edit ran".into());
     };
     assert_eq!(person.code, "stale_revision", "{person:?}");
-    // At the revision it saw, the agent's edit goes on top of both.
-    let vias = session.engine().project().vias.len();
-    let params = add_via(&session, 7.0);
-    let rebased = run(&mut session, agent, call("layout.add_via", params, seen)).map_err(failed)?;
-    assert_eq!(rebased["rebased"]["from"], json!(seen), "{rebased}");
-    assert_eq!(session.engine().project().vias.len(), vias + 1);
+    // Once the agent has been answered at the current state, its own
+    // older revision is its own staleness: refused, not rebased.
+    let params = add_via(&session, 9.0);
+    let Err(own) = run(&mut session, agent, call("layout.add_via", params, seen)) else {
+        return Err("a stale edit after the agent saw the current state ran".into());
+    };
+    assert_eq!(own.code, "stale_revision", "{own:?}");
     Ok(())
 }

@@ -3,10 +3,12 @@
 //! unless both changed the same objects (`docs/extension-surface.md`,
 //! the front door).
 //!
-//! The session keeps the last few document states it answered at
+//! The session keeps the last few document states it answered an agent at
 //! ([`Seen`]). A document operation (`project.apply`, `project.apply_all`)
-//! from a caller with a grant whose `expected_revision` is one of them is
-//! tried on a fork at the current revision. When what it changes and what
+//! from a caller with a grant whose `expected_revision` is one of them,
+//! while the current state is not (someone else moved the document), and
+//! that no person was asked to allow, is tried on a fork at the current
+//! revision. When what it changes and what
 //! changed since its revision share no object (by collection and id) and no
 //! field, it runs at the current revision and its reply says
 //! `rebased: {from, onto}`; otherwise it is refused with
@@ -40,6 +42,10 @@ impl Seen {
             self.0.pop_front();
         }
         self.0.push_back((revision, document.clone()));
+    }
+
+    fn holds(&self, revision: u64) -> bool {
+        self.0.iter().any(|(r, _)| *r == revision)
     }
 
     fn at(&self, revision: u64) -> Option<&Document> {
@@ -108,6 +114,11 @@ fn shared(ours: &reply::Touched, theirs: &reply::Touched) -> Vec<String> {
 }
 
 impl Session {
+    /// Whether the session answered an agent at the current state.
+    pub(crate) fn seen_now(&self) -> bool {
+        self.seen.holds(self.engine.revision())
+    }
+
     /// Keep the current state as one the session answered at.
     pub(crate) fn keep_seen(&mut self) {
         let revision = self.engine.revision();
