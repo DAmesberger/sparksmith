@@ -14,7 +14,6 @@ use super::{
     schematic_findings,
 };
 use crate::diagnostics::{Finding, Result};
-use crate::geometry::Bounds;
 use crate::ids::{Id, PadId};
 use crate::layout::{
     self, BoardCheck, BoardCopper, CheckSettings, ConnectivityOrder, CopperChanges, CopperGraph,
@@ -77,7 +76,7 @@ pub struct Checked {
     /// The index of each connected pad, for the connectivity order.
     pads: Arc<HashMap<(Id, PadId), usize>>,
     /// Each fill's net, layer and key reach ([`layout::fill::key_reaches`]).
-    fills: Arc<Vec<(Option<Id>, CopperLayer, Option<Bounds>)>>,
+    fills: Arc<Vec<layout::fill::KeyReach>>,
     /// The board interface's and the assembly link's findings.
     links: Vec<Finding>,
     /// Whether the clearance check stopped at its pair limit.
@@ -378,10 +377,7 @@ impl Checked {
 /// a changed track or via comes within some fill's key reach (whether a
 /// fill's copper is fresh, and so joins its net, follows its key, which
 /// also hashes the keys of the fills it clears on its layer).
-fn reached_nets(
-    changes: &CopperChanges,
-    fills: &[(Option<Id>, CopperLayer, Option<Bounds>)],
-) -> BTreeSet<Id> {
+fn reached_nets(changes: &CopperChanges, fills: &[layout::fill::KeyReach]) -> BTreeSet<Id> {
     let mut nets = changes.nets.clone();
     let reached: BTreeSet<CopperLayer> = fills
         .iter()
@@ -404,10 +400,12 @@ fn reached_nets(
 /// stands in for the whole board's graph on those nets only while the
 /// whole board's graph would be complete: the totals of the last state's
 /// counts with these nets' counts replaced are within the limits.
+/// The nets a [`Sub`] graph holds, the graph and every net's counts.
+type Made = (BTreeSet<Id>, Arc<CopperGraph>, Arc<BTreeMap<Id, NetCounts>>);
+
 #[derive(Default)]
 struct Sub {
-    made:
-        std::cell::RefCell<Option<(BTreeSet<Id>, Arc<CopperGraph>, Arc<BTreeMap<Id, NetCounts>>)>>,
+    made: std::cell::RefCell<Option<Made>>,
 }
 
 impl Sub {
@@ -457,5 +455,5 @@ impl Sub {
 }
 
 #[cfg(test)]
-#[path = "incremental_tests.rs"]
+#[path = "tests/incremental.rs"]
 mod tests;

@@ -28,7 +28,7 @@ mod tests;
 
 pub(crate) use checks::{Fresh, fresh, fresh_on};
 pub use checks::{fill_label, findings};
-pub(crate) use compute::key_reaches;
+pub(crate) use compute::{KeyReach, key_reaches};
 pub(crate) use geom::RegionIndex;
 
 /// The chord tolerance computed fill copper is flattened at, mm.

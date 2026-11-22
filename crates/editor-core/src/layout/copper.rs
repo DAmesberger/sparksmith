@@ -655,6 +655,9 @@ pub enum ItemKey {
     Rings,
 }
 
+/// Whether item `i` (with its key) of a check must be made again.
+pub type Again<'a> = &'a dyn Fn(usize, &ItemKey) -> bool;
+
 /// The findings and the number of pairs compared of each item of one
 /// pairwise board check, in the check's order: what a state keeps so the
 /// next state checks again only the items a change reaches.
@@ -670,7 +673,7 @@ impl Items {
     /// none (a check that must stop).
     pub(super) fn made(
         keys: &[ItemKey],
-        last: Option<(&Items, &dyn Fn(usize, &ItemKey) -> bool)>,
+        last: Option<(&Items, Again<'_>)>,
         mut make: impl FnMut(usize) -> Option<(Vec<Finding>, usize)>,
     ) -> Option<Self> {
         let mut items = Vec::with_capacity(keys.len());
