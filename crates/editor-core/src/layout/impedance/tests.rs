@@ -136,14 +136,15 @@ fn layers_find_their_reference_planes() -> Result<()> {
         return Err(Error::Invalid("embedded".into()));
     };
     assert!(
-        (h - 1.165).abs() < 1e-9 && (cover - 0.235).abs() < 1e-9,
+        (h - 1.025).abs() < 1e-9 && (cover - 0.235).abs() < 1e-9,
         "{h} {cover}"
     );
     assert_eq!(inner.references, vec![CopperLayer::Inner(2)]);
     // The top layer has no plane under it once planes are marked and
     // Inner 1 is not one: the next plane down is Inner 2.
     let top = structure(&marked, CopperLayer::Top)?;
-    assert!(matches!(top.structure, Structure::Microstrip { h, .. } if (h - 1.4).abs() < 1e-9));
+    // The top prepreg and the core: 0.2 + 1.06 mm.
+    assert!(matches!(top.structure, Structure::Microstrip { h, .. } if (h - 1.26).abs() < 1e-9));
     Ok(())
 }
 
