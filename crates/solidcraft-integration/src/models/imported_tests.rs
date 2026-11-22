@@ -554,7 +554,8 @@ fn solidcraft_designs_are_inspected_but_not_built() -> Result<()> {
         corner: [0.0.into(), 0.0.into(), 0.0.into()],
         size: ["w".into(), 2.0.into(), 1.0.into()],
     })?;
-    let bytes = solidcraft_engine::io::write_design(&native.session().doc);
+    let bytes = solidcraft_engine::io::write_design(&native.session().doc)
+        .map_err(|e| Error::Invalid(e.to_string()))?;
     let seen = inspect::inspect(&bytes, ModelFormat::Solidcraft)?;
     assert_eq!(seen.bodies.len(), 1);
     assert_eq!(seen.bodies[0].key, "Case");

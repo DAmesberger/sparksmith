@@ -2380,6 +2380,80 @@ fn every_layers_copper_is_the_cores_in_the_plan_and_its_meshes() -> Result<()> {
     Ok(())
 }
 
+/// `project` on a solved sketch of its rectangle with one 3 mm plated
+/// mounting hole and a 6 mm washer, 6 mm in from its top right corner.
+fn with_washer(mut project: Project) -> Project {
+    use sparksmith_core::model::board::{
+        BoardFeatureId, BoardShape, BoardSketch, SolvedBoard, SolvedMountingHole,
+    };
+    let [w, h] = project.board_size;
+    let mut solved = SolvedBoard::rectangle(project.board_size);
+    solved.holes.push(SolvedMountingHole {
+        id: BoardFeatureId(1),
+        at: [w - 6.0, h - 6.0],
+        drill: 3.0,
+        plated: true,
+        pad_diameter: Some(6.0),
+    });
+    project.board_shape = BoardShape::Sketch(Box::new(BoardSketch {
+        evaluator: Default::default(),
+        sketch: Default::default(),
+        parameters: Vec::new(),
+        cutouts: Vec::new(),
+        holes: Vec::new(),
+        edges: Vec::new(),
+        next_feature: 2,
+        solve: Default::default(),
+        solved,
+        outline_fit: 0.01,
+        fault: None,
+        idle: Vec::new(),
+    }));
+    project
+}
+
+/// A plated mounting hole's washer is copper of the board's physical
+/// inventory on every layer: the plan holds a ring on each, of area
+/// π (3² − 1.5²) mm² (hand-derived from the 6 mm washer round the 3 mm
+/// drill), the core's copper agrees with it layer by layer, the 3D view
+/// meshes it, the exact build builds it, and a plan without it differs on
+/// every layer.
+#[test]
+fn a_plated_mounting_holes_washer_is_copper_on_every_layer() -> Result<()> {
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let project = with_washer(four_layer_shaped()?);
+    let plan = plan::of(&project)?;
+    let [washer] = plan.washers.as_slice() else {
+        return Err(Error::Verification(format!(
+            "{} washers",
+            plan.washers.len()
+        )));
+    };
+    let layers = project.stackup.layers();
+    assert_eq!(washer.bodies.len(), layers.len());
+    let ring = std::f64::consts::PI * (3.0_f64.powi(2) - 1.5_f64.powi(2));
+    for body in &washer.bodies {
+        let volume = body.volume().unwrap_or(0.0);
+        let area = volume / (body.z[1] - body.z[0]);
+        assert!((area - ring).abs() < 0.01, "{}: {area} mm²", body.name);
+    }
+    for layer in copper_agree::agreement(&project, &plan)? {
+        assert!(layer.agrees(), "{layer:?}");
+    }
+    let sources = mesh::plan_sources(&plan);
+    let (meshed, _) = mesh::bodies(&plan, &sources, &mut mesh::Memo::default())?;
+    let differences = mesh::parity(&plan, &meshed)?;
+    assert!(differences.is_empty(), "{differences:#?}");
+    let model = build(&project)?;
+    let differences = plan::parity(&plan, &model)?;
+    assert!(differences.is_empty(), "{differences:#?}");
+    let mut without = plan.clone();
+    without.washers.clear();
+    let differing = copper_agree::agreement(&project, &without)?;
+    assert!(differing.iter().all(|l| !l.agrees()), "{differing:#?}");
+    Ok(())
+}
+
 /// The measure finds copper the plan lacks: a pad's land dropped from one
 /// layer, and a track drawn wider.
 #[test]

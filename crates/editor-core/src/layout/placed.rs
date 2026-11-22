@@ -316,6 +316,11 @@ pub fn placed_keepouts(project: &Project) -> Vec<PlacedKeepout> {
                 KeepoutScope::ComponentSide => {
                     KeepoutLayers::Only(vec![crate::model::CopperLayer::from(placement.layer)])
                 }
+                KeepoutScope::OppositeSide => {
+                    KeepoutLayers::Only(vec![crate::model::CopperLayer::from(opposite(
+                        placement.layer,
+                    ))])
+                }
             };
             result.push(PlacedKeepout {
                 instance: instance.id,
@@ -372,6 +377,19 @@ impl PlacedPad {
     /// The pad origin (shape centre) on the board.
     pub fn center(&self) -> Point {
         self.transform.apply(self.pad.position())
+    }
+
+    /// How far the pad's solder mask opening grows past its land, mm:
+    /// the pad's own expansion, else the board's (`board_expansion`, the
+    /// effective `mask_expansion` rule); `None` when the pad is tented. The
+    /// one reading the mask film (`fabrication::artwork`) and the checks
+    /// that need a pad's opening share.
+    pub fn mask_expansion(&self, board_expansion: f64) -> Option<f64> {
+        match self.pad.mask {
+            crate::library::MaskRule::Inherit => Some(board_expansion),
+            crate::library::MaskRule::Tented => None,
+            crate::library::MaskRule::Expansion(x) => Some(x.to_mm_f64()),
+        }
     }
 
     /// Pad frame to board coordinates.

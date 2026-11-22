@@ -440,14 +440,17 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
     })?;
     let report = serde_json::to_value(report)?;
     assert_eq!(report["result"]["counts"]["error"], 0, "{report}");
-    assert_eq!(report["result"]["counts"]["warning"], 0, "{report}");
+    // One warning: the board has surface-mount parts and no fiducials,
+    // which its PCBWay profile asks three of for assembly.
+    assert_eq!(report["result"]["counts"]["warning"], 1, "{report}");
     let rows = report["result"]["rows"]
         .as_array()
         .cloned()
         .unwrap_or_default();
     assert!(
         rows.iter()
-            .all(|r| r["finding"]["code"] == "purchasing.no_part"),
+            .all(|r| r["finding"]["code"] == "purchasing.no_part"
+                || r["finding"]["code"] == "board.fiducials_too_few"),
         "{report}"
     );
     // The values the search gave went onto the placed parts: the BOM reads

@@ -4719,7 +4719,10 @@ mod tests {
             editor.issues,
             layout::checks(engine.project(), engine.check_settings())
         );
-        assert_eq!(editor.copper.pads(), layout::pads(engine.project()));
+        assert_eq!(
+            editor.copper.lands(),
+            layout::physical::lands(engine.project()).as_slice()
+        );
         Ok(())
     }
 

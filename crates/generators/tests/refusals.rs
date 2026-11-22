@@ -248,6 +248,35 @@ fn a_valid_fixture_runs_and_each_call_gets_a_fresh_instance() -> Result<(), Stri
     Ok(())
 }
 
+/// A package without terminals (a fiducial: one copper land of kind
+/// fiducial, landing nothing) names no pin 1; a package with terminals must.
+#[test]
+fn only_a_package_without_terminals_may_name_no_pin_1() -> Result<(), String> {
+    let runtime = WasmiRuntime::new(Limits::DEFAULT);
+    let mut g = generation();
+    g.package.terminals.clear();
+    g.package.geometry.leads.clear();
+    g.package.geometry.pin1.clear();
+    if let Some(pad) = g.footprint.pads.first_mut() {
+        pad.terminal.clear();
+        pad.kind = Some(v1::PadKind::Fiducial);
+        pad.paste = Opening::None;
+    }
+    let made = runtime
+        .generate(&returning(&g)?.wasm()?, &request())
+        .map_err(|f| f.to_string())?;
+    assert_eq!(made.generation, g);
+    let mut g = generation();
+    g.package.geometry.pin1.clear();
+    let failure = refused(&runtime, &returning(&g)?)?;
+    assert_eq!(code(&failure), "generator.invalid_output");
+    assert!(
+        failure.to_string().contains("names pin 1 \"\""),
+        "{failure}"
+    );
+    Ok(())
+}
+
 #[test]
 fn the_maximum_pad_count_decodes_and_keeps_identical_canonical_output() -> Result<(), String> {
     let mut large = generation();

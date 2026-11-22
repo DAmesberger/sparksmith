@@ -218,7 +218,7 @@ pub fn author_pin_header() -> Vec<u8> {
         .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
         .collect();
     assert!(errors.is_empty(), "{errors:?}");
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 /// How a molded two-terminal package's terminals are formed: one part
@@ -839,7 +839,7 @@ fn author_molded(lead: MoldedLead, band: bool) -> Vec<u8> {
         [&format!("({to}) - ({from})"), "0.8 * body_width"],
     );
     assert_evaluates(&mut s);
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 /// The `molded` generator's MELF part file, with the polarity band at
@@ -981,7 +981,7 @@ fn author_melf(band: bool) -> Vec<u8> {
         [&format!("({to}) - ({from})"), "0.8 * body_diameter"],
     );
     assert_evaluates(&mut s);
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 fn author_molded_flat() -> Vec<u8> {
@@ -1751,7 +1751,7 @@ pub fn author_no_lead(four: bool, pad: bool, kind: NoLead) -> Vec<u8> {
         .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
         .collect();
     assert!(errors.is_empty(), "{errors:?}");
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 fn author_dfn() -> Vec<u8> {
@@ -2043,7 +2043,7 @@ fn author_no_lead_terminals() -> Vec<u8> {
     let left = s.model.state().bodies.len();
     // Body, dot, and copper and plating of the seven terminals used.
     assert_eq!(left, 2 + 2 * saved.len(), "bodies saved");
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 /// Rectangular cut-outs of a depopulated grid's part file (the grid
@@ -2309,7 +2309,7 @@ pub fn author_grid(balls: bool, voids: bool) -> Vec<u8> {
         if voids { 1 + 20 - 6 } else { 1 + 20 },
         "bodies saved"
     );
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 fn author_grid_ball() -> Vec<u8> {
@@ -3687,7 +3687,7 @@ fn author_gull_wing(four: bool, bevel: bool) -> Vec<u8> {
         .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
         .collect();
     assert!(errors.is_empty(), "{errors:?}");
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 fn author_gull_wing_two_sided() -> Vec<u8> {
@@ -4940,7 +4940,7 @@ pub fn author_module(diagonal: bool, castellated: bool, black: bool) -> Vec<u8> 
         1 + 38 + plated + 9 + 2,
         "bodies saved: {left:?}"
     );
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 fn author_module_straight() -> Vec<u8> {
@@ -5024,7 +5024,7 @@ fn finish_part(mut s: Session, top: &str) -> Vec<u8> {
         .filter_map(|r| r.error.clone().map(|e| format!("{}: {e}", r.name)))
         .collect();
     assert!(errors.is_empty(), "{errors:?}");
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 /// A tube standing on z = 0: a cylinder of diameter `outer` with a
@@ -5803,7 +5803,7 @@ pub fn author_usb_c_receptacle() -> Vec<u8> {
             "y_dir": [0, 0, 1]}, "offset": "0 mm", "name": "opening"}),
     );
     assert_evaluates(&mut s);
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 #[test]

@@ -113,7 +113,7 @@ declare_entries!(VariantCommand in project {
     SetActive "variant.set_active" Edit "Choose the active assembly variant" [since(7, 13)],
     SetPopulation "variant.set_population" Edit "Set whether parts are fitted" [since(7, 13)],
     SetPart "variant.set_part" Edit "Fit another part in a variant" [since(7, 13)],
-    ReviewSubstitute "variant.review_substitute" Ask "Review a variant's substitute part" [since(7, 16)],
+    ReviewSubstitute "variant.review_substitute" Ask "Review a variant's substitute part" [since(7, 18)],
 });
 
 /// What one variant fits for one part.

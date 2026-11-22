@@ -17,6 +17,14 @@ fn every_key_round_trips_through_get_set_and_its_name() -> Result<()> {
     assert!(!RuleKey::ThermalAngleRound.is_set(&base));
     RuleKey::ThermalAngleRound.set(&mut base, RuleValue::Angle(30.0))?;
     assert_eq!(base.fill.thermal_angle_round, Some(30.0));
+    // So does the assembly rules', which the fixture leaves out: unset,
+    // they read as 0 and false, not checked.
+    assert!(!RuleKey::FiducialCountMin.is_set(&base));
+    assert_eq!(RuleKey::FiducialCountMin.get(&base), RuleValue::Count(0));
+    RuleKey::FiducialCountMin.set(&mut base, RuleValue::Count(3))?;
+    RuleKey::FiducialsAsymmetric.set(&mut base, RuleValue::Flag(true))?;
+    assert_eq!(base.assembly.fiducial_count_min, Some(3));
+    assert_eq!(base.assembly.fiducials_asymmetric, Some(true));
     for key in RuleKey::all() {
         let mut rules = base.clone();
         key.set(&mut rules, key.get(&base))?;
@@ -27,8 +35,11 @@ fn every_key_round_trips_through_get_set_and_its_name() -> Result<()> {
     // appended silkscreen-edge and land keys, the 2 etch-hazard keys, the
     // board outline fit, the legend stroke share and the pair gap
     // tolerance's minimum and share, the NPTH pad annular ring and the
-    // round-pad spoke angle.
-    assert_eq!(RuleKey::all().len(), 2 + 36 + 25 + 5 + 2 + 1 + 3 + 1 + 1);
+    // round-pad spoke angle, and the two fiducial rules.
+    assert_eq!(
+        RuleKey::all().len(),
+        2 + 36 + 25 + 5 + 2 + 1 + 3 + 1 + 1 + 2
+    );
     let names: std::collections::BTreeSet<_> = RuleKey::all().iter().map(|k| k.name()).collect();
     assert_eq!(names.len(), RuleKey::all().len(), "names are unique");
     assert_eq!(
@@ -1100,6 +1111,9 @@ fn the_engine_previews_and_applies_fab_options() -> Result<()> {
             "clearance_track_pth_hole",
             "clearance_via_pth_hole",
             "drill_min",
+            // JLCPCB's two fiducials at its absolute minimum, three
+            // recommended.
+            "fiducial_count_min",
             "pth_annular_ring_min"
         ]
     );

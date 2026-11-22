@@ -75,6 +75,9 @@ pub enum KeepoutScope {
     AllCopper,
     /// The outer layer the part is placed on.
     ComponentSide,
+    /// The other outer layer (a fiducial on the far side of a part placed
+    /// on the near one).
+    OppositeSide,
 }
 
 /// A copper keep-out a footprint carries: its closed outline in the

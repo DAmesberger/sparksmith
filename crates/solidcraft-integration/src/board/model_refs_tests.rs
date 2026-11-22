@@ -32,7 +32,7 @@ pub(super) fn boxed() -> (Vec<u8>, String) {
         &json!({"bodies": [body], "name": "lcp", "color": "#202020", "opacity": 1.0}),
     )
     .unwrap();
-    (solidcraft_engine::io::write_design(&s.doc), body)
+    (solidcraft_engine::io::write_design(&s.doc).unwrap(), body)
 }
 
 fn evaluated(bytes: &[u8]) -> std::sync::Arc<EvaluatedPart> {

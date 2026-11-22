@@ -70,7 +70,7 @@ fn small_part(boxes: &[([f64; 3], [f64; 3], Option<&str>)], marking: bool) -> Ve
         )
         .unwrap();
     }
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 #[test]
@@ -260,7 +260,7 @@ fn convention_breaks_are_findings_and_block_the_insert() -> Fallible {
         &json!({"changes": {"marking_top_u": "0 mm"}}),
     )?;
     let part = evaluate(
-        &solidcraft_engine::io::write_design(&s.doc),
+        &solidcraft_engine::io::write_design(&s.doc).unwrap(),
         &PartValues::new(),
     )?;
     let found = codes(&part);
@@ -292,7 +292,7 @@ fn a_nested_part_is_refused() -> Fallible {
         &json!({"corner": [0, 0, 0], "length": 1, "width": 1, "height": 1, "name": "nested"}),
     )?;
     let part = evaluate(
-        &solidcraft_engine::io::write_design(&s.doc),
+        &solidcraft_engine::io::write_design(&s.doc).unwrap(),
         &PartValues::new(),
     )?;
     assert!(
@@ -418,5 +418,39 @@ fn the_mechanical_built_ins_pass_their_check_and_follow_their_values() -> Fallib
     let (v6, v4) = (volume(&six)?, volume(&four)?);
     assert!((v6 - (800.0 + 6.0 * 192.0)).abs() < 0.5, "six fins: {v6}");
     assert!((v4 - (800.0 + 4.0 * 192.0)).abs() < 0.5, "four fins: {v4}");
+    Ok(())
+}
+
+/// A board with more part designs than one design's naming depth (a few
+/// hundred features): every design is inserted into the one board design,
+/// and the edge round each one carries still finds its edge by the name the
+/// part file stored. Solidcraft once counted the depth over the whole
+/// board's timeline, so the later designs lost their faces' names and their
+/// rounds failed to insert.
+#[test]
+fn many_part_designs_with_edge_rounds_insert_into_one_board() -> Fallible {
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let mut s = Session::new(solidcraft_engine::io::read_design(&small_part(
+        &[([-1.0, -0.5, 0.0], [2.0, 1.0, 1.0], Some("epoxy-mould"))],
+        true,
+    ))?);
+    let body = s.model.state().bodies[0].name.clone();
+    s.execute(
+        "solid.fillet",
+        &json!({"body": body, "radius": 0.2, "edges": [[0, -0.5, 1]]}),
+    )?;
+    let rounded = solidcraft_engine::io::write_design(&s.doc)?;
+    let mut board = Native::new("board")?;
+    let designs = 240;
+    for k in 0..designs {
+        let mut values = PartValues::new();
+        values.insert("body_height".into(), PartValue::Nm(1_000_000 + k * 1_000));
+        let part = evaluate(&rounded, &values)?;
+        assert!(!part.blocked(), "{:?}", part.findings);
+        insert(&mut board, &part.stem(), &part, &Default::default())
+            .map_err(|e| format!("part design {k} of {designs}: {e}"))?;
+    }
+    assert!(board.session().doc.features.len() > 2 * designs as usize);
+    assert!(board.evaluation_error().is_none());
     Ok(())
 }

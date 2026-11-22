@@ -403,7 +403,7 @@ fn a_fab_option_is_previewed_then_one_undo_step() -> TestResult {
     assert!(
         shown
             .iter()
-            .any(|t| t.starts_with("JLCPCB values: Absolute minimum · 6 rules change")),
+            .any(|t| t.starts_with("JLCPCB values: Absolute minimum · 7 rules change")),
         "{shown:?}"
     );
     assert!(

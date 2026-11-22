@@ -35,7 +35,7 @@ fn kv(key: &str, value: i64) -> (String, ParamValue) {
 fn values(g: &Generation) -> (&str, &v1::Params) {
     match &g.model {
         Some(v1::Model::PartFile { asset, values }) => (asset.as_str(), values),
-        None => ("", &EMPTY),
+        _ => ("", &EMPTY),
     }
 }
 
@@ -104,6 +104,7 @@ fn the_wroom3_has_99_terminals_and_nine_pads_numbered_95() -> Result<(), Vec<Pro
                 [11_000_000, 15_000_000],
                 [-11_000_000, 15_000_000]
             ],
+            side: None,
         }]
     );
     let (asset, v) = values(&g);

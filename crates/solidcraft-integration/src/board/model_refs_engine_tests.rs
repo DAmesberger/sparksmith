@@ -335,7 +335,7 @@ fn reordered() -> Vec<u8> {
         &serde_json::json!({"bodies": [body], "name": "lcp", "color": "#202020", "opacity": 1.0}),
     )
     .unwrap();
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 /// A library revision whose part file lost the face: the preview lists it
