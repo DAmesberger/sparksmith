@@ -1695,8 +1695,9 @@ mod tests {
         for (film, area) in films.iter().zip([disc(1.0) - disc(0.5)]) {
             assert_eq!(film.kind, BodyKind::OpenLaminate);
             assert_eq!(film.layer, Some(CopperLayer::Top));
-            near(film.min[2], 1.6);
-            near(film.max[2], 1.6 + PROUD_MM);
+            let laminate = sparksmith_core::Stackup::default().laminate_mm();
+            near(film.min[2], laminate);
+            near(film.max[2], laminate + PROUD_MM);
             assert!((film.volume() - area * PROUD_MM).abs() < 1e-9, "{area}");
         }
         Ok(())

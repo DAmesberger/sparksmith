@@ -287,7 +287,10 @@ mod tests {
             let r = 0.3 + 0.08;
             assert!((dome.max[0] - dome.min[0] - 2.0 * r).abs() < 1e-6);
             let (top, face) = match side {
-                Layer::Top => (dome.max[2], 1.6),
+                Layer::Top => (
+                    dome.max[2],
+                    sparksmith_core::Stackup::default().laminate_mm(),
+                ),
                 Layer::Bottom => (-dome.min[2], 0.0),
             };
             assert!((top - face - crown).abs() < 1e-9, "{side:?}: {top}");
@@ -322,7 +325,11 @@ mod tests {
         assert_eq!(bore.kind, BodyKind::ViaBore);
         assert!(bore.kind.is_appearance());
         // Through the board and both copper faces, inside the bore.
-        assert!((bore.min[2] + 0.035).abs() < 1e-9 && (bore.max[2] - 1.635).abs() < 1e-9);
+        assert!(
+            (bore.min[2] + 0.035).abs() < 1e-9
+                && (bore.max[2] - sparksmith_core::Stackup::default().laminate_mm() - 0.035).abs()
+                    < 1e-9
+        );
         assert!(bore.max[0] - bore.min[0] < 2.0 * open.bore());
         let lands = open.lands(&board);
         assert_eq!(lands.len(), 2);
@@ -353,7 +360,10 @@ mod tests {
                 (BodyKind::ViaBore, None)
             ]
         );
-        assert!((out[1].max[2] - 1.6).abs() < 1e-9, "closed by the dome");
+        assert!(
+            (out[1].max[2] - sparksmith_core::Stackup::default().laminate_mm()).abs() < 1e-9,
+            "closed by the dome"
+        );
         assert_eq!(via(true).lands(&half).len(), 1);
         Ok(())
     }

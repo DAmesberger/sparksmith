@@ -298,9 +298,10 @@ fn a_layer_change_adds_a_via_pair_and_its_barrel_length() -> Result<()> {
         .iter()
         .find(|n| n.net == usb.nets[0])
         .ok_or_else(|| Error::NotFound("row".into()))?;
-    // Top mid-plane to bottom mid-plane of the preset: its 1.46 mm of
-    // dielectric (0.2 + 1.06 + 0.2) and half of each outer 35 µm foil.
-    assert!((row.length.vias - 1.495).abs() < 1e-9, "{:?}", row.length);
+    // Top mid-plane to bottom mid-plane of the 1.6 mm preset: its 1.46 mm
+    // of dielectric (0.2 + 1.06 + 0.2), both inner 35 µm foils and half of
+    // each outer one.
+    assert!((row.length.vias - 1.565).abs() < 1e-9, "{:?}", row.length);
     assert_eq!(row.length.via_count, 1);
     assert!(
         !board_codes(&usb.engine).contains(&"board.via_dangling".to_owned()),

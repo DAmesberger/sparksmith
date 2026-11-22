@@ -443,9 +443,9 @@ fn span(project: &Project, layer: CopperLayer) -> Result<(f64, f64)> {
         .ok_or_else(|| Error::Invalid(format!("the stackup has no {} layer", layer.name())))
 }
 
-/// The laminate's thickness: every dielectric.
+/// The laminate's thickness: every dielectric and inner foil.
 fn board_thickness(project: &Project) -> f64 {
-    project.stackup.dielectric_mm()
+    project.stackup.laminate_mm()
 }
 
 /// What a fill's plan is made from, digested: the fill, its stored
@@ -874,9 +874,11 @@ fn laminate(
             Some(level) => level,
             None => without_nested(level),
         };
-        let (foil_low, _) = span(project, layer)?;
-        slab(Level::Foil { index, layer }, (foil_low, high), &level)?;
-        slab(Level::UnderFoil(index), (low, foil_low), &dielectric)?;
+        // The foil lies on its dielectric: its level (the resin round its
+        // copper) above the whole dielectric.
+        let foil = span(project, layer)?;
+        slab(Level::Foil { index, layer }, foil, &level)?;
+        slab(Level::UnderFoil(index), (low, high), &dielectric)?;
     }
     Ok(slabs)
 }
