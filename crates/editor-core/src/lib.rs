@@ -1943,94 +1943,33 @@ impl Engine {
             }
         };
         if !Arc::ptr_eq(&candidate.project, &self.document.project) {
-            // A board edit leaves the schematic as it was: its normal form
-            // and nets stand, so they are not derived again.
             let schematic_edited = !candidate.project.same_schematic(&self.document.project);
             let project = Arc::make_mut(&mut candidate.project);
-            let changes = if schematic_edited {
-                schematic::tidy(project)?;
-                // A removed part takes its variant overrides with it.
-                instances::variants::follow_instances(project);
-                nets::reconcile(project)?
-            } else {
-                nets::NetChanges::default()
-            };
-            // Explicit net-class assignments follow their nets through
-            // merges and splits; a net that no longer exists takes its
-            // assignment with it.
-            // Pairs and length groups follow them too.
-            let rules_ = &project.rules;
-            if !rules_.assignments.is_empty()
-                || !rules_.diff_pairs.is_empty()
-                || !rules_.length_groups.is_empty()
-            {
-                let live: std::collections::BTreeSet<Id> =
-                    project.nets.iter().map(|n| n.id).collect();
-                rules::netclass::follow_nets(
-                    &mut project.rules,
-                    &changes.merged,
-                    &changes.split,
-                    &changes.created,
-                    &live,
-                );
-                rules::signal::follow_nets(&mut project.rules, &changes.merged, &live);
-            }
-            // Dimensioned parts, fills and keepouts are solved after the
-            // board (and a move that cannot land is refused); a solved
-            // part, like a part moved by hand, carries the copper attached
-            // to its pads.
-            let mut placed =
-                layout::dimensions::follow(&self.document.project, project, evaluators.board)?;
-            for instance in moved_parts {
-                if !placed.contains(&instance) {
-                    placed.push(instance);
-                }
-            }
-            if !placed.is_empty() {
-                rerouted = layout::dimensions::carry(
+            // A reviewed update's candidate was finalized by its preview,
+            // the one the review showed; every other operation finalizes
+            // here through the same function.
+            if !reviewed {
+                let graph = self.copper_graph();
+                rerouted = updates::finalize::finalize(
                     &self.document.project,
                     project,
-                    &self.copper_graph(),
-                    &placed,
-                    loose.as_ref(),
-                )?;
-                if preserve_copper {
-                    layout::dimensions::protect_connections(
-                        &self.document.project,
-                        project,
-                        &rerouted,
-                    )?;
-                }
-            }
-            // Board-following fills take the (possibly changed) outline.
-            layout::fill::follow_board(project)?;
-            if !reviewed && schematic_edited {
-                schematic::protect_routed_nets(&self.document.project, project)?;
+                    &updates::finalize::Finalize {
+                        graph: &graph,
+                        evaluator: evaluators.board,
+                        moved_parts: &moved_parts,
+                        loose: loose.as_ref(),
+                        preserve_copper,
+                        reviewed,
+                        assembly_command,
+                    },
+                )?
+                .rerouted;
             }
             // Every operation, from any surface: two named nets become one
             // only when a reviewed update asks for it.
             if !merge_named && schematic_edited {
                 nets::refuse_named_merges(&self.document.project, project)?;
             }
-            // The interface's automatic datums follow the board: a new
-            // hole takes a new slot, a deleted one retires its slot.
-            if let Some(table) = interface::auto::follow(&self.document.project, project)? {
-                project.interface = table.into();
-            }
-            // A board edit never moves what the linked design drives, and the
-            // loops between the two files follow the edit (slice B5).
-            if !assembly_command {
-                interface::assembly_link::guard_driven(
-                    &self.document.project,
-                    project,
-                    evaluators.board,
-                )?;
-            }
-            interface::assembly_link::follow_cycles(
-                &self.document.project,
-                project,
-                evaluators.board,
-            )?;
             // Collections stay in the order a file holds them, so a saved
             // and reopened document is the same document.
             format::order::sort(project);

@@ -1900,3 +1900,123 @@ fn draft_closure_drafts_the_working_set_in_one_step() -> Result<()> {
     assert_eq!(engine.to_file(), before);
     Ok(())
 }
+
+/// The pins of `component`'s draft in `engine` still to review, as the
+/// draft's check counts them (`pinout.unreviewed`).
+fn unreviewed_warning(engine: &Engine, component: DefinitionId) -> Result<Vec<crate::ObjectRef>> {
+    let report = check(engine, crate::completeness::CheckTarget::Draft(component))?;
+    Ok(report
+        .findings
+        .into_iter()
+        .filter(|f| f.code == "pinout.unreviewed")
+        .flat_map(|f| f.objects)
+        .collect())
+}
+
+#[test]
+fn a_reused_component_keeps_its_unreviewed_pins_through_a_library_and_a_fresh_project() -> Result<()>
+{
+    // The author publishes the demo resistor with terminal 2 still to be
+    // checked against its datasheet.
+    let mut author = Engine::demo()?;
+    let root = component_root(&author.project().library)?;
+    let mut definition = body(&author, root.id)?;
+    let Definition::Component(component) = &mut definition else {
+        return Err(Error::Invalid("not a component".into()));
+    };
+    let pin = component
+        .terminals
+        .get(1)
+        .map(|t| t.id)
+        .ok_or_else(|| Error::NotFound("terminal 2".into()))?;
+    component.review = Some(Box::new(crate::library::pinout::ImportReview {
+        unreviewed: [pin].into(),
+        uncertain: BTreeSet::new(),
+    }));
+    let draft = author
+        .drafts()
+        .get(root.id)
+        .cloned()
+        .ok_or_else(|| Error::NotFound("draft".into()))?;
+    edit(
+        &mut author,
+        vec![crate::library::DraftEdit {
+            id: root.id,
+            meta: draft.meta,
+            definition,
+        }],
+    )?;
+    let published = publish(&mut author, vec![root.id])?[0];
+    let at = ComponentRef::new(published.id, published.revision);
+    assert_eq!(
+        author
+            .project()
+            .library
+            .review_of(at)
+            .map(|r| r.unreviewed.clone()),
+        Some([pin].into())
+    );
+
+    // Project → library folder → a fresh project.
+    let mut folder: Vec<RevisionRecord> = Vec::new();
+    let plan = promote(&mut author, published, &fresh(&mut Rng(7), 16))?;
+    write(&mut folder, &plan.bundle)?;
+    let bundle = bundle_of(&folder, plan.bundle.root)?;
+    let mut design = Engine::default();
+    let Outcome::Imported { report } = import_bundle(&mut design, &bundle)? else {
+        return Err(Error::Invalid("not imported".into()));
+    };
+    let copy = ComponentRef::new(report.root.id, report.root.revision);
+    let review = |e: &Engine| {
+        e.project()
+            .library
+            .review_of(copy)
+            .map(|r| r.unreviewed.clone())
+    };
+    assert_eq!(review(&design), Some([pin].into()), "the review travels");
+    // Importing it again reuses the copy and keeps one review.
+    import_bundle(&mut design, &bundle)?;
+    assert_eq!(design.project().library.reviews.len(), 1);
+
+    // Save and reopen: the review is still there, and a draft of the copy
+    // warns about the same pin.
+    let bytes = format::encode(&format::EditorFile::from_document(design.document()))?;
+    let mut reopened = Engine::with_document(format::decode(&bytes)?.into_document());
+    assert_eq!(review(&reopened), Some([pin].into()));
+    draft_from(&mut reopened, copy.erased())?;
+    assert_eq!(
+        unreviewed_warning(&reopened, copy.id)?,
+        vec![crate::ObjectRef::LibraryObject {
+            definition: copy.id,
+            local: pin.0,
+        }]
+    );
+
+    // A person confirms the pin: the next revision carries no review.
+    let mut definition = body(&reopened, copy.id)?;
+    if let Definition::Component(c) = &mut definition {
+        c.review = None;
+    }
+    let draft = reopened
+        .drafts()
+        .get(copy.id)
+        .cloned()
+        .ok_or_else(|| Error::NotFound("draft".into()))?;
+    edit(
+        &mut reopened,
+        vec![crate::library::DraftEdit {
+            id: copy.id,
+            meta: draft.meta,
+            definition,
+        }],
+    )?;
+    assert!(unreviewed_warning(&reopened, copy.id)?.is_empty());
+    let reviewed = publish(&mut reopened, vec![copy.id])?[0];
+    let library = &reopened.project().library;
+    assert_eq!(
+        library.review_of(ComponentRef::new(reviewed.id, reviewed.revision)),
+        None
+    );
+    assert_eq!(review(&reopened), Some([pin].into()), "r1 keeps its own");
+    Ok(())
+}

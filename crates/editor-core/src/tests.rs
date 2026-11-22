@@ -11,6 +11,7 @@ mod designators;
 mod drawing;
 mod engine;
 mod fields;
+mod finalization;
 mod graphics;
 mod high_speed;
 mod junctions;

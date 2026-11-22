@@ -442,3 +442,73 @@ fn renaming_a_sheet_pin_onto_another_named_net_is_reviewed() -> Result<()> {
     assert_eq!(net_of(&engine, ep(u1, 2))?, net_of(&engine, ep(u2, 2))?);
     Ok(())
 }
+
+#[test]
+fn nets_named_directly_are_protected_like_labelled_ones() -> Result<()> {
+    let mut engine = Engine::default();
+    let f = two_pin(&mut engine)?;
+    let (u1, _) = place(&mut engine, &f, "U1", 1, [0.0, 0.0])?;
+    let (u2, _) = place(&mut engine, &f, "U2", 1, [20.0, 0.0])?;
+    let (u3, _) = place(&mut engine, &f, "U3", 1, [0.0, -40.0])?;
+    let gnd = net_of(&engine, ep(u1, 2))?;
+    let vbus = net_of(&engine, ep(u2, 1))?;
+    run(
+        &mut engine,
+        C::RenameNet {
+            net: gnd,
+            name: "GND".into(),
+        },
+    )?;
+    run(
+        &mut engine,
+        C::RenameNet {
+            net: vbus,
+            name: "VBUS".into(),
+        },
+    )?;
+    assert!(engine.project().labels.is_empty(), "named without labels");
+
+    // Wiring the two named nets together is a named merge.
+    let join = C::Connect {
+        from: ep(u1, 2).into(),
+        to: ep(u2, 1).into(),
+    };
+    refused(&mut engine, join.clone(), "directly named nets")?;
+    let plan = engine.preview_update(Change::Schematic {
+        command: join.clone(),
+    });
+    let [merge] = plan.merges_named.as_slice() else {
+        return Err(Error::Invalid(format!("{:?}", plan.merges_named)));
+    };
+    let names: Vec<&str> = merge.nets.iter().map(|n| n.name.as_str()).collect();
+    assert_eq!(names, vec!["GND", "VBUS"]);
+    reviewed(&mut engine, join, true)?;
+    assert_eq!(net_of(&engine, ep(u2, 1))?, gnd, "the older net survives");
+
+    // A named net joins a net with a generated name at once and keeps its
+    // name, whichever net is older.
+    let unnamed = net_of(&engine, ep(u3, 1))?;
+    assert!(crate::nets::auto_named(
+        engine
+            .project()
+            .net(unnamed)
+            .ok_or_else(|| Error::NotFound("net".into()))?
+    ));
+    let (u4, _) = place(&mut engine, &f, "U4", 1, [60.0, 0.0])?;
+    let older = net_of(&engine, ep(u1, 1))?;
+    assert!(older < unnamed);
+    run(
+        &mut engine,
+        C::RenameNet {
+            net: unnamed,
+            name: "EN".into(),
+        },
+    )?;
+    connect(&mut engine, ep(u1, 1), ep(u3, 1))?;
+    let joined = net_of(&engine, ep(u3, 1))?;
+    assert_eq!(joined, older, "the older net's ID survives");
+    assert_eq!(engine.project().net_name(joined), "EN", "the name survives");
+    // Two generated names join freely.
+    connect(&mut engine, ep(u3, 2), ep(u4, 1))?;
+    Ok(())
+}

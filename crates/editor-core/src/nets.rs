@@ -490,8 +490,11 @@ pub fn reconcile(project: &mut Project) -> Result<NetChanges> {
                 changes.merged.push((*id, survivor));
             }
         }
-        let name = names
-            .get(&survivor)
+        // A name a person gave a net outlives a merge with a net nobody
+        // named, whichever ID survives.
+        let given = |id: &Id| names.get(id).filter(|n| **n != default_name(*id));
+        let name = given(&survivor)
+            .or_else(|| candidates.iter().find_map(given))
             .cloned()
             .unwrap_or_else(|| default_name(survivor));
         group_net.push(survivor);
@@ -542,8 +545,9 @@ pub struct MergedNet {
     pub name: String,
 }
 
-/// Nets that each carried a name of their own before a change (a label,
-/// power port or sheet pin, [`name_sources`]) and are one net after it,
+/// Nets that each carried a name a person gave them before a change (a
+/// label, power port, sheet pin or a stored name, [`given_names`]) and are
+/// one net after it,
 /// with no name in common: VBUS and GND. Such a merge applies only when the
 /// caller asks for it after a review (`ApplyUpdate::merge_named_nets`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -624,6 +628,30 @@ impl NamedMerge {
     }
 }
 
+/// The names people gave each net, lowercased, by net ID: the names of its
+/// labels, power ports and sheet pins ([`name_sources`]), or, on a net with
+/// none, the name stored on the net itself when it is not the generated
+/// `N<id>` (a `schematic.net_rename`, or the name a removed label left).
+/// A net nobody named is not listed. However a person named a net, this is
+/// the one answer to whether its identity is protected.
+pub fn given_names(project: &Project) -> BTreeMap<Id, BTreeSet<String>> {
+    let mut out: BTreeMap<Id, BTreeSet<String>> = name_sources(project)
+        .into_iter()
+        .map(|(id, sources)| {
+            let names = sources
+                .iter()
+                .map(|s| s.name.to_ascii_lowercase())
+                .collect();
+            (id, names)
+        })
+        .collect();
+    for net in project.nets.iter().filter(|n| !auto_named(n)) {
+        out.entry(net.id)
+            .or_insert_with(|| BTreeSet::from([net.name.to_ascii_lowercase()]));
+    }
+    out
+}
+
 /// Every [`NamedMerge`] from `before` to `after`. Only nets that join
 /// terminals of two named nets are looked at, so a change that merges
 /// nothing costs one pass over the terminals.
@@ -648,16 +676,7 @@ pub fn named_merges(before: &Project, after: &Project) -> Vec<NamedMerge> {
     if joined.is_empty() {
         return Vec::new();
     }
-    let names: BTreeMap<Id, BTreeSet<String>> = name_sources(before)
-        .into_iter()
-        .map(|(id, sources)| {
-            let names = sources
-                .iter()
-                .map(|s| s.name.to_ascii_lowercase())
-                .collect();
-            (id, names)
-        })
-        .collect();
+    let names = given_names(before);
     let mut out = Vec::new();
     for (net, ids) in joined {
         let named: Vec<(Id, &BTreeSet<String>)> = ids
