@@ -80,27 +80,27 @@ egui-wgpu = "0.37"
 # `clipboard`: egui's copies (Copy report, a BOM, ⌘C) reach the system
 # clipboard; without it egui-winit drops them.
 eframe ={ version = "0.37", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland", "accesskit", "clipboard"] }
-solidcraft-engine = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
+solidcraft-engine = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
 # Solidcraft's colour rules (the sRGB transfer function), reached through sparksmith-solidcraft and
 # the vendored UI kit; the same revision.
-solidcraft-color = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
+solidcraft-color = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
 # The vector types of Solidcraft's public API live in solidcore's record crate, which Solidcraft
 # vendors at solidcore/: the same fork revision, so it is the copy Solidcraft builds with.
-solidcore-record = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
+solidcore-record = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
 # Solidcraft's control channel (per-session token files, the loopback JSON-lines
 # server) for live MCP into the open window; the same revision, reached through
 # sparksmith-automation only.
-solidcraft-control = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
+solidcraft-control = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
 # Solidcraft's shared viewport renderer: its shading models (surface, clear coat, material
 # graph) and, in the desktop app, its GPU pipelines and egui paint callbacks; the same revision.
-solidcraft-viewport = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
-solidcraft-viewport-gpu = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
-solidcraft-viewport-egui = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
+solidcraft-viewport = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+solidcraft-viewport-gpu = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+solidcraft-viewport-egui = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
 # Solidcraft's vector geometry, widget registry and interface text, which the vendored UI kit
 # (crates/ui) draws with; the same revision.
-solidcraft-geom = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
-solidcraft-ui-registry = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
-solidcraft-ui-text = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
+solidcraft-geom = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+solidcraft-ui-registry = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+solidcraft-ui-text = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -147,7 +147,16 @@ incremental = false
 overflow-checks = true
 
 # Cargo does not inherit a dependency workspace's patches. Keep Solidcraft's
-# geometry fixes pinned to the exact same revision as its engine.
+# geometry fixes pinned to the exact same revision as its engine. Solidcraft vendors egui
+# (all of its crates) and winit; patch every one so there is one copy of each.
 [patch.crates-io]
-egui-wgpu = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
-winit = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "6a3b7e60790fbc22b2e6d5c475082e43a95671dd" }
+ecolor = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+eframe = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+egui = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+egui-wgpu = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+egui-winit = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+egui_glow = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+emath = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+epaint = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+epaint_default_fonts = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }
+winit = { git = "https://github.com/DAmesberger/solidcraft.git", rev = "97817e1d6d8601d6488456325445701c7cb31d9f" }

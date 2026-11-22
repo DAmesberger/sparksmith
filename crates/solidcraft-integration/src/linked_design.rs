@@ -441,10 +441,18 @@ impl LinkedDesign {
             .path
             .as_deref()
             .and_then(|p| Path::new(p).parent().map(Path::to_path_buf));
+        // SolidCraft keeps a link it read on open as the resolved file (symlinks followed, as
+        // /tmp is /private/tmp on macOS), so the copy's folder is matched in that form too.
+        let opened_in_resolved = opened_in
+            .as_deref()
+            .and_then(|at| std::fs::canonicalize(at).ok());
         let mut found = doc.links.iter().filter(|(_, link)| {
             let stored = Path::new(&link.path);
             let relative = match &opened_in {
-                Some(at) if stored.is_absolute() => stored.strip_prefix(at).ok(),
+                Some(at) if stored.is_absolute() => stored
+                    .strip_prefix(at)
+                    .ok()
+                    .or_else(|| stored.strip_prefix(opened_in_resolved.as_deref()?).ok()),
                 _ => None,
             };
             let resolved = match relative {

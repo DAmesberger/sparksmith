@@ -222,13 +222,6 @@ impl Answer {
     }
 }
 
-fn document(engine: &Engine) -> (u64, usize) {
-    (
-        engine.revision(),
-        Arc::as_ptr(engine.project_arc()) as usize,
-    )
-}
-
 /// The identity of an answer for every area: its report's allocation.
 fn identity(answer: &Answer) -> Option<usize> {
     answer.report().map(|r| Arc::as_ptr(r) as usize)
@@ -542,7 +535,7 @@ const WAIVED_FOLD: &str = "\u{1f}waived";
 /// once per document revision. Titles would need the production check,
 /// so the objects stand in for them.
 struct WaivedRows {
-    at: (u64, usize),
+    at: sparksmith_core::ReportKey,
     /// The waiver keys, for Restore.
     keys: Vec<String>,
     views: Vec<WaivedView>,
@@ -580,7 +573,7 @@ fn waived_rows(engine: &Engine) -> WaivedRows {
         })
         .collect();
     WaivedRows {
-        at: document(engine),
+        at: engine.report_key(),
         keys: waivers.iter().map(|w| w.key.clone()).collect(),
         views,
     }
@@ -901,7 +894,7 @@ impl Surface {
     /// The project's waivers as the Waived group shows them, recomputed
     /// only when the document changes.
     fn waived(&mut self, engine: &Engine) -> Arc<WaivedRows> {
-        let at = document(engine);
+        let at = engine.report_key();
         match &self.waived {
             Some(rows) if rows.at == at => rows.clone(),
             _ => {

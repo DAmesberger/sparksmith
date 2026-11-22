@@ -247,6 +247,14 @@ pub enum Effect {
         name: String,
         saved: bool,
     },
+    /// A first save gave the project its identity
+    /// (`sparksmith_core::identify_by_file`): the engine takes it
+    /// (`Engine::adopt_project_id`), then call [`FileUi::identified`].
+    /// `saved` says the write saved the current revision.
+    Identify {
+        id: String,
+        saved: bool,
+    },
     /// A KiCad project imported from `source`: the new project, unsaved,
     /// and the import's report.
     Imported {
@@ -415,6 +423,9 @@ pub struct FileUi {
     /// The name a first save in flight writes (its ticket id), for the
     /// engine to take once the file holds it.
     naming: Option<(u64, String)>,
+    /// The project identity a first save in flight writes (its ticket id),
+    /// for the engine to take once the file holds it.
+    identifying: Option<(u64, String)>,
     /// The recovery the dialog would restore or discard.
     recovery_selected: usize,
     /// A restored session file, removed once this session has saved its
@@ -491,6 +502,7 @@ impl FileUi {
             recoveries: vec![],
             older_recoveries: vec![],
             naming: None,
+            identifying: None,
             recovery_selected: 0,
             restored_source: None,
             restored_origin: None,
@@ -533,6 +545,15 @@ impl FileUi {
             self.controller.back_at_saved();
             self.saved_document = Some(self.document.clone());
             self.clear_recovery(false);
+        }
+    }
+    /// The engine took the identity the first save wrote
+    /// ([`Effect::Identify`]); it takes no revision, so the document this
+    /// window saves and recovers is the engine's again now.
+    pub fn identified(&mut self, engine: &Engine, saved: bool) {
+        self.document = engine.document().clone();
+        if saved {
+            self.saved_document = Some(self.document.clone());
         }
     }
     /// The engine took the name the first save wrote ([`Effect::Rename`]):
@@ -794,6 +815,13 @@ impl FileUi {
             self.naming = Some((ticket.id, name));
             self.captured = Some(document.clone());
         }
+        // A random nonce: two new projects saved under one file name are
+        // still two projects.
+        let nonce = sparksmith_io::interface::random_hex().unwrap_or_default();
+        if let Some(id) = sparksmith_core::identify_by_file(&mut document.project, &path, &nonce) {
+            self.identifying = Some((ticket.id, id));
+            self.captured = Some(document.clone());
+        }
         self.send(Job::Write(ticket, path, document));
     }
     /// The folder and file name the project's save panel proposes: its
@@ -1037,6 +1065,10 @@ impl FileUi {
                         if current {
                             self.clear_recovery(false);
                         }
+                        if let Some((_, id)) = self.identifying.take().filter(|n| n.0 == ticket.id)
+                        {
+                            self.effects.push(Effect::Identify { id, saved: current });
+                        }
                         if let Some((_, name)) = self.naming.take().filter(|n| n.0 == ticket.id) {
                             self.effects.push(Effect::Rename {
                                 name,
@@ -1050,6 +1082,7 @@ impl FileUi {
                 }
                 Err(error) => {
                     self.naming = None;
+                    self.identifying = None;
                     self.controller.cancel(&ticket, Kind::Save);
                     self.status = Some((Level::Error, format!("Save failed: {error}")));
                 }

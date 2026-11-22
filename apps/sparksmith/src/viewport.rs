@@ -217,6 +217,7 @@ impl Viewport {
             samples: 1,
             tess: false,
             oit: false,
+            edges: false,
         };
         let scene = GpuTarget {
             depth: Some(egui_wgpu::wgpu::TextureFormat::Depth32Float),
@@ -1025,7 +1026,8 @@ impl Viewport {
             turned_depth: None,
             back: self.camera.back().to_f32(),
             size_px,
-            clip: [0.0; 4],
+            clip: [[0.0; 4]; solidcraft_viewport_gpu::view::MAX_SECTION_PLANES],
+            clip_hatch: [0; solidcraft_viewport_gpu::view::MAX_SECTION_PLANES],
             cap: [0.0; 4],
             images: vec![],
             clouds: vec![],

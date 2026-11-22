@@ -120,12 +120,12 @@ fn tools(bytes: &[u8]) -> Vec<(String, f64)> {
 fn drill_files_list_tool_sizes_when_the_fabricator_drills_oversize() -> Fallible<()> {
     let mut project = Engine::showcase()?.project().clone();
     let options = FabricationOptions::default();
-    let finished = excellon::files(&project, &options, "b")?;
+    let finished = excellon::files(&project, &Default::default(), &options, "b")?;
     rules::apply(
         &mut project.rules,
         RulesCommand::set_profile(drilled(0.1)?, true),
     )?;
-    let oversize = excellon::files(&project, &options, "b")?;
+    let oversize = excellon::files(&project, &Default::default(), &options, "b")?;
     let table = drill::table(&drill::holes(&project));
     let mut compared = 0;
     for (a, b) in finished.iter().zip(&oversize) {
@@ -152,7 +152,7 @@ fn drill_files_list_tool_sizes_when_the_fabricator_drills_oversize() -> Fallible
 fn the_job_file_lists_the_mask_thickness_apart_from_the_board() -> Fallible<()> {
     let project = Engine::showcase()?.project().clone();
     let options = FabricationOptions::default();
-    let file = job::file(&project, &options, "b", &[])?;
+    let file = job::file(&project, &Default::default(), &options, "b", &[])?;
     let json: serde_json::Value = serde_json::from_slice(&file.bytes)?;
     let masks: Vec<&serde_json::Value> = json["MaterialStackup"]
         .as_array()

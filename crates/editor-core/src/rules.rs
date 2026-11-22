@@ -31,8 +31,8 @@ pub mod profile;
 pub mod signal;
 
 pub use profile::{
-    BoardSetting, DrillFiles, FabChoice, FabOption, PROFILE_FILE_FORMAT, ProfileFile,
-    ProfileSource, RuleCase, RuleEntry, RuleProfile, Setting,
+    BoardSetting, ChoiceRequires, DrillFiles, FabChoice, FabOption, PROFILE_FILE_FORMAT,
+    ProfileBoards, ProfileFile, ProfileSource, RuleCase, RuleEntry, RuleProfile, Setting,
 };
 
 pub use netclass::{

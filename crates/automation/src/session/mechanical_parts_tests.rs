@@ -162,7 +162,10 @@ fn the_starter_set_builds_in_3d_and_reaches_the_outputs() -> TestResult {
     let model = sparksmith_solidcraft::project::build(&project)?;
     assert!(!model.geometry.is_empty());
     let options = sparksmith_core::fabrication::FabricationOptions::default();
-    let set = sparksmith_core::fabrication::generate(&project, &options)?;
+    let set = sparksmith_core::fabrication::generate(
+        &sparksmith_core::fabrication::ProductionSnapshot::resolve(&project, None),
+        &options,
+    )?;
     assert!(!set.files.is_empty());
     let rows = sparksmith_core::fabrication::assembly::rows(
         &project,

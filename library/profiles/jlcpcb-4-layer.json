@@ -14,6 +14,26 @@
       "kind": "not_published",
       "source": "The capabilities page (read 2026-11-11) gives hole tolerances (Drilling, \"Hole size Tolerance\": \"Through-holes: +0.13 / -0.08 mm\") and finished sizes (\"e.g. for the 0.6mm hole size, the finished hole size between 0.52mm to 0.73mm is acceptable.\") but does not say whether drill files list finished or drilled sizes."
     },
+    "boards": {
+      "copper_layers": [
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20,
+        22,
+        24,
+        26,
+        28,
+        30,
+        32
+      ],
+      "source": "Layer count: \"1-32 Layers\" (read 2026-11-22). The \"Multilayer\" rows this profile takes sit beside the \"1-layer\" and \"2-layer\" rows, so they cover the other counts up to 32; Sparksmith's stackups have even copper counts. Some rows differ above 4 layers (\"FR4(6-layer and above)\" board size, via filling \"the default for 6-layer and above\"); none of them is a rule of this profile."
+    },
     "options": [
       {
         "id": "limits",
@@ -88,7 +108,14 @@
           },
           {
             "id": "microvia",
-            "name": "0.1 mm (board 1 mm or thinner, ENIG or OSP finish)"
+            "name": "0.1 mm (board 1 mm or thinner, ENIG or OSP finish)",
+            "requires": {
+              "board_thickness_max_mm": 1.0,
+              "finishes": [
+                "enig",
+                "osp"
+              ]
+            }
           }
         ],
         "source": "Drilling, \"Drill Diameter\": \"0.15 – 6.3 mm (0.1mm microvias only available for board thickness ≤1mm; ENIG/OSP surface finish required)\"; \"Min. drill diameter for 2- or more-layer PCBs is 0.1 mm (more costly!)\" (read 2026-11-14). Choosing 0.1 mm sets neither the board thickness nor the finish: order both."

@@ -46,6 +46,14 @@ pub fn new_source_id() -> Result<InterfaceSourceId> {
     Ok(InterfaceSourceId::from_bytes(bytes))
 }
 
+/// 16 bytes from the operating system's random source, as hex.
+pub fn random_hex() -> Result<String> {
+    let mut bytes = [0u8; 16];
+    getrandom::fill(&mut bytes)
+        .map_err(|e| Error::Invalid(format!("the system random source failed: {e}")))?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
 /// The sidecar published beside `design`, or `None` when there is none.
 /// One that is there but unreadable, or of a format this build does not
 /// read, is refused.
