@@ -292,6 +292,7 @@ fn net_class_clearance_takes_the_largest_value() -> Result<()> {
             a: hv,
             b: power,
             mm: Some(1.0),
+            isolation: false,
         },
     )?;
     let side = |class| ClearanceSide {
