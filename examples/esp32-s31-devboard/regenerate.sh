@@ -10,6 +10,8 @@
 # 2. `fab` writes the production files (byte-identical: --date none).
 # 3. The schematic PDF and the native Solidcraft model are written beside it.
 set -eu
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd -P)
+export SPARKSMITH_LIBRARY_DIR="${SPARKSMITH_LIBRARY_DIR:-$root/library}"
 dir=examples/esp32-s31-devboard
 cli=${SPARKSMITH_CLI:-target/nix/ci/sparksmith}
 [ -x "$cli" ] || cli=target/ci/sparksmith
