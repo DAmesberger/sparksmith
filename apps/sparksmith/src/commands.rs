@@ -1764,6 +1764,18 @@ fn defaults() -> Vec<Command> {
         .chord(Chord::key(K::T))
         .icon("dimension")
         .keywords("meander length match skew serpentine trombone accordion"),
+        // Board-only parts (fiducials, mounting holes, logos) from the
+        // Place palette; P is Fill's here, so C for Component.
+        tool(
+            "pcb.place",
+            "Place component",
+            C::PcbLayout,
+            Workspace::Pcb,
+            "place",
+        )
+        .chord(Chord::key(K::C))
+        .icon("component")
+        .keywords("add part footprint fiducial mounting hole logo board-only palette"),
         tool("pcb.fill", "Fill", C::PcbLayout, Workspace::Pcb, "fill")
             .chord(Chord::key(K::P))
             .icon("polygon")

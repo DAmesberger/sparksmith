@@ -854,9 +854,12 @@ impl Waiving {
     }
 }
 
-/// A finding that can be waived now: an error or warning nobody waived.
+/// A finding that can be waived now: an error or warning nobody waived,
+/// of a kind core lets be waived (never an unrouted connection).
 fn waivable(item: &PreflightItem) -> bool {
-    item.waiver.is_none() && matches!(item.severity, Severity::Error | Severity::Warning)
+    item.waiver.is_none()
+        && matches!(item.severity, Severity::Error | Severity::Warning)
+        && sparksmith_core::fabrication::preflight::can_waive(&item.code)
 }
 
 /// The report's findings by code, in report order (most severe first).

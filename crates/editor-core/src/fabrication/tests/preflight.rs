@@ -221,3 +221,66 @@ fn each_unfilled_fill_has_its_own_waiver_identity() -> Fallible<()> {
     );
     Ok(())
 }
+
+/// An unrouted connection cannot be waived (e2e run 13, finding 37): the
+/// waiver is refused, changing nothing, and a waiver saved in a file is
+/// ignored, so the connection still blocks export and stays in Issues;
+/// the board never reads as finished while airwires remain.
+#[test]
+fn an_unrouted_connection_cannot_be_waived() -> Fallible<()> {
+    let mut engine = Engine::demo()?;
+    let before = report(&engine)?;
+    let unrouted: Vec<String> = before
+        .items
+        .iter()
+        .filter(|i| i.code == "board.unrouted")
+        .map(|i| i.key.clone())
+        .collect();
+    assert!(!unrouted.is_empty(), "the demo board has unrouted nets");
+    let revision = engine.revision();
+    let refused = engine.apply(
+        revision,
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: unrouted.clone(),
+            reason: "prototype".into(),
+        }),
+    );
+    let message = refused.err().ok_or("the waiver was accepted")?.to_string();
+    assert!(message.contains("route the connection"), "{message}");
+    assert_eq!(engine.revision(), revision);
+    assert!(engine.project().production.waivers.is_empty());
+    // A waiver saved before the rule (or written by hand) is ignored.
+    let mut file = engine.to_file();
+    file.project.production.waivers = unrouted
+        .iter()
+        .map(|key| crate::model::production::Waiver {
+            key: key.clone(),
+            reason: "prototype".into(),
+        })
+        .collect();
+    let engine = Engine::from_file(file)?;
+    let after = report(&engine)?;
+    assert_eq!(after.blocking, before.blocking);
+    assert_eq!(after.waived, 0);
+    assert!(
+        after
+            .items
+            .iter()
+            .filter(|i| i.code == "board.unrouted")
+            .all(|i| i.blocks() && i.waiver.is_none())
+    );
+    let shown = issues::report(
+        engine.project(),
+        engine.drafts(),
+        &IssueScope::All,
+        engine.check_settings(),
+    )?;
+    let open: usize = shown
+        .rows
+        .iter()
+        .filter(|r| r.finding.code == "board.unrouted")
+        .map(|r| r.findings())
+        .sum();
+    assert_eq!(open, unrouted.len(), "every unrouted connection stays open");
+    Ok(())
+}

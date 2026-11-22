@@ -23,7 +23,7 @@
       "body": ["length", "width"],
       "patterns": ["resistor {size:code} {value:ohm}?", "{value:ohm} {size:code}"],
       "examples": ["resistor 0603", "resistor 0402 4k7", "10k 0603", "10 kΩ 0805"],
-      "fields": ["Resistance", "Tolerance", "Rated power"],
+      "fields": ["Resistance", "Tolerance", "Rated power", "Temperature coefficient"],
       "value_template": ["{Resistance}"]
     },
     {
@@ -38,7 +38,7 @@
         "{value:farad} {size:code} {voltage:volt}?"
       ],
       "examples": ["capacitor 0603", "100nF 0402", "100n 0603 16V"],
-      "fields": ["Capacitance", "Rated voltage", "Tolerance"],
+      "fields": ["Capacitance", "Rated voltage", "Tolerance", "Dielectric"],
       "value_template": ["{Capacitance} {Rated voltage}", "{Capacitance}"]
     },
     {

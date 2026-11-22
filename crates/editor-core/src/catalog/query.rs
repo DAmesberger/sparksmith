@@ -237,6 +237,11 @@ pub struct FieldTest {
     pub value_type: Option<ValueType>,
     /// How the chip shows this reading, e.g. `Resistance ≥ 10 kΩ`.
     pub display: String,
+    /// A bare value written without its unit (`100n`, `10k`): it names a
+    /// value, so on a Part it meets an exact nominal only, never a rating
+    /// (`100n` is not "rated at least 100 nV").
+    #[serde(skip)]
+    pub unitless: bool,
 }
 
 /// The reserved completeness badges `has:` and `missing:` name.
@@ -811,6 +816,7 @@ fn field_test(
         test,
         value_type: Some(field.value_type.clone()),
         display: format!("{label} {shown}"),
+        unitless: false,
     };
     match &field.value_type {
         ValueType::Quantity { .. } | ValueType::Range { .. } => {
@@ -996,8 +1002,15 @@ fn bare(token: &str, vocabulary: &Vocabulary) -> Term {
                 continue;
             };
             if let Ok(si) = quantity_value(token, kind, None) {
+                let written = token.to_lowercase();
+                let unitless = !kind.quantity.units.units.iter().any(|u| {
+                    std::iter::once(&u.symbol)
+                        .chain(&u.aliases)
+                        .any(|s| !s.is_empty() && written.ends_with(&s.to_lowercase()))
+                });
                 readings.push(FieldTest {
                     field: field.field,
+                    unitless,
                     value_type: Some(field.value_type.clone()),
                     test: Test::Compare {
                         op: Op::Eq,

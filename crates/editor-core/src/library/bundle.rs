@@ -138,8 +138,12 @@ pub struct RevisionRecord {
 /// The recipe of a generated part, carried with its root's record: the
 /// generator, the version that made it, the preset its parameters started
 /// from, the complete parameters and the generic family they read as
-/// (`resistor`, `header`). Provenance and search data: importing the record
-/// makes the person's own part, which claims nothing.
+/// (`resistor`, `header`). Provenance and search data, and the identity
+/// `library.import` maps the record by: a project that made the same part
+/// (same generator, version and complete parameters, the same name and
+/// equal content) keeps its own revisions, so Parts pinning it fit the
+/// placed generic part; otherwise the import makes the person's own copy,
+/// which claims nothing.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratedRecipe {

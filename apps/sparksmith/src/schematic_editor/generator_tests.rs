@@ -418,3 +418,118 @@ fn usb_c_pin_numbers_sit_clear_and_no_name_is_its_value() -> TestResult {
     );
     Ok(())
 }
+
+/// One frame of the Place palette over the PCB canvas, as the app draws it
+/// for Place component (`pcb.place`): the create it sends, if any, and the
+/// board-only placement the PCB editor sends for its pick.
+fn board_frame(
+    editor: &mut SchematicEditor,
+    pcb: &mut crate::pcb_editor::PcbEditor,
+    engine: &Engine,
+    ctx: &egui::Context,
+    events: Vec<egui::Event>,
+) -> Vec<Operation> {
+    let mut operations = Vec::new();
+    let mut output = ctx.run_ui(
+        egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1200.0, 800.0))),
+            events,
+            ..Default::default()
+        },
+        |ui| {
+            let area = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 800.0));
+            operations.extend(editor.board_palette(ui, area, engine));
+            if let Some((component, created)) = editor.take_board_pick() {
+                operations.extend(pcb.place_board_part(ui.ctx(), engine, component, created));
+            }
+        },
+    );
+    output.textures_delta.clear();
+    operations
+}
+
+/// E2e run 13, finding 30: Place component in the PCB workspace opens the
+/// same Place palette; a fiducial preset is made by its generator and put
+/// straight on the board as a board-only part at the view centre, the
+/// create and the placement one undo step. A part with pins is not placed
+/// there: it goes on the schematic.
+#[test]
+fn place_component_in_the_pcb_puts_a_fiducial_on_the_board() -> TestResult {
+    let ctx = context();
+    let mut engine = empty_engine();
+    let mut editor = editor();
+    let mut pcb = crate::pcb_editor::PcbEditor::default();
+    assert!(pcb.on_tool("place", &engine).is_none());
+    assert!(pcb.take_place_request(), "the tool asks for the palette");
+    assert!(!pcb.take_place_request(), "once");
+    editor.open_board_place();
+    assert!(editor.board_place_active());
+    board_frame(&mut editor, &mut pcb, &engine, &ctx, vec![]);
+    board_frame(
+        &mut editor,
+        &mut pcb,
+        &engine,
+        &ctx,
+        vec![egui::Event::Text("fiducial".into())],
+    );
+    let before = engine.project().instances.len();
+    let components = engine.project().library.components.len();
+    let mut sent = board_frame(
+        &mut editor,
+        &mut pcb,
+        &engine,
+        &ctx,
+        vec![key(egui::Key::Enter, egui::Modifiers::NONE)],
+    );
+    let mut placed = None;
+    for _ in 0..600 {
+        if let Some(operation) = sent.pop() {
+            assert!(sent.is_empty(), "one command a frame: {sent:?}");
+            let is_place = matches!(
+                &operation,
+                Operation::Instance(InstanceCommand::PlaceBoardOnly { .. })
+            );
+            apply_hosted(&mut engine, operation)?;
+            if is_place {
+                if let Some(revision) = pcb.take_place_join() {
+                    engine.join_last_step(revision)?;
+                }
+                placed = engine.project().instances.last().cloned();
+                break;
+            }
+        } else {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        sent = board_frame(&mut editor, &mut pcb, &engine, &ctx, vec![]);
+    }
+    let placed = placed.ok_or("no board-only placement was sent")?;
+    assert!(placed.board_only, "{placed:?}");
+    assert_eq!(engine.project().instances.len(), before + 1);
+    let placement = engine
+        .project()
+        .placement_of(placed.id)
+        .ok_or("not on the board")?;
+    let size = engine.project().board_size;
+    assert_eq!(placement.position, [size[0] / 2.0, size[1] / 2.0]);
+    assert!(!editor.board_place_active(), "the palette is done");
+    // One undo takes back the placement and the create.
+    engine.undo()?;
+    assert_eq!(engine.project().instances.len(), before);
+    assert_eq!(engine.project().library.components.len(), components);
+    // A part with pins is refused, with where to place it instead.
+    let pinned = parts_engine()?;
+    let component = pinned
+        .project()
+        .library
+        .components
+        .iter()
+        .find(|c| !c.definition.terminals.is_empty())
+        .map(|c| ComponentRef::new(c.id, c.revision))
+        .ok_or("no component with pins")?;
+    let mut sent = None;
+    let _ = ctx.run_ui(egui::RawInput::default(), |ui| {
+        sent = pcb.place_board_part(ui.ctx(), &pinned, component, false);
+    });
+    assert!(sent.is_none(), "a part with pins goes on the schematic");
+    Ok(())
+}

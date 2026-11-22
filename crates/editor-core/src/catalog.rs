@@ -206,11 +206,25 @@ pub fn source_catalog(
             entry
         })
         .collect();
-    entries.extend(
-        held.latest_parts()
-            .into_iter()
-            .map(|p| part_entry(held, p.id, Some(p.revision), &p.meta, &p.definition)),
-    );
+    entries.extend(held.latest_parts().into_iter().map(|p| {
+        let mut entry = part_entry(held, p.id, Some(p.revision), &p.meta, &p.definition);
+        // The recipe of the generated component the Part pins.
+        let component = p.definition.component;
+        entry.recipe = source_of(component.id).and_then(|lineage| {
+            records
+                .iter()
+                .find(|r| {
+                    r.lineage == lineage
+                        && r.revision == component.revision
+                        && r.kind == DefinitionKind::Component
+                })
+                .and_then(|r| r.generated.as_ref())
+                .and_then(|g| {
+                    crate::library::generated::recipe_hash(&g.generator, g.version, &g.params).ok()
+                })
+        });
+        entry
+    }));
     let mut ratings = Vec::new();
     for (index, entry) in entries.iter_mut().enumerate() {
         entry.source = Source::Library(library);
@@ -508,6 +522,15 @@ pub struct CatalogEntry {
     /// the part takes any.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub takes: Vec<DefinitionId>,
+    /// On a folder Part whose component a generator made, the hash of that
+    /// recipe ([`crate::library::generated::recipe_hash`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recipe: Option<ContentHash>,
+    /// On a folder Part, the project's component revisions the generator
+    /// made from the same recipe: importing the Part pins them, so
+    /// `implements:` lists it for those components.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fits: Vec<ComponentRef>,
 }
 
 /// How a generator made an entry's part.
@@ -672,6 +695,8 @@ fn entry_of(
         shapes,
         generated: None,
         takes,
+        recipe: None,
+        fits: Vec::new(),
     };
     let recipe = revision.and_then(|revision| {
         crate::library::generated::recipe(
@@ -776,6 +801,8 @@ fn part_entry(
         shapes,
         generated: None,
         takes: Vec::new(),
+        recipe: None,
+        fits: Vec::new(),
     }
 }
 
@@ -1051,6 +1078,9 @@ fn meets(field: &EntryField, test: &FieldTest) -> bool {
     let Some(rated) = &field.rated else {
         return test.test.accepts(&field.value);
     };
+    if test.unitless && rated.spec.meaning != SpecMeaning::ExactNominal {
+        return false;
+    }
     match requirement_of(field, rated, test) {
         Some(requirement) => requirement
             .satisfied_by(&rated.spec, &rated.value_type)
@@ -1198,10 +1228,14 @@ fn tier(entry: &CatalogEntry, folded: &Folded, query: &CatalogQuery) -> Option<M
                 component,
                 revision,
             } => {
-                let pinned = entry.implements.filter(|_| entry.source == Source::Project);
-                if !pinned
-                    .is_some_and(|c| c.id == *component && revision.is_none_or(|r| c.revision == r))
-                {
+                let meets = |c: &ComponentRef| {
+                    c.id == *component && revision.is_none_or(|r| c.revision == r)
+                };
+                let pinned = match entry.source {
+                    Source::Project => entry.implements.as_ref().is_some_and(meets),
+                    _ => entry.fits.iter().any(meets),
+                };
+                if !pinned {
                     return None;
                 }
                 None
@@ -1335,6 +1369,23 @@ impl Index {
         let library = &project.library;
         let mut all = entries(project, drafts);
         let updates = updates_available(library, sources)?;
+        // The project's generated parts by recipe, for the folder Parts
+        // that pin the same generic part.
+        let mut made: BTreeMap<ContentHash, Vec<ComponentRef>> = BTreeMap::new();
+        for part in library
+            .generated
+            .iter()
+            .filter(|p| p.from.scope == crate::library::generated::GeneratorScope::Component)
+        {
+            let hash = crate::library::generated::recipe_hash(
+                &part.from.generator,
+                part.from.version,
+                &part.from.params,
+            )?;
+            made.entry(hash)
+                .or_default()
+                .push(ComponentRef::new(part.root.id, part.root.revision));
+        }
         for entry in &mut all {
             entry.update = updates
                 .iter()
@@ -1376,6 +1427,9 @@ impl Index {
                     .iter()
                     .filter_map(|id| merged_field_id(library, source, index, *id))
                     .collect();
+                if let Some(components) = entry.recipe.and_then(|r| made.get(&r)) {
+                    entry.fits = components.clone();
+                }
                 all.push(entry);
             }
         }

@@ -477,10 +477,10 @@ fn the_standard_fields_import_in_one_step_and_read_their_units() -> Result<()> {
         return Err(Error::Invalid("not an import".into()));
     };
     assert_eq!(engine.revision(), revision + 1, "one undo step");
-    assert_eq!(report.revisions.len(), 18, "seven kinds, eleven fields");
+    assert_eq!(report.revisions.len(), 21, "eight kinds, thirteen fields");
     let library_now = &engine.project().library;
-    assert_eq!(library_now.quantity_kinds.len(), 7);
-    assert_eq!(library_now.fields.len(), 11);
+    assert_eq!(library_now.quantity_kinds.len(), 8);
+    assert_eq!(library_now.fields.len(), 13);
 
     let field = |name: &str| -> Result<FieldRef> {
         library_now
@@ -550,7 +550,7 @@ fn the_standard_fields_query_gives_a_bundle_library_import_takes() -> Result<()>
     };
     assert_eq!(*bundle, standard_fields::bundle()?, "equal on every call");
     library(&mut engine, LibraryCommand::Import { bundle })?;
-    assert_eq!(engine.project().library.fields.len(), 11);
+    assert_eq!(engine.project().library.fields.len(), 13);
     // The two ways are the same copies.
     let before = Snapshot::of(&engine);
     library(&mut engine, LibraryCommand::ImportStandardFields {})?;

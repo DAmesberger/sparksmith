@@ -412,9 +412,9 @@ const ALLOWED: &[(&str, Slice)] = &[
     ("model/stackup.rs GlassStep.from_mm", Slice::U3),
     ("model/stackup.rs PresetDielectric.thickness_mm", Slice::U3),
     ("model/stackup.rs StackupPresets.copper_um", Slice::U3),
-    ("model/stackup.rs StackupPresets.dielectric_mm", Slice::U3),
+    ("model/stackup.rs StackupPresets.board_mm", Slice::U3),
     (
-        "model/stackup.rs StackupPresets.dielectric_mm_per_layer_above",
+        "model/stackup.rs StackupPresets.board_mm_per_layer_above",
         Slice::U3,
     ),
     (

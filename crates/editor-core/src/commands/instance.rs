@@ -22,9 +22,11 @@ pub enum InstanceCommand {
     /// Create one board-only instance: a fiducial, mounting hole or logo.
     ///
     /// Every unit of its symbol is unused, so it is on no sheet, and it is
-    /// marked board-only so schematic work leaves it alone. Place it on the board
-    /// with `layout.place`. Without a designator the core numbers it under
-    /// the component's prefix. The outcome is `Outcome::PartPlaced`.
+    /// marked board-only so schematic work leaves it alone. With `at` it is
+    /// placed on the board in the same step, as `layout.place` places it;
+    /// otherwise place it with `layout.place`. Without a designator the
+    /// core numbers it under the component's prefix. The outcome is
+    /// `Outcome::PartPlaced`.
     #[serde(rename = "component.place_board_only")]
     PlaceBoardOnly {
         component: crate::ids::ComponentRef,
@@ -32,6 +34,8 @@ pub enum InstanceCommand {
         physical: PhysicalChoice,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         designator: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        at: Option<BoardPlace>,
     },
     /// Remove a component instance with its units. Direct only without wires
     /// or a placement; otherwise preview
@@ -124,6 +128,17 @@ pub enum InstanceCommand {
     },
 }
 
+/// Where `component.place_board_only` puts the new part on the board: the
+/// footprint's position (mm), turn (degrees) and side, as `layout.place`
+/// takes them.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct BoardPlace {
+    pub position: crate::geometry::Point,
+    pub rotation_deg: f64,
+    pub layer: crate::model::Layer,
+}
+
 // A new command chooses its permission class here.
 declare_entries!(InstanceCommand in schematic {
     Place "component.place" Edit "Place a component",
@@ -187,6 +202,7 @@ pub(crate) fn apply_instance(project: &mut Project, command: InstanceCommand) ->
             representation,
             physical,
             designator,
+            at,
         } => {
             let representation = project
                 .library
@@ -213,6 +229,28 @@ pub(crate) fn apply_instance(project: &mut Project, command: InstanceCommand) ->
             let found = instances::instance_mut(project, instance)?;
             found.board_only = true;
             let designator = found.designator.clone();
+            if let Some(BoardPlace {
+                position,
+                rotation_deg,
+                layer,
+            }) = at
+            {
+                if !(position.iter().all(|v| v.is_finite()) && rotation_deg.is_finite()) {
+                    return Err(crate::diagnostics::Error::Invalid(
+                        "component.place_board_only: the board position and turn must be finite numbers"
+                            .into(),
+                    ));
+                }
+                crate::layout::apply(
+                    project,
+                    crate::layout::LayoutCommand::Place {
+                        instance,
+                        position,
+                        rotation_deg,
+                        layer,
+                    },
+                )?;
+            }
             return Ok(Outcome::PartPlaced {
                 instance,
                 designator,

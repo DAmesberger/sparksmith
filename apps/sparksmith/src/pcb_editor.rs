@@ -70,6 +70,7 @@ mod net_picker_tests;
 mod pair_tests;
 mod pair_tool;
 mod part_place;
+pub use part_place::board_part;
 mod parts_table;
 #[cfg(test)]
 pub use parts_table::Tab as TableTab;
@@ -476,6 +477,12 @@ pub struct PcbEditor {
     /// The revision before a 3D part was placed: the new part is selected
     /// once the engine is past it.
     select_placed: Option<u64>,
+    /// Place component (`pcb.place`) was chosen: the app opens the Place
+    /// palette over the board, once.
+    place_request: bool,
+    /// A just-created component was placed on the board at this revision:
+    /// the app joins the placement to the create, once.
+    place_join: Option<u64>,
     /// The board point at the centre of the Layout view, last drawn.
     view_centre: Option<Point>,
     /// The docked Stackup dialog (`stackup_panel`).
@@ -643,6 +650,8 @@ impl Default for PcbEditor {
             part_chooser: Default::default(),
             part_section: Default::default(),
             select_placed: None,
+            place_request: false,
+            place_join: None,
             view_centre: None,
             stackup: None,
             rules: None,
@@ -1163,6 +1172,9 @@ impl PcbEditor {
                         Button::new("board-shape", "sketch", "Shape")
                             .enabled(!self.view_3d)
                             .tip("Edit the board outline, cutouts and named edges as a sketch"),
+                        Button::new("place", "component", "Place")
+                            .enabled(!self.view_3d)
+                            .tip("Place a part without pins (fiducial, mounting hole, logo) on the board; switch to Layout to place"),
                         Button::new("place-part", "component", "3D part")
                             .selected(self.part_chooser.is_open())
                             .tip("Place a parametric 3D part (nut, spacer, heatsink) from a part file"),
@@ -1238,6 +1250,10 @@ impl PcbEditor {
             }
             "production" => self.open_production(),
             "place-part" => self.open_part_chooser(),
+            "place" => {
+                self.end_route();
+                self.place_request = true;
+            }
             "refill" if !engine.project().fills.is_empty() => {
                 return Some(Operation::Fill(layout::fill::FillCommand::Refill {
                     target: layout::fill::RefillTarget::All,

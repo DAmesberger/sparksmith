@@ -354,6 +354,9 @@ pub struct SchematicEditor {
     /// The first placement of a just-created component was sent at this
     /// revision: the app joins it to the create, one undo step.
     template_join: Option<u64>,
+    /// A component the palette, opened from the PCB workspace, chose for
+    /// the board, and whether the palette has just made it.
+    board_pick: Option<(ComponentRef, bool)>,
     /// The Resolve parts card.
     resolve: ResolveParts,
     /// New Part… was chosen: the app opens the component's Parts editor.
@@ -447,6 +450,7 @@ impl Default for SchematicEditor {
             template_sent: None,
             template_form: None,
             making: None,
+            board_pick: None,
             template_armed: None,
             place_values: Vec::new(),
             template_undo: None,
@@ -635,6 +639,10 @@ impl SchematicEditor {
 
     /// A component just created from a template: arm placement of it.
     pub fn arm_created(&mut self, ctx: &egui::Context, engine: &Engine, component: ComponentRef) {
+        if self.palette.for_board() {
+            self.board_pick = Some((component, true));
+            return;
+        }
         let project = engine.project();
         let name = project
             .library
@@ -673,9 +681,18 @@ impl SchematicEditor {
                 if let Some(component) =
                     sparksmith_core::catalog::generic::generators::component_of(standing)
                 {
-                    self.component = Some(component);
-                    self.tool = Tool::Place;
+                    if self.palette.for_board() {
+                        self.board_pick = Some((component, false));
+                    } else {
+                        self.component = Some(component);
+                        self.tool = Tool::Place;
+                    }
                 }
+            }
+            Standing::Update { .. } if self.palette.for_board() => {
+                let text = "An older generator version made this part: make it again from the \
+                            schematic's Place";
+                kit::toast::post(ctx, Level::Warning, text, Vec::new());
             }
             Standing::Update { .. } => {
                 self.tool = Tool::Select;
@@ -738,6 +755,62 @@ impl SchematicEditor {
 
     pub fn palette_mut(&mut self) -> &mut PlacePalette {
         &mut self.palette
+    }
+
+    /// Place component from the PCB workspace (`pcb.place`): open the
+    /// Place palette for the board. What it chooses comes back through
+    /// [`Self::take_board_pick`].
+    pub fn open_board_place(&mut self) {
+        self.tool = Tool::Select;
+        self.template_armed = None;
+        self.place_values.clear();
+        self.palette.open_for_board();
+    }
+
+    /// Whether the palette is choosing, or making, a part for the board.
+    pub fn board_place_active(&self) -> bool {
+        self.palette.for_board()
+            && (self.palette.is_open() || self.making.is_some() || self.template_sent.is_some())
+    }
+
+    /// The Place palette over the PCB canvas `area` while it chooses a part
+    /// for the board: the create of a generator part once it is made, as
+    /// the schematic makes one.
+    pub fn board_palette(
+        &mut self,
+        ui: &mut egui::Ui,
+        area: egui::Rect,
+        engine: &Engine,
+    ) -> Option<Operation> {
+        let made = self.settle_template(ui.ctx(), engine);
+        let project = engine.project();
+        let placeable = |c: ComponentRef| crate::pcb_editor::board_part(project, c).is_some();
+        match self.palette.show(ui, area, engine, &placeable) {
+            Some(PaletteAction::Place { component, .. } | PaletteAction::Pick(component)) => {
+                self.palette.close();
+                self.board_pick = Some((component, false));
+            }
+            Some(PaletteAction::FromTemplate { hit, query }) => {
+                let request = crate::generators::MakeRequest::of_preset(&hit);
+                self.choose_made(ui.ctx(), engine, &hit.standing, request, query);
+            }
+            Some(PaletteAction::Generic(candidate)) => {
+                let request = crate::generators::MakeRequest::of_candidate(&candidate);
+                let query = self.palette.query().to_owned();
+                self.choose_made(ui.ctx(), engine, &candidate.standing, request, query);
+            }
+            _ => {}
+        }
+        // The board places no values a search named.
+        self.place_values.clear();
+        self.tool = Tool::Select;
+        made
+    }
+
+    /// The component chosen for the board, once, and whether the palette
+    /// has just made it.
+    pub fn take_board_pick(&mut self) -> Option<(ComponentRef, bool)> {
+        self.board_pick.take()
     }
 
     /// Where a library folder placement goes: the sheet-grid point nearest
