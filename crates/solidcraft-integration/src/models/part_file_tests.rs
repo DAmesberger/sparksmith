@@ -70,7 +70,7 @@ fn small_part(boxes: &[([f64; 3], [f64; 3], Option<&str>)], marking: bool) -> Ve
         )
         .unwrap();
     }
-    solidcraft_engine::io::write_design(&s.doc)
+    solidcraft_engine::io::write_design(&s.doc).unwrap()
 }
 
 #[test]
@@ -260,7 +260,7 @@ fn convention_breaks_are_findings_and_block_the_insert() -> Fallible {
         &json!({"changes": {"marking_top_u": "0 mm"}}),
     )?;
     let part = evaluate(
-        &solidcraft_engine::io::write_design(&s.doc),
+        &solidcraft_engine::io::write_design(&s.doc).unwrap(),
         &PartValues::new(),
     )?;
     let found = codes(&part);
@@ -292,7 +292,7 @@ fn a_nested_part_is_refused() -> Fallible {
         &json!({"corner": [0, 0, 0], "length": 1, "width": 1, "height": 1, "name": "nested"}),
     )?;
     let part = evaluate(
-        &solidcraft_engine::io::write_design(&s.doc),
+        &solidcraft_engine::io::write_design(&s.doc).unwrap(),
         &PartValues::new(),
     )?;
     assert!(
