@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "standoff.wasm",
-    "sha256": "27f8e811d31da1675e767ccde59b4ffccc38ec795bf9209fa2a31c6223b0ce5e"
+    "sha256": "a96b80694a4001df1d8adf692c2da711ddefd2bd9ef6cad6352fd1f19acb81eb"
   },
   "name": "standoff",
   "parts": [

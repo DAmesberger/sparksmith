@@ -202,51 +202,46 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
 
 /// Whether all of `g`'s ink keeps out of every box: its stroke (half its
 /// width round its path) and, for a solid closed shape, its inside. A
-/// point or end test misses ink that reaches across a box. Distances are
-/// compared squared (no square roots in the module).
+/// point or end test misses ink that reaches across a box. Integer
+/// arithmetic only (a module whose results are hashed may not use floating
+/// point): coordinates are doubled so half the stroke is whole, and
+/// distances are compared squared.
 fn ink_clear(g: &Graphic, boxes: &[Box2]) -> bool {
-    let half = g.stroke_nm.max(0) as f64 / 2.0;
+    let half = i128::from(g.stroke_nm.max(0));
     let solid = g.fill != Fill::None;
-    let p = |q: &[i64; 2]| [q[0] as f64, q[1] as f64];
-    let path_clear = |points: &[[f64; 2]], closed: bool| {
+    let p = |q: &[i64; 2]| [2 * i128::from(q[0]), 2 * i128::from(q[1])];
+    let boxes: Vec<[I2; 2]> = boxes.iter().map(|b| [p(&b.min), p(&b.max)]).collect();
+    let path_clear = |points: &[I2], closed: bool| {
         let n = points.len();
         let segments = if closed { n } else { n.saturating_sub(1) };
         boxes.iter().all(|b| {
-            let edges_clear = (0..segments).all(|i| {
-                let (a, c) = (points[i], points[(i + 1) % n]);
-                segment_box_distance2(a, c, b) > half * half
-            });
+            let edges_clear =
+                (0..segments).all(|i| segment_box_clear(points[i], points[(i + 1) % n], b, half));
             let inside = closed
                 && solid
                 && (points.first().is_some_and(|q| box_contains(b, *q))
-                    || contains(points, box_centre(b)));
+                    || contains(points, [(b[0][0] + b[1][0]) / 2, (b[0][1] + b[1][1]) / 2]));
             edges_clear && !inside
         })
     };
     // A circle's ink (a disc, or a ring of the stroke) against each box:
     // clear outside it, or for a ring wholly inside its hole.
-    let circle_clear = |c: [f64; 2], r: f64, solid: bool| {
+    let circle_clear = |c: I2, r: i128, solid: bool| {
         boxes.iter().all(|b| {
             let near = point_box_distance2(c, b);
-            let far = b
-                .corners()
+            let far = corners(b)
                 .iter()
-                .map(|q| distance2(c, p(q)))
-                .fold(0.0, f64::max);
-            let outer = r + half;
-            let inner = r - half;
-            near > outer * outer || (!solid && inner > 0.0 && far < inner * inner)
+                .map(|q| distance2(c, *q))
+                .max()
+                .unwrap_or(0);
+            let (outer, inner) = (r + half, r - half);
+            near > outer * outer || (!solid && inner > 0 && far < inner * inner)
         })
     };
     match &g.shape {
         Primitive::Line { a, b } => path_clear(&[p(a), p(b)], false),
         Primitive::Rect { min, max } => path_clear(
-            &[
-                p(min),
-                [max[0] as f64, min[1] as f64],
-                p(max),
-                [min[0] as f64, max[1] as f64],
-            ],
+            &[p(min), p(&[max[0], min[1]]), p(max), p(&[min[0], max[1]])],
             true,
         ),
         Primitive::Polyline { points } => {
@@ -256,105 +251,98 @@ fn ink_clear(g: &Graphic, boxes: &[Box2]) -> bool {
             path_clear(&points.iter().map(p).collect::<Vec<_>>(), true)
         }
         Primitive::Circle { center, radius_nm } => {
-            circle_clear(p(center), *radius_nm as f64, solid)
+            circle_clear(p(center), 2 * i128::from(*radius_nm), solid)
         }
         // Judged as its whole circle's ring: never kept over a land, at
         // worst dropped where only the rest of its circle would reach one.
         Primitive::Arc { center, start, .. } => {
             let c = p(center);
-            let r2 = distance2(c, p(start));
-            // The radius from its square, by Newton's method (no sqrt in
-            // core), to half a nanometre.
-            let mut r = r2.max(1.0);
-            for _ in 0..64 {
-                let next = 0.5 * (r + r2 / r);
-                if (r - next).abs() < 0.5 {
-                    r = next;
-                    break;
-                }
-                r = next;
+            let r2 = u128::try_from(distance2(c, p(start))).unwrap_or(0);
+            // The radius rounded up, so the ring is never judged narrower.
+            let mut r = r2.isqrt();
+            if r * r < r2 {
+                r += 1;
             }
-            circle_clear(c, r, false)
+            circle_clear(c, i128::try_from(r).unwrap_or(i128::MAX / 4), false)
         }
         Primitive::Text { .. } => true,
     }
 }
 
-fn distance2(a: [f64; 2], b: [f64; 2]) -> f64 {
+/// A point in doubled nanometres.
+type I2 = [i128; 2];
+
+fn distance2(a: I2, b: I2) -> i128 {
     let (dx, dy) = (a[0] - b[0], a[1] - b[1]);
     dx * dx + dy * dy
 }
 
-fn box_contains(b: &Box2, q: [f64; 2]) -> bool {
-    (b.min[0] as f64..=b.max[0] as f64).contains(&q[0])
-        && (b.min[1] as f64..=b.max[1] as f64).contains(&q[1])
+fn corners(b: &[I2; 2]) -> [I2; 4] {
+    [b[0], [b[1][0], b[0][1]], b[1], [b[0][0], b[1][1]]]
 }
 
-fn box_centre(b: &Box2) -> [f64; 2] {
-    [
-        (b.min[0] as f64 + b.max[0] as f64) / 2.0,
-        (b.min[1] as f64 + b.max[1] as f64) / 2.0,
-    ]
+fn box_contains(b: &[I2; 2], q: I2) -> bool {
+    (b[0][0]..=b[1][0]).contains(&q[0]) && (b[0][1]..=b[1][1]).contains(&q[1])
 }
 
-fn point_box_distance2(q: [f64; 2], b: &Box2) -> f64 {
-    let dx = (b.min[0] as f64 - q[0])
-        .max(q[0] - b.max[0] as f64)
-        .max(0.0);
-    let dy = (b.min[1] as f64 - q[1])
-        .max(q[1] - b.max[1] as f64)
-        .max(0.0);
+fn point_box_distance2(q: I2, b: &[I2; 2]) -> i128 {
+    let dx = (b[0][0] - q[0]).max(q[0] - b[1][0]).max(0);
+    let dy = (b[0][1] - q[1]).max(q[1] - b[1][1]).max(0);
     dx * dx + dy * dy
 }
 
-fn point_segment_distance2(q: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
+/// Whether `q` lies farther than `h` from segment `a`–`b`.
+fn point_segment_clear(q: I2, a: I2, b: I2, h: i128) -> bool {
     let d = [b[0] - a[0], b[1] - a[1]];
     let len2 = d[0] * d[0] + d[1] * d[1];
-    let t = if len2 > 0.0 {
-        (((q[0] - a[0]) * d[0] + (q[1] - a[1]) * d[1]) / len2).clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    distance2(q, [a[0] + t * d[0], a[1] + t * d[1]])
+    let t = (q[0] - a[0]) * d[0] + (q[1] - a[1]) * d[1];
+    if t <= 0 || len2 == 0 {
+        return distance2(q, a) > h * h;
+    }
+    if t >= len2 {
+        return distance2(q, b) > h * h;
+    }
+    let cross = d[0] * (q[1] - a[1]) - d[1] * (q[0] - a[0]);
+    // |cross| / |d| > h, squared; board coordinates keep these within i128.
+    cross.saturating_mul(cross) > (h * h).saturating_mul(len2)
 }
 
 /// Whether segments `a`–`b` and `c`–`d` cross or touch.
-fn segments_cross(a: [f64; 2], b: [f64; 2], c: [f64; 2], d: [f64; 2]) -> bool {
-    let side = |p: [f64; 2], q: [f64; 2], r: [f64; 2]| {
-        (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])
+fn segments_cross(a: I2, b: I2, c: I2, d: I2) -> bool {
+    let side = |p: I2, q: I2, r: I2| {
+        ((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0])).signum()
     };
-    let (d1, d2) = (side(c, d, a), side(c, d, b));
-    let (d3, d4) = (side(a, b, c), side(a, b, d));
-    (d1 * d2 <= 0.0) && (d3 * d4 <= 0.0)
+    side(c, d, a) * side(c, d, b) <= 0 && side(a, b, c) * side(a, b, d) <= 0
 }
 
-/// The least squared distance from segment `a`–`c` to box `b` (0 when
-/// they meet).
-fn segment_box_distance2(a: [f64; 2], c: [f64; 2], b: &Box2) -> f64 {
+/// Whether segment `a`–`c` keeps farther than `h` from box `b`.
+fn segment_box_clear(a: I2, c: I2, b: &[I2; 2], h: i128) -> bool {
     if box_contains(b, a) || box_contains(b, c) {
-        return 0.0;
+        return false;
     }
-    let corners = b.corners().map(|q| [q[0] as f64, q[1] as f64]);
-    if (0..4).any(|i| segments_cross(a, c, corners[i], corners[(i + 1) % 4])) {
-        return 0.0;
+    let k = corners(b);
+    if (0..4).any(|i| segments_cross(a, c, k[i], k[(i + 1) % 4])) {
+        return false;
     }
-    let ends = point_box_distance2(a, b).min(point_box_distance2(c, b));
-    corners
-        .iter()
-        .map(|q| point_segment_distance2(*q, a, c))
-        .fold(ends, f64::min)
+    point_box_distance2(a, b) > h * h
+        && point_box_distance2(c, b) > h * h
+        && k.iter().all(|q| point_segment_clear(*q, a, c, h))
 }
 
 /// Whether `q` lies inside the closed polygon `points` (even-odd).
-fn contains(points: &[[f64; 2]], q: [f64; 2]) -> bool {
+fn contains(points: &[I2], q: I2) -> bool {
     let n = points.len();
     let mut inside = false;
     for i in 0..n {
         let (a, b) = (points[i], points[(i + 1) % n]);
-        if (a[1] > q[1]) != (b[1] > q[1])
-            && q[0] < a[0] + (q[1] - a[1]) / (b[1] - a[1]) * (b[0] - a[0])
-        {
-            inside = !inside;
+        if (a[1] > q[1]) != (b[1] > q[1]) {
+            // q.x < a.x + (q.y − a.y)(b.x − a.x)/(b.y − a.y), multiplied out.
+            let dy = b[1] - a[1];
+            let lhs = (q[0] - a[0]) * dy;
+            let rhs = (q[1] - a[1]) * (b[0] - a[0]);
+            if (dy > 0 && lhs < rhs) || (dy < 0 && lhs > rhs) {
+                inside = !inside;
+            }
         }
     }
     inside
