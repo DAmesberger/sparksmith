@@ -567,11 +567,20 @@ fn straight_pair_at_gap(usb: &Usb, width: f64, gap: f64) -> Result<Engine> {
         .find(|p| p.instance == r4)
         .ok_or_else(|| Error::NotFound("R4 placement".into()))?;
     placement.position[0] = 30.0;
+    let project = usb.engine.project();
+    let instance = project
+        .instance(r3)
+        .ok_or_else(|| Error::NotFound("R3".into()))?;
+    let revision = crate::instances::resolve(&project.library, instance)?
+        .physical
+        .ok_or_else(|| Error::NotFound("R3 physical implementation".into()))?
+        .footprint;
     let footprint = &mut file
         .project
         .library
         .footprints
-        .first_mut()
+        .iter_mut()
+        .find(|f| f.id == revision.id && f.revision == revision.revision)
         .ok_or_else(|| Error::NotFound("footprint".into()))?
         .definition;
     let [positive, negative] = footprint.pads.as_mut_slice() else {
@@ -579,14 +588,20 @@ fn straight_pair_at_gap(usb: &Usb, width: f64, gap: f64) -> Result<Engine> {
     };
     for (pad, x) in [(positive, 0.0), (negative, width + gap)] {
         pad.position = pt([x, 0.0]);
-        pad.shape = crate::library::PadShape::Circle {
-            diameter_nm: nm(width),
-        };
+        // Keep pad-to-track clearance above the minimum. Only the parallel
+        // tracks themselves should meet at the exact coupling-gap boundary.
+        pad.shape = crate::library::PadShape::rect_mm([width / 2.0; 2])?;
     }
     let mut engine = Engine::from_file(file)?;
-    for (net, terminal) in usb.nets.into_iter().zip([1, 2]) {
-        let start = pad_of(&engine, r3, terminal)?;
-        let end = pad_of(&engine, r4, terminal)?;
+    let starts = [pad_of(&engine, r3, 1)?, pad_of(&engine, r3, 2)?];
+    let ends = [pad_of(&engine, r4, 1)?, pad_of(&engine, r4, 2)?];
+    for [p, n] in [starts, ends] {
+        assert!((p[0] - n[0]).abs() < 1e-6);
+        assert!(((p[1] - n[1]).abs() - width - gap).abs() < 1e-6);
+    }
+    for ((net, start), end) in usb.nets.into_iter().zip(starts).zip(ends) {
+        assert!((end[0] - start[0] - 20.0).abs() < 1e-6);
+        assert!((end[1] - start[1]).abs() < 1e-6);
         apply(
             &mut engine,
             Operation::Layout(LayoutCommand::Route {
