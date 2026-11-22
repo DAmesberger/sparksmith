@@ -143,10 +143,12 @@ fn the_laminate_is_one_body_per_slab() -> Result<()> {
         let g = &slab.geometry;
         assert!(g.item.is_none(), "a slab picks as the board");
         assert_eq!(g.dielectric, Some(level.dielectric()));
-        let (low, high) = project
-            .stackup
-            .dielectric_span(level.dielectric())
-            .ok_or_else(|| Error::Verification("no dielectric".into()))?;
+        // A foil level is the foil's height, on top of its dielectric.
+        let span = match level {
+            Level::Foil { layer, .. } => project.stackup.copper_span(layer),
+            _ => project.stackup.dielectric_span(level.dielectric()),
+        };
+        let (low, high) = span.ok_or_else(|| Error::Verification("no level span".into()))?;
         assert!(g.min[2] >= low - 1e-9 && g.max[2] <= high + 1e-9);
         spans.push([g.min[2], g.max[2]]);
         let via = &project.vias[0];
@@ -162,7 +164,7 @@ fn the_laminate_is_one_body_per_slab() -> Result<()> {
         assert!((pair[0][1] - pair[1][0]).abs() < 1e-9, "{pair:?}");
     }
     let top = spans.last().map_or(0.0, |s| s[1]);
-    assert!((top - project.stackup.dielectric_mm()).abs() < 1e-9);
+    assert!((top - project.stackup.laminate_mm()).abs() < 1e-9);
     // An inner track lies in a hole of its foil level's slab.
     let inner = project
         .tracks
@@ -444,7 +446,7 @@ fn the_meshed_laminate_has_the_board_outlines_edges() -> Result<()> {
         })
     };
     assert!(
-        along_bottom(&top.geometry.mesh, project.stackup.dielectric_mm()),
+        along_bottom(&top.geometry.mesh, project.stackup.laminate_mm()),
         "the top outline along the bottom side"
     );
     assert!(

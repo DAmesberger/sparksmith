@@ -73,13 +73,13 @@
     }
   ],
   "GeneralSpecs": {
-    "BoardThickness": 1.74,
+    "BoardThickness": 1.6,
     "Finish": "ENIG",
     "LayerNumber": 4,
     "ProjectId": {
-      "GUID": "240aeef7-eefe-8a20-9192-eebbe596334f",
+      "GUID": "ebe08cd0-da56-851c-832b-c048d93ab2c4",
       "Name": "ESP32-S31 dev board",
-      "Revision": "6c8c8683b636d838"
+      "Revision": "ae5bef1813e27665"
     },
     "Size": {
       "X": 40.0,
@@ -126,7 +126,7 @@
       "Material": "FR4",
       "Name": "Core 2",
       "Notes": "7628 glass",
-      "Thickness": 1.2,
+      "Thickness": 1.06,
       "Type": "Dielectric"
     },
     {

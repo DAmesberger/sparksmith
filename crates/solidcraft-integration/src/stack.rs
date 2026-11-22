@@ -188,7 +188,7 @@ impl Stack {
         let mut stack = Self {
             slots: Vec::new(),
             dielectrics,
-            top: stackup.dielectric_mm(),
+            top: stackup.laminate_mm(),
             copper: [foil(CopperLayer::Top), foil(CopperLayer::Bottom)],
             mask: stackup.mask_um / 1000.0,
             mask_laminate: stackup.mask_laminate_nm.to_mm_f64(),
@@ -500,7 +500,7 @@ mod tests {
             near(span[0], a);
             near(span[1], b);
         }
-        let top = stackup.dielectric_mm();
+        let top = stackup.laminate_mm();
         near(stack.span_of(Slot::Substrate).ok_or("no laminate")?[1], top);
         let mask = stack.span_of(Slot::Mask(Layer::Top)).ok_or("no mask")?;
         near(mask[1], top + 0.070 + 0.025);
@@ -573,7 +573,7 @@ mod tests {
         near(stack.surface(Layer::Bottom), 0.0);
         near(
             stack.surface(Layer::Top),
-            stackup.dielectric_mm() + stackup.mask_laminate_nm.to_mm_f64(),
+            stackup.laminate_mm() + stackup.mask_laminate_nm.to_mm_f64(),
         );
         Ok(())
     }

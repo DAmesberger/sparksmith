@@ -5,7 +5,7 @@
 //! The board is the demo's (see `connectivity/tests.rs`): R1.2 at
 //! (10.8, 10) and R2.1 at (24.2, 10) on net 2, with 0.3 mm tracks and
 //! 0.6 mm vias on a 1.6 mm two-layer board, whose top-to-bottom barrel is
-//! 1.635 mm (1.6 mm of dielectric plus half of each 35 µm foil).
+//! 1.565 mm (its 1.53 mm core plus half of each 35 µm foil).
 use super::super::tests::{R1_2, R2_1, rect, top, track, via};
 use crate::diagnostics::Result;
 use crate::layout::length::{self, PairMeasure, PairMeasured, path};
@@ -15,7 +15,7 @@ use crate::model::fill::{FillSettings, FillSpec};
 use crate::model::{CopperLayer, Fill, Project, ViaSpan};
 use crate::rules::signal::{DiffPair, DiffPairId};
 
-const BARREL: f64 = 1.635;
+const BARREL: f64 = 1.565;
 
 /// A pair with both halves on net 2, as the design's cases were run.
 fn pair(positive: crate::ids::Id, negative: crate::ids::Id) -> DiffPair {

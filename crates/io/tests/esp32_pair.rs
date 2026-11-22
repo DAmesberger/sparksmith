@@ -13,8 +13,9 @@
 //! - The positive jumper, A6 to the T on B6's track, is 1.245 + 1.0 =
 //!   2.245 mm.
 //! - The negative jumper, A7 through a via, the bottom jumper and a via to
-//!   B7, is 1.355 + 1.0 + 1.355 = 3.71 mm of track and two 1.635 mm barrels
-//!   (when the stackup's mid-planes are as the file says), 6.98 mm.
+//!   B7, is 1.355 + 1.0 + 1.355 = 3.71 mm of track and two 1.565 mm barrels
+//!   (the 1.6 mm board's outer-foil mid-planes: 1.46 mm of dielectric,
+//!   two inner foils and half of each outer 35 µm one), 6.84 mm.
 use sparksmith_core::diagnostics::Finding;
 use sparksmith_core::ids::{Endpoint, Id};
 use sparksmith_core::layout::length::{self, LengthReport, PairMeasured, PairRow};
@@ -86,7 +87,7 @@ fn the_receptacle_jumpers_are_off_the_path_and_not_skew() -> Fallible {
         "{paths:?}"
     );
     assert!(paths.iter().all(|p| !p.via_fill), "{paths:?}");
-    // Total copper still holds the jumpers: the old 4.735 mm difference.
+    // Total copper still holds the jumpers: the 6.84 − 2.245 = 4.595 mm difference.
     let total = |name: &str| -> Fallible<f64> {
         Ok(report
             .nets
@@ -97,11 +98,11 @@ fn the_receptacle_jumpers_are_off_the_path_and_not_skew() -> Fallible {
             .total)
     };
     assert!(
-        close((total("USB_DN")? - total("USB_DP")?).abs(), 4.735, 0.002),
+        close((total("USB_DN")? - total("USB_DP")?).abs(), 4.595, 0.002),
         "the copper difference is unchanged"
     );
     assert!(close(total("USB_DP")? - usb.positive, 2.245, 0.002));
-    assert!(close(total("USB_DN")? - usb.negative, 6.98, 0.005));
+    assert!(close(total("USB_DN")? - usb.negative, 6.84, 0.005));
     let findings = layout::checks(&p, &Default::default());
     assert!(pair_findings(&findings).is_empty(), "{findings:?}");
     // The report CLI and MCP callers read lists the paths and nothing off
@@ -209,9 +210,9 @@ fn set_endpoints_are_measured_and_validated() -> Fallible {
     assert_eq!(usb.measured, PairMeasured::Set);
     // A6 joins 1.245 mm up B6's track after 2.245 mm: 1 mm longer than B6.
     assert!(close(usb.positive, 30.886, 0.002), "{usb:?}");
-    // A7 through the jumper to B7: the whole 6.98 mm jumper joins the path.
-    assert!(close(usb.negative, 29.886 + 6.98, 0.01), "{usb:?}");
-    assert!(close(usb.skew, 5.98, 0.01), "{usb:?}");
+    // A7 through the jumper to B7: the whole 6.84 mm jumper joins the path.
+    assert!(close(usb.negative, 29.886 + 6.84, 0.01), "{usb:?}");
+    assert!(close(usb.skew, 5.84, 0.01), "{usb:?}");
     assert!(
         layout::checks(engine.project(), engine.check_settings())
             .iter()

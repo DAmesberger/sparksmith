@@ -203,7 +203,7 @@ fn rounded_corners_follow_a_corner_radius_parameter() -> Fallible<()> {
     plain.board_shape = BoardShape::Rectangle;
     let removed = volume(&plain)? - volume(engine.project())?;
     let corner = 4.0 * (9.0 - std::f64::consts::PI * 9.0 / 4.0);
-    let want = corner * engine.project().stackup.dielectric_mm();
+    let want = corner * engine.project().stackup.laminate_mm();
     assert!((removed - want).abs() < 0.05 * want, "{removed} vs {want}");
     // A larger radius re-solves the same sketch.
     edit(
@@ -332,7 +332,7 @@ fn cutouts_slots_and_mounting_holes_solve_and_build_in_3d() -> Fallible<()> {
     let full = substrate(&plain)?;
     let pi = std::f64::consts::PI;
     let removed = pi * 16.0 + (10.0 * 2.0 + pi) + pi * 1.6 * 1.6;
-    let thickness = engine.project().stackup.dielectric_mm();
+    let thickness = engine.project().stackup.laminate_mm();
     let want = removed * thickness;
     assert!(
         ((full - shaped) - want).abs() < 0.02 * want,

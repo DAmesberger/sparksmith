@@ -50,6 +50,10 @@ pub(super) fn instances(project: &Project) -> Result<(Id, Id)> {
     Ok((id("R1")?, id("R2")?))
 }
 
+/// The two-layer fixture board's laminate: a 1.6 mm finished board less
+/// its two 35 µm foils.
+const T: f64 = 1.53;
+
 fn near(actual: f64, expected: f64) {
     assert!((actual - expected).abs() < 1e-5, "{actual} != {expected}");
 }
@@ -219,19 +223,19 @@ fn native_project_has_analytic_board_copper_and_rigid_top_bottom_placements() ->
         .find(|geometry| geometry.kind == BodyKind::Substrate)
         .ok_or_else(|| Error::Verification("missing substrate".into()))?;
     assert_eq!(substrate.item, None);
-    bounds(substrate, [0.0, 0.0, 0.0], [60.0, 40.0, 1.6]);
-    near(substrate.volume(), 60.0 * 40.0 * 1.6);
+    bounds(substrate, [0.0, 0.0, 0.0], [60.0, 40.0, T]);
+    near(substrate.volume(), 60.0 * 40.0 * T);
     let top = source_geometry(&model, BodyKind::ChipResistor, |s| {
         s.instance == Some(r1) && s.pad.is_none()
     })?;
-    bounds(top, [9.8, 11.25, 1.835], [11.0, 13.25, 2.435]);
+    bounds(top, [9.8, 11.25, T + 0.235], [11.0, 13.25, T + 0.835]);
     near(top.volume(), 2.0 * 1.2 * 0.6);
     let bottom = source_geometry(&model, BodyKind::ChipResistor, |s| {
         s.instance == Some(r2) && s.pad.is_none()
     })?;
     bounds(bottom, [29.0, 11.25, -0.835], [30.2, 13.25, -0.235]);
     for (instance, center, z) in [
-        (r1, [9.6, 10.9], [1.6, 1.635]),
+        (r1, [9.6, 10.9], [T, T + 0.035]),
         (r2, [30.4, 10.9], [-0.035, 0.0]),
     ] {
         let pad = source_geometry(&model, BodyKind::PadCopper, |s| {
@@ -249,7 +253,7 @@ fn native_project_has_analytic_board_copper_and_rigid_top_bottom_placements() ->
         let geometry =
             source_geometry(&model, BodyKind::CopperTrack, |s| s.track == Some(track.id))?;
         let z = if track.layer == Layer::Top {
-            [1.6, 1.635]
+            [T, T + 0.035]
         } else {
             [-0.035, 0.0]
         };
@@ -319,7 +323,7 @@ fn diagonal_traces_have_round_caps_on_both_copper_layers() -> Result<()> {
         // The 4:3 direction has length 5; the round caps' chords reach
         // within 2 % of half the width past each end, in every direction.
         let z = if track.layer == Layer::Top {
-            [1.6, 1.635]
+            [T, T + 0.035]
         } else {
             [-0.035, 0.0]
         };
@@ -817,7 +821,7 @@ fn exposed_pads_stand_above_the_mask_and_tracks_are_capped() -> Result<()> {
         .find(|g| g.kind == BodyKind::MaskBottom)
         .map(|g| g.min[2])
         .ok_or_else(|| Error::Verification("no bottom mask".into()))?;
-    near(mask_top, 1.62);
+    near(mask_top, T + 0.02);
     near(mask_bottom, -0.02);
     for source in model.sources.iter().filter(|s| s.pad.is_some()) {
         let pad = source_geometry(&model, BodyKind::PadCopper, |s| s.pick_id == source.pick_id)?;
@@ -950,7 +954,7 @@ fn mask_caps_stop_at_mask_openings_and_exposed_track_copper_is_plated() -> Resul
     near(strip[0].min[1], c[1]);
     near(strip[0].max[1], c[1] + 0.55);
     // The strip stands 0.8 of the finish's thickness on the copper.
-    near(strip[0].max[2], 1.6 + 0.035 + 0.8 * enig());
+    near(strip[0].max[2], T + 0.035 + 0.8 * enig());
     // A track passing through the land: capped on both sides, plated across.
     let caps = pieces(&model, through, BodyKind::MaskCap);
     assert_eq!(caps.len(), 2, "pass-through cap is split at the opening");
@@ -965,7 +969,7 @@ fn mask_caps_stop_at_mask_openings_and_exposed_track_copper_is_plated() -> Resul
     near(strip[0].max[0], c[0] + 0.75);
     // Every finish stands above the mask and below any cap top.
     for f in pad_finishes(&model) {
-        near(f.max[2], 1.6 + 0.035 + enig());
+        near(f.max[2], T + 0.035 + enig());
     }
     Ok(())
 }
@@ -1014,7 +1018,7 @@ fn native_bodies_are_disjoint_except_where_copper_joins_copper() -> Result<()> {
     }
     // The saved model's volume is the laminate, copper and envelopes only.
     let volume: f64 = bodies.iter().map(|g| g.volume()).sum();
-    let expected = 60.0 * 40.0 * 1.6
+    let expected = 60.0 * 40.0 * T
         + 2.0 * (2.0 * 1.2 * 0.6)
         + 4.0 * (1.0 * 1.4 * 0.035)
         + (2.0 * track_plan([0.0, 0.0], [10.0, 0.0], 0.4).2
@@ -1198,7 +1202,7 @@ fn generated_feet_and_header_pins_get_solder_joints() -> Result<()> {
         assert!(if top {
             cone.max[2] < 0.0
         } else {
-            cone.min[2] > 1.6
+            cone.min[2] > T
         });
         let mid = [
             (cone.min[0] + cone.max[0]) / 2.0,
@@ -1285,7 +1289,7 @@ fn check_chip_parts(model: &NativeModel) -> Result<()> {
             );
             if top {
                 // On the finish, its toe lifted 2 µm off it.
-                near(solder.min[2], 1.6 + 0.035 + enig() + 0.002);
+                near(solder.min[2], T + 0.035 + enig() + 0.002);
             } else {
                 near(solder.max[2], -0.035 - enig() - 0.002);
             }
@@ -1320,7 +1324,7 @@ fn fabrication_restyles_display_layers_and_leaves_the_native_model_alone() -> Re
         // The finish is as thick as the pad finish is (ENIG to immersion
         // silver here), and the solder and bore discs stand on it; every
         // other body keeps its place.
-        if b.kind == BodyKind::PadFinish && b.max[2] > 1.6 + 0.035 {
+        if b.kind == BodyKind::PadFinish && b.max[2] > T + 0.035 {
             near(a.max[2] - b.max[2], enig() - silver);
         } else if !matches!(
             b.kind,
@@ -1439,7 +1443,7 @@ fn on_board(pad: &layout::PlacedPad, q: Point) -> Point {
 /// Mid-height of the copper on a layer's face.
 fn copper_z(layer: Layer) -> f64 {
     match layer {
-        Layer::Top => 1.6 + 0.0175,
+        Layer::Top => T + 0.0175,
         Layer::Bottom => -0.0175,
     }
 }
@@ -1570,11 +1574,11 @@ fn every_pad_shape_is_exact_native_copper_in_its_placed_frame() -> Result<()> {
         }
     }
     // The laminate lost two drills per placement.
-    let full = 60.0 * 40.0 * 1.6;
+    let full = 60.0 * 40.0 * T;
     // The plated hole is drilled wider than its finished 0.6 mm by the
     // barrel's wall; the bare hole at its size.
     let plated = 0.3 + pad_outline::PLATING_MM;
-    let drilled = 2.0 * std::f64::consts::PI * (plated.powi(2) + 0.5f64.powi(2)) * 1.6;
+    let drilled = 2.0 * std::f64::consts::PI * (plated.powi(2) + 0.5f64.powi(2)) * T;
     let volume: f64 = substrate.iter().map(|g| g.volume()).sum();
     assert!((volume - (full - drilled)).abs() < 2e-3, "{volume}");
     Ok(())
@@ -1595,7 +1599,7 @@ fn mask_openings_and_finish_follow_the_shapes_and_tented_lands_stay_covered() ->
         )
     };
     let mask_z = |layer: Layer| match layer {
-        Layer::Top => 1.61,
+        Layer::Top => T + 0.01,
         Layer::Bottom => -0.01,
     };
     let finish = kind(&model, BodyKind::PadFinish);
@@ -1709,7 +1713,7 @@ fn an_envelope_follows_its_turned_placement_and_datum_like_its_2d_outline() -> R
             let f = frame.apply(corner);
             let [x, y] = board.apply([f[0], f[1]]);
             let z = match placement.layer {
-                Layer::Top => 1.635 + f[2],
+                Layer::Top => T + 0.035 + f[2],
                 Layer::Bottom => -0.035 - f[2],
             };
             for (axis, v) in [x, y, z].into_iter().enumerate() {
@@ -1821,7 +1825,7 @@ fn many_vias_are_placements_of_one_definition_and_survive_reopening() -> Result<
         .filter(|g| g.kind == BodyKind::Substrate)
         .count();
     assert_eq!(slabs, 5);
-    let t = project.stackup.dielectric_mm();
+    let t = project.stackup.laminate_mm();
     let extent = |copper: &[&Geometry]| {
         let low = copper.iter().map(|g| g.min).fold([f64::MAX; 3], |a, b| {
             std::array::from_fn(|i| a[i].min(b[i]))
@@ -2245,7 +2249,7 @@ fn plan_bodies_lie_in_their_layers() -> Result<()> {
     for project in [shaped()?, showcase()?] {
         let plan = plan::of(&project)?;
         let stackup = &project.stackup;
-        let thickness = stackup.dielectric_mm();
+        let thickness = stackup.laminate_mm();
         let mut slabs: Vec<[f64; 2]> = plan.laminate.iter().map(|s| s.z).collect();
         slabs.sort_by(|a, b| a[0].total_cmp(&b[0]));
         let (Some(first), Some(last)) = (slabs.first(), slabs.last()) else {
