@@ -13,8 +13,8 @@
 //!   label names on one sheet. The net takes the first name by the naming
 //!   rule; the others are probably a mistake.
 //! - `erc.power_port_undriven`: a net with a power port and power inputs
-//!   but nothing that can supply it (a power output, output, bidirectional
-//!   or passive terminal). It replaces `erc.undriven_power_input` on such a
+//!   but no supply: no power output ([`super::supplies`]; a passive pin
+//!   supplies nothing). It replaces `erc.undriven_power_input` on such a
 //!   net, so each cause is reported once.
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::functions::{Direction, Resolution};
@@ -223,14 +223,10 @@ fn power(project: &Project, resolutions: &BTreeMap<Id, Resolution>, out: &mut Ve
             else {
                 continue;
             };
-            match active.direction {
-                Direction::PowerInput => inputs += 1,
-                Direction::PowerOutput
-                | Direction::Output
-                | Direction::Bidirectional
-                | Direction::Passive => source = true,
-                Direction::Input => {}
+            if active.direction == Direction::PowerInput {
+                inputs += 1;
             }
+            source |= super::supplies(active.direction);
         }
         if inputs > 0 && !source {
             out.push(Finding::new(

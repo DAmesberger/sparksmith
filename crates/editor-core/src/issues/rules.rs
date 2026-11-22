@@ -44,6 +44,7 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         | "board.via_hole_spacing"
         | "erc.driver_conflict"
         | "erc.open_drain_contention"
+        | "erc.open_source_contention"
         | "fill.clearance"
         | "keepout.track"
         | "keepout.via"
@@ -149,6 +150,7 @@ pub fn group_title(code: &str) -> String {
         "pinout.unreviewed" => "Unreviewed imported pins",
         "erc.driver_conflict" => "Drivers in conflict",
         "erc.open_drain_contention" => "Open-drain contention",
+        "erc.open_source_contention" => "Open-source contention",
         "erc.input_only_net" => "Inputs without a driver",
         "erc.undriven_power_input" => "Power inputs without a supply",
         "erc.unchecked_terminal" => "Terminals not checked",
@@ -615,6 +617,7 @@ pub const KNOWN_CODES: &[&str] = &[
     "erc.label_conflict",
     "erc.label_unconnected",
     "erc.open_drain_contention",
+    "erc.open_source_contention",
     "erc.power_port_undriven",
     "erc.unchecked_terminal",
     "erc.undriven_power_input",

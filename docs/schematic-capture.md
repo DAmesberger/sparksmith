@@ -78,7 +78,7 @@ Generated IC boxes are as wide as their pin names (`samples::fit_pin_names`): on
 
 ## Power ports
 
-A power port is a label of kind `power`: global scope, drawn as the ground bars or a supply bar or arrow (the shapes of `library::symbol_style`'s ground and power kinds). It adds no component instance, no BOM line and no footprint. It names its net with the highest priority, so `GND` stays `GND` whatever local labels say. ERC: a net with a power port, power inputs and nothing that can supply it (no power-output, output, bidirectional or passive terminal) is `erc.power_port_undriven`, reported once per net instead of once per power input.
+A power port is a label of kind `power`: global scope, drawn as the ground bars or a supply bar or arrow (the shapes of `library::symbol_style`'s ground and power kinds). It adds no component instance, no BOM line and no footprint. It names its net with the highest priority, so `GND` stays `GND` whatever local labels say. ERC: a net with a power port, power inputs and no supply is `erc.power_port_undriven`, reported once per net instead of once per power input. Only a power-output terminal supplies a net (`erc::supplies`): a passive pin, such as a decoupling capacitor, supplies nothing, and a connector that brings power in declares that contact a power output, as the USB-C receptacle's VBUS does.
 
 ## Sheets and hierarchy
 
@@ -121,7 +121,7 @@ With the Select tool, a drag from empty canvas draws a rectangle, by Solidcraft'
 | `erc.global_label_single` | warning | A global label's name appears on no other global label or power port |
 | `erc.hierarchy_mismatch` | warning | A sheet pin has no hierarchical label of its name on the child sheet, or a hierarchical label has no sheet pin on its sheet's symbol |
 | `erc.label_conflict` | warning | A net carries two different global names, or two different local names on one sheet |
-| `erc.power_port_undriven` | warning | A net with a power port and power inputs has no possible source |
+| `erc.power_port_undriven` | warning | A net with a power port and power inputs has no power output to supply it |
 
 The existing net rules (driver conflicts, input-only nets, undriven power inputs) run over the cross-sheet nets.
 

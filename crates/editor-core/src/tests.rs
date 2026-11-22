@@ -9,6 +9,7 @@ mod ce06;
 mod contract;
 mod designators;
 mod drawing;
+mod drive;
 mod engine;
 mod fields;
 mod finalization;

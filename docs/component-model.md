@@ -578,15 +578,16 @@ Selections are keyed by IDs, so reordering or relabeling functions in a new revi
 
 | Code | Condition |
 | --- | --- |
-| `erc.driver_conflict` | Two or more push-pull or open-source drivers (`Output`/`Bidirectional` with that drive). |
-| `erc.open_drain_contention` | At least one push-pull driver together with at least one open-drain driver. |
+| `erc.driver_conflict` | Two push-pull drivers (`Output`/`Bidirectional` with that drive). |
+| `erc.open_drain_contention` | A push-pull driver together with an open-drain driver. |
+| `erc.open_source_contention` | An open-source driver together with a push-pull or open-drain driver: it sources high while the other pulls low. |
 | `erc.input_only_net` | ≥ 2 terminals, at least one `Input`, and no `Output`, `Bidirectional` or `Passive` terminal. |
-| `erc.undriven_power_input` | A `PowerInput` with no `PowerOutput` on its net. Retained from today. |
+| `erc.undriven_power_input` | A `PowerInput` with no `PowerOutput` on its net (`erc::supplies`: only a power output supplies a rail). |
 | `erc.unchecked_terminal` | Emitted for each unresolved terminal on the net. That terminal is excluded from drive rules, so ERC never assumes all alternatives at once and never picks one. |
 
 A terminal alone on its net is not an ERC condition. It is reported once, by `completeness`, as `instance.terminal_unaccounted` through `nets::accounted_for`.
 
-Several open-drain drivers with a passive pull-up produce no finding. This is the observable proof that drive behavior, not direction alone, is used. In completeness, a `PowerInput` function with a project no-connect is `instance.required_terminal_no_connect`, so an obligation cannot be hidden.
+Every pair of drivers on a net is judged by one matrix, `erc::contention`: open drains wire-AND and open sources wire-OR, so several of one kind share a net; any pair that can drive the net high and low at once fights, and each kind of fight is reported once per net. Several open-drain drivers with a passive pull-up produce no finding. This is the observable proof that drive behavior, not direction alone, is used. In completeness, a `PowerInput` function with a project no-connect is `instance.required_terminal_no_connect`, so an obligation cannot be hidden.
 
 ### Slice 3 implementation notes
 
