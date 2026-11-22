@@ -95,6 +95,12 @@ const KEYS_PART: &str =
 const PART_NOT_PLACED: &str =
     "Parts are assigned, not placed: place the component, then use Choose… on the instance.";
 
+/// Why a part chosen from the PCB workspace was not placed: only parts
+/// without pins (fiducials, mounting holes, logos) go on the board alone.
+pub fn board_refusal(name: &str) -> String {
+    format!("{name} has pins: place it on the schematic, then Update PCB.")
+}
+
 /// What the palette is choosing.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Mode {
@@ -422,6 +428,11 @@ pub struct PlacePalette {
     /// Reads a folder's or the registry's bundle on the preview worker;
     /// set by the app with the sources it has.
     bundles: Option<(u64, BundleLoader)>,
+    /// Opened from the PCB workspace (`pcb.place`): a choice goes on the
+    /// board as a board-only part, so only parts without pins are placed;
+    /// shipped components and library folder entries go through the
+    /// schematic.
+    board: bool,
 }
 
 /// Reads one library root's bundle (folder, shipped or registry); runs off
@@ -456,7 +467,19 @@ impl PlacePalette {
     /// Open with an empty query, ready for typing.
     pub fn open(&mut self) {
         self.mode = Mode::Place;
+        self.board = false;
         self.reopen(String::new());
+    }
+
+    /// Open from the PCB workspace: the choice is placed on the board.
+    pub fn open_for_board(&mut self) {
+        self.open();
+        self.board = true;
+    }
+
+    /// Whether the palette was opened from the PCB workspace.
+    pub fn for_board(&self) -> bool {
+        self.board
     }
 
     /// Open in assign mode for `instances`, with `query` (`kind:part` and
@@ -1015,6 +1038,10 @@ impl PlacePalette {
     /// closes the sheet; a package body stays, saying where it is used.
     fn choose_builtin(&mut self) -> Option<PaletteAction> {
         let part = self.highlighted_builtin()?;
+        if self.board && part.component.is_some() {
+            self.notice = Some(board_refusal(&part.title));
+            return None;
+        }
         if let Some(bundle) = &part.component {
             // A shipped component: imported and placed in the schematic,
             // as a library folder's entry is.
@@ -1115,6 +1142,9 @@ impl PlacePalette {
         if placeable(component) {
             self.notice = None;
             Some(component)
+        } else if self.board {
+            self.notice = Some(board_refusal(&name));
+            None
         } else {
             self.notice = Some(format!("{name} has no symbol to place."));
             None
@@ -1831,6 +1861,10 @@ impl PlacePalette {
     /// reopens it (see [`Self::offer_choice`]).
     fn place_folder(&mut self, keep_open: bool) -> Option<PaletteAction> {
         let hit = self.highlighted_hit()?;
+        if self.board {
+            self.notice = Some(board_refusal(&hit.entry.name));
+            return None;
+        }
         let key = hit.entry.key();
         let pick = FolderPick::of(&hit.entry)?;
         self.notice = None;

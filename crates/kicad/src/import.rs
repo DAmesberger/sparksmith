@@ -550,6 +550,7 @@ pub fn import_with_models(
                     footprint: set.footprint,
                 },
                 designator,
+                at: None,
             }));
             continue;
         }

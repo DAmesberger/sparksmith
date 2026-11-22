@@ -254,7 +254,8 @@ fn stackup_parameters_drive_the_saved_board_after_reopening() -> Result<()> {
     let inner2 = geometry_of(&before, |s| s.track == Some(tracks[1]));
     near(inner2[0].max[2], 0.5);
     let inner1 = geometry_of(&before, |s| s.track == Some(tracks[0]));
-    near(inner1[0].max[2], 0.5 + 1.2);
+    // The thickened 0.5 mm prepreg and the preset's 1.06 mm core.
+    near(inner1[0].max[2], 0.5 + 1.06);
     let via = geometry_of(&before, |s| s.via == Some(vias[0]));
     let high = via.iter().map(|g| g.max[2]).fold(f64::MIN, f64::max);
     near(high, t + 0.035);

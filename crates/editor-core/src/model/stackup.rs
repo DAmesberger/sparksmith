@@ -231,9 +231,9 @@ pub struct PresetDielectric {
 ///
 /// A two-layer preset is [`Self::two_layer_core`]. A preset of more layers
 /// is a symmetric foil build: prepreg outside and between the cores, which
-/// carry the inner layers in pairs. Its total dielectric is
-/// [`Self::dielectric_mm`] up to [`Self::dielectric_mm_up_to_layers`]
-/// layers and [`Self::dielectric_mm_per_layer_above`] a layer above that;
+/// carry the inner layers in pairs. Its finished thickness, copper foils
+/// included, is [`Self::board_mm`] up to [`Self::board_mm_up_to_layers`]
+/// layers and [`Self::board_mm_per_layer_above`] a layer above that;
 /// its prepregs are [`Self::prepreg_mm`] up to
 /// [`Self::prepreg_mm_up_to_layers`] layers and [`Self::prepreg_mm_above`]
 /// above; the cores share the rest, rounded to µm.
@@ -250,9 +250,9 @@ pub struct StackupPresets {
     pub mask_laminate_um: f64,
     /// The two-layer build's one core.
     pub two_layer_core: PresetDielectric,
-    pub dielectric_mm: f64,
-    pub dielectric_mm_up_to_layers: usize,
-    pub dielectric_mm_per_layer_above: f64,
+    pub board_mm: f64,
+    pub board_mm_up_to_layers: usize,
+    pub board_mm_per_layer_above: f64,
     pub prepreg_mm: f64,
     pub prepreg_mm_up_to_layers: usize,
     pub prepreg_mm_above: f64,
@@ -284,8 +284,8 @@ impl StackupPresets {
                 self.prepreg_mm_above,
                 self.added_prepreg.thickness_mm,
                 self.added_core.thickness_mm,
-                self.dielectric_mm,
-                self.dielectric_mm_per_layer_above,
+                self.board_mm,
+                self.board_mm_per_layer_above,
             ]
             .into_iter()
             .all(mm)
@@ -348,11 +348,13 @@ impl StackupPresets {
             let prepregs = count / 2;
             let cores = prepregs - 1;
             let lossy = |v: usize| f64::from(u32::try_from(v).unwrap_or(u32::MAX));
-            let total = if count <= self.dielectric_mm_up_to_layers {
-                self.dielectric_mm
+            let board = if count <= self.board_mm_up_to_layers {
+                self.board_mm
             } else {
-                self.dielectric_mm_per_layer_above * lossy(count)
+                self.board_mm_per_layer_above * lossy(count)
             };
+            // The foils are part of the finished thickness.
+            let total = board - self.copper_um / 1000.0 * lossy(count);
             let prepreg_mm = if count <= self.prepreg_mm_up_to_layers {
                 self.prepreg_mm
             } else {

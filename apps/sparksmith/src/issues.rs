@@ -512,8 +512,7 @@ fn findings(row: &IssueRow) -> impl Iterator<Item = &sparksmith_core::Finding> {
 /// Whether a row offers Waive…: no finding of it blocks a stage (a waiver
 /// is for production only) or is one core never lets be waived.
 fn waivable(row: &IssueRow) -> bool {
-    row.blocks().is_none()
-        && findings(row).all(|f| !preflight::NO_WAIVER.contains(&f.code.as_str()))
+    row.blocks().is_none() && findings(row).all(|f| preflight::can_waive(&f.code))
 }
 
 /// The waiver keys of every finding of a row, so waiving it removes the
