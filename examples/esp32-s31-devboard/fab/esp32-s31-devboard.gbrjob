@@ -77,7 +77,7 @@
     "Finish": "ENIG",
     "LayerNumber": 4,
     "ProjectId": {
-      "GUID": "2f668377-ed78-8177-98a0-94925d871795",
+      "GUID": "169bd5dd-a1dd-861e-8dd4-ebe9ecbe9246",
       "Name": "ESP32-S31 dev board",
       "Revision": "8e053a0bbec0b8ce"
     },

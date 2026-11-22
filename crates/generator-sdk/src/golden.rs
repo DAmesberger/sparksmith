@@ -64,7 +64,7 @@ pub fn check<G: Generator>(json: &str) -> Result<usize, String> {
         }
     }
     for case in &file.cases {
-        match crate::land_pattern::generate::<G>(&case.request) {
+        match crate::generate::<G>(&case.request) {
             Ok(generation) => match codec::encode(&generation) {
                 Ok(bytes) => {
                     let actual = hex(&result_hash(&bytes));
@@ -109,11 +109,11 @@ pub mod parity {
     /// [`cases`] request as `sparksmith_invoke` returns it (status byte,
     /// then the part or the errors).
     pub fn outputs<G: Generator>() -> Result<Outputs, String> {
-        let description = crate::land_pattern::declare(G::describe());
+        let description = crate::described::<G>();
         let bytes = codec::encode(&description).map_err(|e| format!("describe: {e}"))?;
         let mut out = Outputs::new(&bytes);
         for case in cases(&description) {
-            let (status, body) = match crate::land_pattern::generate::<G>(&case.request) {
+            let (status, body) = match crate::generate::<G>(&case.request) {
                 Ok(generation) => (v1::STATUS_OK, codec::encode(&generation)),
                 Err(errors) => (v1::STATUS_ERR, codec::encode(&ErrorBody { errors })),
             };

@@ -41,7 +41,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+/// 4: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 4;
 
 /// Most contacts in the row.
 const MAX_PINS: i64 = 20;
@@ -1039,14 +1041,17 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             key: k.to_string(),
             name: k.to_string(),
             direction: Direction::Passive,
+            alternates: Vec::new(),
         })
         .collect();
     terminals.push(Terminal {
         key: "MP".into(),
         name: "MP".into(),
         direction: Direction::Passive,
+        alternates: Vec::new(),
     });
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals,

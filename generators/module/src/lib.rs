@@ -64,8 +64,10 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`). 6: the shield label;
 /// 7: the label laid out as Espressif's laser-marking artwork, with the
 /// IC, CMIIT and MIC lines, the maker's name, the specification
-/// identifier and the Data Matrix.
-const VERSION: u32 = 7;
+/// identifier and the Data Matrix; 8: the ESP32 presets' pin tables
+/// (`pin_table`), names and kinds from Espressif's pin definitions, and
+/// their ordering codes (`part_numbers`).
+const VERSION: u32 = 8;
 
 /// The shield can's label: an artwork template (the generator's data)
 /// laid out as Espressif's shield-can laser-marking artwork for the
@@ -1902,6 +1904,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             .to_string(),
     ];
     Ok(Generation {
+        orderable: Vec::new(),
         marking: shield_label(&args, &d).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
@@ -1910,6 +1913,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: key.clone(),
                     name: key.clone(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
                 })
                 .collect(),
             prefix: "U".into(),

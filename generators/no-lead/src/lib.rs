@@ -46,8 +46,10 @@ const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 6 takes terminals
 /// and lands given one by one (`terminal_numbers`, `given_land_numbers`;
-/// the `sawn-terminals` part file).
-const VERSION: u32 = 7;
+/// the `sawn-terminals` part file); 8 gives the TI and Sensirion presets
+/// their datasheets' pin tables (`pin_table`) and the TI and ADI presets
+/// their ordering codes (`part_numbers`).
+const VERSION: u32 = 8;
 
 /// Most terminals on one side: the part files' looks are assigned up to
 /// this count.
@@ -1188,6 +1190,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         short_mm(d.pitch)
     );
     Ok(Generation {
+        orderable: Vec::new(),
         marking: marking(&args).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
@@ -1196,6 +1199,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: key.clone(),
                     name: key.clone(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
                 })
                 .collect(),
             prefix: "U".into(),

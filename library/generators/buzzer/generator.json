@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "buzzer.wasm",
-    "sha256": "e067e1349c9426fe28991adafa9c3adfd602ccec50e74ac6beb021335d342535"
+    "sha256": "ff9ab694cac259aed47ed5afb6dbca63f9989c2ae6502395f5650d8af0baaaba"
   },
   "name": "buzzer",
   "parts": [

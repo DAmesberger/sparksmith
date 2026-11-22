@@ -99,6 +99,45 @@ pub fn pinout() -> Value {
     })
 }
 
+/// EXR-22's pin table as the plan gives it (`pin_table`): the pinout's
+/// names, each pin's kind from its functions (a GPIO's `io`).
+pub fn pin_table() -> Value {
+    let pinout = pinout();
+    let entries: Vec<String> = pinout["pins"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|row| {
+            let directions: Vec<&str> = row["functions"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|f| f["direction"].as_str())
+                .collect();
+            let kind = match directions.as_slice() {
+                ["input", "output", ..] => "io",
+                [one] => one,
+                _ => "passive",
+            };
+            format!(
+                "{}={}:{kind}",
+                row["number"]["MOD"].as_str().unwrap_or_default(),
+                row["name"].as_str().unwrap_or_default()
+            )
+        })
+        .collect();
+    json!(entries)
+}
+
+/// EXR-22's package plan parameters: the module values, the pin table
+/// and its (invented) part number.
+pub fn plan_params() -> Value {
+    let mut params = crate::legacy::module_params(&module_values());
+    params["pin_table"] = pin_table();
+    params["part_numbers"] = json!(["Exemplar Radio Works=EXR-22"]);
+    params
+}
+
 pub fn module_values() -> Value {
     json!({"family": "module", "width": 14.0, "length": 20.0, "height": 2.8, "pcb_thickness": 0.8,
         "antenna_length": 5.0, "can_size": [12.0, 12.4], "can_centre": [0.0, -2.2],
@@ -129,7 +168,7 @@ pub fn exr22_answers() -> [(&'static str, Value); 3] {
     [
         (
             "plan",
-            json!({"generator": "module", "params": crate::legacy::module_params(&module_values()),
+            json!({"generator": "module", "params": plan_params(),
                 "why": "EXR-22 module, drawing on page 9",
                 "pages": "exr22.pdf: pinout 1, drawing 2, land pattern 2"}),
         ),

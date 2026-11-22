@@ -712,6 +712,37 @@ pub(crate) fn carry_parts(document: &mut Document, component: ComponentRef) -> R
     publish_drafts(document, None, ids, true).map(|_| ())
 }
 
+/// Publish a manufacturer Part of `component`'s latest revision for each
+/// of `orderable` it has none of yet (the same manufacturer and part
+/// number), named "<manufacturer> <mpn>", as `library.draft_part` drafts
+/// one. Nothing to publish changes nothing.
+pub(crate) fn publish_orderable(
+    document: &mut Document,
+    component: DefinitionId,
+    orderable: &[sparksmith_generator_abi::v1::Orderable],
+) -> Result<()> {
+    let held: Vec<(String, String)> = document
+        .project
+        .library
+        .latest_parts()
+        .into_iter()
+        .filter(|p| p.definition.component.id == component)
+        .map(|p| (p.definition.manufacturer.clone(), p.definition.mpn.clone()))
+        .collect();
+    let mut ids = Vec::new();
+    for part in orderable {
+        let (manufacturer, mpn) = (part.manufacturer.trim(), part.mpn.trim());
+        if held.iter().any(|(m, n)| m == manufacturer && n == mpn) {
+            continue;
+        }
+        ids.push(draft_part_id(document, component, manufacturer, mpn, None)?);
+    }
+    if ids.is_empty() {
+        return Ok(());
+    }
+    publish_drafts(document, None, ids, true).map(|_| ())
+}
+
 fn package_of<'a>(
     document: &'a Document,
     footprint: &library::FootprintDefinition,
@@ -867,6 +898,18 @@ fn draft_part(
     mpn: &str,
     binding: Option<DefinitionId>,
 ) -> Result<Outcome> {
+    let id = draft_part_id(document, component, manufacturer, mpn, binding)?;
+    Ok(Outcome::DraftCreated { id })
+}
+
+/// [`draft_part`]'s draft id.
+fn draft_part_id(
+    document: &mut Document,
+    component: DefinitionId,
+    manufacturer: &str,
+    mpn: &str,
+    binding: Option<DefinitionId>,
+) -> Result<DefinitionId> {
     let (manufacturer, mpn) = (manufacturer.trim(), mpn.trim());
     if manufacturer.is_empty() || mpn.is_empty() {
         return Err(Error::Invalid(
@@ -943,7 +986,7 @@ fn draft_part(
     let id = DefinitionId(project.allocate()?);
     let drafts = Arc::make_mut(&mut document.drafts);
     drafts::create(drafts, &project.library, id, None, meta, definition)?;
-    Ok(Outcome::DraftCreated { id })
+    Ok(id)
 }
 
 fn draft_closure(document: &mut Document, component: ComponentRef) -> Result<Vec<DefinitionId>> {

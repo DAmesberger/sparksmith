@@ -42,7 +42,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 4;
+/// 5: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 5;
 
 /// Most rows and pins per row.
 const MAX_ROWS: i64 = 4;
@@ -913,6 +915,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     };
     let name = format!("{kind} {}×{} {} mm", d.rows, d.columns, mm(d.pitch));
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals: keys
@@ -921,6 +924,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: key.clone(),
                     name: key.clone(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
                 })
                 .collect(),
             prefix: "J".into(),

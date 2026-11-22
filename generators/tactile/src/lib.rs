@@ -47,7 +47,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 3;
+/// 4: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 4;
 
 /// Estimates. Mini: the cover sheet, the J's tab height
 /// (a third of the cover's), foot length, root in the base, the opening's
@@ -740,6 +742,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         names.push((terminal, "SH"));
     }
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals: names
@@ -748,6 +751,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: (*key).into(),
                     name: (*name).into(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
                 })
                 .collect(),
             prefix: "SW".into(),

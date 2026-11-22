@@ -64,6 +64,7 @@ fn mixed() -> v1::Description {
 /// A minimal valid package-scope part: one pad.
 fn generation() -> Generation {
     Generation {
+        orderable: Vec::new(),
         marking: None,
         component: None,
         symbol: None,

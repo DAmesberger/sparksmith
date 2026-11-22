@@ -34,7 +34,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+/// 3: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 3;
 
 /// Moulded: the terminals' plating, the upright and top rounds (est.).
 const PLATING_NM: i64 = 50_000;
@@ -458,6 +460,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.h).trim_end_matches(" mm"),
     );
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals: ["1", "2"]
@@ -466,6 +469,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: (*key).into(),
                     name: (*key).into(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
                 })
                 .collect(),
             prefix: "L".into(),

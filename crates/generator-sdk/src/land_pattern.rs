@@ -403,6 +403,7 @@ mod tests {
                 kind: None,
             };
             Ok(Generation {
+                orderable: Vec::new(),
                 component: None,
                 symbol: None,
                 package: Package {

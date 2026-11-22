@@ -47,8 +47,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 5 sets the marking
-/// text at the height its preset gives (`marking_height`).
-const VERSION: u32 = 5;
+/// text at the height its preset gives (`marking_height`); 6 gives the
+/// WS2812B preset its pin table (`pin_table`).
+const VERSION: u32 = 6;
 
 /// Most leads on one side, and most grid positions between neighbours.
 pub const MAX_LEADS_PER_SIDE: i64 = 16;
@@ -1015,6 +1016,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
     };
     let component_part = request.scope == Scope::Component;
     Ok(Generation {
+        orderable: Vec::new(),
         marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
         component: component_part.then(|| Component {
             terminals: keys
@@ -1023,6 +1025,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: key.clone(),
                     name: key.clone(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
                 })
                 .collect(),
             prefix: "U".into(),

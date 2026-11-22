@@ -49,7 +49,7 @@ fn answer(id: &str, step: &str, result: Value) -> Value {
 }
 
 fn plan() -> Value {
-    json!({"generator": "module", "params": crate::legacy::module_params(&module_values()),
+    json!({"generator": "module", "params": plan_params(),
         "why": "EXR-22 module, drawing on page 9",
         "pages": "exr22.pdf: pinout 1, drawing 2, land pattern 2"})
 }
@@ -117,6 +117,30 @@ fn apply_import() -> (String, ControlAnswer) {
     )
 }
 
+/// The published (not drafted) component's terminals: each name with its
+/// functions' directions, in terminal order.
+fn published_terminals(session: &Session) -> Fallible<Vec<(String, Vec<&'static str>)>> {
+    use sparksmith_core::library::TerminalClass;
+    let library = &session.engine().project().library;
+    let [component] = library.components.as_slice() else {
+        return Err(format!("one component, not {}", library.components.len()).into());
+    };
+    Ok(component
+        .definition
+        .terminals
+        .iter()
+        .map(|t| {
+            let directions = match &t.class {
+                TerminalClass::Electrical(f) => {
+                    f.functions.iter().map(|f| f.direction.wire()).collect()
+                }
+                _ => Vec::new(),
+            };
+            (t.name.clone(), directions)
+        })
+        .collect())
+}
+
 #[test]
 fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
     let loaded = shipped()?;
@@ -181,6 +205,31 @@ fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
     // Pins came in from the pinout document.
     let pins = crate::pins::rows(&session.snapshot());
     assert_eq!(pins.len(), 23, "{pins:?}");
+    // E2E run 13: the part a person places before publishing the drafts
+    // is the one `make` published, so its pins carry the datasheet's
+    // names and kinds too, never bare numbers.
+    let published = published_terminals(&session)?;
+    assert_eq!(published.len(), 23, "{published:?}");
+    assert_eq!(published[0], ("GND1".to_owned(), vec!["power_input"]));
+    assert_eq!(published[1], ("VCC".to_owned(), vec!["power_input"]));
+    assert_eq!(published[2], ("IO0".to_owned(), vec!["input", "output"]));
+    assert_eq!(published[22], ("EPAD".to_owned(), vec!["power_input"]));
+    // E2E run 13: the BOM had no MPN for it. The part asked for is the
+    // component's published manufacturer Part, for the BOM once chosen.
+    let parts: Vec<(&str, &str)> = session
+        .engine()
+        .project()
+        .library
+        .latest_parts()
+        .into_iter()
+        .map(|p| {
+            (
+                p.definition.manufacturer.as_str(),
+                p.definition.mpn.as_str(),
+            )
+        })
+        .collect();
+    assert_eq!(parts, [("Exemplar Radio Works", "EXR-22")]);
     // The person saw the generator choice (it went on) and the impact card.
     let asked: Vec<&str> = person.asked.iter().map(|(s, _)| s.as_str()).collect();
     assert_eq!(asked, ["pick", "import"]);

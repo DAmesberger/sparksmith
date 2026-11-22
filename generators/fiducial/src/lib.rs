@@ -34,7 +34,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 1;
+/// 2: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 2;
 
 /// The package envelope's height: 1 oz outer copper, 35 µm (IPC-4562's
 /// nominal 34.8 µm, rounded as fabricators quote it; the fab profiles'
@@ -307,6 +309,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         if d.both { ", both sides" } else { "" }
     );
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals: Vec::new(),

@@ -42,7 +42,9 @@ const LAND_EXTRA_WIDTH_NM: i64 = 200_000;
 /// 4 marks a resistor's value by the resistor code rule
 /// ([`resistor_marking`]) and an LED's cathode on its top; 6 sets it at the height its preset gives
 /// (`marking_height`).
-const VERSION: u32 = 6;
+/// 7: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 7;
 
 /// The longest chip left unmarked by the size rule: 0402 (1.0 mm) and
 /// smaller chips carry no value code, as the chip-resistor data sheet the
@@ -619,6 +621,7 @@ fn terminals(part: Part) -> Vec<Terminal> {
             key: (*key).into(),
             name: name.into(),
             direction: Direction::Passive,
+            alternates: Vec::new(),
         })
         .collect()
 }
@@ -727,6 +730,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         };
     }
     Ok(Generation {
+        orderable: Vec::new(),
         marking,
         component: component_part.then(|| Component {
             terminals: terminals(d.part),

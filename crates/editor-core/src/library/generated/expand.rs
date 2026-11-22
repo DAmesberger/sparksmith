@@ -306,16 +306,33 @@ fn component_definition(
         .iter()
         .map(|t| ids.id(format!("f:{}", t.key)))
         .collect::<Result<Vec<_>>>()?;
+    // A terminal's further functions after every terminal's first, so a
+    // part without any keeps the numbering above.
+    let alternate_ids = component
+        .terminals
+        .iter()
+        .map(|t| {
+            t.alternates
+                .iter()
+                .map(|d| {
+                    let id = ids.id(format!("f:{}:{}", t.key, direction(*d).wire()))?;
+                    Ok((FunctionId(id), direction(*d)))
+                })
+                .collect::<Result<Vec<_>>>()
+        })
+        .collect::<Result<Vec<_>>>()?;
     let terminals = component
         .terminals
         .iter()
         .zip(terminal_ids.into_iter().zip(function_ids))
-        .map(|(t, (id, function))| Terminal {
+        .zip(alternate_ids)
+        .map(|((t, (id, function)), alternates)| Terminal {
             id: TerminalId(id),
             name: t.name.clone(),
-            class: TerminalClass::Electrical(TerminalFunctions::fixed(
+            class: TerminalClass::Electrical(TerminalFunctions::with_alternates(
                 FunctionId(function),
                 direction(t.direction),
+                &alternates,
             )),
         })
         .collect();
