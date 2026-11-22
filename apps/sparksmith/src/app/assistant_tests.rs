@@ -386,3 +386,65 @@ fn the_chat_moves_the_view_without_asking_by_default() -> Fallible {
     assert_eq!(ax.app.workspace, Workspace::Schematic);
     Ok(())
 }
+
+/// A person's edit made while a turn waits on them is not the assistant's:
+/// the summary lists the turn's own changes, and the person's beside them.
+#[test]
+fn an_edit_made_during_a_turn_is_not_counted_as_the_assistants() -> Fallible {
+    let mut ax = chat(LARGE, vec![])?;
+    let start = ax.app.engine.revision();
+    let vias = ax.app.engine.project().vias.len();
+    let first = add_via(&ax, 1.0);
+    let mut second = add_via(&ax, 2.0);
+    // After the assistant's first via and the person's.
+    second["expected_revision"] = json!(start + 2);
+    if let Some(model) = &ax.app.assistant.model {
+        let script = vec![
+            tool("apply", first),
+            tool("act", json!({"name": "project.save", "params": {}})),
+            tool("apply", second),
+            text("Added two vias."),
+        ];
+        let script = Arc::new(Mutex::new(VecDeque::from(script)));
+        ax.app.assistant.model = Some(ChatModel {
+            profile: model.profile.clone(),
+            connect: Arc::new(move || {
+                Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)
+            }),
+        });
+    }
+    send(&mut ax, "Add two vias")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Deny"))?;
+    // The person adds a via of their own while the card waits.
+    let net = ax.app.engine.project().nets.first().map_or(0, |n| n.id);
+    let rules = ax.app.engine.project().rules.effective();
+    let via = sparksmith_core::layout::via::ViaRequest::through(&rules, net, [3.0, 1.0]);
+    let theirs =
+        sparksmith_core::Operation::Layout(sparksmith_core::layout::LayoutCommand::AddVia { via });
+    ax.app.engine.apply(ax.app.engine.revision(), theirs)?;
+    ax.button("Deny")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    assert_eq!(ax.app.engine.project().vias.len(), vias + 3);
+    let summary = ax
+        .app
+        .assistant
+        .conversation
+        .items
+        .iter()
+        .find_map(|i| match i {
+            Item::Summary(card) => Some(card.clone()),
+            _ => None,
+        })
+        .ok_or("no summary card")?;
+    assert_eq!(summary.changes, ["Vias: 2 added"]);
+    assert_eq!(summary.others, ["Vias: 1 added"]);
+    assert!(
+        ax.texts.iter().any(|t| t == "Changed outside this turn:"),
+        "{:?}",
+        ax.texts
+    );
+    // Show selects the assistant's two vias, not the person's.
+    assert_eq!(summary.show.len(), 2);
+    Ok(())
+}

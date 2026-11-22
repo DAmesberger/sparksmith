@@ -1357,13 +1357,12 @@ impl IssueSource for Listed<'_> {
     }
 }
 
-/// The objects of the active editor's selection, for the Selection scope.
+/// The objects of the Component or Schematic editor's selection, for the
+/// Selection scope (the PCB's is its whole selected group).
 pub fn selection(
     workspace: Workspace,
     part: Option<DefinitionId>,
     instance: Option<Id>,
-    track: Option<Id>,
-    via: Option<Id>,
     net: Option<Id>,
     items: Vec<ObjectRef>,
 ) -> Vec<ObjectRef> {
@@ -1372,8 +1371,6 @@ pub fn selection(
         Workspace::Part => out.extend(part.map(|id| ObjectRef::Definition { id })),
         Workspace::Schematic | Workspace::Pcb => {
             out.extend(instance.map(|id| ObjectRef::Instance { id }));
-            out.extend(track.map(|id| ObjectRef::Track { id }));
-            out.extend(via.map(|id| ObjectRef::Via { id }));
             out.extend(net.map(|id| ObjectRef::Net { id }));
             // The schematic's labels, sheet symbols and sheet pins.
             out.extend(items);

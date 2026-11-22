@@ -765,9 +765,6 @@ impl PcbEditor {
     pub fn selected_track(&self) -> Option<Id> {
         self.track
     }
-    pub fn selected_via(&self) -> Option<Id> {
-        self.via
-    }
     pub fn highlighted_net(&self) -> Option<Id> {
         self.highlighted
     }
@@ -2400,32 +2397,38 @@ impl PcbEditor {
                     .then(gap(a).total_cmp(&gap(b)))
             });
         // The selection filter leaves kinds out: a click passes through
-        // them to what lies below.
-        let f = self.filter;
-        if let Some(pad) = self.pick_pad(at, |p| layers.pad(p)).filter(|_| f.parts) {
-            Hit::Pad(pad.instance, pad.net)
-        } else if let Some(via) = self.pick_via(project, at).filter(|_| f.vias) {
-            Hit::Via(via.id, via.net)
-        } else if let Some(track) = track.filter(|_| f.tracks) {
-            Hit::Track(track.id, track.net)
-        } else if let Some(instance) = self
-            .pick_instance(project, at, tolerance, metric)
-            .filter(|_| f.parts)
-        {
-            Hit::Part(instance)
-        } else if let Some(fill) = self.pick_fill(project, at, tolerance).filter(|_| f.fills) {
-            Hit::Fill(fill.id, fill.net)
-        } else {
-            Hit::Nothing
-        }
+        // them to what lies below (a 3D click asks the same rule).
+        let pass = |hit: Hit| {
+            group::Pick::of(hit)
+                .is_some_and(|p| group::allows(&self.filter, p))
+                .then_some(hit)
+        };
+        self.pick_pad(at, |p| layers.pad(p))
+            .and_then(|pad| pass(Hit::Pad(pad.instance, pad.net)))
+            .or_else(|| {
+                self.pick_via(project, at)
+                    .and_then(|via| pass(Hit::Via(via.id, via.net)))
+            })
+            .or_else(|| track.and_then(|track| pass(Hit::Track(track.id, track.net))))
+            .or_else(|| {
+                self.pick_instance(project, at, tolerance, metric)
+                    .and_then(|instance| pass(Hit::Part(instance)))
+            })
+            .or_else(|| {
+                self.pick_fill(project, at, tolerance)
+                    .and_then(|fill| pass(Hit::Fill(fill.id, fill.net)))
+            })
+            .unwrap_or(Hit::Nothing)
     }
 
-    /// Select what a 3D pick names, as a Layout click on the same object
+    /// Select what a 3D click picks, as a Layout click on the same object
     /// does ([`Self::select_hit`]): a pad selects its part and lights the
     /// pad's net (pads are not selected on their own in either view).
-    pub fn select_picked(&mut self, source: Option<&sparksmith_solidcraft::project::Source>) {
+    /// `along` is the bodies under the pointer, nearest first; the first
+    /// the selection filter allows is picked ([`Self::selectable_body`]).
+    pub fn select_picked(&mut self, along: &[&sparksmith_solidcraft::project::Source]) {
         use menu::Hit;
-        let Some(s) = source else {
+        let Some(s) = self.selectable_body(along) else {
             return self.select_hit(Hit::Nothing);
         };
         match (s.instance, s.via, s.fill, s.track) {
@@ -2444,20 +2447,25 @@ impl PcbEditor {
     /// first. A click whose nearest body is a part's own (its package, not
     /// a pad) follows the net of that part's pad under the pointer, seen
     /// through the faded package; with none of its pads there the part is
-    /// selected and the followed net kept, never another of its nets.
+    /// selected and the followed net kept, never another of its nets. The
+    /// selection filter decides as for any 3D click.
     pub fn select_picked_following(
         &mut self,
         picked: Option<&sparksmith_solidcraft::project::Source>,
         along: &[&sparksmith_solidcraft::project::Source],
     ) {
         use menu::Hit;
-        let part = along.first().and_then(|s| {
-            (s.pad.is_none() && s.track.is_none() && s.via.is_none() && s.fill.is_none())
-                .then_some(s.instance)
-                .flatten()
-        });
+        let part = along
+            .first()
+            .and_then(|s| {
+                (s.pad.is_none() && s.track.is_none() && s.via.is_none() && s.fill.is_none())
+                    .then_some(s.instance)
+                    .flatten()
+            })
+            .filter(|&id| group::allows(&self.filter, group::Pick::Part(id)));
         let Some(instance) = part else {
-            return self.select_picked(picked);
+            let picks: Vec<_> = picked.into_iter().chain(along.iter().copied()).collect();
+            return self.select_picked(&picks);
         };
         let net = self.highlighted;
         match along
@@ -4499,7 +4507,7 @@ mod tests {
             (
                 e.selected_instance(),
                 e.selected_track(),
-                e.selected_via(),
+                e.via,
                 e.net,
                 e.highlighted_net(),
             )
@@ -4514,7 +4522,7 @@ mod tests {
                 .find(|p| Some(p.instance) == source.instance && Some(p.pad.id) == source.pad)
                 .ok_or("the pad in Layout")?;
             layout.select_at(engine.project(), pad.center(), 0.0, TextMetric::default());
-            picked.select_picked(Some(source));
+            picked.select_picked(&[source]);
             assert_eq!(state(&picked), state(&layout), "{}", source.label);
             assert_eq!(
                 picked.selected_instance(),
@@ -4537,14 +4545,14 @@ mod tests {
             .iter()
             .find(|s| s.pad.is_none() && s.instance.is_some())
             .ok_or("a part body")?;
-        picked.select_picked(Some(body));
+        picked.select_picked(&[body]);
         assert_eq!(
             state(&picked),
             (body.instance, None, None, None, None),
             "{}",
             body.label
         );
-        picked.select_picked(None);
+        picked.select_picked(&[]);
         assert_eq!(state(&picked), (None, None, None, None, None));
         Ok(())
     }
