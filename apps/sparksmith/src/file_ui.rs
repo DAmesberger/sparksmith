@@ -1683,9 +1683,9 @@ pub(crate) fn new_project() -> Result<Engine, String> {
     };
     let mut project = sparksmith_core::Project::new(&defaults.board);
     project.rules.profile = Some(profile);
-    sparksmith_core::layout::mask_colour::follow(
-        &mut project.rules,
-        project.fabrication.mask_colour,
+    sparksmith_core::layout::restack::reconcile_rules(
+        &mut project,
+        sparksmith_core::layout::restack::Foils::Follow,
     )
     .map_err(|e| e.to_string())?;
     let mut engine = Engine::from_file_with(

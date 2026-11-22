@@ -7,23 +7,24 @@ The Gerber writer follows Ucamco's public Gerber Layer Format Specification. The
 ## One command
 
 - **Automation:** the `project.export_fabrication` request takes `{output, zip, profile, options}`. It runs the production check and then writes a new or empty folder, or one new `.zip`. It returns the pre-flight report, every file with its size, and the time each step took. It is a file effect: it adds no revision and no undo step.
-- **CLI:** `sparksmith fab FILE.sparksmith OUT_DIR|OUT.zip [--zip] [--profile ID] [--date ISO|none]`. Files are named after the project file. A blocked export prints the title of each unwaived error, up to 100 and then how many remain.
+- **CLI:** `sparksmith fab FILE.sparksmith OUT_DIR|OUT.zip [--zip] [--profile ID] [--date ISO|none]`. Files are named after the project file. `--profile` needs a value; without one the command is refused, never run under the saved profile. A blocked export prints the title of each unwaived error, up to 100 and then how many remain.
 - **MCP:** the same request reaches MCP through the generic catalog.
 - **Desktop:** PCB workspace → ribbon Output → Production, or "Production files…" in the command palette.
   - The dialog shows a profile picker, Folder or ZIP output, an output toggle for each group and the placement convention.
   - It lists the pre-flight report, computed on a worker, grouped by kind of finding. Tick findings (Shift-click ticks a run, a group's box ticks the whole group), or use a row's or a group's Waive…. The reason form opens under that row or group, and Waive applies one optional reason to every ticked finding as one undo step. A waived finding offers Restore.
   - Export runs on a worker and shows progress; the result lists the written files.
 - **Shared path:** all of these call `sparksmith_io::fabrication::export`. The pure generation is `sparksmith_core::fabrication::generate`, the PDF drawings are `sparksmith_io::fab_drawings`, and `sparksmith_io::pdf` is a small generic PDF canvas that schematic printing can reuse.
-- **One production snapshot:** an export resolves the project and the chosen profile once (`fabrication::ProductionSnapshot`): the project with that profile in place of its own, its choices following the board's solder mask colour, the overrides and net classes kept, and the active variant, the waivers, the stackup and the computed fills as the project holds them. The production check and every writer (Gerber, Excellon, the drill map and table, the job file, pick-and-place, both BOMs and both drawings) read that one project, so the job file's design rules, the drill files' plated-hole sizes and the mask openings are the profile's the check passed.
+- **One production snapshot:** an export resolves the project and the chosen profile once (`fabrication::ProductionSnapshot::resolve`), or not at all: the project with that profile in place of its own, the overrides and net classes kept, its choices carried and reconciled as a rules edit does it (`layout::restack::reconcile_rules`), and the active variant, the waivers, the stackup and the computed fills as the project holds them. The board is never changed to fit the profile: its colour option follows the board's solder mask colour, and its copper weight is the choice that orders the board's outer foils. A profile the design cannot take gives no snapshot (`fabrication.profile_refused`): a kept override conflicts with it, or none of its copper weights orders the board's foils (3 oz copper sent to a fabricator that offers 1 and 2 oz). The production check and every writer (Gerber, Excellon, the drill map and table, the job file, pick-and-place, both BOMs and both drawings) read that one project, so the job file's foils and design rules, the drill files' plated-hole sizes and the mask openings are the ones the check passed.
 - **Writing:** a folder is written to a sibling staging folder and then renamed into place. A ZIP is written atomically, entries in set order with a fixed timestamp.
 
 ## Production check (`fabrication.preflight`)
 
-The check reports every project issue under the chosen fabrication profile, on the [production snapshot](#one-command). Overrides and net classes are kept; a profile that conflicts with an override is itself an error. A profile for other boards (another copper layer count) or a chosen option whose prerequisites the board does not meet (thickness, finish) is an error too ([which boards a profile is for](board-rules-and-shape.md)). It adds production findings to those issues. The query's `profile` is an id of the user's profile library or a shipped profile (as for an export) or a whole profile; omitted, the project's own rules apply. A board without a fab profile is blocked (`rules.no_fab_profile`, not waivable).
+The check reports every project issue under the chosen fabrication profile, on the [production snapshot](#one-command). Overrides and net classes are kept. A profile the design cannot take (a kept override conflicts with it, or it offers no copper weight for the board's outer foils) is refused with `fabrication.profile_refused` instead of a report: there is no finding to waive, so a waiver cannot turn the refusal into an export under the saved profile, and the export writes nothing. A profile for other boards (another copper layer count) or a chosen option whose prerequisites the board does not meet (thickness, finish) is an error too ([which boards a profile is for](board-rules-and-shape.md)). It adds production findings to those issues. The query's `profile` is an id of the user's profile library or a shipped profile (as for an export) or a whole profile; omitted, the project's own rules apply. A board without a fab profile is blocked (`rules.no_fab_profile`, not waivable).
 
 **Errors** (they block export):
 - unrouted connections and unplaced parts;
 - stale fills, including fills computed under other rules;
+- stored fill copper short of its clearance, off the board or in a keepout ([fill checks](board-rules-and-shape.md#copper-fills-and-keepouts));
 - fills never filled;
 - an unsolved outline;
 - parts without a footprint;
@@ -42,7 +43,7 @@ The check reports every project issue under the chosen fabrication profile, on t
 **Waivers:**
 - Unrouted connections and parts not on the board cannot be waived (`fabrication::preflight::NO_WAIVER`), nor can a lost or inexact dimension reference, a loop between the board and its linked design, or a board without a fab profile. A waiver of an unrouted connection would turn Issues to "No issues" while airwires remain and let export write a complete-looking job (e2e run 13, finding 37); a part to leave unassembled is placed and marked Not fitted in a variant. `fabrication.waive` refuses such a key, naming what resolves it; a waiver of one saved in a file is ignored, so the finding still blocks export, stays in Issues and adds no drawing note.
 - An unwaived error blocks export, and nothing is written. Every underlying finding is checked separately, even when Issues groups several pad pairs or unrouted connections into one row. A waiver removes only its own finding before Issues groups the remaining findings.
-- `fabrication.waive {keys, reason?}` waives one or more findings with one optional reason, and `fabrication.unwaive {key}` restores one. Each is a document operation and one undo step. A list with one empty or unprintable key is refused whole. The desktop setting "Require a reason to waive errors" (Settings → Production, off by default) makes the app's engine refuse a waiver without a reason, from the dialog and the in-app assistant alike; headless CLI and MCP sessions keep the reason optional.
+- `fabrication.waive {keys, reason?}` waives one or more findings with one optional reason, and `fabrication.unwaive {key}` restores one. Each is a document operation and one undo step. A list with one empty or unprintable key is refused whole. The setting "Require a reason to waive errors" (Settings → Production, off by default) makes the engine refuse a waiver without a reason, from the dialog, the in-app assistant and headless CLI and MCP sessions alike: every host sets up its engine from the user's settings file the same way (`UserSettings::configure`).
 - Waivers are saved in the project (`Project.production.waivers`, keyed by finding code plus the objects it names). A finding that changes identity needs a new waiver. Unfilled fills are keyed by fill ID; legend text findings name both the instance and the footprint graphic, so accepting one never accepts another.
 
 ## Files
@@ -96,7 +97,7 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
 
 - **Name:** the project's name (`project.rename`).
 - **GUID:** the project's own identity, `Project.production.project_id`, saved with the project. A project takes it when it is first saved: a digest of the file's name, the whole document at that moment and, in the desktop, random bytes, so two boards of one name are two projects. A session (CLI, MCP) adds no random bytes, so a replay saved under the same file name reproduces it byte for byte. It is kept through renames, edits, undo and redo, and a copy saved elsewhere keeps it. A project never saved has none; its files use the release digest in its place.
-- **Revision:** the release, 16 hex digits of the SHA-256 of every file of the set written without an identity (the creation date left out). The same files give the same revision; any change to what a file says changes it, and an edit that changes no file (a construction line) does not. The CSV files carry no identity: their formats have no place for one.
+- **Revision:** the release, 16 hex digits of the SHA-256 of everything delivered, written without an identity (the creation date left out): every file of the set and, when the drawings are written, everything they print (`fabrication::drawing::DrawingData`, as canonical JSON, which the PDFs are laid out from). The same files give the same revision; any change to what a file or a drawing says changes it (a waiver's reason or a profile name only the drawing prints), and an edit that changes nothing delivered (a construction line) does not. A drawings-only export identifies its drawings. The CSV files carry no identity: their formats have no place for one.
 
 ### Excellon conventions
 
@@ -124,8 +125,9 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
   - the outline at a standard scale with overall dimensions;
   - every hole drawn with its tool's drill-map symbol;
   - the drill table and the stackup table;
-  - notes from the effective rules: thickness, copper, minimum track and gap, drill, rings, mask, legend;
-  - a title block.
+  - notes from the effective rules: thickness, copper, minimum track and gap, drill, rings, mask, legend; and one per waiver;
+  - a title block on every sheet ("Fabrication drawing, sheet k of n").
+  - Nothing is cut: the tables and notes flow from the column beside the board onto further sheets (a column at the left and one over the title block), a table or the notes going on under a "(continued)" heading. A 24-layer board prints all 51 stackup rows and every note on two sheets (`a_24_layer_drawing_prints_every_stackup_row_and_note`). At most 64 sheets; more is refused, never cut.
 - **Assembly drawing:** one page per populated side, with bodies, grey pads, designators and red pin-1 dots. The bottom page is viewed from below and is labelled as mirrored.
 
 ## Verification (measured 2 November 2026, macOS arm64, `ci` profile)

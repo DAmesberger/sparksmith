@@ -2418,8 +2418,10 @@ fn with_washer(mut project: Project) -> Project {
 
 /// A plated mounting hole's washer is copper of the board's physical
 /// inventory on every layer: the plan holds a ring on each, of area
-/// π (3² − 1.5²) mm² (hand-derived from the 6 mm washer round the 3 mm
-/// drill), the core's copper agrees with it layer by layer, the 3D view
+/// π (3² − 1.5²) mm² on the outer layers (hand-derived from the 6 mm
+/// washer round the 3 mm finished hole) and π (3² − 1.525²) mm² on the
+/// inner ones (round the barrel, drilled 25 µm of plating wider), and the
+/// barrel; the core's copper agrees with it layer by layer, the 3D view
 /// meshes it, the exact build builds it, and a plan without it differs on
 /// every layer.
 #[test]
@@ -2434,12 +2436,21 @@ fn a_plated_mounting_holes_washer_is_copper_on_every_layer() -> Result<()> {
         )));
     };
     let layers = project.stackup.layers();
-    assert_eq!(washer.bodies.len(), layers.len());
-    let ring = std::f64::consts::PI * (3.0_f64.powi(2) - 1.5_f64.powi(2));
+    assert_eq!(
+        washer.bodies.len(),
+        layers.len() + 1,
+        "a ring a layer and the barrel"
+    );
+    let pi = std::f64::consts::PI;
     for body in &washer.bodies {
         let volume = body.volume().unwrap_or(0.0);
         let area = volume / (body.z[1] - body.z[0]);
-        assert!((area - ring).abs() < 0.01, "{}: {area} mm²", body.name);
+        let want = match body.layer {
+            None => pi * (1.525_f64.powi(2) - 1.5_f64.powi(2)),
+            Some(l) if l.side().is_some() => pi * (3.0_f64.powi(2) - 1.5_f64.powi(2)),
+            Some(_) => pi * (3.0_f64.powi(2) - 1.525_f64.powi(2)),
+        };
+        assert!((area - want).abs() < 0.01, "{}: {area} mm²", body.name);
     }
     for layer in copper_agree::agreement(&project, &plan)? {
         assert!(layer.agrees(), "{layer:?}");
@@ -2455,6 +2466,66 @@ fn a_plated_mounting_holes_washer_is_copper_on_every_layer() -> Result<()> {
     without.washers.clear();
     let differing = copper_agree::agreement(&project, &without)?;
     assert!(differing.iter().all(|l| !l.agrees()), "{differing:#?}");
+    Ok(())
+}
+
+/// Every plated hole the drill inventory lists has a plated wall in the
+/// exact model, measured against the inventory rather than the plan (an
+/// exact-versus-live parity check passes when both omit a barrel): a
+/// copper body that spans the laminate, centred on the hole, whose box is
+/// the drilled hole (the finished hole and 25 µm of plating) and whose
+/// volume is the wall's, π ((d/2 + 0.025)² − (d/2)²) × the laminate's
+/// thickness. The board carries a plated mounting hole with a washer, one
+/// without, and a via.
+#[test]
+fn every_plated_hole_of_the_inventory_has_its_wall_in_the_exact_model() -> Result<()> {
+    use sparksmith_core::layout::physical::{self, HoleFeature};
+    let _context = crate::looks::test_context().map(|c| c.enter());
+    let mut project = with_washer(four_layer_shaped()?);
+    if let sparksmith_core::model::BoardShape::Sketch(sketch) = &mut project.board_shape {
+        sketch
+            .solved
+            .holes
+            .push(sparksmith_core::model::board::SolvedMountingHole {
+                id: sparksmith_core::model::board::BoardFeatureId(2),
+                at: [6.0, 6.0],
+                drill: 2.2,
+                plated: true,
+                pad_diameter: None,
+            });
+        sketch.next_feature = 3;
+    }
+    let model = build(&project)?;
+    let geometry = model.native_geometry()?;
+    // The laminate: every dielectric and the inner foils between them.
+    let thickness = project.stackup.laminate_mm();
+    let plated: Vec<physical::Hole> = physical::holes(&project)
+        .into_iter()
+        .filter(|h| h.plated && !matches!(h.owner, physical::HoleOwner::Pad { .. }))
+        .collect();
+    assert!(plated.len() >= 3, "{plated:?}");
+    let mut missing = Vec::new();
+    for hole in &plated {
+        let HoleFeature::Round { at, diameter } = hole.feature else {
+            continue;
+        };
+        let (r, wall) = (diameter / 2.0, diameter / 2.0 + 0.025);
+        let volume = std::f64::consts::PI * (wall * wall - r * r) * thickness;
+        let found = geometry.iter().any(|g| {
+            matches!(g.kind, BodyKind::PadCopper | BodyKind::ViaCopper)
+                && (g.min[2] - 0.0).abs() < 1e-3
+                && (g.max[2] - thickness).abs() < 1e-3
+                && (g.min[0] - (at[0] - wall)).abs() < 2e-3
+                && (g.max[0] - (at[0] + wall)).abs() < 2e-3
+                && (g.min[1] - (at[1] - wall)).abs() < 2e-3
+                && (g.max[1] - (at[1] + wall)).abs() < 2e-3
+                && (g.volume.get() - volume).abs() < 0.01 * volume
+        });
+        if !found {
+            missing.push(format!("{} ({diameter} mm at {at:?})", hole.name));
+        }
+    }
+    assert!(missing.is_empty(), "no plated wall: {missing:#?}");
     Ok(())
 }
 

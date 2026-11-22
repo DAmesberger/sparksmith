@@ -701,30 +701,6 @@ impl Step {
     }
 }
 
-/// The stackup's outer foils follow the fab profile's copper weight
-/// (`FabChoice::outer_copper_um`) after a rules change; the before and
-/// after top foil in µm when they changed. A stackup edit cannot depart
-/// from the choice (`stackup.outer_copper`).
-pub fn follow_outer_copper(project: &mut Project) -> Result<Option<(f64, f64)>> {
-    let Some(um) = project
-        .rules
-        .profile
-        .as_ref()
-        .and_then(|p| p.outer_copper_um())
-    else {
-        return Ok(None);
-    };
-    if project.stackup.outer_copper_is(um) {
-        return Ok(None);
-    }
-    let from = project
-        .stackup
-        .outer_copper_um()
-        .map_or(0.0, |(top, _)| top);
-    project.stackup = project.stackup.with_outer_copper(um)?;
-    Ok(Some((from, um)))
-}
-
 /// The name a project's first save gives it: a project still called
 /// [`UNTITLED`] takes the file's name ("usb-led.sparksmith" names it
 /// "usb-led"); a name someone chose is kept (`None`). `project` is the
@@ -1926,7 +1902,7 @@ impl Engine {
                 if next != candidate.project.rules {
                     let project = Arc::make_mut(&mut candidate.project);
                     project.rules = next;
-                    follow_outer_copper(project)?;
+                    layout::restack::reconcile_rules(project, layout::restack::Foils::Follow)?;
                     // A sketch board follows `board.outline_fit`.
                     layout::outline::refit(project, evaluators.board)?;
                 }
@@ -2090,7 +2066,7 @@ impl Engine {
         }
         let mut candidate = current.as_ref().clone();
         candidate.rules = next;
-        match follow_outer_copper(&mut candidate) {
+        match layout::restack::reconcile_rules(&mut candidate, layout::restack::Foils::Follow) {
             Ok(change) => impact.outer_copper_um = change,
             Err(error) => {
                 impact.refusal = Some(error.to_string());

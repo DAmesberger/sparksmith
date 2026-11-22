@@ -369,8 +369,9 @@ fn the_showcase_layers_match_the_core_geometry() -> Fallible<()> {
     let project = showcase()?;
     let start = Instant::now();
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     eprintln!(
         "showcase: {} files, {} bytes, generated in {:?}",
@@ -393,8 +394,9 @@ fn the_polygon_path_agrees_with_the_raster_on_every_layer() -> Fallible<()> {
     use sparksmith_fabcheck::{compare, polygons};
     for (label, project) in [("showcase", showcase()?), ("sketched", sketched()?)] {
         let set = fabrication::generate(
-            &fabrication::ProductionSnapshot::resolve(&project, None),
+            &fabrication::ProductionSnapshot::resolve(&project, None)?,
             &FabricationOptions::default(),
+            &Default::default(),
         )?;
         let grid = expected::board_bitmap(&project, 1.003_17, PIXEL)?;
         let mut layers = 0;
@@ -426,8 +428,9 @@ fn the_polygon_path_agrees_with_the_raster_on_every_layer() -> Fallible<()> {
 fn a_sketched_board_with_arcs_cutouts_slots_and_holes_matches() -> Fallible<()> {
     let project = sketched()?;
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     compare_all(&project, &set, "sketched")?;
     // The plated slot is routed in the plated drill file, not the profile.
@@ -450,8 +453,9 @@ fn a_sketched_board_with_arcs_cutouts_slots_and_holes_matches() -> Fallible<()> 
 fn layers_carry_their_file_aperture_and_object_attributes() -> Fallible<()> {
     let project = sketched()?;
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     let top = gerber(&set, "-copper-l1-top.gbr")?;
     assert!(top.metric);
@@ -625,20 +629,23 @@ fn layers_carry_their_file_aperture_and_object_attributes() -> Fallible<()> {
 fn the_same_design_gives_the_same_bytes_and_a_date_only_when_asked() -> Fallible<()> {
     let project = sketched()?;
     let a = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     let b = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     assert_eq!(a, b);
     let dated = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions {
             creation_date: Some("2026-11-02T12:00:00Z".into()),
             ..Default::default()
         },
+        &Default::default(),
     )?;
     let top = gerber(&dated, "-copper-l1-top.gbr")?;
     assert_eq!(
@@ -706,8 +713,9 @@ fn a_ten_thousand_via_board_is_written_in_seconds() -> Fallible<()> {
     refill(&mut project)?;
     let start = Instant::now();
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     let elapsed = start.elapsed();
     let bytes: usize = set.files.iter().map(|f| f.bytes.len()).sum();
@@ -777,8 +785,9 @@ fn a_twelve_layer_board_names_every_layer_and_spans_its_drills() -> Fallible<()>
     )?;
     let project = engine.project().clone();
     let set = fabrication::generate(
-        &fabrication::ProductionSnapshot::resolve(&project, None),
+        &fabrication::ProductionSnapshot::resolve(&project, None)?,
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     let copper: Vec<&str> = set
         .files

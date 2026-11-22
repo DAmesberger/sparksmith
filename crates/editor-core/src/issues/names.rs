@@ -162,6 +162,24 @@ impl<'a> Names<'a> {
                 },
             ),
             ObjectRef::Board => "the board".into(),
+            ObjectRef::BoardFeature { feature } => crate::layout::physical::feature_name(
+                self.project,
+                crate::model::board::BoardFeatureId(feature),
+            ),
+            ObjectRef::PadVia {
+                instance,
+                pad,
+                index,
+            } => {
+                let pad = self.object(&ObjectRef::Pad { instance, pad });
+                format!("{pad} via {}", u64::from(index) + 1)
+            }
+            ObjectRef::BoardSide { top } => if top {
+                "the top side"
+            } else {
+                "the bottom side"
+            }
+            .into(),
             ObjectRef::Label { id } => self.project.label(id).map_or_else(
                 || "a label".into(),
                 |l| format!("{} {}", l.kind.noun(), l.name),

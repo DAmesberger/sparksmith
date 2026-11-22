@@ -802,7 +802,7 @@ fn a_mounting_hole_measures_its_gap_to_copper_edge_to_edge() -> Result<()> {
     assert_eq!(findings.len(), 1, "{findings:?}");
     let name = close.net_name(net).to_owned();
     let message = &findings[0].message;
-    let prefix = "A mounting hole is ";
+    let prefix = "The unplated mounting hole at (30, 20) mm is ";
     let gap: f64 = message
         .strip_prefix(prefix)
         .and_then(|rest| rest.split_once(" mm from a track on "))
@@ -822,9 +822,9 @@ fn a_mounting_hole_measures_its_gap_to_copper_edge_to_edge() -> Result<()> {
     let findings = found(&over, "board.hole_clearance");
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert!(
-        findings[0]
-            .message
-            .starts_with(&format!("A mounting hole overlaps a track on {name}; ")),
+        findings[0].message.starts_with(&format!(
+            "The unplated mounting hole at (30, 20) mm overlaps a track on {name}; "
+        )),
         "{}",
         findings[0].message
     );
@@ -862,8 +862,13 @@ fn a_mounting_hole_measures_its_gap_to_copper_edge_to_edge() -> Result<()> {
         .map(|f| f.message.as_str())
         .find(|m| m.contains("R1 pad 1"))
         .ok_or_else(|| Error::Invalid(format!("no R1 pad 1 finding: {findings:?}")))?;
+    let at = pad.center();
     assert!(
-        message.starts_with("A mounting hole overlaps R1 pad 1 on "),
+        message.starts_with(&format!(
+            "The unplated mounting hole at ({}, {}) mm overlaps R1 pad 1 on ",
+            crate::layout::limits::mm(at[0]),
+            crate::layout::limits::mm(at[1])
+        )),
         "{message}"
     );
     Ok(())
@@ -894,7 +899,7 @@ fn a_plated_mounting_hole_keeps_the_pth_annular_ring() -> Result<()> {
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert_eq!(
         findings[0].message,
-        "A plated mounting hole: annular ring 0.2 mm; needs at least 0.25 mm \
+        "The plated mounting hole at (30, 20) mm: annular ring 0.2 mm; needs at least 0.25 mm \
          (JLCPCB 2-layer: min PTH annular ring); JLCPCB 2-layer allows 0.18 mm \
          under JLCPCB values: Absolute minimum"
     );
