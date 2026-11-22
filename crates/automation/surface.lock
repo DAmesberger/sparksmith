@@ -21,7 +21,7 @@
   {"name":"variant.set_population","class":"edit","schema":"f4a0d51125490c0e","fields":[["instances","6eed743aac2b3e81"],["population","b8b0924b1f19efc2"],["variant","c5454bd7e46f4b53"]],"required":["instances"]},
   {"name":"variant.substitutes","class":"read","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]}
  ]},
- {"id": "files", "version": "1.2", "digest": "sha256:a57c38ce4e2d9e5e4f9d44f1120338b0559b174205405193a00fb06d3f3fbd35", "entries": [
+ {"id": "files", "version": "1.3", "digest": "sha256:a57c38ce4e2d9e5e4f9d44f1120338b0559b174205405193a00fb06d3f3fbd35", "entries": [
   {"name":"project.new","class":"ask","schema":"ad5d7202c143e922","fields":[["expected_revision","9295ea67127970c6"],["profile","1714ad3232fc6a12"]],"required":["expected_revision"]},
   {"name":"project.open","class":"ask","schema":"7317cdb697af20e5","fields":[["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"]],"required":["expected_revision","path"]},
   {"name":"project.save","class":"ask","schema":"d6b27c72606417bf","fields":[["path","40bd5b57f4261fe2"]],"required":[]}

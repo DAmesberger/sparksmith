@@ -28,7 +28,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "files",
-        (1, 2),
+        (1, 3),
         "Files",
         "New, open and save a project file.",
     ),
