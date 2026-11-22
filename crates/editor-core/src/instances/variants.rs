@@ -878,7 +878,7 @@ pub fn check(project: &Project) -> Result<()> {
         }
         for (id, review) in &v.reviews {
             if v.overrides.get(id).and_then(|o| o.part) != Some(review.part)
-                || !(review.equivalent || !review.exceptions.is_empty())
+                || (!review.equivalent && review.exceptions.is_empty())
             {
                 return Err(invalid(format!(
                     "variant “{name}” keeps a review of a substitute it does not fit"

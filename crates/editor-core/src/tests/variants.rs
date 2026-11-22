@@ -776,8 +776,7 @@ fn a_substitute_is_resolved_only_after_review_and_within_its_requirements() -> R
             },
         )
     };
-    let unreviewed = variants::SUBSTITUTE_UNREVIEWED.to_owned();
-    let unmet = variants::SUBSTITUTE_UNMET.to_owned();
+    let (unreviewed, unmet) = (variants::SUBSTITUTE_UNREVIEWED, variants::SUBSTITUTE_UNMET);
 
     // Reviewing a substitute the variant does not fit is refused.
     assert!(review(engine, true, vec![]).is_err());
@@ -785,16 +784,16 @@ fn a_substitute_is_resolved_only_after_review_and_within_its_requirements() -> R
     // An equal part on the same lands: resolved once its pinout is
     // reviewed.
     fit(engine, same)?;
-    assert_eq!(unresolved_r1(engine)?, [unreviewed.clone()]);
+    assert_eq!(unresolved_r1(engine)?, [unreviewed]);
     review(engine, true, vec![])?;
     assert!(unresolved_r1(engine)?.is_empty());
 
     // A part rated otherwise: fitting it voids the review, and reviewing
     // its pinout leaves the missed requirement.
     fit(engine, lower)?;
-    assert_eq!(unresolved_r1(engine)?, [unmet.clone(), unreviewed.clone()]);
+    assert_eq!(unresolved_r1(engine)?, [unmet, unreviewed]);
     review(engine, true, vec![])?;
-    assert_eq!(unresolved_r1(engine)?, [unmet.clone()]);
+    assert_eq!(unresolved_r1(engine)?, [unmet]);
     // An exception needs a reason.
     let exception = |reason: &str| crate::model::variants::RequirementException {
         field: resistance.field.id,
