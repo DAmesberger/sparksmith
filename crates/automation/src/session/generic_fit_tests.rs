@@ -333,3 +333,96 @@ fn a_generic_resistor_fits_folder_parts_of_two_makers() -> TestResult {
     assert_eq!(bom["unresolved"], 0, "{bom}");
     Ok(())
 }
+
+/// The identity is exact: a folder part made by the same generator and
+/// version under the same name but from other parameters (here a marking
+/// height) is not the placed generic part. Its Part is not listed for it,
+/// importing it copies its own component in, and assigning it is refused.
+#[test]
+fn a_near_match_of_the_generic_part_is_not_mapped() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let folder = temp.path().join("parts");
+
+    let mut author = session(&temp.path().join("author"))?;
+    let found = ok(
+        &mut author,
+        "project.query",
+        json!({"query": "library.search", "params": {"query": "resistor 0603"}}),
+    )?;
+    let mut params = found["generic"][0]["make"]["params"].clone();
+    let height = params["params"]["marking_height"]
+        .as_i64()
+        .ok_or("the preset's marking height")?;
+    params["params"]["marking_height"] = json!(height - 50_000);
+    let made = ok(&mut author, "library.generate_part", params)?;
+    let root = &made["outcome"]["report"]["root"];
+    let hint = json!({"component": {"id": root["id"], "revision": root["revision"]}});
+    let part = author_part(&mut author, &hint, FIRST)?;
+    let created = ok(
+        &mut author,
+        "library.source.create",
+        json!({"path": folder.display().to_string(), "name": "Near match"}),
+    )?;
+    let library = created["created"]["library"].clone();
+    ok(
+        &mut author,
+        "library.publish_to_folder",
+        json!({"root": part, "library": library}),
+    )?;
+
+    let mut designer = session(&temp.path().join("designer"))?;
+    ok(
+        &mut designer,
+        "library.source.add",
+        json!({"path": folder.display().to_string()}),
+    )?;
+    let hint = generic(&mut designer, "10k 0603")?;
+    let representation = designer
+        .engine()
+        .project()
+        .library
+        .component(serde_json::from_value(hint["component"].clone())?)
+        .and_then(|c| c.definition.representations.first().map(|r| r.id))
+        .ok_or("no symbol")?;
+    let placed = ok(
+        &mut designer,
+        "project.apply",
+        json!({"operation": {"editor": "Instance", "operation": {"command": "component.place",
+            "params": {"component": hint["component"], "designator": "R1",
+                "properties": hint["properties"], "representation": representation,
+                "unit": 1, "position": [0.0, 0.0], "physical": hint["physical"]}}}}),
+    )?;
+    let r1 = placed["outcome"]["instance"]
+        .as_u64()
+        .ok_or("no instance")?;
+    // Found by its words, but not as a Part of the placed component.
+    let by_words = folder_parts(&mut designer, "kind:part 10k 0603 1%")?;
+    assert_eq!(by_words.len(), 1, "{by_words:?}");
+    let groups = query(&mut designer, "library.resolve_groups", json!({}))?;
+    let group = groups["groups"][0]["query"]
+        .as_str()
+        .ok_or("no resolve group")?
+        .to_owned();
+    assert!(folder_parts(&mut designer, &group)?.is_empty(), "{group}");
+    // Importing it brings its own component.
+    let components = designer.engine().project().library.components.len();
+    let imported = ok(
+        &mut designer,
+        "library.import_from_folder",
+        json!({"library": library, "lineage": by_words[0].1}),
+    )?;
+    assert_eq!(
+        designer.engine().project().library.components.len(),
+        components + 1,
+        "other parameters are another part"
+    );
+    let part = imported["outcome"]["report"]["root"].clone();
+    let revision = designer.engine().revision();
+    let refused = designer.dispatch(json!({"command": "project.apply", "params": {
+        "expected_revision": revision,
+        "operation": {"editor": "Instance", "operation": {"command": "instance.assign_part",
+            "params": {"instances": [r1], "part": {"id": part["id"], "revision": part["revision"]}}}}}}));
+    assert_eq!(refused["ok"], false, "{refused}");
+    assert_eq!(designer.engine().revision(), revision);
+    Ok(())
+}
