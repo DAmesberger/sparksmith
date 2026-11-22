@@ -339,6 +339,10 @@ pub const SHADOWS: &[(Context, Chord, &str)] = &[
     ),
     // P switches pair routing instead of arming the Fill tool.
     (Context::PcbRoute, Chord::key(egui::Key::P), "pcb.fill"),
+    // A switches lines and arcs (Fill) and raises the amplitude (Tune)
+    // instead of opening Place component.
+    (Context::PcbFill, Chord::key(egui::Key::A), "pcb.place"),
+    (Context::PcbTune, Chord::key(egui::Key::A), "pcb.place"),
     // M cycles the router instead of placing a 3D part.
     (
         Context::PcbRoute,
@@ -1764,6 +1768,18 @@ fn defaults() -> Vec<Command> {
         .chord(Chord::key(K::T))
         .icon("dimension")
         .keywords("meander length match skew serpentine trombone accordion"),
+        // Board-only parts (fiducials, mounting holes, logos) from the
+        // Place palette; P is Fill's here, so A for Add.
+        tool(
+            "pcb.place",
+            "Place component",
+            C::PcbLayout,
+            Workspace::Pcb,
+            "place",
+        )
+        .chord(Chord::key(K::A))
+        .icon("component")
+        .keywords("add part footprint fiducial mounting hole logo board-only palette"),
         tool("pcb.fill", "Fill", C::PcbLayout, Workspace::Pcb, "fill")
             .chord(Chord::key(K::P))
             .icon("polygon")

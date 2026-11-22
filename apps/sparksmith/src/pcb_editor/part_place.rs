@@ -6,6 +6,13 @@
 //! footprint. The Placement card of a mechanical part gains a 3D part
 //! section: its source, its parameters (each committed edit one
 //! `layout.set_part`), the pad use and the BOM and pick-and-place flags.
+//!
+//! Place component (`pcb.place`) opens the Place palette over the board
+//! (the schematic's palette, with its generators and favourites). A part
+//! without pins it returns (a fiducial, a mounting hole, a logo) is put on
+//! the board as a board-only part with one `component.place_board_only`,
+//! at the view centre on the side being viewed, and selected; a part with
+//! pins is refused with where to place it instead.
 use super::PcbEditor;
 use crate::kit;
 use crate::part_chooser::{ChooserMode, ChooserPick, Evaluator, PartSource, values_form};
@@ -16,7 +23,11 @@ use sparksmith_automation::session::mechanical_parts::{
 use sparksmith_core::layout::LayoutCommand;
 use sparksmith_core::library::mechanical::PadUse;
 use sparksmith_core::model::Layer;
-use sparksmith_core::{Engine, Id, Operation, Point};
+use sparksmith_core::model::PhysicalChoice;
+use sparksmith_core::{
+    BoardPlace, ComponentRef, DefinitionId, Engine, Id, InstanceCommand, Operation, Point,
+    Project,
+};
 use sparksmith_solidcraft::models::part_file::PartValues;
 
 /// The 3D part section's state: the instance it shows, the values being
@@ -54,7 +65,84 @@ pub(super) fn place_operation(
         .map_err(|e| crate::part_chooser::shown_message(&e.to_string()))
 }
 
+/// The symbol and footprint `component.place_board_only` takes for
+/// `component`, when it can go on the board alone: it has a footprint and
+/// no pins.
+pub fn board_part(project: &Project, component: ComponentRef) -> Option<(DefinitionId, PhysicalChoice)> {
+    let published = project.library.component(component)?;
+    if !published.definition.terminals.is_empty() {
+        return None;
+    }
+    let first = sparksmith_core::instances::first_choices(project, component)?;
+    Some((first.representation, first.physical?))
+}
+
 impl PcbEditor {
+    /// Place component was chosen since the last call: open the Place
+    /// palette over the board.
+    pub fn take_place_request(&mut self) -> bool {
+        std::mem::take(&mut self.place_request)
+    }
+
+    /// The revision a just-created component's placement was sent at,
+    /// once: the app joins it to the create, so one undo takes back both.
+    pub fn take_place_join(&mut self) -> Option<u64> {
+        self.place_join.take()
+    }
+
+    /// Put `component`, chosen in the Place palette, on the board at the
+    /// view centre on the side being viewed (`created`: the palette has
+    /// just made it); a part with pins is refused with a toast.
+    pub fn place_board_part(
+        &mut self,
+        ctx: &egui::Context,
+        engine: &Engine,
+        component: ComponentRef,
+        created: bool,
+    ) -> Option<Operation> {
+        let project = engine.project();
+        let Some((representation, physical)) = board_part(project, component) else {
+            let name = project
+                .library
+                .component(component)
+                .map_or_else(|| "The part".to_owned(), |c| c.meta.name.clone());
+            let actions = if created {
+                vec![kit::toast::ToastAction::Undo]
+            } else {
+                Vec::new()
+            };
+            kit::toast::post(
+                ctx,
+                crate::kit::severity::Level::Warning,
+                crate::place_palette::board_refusal(&name),
+                actions,
+            );
+            return None;
+        };
+        self.end_route();
+        let centre = self
+            .view_centre
+            .unwrap_or([project.board_size[0] / 2.0, project.board_size[1] / 2.0]);
+        let layer = if self.from_bottom {
+            Layer::Bottom
+        } else {
+            Layer::Top
+        };
+        self.select_placed = Some(engine.revision());
+        self.place_join = created.then(|| engine.revision());
+        Some(Operation::Instance(InstanceCommand::PlaceBoardOnly {
+            component,
+            representation,
+            physical,
+            designator: None,
+            at: Some(BoardPlace {
+                position: centre.map(|v| (v * 2.0).round() / 2.0),
+                rotation_deg: 0.0,
+                layer,
+            }),
+        }))
+    }
+
     /// Place 3D part…: open the chooser in Place mode.
     pub(super) fn open_part_chooser(&mut self) {
         self.end_route();

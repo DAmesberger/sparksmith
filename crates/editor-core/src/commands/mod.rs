@@ -14,7 +14,7 @@ pub mod working_package;
 pub use generated::{
     Generate, GenerateReport, GeneratedModel, ModuleSource, PackageFromGenerator, generator_request,
 };
-pub use instance::InstanceCommand;
+pub use instance::{BoardPlace, InstanceCommand};
 pub(crate) use instance::apply_instance;
 pub use library::{LibraryCommand, parts_to_republish};
 pub(crate) use library::{apply_library, preview_footprint};
