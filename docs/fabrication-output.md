@@ -24,6 +24,7 @@ The check reports every project issue under the chosen fabrication profile, on t
 **Errors** (they block export):
 - unrouted connections and unplaced parts;
 - stale fills, including fills computed under other rules;
+- stored fill copper short of its clearance, off the board or in a keepout ([fill checks](board-rules-and-shape.md#copper-fills-and-keepouts));
 - fills never filled;
 - an unsolved outline;
 - parts without a footprint;
@@ -96,7 +97,7 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
 
 - **Name:** the project's name (`project.rename`).
 - **GUID:** the project's own identity, `Project.production.project_id`, saved with the project. A project takes it when it is first saved: a digest of the file's name, the whole document at that moment and, in the desktop, random bytes, so two boards of one name are two projects. A session (CLI, MCP) adds no random bytes, so a replay saved under the same file name reproduces it byte for byte. It is kept through renames, edits, undo and redo, and a copy saved elsewhere keeps it. A project never saved has none; its files use the release digest in its place.
-- **Revision:** the release, 16 hex digits of the SHA-256 of every file of the set written without an identity (the creation date left out). The same files give the same revision; any change to what a file says changes it, and an edit that changes no file (a construction line) does not. The CSV files carry no identity: their formats have no place for one.
+- **Revision:** the release, 16 hex digits of the SHA-256 of everything delivered, written without an identity (the creation date left out): every file of the set and, when the drawings are written, everything they print (`fabrication::drawing::DrawingData`, as canonical JSON, which the PDFs are laid out from). The same files give the same revision; any change to what a file or a drawing says changes it (a waiver's reason or a profile name only the drawing prints), and an edit that changes nothing delivered (a construction line) does not. A drawings-only export identifies its drawings. The CSV files carry no identity: their formats have no place for one.
 
 ### Excellon conventions
 
@@ -124,8 +125,9 @@ Every Gerber and Excellon file (`.ProjectId,<name>,<guid>,<revision>`), the job 
   - the outline at a standard scale with overall dimensions;
   - every hole drawn with its tool's drill-map symbol;
   - the drill table and the stackup table;
-  - notes from the effective rules: thickness, copper, minimum track and gap, drill, rings, mask, legend;
-  - a title block.
+  - notes from the effective rules: thickness, copper, minimum track and gap, drill, rings, mask, legend; and one per waiver;
+  - a title block on every sheet ("Fabrication drawing, sheet k of n").
+  - Nothing is cut: the tables and notes flow from the column beside the board onto further sheets (a column at the left and one over the title block), a table or the notes going on under a "(continued)" heading. A 24-layer board prints all 51 stackup rows and every note on two sheets (`a_24_layer_drawing_prints_every_stackup_row_and_note`). At most 64 sheets; more is refused, never cut.
 - **Assembly drawing:** one page per populated side, with bodies, grey pads, designators and red pin-1 dots. The bottom page is viewed from below and is labelled as mirrored.
 
 ## Verification (measured 2 November 2026, macOS arm64, `ci` profile)

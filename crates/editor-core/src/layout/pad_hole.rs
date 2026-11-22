@@ -29,6 +29,7 @@ use crate::diagnostics::{Finding, ObjectRef};
 use crate::geometry::Shape;
 use crate::ids::{Id, PadId};
 use crate::library::PadCopper;
+use crate::library::names::capitalised;
 use crate::model::Project;
 use crate::rules::{CopperObject, RuleKey};
 use std::collections::{BTreeMap, BTreeSet};
@@ -290,6 +291,7 @@ struct PadHoleCx<'a> {
     shapes: Vec<super::via::Drilled<'a>>,
     shape_bounds: Vec<Option<crate::geometry::Bounds>>,
     reach: f64,
+    edges: super::board_edge::BoardEdges,
 }
 
 impl<'a> PadHoleCx<'a> {
@@ -328,7 +330,6 @@ impl<'a> PadHoleCx<'a> {
                 object: h.object(),
                 name: match (pad.and_then(|k| placed.get(k)), h.owner) {
                     (Some(p), _) => name(p),
-                    (None, HoleOwner::MountingHole(_)) => "a mounting hole".into(),
                     (None, _) => h.name.clone(),
                 },
                 what: h.what(),
@@ -343,13 +344,21 @@ impl<'a> PadHoleCx<'a> {
         if pad_holes > 0 {
             holes.extend(
                 all.iter()
-                    .filter(|h| matches!(h.owner, HoleOwner::Via(_) | HoleOwner::MountingHole(_)))
+                    .filter(|h| {
+                        matches!(
+                            h.owner,
+                            HoleOwner::Via(_)
+                                | HoleOwner::MountingHole(_)
+                                | HoleOwner::BoardSlot(_)
+                        )
+                    })
                     .map(hole_of),
             );
         }
         let shapes = super::via::drilled_copper(copper);
         Some(Self {
             project,
+            edges: super::board_edge::BoardEdges::of(project),
             hole_bounds: holes.iter().map(|h| h.ring.bounds).collect(),
             holes,
             pad_holes,
@@ -393,11 +402,24 @@ impl<'a> PadHoleCx<'a> {
         if hole.ring.bounds.is_none() {
             return Ok(0);
         }
+        // Every pad hole keeps the hole kind's board-edge clearance inside
+        // the board, whether or not its pad has copper (a bare NPTH).
+        if let Some(text) = super::via::edge_text(&self.edges, &hole.ring, limits, hole.kind) {
+            issues.push(Finding::new(
+                "board.edge_clearance",
+                format!("{}: {} {text}", hole.name, hole.what),
+                vec![hole.object],
+            ));
+        }
         let mut pairs = 0usize;
         let net = pad.net.filter(|_| hole.kind == CopperObject::PthHole);
         let own = joined.island(pad);
+        let own_pad = ObjectRef::Pad {
+            instance: pad.instance,
+            pad: pad.pad.id,
+        };
         for shape in near_shapes.iter().filter_map(|k| self.shapes.get(*k)) {
-            if shape.object == hole.object || joined.holds(own, &shape.object) {
+            if shape.object == own_pad || joined.holds(own, &shape.object) {
                 continue;
             }
             pairs += 1;
@@ -453,7 +475,7 @@ impl<'a> PadHoleCx<'a> {
                         other.what,
                         need.text()
                     ),
-                    vec![hole.object],
+                    vec![hole.object, other.object],
                 )
             } else {
                 (
@@ -555,8 +577,14 @@ fn rings(
         if ring < need.mm - EPS {
             issues.push(Finding::new(
                 "board.pth_annular_ring",
-                format!("A plated mounting hole: {}", text(ring)),
-                vec![ObjectRef::Board],
+                format!(
+                    "{}: {}",
+                    capitalised(&physical::mounting_hole_name(true, mount.at)),
+                    text(ring)
+                ),
+                vec![ObjectRef::BoardFeature {
+                    feature: mount.id.0,
+                }],
             ));
         }
     }

@@ -6,7 +6,7 @@ use crate::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sparksmith_core::fabrication::{
-    self, FabFile, FabricationOptions, FileGroup, PreflightReport, ProductionSnapshot, drawing,
+    self, FabFile, FabricationOptions, FileGroup, PreflightReport, ProductionSnapshot,
 };
 use sparksmith_core::library::Drafts;
 use sparksmith_core::rules::RuleProfile;
@@ -110,9 +110,9 @@ pub fn export(
         label: "Writing Gerber, drill and assembly files",
     });
     let start = Instant::now();
-    let mut set = fabrication::generate(&snapshot, &request.options)?;
+    let mut set = fabrication::generate(&snapshot, &request.options, checks)?;
     timed("generate", start);
-    if request.options.outputs.drawings {
+    if let Some(data) = set.drawing.take() {
         progress(Progress {
             step: 3,
             total: STEPS,
@@ -120,7 +120,6 @@ pub fn export(
         });
         let start = Instant::now();
         let stem = fabrication::base_name(snapshot.project(), &request.options)?;
-        let data = drawing::data(&snapshot, &set.identity, checks)?;
         for (suffix, description, bytes) in [
             (
                 "fabrication.pdf",

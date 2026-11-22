@@ -219,6 +219,7 @@ fn every_plotted_conductor_and_drill_is_in_the_physical_inventory() -> Fallible<
     let set = fabrication::generate(
         &fabrication::ProductionSnapshot::resolve(project, None),
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     copper_matches(project, &set)?;
     drills_match(project, &set)?;
@@ -227,8 +228,243 @@ fn every_plotted_conductor_and_drill_is_in_the_physical_inventory() -> Fallible<
     let set = fabrication::generate(
         &fabrication::ProductionSnapshot::resolve(showcase.project(), None),
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     copper_matches(showcase.project(), &set)?;
     drills_match(showcase.project(), &set)?;
+    Ok(())
+}
+
+/// Copper the read-back layers must not hold, drawn from the board outline
+/// and the inventory alone, never from a stored fill: (copper outside the
+/// board, mm²; fill copper within a clearance of other copper, mm²). The
+/// fill copper is the read-back copper no land, track or via of the
+/// inventory explains. Its keep-away is each other conductor grown by its
+/// fill clearance rule (less two pixels of sampling), less that
+/// conductor's own copper and its own net's fills.
+fn keep_away(project: &Project, set: &FabricationSet) -> Fallible<(f64, f64)> {
+    use crate::layout::limits::BoardRules;
+    use crate::rules::CopperObject;
+    let board = project.board();
+    let outline = |b: &crate::model::board::SolvedBoard| -> Vec<Vec<[f64; 2]>> {
+        let mut rings = vec![b.outer.flatten(0.002)];
+        rings.extend(b.cutouts.iter().map(|c| c.outline.flatten(0.002)));
+        rings
+    };
+    let limits = BoardRules::of(project);
+    let (mut outside, mut near) = (0.0, 0.0);
+    for layer in project.stackup.layers() {
+        let name = fabrication::artwork::copper_name(project, layer);
+        let source = file(set, &format!("-{name}.gbr")).ok_or(format!("no {name}"))?;
+        let gerber = reader::parse(source)?;
+        // Outside the board: on a canvas reaching every stored fill, coarse.
+        let mut extent = board.bounds();
+        for fill in &project.fills {
+            for p in fill
+                .computed
+                .iter()
+                .flat_map(|c| &c.regions)
+                .flat_map(|r| &r.outer)
+            {
+                extent = extent.including(*p);
+            }
+        }
+        let mut wide = Bitmap::new(
+            [extent.min[0] - 1.0, extent.min[1] - 1.0],
+            [extent.max[0] + 1.0, extent.max[1] + 1.0],
+            0.05,
+        )?;
+        let mut got = wide.blank();
+        raster::render_gerber(&gerber, &mut got)?;
+        wide.render(
+            &Shape::Poly {
+                contours: outline(&board),
+            },
+            true,
+        );
+        let band = perimeter(&wide) * 0.05 * 0.05 * 2.0;
+        got.subtract(&wide)?;
+        if got.area_mm2() > band {
+            outside += got.area_mm2();
+        }
+        // Fill copper near other copper, at 10 µm.
+        let grid = expected::board_bitmap(project, 1.003_17, PIXEL)?;
+        let mut copper = grid.blank();
+        raster::render_gerber(&gerber, &mut copper)?;
+        let mut objects = grid.blank();
+        // Every non-fill conductor of the layer, by its key: (shape, the
+        // gap a fill keeps to it, its net).
+        let mut conductors: Vec<(Shape, Shape, Option<crate::ids::Id>)> = Vec::new();
+        let grown = |shape: &crate::geometry::Shape, by: f64| -> Shape {
+            let ring = shape.flatten(0.002);
+            let mut parts = vec![(true, raster_shape(shape))];
+            for k in 0..ring.len() {
+                if let (Some(a), Some(b)) = (ring.get(k), ring.get((k + 1) % ring.len())) {
+                    parts.push((
+                        true,
+                        Shape::Capsule {
+                            a: *a,
+                            b: *b,
+                            r: by,
+                        },
+                    ));
+                }
+            }
+            Shape::Composite { parts }
+        };
+        for land in physical::lands(project).iter().filter(|l| l.on(layer)) {
+            let gap = limits.clearance(CopperObject::Fill, None, CopperObject::Pad, land.net());
+            conductors.push((
+                raster_shape(&land.outline),
+                grown(&land.outline, gap - 2.0 * PIXEL),
+                land.net(),
+            ));
+        }
+        for t in project.tracks.iter().filter(|t| t.layer == layer) {
+            let gap = limits.clearance(CopperObject::Fill, None, CopperObject::Track, Some(t.net));
+            let (a, b, r) = (t.start, t.end, t.width / 2.0);
+            conductors.push((
+                Shape::Capsule { a, b, r },
+                Shape::Capsule {
+                    a,
+                    b,
+                    r: r + gap - 2.0 * PIXEL,
+                },
+                Some(t.net),
+            ));
+        }
+        let layers = project.stackup.layers();
+        for v in project.vias.iter().filter(|v| v.on(layer, &layers)) {
+            let gap = limits.clearance(CopperObject::Fill, None, CopperObject::Via, Some(v.net));
+            let (c, r) = (v.position, v.diameter / 2.0);
+            conductors.push((
+                Shape::Disc { c, r },
+                Shape::Disc {
+                    c,
+                    r: r + gap - 2.0 * PIXEL,
+                },
+                Some(v.net),
+            ));
+        }
+        for (shape, _, _) in &conductors {
+            objects.render(shape, true);
+        }
+        let mut fill = copper.clone();
+        fill.subtract(&objects)?;
+        let mut forbidden = grid.blank();
+        for (k, (_, around, net)) in conductors.iter().enumerate() {
+            let mut zone = grid.blank();
+            zone.render(around, true);
+            // Its own conductor: the same net's copper, or this land.
+            let mut own = grid.blank();
+            for (j, (shape, _, other)) in conductors.iter().enumerate() {
+                if j == k || (net.is_some() && other == net) {
+                    own.render(shape, true);
+                }
+            }
+            for f in project
+                .fills
+                .iter()
+                .filter(|f| f.layer == layer && net.is_some() && f.net == *net)
+            {
+                for region in f.computed.iter().flat_map(|c| &c.regions) {
+                    let mut contours = vec![region.outer.clone()];
+                    contours.extend(region.holes.iter().cloned());
+                    own.render(&Shape::Poly { contours }, true);
+                }
+            }
+            zone.subtract(&own)?;
+            forbidden.union(&zone)?;
+        }
+        let mut hit = fill.clone();
+        let mut clear = fill;
+        clear.subtract(&forbidden)?;
+        hit.subtract(&clear)?;
+        if hit.area_mm2() > 4.0 * PIXEL * PIXEL {
+            near += hit.area_mm2();
+        }
+    }
+    Ok((outside, near))
+}
+
+/// The independent negative assertion: the shipped showcase's plotted
+/// fills keep off the board edge and keep their gap to other copper,
+/// measured from the outline and the inventory alone. The two stored-fill
+/// faults of the re-review, drawn the same way, are found by it, and the
+/// production check blocks both.
+#[test]
+fn plotted_fill_copper_keeps_away_from_other_copper_and_the_board_edge() -> Fallible<()> {
+    let options = FabricationOptions::default();
+    let generate = |engine: &Engine| {
+        fabrication::generate(
+            &fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &options,
+            &Default::default(),
+        )
+    };
+    let showcase = Engine::showcase()?;
+    let (outside, near) = keep_away(showcase.project(), &generate(&showcase)?)?;
+    assert_eq!((outside, near), (0.0, 0.0), "the clean showcase");
+
+    // A 1 × 1 mm island at (90, 80), off the 44 × 28 mm board.
+    let mut island = Engine::showcase()?;
+    let fill = island.project().fills.first().ok_or("a fill")?;
+    let (id, mut copper) = (fill.id, fill.computed.clone().ok_or("copper")?);
+    copper.regions.push(crate::model::fill::FilledRegion {
+        outer: vec![[90.0, 80.0], [91.0, 80.0], [91.0, 81.0], [90.0, 81.0]],
+        holes: Vec::new(),
+    });
+    island.apply(
+        island.revision(),
+        crate::Operation::Fill(crate::layout::fill::FillCommand::Store {
+            fill: id,
+            copper: Box::new(copper),
+        }),
+    )?;
+    let (outside, _) = keep_away(island.project(), &generate(&island)?)?;
+    assert!((outside - 1.0).abs() < 0.05, "{outside} mm² off the board");
+    assert!(
+        report(&island)?
+            .items
+            .iter()
+            .any(|i| i.code == "fill.board_edge" && i.blocks())
+    );
+
+    // The gate board's net B fill 0.025 mm from the net A track under a
+    // 0.2 mm rule: 8 mm of it at 0.175 mm short, 1.4 mm².
+    let (mut gate, g) = crate::layout::physical::tests::gate_board_with(&["fill"])?;
+    gate.apply(
+        gate.revision(),
+        crate::Operation::Rules(crate::rules::RulesCommand::SetOverride {
+            key: crate::rules::RuleKey::Clearance {
+                a: crate::rules::CopperObject::Fill,
+                b: crate::rules::CopperObject::Track,
+            },
+            value: crate::rules::RuleValue::Length(0.2),
+        }),
+    )?;
+    let key = crate::layout::fill::inputs_key(gate.project(), g.fill)?;
+    gate.apply(
+        gate.revision(),
+        crate::Operation::Fill(crate::layout::fill::FillCommand::Store {
+            fill: g.fill,
+            copper: Box::new(crate::model::fill::FilledCopper {
+                key,
+                regions: vec![crate::model::fill::FilledRegion {
+                    outer: vec![[46.0, 34.15], [54.0, 34.15], [54.0, 37.0], [46.0, 37.0]],
+                    holes: Vec::new(),
+                }],
+                removed_islands: 0,
+                removed_spokes: Vec::new(),
+            }),
+        }),
+    )?;
+    let (_, near) = keep_away(gate.project(), &generate(&gate)?)?;
+    assert!(near > 1.0 && near < 1.6, "{near} mm² within the clearance");
+    assert!(report(&gate)?.items.iter().any(|i| {
+        i.code == "fill.clearance"
+            && i.objects.contains(&ObjectRef::Track { id: g.under_fill })
+            && i.blocks()
+    }));
     Ok(())
 }

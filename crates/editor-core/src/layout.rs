@@ -39,6 +39,7 @@ pub mod legend;
 pub mod length;
 pub mod limits;
 pub mod mask_colour;
+pub mod mask_web;
 pub mod meander;
 pub mod obstacles;
 pub mod outline;
@@ -1719,10 +1720,12 @@ pub enum BoardCheck {
     MaskColour,
     ProfileFit,
     Fiducials,
+    /// Mask webs between the assembled board's openings ([`mask_web`]).
+    MaskWeb,
 }
 
 impl BoardCheck {
-    pub const ALL: [BoardCheck; 16] = [
+    pub const ALL: [BoardCheck; 17] = [
         Self::Unplaced,
         Self::Clearance,
         Self::Connectivity,
@@ -1739,6 +1742,7 @@ impl BoardCheck {
         Self::MaskColour,
         Self::ProfileFit,
         Self::Fiducials,
+        Self::MaskWeb,
     ];
 
     /// Whether the family reads the board's tracks or vias. A change to
@@ -1761,7 +1765,8 @@ impl BoardCheck {
             | Self::Dimensions
             | Self::Bodies
             | Self::MaskColour
-            | Self::ProfileFit => false,
+            | Self::ProfileFit
+            | Self::MaskWeb => false,
         }
     }
 
@@ -1818,6 +1823,7 @@ impl BoardCheck {
             Self::MaskColour => mask_colour::findings(project),
             Self::ProfileFit => profile_fit::findings(project),
             Self::Fiducials => fiducial::findings(project),
+            Self::MaskWeb => mask_web::findings(project),
         };
         (findings, false)
     }

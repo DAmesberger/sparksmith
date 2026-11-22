@@ -127,11 +127,12 @@ pub enum Origin {
         via: Id,
         part: ViaPart,
     },
-    /// The copper ring of a plated mounting hole on one copper layer
-    /// (the board's physical inventory's washer).
+    /// A plated mounting hole's copper (the board's physical inventory's
+    /// washer and its plating): its ring on one copper layer, or (`None`)
+    /// the plated barrel through the laminate.
     Washer {
         hole: BoardFeatureId,
-        layer: CopperLayer,
+        layer: Option<CopperLayer>,
     },
     Fill {
         fill: Id,
@@ -267,8 +268,11 @@ pub struct ViaPlan {
     pub bodies: Vec<PlanBody>,
 }
 
-/// A plated mounting hole's washer: a ring on every copper layer, between
-/// the washer's diameter and the drilled hole, in board coordinates.
+/// A plated mounting hole's copper, in board coordinates, as a via's is:
+/// its plated barrel through the laminate (between the drilled and the
+/// finished hole), its washer's ring on each outer layer capping it (to
+/// the finished hole) and on each inner layer standing round it (to the
+/// drilled hole).
 #[derive(Clone, Debug)]
 pub struct WasherPlan {
     pub hole: BoardFeatureId,
@@ -386,51 +390,66 @@ fn of_pads_copper(project: &Project, pads: &[PlacedPad<'_>], memo: &mut Memo) ->
 }
 
 /// Each washer of the board's physical inventory
-/// ([`sparksmith_core::layout::physical::washers`]): a ring on every copper
-/// layer round the mounting hole's drill.
+/// ([`sparksmith_core::layout::physical::washers`]): the plated barrel of
+/// its mounting hole, which the drill inventory plates, and a ring on
+/// every copper layer round it ([`WasherPlan`]).
 fn washers(project: &Project) -> Result<Vec<WasherPlan>> {
-    let drills: std::collections::BTreeMap<_, f64> = project
+    // Each washer's outline, by its hole.
+    let rings: std::collections::BTreeMap<BoardFeatureId, (Point, f64)> =
+        sparksmith_core::layout::physical::washers(project)
+            .into_iter()
+            .filter_map(|land| match (land.owner, land.outline) {
+                (LandOwner::Washer { hole }, Shape::Circle { center, radius }) => {
+                    Some((hole, (center, radius)))
+                }
+                _ => None,
+            })
+            .collect();
+    let layers = project.stackup.layers();
+    project
         .board()
         .holes
         .iter()
-        .map(|h| (h.id, h.drill))
-        .collect();
-    let layers = project.stackup.layers();
-    sparksmith_core::layout::physical::washers(project)
-        .into_iter()
-        .filter_map(|land| {
-            let LandOwner::Washer { hole } = land.owner else {
-                return None;
-            };
-            let Shape::Circle { center, radius } = land.outline else {
-                return None;
-            };
-            let bore = drills.get(&hole).copied().unwrap_or(0.0) / 2.0;
-            let bodies = layers
-                .iter()
-                .map(|layer| {
-                    PlanBody::new(
+        .filter(|h| h.plated && h.drill > 0.0)
+        .map(|h| {
+            let (hole, center) = (h.id, h.at);
+            let bore = h.drill / 2.0;
+            let drilled = pad_outline::plated_drill_radius(h.drill);
+            let circle = |radius| Contour::Circle { center, radius };
+            let mut bodies = vec![PlanBody::new(
+                format!("washer_{}_barrel", hole.0),
+                BodyKind::PadCopper,
+                Origin::Washer { hole, layer: None },
+                None,
+                None,
+                (0.0, board_thickness(project)),
+                Frame::BOARD,
+                vec![circle(drilled), circle(bore)],
+            )?];
+            if let Some((_, radius)) = rings.get(&hole) {
+                for layer in &layers {
+                    // Outer rings cap the barrel; inner rings stand round it.
+                    let hole_radius = if layer.side().is_some() {
+                        bore
+                    } else {
+                        drilled
+                    };
+                    bodies.push(PlanBody::new(
                         format!("washer_{}_{}", hole.0, super::layer_slug(*layer)),
                         BodyKind::PadCopper,
                         Origin::Washer {
                             hole,
-                            layer: *layer,
+                            layer: Some(*layer),
                         },
                         None,
                         Some(*layer),
                         span(project, *layer)?,
                         Frame::BOARD,
-                        vec![
-                            Contour::Circle { center, radius },
-                            Contour::Circle {
-                                center,
-                                radius: bore,
-                            },
-                        ],
-                    )
-                })
-                .collect::<Result<Vec<_>>>();
-            Some(bodies.map(|bodies| WasherPlan { hole, bodies }))
+                        vec![circle(*radius), circle(hole_radius)],
+                    )?);
+                }
+            }
+            Ok(WasherPlan { hole, bodies })
         })
         .collect()
 }

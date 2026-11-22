@@ -203,6 +203,25 @@ pub enum ObjectRef {
     /// one object on it (a check that stopped at its limit). Locating it
     /// frames the board.
     Board,
+    /// One feature of the board's shape, by its board feature id
+    /// (`model::board::BoardFeatureId`): a mounting hole, a cutout or a
+    /// slot. Two holes are two objects, so a finding (and a waiver) about
+    /// one never names the other.
+    BoardFeature {
+        feature: u32,
+    },
+    /// One via-in-pad hole of a placed pad: the pad's via `index`, in the
+    /// footprint's order. The pad's own hole is the pad itself.
+    PadVia {
+        instance: Id,
+        pad: PadId,
+        index: u32,
+    },
+    /// One side of the board, for a finding about that side as a whole (a
+    /// side's fiducial count), so the two sides' findings are two.
+    BoardSide {
+        top: bool,
+    },
     /// A net label or power port on a schematic sheet.
     Label {
         id: Id,

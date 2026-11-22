@@ -37,6 +37,7 @@ fn synthetic_footprints_match_kicad_within_a_micron() -> Fallible<()> {
     let set = fabrication::generate(
         &fabrication::ProductionSnapshot::resolve(imported.engine.project(), None),
         &FabricationOptions::default(),
+        &Default::default(),
     )?;
     let ours: Vec<File> = set
         .files

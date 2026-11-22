@@ -192,6 +192,7 @@ fn instead(code: &str) -> &'static str {
     match code {
         "board.unrouted" => "route the connection",
         "rules.no_fab_profile" => "choose a fab profile",
+        crate::layout::fill::CLEARANCE_UNLISTED => "refill the fill",
         _ => "re-pick or acknowledge the reference",
     }
 }

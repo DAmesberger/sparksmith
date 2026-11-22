@@ -171,7 +171,9 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                         if n == 1 { "" } else { "s" },
                         cite(rules, RuleKey::FiducialCountMin)
                     ),
-                    vec![ObjectRef::Board],
+                    // Each side is its own finding: a waiver of one side's
+                    // count never accepts the other's.
+                    vec![ObjectRef::BoardSide { top }],
                 ));
             }
         }

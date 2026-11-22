@@ -11,6 +11,7 @@ fn set(project: &Project) -> Fallible<FabricationSet> {
     Ok(fabrication::generate(
         &ProductionSnapshot::resolve(project, None),
         &FabricationOptions::default(),
+        &Default::default(),
     )?)
 }
 
@@ -120,6 +121,7 @@ fn the_revision_names_what_the_files_say() -> Fallible<()> {
             creation_date: Some("2026-11-22T10:00:00Z".into()),
             ..Default::default()
         },
+        &Default::default(),
     )?;
     assert_eq!(identity(&dated)?, first);
     Ok(())
