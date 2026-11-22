@@ -3,10 +3,10 @@
 //! Every entry belongs to the module its declaration names. A module's
 //! digest is the SHA-256 of its canonical description: its entries sorted
 //! by name, each with what it declares and the canonical schema of its
-//! parameters. The lock records per module its version and digest, and per
+//! parameters and successful reply. The lock records per module its version and digest, and per
 //! entry its class, a schema digest, a digest per parameter and the
 //! required parameters. Beside it, `surface.schemas` keeps each entry's
-//! parameter schema and each type it reaches once ([`Schemas`]), so
+//! input and reply schemas and each type they reach once ([`Schemas`]), so
 //! [`ratchet`] compares old and new structurally ([`compat`]) and tells a compatible change (a new entry, a
 //! new optional field at any depth, a wider type: a minor bump) from a
 //! breaking one (a removed entry or field, a narrowed type, a new required
@@ -14,6 +14,7 @@
 //! runs [`tests::the_lock_holds`].
 use super::discovery::{self, Entry};
 use super::metadata::{self, EntryMeta};
+use super::schema_walk::{DEFS, SchemaContext, def_name, visit_refs};
 use serde_json::{Map, Value, json};
 use sparksmith_core::permission::{MODULES, ModuleDecl};
 use sparksmith_generator_abi::surface::{
@@ -24,10 +25,10 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The lock's place in the repository, beside this crate's manifest.
 pub const LOCK_FILE: &str = "surface.lock";
-/// Each entry's parameter schema and the types it reaches, beside the lock.
+/// Each entry's input and successful reply schemas, including their referenced types.
 pub const SCHEMAS_FILE: &str = "surface.schemas";
 /// The format of [`SCHEMAS_FILE`].
-const SCHEMAS_FORMAT: u64 = 1;
+const SCHEMAS_FORMAT: u64 = 2;
 
 /// What [`SCHEMAS_FILE`] records: each entry's parameter schema, without
 /// the keywords that change no call, and every definition they reach,
@@ -39,11 +40,9 @@ const SCHEMAS_FORMAT: u64 = 1;
 pub struct Schemas {
     pub defs: compat::Defs,
     pub entries: BTreeMap<String, Value>,
+    pub replies: BTreeMap<String, Value>,
 }
 
-/// Schema keywords that change no call: doc comments and type names.
-const IGNORED: &[&str] = &["description", "title", "$comment", "examples", "$schema"];
-const DEFS: &str = "#/$defs/";
 /// Hex digits of a short digest.
 const SHORT: usize = 16;
 
@@ -86,29 +85,40 @@ pub(super) fn canonical(schema: &Value, root: &Value) -> Value {
 }
 
 fn rewrite(value: &Value, order: &mut Vec<String>, index: &mut HashMap<String, usize>) -> Value {
+    map_refs(value, SchemaContext::Schema, &mut |name| {
+        let number = *index.entry(name.to_owned()).or_insert_with(|| {
+            order.push(name.to_owned());
+            order.len() - 1
+        });
+        number.to_string()
+    })
+}
+
+fn map_refs(value: &Value, context: SchemaContext, key: &mut impl FnMut(&str) -> String) -> Value {
+    if context == SchemaContext::Literal {
+        return value.clone();
+    }
     match value {
         Value::Object(object) => {
             let mut out = Map::new();
-            for (key, inner) in object {
-                if IGNORED.contains(&key.as_str()) || key == "$defs" {
+            for (name, inner) in object {
+                let Some(child) = context.member(name) else {
                     continue;
-                }
-                if key == "$ref"
-                    && let Some(name) = inner.as_str().and_then(|r| r.strip_prefix(DEFS))
+                };
+                let mapped = if context == SchemaContext::Schema
+                    && name == "$ref"
+                    && let Some(target) = inner.as_str().and_then(|r| r.strip_prefix(DEFS))
                 {
-                    let number = *index.entry(name.to_owned()).or_insert_with(|| {
-                        order.push(name.to_owned());
-                        order.len() - 1
-                    });
-                    out.insert(key.clone(), json!(format!("{DEFS}{number}")));
-                    continue;
-                }
-                out.insert(key.clone(), rewrite(inner, order, index));
+                    json!(format!("{DEFS}{}", key(target)))
+                } else {
+                    map_refs(inner, child, key)
+                };
+                out.insert(name.clone(), mapped);
             }
             Value::Object(out)
         }
         Value::Array(items) => {
-            Value::Array(items.iter().map(|i| rewrite(i, order, index)).collect())
+            Value::Array(items.iter().map(|v| map_refs(v, context, key)).collect())
         }
         other => other.clone(),
     }
@@ -131,7 +141,7 @@ struct Described {
     contract: Value,
 }
 
-fn describe_entry(entry: &Entry, meta: &EntryMeta) -> Described {
+fn describe_entry(entry: &Entry, meta: &EntryMeta, reply_digest: &str) -> Described {
     let schema = input(entry);
     let root = entry.root;
     let whole = canonical(schema, root);
@@ -162,12 +172,14 @@ fn describe_entry(entry: &Entry, meta: &EntryMeta) -> Described {
         "result": meta.result,
         "since": version_text(meta.since),
         "input": digest(&whole),
+        "reply": reply_digest,
     });
     Described {
         locked: LockedEntry {
             name: meta.name.clone(),
             class: meta.class,
             schema: short(&whole),
+            reply: reply_digest.chars().take(SHORT).collect(),
             fields,
             required,
         },
@@ -178,11 +190,16 @@ fn describe_entry(entry: &Entry, meta: &EntryMeta) -> Described {
 /// The catalog as `surface.lock` records it, modules in declaration order.
 pub fn current() -> Lock {
     let mut by_module: BTreeMap<&str, Vec<Described>> = BTreeMap::new();
+    let mut reply_digests = HashMap::new();
     for (entry, meta) in discovery::entries().iter().zip(metadata::entries()) {
+        let reply = entry.reply_schema();
+        let reply_digest = reply_digests
+            .entry(std::ptr::from_ref(reply))
+            .or_insert_with(|| digest(&canonical(reply, reply)));
         by_module
             .entry(meta.module)
             .or_default()
-            .push(describe_entry(entry, meta));
+            .push(describe_entry(entry, meta, reply_digest));
     }
     let modules = MODULES
         .iter()
@@ -207,32 +224,8 @@ pub fn current() -> Lock {
     }
 }
 
-/// The name a `$ref` into `$defs` names.
-fn def_name(schema: &Value) -> Option<&str> {
-    schema.get("$ref")?.as_str()?.strip_prefix(DEFS)
-}
-
-/// The definitions `schema` names, at any depth.
-fn named<'a>(schema: &'a Value, out: &mut Vec<&'a str>) {
-    match schema {
-        Value::Object(object) => {
-            if let Some(name) = def_name(schema) {
-                out.push(name);
-            }
-            for (key, inner) in object {
-                if key != "$defs" {
-                    named(inner, out);
-                }
-            }
-        }
-        Value::Array(items) => items.iter().for_each(|i| named(i, out)),
-        _ => {}
-    }
-}
-
-/// Whether `a` in root `ra` and `b` in root `rb` describe the same values,
-/// the keywords that change no call left out. `assumed` holds the
-/// definition pairs being compared (a recursive type).
+/// Whether two schemas agree after renaming their definitions and omitting
+/// schema annotations. A recursive pair only needs to be dereferenced once.
 fn same(
     a: &Value,
     ra: &Value,
@@ -240,57 +233,55 @@ fn same(
     rb: &Value,
     assumed: &mut BTreeSet<(String, String)>,
 ) -> bool {
-    if let (Some(x), Some(y)) = (def_name(a), def_name(b)) {
-        if !assumed.insert((x.to_owned(), y.to_owned())) {
-            return true;
-        }
-        return same(&ra["$defs"][x], ra, &rb["$defs"][y], rb, assumed);
+    same_at(a, ra, b, rb, assumed, SchemaContext::Schema)
+}
+
+fn same_at(
+    a: &Value,
+    ra: &Value,
+    b: &Value,
+    rb: &Value,
+    assumed: &mut BTreeSet<(String, String)>,
+    context: SchemaContext,
+) -> bool {
+    if context == SchemaContext::Literal {
+        return a == b;
     }
     match (a, b) {
         (Value::Object(x), Value::Object(y)) => {
-            let kept = |o: &Map<String, Value>| -> BTreeSet<String> {
-                o.keys()
-                    .filter(|k| !IGNORED.contains(&k.as_str()) && *k != "$defs")
-                    .cloned()
-                    .collect()
+            let count = |map: &Map<String, Value>| {
+                map.keys().filter(|k| context.member(k).is_some()).count()
             };
-            let keys = kept(x);
-            keys == kept(y)
-                && keys
-                    .iter()
-                    .all(|k| same(&x[k.as_str()], ra, &y[k.as_str()], rb, assumed))
+            count(x) == count(y)
+                && x.iter().all(|(k, v)| {
+                    let Some(child) = context.member(k) else {
+                        return true;
+                    };
+                    let Some(w) = y.get(k) else { return false };
+                    if context == SchemaContext::Schema
+                        && k == "$ref"
+                        && let (Some(i), Some(j)) = (def_name(a), def_name(b))
+                    {
+                        !assumed.insert((i.to_owned(), j.to_owned()))
+                            || same(&ra["$defs"][i], ra, &rb["$defs"][j], rb, assumed)
+                    } else {
+                        same_at(v, ra, w, rb, assumed, child)
+                    }
+                })
         }
         (Value::Array(x), Value::Array(y)) => {
-            x.len() == y.len() && x.iter().zip(y).all(|(p, q)| same(p, ra, q, rb, assumed))
+            x.len() == y.len()
+                && x.iter()
+                    .zip(y)
+                    .all(|(p, q)| same_at(p, ra, q, rb, assumed, context))
         }
         _ => a == b,
     }
 }
 
-/// `value` without the keywords that change no call, its references
-/// renamed by `key`.
-fn keyed(value: &Value, key: &dyn Fn(&str) -> String) -> Value {
-    match value {
-        Value::Object(object) => {
-            let mut out = Map::new();
-            for (name, inner) in object {
-                if IGNORED.contains(&name.as_str()) || name == "$defs" {
-                    continue;
-                }
-                match def_name(value) {
-                    Some(target) if name == "$ref" => {
-                        out.insert(name.clone(), json!(format!("{DEFS}{}", key(target))));
-                    }
-                    _ => {
-                        out.insert(name.clone(), keyed(inner, key));
-                    }
-                }
-            }
-            Value::Object(out)
-        }
-        Value::Array(items) => Value::Array(items.iter().map(|i| keyed(i, key)).collect()),
-        other => other.clone(),
-    }
+/// `value` without schema annotations, its references renamed by `key`.
+fn keyed(value: &Value, mut key: &dyn Fn(&str) -> String) -> Value {
+    map_refs(value, SchemaContext::Schema, &mut key)
 }
 
 /// A definition's key: its name, or `name~n` for the n-th different
@@ -312,22 +303,36 @@ pub fn schemas() -> Schemas {
     let mut roots: Vec<&'static Value> = Vec::new();
     let mut reached: Vec<(usize, String)> = Vec::new();
     let mut seen: BTreeSet<(usize, String)> = BTreeSet::new();
-    let mut entry_roots = Vec::new();
-    for entry in &entries {
-        let r = match roots.iter().position(|r| std::ptr::eq(*r, entry.root)) {
+    // Retain the input definition names when a reply type has the same
+    // Rust name but a different serialized form.
+    let inputs = entries.iter().map(|e| (e, input(e), e.root, false));
+    let outputs = entries.iter().map(|e| {
+        let schema = e.reply_schema();
+        (e, schema, schema, true)
+    });
+    let mut descriptions = Vec::new();
+    let mut reply_uses: HashMap<usize, usize> = HashMap::new();
+    for (entry, schema, root, reply) in inputs.chain(outputs) {
+        let r = match roots
+            .iter()
+            .position(|candidate| std::ptr::eq(*candidate, root))
+        {
             Some(i) => i,
             None => {
-                roots.push(entry.root);
+                roots.push(root);
                 roots.len() - 1
             }
         };
-        entry_roots.push(r);
+        descriptions.push((&entry.name, schema, r, reply));
+        if reply {
+            *reply_uses.entry(r).or_default() += 1;
+        }
         let mut queue = Vec::new();
-        named(input(entry), &mut queue);
+        visit_refs(schema, |name| queue.push(name));
         while let Some(name) = queue.pop() {
             if seen.insert((r, name.to_owned())) {
                 reached.push((r, name.to_owned()));
-                named(&entry.root["$defs"][name], &mut queue);
+                visit_refs(&root["$defs"][name], |target| queue.push(target));
             }
         }
     }
@@ -366,21 +371,41 @@ pub fn schemas() -> Schemas {
         }
     }
     let mut out = Schemas::default();
-    for (entry, r) in entries.iter().zip(entry_roots) {
-        out.entries
-            .insert(entry.name.clone(), keyed(input(entry), &key_in(r)));
+    let mut shared_replies = HashMap::new();
+    for (name, schema, r, reply) in descriptions {
+        if reply && reply_uses.get(&r).is_some_and(|uses| *uses > 1) {
+            // Operations returning the same kind of outcome share the entire
+            // document-reply schema. Record it once under its first entry.
+            let key = shared_replies.entry(r).or_insert_with(|| {
+                let key = format!("@reply.{name}");
+                defs.insert(key.clone(), keyed(schema, &key_in(r)));
+                key
+            });
+            out.replies
+                .insert(name.clone(), json!({"$ref": format!("{DEFS}{key}")}));
+        } else {
+            let table = if reply {
+                &mut out.replies
+            } else {
+                &mut out.entries
+            };
+            table.insert(name.clone(), keyed(schema, &key_in(r)));
+        }
     }
     // A shared definition is recorded from one root, so another root's
     // copy of a type it names may be named by nothing: keep only what the
     // entries reach.
     let mut queue = Vec::new();
-    out.entries.values().for_each(|e| named(e, &mut queue));
+    out.entries
+        .values()
+        .chain(out.replies.values())
+        .for_each(|e| visit_refs(e, |name| queue.push(name)));
     while let Some(key) = queue.pop() {
         if !out.defs.contains_key(key)
             && let Some(def) = defs.get(key)
         {
             out.defs.insert(key.to_owned(), def.clone());
-            named(def, &mut queue);
+            visit_refs(def, |name| queue.push(name));
         }
     }
     out
@@ -404,6 +429,8 @@ pub fn schemas_text(schemas: &Schemas) -> Result<String, serde_json::Error> {
     lines(&mut out, &schemas.defs)?;
     out.push_str("},\n\"entries\": {\n");
     lines(&mut out, &schemas.entries)?;
+    out.push_str("},\n\"replies\": {\n");
+    lines(&mut out, &schemas.replies)?;
     out.push_str("}}\n");
     Ok(out)
 }
@@ -412,7 +439,8 @@ pub fn schemas_text(schemas: &Schemas) -> Result<String, serde_json::Error> {
 /// error that names it.
 pub fn read_schemas(text: &str) -> Result<Schemas, String> {
     let value: Value = serde_json::from_str(text).map_err(|e| e.to_string())?;
-    if value["format"].as_u64() != Some(SCHEMAS_FORMAT) {
+    let format = value["format"].as_u64();
+    if !matches!(format, Some(1 | SCHEMAS_FORMAT)) {
         return Err(format!(
             "{SCHEMAS_FILE} has format {}; this build reads {SCHEMAS_FORMAT}",
             value["format"]
@@ -428,6 +456,11 @@ pub fn read_schemas(text: &str) -> Result<Schemas, String> {
     Ok(Schemas {
         defs: table("defs")?,
         entries: table("entries")?,
+        replies: if format == Some(1) {
+            BTreeMap::new()
+        } else {
+            table("replies")?
+        },
     })
 }
 
@@ -447,6 +480,16 @@ impl Compared<'_> {
             old.entries.get(name)?,
             &old.defs,
             new.entries.get(name)?,
+            &new.defs,
+        ))
+    }
+
+    fn reply(&self, name: &str) -> Option<compat::Outcome> {
+        let (old, new) = (self.old?, self.new?);
+        Some(compat::classify_reply(
+            old.replies.get(name)?,
+            &old.defs,
+            new.replies.get(name)?,
             &new.defs,
         ))
     }
@@ -575,6 +618,23 @@ fn breaking(old: &LockedModule, new: &LockedModule, schemas: Compared<'_>) -> Ve
                 was.class.name(),
                 now.class.name()
             ));
+        }
+        if was.reply != now.reply && !was.reply.is_empty() {
+            match schemas.reply(&was.name) {
+                Some(change) if change.change == compat::Change::Major => {
+                    out.extend(
+                        change
+                            .reasons
+                            .iter()
+                            .map(|why| format!("changed {} reply{why}", was.name)),
+                    );
+                }
+                None => out.push(format!(
+                    "changed {} reply without comparable schemas",
+                    was.name
+                )),
+                Some(_) => {}
+            }
         }
         if let Some(outcome) = schemas.classify(&was.name) {
             if outcome.change == compat::Change::Major {

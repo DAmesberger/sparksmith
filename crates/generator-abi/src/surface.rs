@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 /// How much trust an entry needs. Ordered from least to most strict, so a
 /// batch takes [`Class::strictest`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "host-schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Class {
     /// Queries, views and checks: changes nothing.
@@ -258,6 +259,9 @@ pub struct EntryDecl {
     pub effect: Option<Effect>,
     pub since: Version,
     pub needs: Needs,
+    /// Serialized result variants this entry can return. A query names
+    /// its report tags here and an operation can name its outcome tags.
+    pub reply_tags: &'static [&'static str],
 }
 
 impl EntryDecl {
@@ -279,7 +283,14 @@ impl EntryDecl {
             effect: None,
             since: FIRST,
             needs: Needs::NONE,
+            reply_tags: &[],
         }
+    }
+
+    #[must_use]
+    pub const fn returns(mut self, tags: &'static [&'static str]) -> Self {
+        self.reply_tags = tags;
+        self
     }
 
     #[must_use]
@@ -444,7 +455,7 @@ pub struct Error {
 }
 
 /// The `surface.lock` file format this build reads and writes.
-pub const LOCK_FORMAT: u32 = 1;
+pub const LOCK_FORMAT: u32 = 2;
 
 /// `surface.lock`: per module its version and digest, per entry what the
 /// ratchet compares (`docs/extension-surface.md`).
@@ -475,6 +486,9 @@ pub struct LockedEntry {
     /// The first 16 hex digits of the SHA-256 of the canonical input
     /// schema.
     pub schema: String,
+    /// Canonical successful reply digest (absent in format 1).
+    #[serde(default)]
+    pub reply: String,
     /// Each top-level parameter with the first 16 hex digits of its
     /// canonical schema, sorted by name.
     pub fields: Vec<(String, String)>,

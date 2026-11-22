@@ -266,7 +266,7 @@ fn is_zero(n: &usize) -> bool {
     *n == 0
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Serialize, schemars::JsonSchema)]
 pub struct Timings {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub build: Option<f64>,

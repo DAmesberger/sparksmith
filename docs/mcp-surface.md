@@ -466,7 +466,7 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - A handle is `prj_` plus a UUID v4 from `getrandom`.
   - The server's starting session gets one. `act project.new` and `act project.open {path}` run on a new session through the gate, and on success add it as another project with its own handle. Nothing is replaced, and with a `project` argument they are refused (`project.opens_new`).
   - At most 16 projects (`project.limit`), held until the process exits.
-  - Every successful result carries `project`.
+  - A successful project call adds its string handle as `project` when the entry has no field of that name. An existing field keeps its value, including a verbose document snapshot and the project part-file list.
   - A call that leaves `project` out goes to the current project: the one last opened (`project.new`, `project.open`) or named by a call. The reply names it in `project`, and an edit still needs that project's `expected_revision`, so a call meant for another is refused as stale rather than applied. A handle no project has gives `project.unknown`.
   - New projects start from `Session::default()`, or from the host's factory (`Server::with_new_projects`, for P9's library sources).
   - The desk publishes every project's revision (`watch` of handle → revision) for P6.
@@ -474,6 +474,7 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - `Engine::apply_all_hosted` applies the steps on a history-free copy and commits once (`MAX_BATCH` 256).
   - `Engine::fork` copies the engine with its history.
   - `Error::in_batch` names the failing step after the message, so a leading rule code stays readable.
+- **Reading a reply contract.** For a catalog entry, `describe` returns its parameter schema in `schema` and its successful front-door result schema in `reply`. The suggested MCP invocation names the entry it submits in `call_reply_entry`. For example, `describe {name:"project.rename"}` describes the single edit's `outcome`. Its MCP `apply` submits `project.apply_all`, whose reply has an `outcomes` array even for one step. Describe that entry for the batch schema. A result definition deferred from either page can be fetched by passing its exact key from `reply.more_defs` as `def`. MCP then supplies the project handle for project calls as described above.
 - **Catalog.** `project.apply_all` ("Apply operations as one step", Edit) is the 42nd request, so the catalog now has 229 entries. Its class is the strictest of its operations, and at least Edit. Today's server lists it as a tool too, from the same catalog.
 - **Deviations from §3:**
   - `find` hits carry no `sparksmith://catalog/{name}` link, and `describe` gives no related skills and no `guide:` text. Those resources and skills arrive with P4, and `guide:` answers `guide.unknown` until then.

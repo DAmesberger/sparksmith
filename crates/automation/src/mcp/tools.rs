@@ -69,7 +69,7 @@ pub struct FindArgs {
 pub struct DescribeArgs {
     /// A catalog name.
     pub name: String,
-    /// A definition named in more_defs.
+    /// A key from more_defs or reply.more_defs, including its prefix.
     #[serde(default)]
     pub def: Option<String>,
 }
@@ -165,7 +165,7 @@ fn build() -> Vec<Tool> {
         tool(
             DESCRIBE,
             "Describe a catalog entry",
-            "One entry's exact params schema and the call that sends it.",
+            "One entry's parameter and reply schemas, the MCP call and its reply entry.",
             schema::<DescribeArgs>(),
             read,
         ),
@@ -554,6 +554,8 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
             .and_then(|e| e.get(0))
             .cloned()
             .unwrap_or_else(|| json!("<params>"));
+        let (submitted, _) = apply_target(entry, Value::Null);
+        object.insert("call_reply_entry".into(), json!(submitted));
         object.insert("call".into(), example(entry, params));
         if entry.person.is_some() {
             object.insert("person".into(), json!(entry.person));
@@ -659,6 +661,17 @@ fn run(desk: &mut dyn Calls, kind: Kind, args: RunArgs) -> Value {
     desk.call(args.project.as_deref(), sent)
 }
 
+const APPLY_BATCH: &str = "project.apply_all";
+
+/// The entry the desk actually submits. Each core operation joins the
+/// batch, even when it is the only step. Other entries run directly.
+fn apply_target(entry: &EntryMeta, params: Value) -> (&str, Option<Value>) {
+    match discovery::call(&entry.name, params) {
+        Some(Typed::Operation(operation)) => (APPLY_BATCH, Some(operation)),
+        _ => (&entry.name, None),
+    }
+}
+
 /// `apply`: the steps as one call, `project.apply_all` for document
 /// operations, or the one command-level edit (undo, an update) alone.
 fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
@@ -671,6 +684,7 @@ fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
     }
     let mut operations = Vec::with_capacity(count);
     let mut alone = None;
+    let mut submitted = APPLY_BATCH;
     for (n, step) in (1..).zip(args.operations) {
         if let Some(failure) = too_long("op", &step.op, MAX_NAME) {
             return failure;
@@ -691,9 +705,11 @@ fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
             };
             return desk::failure("arguments.invalid", format!("{why}{which}"));
         }
-        match discovery::call(&entry.name, params.clone()) {
-            Some(Typed::Operation(operation)) => operations.push(operation),
-            _ if count == 1 => alone = Some((entry, params)),
+        let (target, operation) = apply_target(entry, params.clone());
+        submitted = target;
+        match operation {
+            Some(operation) => operations.push(operation),
+            None if count == 1 => alone = Some(params),
             _ => {
                 return desk::failure(
                     "apply.alone",
@@ -705,14 +721,8 @@ fn apply(desk: &mut dyn Calls, args: ApplyArgs) -> Value {
             }
         }
     }
-    let mut sent = match alone {
-        Some((entry, params)) => envelope(&entry.name, params, Some(args.expected_revision)),
-        None => envelope(
-            "project.apply_all",
-            json!({"operations": operations}),
-            Some(args.expected_revision),
-        ),
-    };
+    let params = alone.unwrap_or_else(|| json!({"operations":operations}));
+    let mut sent = envelope(submitted, params, Some(args.expected_revision));
     sent.dry_run = args.dry_run;
     desk.call(args.project.as_deref(), sent)
 }

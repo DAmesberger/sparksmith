@@ -960,7 +960,7 @@ pub fn is_flat(kind: BodyKind) -> bool {
 }
 
 /// The document object a compared body comes from, as a check reports it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
     /// The laminate (or a flat body the build ties to no object).
@@ -993,7 +993,7 @@ impl From<Object> for Source {
 }
 
 /// A body's box (mm) and volume, as compared.
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 pub struct Measure {
     pub min: [f64; 3],
     pub max: [f64; 3],
@@ -1005,7 +1005,7 @@ pub struct Measure {
 /// How a built body fits a plan body ([`check`]): its top and bottom
 /// faces against the plan's loops, its heights against the plan's, its
 /// holes, and its volume as one more sign.
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 pub struct Fit {
     /// The area inside exactly one of the plan's outline and the built
     /// face (the larger of the top and bottom faces'), mm².
@@ -1059,7 +1059,7 @@ impl Fit {
 }
 
 /// How a built body and the plan disagree.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Problem {
     /// The plan holds the body; the build made none that fits it.
@@ -1069,7 +1069,7 @@ pub enum Problem {
 }
 
 /// One body where a build differs from its plan.
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, schemars::JsonSchema)]
 pub struct Difference {
     pub problem: Problem,
     pub kind: BodyKind,

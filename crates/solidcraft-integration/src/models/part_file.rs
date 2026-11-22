@@ -84,7 +84,7 @@ const NAMED_FAILURES: usize = 16;
 const MAX_STEM: usize = 64;
 
 /// One finding of the convention check.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PartFinding {
     pub code: String,
     pub blocking: bool,
@@ -92,7 +92,7 @@ pub struct PartFinding {
 }
 
 /// A user parameter of the part as evaluated.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PartParameter {
     pub name: String,
     pub expression: String,
@@ -105,7 +105,7 @@ pub struct PartParameter {
 }
 
 /// One body of the part.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PartBody {
     /// The body's name in the part file.
     pub name: String,
@@ -155,7 +155,7 @@ impl std::fmt::Debug for EvaluatedPart {
 }
 
 /// The check report agents, the CLI and the UI read.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PartReport {
     pub key: String,
     pub parameters: Vec<PartParameter>,

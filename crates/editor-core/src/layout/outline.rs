@@ -377,7 +377,7 @@ pub enum BoardCommand {
 declare_entries!(BoardCommand in layout {
     SetRectangle "board.set_rectangle" Edit "Set a rectangular outline",
     StartSketch "board.start_sketch" Edit "Start an outline sketch",
-    Edit "board.edit" Edit "Edit the board outline",
+    Edit "board.edit" Edit "Edit the board outline" [returns(board_edited)],
 });
 
 /// What a board command produced for its caller.

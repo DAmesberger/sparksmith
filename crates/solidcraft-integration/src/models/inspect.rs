@@ -22,7 +22,7 @@ use sparksmith_core::library::model3d::{
 pub const MAX_INSPECT_BYTES: usize = sparksmith_core::library::bundle::MAX_ASSET_BYTES;
 
 /// One body of the source file.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct InspectedBody {
     /// Stable body path from the file's structure (see
     /// [`super::imported`] for the form).
@@ -37,7 +37,7 @@ pub struct InspectedBody {
 }
 
 /// What a model file contains.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct ModelInspection {
     pub format: ModelFormat,
     pub bodies: Vec<InspectedBody>,

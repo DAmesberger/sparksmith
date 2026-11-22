@@ -141,17 +141,17 @@ pub struct BoardPlace {
 
 // A new command chooses its permission class here.
 declare_entries!(InstanceCommand in schematic {
-    Place "component.place" Edit "Place a component",
-    PlaceBoardOnly "component.place_board_only" Edit "Place a board-only part" [in layout],
+    Place "component.place" Edit "Place a component" [returns(instance_placed)],
+    PlaceBoardOnly "component.place_board_only" Edit "Place a board-only part" [in layout, returns(part_placed)],
     Remove "component.remove" Edit "Remove a component",
     SetDesignator "instance.set_designator" Edit "Set a designator",
-    SetProperties "instance.set_properties" Edit "Set instance properties",
-    SelectFunctions "instance.select_functions" Edit "Select pin functions",
+    SetProperties "instance.set_properties" Edit "Set instance properties" [returns(properties_set)],
+    SelectFunctions "instance.select_functions" Edit "Select pin functions" [returns(functions_selected)],
     SetUnitUnused "instance.set_unit_unused" Edit "Mark a unit unused",
     SetNoConnect "instance.set_no_connect" Edit "Mark a pin no-connect",
     SetPhysical "instance.set_physical" Edit "Choose the binding and footprint",
     AssignPart "instance.assign_part" Edit "Assign a manufacturer part",
-    AssignPeripheral "instance.assign_peripheral" Edit "Assign a peripheral",
+    AssignPeripheral "instance.assign_peripheral" Edit "Assign a peripheral" [returns(functions_selected)],
     SetPinConfig "instance.set_pin_config" Edit "Set pin configuration",
     SetMarking "instance.set_marking" Edit "Set an instance marking",
     SetTextPlacement "instance.set_text_placement" Edit "Place designator text",

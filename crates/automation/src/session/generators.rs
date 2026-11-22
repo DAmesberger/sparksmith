@@ -630,7 +630,7 @@ pub fn fixture_runtime() -> Arc<dyn GeneratorRuntime + Send + Sync> {
 }
 
 /// `library.generators`' answer.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratorsReport {
     /// The modules the program ships (`library/generators/`).
@@ -647,7 +647,7 @@ pub struct GeneratorsReport {
 }
 
 /// A shipped generator bundle and what its module offers.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ShippedGenerator {
     /// The bundle's name: `library.generate_part`'s `generator`.
@@ -664,7 +664,7 @@ pub struct ShippedGenerator {
 }
 
 /// A module this project embeds.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct EmbeddedGenerator {
     pub module: ContentHash,
@@ -677,7 +677,7 @@ pub struct EmbeddedGenerator {
 }
 
 /// A generated part and the state of its module ([`state`]).
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratedPartState {
     pub root: DefinitionRef,
@@ -697,7 +697,7 @@ pub struct GeneratedPartState {
 
 /// What a module offers, for people and models choosing parameters: its
 /// description's part capability, flattened.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct GeneratorSummary {
     /// The generator's id.

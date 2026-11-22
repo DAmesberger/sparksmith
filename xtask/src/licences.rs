@@ -40,6 +40,9 @@ const PERMITTED: &[&str] = &[
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
+    // MIT without the attribution condition, used by the test schema validator.
+    // Reviewed terms: https://spdx.org/licenses/MIT-0.html
+    "MIT-0",
     // File-level copyleft: unmodified library use is fine. Modified MPL files must stay MPL.
     "MPL-2.0",
     // Font licenses for bundled typefaces; they do not extend to the program code.

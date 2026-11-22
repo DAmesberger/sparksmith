@@ -24,7 +24,19 @@ use sparksmith_core::{Fabrication, MaskColour, MaskFinish, PadFinish, Silkscreen
 
 /// What a native body represents, stored per body in the model metadata so a
 /// reopened file renders and picks the same way.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum BodyKind {
     /// FR-4 laminate core (its routed edge is what shows).

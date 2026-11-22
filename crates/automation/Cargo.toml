@@ -13,7 +13,7 @@ sparksmith-core.workspace = true
 sparksmith-io.workspace = true
 sparksmith-generators.workspace = true
 # The surface descriptors, `surface.lock` and the hash it records.
-sparksmith-generator-abi.workspace = true
+sparksmith-generator-abi = { workspace = true, features = ["host-schema"] }
 sparksmith-solidcraft.workspace = true
 sparksmith-firmware.workspace = true
 # KiCad import for every host (`kicad_import`).
@@ -45,6 +45,8 @@ name = "build_profile"
 required-features = ["profile"]
 
 [dev-dependencies]
+# Validate actual serialized results against the catalog in front-door tests.
+jsonschema = { version = "0.28.3", default-features = false }
 sparksmith-io = { workspace = true, features = ["test-fixtures"] }
 sparksmith-generators = { workspace = true, features = ["test-fixtures"] }
 sparksmith-core = { workspace = true, features = ["test-fixtures"] }
