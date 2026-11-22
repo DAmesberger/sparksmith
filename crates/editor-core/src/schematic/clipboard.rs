@@ -3,11 +3,24 @@
 //! time `schematic.paste` recreates them as one undo step. Nets stay
 //! separate: wire ends in the clip refer to clip objects or are free, and a
 //! label joins by its name as any label does.
+//!
+//! A symbol names library revisions by the ids of the project it was copied
+//! from, and another project can hold different revisions under the same
+//! ids (two projects from one template). So a clip records each revision
+//! its symbols reach with a digest of its content ([`ClipLibrary`]), and
+//! each symbol's pads by terminal. A paste uses the destination's revisions
+//! only when every digest matches; otherwise it imports the bundles a
+//! portable copy carries, with fresh ids, or refuses. Every pasted symbol
+//! must join the same pads to the same terminals as its source.
 use super::{Result, invalid, labels, not_found, sheets, wiring};
 use crate::diagnostics::Error;
 use crate::geometry::Point;
-use crate::ids::{Endpoint, Id, SheetId};
+use crate::ids::{
+    ContentHash, DefinitionId, DefinitionKind, DefinitionRef, Endpoint, Id, SheetId, TerminalId,
+};
 use crate::instances::{self, NewInstance};
+use crate::library::bundle::{self, Bundle, RefMap, SourceRevision};
+use crate::library::{Library, import};
 use crate::model::{
     ComponentInstance, Corner, FreeEnd, Label, LabelRef, Project, SheetItem, SymbolOccurrence,
     Wire, WireEnd,
@@ -46,6 +59,51 @@ pub struct ClipSymbol {
     pub instance: ComponentInstance,
     /// Its units on the copied sheet; at least one.
     pub occurrences: Vec<SymbolOccurrence>,
+    /// Which pads each terminal joins in the source, by pad number: what a
+    /// paste must keep ([`terminal_pads`]). Empty for a part with no
+    /// physical implementation.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pads: Vec<TerminalPads>,
+}
+
+/// The pads one terminal joins, by pad number.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct TerminalPads {
+    pub terminal: TerminalId,
+    pub pads: Vec<String>,
+}
+
+/// The library revisions a clip's symbols reach, as the project they were
+/// copied from holds them.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ClipLibrary {
+    /// Every revision the symbols reach, with a digest of its content and
+    /// its portable identity (`library::import::project_lineage_id`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub revisions: Vec<ClipRevision>,
+    /// With a portable copy (`schematic.copy` with `portable`), the bundles
+    /// that carry those revisions, so a project that holds other content
+    /// under their ids imports them with fresh ids.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bundles: Vec<Bundle>,
+}
+
+impl ClipLibrary {
+    pub fn is_empty(&self) -> bool {
+        self.revisions.is_empty() && self.bundles.is_empty()
+    }
+}
+
+/// One library revision a clip names.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ClipRevision {
+    pub at: DefinitionRef,
+    /// SHA-256 of its stored name, metadata and body ([`revision_digest`]).
+    pub digest: ContentHash,
+    pub source: SourceRevision,
 }
 
 /// What `schematic.paste` recreates. A wire's terminal and label ends name
@@ -61,6 +119,10 @@ pub struct SheetClip {
     pub drawings: Vec<SheetItem>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub wires: Vec<Wire>,
+    /// What the symbols name in their library, so a paste never reads
+    /// another project's revisions under the same ids.
+    #[serde(default, skip_serializing_if = "ClipLibrary::is_empty")]
+    pub library: ClipLibrary,
 }
 
 impl SheetClip {
@@ -114,8 +176,15 @@ pub struct Pasted {
 
 /// Read `objects` of `sheet` into a clip. A wire comes along when it is
 /// named, or when both its ends are on named symbols or labels; an end on
-/// anything else becomes a free end where it is.
-pub fn copy(project: &Project, sheet: SheetId, objects: &[ClipObject]) -> Result<SheetClip> {
+/// anything else becomes a free end where it is. The clip records the
+/// library revisions its symbols reach; `portable` adds the bundles that
+/// carry them, for a paste into another project.
+pub fn copy(
+    project: &Project,
+    sheet: SheetId,
+    objects: &[ClipObject],
+    portable: bool,
+) -> Result<SheetClip> {
     if objects.is_empty() {
         return Err(invalid("Name at least one object to copy."));
     }
@@ -148,6 +217,7 @@ pub fn copy(project: &Project, sheet: SheetId, objects: &[ClipObject]) -> Result
                 clip.symbols.push(ClipSymbol {
                     instance: instance.clone(),
                     occurrences,
+                    pads: terminal_pads(&project.library, instance)?,
                 });
             }
             ClipObject::Label { id } => {
@@ -211,7 +281,205 @@ pub fn copy(project: &Project, sheet: SheetId, objects: &[ClipObject]) -> Result
         let end = WireEnd::label(label.id);
         label.manual = label.manual || !wires.iter().any(|w| w.from == end || w.to == end);
     }
+    clip.library = clip_library(&project.library, &clip.symbols, portable)?;
     Ok(clip)
+}
+
+/// The pads each terminal of `instance` joins, by pad number, through its
+/// binding and footprint; empty without a physical implementation.
+pub fn terminal_pads(library: &Library, instance: &ComponentInstance) -> Result<Vec<TerminalPads>> {
+    let Some(physical) = instances::resolve(library, instance)?.physical else {
+        return Ok(Vec::new());
+    };
+    let mut by_terminal: BTreeMap<TerminalId, Vec<String>> = BTreeMap::new();
+    for pad in &physical.footprint.definition.pads {
+        if let Some(terminal) = pad
+            .terminal
+            .and_then(|t| physical.binding.definition.terminal_of(t))
+        {
+            by_terminal
+                .entry(terminal)
+                .or_default()
+                .push(pad.number.clone());
+        }
+    }
+    Ok(by_terminal
+        .into_iter()
+        .map(|(terminal, mut pads)| {
+            pads.sort();
+            TerminalPads { terminal, pads }
+        })
+        .collect())
+}
+
+/// SHA-256 of a revision's stored metadata and body: equal digests under
+/// one id are the same revision in any project.
+pub fn revision_digest(library: &Library, at: DefinitionRef) -> Result<ContentHash> {
+    use sha2::{Digest, Sha256};
+    let (meta, body) = library
+        .definition(at)
+        .ok_or_else(|| not_found("A copied part names a library revision that is missing."))?;
+    let bytes = serde_json::to_vec(&(at, meta, body))
+        .map_err(|e| Error::Invalid(format!("a definition could not be written: {e}")))?;
+    let mut hasher = Sha256::new();
+    hasher.update(b"sparksmith.clip-revision\0");
+    hasher.update(&bytes);
+    Ok(ContentHash(hasher.finalize().into()))
+}
+
+/// The roots one symbol reaches: its Part, else its component, and the
+/// latest revision of each field lineage its properties set.
+fn roots(library: &Library, instance: &ComponentInstance) -> Vec<DefinitionRef> {
+    let mut out = vec![
+        instance
+            .part
+            .map_or_else(|| instance.component.erased(), |p| p.erased()),
+    ];
+    for field in instance.properties.keys() {
+        if let Some((DefinitionKind::Field, revision)) = library.latest(*field) {
+            out.push(DefinitionRef {
+                kind: DefinitionKind::Field,
+                id: *field,
+                revision,
+            });
+        }
+    }
+    out
+}
+
+fn clip_library(library: &Library, symbols: &[ClipSymbol], portable: bool) -> Result<ClipLibrary> {
+    let mut roots_: Vec<DefinitionRef> = Vec::new();
+    for symbol in symbols {
+        for root in roots(library, &symbol.instance) {
+            if !roots_.contains(&root) {
+                roots_.push(root);
+            }
+        }
+    }
+    let mut members = BTreeSet::new();
+    for root in &roots_ {
+        members.extend(bundle::closure(library, *root)?);
+    }
+    let mut out = ClipLibrary::default();
+    for at in members {
+        out.revisions.push(ClipRevision {
+            at,
+            digest: revision_digest(library, at)?,
+            source: SourceRevision {
+                lineage: import::project_lineage_id(library, at.kind, at.id)?,
+                revision: at.revision,
+            },
+        });
+    }
+    // A closure that may not travel (a 3D model whose licence forbids
+    // sharing it) leaves the clip without bundles: it still pastes in this
+    // project, and another project refuses it, saying why.
+    if portable {
+        let bundles: Result<Vec<Bundle>> = roots_
+            .into_iter()
+            .map(|root| import::project_bundle(library, root, "Copied parts"))
+            .collect();
+        out.bundles = bundles.unwrap_or_default();
+    }
+    Ok(out)
+}
+
+/// How a clip's library revisions read in the destination: as they are,
+/// when the destination holds every one with the same content, or as the
+/// copies the clip's bundles import. Refused when neither holds.
+struct Mapped {
+    revisions: BTreeMap<DefinitionRef, DefinitionRef>,
+    lineages: BTreeMap<DefinitionId, DefinitionId>,
+}
+
+impl RefMap for Mapped {
+    fn exact(&mut self, target: DefinitionRef) -> Result<DefinitionRef> {
+        self.revisions
+            .get(&target)
+            .copied()
+            .ok_or_else(|| invalid("A copied part names a revision the clip does not carry."))
+    }
+    fn lineage(&mut self, _: DefinitionKind, id: DefinitionId) -> Result<DefinitionId> {
+        self.lineages
+            .get(&id)
+            .copied()
+            .ok_or_else(|| invalid("A copied part names a lineage the clip does not carry."))
+    }
+}
+
+/// `None` when the destination holds every revision of `clip` as it is.
+fn map_library(project: &mut Project, clip: &ClipLibrary) -> Result<Option<Mapped>> {
+    if clip.revisions.is_empty() {
+        return Err(Error::Conflict(
+            "This clip does not say which library revisions its parts are, so pasting it could change their pin mapping. Copy the parts again.".into(),
+        ));
+    }
+    let same = clip
+        .revisions
+        .iter()
+        .all(|r| revision_digest(&project.library, r.at).is_ok_and(|digest| digest == r.digest));
+    if same {
+        return Ok(None);
+    }
+    if clip.bundles.is_empty() {
+        return Err(Error::Conflict(
+            "These parts come from a project that holds other library revisions under the same ids, so pasting them here would change their pin mapping. Copy them with their library (a portable copy), or import the parts first.".into(),
+        ));
+    }
+    let mut by_source: BTreeMap<SourceRevision, DefinitionRef> = BTreeMap::new();
+    for bundle in &clip.bundles {
+        let mut library = std::mem::take(&mut project.library);
+        let mut allocate = || project.allocate().map(DefinitionId);
+        let report = import::import(&mut library, bundle, &mut allocate);
+        project.library = library;
+        for r in report?.revisions {
+            by_source.insert(
+                SourceRevision {
+                    lineage: r.record.origin.lineage,
+                    revision: r.record.origin.revision,
+                },
+                r.record.local,
+            );
+        }
+    }
+    let mut mapped = Mapped {
+        revisions: BTreeMap::new(),
+        lineages: BTreeMap::new(),
+    };
+    for r in &clip.revisions {
+        let local = by_source
+            .get(&r.source)
+            .copied()
+            .ok_or_else(|| invalid("A copied part names a revision its bundles do not carry."))?;
+        mapped.revisions.insert(r.at, local);
+        mapped.lineages.insert(r.at.id, local.id);
+    }
+    Ok(Some(mapped))
+}
+
+/// `instance` with every library reference read through `map`.
+fn remap(instance: &mut ComponentInstance, map: &mut Mapped) -> Result<()> {
+    let component = map.exact(instance.component.erased())?;
+    instance.component = crate::ids::ComponentRef::new(component.id, component.revision);
+    if let Some(part) = instance.part {
+        let r = map.exact(part.erased())?;
+        instance.part = Some(crate::ids::PartRef::new(r.id, r.revision));
+    }
+    instance.representation = map.lineage(DefinitionKind::Symbol, instance.representation)?;
+    if let Some(physical) = &mut instance.physical {
+        physical.binding = map.lineage(DefinitionKind::Binding, physical.binding)?;
+        physical.footprint = map.lineage(DefinitionKind::Footprint, physical.footprint)?;
+    }
+    let properties = std::mem::take(&mut instance.properties);
+    for (field, value) in properties {
+        instance
+            .properties
+            .insert(map.lineage(DefinitionKind::Field, field)?, value);
+    }
+    if let Some(spec) = &mut instance.marking.replace {
+        bundle::marking_refs(spec, map)?;
+    }
+    Ok(())
 }
 
 /// Create `clip` on `sheet`, shifted by `offset`. The caller discards the
@@ -226,13 +494,31 @@ pub fn paste(
         return Err(invalid("There is nothing to paste."));
     }
     labels::check_sheet(project, sheet)?;
+    let mut map = if clip.symbols.is_empty() {
+        None
+    } else {
+        map_library(project, &clip.library)?
+    };
     let shift = |p: PointNm| shifted_point(p, offset);
     let mut pasted = Pasted::default();
     let mut new_instances = BTreeMap::new();
     let mut new_labels = BTreeMap::new();
-    for symbol in clip.symbols {
+    for mut symbol in clip.symbols {
         let source = symbol.instance.id;
+        if let Some(map) = &mut map {
+            remap(&mut symbol.instance, map)?;
+        }
+        let pads = std::mem::take(&mut symbol.pads);
         let (id, occurrence) = paste_symbol(project, sheet, symbol, offset)?;
+        // The copy joins the same pads to the same terminals, or nothing
+        // is pasted.
+        let placed = instances::instance_mut(project, id)?.clone();
+        if terminal_pads(&project.library, &placed)? != pads {
+            return Err(Error::Conflict(format!(
+                "Pasting {} would join its pads to other terminals than the part it was copied from, so nothing was pasted.",
+                placed.designator
+            )));
+        }
         new_instances.insert(source, id);
         pasted.symbols.push(PastedSymbol {
             instance: id,

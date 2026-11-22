@@ -216,6 +216,7 @@ fn a_pasted_symbol_keeps_its_field_values() -> Result<()> {
     let crate::QueryResult::SheetClip(clip) = engine.query(crate::Query::SheetCopy {
         sheet: None,
         objects: vec![ClipObject::Instance { id: r1 }],
+        portable: false,
     })?
     else {
         return Err(Error::Invalid("not a clip".into()));

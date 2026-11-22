@@ -334,6 +334,7 @@ fn every_path_that_joins_named_nets_goes_through_the_same_review() -> Result<()>
             ClipObject::Label { id: gnd_port },
             ClipObject::Wire { id: stub },
         ],
+        portable: false,
     })? {
         QueryResult::SheetClip(clip) => clip,
         other => return Err(Error::Invalid(format!("unexpected {other:?}"))),

@@ -34,7 +34,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "schematic",
-        (1, 5),
+        (1, 6),
         "Schematic",
         "Sheets, symbols, wires, labels, placed components and their pins.",
     ),
@@ -52,7 +52,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "library",
-        (3, 15),
+        (3, 16),
         "Library",
         "Component definitions, drafts, publishing, folders, updates and pinout import.",
     ),

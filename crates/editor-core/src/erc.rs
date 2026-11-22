@@ -169,7 +169,7 @@ impl Contention {
 
     fn message(self, net: &str) -> String {
         match self {
-            Self::PushPull => format!("{net}: two push-pull drivers are connected."),
+            Self::PushPull => format!("{net}: push-pull drivers are connected to each other."),
             Self::OpenDrain => {
                 format!("{net}: a push-pull driver shares the net with an open-drain driver.")
             }

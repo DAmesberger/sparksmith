@@ -574,7 +574,7 @@ pub fn rewrite_refs(definition: &mut Definition, map: &mut dyn RefMap) -> Result
 
 /// The field references of a marking spec (D4). Artwork names an asset by
 /// hash, not a lineage.
-fn marking_refs(spec: &mut super::marking::MarkingSpec, map: &mut dyn RefMap) -> Result<()> {
+pub fn marking_refs(spec: &mut super::marking::MarkingSpec, map: &mut dyn RefMap) -> Result<()> {
     use super::marking::MarkingItem;
     for decal in &mut spec.decals {
         marking_refs(decal, map)?;

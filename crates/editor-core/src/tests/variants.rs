@@ -660,6 +660,7 @@ fn a_copied_part_keeps_its_default_population() -> Result<()> {
     let QueryResult::SheetClip(clip) = engine.query(Query::SheetCopy {
         sheet: None,
         objects: vec![crate::schematic::ClipObject::Instance { id: b.r2 }],
+        portable: false,
     })?
     else {
         return Err(Error::Invalid("not a clip".into()));

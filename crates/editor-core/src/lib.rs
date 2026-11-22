@@ -426,6 +426,12 @@ pub enum Query {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         sheet: Option<SheetId>,
         objects: Vec<schematic::ClipObject>,
+        /// Also carry the library revisions the parts reach as bundles, so
+        /// the clip pastes into another project, which imports them with
+        /// fresh ids. Without it, such a paste is refused unless that
+        /// project holds the same revisions under the same ids.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        portable: bool,
     },
     /// Everything one sheet draws, resolved to shapes and text in sheet
     /// millimetres. Page frame and title block, labels, power ports, sheet
@@ -2220,11 +2226,16 @@ impl Engine {
             Query::Sheets {} => Ok(QueryResult::Sheets(schematic::sheet_rows(
                 &self.document.project,
             ))),
-            Query::SheetCopy { sheet, objects } => Ok(QueryResult::SheetClip(Box::new(
+            Query::SheetCopy {
+                sheet,
+                objects,
+                portable,
+            } => Ok(QueryResult::SheetClip(Box::new(
                 schematic::clipboard::copy(
                     &self.document.project,
                     sheet.unwrap_or_else(|| self.document.project.sheets.first()),
                     &objects,
+                    portable,
                 )?,
             ))),
             Query::NetPlaces { net } => Ok(QueryResult::NetPlaces(Box::new(

@@ -55,6 +55,7 @@ fn copied(engine: &Engine, objects: Vec<ClipObject>) -> Result<SheetClip> {
     match engine.query(Query::SheetCopy {
         sheet: None,
         objects,
+        portable: false,
     })? {
         QueryResult::SheetClip(clip) => Ok(*clip),
         other => Err(Error::Invalid(format!("unexpected {other:?}"))),
@@ -385,5 +386,110 @@ fn the_wire_format_round_trips() -> Result<()> {
         }))
         .is_err()
     );
+    Ok(())
+}
+
+/// Two projects from one template hold different bindings under the same
+/// ids: in the source R1's pad 1 is terminal 1, in the destination's copy
+/// of the "same" revision pad 1 is terminal 2. A paste reads the clip's
+/// library revisions by their content, never by id alone: a plain clip is
+/// refused, and a portable one imports the source's revisions with fresh
+/// ids, so the pasted part joins pad 1 to terminal 1 as its source does.
+#[test]
+fn a_paste_into_another_project_never_changes_a_pin_mapping() -> Result<()> {
+    use crate::schematic::clipboard::terminal_pads;
+    let source = Engine::demo()?;
+    let r1 = by_designator(&source, "R1")?;
+    let instance = source
+        .project()
+        .instance(r1)
+        .cloned()
+        .ok_or_else(|| Error::NotFound("R1".into()))?;
+    let expected = terminal_pads(&source.project().library, &instance)?;
+    assert_eq!(expected.len(), 2);
+
+    // The destination: the same project with the binding's two terminals
+    // swapped in place, under the same ids and revision.
+    let mut file = source.to_file();
+    let binding = crate::instances::resolve(&file.project.library, &instance)?
+        .physical
+        .map(|p| (p.binding.id, p.binding.revision))
+        .ok_or_else(|| Error::NotFound("R1's binding".into()))?;
+    for b in &mut file.project.library.bindings {
+        if (b.id, b.revision) == binding {
+            let terminals: Vec<TerminalId> =
+                b.definition.mappings.iter().map(|m| m.terminal).collect();
+            for (m, t) in b.definition.mappings.iter_mut().zip(terminals.iter().rev()) {
+                m.terminal = *t;
+            }
+        }
+    }
+    let mut destination = Engine::from_file(file)?;
+    let theirs = destination
+        .project()
+        .instance(r1)
+        .cloned()
+        .ok_or_else(|| Error::NotFound("R1".into()))?;
+    assert_ne!(
+        terminal_pads(&destination.project().library, &theirs)?,
+        expected,
+        "the fixture maps the pads the other way"
+    );
+
+    let copy = |portable| match source.query(Query::SheetCopy {
+        sheet: None,
+        objects: vec![ClipObject::Instance { id: r1 }],
+        portable,
+    })? {
+        QueryResult::SheetClip(clip) => Ok(*clip),
+        other => Err(Error::Invalid(format!("unexpected {other:?}"))),
+    };
+
+    // A plain clip cannot establish the parts' identity there: refused.
+    let kept = Snapshot::of(&destination);
+    let original = destination.project().clone();
+    let refused = destination.apply(destination.revision(), paste_op(copy(false)?, [0.0, 30.0]));
+    assert!(
+        matches!(&refused, Err(Error::Conflict(m)) if m.contains("pin mapping")),
+        "{refused:?}"
+    );
+    kept.assert_kept(&destination, "plain cross-project paste");
+
+    // A portable clip imports the source's revisions and keeps the mapping.
+    let revisions = destination.project().library.revisions().len();
+    let report = pasted(&mut destination, copy(true)?, [0.0, 30.0])?;
+    let pasted_id = report.symbols[0].instance;
+    let copy_of = destination
+        .project()
+        .instance(pasted_id)
+        .cloned()
+        .ok_or_else(|| Error::NotFound("the pasted part".into()))?;
+    assert_eq!(
+        terminal_pads(&destination.project().library, &copy_of)?,
+        expected
+    );
+    assert_ne!(
+        copy_of.component.id, theirs.component.id,
+        "an imported copy"
+    );
+    let imported = destination.project().library.revisions().len();
+    assert!(imported > revisions);
+    // Pasting again reuses the imported copy.
+    pasted(&mut destination, copy(true)?, [0.0, 60.0])?;
+    assert_eq!(destination.project().library.revisions().len(), imported);
+    // It saves and reopens, and undo takes the paste and its import back.
+    let bytes = crate::format::encode(&crate::format::EditorFile::from_document(
+        destination.document(),
+    ))?;
+    crate::format::decode(&bytes)?;
+    destination.undo()?;
+    destination.undo()?;
+    assert_eq!(destination.project(), &original, "undone");
+
+    // Within one project nothing is imported.
+    let mut same = Engine::demo()?;
+    let before = same.project().library.revisions().len();
+    pasted(&mut same, copy(true)?, [0.0, 30.0])?;
+    assert_eq!(same.project().library.revisions().len(), before);
     Ok(())
 }
