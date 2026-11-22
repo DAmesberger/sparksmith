@@ -359,22 +359,27 @@ pub fn holes(project: &Project) -> Vec<Hole> {
     holes_of(project, &super::placed_pads(project))
 }
 
+/// A via's drilled hole.
+fn via_hole(project: &Project, via: &crate::model::Via) -> Hole {
+    Hole {
+        feature: HoleFeature::Round {
+            at: via.position,
+            diameter: via.drill,
+        },
+        plated: true,
+        function: HoleFunction::Via,
+        net: Some(via.net),
+        owner: HoleOwner::Via(via.id),
+        name: format!("a via on {}", project.net_name(via.net)),
+    }
+}
+
 /// [`holes`] over `placed`, the board's placed pads.
 pub fn holes_of(project: &Project, placed: &[PlacedPad]) -> Vec<Hole> {
     let mut out: Vec<Hole> = project
         .vias
         .iter()
-        .map(|via| Hole {
-            feature: HoleFeature::Round {
-                at: via.position,
-                diameter: via.drill,
-            },
-            plated: true,
-            function: HoleFunction::Via,
-            net: Some(via.net),
-            owner: HoleOwner::Via(via.id),
-            name: format!("a via on {}", project.net_name(via.net)),
-        })
+        .map(|via| via_hole(project, via))
         .collect();
     let labels = super::pad_labels(project);
     for pad in placed {
@@ -451,57 +456,118 @@ pub fn holes_of(project: &Project, placed: &[PlacedPad]) -> Vec<Hole> {
 ///   and pad-owned vias; mounting holes and plated board slots) at least
 ///   the effective minimum drill, the smallest tool the fabricator drills.
 pub fn findings(project: &Project) -> Vec<Finding> {
-    let mut out = Vec::new();
-    let rules = &project.rules;
-    for track in project.tracks.iter() {
-        let min = rules.track_width_min(super::net_class(project, track.net));
-        if track.width < min.value - super::EPS {
-            out.push(Finding::new(
-                "board.track_width",
-                format!(
-                    "A track on {}: width {} mm is under the minimum; needs {} mm ({}: min track width)",
-                    project.net_name(track.net),
-                    mm(track.width),
-                    mm(min.value),
-                    min.source.describe()
-                ),
-                vec![ObjectRef::Track { id: track.id }],
-            ));
-        }
-    }
-    let drill_min = super::limits::need(rules, &rules.effective(), RuleKey::DrillMin);
-    for hole in holes(project) {
-        let size = hole.feature.diameter();
-        if size >= drill_min.mm - super::EPS {
-            continue;
-        }
-        let (code, text) = match hole.owner {
-            HoleOwner::Via(_) => (
-                "board.via_drill_size",
-                format!(
-                    "A via on {}: drill {} mm is under the minimum; {}",
-                    hole.net.map_or("no net", |n| project.net_name(n)),
-                    mm(size),
-                    drill_min.text()
-                ),
-            ),
-            _ => (
-                "board.drill_size",
-                format!(
-                    "{}: {} {} mm is under the minimum; {}",
-                    capitalised(&hole.name),
-                    match hole.what() {
-                        "hole" if !matches!(hole.owner, HoleOwner::Pad { .. }) => "drill",
-                        what => what,
-                    },
-                    mm(size),
-                    drill_min.text()
-                ),
-            ),
-        };
-        out.push(Finding::new(code, text, vec![hole.object()]));
-    }
+    let mut out: Vec<Finding> = project
+        .tracks
+        .iter()
+        .filter_map(|track| track_width(project, track))
+        .collect();
+    let drill_min = drill_min(project);
+    out.extend(
+        holes(project)
+            .iter()
+            .filter_map(|hole| drill_size(project, &drill_min, hole)),
+    );
     out
+}
+
+/// [`findings`] as items: each track's, each via's, then the other holes'
+/// together. Made from `last` (an earlier state's items and what changed
+/// since) when given: only changed tracks and vias are checked again, and
+/// the other holes, which read no track or via, keep their findings.
+pub fn items(
+    project: &Project,
+    last: Option<(&super::Items, &super::CopperChanges)>,
+) -> super::Items {
+    use super::ItemKey;
+    let keys: Vec<ItemKey> = project
+        .tracks
+        .iter()
+        .map(|t| ItemKey::Track(t.id))
+        .chain(project.vias.iter().map(|v| ItemKey::Via(v.id)))
+        .chain([ItemKey::Rings])
+        .collect();
+    let drill_min = drill_min(project);
+    let again =
+        |_: usize, key: &ItemKey| last.is_some_and(|(_, changes)| changes.keys.contains(key));
+    let last = last.map(|(items, _)| (items, &again as &dyn Fn(usize, &ItemKey) -> bool));
+    let tracks = project.tracks.len();
+    let vias = project.vias.len();
+    let made = super::Items::made(&keys, last, |i| {
+        let found: Vec<Finding> = if let Some(track) = project.tracks.get(i) {
+            track_width(project, track).into_iter().collect()
+        } else if let Some(via) = i.checked_sub(tracks).and_then(|k| project.vias.get(k)) {
+            drill_size(project, &drill_min, &via_hole(project, via))
+                .into_iter()
+                .collect()
+        } else {
+            holes(project)
+                .get(vias..)
+                .into_iter()
+                .flatten()
+                .filter_map(|hole| drill_size(project, &drill_min, hole))
+                .collect()
+        };
+        Some((found, 0))
+    });
+    made.unwrap_or_default()
+}
+
+/// The finding of a track narrower than its net's minimum width.
+fn track_width(project: &Project, track: &crate::model::Track) -> Option<Finding> {
+    let min = project
+        .rules
+        .track_width_min(super::net_class(project, track.net));
+    (track.width < min.value - super::EPS).then(|| {
+        Finding::new(
+            "board.track_width",
+            format!(
+                "A track on {}: width {} mm is under the minimum; needs {} mm ({}: min track width)",
+                project.net_name(track.net),
+                mm(track.width),
+                mm(min.value),
+                min.source.describe()
+            ),
+            vec![ObjectRef::Track { id: track.id }],
+        )
+    })
+}
+
+fn drill_min(project: &Project) -> super::limits::Need {
+    let rules = &project.rules;
+    super::limits::need(rules, &rules.effective(), RuleKey::DrillMin)
+}
+
+/// The finding of a hole drilled smaller than the minimum drill.
+fn drill_size(project: &Project, drill_min: &super::limits::Need, hole: &Hole) -> Option<Finding> {
+    let size = hole.feature.diameter();
+    if size >= drill_min.mm - super::EPS {
+        return None;
+    }
+    let (code, text) = match hole.owner {
+        HoleOwner::Via(_) => (
+            "board.via_drill_size",
+            format!(
+                "A via on {}: drill {} mm is under the minimum; {}",
+                hole.net.map_or("no net", |n| project.net_name(n)),
+                mm(size),
+                drill_min.text()
+            ),
+        ),
+        _ => (
+            "board.drill_size",
+            format!(
+                "{}: {} {} mm is under the minimum; {}",
+                capitalised(&hole.name),
+                match hole.what() {
+                    "hole" if !matches!(hole.owner, HoleOwner::Pad { .. }) => "drill",
+                    what => what,
+                },
+                mm(size),
+                drill_min.text()
+            ),
+        ),
+    };
+    Some(Finding::new(code, text, vec![hole.object()]))
 }
 
 /// A closed outline that is a straight slot (two half-turn arcs joined by

@@ -6,14 +6,15 @@
 //! class assignments, pairs and length groups follow.
 use crate::diagnostics::Result;
 use crate::ids::Id;
-use crate::layout::{self, CopperGraph, outline::BoardShapeEvaluator};
+use crate::layout::{self, outline::BoardShapeEvaluator};
 use crate::model::Project;
 use crate::{instances, interface, nets, rules, schematic};
 
 /// How the operation that made the candidate finalizes.
 pub(crate) struct Finalize<'a> {
-    /// The copper graph of the base document.
-    pub graph: &'a CopperGraph,
+    /// The copper graph of the base document, made only when parts move
+    /// and carry their copper.
+    pub graph: &'a layout::GraphSource<'a>,
     pub evaluator: Option<&'a dyn BoardShapeEvaluator>,
     /// Parts the operation moved by hand: their attached copper is carried.
     pub moved_parts: &'a [Id],
@@ -85,7 +86,7 @@ pub(crate) fn finalize(
     }
     let mut rerouted = layout::router::reroute::Rerouted::default();
     if !placed.is_empty() {
-        rerouted = layout::dimensions::carry(base, project, f.graph, &placed, f.loose)?;
+        rerouted = layout::dimensions::carry(base, project, f.graph.get(), &placed, f.loose)?;
         if f.preserve_copper {
             layout::dimensions::protect_connections(base, project, &rerouted)?;
         }

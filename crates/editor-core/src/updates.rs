@@ -927,7 +927,7 @@ fn stage_change(
         project,
         &mut next,
         &finalize::Finalize {
-            graph,
+            graph: &layout::GraphSource::given(graph),
             evaluator,
             moved_parts: &[],
             loose: None,

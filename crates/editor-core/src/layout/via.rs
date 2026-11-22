@@ -16,7 +16,7 @@ use super::{
     check_pair_budget, distance, invalid,
 };
 use crate::diagnostics::{Finding, ObjectRef};
-use crate::geometry::{Point, point_valid};
+use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;
 use crate::model::board::BoardFeatureId;
 use crate::model::{CopperLayer, Project, Via, ViaSpan};
@@ -293,13 +293,8 @@ impl Drilled<'_> {
 }
 
 /// Every copper shape a drilled hole is checked against, in the order
-/// findings name them (lands, vias, tracks). `track_rings` are
-/// `project`'s tracks' outlines, in document order.
-pub(super) fn drilled_copper<'a>(
-    copper: &'a BoardCopper,
-    project: &Project,
-    track_rings: &'a [CopperRing],
-) -> Vec<Drilled<'a>> {
+/// findings name them (lands, vias, tracks).
+pub(super) fn drilled_copper(copper: &BoardCopper) -> Vec<Drilled<'_>> {
     let mut shapes = Vec::new();
     for land in copper.lands() {
         shapes.push(Drilled {
@@ -326,7 +321,7 @@ pub(super) fn drilled_copper<'a>(
             });
         }
     }
-    for (track, ring) in project.tracks.iter().zip(track_rings) {
+    for (track, ring) in copper.tracks().iter().zip(copper.track_rings()) {
         shapes.push(Drilled {
             ring,
             object: ObjectRef::Track { id: track.id },
@@ -345,50 +340,211 @@ pub(super) fn drilled_copper<'a>(
 /// board shape against via drills and all copper. Every limit is the
 /// project's ([`BoardRules`]); pairs are found through bounds grids that
 /// reach as far as the largest clearance. Copper clearance is part of
-/// [`BoardCopper::checks`]; connectivity through vias is the copper
+/// [`BoardCopper::clearance`]; connectivity through vias is the copper
 /// graph's.
 pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> {
-    let tracks = &project.tracks;
-    let limits = BoardRules::of(project);
-    let edges = BoardEdges::of(project);
-    let ring_min = limits.need(RuleKey::ViaAnnularRingMin);
-    let aspect_max = limits.rules().holes.aspect_ratio_max;
-    let thickness = project.stackup.thickness_mm();
+    let cx = ViaCx::new(copper, project);
+    let shapes = BoundsGrid::new(cx.shape_bounds.iter().copied(), cx.reach);
+    let holes = BoundsGrid::new(cx.drill_bounds.iter().copied(), cx.reach);
+    let budget = cx.budget();
     let mut issues = Vec::new();
-    let track_rings: Vec<CopperRing> = tracks.iter().map(CopperRing::of_track).collect();
-    let vias = copper.vias();
-    let drills: Vec<CopperRing> = vias.iter().map(CopperRing::of_drill).collect();
+    let (mut near_shapes, mut near_holes) = (Vec::new(), Vec::new());
     let mut pairs = 0usize;
-    let budget = check_pair_budget(
-        copper
-            .lands()
-            .len()
-            .saturating_add(vias.len())
-            .saturating_add(tracks.len()),
-    );
-    let over = |pairs: &mut usize, issues: &mut Vec<Finding>| {
-        *pairs += 1;
-        let over = *pairs > budget;
-        if over {
-            issues.push(Finding::new(
-                "board.check_limit",
-                "Via check limit reached; remaining vias are unchecked".into(),
-                vec![],
-            ));
+    for i in 0..cx.items() {
+        let found = match cx.bounds(i) {
+            Some(bounds) => {
+                shapes.near(&bounds, cx.reach, &mut near_shapes);
+                holes.near(&bounds, cx.reach, &mut near_holes);
+                cx.item(
+                    i,
+                    &near_shapes,
+                    &near_holes,
+                    budget.saturating_sub(pairs),
+                    &mut issues,
+                )
+            }
+            None => cx.item(i, &[], &[], budget.saturating_sub(pairs), &mut issues),
+        };
+        match found {
+            Ok(n) => pairs += n,
+            Err(()) => {
+                issues.push(Finding::new(
+                    "board.check_limit",
+                    "Via check limit reached; remaining vias are unchecked".into(),
+                    vec![],
+                ));
+                return issues;
+            }
         }
-        over
+    }
+    issues
+}
+
+/// [`findings`] as each via's and mounting hole's findings, made from
+/// `last` and what changed since (see [`BoardCopper::clearance_items`]).
+/// `None` when the check would stop at its pair limit.
+pub(super) fn items(
+    copper: &BoardCopper,
+    project: &Project,
+    last: Option<(&super::Items, &super::CopperChanges)>,
+) -> Option<super::Items> {
+    let cx = ViaCx::new(copper, project);
+    let grids = last.is_none().then(|| {
+        (
+            BoundsGrid::new(cx.shape_bounds.iter().copied(), cx.reach),
+            BoundsGrid::new(cx.drill_bounds.iter().copied(), cx.reach),
+        )
+    });
+    let keys: Vec<super::ItemKey> = cx
+        .vias
+        .iter()
+        .map(|v| super::ItemKey::Via(v.id))
+        .chain((0..cx.mounts.len()).map(super::ItemKey::Mount))
+        .collect();
+    let bounds: Vec<Option<Bounds>> = (0..cx.items()).map(|i| cx.bounds(i)).collect();
+    let (mut near_shapes, mut near_holes) = (Vec::new(), Vec::new());
+    let again = |i: usize, key: &super::ItemKey| {
+        last.is_some_and(|(_, changes)| changes.again(key, bounds.get(i), cx.reach))
     };
-    let copper_shapes = drilled_copper(copper, project, &track_rings);
-    let reach = check_reach(&limits);
-    let shapes = BoundsGrid::new(copper_shapes.iter().map(|s| s.ring.bounds), reach);
-    let holes = BoundsGrid::new(drills.iter().map(|d| d.bounds), reach);
-    let mut near = Vec::new();
-    // Via drills keep the via hole rules; a mounting hole its own kind's
-    // (plated or not, `CopperObject::hole`).
-    let hole = CopperObject::ViaHole;
-    let edge = limits.clearance(hole, None, CopperObject::BoardEdge, None);
-    let spacing = limits.clearance(hole, None, hole, None);
-    for (i, (via, drill)) in vias.iter().zip(&drills).enumerate() {
+    let last = last.map(|(items, _)| (items, &again as &dyn Fn(usize, &super::ItemKey) -> bool));
+    let items = super::Items::made(&keys, last, |i| {
+        let mut out = Vec::new();
+        let Some(b) = cx.bounds(i) else {
+            let pairs = cx.item(i, &[], &[], usize::MAX, &mut out).ok()?;
+            return Some((out, pairs));
+        };
+        match &grids {
+            Some((shapes, holes)) => {
+                shapes.near(&b, cx.reach, &mut near_shapes);
+                holes.near(&b, cx.reach, &mut near_holes);
+            }
+            None => {
+                super::copper::scan(&cx.shape_bounds, &b, cx.reach, &mut near_shapes);
+                super::copper::scan(&cx.drill_bounds, &b, cx.reach, &mut near_holes);
+            }
+        }
+        let pairs = cx
+            .item(i, &near_shapes, &near_holes, usize::MAX, &mut out)
+            .ok()?;
+        Some((out, pairs))
+    })?;
+    (items.pairs() <= cx.budget()).then_some(items)
+}
+
+/// One state's via checks: the vias and their drills, the copper they are
+/// measured against, the board's mounting holes and the rules.
+struct ViaCx<'a> {
+    project: &'a Project,
+    limits: BoardRules<'a>,
+    edges: BoardEdges,
+    vias: &'a [Via],
+    drills: Vec<&'a CopperRing>,
+    drill_bounds: Vec<Option<Bounds>>,
+    shapes: Vec<Drilled<'a>>,
+    shape_bounds: Vec<Option<Bounds>>,
+    mounts: Vec<(crate::model::board::SolvedMountingHole, CopperRing)>,
+    reach: f64,
+    tracks: usize,
+    lands: usize,
+}
+
+impl<'a> ViaCx<'a> {
+    fn new(copper: &'a BoardCopper, project: &'a Project) -> Self {
+        let limits = BoardRules::of(project);
+        let vias = copper.vias();
+        let drills: Vec<&CopperRing> = (0..vias.len())
+            .filter_map(|k| copper.drill_ring(k))
+            .collect();
+        let shapes = drilled_copper(copper);
+        Self {
+            project,
+            edges: BoardEdges::of(project),
+            vias,
+            drill_bounds: drills.iter().map(|d| d.bounds).collect(),
+            drills,
+            shape_bounds: shapes.iter().map(|s| s.ring.bounds).collect(),
+            shapes,
+            mounts: project
+                .board()
+                .holes
+                .iter()
+                .cloned()
+                .map(|m| {
+                    let ring = CopperRing::of_circle(m.at, m.drill);
+                    (m, ring)
+                })
+                .collect(),
+            reach: check_reach(&limits),
+            limits,
+            tracks: copper.tracks().len(),
+            lands: copper.lands().len(),
+        }
+    }
+
+    fn budget(&self) -> usize {
+        check_pair_budget(
+            self.lands
+                .saturating_add(self.vias.len())
+                .saturating_add(self.tracks),
+        )
+    }
+
+    /// The vias, then the mounting holes.
+    fn items(&self) -> usize {
+        self.vias.len() + self.mounts.len()
+    }
+
+    /// The bounds of item `i`'s hole.
+    fn bounds(&self, i: usize) -> Option<Bounds> {
+        match i.checked_sub(self.vias.len()) {
+            None => self.drill_bounds.get(i).copied().flatten(),
+            Some(m) => self.mounts.get(m).and_then(|(_, ring)| ring.bounds),
+        }
+    }
+
+    /// Item `i` (a via, then a mounting hole) against the copper shapes
+    /// `near_shapes` and the via drills `near_holes` (both ascending, near
+    /// its hole): the pairs compared, or `Err` once more than `budget`
+    /// would be.
+    fn item(
+        &self,
+        i: usize,
+        near_shapes: &[usize],
+        near_holes: &[usize],
+        budget: usize,
+        issues: &mut Vec<Finding>,
+    ) -> std::result::Result<usize, ()> {
+        match i.checked_sub(self.vias.len()) {
+            None => self.via(i, near_shapes, near_holes, budget, issues),
+            Some(m) => self.mount(m, near_shapes, near_holes, budget, issues),
+        }
+    }
+
+    fn via(
+        &self,
+        i: usize,
+        near_shapes: &[usize],
+        near_holes: &[usize],
+        budget: usize,
+        issues: &mut Vec<Finding>,
+    ) -> std::result::Result<usize, ()> {
+        let (Some(via), Some(drill)) = (self.vias.get(i), self.drills.get(i)) else {
+            return Ok(0);
+        };
+        let (project, limits) = (self.project, &self.limits);
+        let ring_min = limits.need(RuleKey::ViaAnnularRingMin);
+        let aspect_max = limits.rules().holes.aspect_ratio_max;
+        let thickness = project.stackup.thickness_mm();
+        // Via drills keep the via hole rules; a mounting hole its own
+        // kind's (plated or not, `CopperObject::hole`).
+        let hole = CopperObject::ViaHole;
+        let edge = limits.clearance(hole, None, CopperObject::BoardEdge, None);
+        let spacing = limits.clearance(hole, None, hole, None);
+        let mut pairs = 0usize;
+        let mut over = || {
+            pairs += 1;
+            if pairs > budget { Err(()) } else { Ok(()) }
+        };
         let me = ObjectRef::Via { id: via.id };
         let name = project.net_name(via.net);
         if via.annular_ring() < ring_min.mm - EPS {
@@ -419,7 +575,7 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 vec![me],
             ));
         }
-        if let EdgeVerdict::TooClose { gap, near } = edges.verdict(drill, edge) {
+        if let EdgeVerdict::TooClose { gap, near } = self.edges.verdict(drill, edge) {
             let need = limits.clearance_need(hole, None, CopperObject::BoardEdge, None);
             issues.push(Finding::new(
                 "board.edge_clearance",
@@ -432,18 +588,15 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 vec![me],
             ));
         }
-        let Some(bounds) = drill.bounds else {
-            continue;
-        };
-        shapes.near(&bounds, reach, &mut near);
-        for shape in near
+        if drill.bounds.is_none() {
+            return Ok(0);
+        }
+        for shape in near_shapes
             .iter()
-            .filter_map(|k| copper_shapes.get(*k))
+            .filter_map(|k| self.shapes.get(*k))
             .filter(|s| s.net != Some(via.net))
         {
-            if over(&mut pairs, &mut issues) {
-                return issues;
-            }
+            over()?;
             let need = limits.clearance(hole, Some(via.net), shape.kind, shape.net);
             if drill.closer_than(shape.ring, need) {
                 let need = limits.clearance_need(hole, Some(via.net), shape.kind, shape.net);
@@ -459,15 +612,12 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 ));
             }
         }
-        holes.near(&bounds, reach, &mut near);
-        for (other, other_drill) in near
+        for (other, other_drill) in near_holes
             .iter()
             .filter(|j| **j > i)
-            .filter_map(|j| Some((vias.get(*j)?, drills.get(*j)?)))
+            .filter_map(|j| Some((self.vias.get(*j)?, self.drills.get(*j)?)))
         {
-            if over(&mut pairs, &mut issues) {
-                return issues;
-            }
+            over()?;
             if drill.closer_than(other_drill, spacing) {
                 let need = limits.clearance_need(hole, None, hole, None);
                 issues.push(Finding::new(
@@ -482,15 +632,32 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 ));
             }
         }
+        Ok(pairs)
     }
+
     // Mounting holes have no net: every copper object and via drill is
     // measured against them.
-    let board = project.board();
-    for mount in &board.holes {
+    fn mount(
+        &self,
+        m: usize,
+        near_shapes: &[usize],
+        near_holes: &[usize],
+        budget: usize,
+        issues: &mut Vec<Finding>,
+    ) -> std::result::Result<usize, ()> {
+        let Some((mount, ring)) = self.mounts.get(m) else {
+            return Ok(0);
+        };
+        let (project, limits) = (self.project, &self.limits);
+        let hole = CopperObject::ViaHole;
+        let mut pairs = 0usize;
+        let mut over = || {
+            pairs += 1;
+            if pairs > budget { Err(()) } else { Ok(()) }
+        };
         let kind = CopperObject::hole(mount.plated);
-        let ring = CopperRing::of_circle(mount.at, mount.drill);
         let edge = limits.clearance(kind, None, CopperObject::BoardEdge, None);
-        if let EdgeVerdict::TooClose { gap, near } = edges.verdict(&ring, edge) {
+        if let EdgeVerdict::TooClose { gap, near } = self.edges.verdict(ring, edge) {
             let need = limits.clearance_need(kind, None, CopperObject::BoardEdge, None);
             issues.push(Finding::new(
                 "board.edge_clearance",
@@ -503,19 +670,16 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 vec![ObjectRef::Board],
             ));
         }
-        let Some(bounds) = ring.bounds else {
-            continue;
-        };
+        if ring.bounds.is_none() {
+            return Ok(0);
+        }
         // Its own plated ring (if any) is not board copper here.
-        shapes.near(&bounds, reach, &mut near);
-        for shape in near
+        for shape in near_shapes
             .iter()
-            .filter_map(|k| copper_shapes.get(*k))
+            .filter_map(|k| self.shapes.get(*k))
             .filter(|s| s.washer != Some(mount.id))
         {
-            if over(&mut pairs, &mut issues) {
-                return issues;
-            }
+            over()?;
             let need = limits.clearance(kind, None, shape.kind, shape.net);
             if ring.closer_than(shape.ring, need) {
                 let need = limits.clearance_need(kind, None, shape.kind, shape.net);
@@ -534,14 +698,11 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 ));
             }
         }
-        holes.near(&bounds, reach, &mut near);
-        for (via, drill) in near
+        for (via, drill) in near_holes
             .iter()
-            .filter_map(|j| Some((vias.get(*j)?, drills.get(*j)?)))
+            .filter_map(|j| Some((self.vias.get(*j)?, self.drills.get(*j)?)))
         {
-            if over(&mut pairs, &mut issues) {
-                return issues;
-            }
+            over()?;
             let spacing = limits.clearance(kind, None, hole, None);
             if ring.closer_than(drill, spacing) {
                 let need = limits.clearance_need(kind, None, hole, None);
@@ -557,8 +718,8 @@ pub(super) fn findings(copper: &BoardCopper, project: &Project) -> Vec<Finding> 
                 ));
             }
         }
+        Ok(pairs)
     }
-    issues
 }
 
 pub(super) fn delete(project: &mut Project, id: Id) -> Result<()> {

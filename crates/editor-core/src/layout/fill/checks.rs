@@ -107,7 +107,6 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                 vec![me],
             ));
         }
-        let key = ctx.key(fill.id).ok();
         let Some(copper) = &fill.computed else {
             out.push(Finding::new(
                 "fill.stale",
@@ -116,6 +115,8 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             ));
             continue;
         };
+        // Only stored copper is compared with the key of its inputs.
+        let key = ctx.key(fill.id).ok();
         let stale = key.as_ref() != Some(&copper.key);
         if stale {
             out.push(Finding::new(

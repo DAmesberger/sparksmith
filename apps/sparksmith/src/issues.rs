@@ -23,13 +23,15 @@ use crate::kit::{
 use crate::refusal::{self, Origin};
 use crate::shell::Workspace;
 use egui::{Align, Layout, Rect, Ui, UiBuilder, pos2, vec2};
+#[cfg(test)]
+use sparksmith_core::QueryResult;
 use sparksmith_core::fabrication::{FabricationCommand, preflight};
 use sparksmith_core::ids::TerminalId;
 use sparksmith_core::issues::{
     IssueArea, IssueCounts, IssueReport, IssueRow, IssueScope, Severity,
 };
 use sparksmith_core::library::Definition;
-use sparksmith_core::{DefinitionId, Engine, Id, ObjectRef, Operation, QueryResult};
+use sparksmith_core::{DefinitionId, Engine, Id, ObjectRef, Operation};
 use sparksmith_ui::theme::Tokens;
 use sparksmith_ui::ui_kit;
 use std::collections::{BTreeMap, BTreeSet};
@@ -196,6 +198,7 @@ pub enum Answer {
 }
 
 impl Answer {
+    #[cfg(test)]
     pub(crate) fn of(result: sparksmith_core::Result<QueryResult>) -> Self {
         match result {
             Ok(QueryResult::Issues(report)) => Self::Report(Arc::new(report)),

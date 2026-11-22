@@ -82,13 +82,8 @@ impl BoundsGrid {
     /// in ascending index order, into `out` (cleared first).
     pub fn near(&self, near: &Bounds, reach: f64, out: &mut Vec<usize>) {
         out.clear();
-        if !finite(near) {
+        let Some(query) = query(near, reach) else {
             return;
-        }
-        let reach = reach.max(0.0);
-        let query = Bounds {
-            min: [near.min[0] - reach, near.min[1] - reach],
-            max: [near.max[0] + reach, near.max[1] + reach],
         };
         let close = |index: usize| {
             self.bounds
@@ -113,6 +108,26 @@ impl BoundsGrid {
         out.sort_unstable();
         out.dedup();
     }
+}
+
+/// The box a query of `near` within `reach` covers; `None` for bounds
+/// that are not finite, which find nothing.
+fn query(near: &Bounds, reach: f64) -> Option<Bounds> {
+    if !finite(near) {
+        return None;
+    }
+    let reach = reach.max(0.0);
+    Some(Bounds {
+        min: [near.min[0] - reach, near.min[1] - reach],
+        max: [near.max[0] + reach, near.max[1] + reach],
+    })
+}
+
+/// Whether a [`BoundsGrid`] query of `near` within `reach` lists a shape
+/// with bounds `shape`: the grid's exact filter, for a caller that scans
+/// shapes itself (a few queries over a changed board need no grid).
+pub fn within(near: &Bounds, shape: &Bounds, reach: f64) -> bool {
+    finite(shape) && query(near, reach).is_some_and(|q| overlaps(shape, &q))
 }
 
 fn finite(b: &Bounds) -> bool {

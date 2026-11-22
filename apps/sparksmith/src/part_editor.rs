@@ -79,12 +79,12 @@ use sparksmith_core::library::{
 };
 use sparksmith_core::units::{Nm, PointNm};
 // The tests below take points in millimetres.
-#[cfg(test)]
-use sparksmith_core::Point;
 use sparksmith_core::{
     ComponentRef, DefinitionId, Engine, FunctionId, GraphicId, LibraryCommand, ObjectRef,
-    Operation, PackageTerminalId, PadId, Query, QueryResult, TerminalId, UnitId,
+    Operation, PackageTerminalId, PadId, TerminalId, UnitId,
 };
+#[cfg(test)]
+use sparksmith_core::{Point, Query, QueryResult};
 #[cfg(test)]
 use sparksmith_ui::fonts;
 use sparksmith_ui::theme::Tokens;
@@ -1799,16 +1799,31 @@ impl PartEditor {
     }
 
     /// The card's issue slot: the `project.issues` counts of the inspected
-    /// objects, computed once per document state and subject. A failed
-    /// query says so rather than read as "no issues".
+    /// objects, projected from the window's one report of every issue
+    /// once per report, state and subject; no check runs here. A failed
+    /// report says so rather than read as "no issues".
     fn issue_slot(
         &mut self,
         engine: &Engine,
         inspected: Inspected,
     ) -> Option<kit::card::IssueSlot> {
         let (objects, label) = self.slot_objects(engine, inspected)?;
+        let not_counted = |why: &str| kit::card::IssueSlot {
+            counts: Default::default(),
+            label: why.to_owned(),
+            whole: false,
+        };
+        let whole = match self.parts.reports.latest(engine) {
+            Some(crate::issues::Answer::Report(whole)) => whole,
+            Some(crate::issues::Answer::Refused(_)) => {
+                return Some(not_counted("Issues not counted"));
+            }
+            Some(crate::issues::Answer::Pending) | None => {
+                return Some(not_counted("The checks are still running"));
+            }
+        };
         let key = IssueKey {
-            revision: engine.revision(),
+            at: crate::issue_reports::view_key(&whole, engine),
             drafts: Arc::as_ptr(&engine.document().drafts) as usize,
             objects: objects.clone(),
         };
@@ -1817,28 +1832,30 @@ impl PartEditor {
         {
             return Some(slot.clone());
         }
-        let slot = match engine.query(Query::Issues {
-            scope: sparksmith_core::issues::IssueScope::Selection { objects },
-        }) {
-            Ok(QueryResult::Issues(report)) => kit::card::IssueSlot {
-                counts: report.counts,
-                // A tab's slot says where its issues are; an object's
-                // slot speaks of that object.
-                label: if matches!(inspected, Inspected::Tab(_)) {
-                    slot_label(&report, label)
-                } else {
-                    label.to_owned()
-                },
-                whole: false,
+        let report = whole.scoped(
+            &sparksmith_core::issues::IssueScope::Selection { objects },
+            engine.project(),
+        );
+        let slot = kit::card::IssueSlot {
+            counts: report.counts,
+            // A tab's slot says where its issues are; an object's
+            // slot speaks of that object.
+            label: if matches!(inspected, Inspected::Tab(_)) {
+                slot_label(&report, label)
+            } else {
+                label.to_owned()
             },
-            _ => kit::card::IssueSlot {
-                counts: Default::default(),
-                label: "Issues not counted".to_owned(),
-                whole: false,
-            },
+            whole: false,
         };
         self.issue_slot = Some((key, slot.clone()));
         Some(slot)
+    }
+
+    /// Project the issue slot and the publish blockers from `reports`, the
+    /// window's one report of every issue, which Issues shares.
+    pub fn share_reports(&mut self, reports: crate::issue_reports::SharedReports) {
+        self.parts.reports = reports;
+        self.issue_slot = None;
     }
 
     fn canvas_inner(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
@@ -2050,10 +2067,11 @@ enum Inspected {
     Selection(usize),
 }
 
-/// What an issue slot was counted for.
+/// What an issue slot was counted for: the report and state it was
+/// projected from, and its objects.
 #[derive(Clone, Debug, PartialEq)]
 struct IssueKey {
-    revision: u64,
+    at: crate::issue_reports::ViewKey,
     drafts: usize,
     objects: Vec<ObjectRef>,
 }

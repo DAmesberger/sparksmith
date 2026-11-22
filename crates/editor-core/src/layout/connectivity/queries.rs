@@ -312,7 +312,8 @@ impl CopperGraph {
             return vec![crate::layout::copper::limit_finding()];
         }
         let mut out = Vec::new();
-        let labels = pad_labels(project);
+        // Only an unrouted pad is named by its label.
+        let labels = std::cell::OnceCell::new();
         let mut islands: BTreeMap<Id, BTreeSet<usize>> = BTreeMap::new();
         for (index, pad) in self.pads.iter().enumerate() {
             if let Some(island) = self.pad_island(index) {
@@ -328,6 +329,7 @@ impl CopperGraph {
                         .map(|i| i.designator.as_str())
                         .unwrap_or("component"),
                     labels
+                        .get_or_init(|| pad_labels(project))
                         .get(&(pad.instance, pad.pad))
                         .cloned()
                         .unwrap_or_else(|| pad.pad.to_string())
