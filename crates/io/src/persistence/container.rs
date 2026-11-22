@@ -267,31 +267,13 @@ fn read_file(mut file: File, role: Role, load: Load) -> Result<Contents> {
 /// project that opens always has a save and a recovery snapshot (review
 /// finding 11); the refusal comes at open, before any work is done in it.
 pub(crate) fn admit(file: &EditorFile, limit: usize) -> Result<()> {
-    let unsaveable = |why: String| {
+    // The core's one measure, which also counts the identity a first save
+    // adds (review finding 15): an engine refuses an edit past it the same way.
+    format::room::check_saveable(file, limit).map_err(|error| {
         Error::TooLarge(format!(
-            "container.too_large: this project is not opened because it could not be saved again: {why}"
+            "container.too_large: this project is not opened because it could not be saved again: {error}"
         ))
-    };
-    let document = format::container_document_len(file, limit).map_err(|_| {
-        unsaveable(format!(
-            "its document would exceed {} MiB",
-            limit / (1024 * 1024)
-        ))
-    })?;
-    let assets: u64 = file
-        .project
-        .library
-        .assets
-        .iter()
-        .map(|a| a.data.len() as u64)
-        .sum();
-    if (document as u64).saturating_add(assets) > CONTAINER_MAX_BYTES {
-        return Err(unsaveable(format!(
-            "its container would exceed {} MiB",
-            CONTAINER_MAX_BYTES / (1024 * 1024)
-        )));
-    }
-    Ok(())
+    })
 }
 
 /// Validate `file` and atomically write it as a container to `path`, with

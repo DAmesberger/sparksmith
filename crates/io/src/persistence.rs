@@ -72,6 +72,54 @@ pub fn open_project(path: &Path) -> Result<(EditorFile, DiskIdentity)> {
     Ok((read, identity))
 }
 
+/// Whether `a` and `b` name one file: the same path, or two spellings that
+/// reach it (relative and absolute, `..`, a symbolic link, another letter
+/// case on a volume that ignores it). A save to the file a document was
+/// opened from is checked against what it held, whatever its spelling
+/// (review finding 16). Two paths of which only one exists name two files.
+pub fn same_file(a: &Path, b: &Path) -> bool {
+    if a == b {
+        return true;
+    }
+    match (located(a), located(b)) {
+        (Some(a), Some(b)) => a == b,
+        _ => false,
+    }
+}
+
+/// Where `path` leads: the file it names, else (no file there yet) its
+/// resolved folder and name.
+#[derive(PartialEq, Eq)]
+enum Location {
+    #[cfg(unix)]
+    File(u64, u64),
+    #[cfg(not(unix))]
+    File(PathBuf),
+    Absent(PathBuf, std::ffi::OsString),
+}
+
+fn located(path: &Path) -> Option<Location> {
+    match std::fs::metadata(path) {
+        Ok(_metadata) => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                Some(Location::File(_metadata.dev(), _metadata.ino()))
+            }
+            #[cfg(not(unix))]
+            {
+                std::fs::canonicalize(path).ok().map(Location::File)
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            let name = path.file_name()?.to_os_string();
+            let folder = std::fs::canonicalize(parent_of(path)).ok()?;
+            Some(Location::Absent(folder, name))
+        }
+        Err(_) => None,
+    }
+}
+
 /// Validate, encode and atomically replace a project container. With
 /// `expected`, the identity its document was opened or last saved with,
 /// the replacement happens only while the file still holds those bytes:

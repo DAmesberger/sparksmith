@@ -382,8 +382,8 @@ No turn limits (founder, 16 November): instead, as a conversation approaches the
 ## 7. The chat UI (kept, with the new cards)
 
 - **Placement:** its own docked column at the right edge, resizable 300–560 pt, can dock left, folds to a 30 pt strip with a state dot (approved Q1). Opened by `assistant.toggle` (⇧⌘A / Ctrl+Shift+A through the shortcut registry), View › Assistant, the palette and an AI button in the application bar.
-- **One conversation per open project,** in memory only (approved Q8).
-- **Items:** your message with its context line and its files as `@` chips; reply text (bounded Markdown); folded reasoning; one row per tool call (entry, one-line summary, state; expands to input and compact reply); Ask cards; the **workflow card** (§3.1); **control cards** (§4); a **turn summary card** at the end of each turn (what changed by collection and name, issues new and resolved, requests and tokens, **Show**, **Undo turn**).
+- **One conversation per open project,** in memory only (approved Q8). A project the conversation opened or started itself keeps it; one another client opened or started ends it, as File › Open does.
+- **Items:** your message with its context line and its files as `@` chips; reply text (bounded Markdown); folded reasoning; one row per tool call (entry, one-line summary, state; expands to input and compact reply); Ask cards; the **workflow card** (§3.1); **control cards** (§4); a **turn summary card** at the end of each turn (what changed by collection and name, issues new and resolved, requests and tokens, **Show**, **Undo turn**). The card counts only the turn's own edits; the person's edits during the turn, and anyone else's, are listed apart under "Changed outside this turn". When the person edited between the assistant's changes, the turn is that many undo steps with the person's between them: the card says so ("Done · 2 undo steps") and offers no Undo turn, since Undo would take back the person's edit too or leave part of the turn behind.
 - **A running workflow** is one block in the conversation: its title, a step list with the current step, the `meter`, **Stop**, and its cards in order.
 
 ```

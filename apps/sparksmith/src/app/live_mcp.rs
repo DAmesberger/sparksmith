@@ -286,7 +286,7 @@ impl App {
             .session
             .lend_file(engine, &host, |s| live::run(s, admitted, &mut window));
         // The file workflow takes on a file change with the engine.
-        self.file_changes(changes);
+        self.file_changes(changes, false);
         let _ = request.reply.send(reply);
         let now = self.engine.revision();
         if now != before

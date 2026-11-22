@@ -123,6 +123,10 @@ pub struct TurnSummary {
     /// the document still stands at `after` and the turn changed it.
     pub before: u64,
     pub after: u64,
+    /// The undo steps the turn's own changes are: more than one when
+    /// someone else's edit came between them, which Undo would take back
+    /// in between, so Undo turn is not offered then.
+    pub steps: usize,
     /// Project object ids Show selects.
     pub show: Vec<u64>,
     /// How the turn ended, when not with an answer.

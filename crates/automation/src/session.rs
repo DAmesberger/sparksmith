@@ -1158,8 +1158,13 @@ pub struct HostFile {
     pub path: Option<PathBuf>,
     /// What that file held when the host opened or last saved it.
     pub identity: Option<sparksmith_io::DiskIdentity>,
-    /// The host holds edits no file has.
-    pub unsaved: bool,
+    /// The engine revision the host's file (or its new project) holds, as
+    /// the host recorded it when it opened, started or saved; `None` when
+    /// no revision is. An edit past it is unsaved work, compared with the
+    /// engine itself when a request would replace the document, so an edit
+    /// the host has not looked at yet is never taken for saved (review
+    /// finding 17).
+    pub kept: Option<u64>,
     /// The host is opening, saving or asking about a file itself.
     pub busy: bool,
 }
@@ -1346,7 +1351,7 @@ impl Session {
         self.disk = file.identity;
         self.hosting = Some(Hosting {
             adopts,
-            kept: (!file.unsaved).then(|| self.engine.revision()),
+            kept: file.kept,
             busy: file.busy,
             changes: Vec::new(),
         });
@@ -1581,19 +1586,38 @@ impl Session {
                 };
                 // A project first saved takes its identity, which every
                 // manufacturing file then states. No nonce: a script saved
-                // under the same file name reproduces it.
-                self.engine.identify_by_file(&path, "");
-                // The session's own file is replaced only while it holds
-                // what this session opened or saved; another file the
-                // request names is replaced whatever it holds.
-                let expected = if self.path.as_deref() == Some(path.as_path()) {
+                // under the same file name reproduces it. The copy written
+                // takes it; the engine takes it once a file holds it, so a
+                // failed write leaves the project as it was (review
+                // finding 16).
+                let mut document = self.engine.document().clone();
+                let identified = sparksmith_core::identify_by_file(&mut document.project, &path, "");
+                // The session's own file, under any spelling, is replaced
+                // only while it holds what this session opened or saved;
+                // another file the request names is replaced whatever it
+                // holds.
+                let expected = if self
+                    .path
+                    .as_deref()
+                    .is_some_and(|own| sparksmith_io::same_file(own, &path))
+                {
                     self.disk
                 } else {
                     None
                 };
                 let revision = self.engine.revision();
+                let written = sparksmith_io::save_project(
+                    &path,
+                    &sparksmith_core::format::EditorFile::from_document(&document),
+                    expected,
+                );
+                if matches!(written, Ok(_) | Err(sparksmith_io::Error::Conflict(_)))
+                    && let Some(id) = identified
+                {
+                    self.engine.adopt_project_id(id)?;
+                }
                 let identity =
-                    match sparksmith_io::save_project(&path, &self.engine.to_file(), expected) {
+                    match written {
                         Ok(identity) => identity,
                         Err(sparksmith_io::Error::Conflict(conflict)) => {
                             // Both versions are kept; this session's document

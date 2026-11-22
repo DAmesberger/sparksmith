@@ -1312,7 +1312,12 @@ pub struct SearchReport {
 /// Search parameters beyond the query text.
 #[derive(Clone, Copy, Debug)]
 pub struct SearchOptions {
+    /// Results on this page, at most [`MAX_RESULTS`].
     pub limit: usize,
+    /// Ranked results before this page, skipped: a page past the first
+    /// [`MAX_RESULTS`] holds the results ranked there, never none while
+    /// `total` says more match.
+    pub offset: usize,
     /// List lineages that exist only as drafts instead of counting them as
     /// hidden.
     pub include_drafts: bool,
@@ -1322,6 +1327,7 @@ impl Default for SearchOptions {
     fn default() -> Self {
         Self {
             limit: DEFAULT_LIMIT,
+            offset: 0,
             include_drafts: false,
         }
     }
@@ -1532,11 +1538,15 @@ impl Index {
                 .then_with(|| self.entries[a.0].key().cmp(&self.entries[b.0].key()))
         };
         let limit = options.limit.clamp(1, MAX_RESULTS);
-        if matched.len() > limit {
-            matched.select_nth_unstable_by(limit - 1, compare);
-            matched.truncate(limit);
+        // The page ends `limit` after its offset; the results ranked before
+        // it are ordered too, then skipped.
+        let end = options.offset.saturating_add(limit);
+        if matched.len() > end {
+            matched.select_nth_unstable_by(end - 1, compare);
+            matched.truncate(end);
         }
         matched.sort_unstable_by(compare);
+        matched.drain(..options.offset.min(matched.len()));
         SearchReport {
             chips,
             total,

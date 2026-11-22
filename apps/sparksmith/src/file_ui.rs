@@ -119,6 +119,14 @@ impl Controller {
     fn dirty(&self) -> bool {
         self.saved.as_ref() != Some(&self.current)
     }
+    /// The engine revision this document's file (or new project) holds,
+    /// if any.
+    fn saved_revision(&self) -> Option<u64> {
+        self.saved
+            .as_ref()
+            .filter(|saved| saved.epoch == self.current.epoch)
+            .map(|saved| saved.revision)
+    }
     /// The current revision holds the saved content again (an undo or redo
     /// back to it): nothing is unsaved.
     fn back_at_saved(&mut self) {
@@ -297,8 +305,10 @@ enum Job {
     Read(Ticket, PathBuf),
     Import(Ticket, PathBuf),
     /// Write the document; replace the file only while it holds the
-    /// identity, when one is given.
-    Write(Ticket, PathBuf, Document, Option<DiskIdentity>),
+    /// identity, when one is given. With a nonce, a project without an
+    /// identity takes one first (`sparksmith_core::identify_by_file`),
+    /// here, off the UI thread: it reads the whole document.
+    Write(Ticket, PathBuf, Document, Option<DiskIdentity>, Option<String>),
     SchematicPdf(Ticket, PathBuf, Arc<Project>),
     Recover(Ticket, Document, Option<PathBuf>),
     ClearRecovery(Ticket, bool),
@@ -316,7 +326,8 @@ enum Event {
         PathBuf,
         Outcome<Box<(EditorFile, sparksmith_automation::kicad_import::Report)>>,
     ),
-    Written(Ticket, PathBuf, Outcome<Wrote>),
+    /// A save's result, and the identity it gave the project.
+    Written(Ticket, PathBuf, Outcome<Wrote>, Option<String>),
     PdfExported(Ticket, PathBuf, Outcome<usize>),
     Recovered(Ticket, bool, bool, Outcome<()>),
     Restored(Ticket, PathBuf, Outcome<EditorFile>),
@@ -371,7 +382,10 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                         .map(|imported| Box::new((imported.engine.to_file(), imported.report)));
                     Event::Imported(ticket, path, value)
                 }
-                Job::Write(ticket, path, document, expected) => {
+                Job::Write(ticket, path, mut document, expected, nonce) => {
+                    let id = nonce.and_then(|nonce| {
+                        sparksmith_core::identify_by_file(&mut document.project, &path, &nonce)
+                    });
                     // The deep copy into the file form happens here, off the UI thread.
                     let result = match sparksmith_io::save_project(
                         &path,
@@ -382,7 +396,7 @@ fn worker(ctx: egui::Context, directory: Outcome<PathBuf>, events: Sender<Event>
                         Err(sparksmith_io::Error::Conflict(conflict)) => Ok(Wrote::Kept(conflict)),
                         Err(error) => Err(error.to_string()),
                     };
-                    Event::Written(ticket, path, result)
+                    Event::Written(ticket, path, result, id)
                 }
                 Job::SchematicPdf(ticket, path, project) => {
                     let result =
@@ -468,9 +482,6 @@ pub struct FileUi {
     /// The name a first save in flight writes (its ticket id), for the
     /// engine to take once the file holds it.
     naming: Option<(u64, String)>,
-    /// The project identity a first save in flight writes (its ticket id),
-    /// for the engine to take once the file holds it.
-    identifying: Option<(u64, String)>,
     /// The recovery the dialog would restore or discard.
     recovery_selected: usize,
     /// A restored session file, removed once this session has saved its
@@ -549,7 +560,6 @@ impl FileUi {
             recoveries: vec![],
             older_recoveries: vec![],
             naming: None,
-            identifying: None,
             recovery_selected: 0,
             restored_source: None,
             restored_origin: None,
@@ -569,6 +579,11 @@ impl FileUi {
     }
     pub fn observe(&mut self, engine: &Engine, now: f64) {
         self.now = now;
+        // A change without a revision (a hosted first save's identity) is
+        // the engine's document too: the window saves and recovers it.
+        if !same_document(&self.document, engine.document()) {
+            self.document = engine.document().clone();
+        }
         if self.controller.observe(engine.revision()) {
             self.document = engine.document().clone();
             self.changed_at = now;
@@ -710,7 +725,7 @@ impl FileUi {
         HostFile {
             path: self.controller.path.clone(),
             identity: self.controller.disk,
-            unsaved: self.controller.dirty(),
+            kept: self.controller.saved_revision(),
             busy: self.busy() || self.prompting(),
         }
     }
@@ -939,13 +954,14 @@ impl FileUi {
             self.captured = Some(document.clone());
         }
         // A random nonce: two new projects saved under one file name are
-        // still two projects.
-        let nonce = sparksmith_io::interface::random_hex().unwrap_or_default();
-        if let Some(id) = sparksmith_core::identify_by_file(&mut document.project, &path, &nonce) {
-            self.identifying = Some((ticket.id, id));
-            self.captured = Some(document.clone());
-        }
-        self.send(Job::Write(ticket, path, document, expected));
+        // still two projects. The worker gives the identity.
+        let nonce = document
+            .project
+            .production
+            .project_id
+            .is_none()
+            .then(|| sparksmith_io::interface::random_hex().unwrap_or_default());
+        self.send(Job::Write(ticket, path, document, expected, nonce));
     }
     /// The folder and file name the project's save panel proposes: its
     /// own file's, else (a restored session) the file it was restored
@@ -1146,8 +1162,18 @@ impl FileUi {
                 }
                 match kind {
                     // Save As: the person chose the file, and its panel
-                    // asked before replacing one.
-                    Kind::Save => self.write(ticket, path, None),
+                    // asked before replacing one. The window's own file,
+                    // under any spelling, is replaced only while it holds
+                    // what this window opened or saved (review finding 16).
+                    Kind::Save => {
+                        let expected = self
+                            .controller
+                            .path
+                            .as_deref()
+                            .filter(|own| sparksmith_io::same_file(own, &path))
+                            .and(self.controller.disk);
+                        self.write(ticket, path, expected);
+                    }
                     Kind::Open if ticket.stamp == self.controller.current => {
                         self.send(Job::Read(ticket, path))
                     }
@@ -1177,7 +1203,7 @@ impl FileUi {
                     }
                 }
             }
-            Event::Written(ticket, path, result) => match result {
+            Event::Written(ticket, path, result, id) => match result {
                 Ok(wrote) => {
                     // A conflict kept both versions: this document is in
                     // the new file, which is the window's file from now on.
@@ -1192,6 +1218,11 @@ impl FileUi {
                     if let Some((current, continuation)) =
                         self.controller.saved(&ticket, path.clone(), identity)
                     {
+                        // The file holds the identity the worker gave.
+                        if let (Some(id), Some(captured)) = (&id, self.captured.as_mut()) {
+                            Arc::make_mut(&mut captured.project).production.project_id =
+                                Some(id.clone());
+                        }
                         self.saved_document = self.captured.take();
                         self.status = Some(match conflict {
                             Some(conflict) => (Level::Warning, conflict),
@@ -1207,8 +1238,7 @@ impl FileUi {
                         if current {
                             self.clear_recovery(false);
                         }
-                        if let Some((_, id)) = self.identifying.take().filter(|n| n.0 == ticket.id)
-                        {
+                        if let Some(id) = id {
                             self.effects.push(Effect::Identify { id, saved: current });
                         }
                         if let Some((_, name)) = self.naming.take().filter(|n| n.0 == ticket.id) {
@@ -1224,7 +1254,6 @@ impl FileUi {
                 }
                 Err(error) => {
                     self.naming = None;
-                    self.identifying = None;
                     self.controller.cancel(&ticket, Kind::Save);
                     self.status = Some((Level::Error, format!("Save failed: {error}")));
                 }
@@ -1594,6 +1623,11 @@ enum Choice {
 
 /// Both documents share the same data: an undo or redo restored the very
 /// snapshot that was saved.
+/// Whether `a` and `b` are one state: the same shared sections.
+fn same_document(a: &Document, b: &Document) -> bool {
+    Arc::ptr_eq(&a.project, &b.project) && Arc::ptr_eq(&a.drafts, &b.drafts)
+}
+
 fn same_content(a: &Document, b: &Document) -> bool {
     Arc::ptr_eq(&a.project, &b.project) && Arc::ptr_eq(&a.drafts, &b.drafts)
 }

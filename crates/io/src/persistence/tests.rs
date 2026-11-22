@@ -509,7 +509,11 @@ fn a_project_authored_past_the_old_cap_saves_and_recovers() -> Result<()> {
 #[test]
 fn a_project_too_large_to_save_again_is_refused_at_open() -> Result<()> {
     let file = with_tracks(10)?;
-    let len = format::container_document_len(&file, usize::MAX)?;
+    // Measured as its first save writes it: with the identity it is given.
+    let mut identified = file.clone();
+    identified.project.production.project_id =
+        Some("00000000-0000-4000-8000-000000000000".to_owned());
+    let len = format::container_document_len(&identified, usize::MAX)?;
     assert!(container::admit(&file, len).is_ok());
     let refused = container::admit(&file, len - 1)
         .err()
@@ -519,6 +523,32 @@ fn a_project_too_large_to_save_again_is_refused_at_open() -> Result<()> {
         refused.contains("not opened because it could not be saved again"),
         "{refused}"
     );
+    Ok(())
+}
+
+/// Review finding 15: a document that fits the limit only without the
+/// identity its first save gives it is refused at open, as the writer
+/// refuses it, so no project opens whose first save fails; with room for
+/// the identity it opens.
+#[test]
+fn a_project_whose_first_save_would_not_fit_is_refused_at_open() -> Result<()> {
+    let file = with_tracks(10)?;
+    assert!(file.project.production.project_id.is_none());
+    let bare = format::container_document_len(&file, usize::MAX)?;
+    let mut identified = file.clone();
+    identified.project.production.project_id =
+        Some("00000000-0000-4000-8000-000000000000".to_owned());
+    let with_identity = format::container_document_len(&identified, usize::MAX)?;
+    assert!(with_identity > bare);
+    let refused = container::admit(&file, bare)
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default();
+    assert!(
+        refused.contains("not opened because it could not be saved again"),
+        "{refused}"
+    );
+    assert!(container::admit(&file, with_identity).is_ok());
     Ok(())
 }
 

@@ -574,9 +574,11 @@ pub fn search_shards(
         &query,
         &CatalogContext::default(),
         SearchOptions {
-            // The rows before `offset` too, which this page skips; the
-            // index bounds the whole at its own result limit.
-            limit: limit.max(1).saturating_add(offset),
+            limit: limit.max(1),
+            // The ranked search skips the rows before the page itself, so
+            // a page past its result limit is never empty while more
+            // match (review, offline registry).
+            offset,
             include_drafts: false,
         },
     );
@@ -597,8 +599,6 @@ pub fn search_shards(
         results: report
             .results
             .into_iter()
-            .skip(offset)
-            .take(limit.max(1))
             .filter_map(|hit| {
                 let (id, word) = review(&hit).unwrap_or_default();
                 online_row(hit, id, word)

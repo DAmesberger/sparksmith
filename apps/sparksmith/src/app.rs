@@ -1247,8 +1247,16 @@ impl App {
     /// Take on what a session lent the window's engine did to its file
     /// ([`sparksmith_automation::Session::lend_file`]): the file workflow
     /// owns path, saved state and recovery, and an opened or new project
-    /// resets the editors as File › Open does (review finding 8).
-    pub(crate) fn file_changes(&mut self, changes: Vec<sparksmith_automation::FileChange>) {
+    /// resets the editors as File › Open does (review finding 8). `own`:
+    /// the chat's conversation made the change (its call or its workflow
+    /// run), which carries on in the project it opened; another client's
+    /// open or new project ends the conversation as File › Open does, so
+    /// it never answers about the project it replaced.
+    pub(crate) fn file_changes(
+        &mut self,
+        changes: Vec<sparksmith_automation::FileChange>,
+        own: bool,
+    ) {
         use sparksmith_automation::FileChange;
         if changes.is_empty() {
             return;
@@ -1258,8 +1266,10 @@ impl App {
             FileChange::New { .. } => Some(None),
             FileChange::Saved { .. } => None,
         });
-        if opened.is_some() {
-            self.editors_replaced();
+        match opened {
+            Some(_) if own => self.editors_replaced(),
+            Some(_) => self.document_replaced(),
+            None => {}
         }
         if let Err(error) = self.files.hosted(&self.engine, changes) {
             self.say(Level::Error, error);
