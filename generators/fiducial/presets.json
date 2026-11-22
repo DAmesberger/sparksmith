@@ -1,0 +1,87 @@
+[
+ {
+  "key": "fiducial-global-1mm",
+  "name": "Global fiducial Ø1.0 mm, 2.0 mm opening",
+  "aliases": [
+   "fiducial 1 mm",
+   "global fiducial",
+   "FID 1mm"
+  ],
+  "description": "A global fiducial: a Ø1.0 mm bare copper dot in a Ø2.0 mm solder mask opening, the clear area the opening.",
+  "params": {
+   "copper_diameter": 1000000,
+   "mask_diameter": 2000000,
+   "clear_diameter": 2000000,
+   "sides": "one"
+  },
+  "citation": {
+   "document": "JLCPCB Help Center, How to Add Edge Rails and Fiducials for PCB Assembly Orders (https://jlcpcb.com/help/article/how-to-add-edge-rails-fiducials-for-pcb-assembly-order, read 2026-11-21)",
+   "revision": "last updated 2026-09-09"
+  },
+  "basis": "cited",
+  "note": "JLCPCB: \"The recommended diameter of a fiducial marker is 1 mm.\" and \"The solder mask opening should be twice the diameter of the exposed copper pad.\" The clear area is the opening: \"This area should be equal in size to the solder mask clearance (e.g., 2.0 mm in diameter).\" (JLCPCB blog, Fiducial Marks in PCB and SMT Assembly (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21))."
+ },
+ {
+  "key": "fiducial-global-1mm-both",
+  "name": "Global fiducial Ø1.0 mm, 2.0 mm opening, both sides",
+  "aliases": [
+   "fiducial 1 mm both sides",
+   "double-sided fiducial"
+  ],
+  "description": "The Ø1.0 mm global fiducial with a second dot opposite it on the far side, for boards assembled on both sides.",
+  "params": {
+   "copper_diameter": 1000000,
+   "mask_diameter": 2000000,
+   "clear_diameter": 2000000,
+   "sides": "both"
+  },
+  "citation": {
+   "document": "JLCPCB Help Center, How to Add Edge Rails and Fiducials for PCB Assembly Orders (https://jlcpcb.com/help/article/how-to-add-edge-rails-fiducials-for-pcb-assembly-order, read 2026-11-21)",
+   "revision": "last updated 2026-09-09"
+  },
+  "basis": "cited",
+  "note": "Sizes as the 1.0 mm preset (JLCPCB). Both sides: \"For a double-sided SMT assembly, you must have a set of global fiducials on both the top and bottom sides of the board.\" (JLCPCB blog, Fiducial Marks in PCB and SMT Assembly (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21))."
+ },
+ {
+  "key": "fiducial-global-1mm-3r",
+  "name": "Global fiducial Ø1.0 mm, 3.0 mm clear area",
+  "aliases": [
+   "fiducial 1 mm 3 mm",
+   "fiducial 3R"
+  ],
+  "description": "A global fiducial: a Ø1.0 mm bare copper dot in a Ø3.0 mm solder mask opening and clear area (three times the dot's radius).",
+  "params": {
+   "copper_diameter": 1000000,
+   "mask_diameter": 3000000,
+   "clear_diameter": 3000000,
+   "sides": "one"
+  },
+  "citation": {
+   "document": "PCBWay, Design Instruction: PCB Panelization, Breakaway Rails, Fiducial Marks, Tooling Holes (https://pcbway.com/helpcenter/design_instruction/PCB_Panelization__Breakaway_Rails__Fiducial_Marks__Tooling_Holes.html, read 2026-11-21)",
+   "revision": "last updated 2024-05-17"
+  },
+  "basis": "cited",
+  "note": "PCBWay: \"The minimum diameter of a fiducial mark is 1.0mm, and the maximum diameter is 3.0mm.\"; a clear area \"with a minimum radius of 2R\", and \"If a radius of 3R can be achieved, the machine recognition will be better\"; \"If soldermask is used, it should not cover the clear area\", so the opening is the clear area."
+ },
+ {
+  "key": "fiducial-local-1mm",
+  "name": "Local fiducial Ø1.0 mm, 2.0 mm opening",
+  "aliases": [
+   "local fiducial",
+   "fine-pitch fiducial"
+  ],
+  "description": "A local fiducial for a fine-pitch part (0.5 mm pitch or less), placed in pairs diagonally across its land pattern: a Ø1.0 mm dot in a Ø2.0 mm opening and clear area.",
+  "params": {
+   "copper_diameter": 1000000,
+   "mask_diameter": 2000000,
+   "clear_diameter": 2000000,
+   "sides": "one"
+  },
+  "citation": {
+   "document": "JLCPCB Help Center, How to Add Edge Rails and Fiducials for PCB Assembly Orders (https://jlcpcb.com/help/article/how-to-add-edge-rails-fiducials-for-pcb-assembly-order, read 2026-11-21)",
+   "revision": "last updated 2026-09-09"
+  },
+  "basis": "cited_unverified",
+  "note": "Neither JLCPCB nor PCBWay gives local fiducials sizes of their own, so this is the global fiducial's size (JLCPCB's 1 mm dot in a 2 mm opening; PCBWay's smallest mark, 1.0 mm). When to use one: local fiducials are for fine-pitch components, \"specifically those with a pitch of 0.5mm or less\", and \"Typically, two fiducial marks are placed diagonally opposite the component's land pattern.\" (JLCPCB blog, Fiducial Marks in PCB and SMT Assembly (https://jlcpcb.com/blog/fiducial-marks, updated 2026-09-09, read 2026-11-21))."
+ }
+]

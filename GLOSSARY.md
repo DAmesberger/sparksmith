@@ -150,6 +150,9 @@ A copper land in a footprint, associated with a package terminal when electrical
 What a pad is for: SMD and plated-through pads land a package terminal; non-plated holes and fiducials never do; a mechanical pad is copper with an explicit decision not to land one. No terminal is inferred from a pad number.
 _Avoid_: Treating a terminal-less pad as unfinished when it is mechanical
 
+**Fiducial**:
+An optical alignment mark the assembler's cameras find the board by: a pad of kind fiducial (bare copper in a mask opening, no terminal, no paste) inside a clear area kept free of copper, silkscreen and other parts (the part's courtyard and a copper keep-out on its side). A global fiducial locates the board (the fab profile's `fiducial_count_min` per assembled side, not symmetric about the board's centre); a local one sits beside a fine-pitch part.
+
 **Polarity pad**:
 The authored pin-1 pad of a footprint. Silkscreen or assembly markers only illustrate it; the pad is the authority.
 _Avoid_: Pin-1 dot (the marker, not the rule)

@@ -316,6 +316,11 @@ pub fn placed_keepouts(project: &Project) -> Vec<PlacedKeepout> {
                 KeepoutScope::ComponentSide => {
                     KeepoutLayers::Only(vec![crate::model::CopperLayer::from(placement.layer)])
                 }
+                KeepoutScope::OppositeSide => {
+                    KeepoutLayers::Only(vec![crate::model::CopperLayer::from(opposite(
+                        placement.layer,
+                    ))])
+                }
             };
             result.push(PlacedKeepout {
                 instance: instance.id,

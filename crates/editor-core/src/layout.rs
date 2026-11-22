@@ -31,6 +31,7 @@ mod copper;
 pub mod courtyard;
 pub mod dimensions;
 pub mod etch;
+pub mod fiducial;
 pub mod fill;
 pub mod grid;
 pub mod impedance;
@@ -1646,6 +1647,7 @@ pub fn checks_on(
     findings.extend(etch::checks(project, graph));
     findings.extend(bodies::checks(project));
     findings.extend(mask_colour::findings(project));
+    findings.extend(fiducial::findings(project));
     findings
 }
 

@@ -66,7 +66,7 @@ fn ten_by_ten() -> Vec<(String, ParamValue)> {
 fn values(g: &Generation) -> (&str, &v1::Params) {
     match &g.model {
         Some(v1::Model::PartFile { asset, values }) => (asset.as_str(), values),
-        None => ("", &EMPTY),
+        _ => ("", &EMPTY),
     }
 }
 

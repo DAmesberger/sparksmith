@@ -24,6 +24,8 @@ rhai.workspace = true
 sha2.workspace = true
 i_overlay.workspace = true
 qrcodegen = "1.8"
+# Data Matrix (ECC 200) symbols for generated 2D codes; MIT OR Apache-2.0.
+datamatrix = { version = "0.3", default-features = false }
 
 [dev-dependencies]
 # The Gerber and Excellon readers the fabrication tests read files back with.

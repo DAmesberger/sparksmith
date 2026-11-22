@@ -50,6 +50,8 @@ pub(super) fn severity(finding: &Finding) -> Severity {
         | "keepout.track"
         | "keepout.via"
         | "keepout.pad"
+        // Copper in a fiducial's mask opening shows, or touches the dot.
+        | "board.fiducial_copper"
         // Geometry past the limit is unchecked, so errors may be uncounted.
         | "board.check_limit"
         | "board.shape_unsolved"
@@ -85,6 +87,10 @@ pub fn group_title(code: &str) -> String {
         "board.acute_copper" => "Acute copper angles",
         "board.copper_sliver" => "Unfilled slivers",
         "board.courtyard_overlap" => "Courtyards overlap",
+        "board.fiducials_too_few" => "Too few fiducials",
+        "board.fiducials_symmetric" => "Symmetric fiducials",
+        "board.fiducial_silk" => "Silkscreen in fiducial clear areas",
+        "board.fiducial_copper" => "Copper in fiducial clear areas",
         "board.body_off_pads" => "Body leads off their pads",
         "board.outside_outline" => "Outside the board outline",
         "board.unrouted" => "Unrouted connections",
@@ -236,6 +242,10 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "board.acute_copper" => "Reroute the copper to meet at a wider angle",
         "board.copper_sliver" => "Move the copper apart or together, or widen the hatch",
         "board.courtyard_overlap" => "Move the parts apart",
+        "board.fiducials_too_few" => "Place more fiducials on that side",
+        "board.fiducials_symmetric" => "Move one fiducial so the set is not symmetric",
+        "board.fiducial_silk" => "Move the silkscreen out of the clear area",
+        "board.fiducial_copper" => "Reroute the copper round the fiducial",
         "board.body_off_pads" => "Fit the body to its pads or give the part another body",
         "variant.substitute_unfit" => "Choose another part for the variant or fit the default",
         "board.outside_outline" => "Move it inside the board",
@@ -575,6 +585,10 @@ pub const KNOWN_CODES: &[&str] = &[
     "board.courtyard_overlap",
     "board.drill_size",
     "board.edge_clearance",
+    "board.fiducial_copper",
+    "board.fiducial_silk",
+    "board.fiducials_symmetric",
+    "board.fiducials_too_few",
     "board.hole_clearance",
     "board.mask_colour_not_offered",
     "board.npth_annular_ring",

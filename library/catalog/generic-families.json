@@ -77,6 +77,21 @@
       "examples": ["diode sod-123", "diode sma"]
     },
     {
+      "family": "tantalum",
+      "generator": "molded",
+      "category": "passives/capacitors",
+      "presets": { "part": "polarised_capacitor" },
+      "label": "Tantalum capacitor case {package}",
+      "body": ["body_length", "body_width"],
+      "patterns": [
+        "tantalum {package:list} {value:farad}? {voltage:volt}?",
+        "tantalum case {package:list} {value:farad}? {voltage:volt}?"
+      ],
+      "examples": ["tantalum B", "tantalum case A 10u 10V", "tantalum 7343-31 100u 16V"],
+      "fields": ["Capacitance", "Rated voltage", "Tolerance"],
+      "value_template": ["{Capacitance} {Rated voltage}", "{Capacitance}"]
+    },
+    {
       "family": "electrolytic",
       "generator": "electrolytic",
       "category": "passives/capacitors",

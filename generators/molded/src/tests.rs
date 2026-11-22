@@ -244,3 +244,42 @@ fn inconsistent_values_are_refused() {
         Some(("param.inconsistent".into(), Some("body_height".into())))
     );
 }
+
+/// A tantalum capacitor carries its value code by default (the pF code and
+/// the voltage letter, Kyocera AVX TAJ), at its preset's text height;
+/// `none` leaves it unmarked, lines given replace it, and a diode carries
+/// none.
+#[test]
+fn a_tantalum_capacitor_marks_its_value_code() -> Result<(), Vec<Problem>> {
+    let line = "{field:Capacitance|cap3} {field:Rated voltage|letter:tantalum}";
+    let g = Molded::generate(&request(Scope::Component, &preset("molded-tantalum-b")))?;
+    let m = g.marking.as_ref();
+    assert_eq!(m.map(|m| m.lines.clone()), Some(vec![line.to_string()]));
+    assert_eq!(m.and_then(|m| m.text_height), Some(700_000));
+
+    let mut none = preset("molded-tantalum-b");
+    none.push(text("value_code", "none"));
+    let g = Molded::generate(&request(Scope::Component, &none))?;
+    assert!(g.marking.is_none());
+
+    let mut given = preset("molded-tantalum-b");
+    given.push((
+        "marking".into(),
+        ParamValue::List(vec![ParamValue::Text("{mpn}".into())]),
+    ));
+    let g = Molded::generate(&request(Scope::Component, &given))?;
+    assert_eq!(
+        g.marking.map(|m| m.lines),
+        Some(vec![String::from("{mpn}")])
+    );
+
+    let g = Molded::generate(&request(Scope::Component, &preset("molded-minimelf")))?;
+    assert!(g.marking.is_none());
+    // A diode keeps its preset's lines.
+    let g = Molded::generate(&request(Scope::Component, &preset("molded-sma")))?;
+    assert_eq!(
+        g.marking.map(|m| m.lines),
+        Some(vec![String::from("{mpn}")])
+    );
+    Ok(())
+}

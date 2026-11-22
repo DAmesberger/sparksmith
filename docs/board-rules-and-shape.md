@@ -121,6 +121,20 @@ Two warnings of the board checks (`layout/etch.rs`, run by `layout::checks_with`
 - **Measured** (9 November 2026, macOS arm64, `test` profile: core at opt-level 1): on the 10,000-via benchmark board with a full-board pour and both rules set, the etch checks take 10.6 ms (angles 4.1 ms, slivers 6.9 ms, of which finding the fresh fills is 3.1 ms); unset, they cost nothing (`the_check_is_cheap_on_ten_thousand_vias` prints these).
 - **The ESP32 example** keeps both unset, so its board and production checks have no etch finding (`crates/io/tests/esp32_etch.rs`). Under a 90° angle and its fills' flow limit (2 × 0.3 mm fill clearance + 0.2 mm min width = 0.8 mm) it has 25 acute wedges and 197 slivers; the test prints them.
 
+## Fiducials
+
+A fiducial is a pad of kind fiducial: bare copper that lands no terminal and takes no paste. The `fiducial` generator makes the whole part ([generators](../generators/README.md)): the dot, its mask opening, a clear area that is the footprint's courtyard and a copper keep-out on the dot's own outer layer (`Keepout.side`, stored as `KeepoutScope::ComponentSide`, or `OppositeSide` for the far dot of a both-sides fiducial), no silkscreen, no terminals, and no body (`Model::NoBody`, stored as `PackageModel::NoBody`): the board plan draws the land, so the 3D view and the exports add no copper of their own. Its presets come from JLCPCB's and PCBWay's assembly guidelines, cited in `generators/fiducial/presets.json`.
+
+The checks (`layout/fiducial.rs`, warnings, run with the board checks) take their limits from the profile's assembly rules, `fiducial_count_min` and `fiducials_asymmetric` (`DesignRules::assembly`). Both are optional in a profile file (a fabricator that does not assemble publishes none, and then nothing is checked); the four shipped profiles set them, each quoting its source:
+
+- **`board.fiducials_too_few`**: a side carrying surface-mount lands of a part the active variant fits has fewer fiducials than `fiducial_count_min` ("The top side has 2 fiducials for its surface-mount parts; needs 3 (JLCPCB 2-layer: min fiducials per assembled side)"). JLCPCB: 3 recommended, 2 under *Absolute minimum*; PCBWay: 3.
+- **`board.fiducials_symmetric`**: with `fiducials_asymmetric`, a side's two or more fiducials map onto themselves under a half turn about the centre of the board outline's box, each within 1 µm (the fabrication files' resolution), so a board turned round looks the same to the camera.
+- **`board.fiducial_silk`**: silkscreen (a drawing or text, any part's) reaches into a fiducial's clear area on its side. The clear area is the keep-out on the dot's layer that holds its centre, else its mask opening.
+- **`board.fiducial_copper`** (an error): a track or via reaches into the clear area of a fiducial that carries no keep-out of its own (a footprint made elsewhere), its mask opening. Where the fiducial has a keep-out, copper in it is a keep-out finding (`keepout.track`, `keepout.via`, also errors; fills stay out of it). Another part in the clear area is a courtyard finding (`board.courtyard_overlap`).
+- Fiducials are found from the physical pad list the fabrication films draw (`layout::placed_pads`), not from the netted pads the copper graph uses, so an unnetted fiducial is checked as the Gerber writes it; its opening is `PlacedPad::mask_expansion`, the one reading the mask film shares.
+
+No check for local fiducials of fine-pitch parts yet: JLCPCB's blog places them for 0.5 mm pitch or less, "typically" two diagonally across the land pattern, which names no distance a check could hold a fiducial to.
+
 ## Board shape, cutouts and edge-relative placement
 
 - **Model** (`model/board.rs`, `layout/outline.rs`):

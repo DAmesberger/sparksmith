@@ -61,21 +61,32 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 /// The presets, in nm.
 const PRESETS: &str = include_str!("../presets.json");
 
-/// The generator's version (`Description::version`). 6: the shield label.
-const VERSION: u32 = 6;
+/// The generator's version (`Description::version`). 6: the shield label;
+/// 7: the label laid out as Espressif's laser-marking artwork, with the
+/// IC, CMIIT and MIC lines, the maker's name, the specification
+/// identifier and the Data Matrix.
+const VERSION: u32 = 7;
 
-/// The shield can's label: an artwork template (the generator's data,
-/// original layout) whose `%NAME%`, `%LOGO%`, `%FCC%` and `%CE%` the
-/// preset's label parameters fill; a line naming one the preset leaves
-/// empty is left out. The host fills `{code}` per placed part (the
-/// orderable variant from `marking_codes`) and fits the installed artwork
-/// the preset names by id (`<use data-art>`), drawing none that is not
-/// installed.
+/// The shield can's label: an artwork template (the generator's data)
+/// laid out as Espressif's shield-can laser-marking artwork for the
+/// ESP32-S3-WROOM-1U (FCC ID 2AC7Z-ESPS3WROOM1U, 'Label' exhibit, the
+/// 15.65 × 17.50 mm can top in 0.01 mm units, cropped to [`LABEL_SHARE`]; the MIC row from its
+/// PCN20230802), whose `%…%` tokens the preset's label parameters fill; a
+/// line naming one the preset leaves empty is left out. The host fills
+/// `{code}` per placed part (the orderable variant from `marking_codes`),
+/// fits the installed artwork the preset names by id (`<use data-art>`),
+/// drawing none that is not installed, and draws the Data Matrix of the
+/// part's `datamatrix` variable, or of a sample payload of the code's
+/// length while it has none (`<use data-code>`).
 const SHIELD_LABEL: &str = include_str!("../marking/shield-label.svg");
 /// Longest label text or artwork id.
 const LABEL_CHARS: u32 = 32;
-/// The label's share of the can top along each side, in thousandths.
-const LABEL_SHARE: i64 = 820;
+/// The label's share of the can top along each side, as the template's
+/// view box over the maker's artwork (drawn at the can's size, 1565 × 1750
+/// units): the view box is the artwork cropped symmetrically round the
+/// can's centre to what it draws, so every line keeps its place on the can
+/// while the label fits inside the marking area's margin.
+const LABEL_SHARE: [(i64, i64); 2] = [(1347, 1565), (1504, 1750)];
 
 /// Row slots of the part files: two per side.
 pub const ROWS_PER_SIDE: usize = 2;
@@ -306,11 +317,22 @@ fn shield_label(args: &Args<'_>, d: &Dims) -> Result<Option<v1::Marking>, Proble
     if name.is_empty() || d.can[0] <= 0 || d.can[1] <= 0 {
         return Ok(None);
     }
+    let matrix = match args.text("label_matrix")? {
+        "datamatrix" => "datamatrix",
+        _ => "",
+    };
     let tokens = [
         ("%NAME%", name),
         ("%LOGO%", label_escape(args.text("label_logo")?)),
         ("%FCC%", label_escape(args.text("label_fcc_id")?)),
         ("%CE%", label_escape(args.text("label_ce")?)),
+        ("%MIC%", label_escape(args.text("label_mic")?)),
+        ("%MICID%", label_escape(args.text("label_mic_id")?)),
+        ("%IC%", label_escape(args.text("label_ic_id")?)),
+        ("%CMIIT%", label_escape(args.text("label_cmiit_id")?)),
+        ("%COMPANY%", label_escape(args.text("label_company")?)),
+        ("%STATUS%", label_escape(args.text("label_status")?)),
+        ("%MATRIX%", String::from(matrix)),
     ];
     let mut svg = String::with_capacity(SHIELD_LABEL.len());
     for line in SHIELD_LABEL.lines() {
@@ -327,17 +349,18 @@ fn shield_label(args: &Args<'_>, d: &Dims) -> Result<Option<v1::Marking>, Proble
             svg.push('\n');
         }
     }
-    let share = |v: i64| {
-        div_round(v.saturating_mul(LABEL_SHARE), 1000)
-            .unwrap_or(0)
-            .max(1)
+    let share = |v: i64, (part, whole): (i64, i64)| {
+        div_round(v.saturating_mul(part), whole).unwrap_or(0).max(1)
     };
     Ok(Some(v1::Marking {
         metal: true,
         surface: Some("can-top".into()),
         artwork: vec![v1::Artwork {
             svg,
-            size: [share(d.can[0]), share(d.can[1])],
+            size: [
+                share(d.can[0], LABEL_SHARE[0]),
+                share(d.can[1], LABEL_SHARE[1]),
+            ],
             at: v1::MarkPlace::Centre,
         }],
         codes: sparksmith_generator_sdk::marking::codes(args)?,
@@ -790,6 +813,49 @@ fn description_with(presets: Vec<Preset>) -> Description {
             "Shield label: conformity mark",
             "The id of a conformity mark (for example the CE mark) in the installed library artwork; none when empty.",
         ),
+        label_text(
+            "label_mic",
+            "Shield label: Japanese radio mark",
+            "The id of Japan's technical conformity mark in the installed library artwork, drawn beside the conformity mark with the MIC number; none when empty.",
+        ),
+        label_text(
+            "label_mic_id",
+            "Shield label: MIC number",
+            "The Japanese certification number the label prints in a box after R (201-220894); no MIC line when empty.",
+        ),
+        label_text(
+            "label_ic_id",
+            "Shield label: IC",
+            "The ISED Canada certification number the label prints after IC:; no IC line when empty.",
+        ),
+        label_text(
+            "label_cmiit_id",
+            "Shield label: CMIIT ID",
+            "The Chinese radio type approval code the label prints after CMIIT ID:; no CMIIT line when empty.",
+        ),
+        label_text(
+            "label_company",
+            "Shield label: maker's name",
+            "The id of the maker's name as artwork in the installed library (artwork/<id>.svg, for a script the built-in font lacks); drawn only where installed.",
+        ),
+        label_text(
+            "label_status",
+            "Shield label: identifier prefix",
+            "The characters before the variant code in the bottom line (the specification identifier: XX, the product status of a mass-produced module); no line when empty.",
+        ),
+        Param {
+            help: Some(
+                "The 2D code in the label's lower right: a Data Matrix of the placed part's datamatrix variable (the unit's code, as scanned), or of a sample of the code's length while it has none."
+                    .into(),
+            ),
+            ..pick(
+                "label_matrix",
+                "Shield label: 2D code",
+                &[("none", "None"), ("datamatrix", "Data Matrix")],
+                "none",
+                "marking",
+            )
+        },
         sparksmith_generator_sdk::marking::codes_param(),
     ];
     let rule = |text: &str, fields: &[&str]| Rule {
@@ -1462,6 +1528,7 @@ fn keepouts(d: &Dims) -> Vec<Keepout> {
     vec![Keepout {
         name: "antenna".into(),
         outline: vec![min, [max[0], min[1]], max, [min[0], max[1]]],
+        side: None,
     }]
 }
 

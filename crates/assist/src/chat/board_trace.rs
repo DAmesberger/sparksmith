@@ -315,19 +315,23 @@ fn a_small_board_is_built_routed_and_checked_through_the_verbs() -> Fallible {
         json!({"fill": {"layer": "Bottom", "net": gnd, "region": "board", "name": "GND"}}),
     )?;
     t.apply("fill.refill", json!({"target": {"fills": "all"}}))?;
-    // The check: no errors, no warnings and nothing unrouted. What is left
-    // is a to-do per part with no orderable Part chosen (generic parts).
+    // The check: no errors, one warning (no fiducials) and nothing
+    // unrouted. What is left is a to-do per part with no orderable Part
+    // chosen (generic parts).
     let issues = t.call(
         "query",
         json!({"name": "project.issues", "params": {"scope": {"kind": "all"}}}),
     )?;
     let report = &issues["result"];
     assert_eq!(report["counts"]["error"], 0, "{report}");
-    assert_eq!(report["counts"]["warning"], 0, "{report}");
+    // One warning: the board has surface-mount parts and no fiducials,
+    // which its PCBWay profile asks three of for assembly.
+    assert_eq!(report["counts"]["warning"], 1, "{report}");
     let rows = report["rows"].as_array().cloned().unwrap_or_default();
     assert!(
         rows.iter()
-            .all(|r| r["finding"]["code"] == "purchasing.no_part"),
+            .all(|r| r["finding"]["code"] == "purchasing.no_part"
+                || r["finding"]["code"] == "board.fiducials_too_few"),
         "{report}"
     );
     assert_eq!(t.session.engine().project().tracks.len(), 7);

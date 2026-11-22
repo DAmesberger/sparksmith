@@ -11,7 +11,7 @@ fn every_declared_pattern_parses() -> Result<()> {
     let standards = standards::get()?;
     let grammar = &standards.generic;
     check(grammar)?;
-    assert_eq!(grammar.families.len(), 8, "every family declares patterns");
+    assert_eq!(grammar.families.len(), 9, "every family declares patterns");
     for family in &grammar.families {
         assert!(!family.patterns.is_empty() && !family.examples.is_empty());
         for pattern in &family.patterns {

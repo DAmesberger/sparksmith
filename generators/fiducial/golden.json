@@ -1,0 +1,15 @@
+{
+ "cases": [
+  {
+   "name": "Global 1.0 mm, component",
+   "request": {"abi": 1, "scope": "component", "params": {"clear_diameter": 2000000, "copper_diameter": 1000000, "mask_diameter": 2000000, "sides": "one"}},
+   "result": "15c68b94f5b6bbaa5a17dfafa049182853170c4de40e727d300f93ad83ae94d8"
+  },
+  {
+   "name": "3R clear area, both sides, package",
+   "request": {"abi": 1, "scope": "package", "params": {"clear_diameter": 3000000, "copper_diameter": 1000000, "mask_diameter": 3000000, "sides": "both"}},
+   "result": "7b2da9248ab02e16a7e166bcc42091c131dac924c824fdf84844cdb4fa3ae60b"
+  }
+ ],
+ "outputs": "8654930a5301060fd824d37cfc01903541c4e249520c74b17f95296909a5a269"
+}

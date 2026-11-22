@@ -1122,6 +1122,18 @@ fn publish_resistor_part(
     top_mark: Option<MarkingSpec>,
     artwork: Option<crate::library::PackedAsset>,
 ) -> Fallible<crate::PartRef> {
+    publish_rated_part(b, mpn, ohms, Vec::new(), top_mark, artwork)
+}
+
+/// [`publish_resistor_part`] rating `more` besides the resistance.
+fn publish_rated_part(
+    b: &mut Board,
+    mpn: &str,
+    ohms: f64,
+    more: Vec<crate::fields::RatedSpec>,
+    top_mark: Option<MarkingSpec>,
+    artwork: Option<crate::library::PackedAsset>,
+) -> Fallible<crate::PartRef> {
     use crate::fields::{FieldValue, RatedSpec, SpecMeaning};
     use crate::library::{
         Basis, Definition, DistributorOffer, DraftEdit, PartDefinition, Provenance, Reference,
@@ -1133,14 +1145,16 @@ fn publish_resistor_part(
         mpn: mpn.into(),
         component: b.fixture.r1(),
         binding: crate::BindingRef::new(b.fixture.binding, Revision::FIRST),
-        specs: vec![RatedSpec {
+        specs: std::iter::once(RatedSpec {
             field: b.value,
             value: FieldValue::Quantity {
                 si: dec(ohms),
                 display_unit: None,
             },
             meaning: SpecMeaning::ExactNominal,
-        }],
+        })
+        .chain(more)
+        .collect(),
         references: vec![Reference {
             id: 1,
             kind: ReferenceKind::Datasheet,
@@ -1322,5 +1336,162 @@ fn a_substitute_part_binds_its_artwork_template() -> Fallible<()> {
         .ok_or("no artwork")?;
     assert_eq!(bound.get("mpn").map(String::as_str), Some("EX-R-1K"));
     assert_eq!(bound.get("?mpn^=EX-R-1").map(String::as_str), Some("1"));
+    Ok(())
+}
+
+// ---- A fitted Part's own tolerance --------------------------------------
+
+/// A resistor selecting Resistance and a relative Tolerance, marked by the
+/// chip generator's EIA-96 rule (`resistor_code` `eia96`: the EIA-96 code
+/// where the part is ±1 % or better, three digits otherwise), placed once
+/// at 10 kΩ with no tolerance asked for.
+fn rated_board() -> Fallible<(Board, FieldRef)> {
+    let mut engine = Engine::default();
+    let kind = publish_kind(
+        &mut engine,
+        "Resistance",
+        crate::fields::QuantityKind {
+            units: crate::quantity::UnitSet {
+                dimension: [2, 1, -3, -2, 0, 0, 0],
+                units: vec![crate::quantity::UnitOfMeasure {
+                    symbol: "Ω".into(),
+                    aliases: vec!["ohm".into()],
+                    scale: 1.0,
+                    si_prefixes: true,
+                }],
+            },
+            default_unit: "Ω".into(),
+        },
+    )?;
+    let resistance = publish_field(
+        &mut engine,
+        "Resistance",
+        crate::fields::FieldDefinition {
+            value_type: crate::fields::ValueType::Quantity {
+                kind,
+                min: Some(0.0),
+                max: None,
+            },
+            ..Default::default()
+        },
+    )?;
+    let tolerance = publish_field(
+        &mut engine,
+        "Tolerance",
+        crate::fields::FieldDefinition {
+            value_type: crate::fields::ValueType::Tolerance {
+                basis: crate::fields::ToleranceBasis::Relative,
+            },
+            ..Default::default()
+        },
+    )?;
+    let (r, t) = (resistance.id.0, tolerance.id.0);
+    let spec = probe("Resistor", passive());
+    let fixture = draft(&mut engine, &spec)?;
+    with(&mut engine, fixture.component, component_body, |c| {
+        c.fields = vec![select(resistance), select(tolerance)];
+        c.marking = Some(Box::new(MarkingSpec {
+            items: vec![MarkingItem::Text {
+                template: Template(format!("{{field:{r}|eia96?field:{t}<=1%;field:{r}|code3}}")),
+                height_nm: None,
+                align: Align::Centre,
+            }],
+            ..Default::default()
+        }));
+    })?;
+    publish(&mut engine, fixture.all())?;
+    let (instance, _) = place(&mut engine, &fixture, "R1", 1, [0.0, 0.0])?;
+    set_properties(&mut engine, instance, vec![text(resistance, "10k")])?;
+    Ok((
+        Board {
+            engine,
+            instance,
+            value: resistance,
+            fixture,
+        },
+        tolerance,
+    ))
+}
+
+/// A Part rating its resistance and its symmetric relative tolerance.
+fn publish_rated_resistor(
+    b: &mut Board,
+    tolerance: FieldRef,
+    mpn: &str,
+    ohms: f64,
+    fraction: f64,
+) -> Fallible<crate::PartRef> {
+    use crate::fields::{FieldValue, RatedSpec, SpecMeaning};
+    let rated = RatedSpec {
+        field: tolerance,
+        value: FieldValue::Tolerance {
+            minus: dec(fraction),
+            plus: dec(fraction),
+        },
+        meaning: SpecMeaning::MaximumTolerance,
+    };
+    publish_rated_part(b, mpn, ohms, vec![rated], None, None)
+}
+
+fn assign_part(b: &mut Board, part: Option<crate::PartRef>) -> Fallible<()> {
+    apply(
+        &mut b.engine,
+        Operation::Instance(InstanceCommand::AssignPart {
+            instances: vec![b.instance],
+            part,
+        }),
+    )?;
+    Ok(())
+}
+
+/// A ±1 % chip resistor prints the EIA-96 code from its own rated
+/// tolerance, though the instance asks for none (Yageo RC_L data sheet,
+/// V.12, Marking: 0603 at ±1 %, E-96 values and the E-24 values 10, 11,
+/// 13, 15, 20 and 75, EIA-96 marking; the tolerance is the part number's
+/// F, ±1 %, and J, ±5 %): RC0603FR-0710KL prints 01C, RC0603FR-07806RL
+/// 88A (the data sheet's own figure), RC0603JR-0710KL 103 (±5 %, three
+/// digits). A value not in the E-96 series falls back to three digits
+/// (RC0603FR-07470RL: 471, without the bar under the 7 the data sheet
+/// draws). Without a Part nothing says the tolerance, so three digits.
+#[test]
+fn a_fitted_part_marks_by_its_own_rated_tolerance() -> Fallible<()> {
+    let (mut b, tolerance) = rated_board()?;
+    let shown = |b: &Board| -> Fallible<Vec<String>> {
+        let laid = marking_of(&b.engine, b.instance)?.ok_or("marked")?;
+        Ok(texts(&laid).into_iter().map(str::to_owned).collect())
+    };
+    assert_eq!(shown(&b)?, ["103"], "no part, no tolerance: three digits");
+
+    let one_percent = publish_rated_resistor(&mut b, tolerance, "RC0603FR-0710KL", 10e3, 0.01)?;
+    assign_part(&mut b, Some(one_percent))?;
+    assert_eq!(shown(&b)?, ["01C"]);
+
+    let five_percent = publish_rated_resistor(&mut b, tolerance, "RC0603JR-0710KL", 10e3, 0.05)?;
+    assign_part(&mut b, Some(five_percent))?;
+    assert_eq!(shown(&b)?, ["103"]);
+
+    let value = b.value;
+    let figure = publish_rated_resistor(&mut b, tolerance, "RC0603FR-07806RL", 806.0, 0.01)?;
+    assign_part(&mut b, None)?;
+    set_properties(&mut b.engine, b.instance, vec![text(value, "806")])?;
+    assign_part(&mut b, Some(figure))?;
+    assert_eq!(shown(&b)?, ["88A"]);
+
+    let e24 = publish_rated_resistor(&mut b, tolerance, "RC0603FR-07470RL", 470.0, 0.01)?;
+    assign_part(&mut b, None)?;
+    set_properties(&mut b.engine, b.instance, vec![text(value, "470")])?;
+    assign_part(&mut b, Some(e24))?;
+    assert_eq!(shown(&b)?, ["471"]);
+
+    // The instance's requirement does not say what the part is: ±5 %
+    // asked, the ±1 % part fitted, 01C printed.
+    assign_part(&mut b, None)?;
+    set_properties(
+        &mut b.engine,
+        b.instance,
+        vec![text(value, "10k"), text(tolerance, "5%")],
+    )?;
+    assign_part(&mut b, Some(one_percent))?;
+    assert_eq!(shown(&b)?, ["01C"]);
     Ok(())
 }

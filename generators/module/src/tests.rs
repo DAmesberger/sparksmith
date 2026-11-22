@@ -35,7 +35,7 @@ fn kv(key: &str, value: i64) -> (String, ParamValue) {
 fn values(g: &Generation) -> (&str, &v1::Params) {
     match &g.model {
         Some(v1::Model::PartFile { asset, values }) => (asset.as_str(), values),
-        None => ("", &EMPTY),
+        _ => ("", &EMPTY),
     }
 }
 
@@ -104,6 +104,7 @@ fn the_wroom3_has_99_terminals_and_nine_pads_numbered_95() -> Result<(), Vec<Pro
                 [11_000_000, 15_000_000],
                 [-11_000_000, 15_000_000]
             ],
+            side: None,
         }]
     );
     let (asset, v) = values(&g);
@@ -333,4 +334,78 @@ fn inconsistent_values_are_named() {
     assert!(refused.is_err_and(|p| p.iter().any(|p| p.message.contains("unique"))));
     let refused = Module::generate(&request(Scope::Package, &[kv("can_y", 3_000_000)]));
     assert!(refused.is_err_and(|p| p.iter().any(|p| p.message.contains("shield can"))));
+}
+
+/// The ESP32-S3-WROOM-1U's shield label is Espressif's laser-marking
+/// artwork filled from the preset: every line of it, at the can's size;
+/// a module whose preset leaves a line empty drops that line.
+#[test]
+fn the_wroom1u_label_carries_every_line_of_the_makers_artwork() -> Result<(), Vec<Problem>> {
+    let g = Module::generate(&request(
+        Scope::Package,
+        &preset("module-esp32-s3-wroom-1u"),
+    ))?;
+    let missing = |what: &str| {
+        vec![Problem {
+            code: "test".into(),
+            field: None,
+            message: format!("no {what}"),
+        }]
+    };
+    let marking = g.marking.ok_or_else(|| missing("label"))?;
+    let art = marking
+        .artwork
+        .first()
+        .ok_or_else(|| missing("label artwork"))?;
+    let svg = art.svg.as_str();
+    for line in [
+        "data-art=\"espressif-logo\"",
+        ">ESP32-S3-WROOM-1U</text>",
+        "data-art=\"ce-mark\"",
+        "data-art=\"giteki-mark\"",
+        ">201-220894</text>",
+        ">FCC ID:2AC7Z-ESPS3WROOM1U</text>",
+        ">21098-ESPS3WROOMU</text>",
+        ">2022DP8926(M)</text>",
+        "data-art=\"espressif-company-zh\"",
+        ">XX{code}</text>",
+        "data-code=\"datamatrix\" data-payload=\"{var:datamatrix}\"",
+    ] {
+        assert!(svg.contains(line), "{line} missing from {svg}");
+    }
+    assert!(!svg.contains('%'), "a token left in {svg}");
+    // The artwork's crop of the can top at 0.01 mm a unit: 13.47 × 15.04
+    // mm, centred on the 15.65 × 17.5 mm can.
+    assert_eq!(art.size, [13_470_000, 15_040_000]);
+    assert!(marking.metal);
+    assert_eq!(
+        marking
+            .codes
+            .get("ESP32-S3-WROOM-1U-N16R8")
+            .map(String::as_str),
+        Some("N16R8")
+    );
+
+    // The S31-WROOM-3 names only its module and maker: no other line.
+    let g = Module::generate(&request(
+        Scope::Package,
+        &preset("module-esp32-s31-wroom-3"),
+    ))?;
+    let svg = g
+        .marking
+        .and_then(|m| m.artwork.first().map(|a| a.svg.clone()))
+        .unwrap_or_default();
+    assert!(svg.contains(">ESP32-S31-WROOM-3</text>"), "{svg}");
+    for gone in [
+        "FCC ID",
+        "IC:",
+        "CMIIT",
+        "data-code",
+        "{code}",
+        "201-",
+        "ce-mark",
+    ] {
+        assert!(!svg.contains(gone), "{gone} in {svg}");
+    }
+    Ok(())
 }

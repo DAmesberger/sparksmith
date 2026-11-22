@@ -215,8 +215,9 @@ fn a_session_previews_and_sets_fab_options() -> Fallible {
     let changes = preview["result"]["result"]["changes"]
         .as_array()
         .ok_or("changes")?;
-    // The PTH ring, four PTH clearances and the smallest drill.
-    assert_eq!(changes.len(), 6, "{preview}");
+    // The PTH ring, four PTH clearances, the smallest drill and the
+    // fiducial count (two at JLCPCB's absolute minimum, three recommended).
+    assert_eq!(changes.len(), 7, "{preview}");
     assert_eq!(applied["ok"], true, "{applied}");
     let after = &after["result"]["result"];
     assert_eq!(after["profile"]["chosen"]["limits"], "minimum", "{after}");

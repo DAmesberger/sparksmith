@@ -12,10 +12,28 @@ PLACE = {  # designator: (x, y, rotation); J1's y puts its mating face on the bo
     "R3": (4.0, 50.0, 270), "D2": (4.0, 47.0, 90),
 }
 HOLES = [(3.5, 3.5), (36.5, 3.5), (3.5, 60.5), (36.5, 60.5)]
+# Three global fiducials on the top, the assembled side, in an L that is not
+# symmetric about the board's centre (20, 32), each clear of copper,
+# silkscreen and courtyards (PCBWay asks three: library/profiles).
+FIDUCIALS = [(34.0, 6.0), (6.0, 32.0), (34.0, 45.0)]
 # The front face of the USB4105 part file's Shell body (parts/usb4105.solidcraft):
 # its persistent Solidcraft name (the start face of the extruded shell
 # profile), and a point on it below the opening.
 USB_FRONT = ("Shell", "F2:start", [0.0, -3.675, 0.2])
+
+
+def place_fiducials(s):
+    """The `fiducial` generator's global 1.0 mm preset, placed board-only at
+    each of FIDUCIALS on the top."""
+    from stage_lib import generate
+    root, kinds = generate(s, "fiducial", "fiducial-global-1mm", "Fiducial")
+    for x, y in FIDUCIALS:
+        r = s.op("component.place_board_only", {
+            "component": {"id": root["id"], "revision": root["revision"]},
+            "representation": kinds["symbol"],
+            "physical": {"binding": kinds["binding"], "footprint": kinds["footprint"]}}, "fiducial")
+        s.op("layout.place", {"instance": r["result"]["outcome"]["instance"], "position": [x, y],
+                              "rotation_deg": 0.0, "layer": "Top"}, f"fiducial at ({x}, {y})")
 
 
 def oid(r):

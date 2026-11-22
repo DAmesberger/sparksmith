@@ -35,8 +35,28 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`): 4 sets the marking
-/// text at the height its preset gives (`marking_height`).
-const VERSION: u32 = 4;
+/// text at the height its preset gives (`marking_height`); 5 marks a
+/// polarised capacitor's value by its value code ([`value_code_line`]).
+const VERSION: u32 = 5;
+
+/// A moulded polarised (tantalum) capacitor's value code as marking data:
+/// the capacitance in picofarads as the three-digit code and the rated
+/// voltage's letter, one line (`106 A`, 10 µF 10 V), as Kyocera AVX's TAJ
+/// series marks every case from A to E (TAJ data sheet TDS-PTNO-0024 Rev 3,
+/// Marking: polarity band at the anode, the pF code and the voltage code;
+/// the maker's logo and its ID code line are the maker's own and are left
+/// out). The letters are the named `tantalum` table of the host's
+/// standards. The host fills both from each placed part's Capacitance and
+/// Rated voltage; a part with a value no code holds, or a voltage with no
+/// letter, draws no line (a wrong code is never drawn).
+fn value_code_line(code: &str) -> Option<String> {
+    match code {
+        "pf_letter" => Some(String::from(
+            "{field:Capacitance|cap3} {field:Rated voltage|letter:tantalum}",
+        )),
+        _ => None,
+    }
+}
 
 /// Estimated land: terminal length plus this along x…
 const LAND_EXTRA_LENGTH_NM: i64 = 600_000;
@@ -238,6 +258,21 @@ fn description_with(presets: Vec<Preset>) -> Description {
     ];
     params.push(sparksmith_generator_sdk::marking::param());
     params.push(sparksmith_generator_sdk::marking::height_param());
+    let mut code = enumeration(
+        "value_code",
+        "Capacitor value code",
+        &[
+            ("pf_letter", "pF code and voltage letter"),
+            ("none", "None"),
+        ],
+        "pf_letter",
+        "marking",
+    );
+    code.help = Some(
+        "The value code a polarised capacitor carries: the capacitance in pF as three digits and the rated voltage's letter (106 A: 10 µF, 10 V), as moulded tantalum capacitors are marked; none leaves it unmarked. Diodes carry none. Lines in Top marking replace it."
+            .into(),
+    );
+    params.push(code);
     let rule = |text: &str, fields: &[&str]| Rule {
         text: text.into(),
         fields: fields.iter().map(|f| (*f).into()).collect(),
@@ -789,8 +824,19 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.body_length).trim_end_matches(" mm"),
         mm_text(d.body_width).trim_end_matches(" mm"),
     );
+    let mut marking = sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?;
+    if marking.as_ref().is_none_or(|m| m.lines.is_empty()) && d.part == Part::PolarisedCapacitor {
+        let code = args.text("value_code").map_err(|p| vec![p])?;
+        if let Some(line) = value_code_line(code) {
+            let text_height =
+                sparksmith_generator_sdk::marking::height(&args).map_err(|p| vec![p])?;
+            let m = marking.get_or_insert_with(v1::Marking::default);
+            m.lines = vec![line];
+            m.text_height = text_height;
+        }
+    }
     Ok(Generation {
-        marking: sparksmith_generator_sdk::marking::of(&args, false).map_err(|p| vec![p])?,
+        marking,
         component: component_part.then(|| Component {
             terminals: ["1", "2"]
                 .iter()
