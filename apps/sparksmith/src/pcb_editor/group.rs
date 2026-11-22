@@ -55,6 +55,19 @@ impl Pick {
             Hit::Nothing => None,
         }
     }
+
+    /// The object a click on a 3D body selects, as a Layout click on the
+    /// same object does: a pad or a package selects its part.
+    pub(super) fn of_body(s: &sparksmith_solidcraft::project::Source) -> Option<Self> {
+        match (s.instance, s.via, s.fill, s.track) {
+            (Some(id), ..) if s.pad.is_some() => Some(Self::Part(id)),
+            (None, Some(id), ..) => Some(Self::Via(id)),
+            (_, _, Some(id), _) => Some(Self::Fill(id)),
+            (Some(id), ..) => Some(Self::Part(id)),
+            (None, None, None, Some(id)) => Some(Self::Track(id)),
+            _ => None,
+        }
+    }
 }
 
 impl Group {
@@ -167,7 +180,8 @@ impl Group {
 /// select their part, so they go with Parts. Kept per user in the settings.
 pub use sparksmith_io::settings::SelectionFilter as SelectFilter;
 
-/// Whether `filter` lets a click select `pick`.
+/// Whether `filter` lets a click select `pick`: the one rule a Layout
+/// click, a 3D click, the rectangle and ⌘A all ask.
 pub(super) fn allows(filter: &SelectFilter, pick: Pick) -> bool {
     match pick {
         Pick::Part(_) => filter.parts,
@@ -236,33 +250,42 @@ impl PcbEditor {
     /// ⇧- or ⌘-click: add what `hit` names, or take it out. The filter
     /// decides what `hit` can be.
     pub(super) fn toggle_hit(&mut self, hit: Hit, project: &Project) {
-        let Some(pick) = Pick::of(hit) else {
-            return;
-        };
+        if let Some(pick) = Pick::of(hit) {
+            self.toggle_pick(pick, project);
+        }
+    }
+
+    fn toggle_pick(&mut self, pick: Pick, project: &Project) {
         let mut group = self.selected();
         group.toggle(pick);
         self.set_group(group, project);
     }
 
-    /// A 3D pick with ⇧ or ⌘: add the object, or take it out.
+    /// A 3D pick with ⇧ or ⌘: add the object, or take it out. `along` is
+    /// every body under the pointer, nearest first; the first the filter
+    /// allows is the one ([`Self::selectable_body`]).
     pub fn toggle_picked(
         &mut self,
-        source: Option<&sparksmith_solidcraft::project::Source>,
+        along: &[&sparksmith_solidcraft::project::Source],
         project: &Project,
     ) {
-        let hit = match source {
-            Some(s) => match (s.instance, s.via, s.fill, s.track) {
-                (Some(instance), ..) => Hit::Part(instance),
-                (None, Some(via), ..) => Hit::Via(via, s.net.unwrap_or_default()),
-                (_, _, Some(fill), _) => Hit::Fill(fill, s.net),
-                (None, None, None, Some(track)) => Hit::Track(track, s.net.unwrap_or_default()),
-                _ => Hit::Nothing,
-            },
-            None => Hit::Nothing,
-        };
-        if Pick::of(hit).is_some_and(|p| allows(&self.filter, p)) {
-            self.toggle_hit(hit, project);
+        if let Some(pick) = self.selectable_body(along).and_then(Pick::of_body) {
+            self.toggle_pick(pick, project);
         }
+    }
+
+    /// The first of `along` (the bodies under a 3D click, nearest first)
+    /// the selection filter lets a click select. Kinds it leaves out pass
+    /// the click on to what lies behind, as a Layout click passes them to
+    /// what lies below ([`allows`] decides both).
+    pub(super) fn selectable_body<'a>(
+        &self,
+        along: &[&'a sparksmith_solidcraft::project::Source],
+    ) -> Option<&'a sparksmith_solidcraft::project::Source> {
+        along
+            .iter()
+            .copied()
+            .find(|s| Pick::of_body(s).is_some_and(|p| allows(&self.filter, p)))
     }
 
     /// Drop what the last edit, undo or redo took away.

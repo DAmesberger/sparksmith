@@ -1151,6 +1151,7 @@ fn terminals(d: &Dims) -> Vec<Terminal> {
             },
             direction: Direction::Passive,
             alternates: Vec::new(),
+            drive: None,
         })
         .collect()
 }

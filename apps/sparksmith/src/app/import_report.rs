@@ -188,6 +188,11 @@ fn body(ui: &mut egui::Ui, shown: &Shown, copy: &mut bool) {
                             kit::value_row(ui, &pattern.pattern, pattern.reason);
                         }
                     }
+                    // Each net tie, mask side or part without a footprint,
+                    // by name.
+                    for named in report.named(row.case) {
+                        kit::note(ui, &named);
+                    }
                     // Each refused track piece or via, with the check that
                     // refused it.
                     let items: Vec<_> = report.refused_copper_of(row.case).collect();

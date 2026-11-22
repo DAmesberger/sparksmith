@@ -746,6 +746,20 @@ pub struct Terminal {
     /// [`limits::TERMINAL_ALTERNATES`].
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub alternates: Vec<Direction>,
+    /// How the default function drives its net when it is an output or
+    /// bidirectional: an open drain (a power-good flag) or an open source.
+    /// Left out for push-pull, the convention of a driving direction; only
+    /// a driving direction may give one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive: Option<Drive>,
+}
+
+/// A driving terminal's drive other than push-pull.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Drive {
+    OpenDrain,
+    OpenSource,
 }
 
 /// A terminal's electrical direction (Sparksmith's pin function vocabulary).

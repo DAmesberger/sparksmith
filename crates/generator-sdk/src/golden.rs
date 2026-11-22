@@ -7,7 +7,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use serde::Deserialize;
-use sparksmith_generator_abi::v1::Request;
+use sparksmith_generator_abi::v1::{self, Request};
 use sparksmith_generator_abi::{codec, hex, result_hash};
 
 /// A generator crate's `golden.json`.
@@ -63,6 +63,21 @@ pub fn check<G: Generator>(json: &str) -> Result<usize, String> {
             ));
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let description = crate::land_pattern::declare(G::describe());
+        for case in sparksmith_generator_abi::parity::cases(&description) {
+            if let Ok(generation) = crate::land_pattern::generate::<G>(&case.request) {
+                let missing = terminals_without_contacts(&generation);
+                if !missing.is_empty() {
+                    problems.push(format!(
+                        "{}: no lead contact for soldered terminals {missing:?}",
+                        case.name
+                    ));
+                }
+            }
+        }
+    }
     for case in &file.cases {
         match crate::generate::<G>(&case.request) {
             Ok(generation) => match codec::encode(&generation) {
@@ -85,6 +100,34 @@ pub fn check<G: Generator>(json: &str) -> Result<usize, String> {
     } else {
         Err(problems.join("\n"))
     }
+}
+
+/// The package terminals `generation` lands on solderable copper but gives
+/// no lead contact, so the board check could not find their lead off its
+/// land. A land of its terminal (no [`v1::PadKind`], not a bare hole) is
+/// soldered; mechanical copper, fiducials and unplated holes land none. A
+/// part without a body ([`v1::Model::NoBody`]) has no leads. [`check`]
+/// runs it over the defaults and every preset in every scope, whether or
+/// not each contact lies on its land, which the crates test themselves.
+pub fn terminals_without_contacts(generation: &v1::Generation) -> Vec<&str> {
+    if matches!(generation.model, Some(v1::Model::NoBody)) {
+        return Vec::new();
+    }
+    let leads = &generation.package.geometry.leads;
+    let mut missing: Vec<&str> = Vec::new();
+    for pad in &generation.footprint.pads {
+        let unplated = pad.hole.as_ref().is_some_and(|h| !h.plated);
+        let key = pad.terminal.as_str();
+        if pad.kind.is_none()
+            && !unplated
+            && !key.is_empty()
+            && !leads.iter().any(|l| l.key == key)
+            && !missing.contains(&key)
+        {
+            missing.push(key);
+        }
+    }
+    missing
 }
 
 /// The native side of the module parity check

@@ -20,8 +20,8 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use sparksmith_generator_abi::v1::{
-    Description, Direction, GENERATE_PART, Generation, Param, ParamType, ParamValue, Problem,
-    Request, limits,
+    Description, Direction, Drive, GENERATE_PART, Generation, Param, ParamType, ParamValue,
+    Problem, Request, limits,
 };
 
 /// The parameter's key.
@@ -30,17 +30,30 @@ pub const KEY: &str = "pin_table";
 /// Most characters of one pin entry: a number, a name and a kind.
 pub const ENTRY_CHARS: u32 = 128;
 
+/// A pin kind: its key, its default direction, the directions it can be
+/// selected to and the default's drive when not push-pull.
+pub type Kind = (&'static str, Direction, &'static [Direction], Option<Drive>);
+
 /// The kinds a pin entry may give, each a terminal's functions: the first
 /// is its default, any other one it can be selected to. `io` is a GPIO,
-/// an input that can be an output; the rest are fixed.
-pub const KINDS: [(&str, Direction, &[Direction]); 7] = [
-    ("input", Direction::Input, &[]),
-    ("output", Direction::Output, &[]),
-    ("io", Direction::Input, &[Direction::Output]),
-    ("bidirectional", Direction::Bidirectional, &[]),
-    ("passive", Direction::Passive, &[]),
-    ("power_input", Direction::PowerInput, &[]),
-    ("power_output", Direction::PowerOutput, &[]),
+/// an input that can be an output; `open_drain` and `open_source` are
+/// outputs that only sink or only source (a power-good flag); the rest are
+/// fixed.
+pub const KINDS: [Kind; 9] = [
+    ("input", Direction::Input, &[], None),
+    ("output", Direction::Output, &[], None),
+    ("open_drain", Direction::Output, &[], Some(Drive::OpenDrain)),
+    (
+        "open_source",
+        Direction::Output,
+        &[],
+        Some(Drive::OpenSource),
+    ),
+    ("io", Direction::Input, &[Direction::Output], None),
+    ("bidirectional", Direction::Bidirectional, &[], None),
+    ("passive", Direction::Passive, &[], None),
+    ("power_input", Direction::PowerInput, &[], None),
+    ("power_output", Direction::PowerOutput, &[], None),
 ];
 
 /// The `pin_table` parameter: at most [`limits::TERMINALS`] entries, none by
@@ -50,7 +63,7 @@ pub fn param() -> Param {
         key: KEY.into(),
         label: "Pin table".into(),
         help: Some(
-            "The part's pins from its datasheet's pin table, one NUMBER=NAME:KIND per entry: the package terminal's number as the footprint numbers it, the pin's name as the datasheet writes it, and its kind: power_input (supply and ground pins), power_output (a regulator's output), input, output, io (a GPIO: an input that can be an output), bidirectional or passive (analog, no-connect and anything else). A terminal not listed keeps the generator's number as its name and is passive. Empty: no pin table."
+            "The part's pins from its datasheet's pin table, one NUMBER=NAME:KIND per entry: the package terminal's number as the footprint numbers it, the pin's name as the datasheet writes it, and its kind: power_input (supply and ground pins), power_output (a regulator's output), input, output, open_drain or open_source (an output that only sinks or only sources, as a power-good flag), io (a GPIO: an input that can be an output), bidirectional or passive (analog, no-connect and anything else). A terminal not listed keeps the generator's number as its name and is passive. Empty: no pin table."
                 .into(),
         ),
         ty: ParamType::List {
@@ -117,6 +130,7 @@ pub struct Pin {
     pub name: String,
     pub direction: Direction,
     pub alternates: Vec<Direction>,
+    pub drive: Option<Drive>,
 }
 
 /// Read entry `n` (`NUMBER=NAME:KIND`; the name may itself hold `=` or
@@ -142,8 +156,8 @@ pub fn read(item: &ParamValue, n: usize) -> Result<Pin, Problem> {
             "Pin {number}'s name holds a control character."
         )));
     }
-    let Some((_, direction, alternates)) = KINDS.iter().find(|(key, _, _)| *key == kind) else {
-        let keys: Vec<&str> = KINDS.iter().map(|(key, _, _)| *key).collect();
+    let Some((_, direction, alternates, drive)) = KINDS.iter().find(|k| k.0 == kind) else {
+        let keys: Vec<&str> = KINDS.iter().map(|k| k.0).collect();
         return Err(problem(format!(
             "Pin {number}'s kind \"{kind}\" is not one of: {}.",
             keys.join(", ")
@@ -154,6 +168,7 @@ pub fn read(item: &ParamValue, n: usize) -> Result<Pin, Problem> {
         name: name.into(),
         direction: *direction,
         alternates: alternates.to_vec(),
+        drive: *drive,
     })
 }
 
@@ -207,7 +222,8 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
         if let Some(other) = given.get(*terminal)
             && (other.name != pin.name
                 || other.direction != pin.direction
-                || other.alternates != pin.alternates)
+                || other.alternates != pin.alternates
+                || other.drive != pin.drive)
         {
             return Err(problem(format!(
                 "Pins {} and {} are one terminal of the part, so they need the same name and kind.",
@@ -221,6 +237,7 @@ pub fn apply(items: &[ParamValue], generation: &mut Generation) -> Result<(), Pr
             terminal.name.clone_from(&pin.name);
             terminal.direction = pin.direction;
             terminal.alternates.clone_from(&pin.alternates);
+            terminal.drive = pin.drive;
         }
     }
     Ok(())
@@ -242,6 +259,7 @@ mod tests {
             name: key.into(),
             direction: Direction::Passive,
             alternates: Vec::new(),
+            drive: None,
         };
         let bind = |package: &str, terminal: &str| BindingEntry {
             package_terminal: package.into(),
@@ -341,6 +359,7 @@ mod tests {
                 name: "EN".into(),
                 direction: Direction::Input,
                 alternates: Vec::new(),
+                drive: None,
             }
         );
         // A GPIO is an input that can be an output.
@@ -348,6 +367,12 @@ mod tests {
         assert_eq!(io.name, "IO0");
         assert_eq!(io.direction, Direction::Input);
         assert_eq!(io.alternates, [Direction::Output]);
+        // An open-drain flag is an output that only sinks.
+        let pg = read(&text("7=PG:open_drain"), 0)?;
+        assert_eq!(
+            (pg.direction, pg.drive),
+            (Direction::Output, Some(Drive::OpenDrain))
+        );
         // The name may hold "=" and ":"; the kind is after the last ":".
         assert_eq!(read(&text("5=A=B:C:passive"), 0)?.name, "A=B:C");
         Ok(())

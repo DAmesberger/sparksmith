@@ -15,8 +15,7 @@ use crate::refusal::{self, Origin};
 use crate::symbol_view::{self, View};
 use egui::{Align2, Color32, FontId, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Ui, Vec2};
 use sparksmith_core::{
-    CopperLayer, Engine, Id, Layer, ObjectRef, Operation, Placement, Point, Project, Query,
-    QueryResult, Via,
+    CopperLayer, Engine, Id, Layer, ObjectRef, Operation, Placement, Point, Project, Via,
     geometry::{Bounds, Shape as CoreShape, Transform2},
     instances,
     issues::{IssueArea, IssueScope},
@@ -516,8 +515,15 @@ pub struct PcbEditor {
     net_classes: Option<net_classes::NetClassesCard>,
     /// The Assembly variants card while it is open.
     variants: Option<variants_card::VariantsCard>,
-    /// The issue slot of the last inspected subject, per report key.
-    issue_slot: Option<((sparksmith_core::ReportKey, Inspected), Option<IssueSlot>)>,
+    /// The issue slot of the last inspected subject, per report of every
+    /// area and document state.
+    issue_slot: Option<(
+        (crate::issue_reports::ViewKey, Inspected),
+        Option<IssueSlot>,
+    )>,
+    /// The window's one report of every area, which the issue slot
+    /// projects from ([`crate::issue_reports`]).
+    reports: crate::issue_reports::SharedReports,
     /// The selected copper fill.
     fill: Option<Id>,
     /// The fills' display copper, kept while their copper is unchanged.
@@ -654,6 +660,7 @@ impl Default for PcbEditor {
             net_classes: None,
             variants: None,
             issue_slot: None,
+            reports: Default::default(),
             fill: None,
             fill_meshes: Default::default(),
             stale_fills: BTreeSet::new(),
@@ -764,9 +771,6 @@ impl PcbEditor {
     }
     pub fn selected_track(&self) -> Option<Id> {
         self.track
-    }
-    pub fn selected_via(&self) -> Option<Id> {
-        self.via
     }
     pub fn highlighted_net(&self) -> Option<Id> {
         self.highlighted
@@ -1477,18 +1481,28 @@ impl PcbEditor {
         }
     }
 
-    /// The issue slot of `inspected`: its Board issues from the one
-    /// `project.issues` query, cached per report key (document and check
-    /// settings, [`Engine::report_key`]). `None` (an
-    /// empty slot) when the query refuses.
+    /// Project the issue slot from `reports`, the window's one report of
+    /// every area, which the Issues surface shares.
+    pub fn share_reports(&mut self, reports: crate::issue_reports::SharedReports) {
+        self.reports = reports;
+        self.issue_slot = None;
+    }
+
+    /// The issue slot of `inspected`: its Board issues projected from the
+    /// one report of every area ([`crate::issue_reports`]), kept until that
+    /// report or the subject changes. `None` (an empty slot) when the
+    /// query refuses or before the first report.
     fn issue_slot(&mut self, engine: &Engine, inspected: Inspected) -> Option<IssueSlot> {
-        let key = (engine.report_key(), inspected);
+        let Some(crate::issues::Answer::Report(whole)) = self.reports.latest(engine) else {
+            return None;
+        };
+        let key = (crate::issue_reports::view_key(&whole, engine), inspected);
         if let Some((cached, slot)) = &self.issue_slot
             && *cached == key
         {
             return slot.clone();
         }
-        let slot = issue_slot_of(engine, inspected);
+        let slot = issue_slot_of(engine, &whole, inspected);
         self.issue_slot = Some((key, slot.clone()));
         slot
     }
@@ -2397,32 +2411,38 @@ impl PcbEditor {
                     .then(gap(a).total_cmp(&gap(b)))
             });
         // The selection filter leaves kinds out: a click passes through
-        // them to what lies below.
-        let f = self.filter;
-        if let Some(pad) = self.pick_pad(at, |p| layers.pad(p)).filter(|_| f.parts) {
-            Hit::Pad(pad.instance, pad.net)
-        } else if let Some(via) = self.pick_via(project, at).filter(|_| f.vias) {
-            Hit::Via(via.id, via.net)
-        } else if let Some(track) = track.filter(|_| f.tracks) {
-            Hit::Track(track.id, track.net)
-        } else if let Some(instance) = self
-            .pick_instance(project, at, tolerance, metric)
-            .filter(|_| f.parts)
-        {
-            Hit::Part(instance)
-        } else if let Some(fill) = self.pick_fill(project, at, tolerance).filter(|_| f.fills) {
-            Hit::Fill(fill.id, fill.net)
-        } else {
-            Hit::Nothing
-        }
+        // them to what lies below (a 3D click asks the same rule).
+        let pass = |hit: Hit| {
+            group::Pick::of(hit)
+                .is_some_and(|p| group::allows(&self.filter, p))
+                .then_some(hit)
+        };
+        self.pick_pad(at, |p| layers.pad(p))
+            .and_then(|pad| pass(Hit::Pad(pad.instance, pad.net)))
+            .or_else(|| {
+                self.pick_via(project, at)
+                    .and_then(|via| pass(Hit::Via(via.id, via.net)))
+            })
+            .or_else(|| track.and_then(|track| pass(Hit::Track(track.id, track.net))))
+            .or_else(|| {
+                self.pick_instance(project, at, tolerance, metric)
+                    .and_then(|instance| pass(Hit::Part(instance)))
+            })
+            .or_else(|| {
+                self.pick_fill(project, at, tolerance)
+                    .and_then(|fill| pass(Hit::Fill(fill.id, fill.net)))
+            })
+            .unwrap_or(Hit::Nothing)
     }
 
-    /// Select what a 3D pick names, as a Layout click on the same object
+    /// Select what a 3D click picks, as a Layout click on the same object
     /// does ([`Self::select_hit`]): a pad selects its part and lights the
     /// pad's net (pads are not selected on their own in either view).
-    pub fn select_picked(&mut self, source: Option<&sparksmith_solidcraft::project::Source>) {
+    /// `along` is the bodies under the pointer, nearest first; the first
+    /// the selection filter allows is picked ([`Self::selectable_body`]).
+    pub fn select_picked(&mut self, along: &[&sparksmith_solidcraft::project::Source]) {
         use menu::Hit;
-        let Some(s) = source else {
+        let Some(s) = self.selectable_body(along) else {
             return self.select_hit(Hit::Nothing);
         };
         match (s.instance, s.via, s.fill, s.track) {
@@ -2441,20 +2461,25 @@ impl PcbEditor {
     /// first. A click whose nearest body is a part's own (its package, not
     /// a pad) follows the net of that part's pad under the pointer, seen
     /// through the faded package; with none of its pads there the part is
-    /// selected and the followed net kept, never another of its nets.
+    /// selected and the followed net kept, never another of its nets. The
+    /// selection filter decides as for any 3D click.
     pub fn select_picked_following(
         &mut self,
         picked: Option<&sparksmith_solidcraft::project::Source>,
         along: &[&sparksmith_solidcraft::project::Source],
     ) {
         use menu::Hit;
-        let part = along.first().and_then(|s| {
-            (s.pad.is_none() && s.track.is_none() && s.via.is_none() && s.fill.is_none())
-                .then_some(s.instance)
-                .flatten()
-        });
+        let part = along
+            .first()
+            .and_then(|s| {
+                (s.pad.is_none() && s.track.is_none() && s.via.is_none() && s.fill.is_none())
+                    .then_some(s.instance)
+                    .flatten()
+            })
+            .filter(|&id| group::allows(&self.filter, group::Pick::Part(id)));
         let Some(instance) = part else {
-            return self.select_picked(picked);
+            let picks: Vec<_> = picked.into_iter().chain(along.iter().copied()).collect();
+            return self.select_picked(&picks);
         };
         let net = self.highlighted;
         match along
@@ -3324,7 +3349,11 @@ fn locate(objects: &[sparksmith_core::diagnostics::ObjectRef]) -> Option<Selecti
 
 /// The Board issues on `inspected` and the words after their counts ("on
 /// R13"), from `project.issues`. The board card counts the whole board.
-fn issue_slot_of(engine: &Engine, inspected: Inspected) -> Option<IssueSlot> {
+fn issue_slot_of(
+    engine: &Engine,
+    whole: &sparksmith_core::issues::IssueReport,
+    inspected: Inspected,
+) -> Option<IssueSlot> {
     let project = engine.project();
     let designator = |id: Id| {
         project
@@ -3362,9 +3391,7 @@ fn issue_slot_of(engine: &Engine, inspected: Inspected) -> Option<IssueSlot> {
         // A group's findings are on its objects' own cards.
         Inspected::Group => return None,
     };
-    let Ok(QueryResult::Issues(report)) = engine.query(Query::Issues { scope }) else {
-        return None;
-    };
+    let report = whole.scoped(&scope, project);
     let mut counts = sparksmith_core::issues::IssueCounts::default();
     for row in report.rows.iter().filter(|r| r.area == IssueArea::Board) {
         let slot = match row.severity {
@@ -3598,7 +3625,7 @@ mod tests {
     use super::*;
     use crate::schematic_editor::{mdeg, nm, pt};
     use sparksmith_core::layout::RouteRequest;
-    use sparksmith_core::{Fabrication, MaskColour};
+    use sparksmith_core::{Fabrication, MaskColour, Query, QueryResult};
 
     fn ids(engine: &Engine) -> (Id, Id) {
         let id = |d| {
@@ -4496,7 +4523,7 @@ mod tests {
             (
                 e.selected_instance(),
                 e.selected_track(),
-                e.selected_via(),
+                e.via,
                 e.net,
                 e.highlighted_net(),
             )
@@ -4511,7 +4538,7 @@ mod tests {
                 .find(|p| Some(p.instance) == source.instance && Some(p.pad.id) == source.pad)
                 .ok_or("the pad in Layout")?;
             layout.select_at(engine.project(), pad.center(), 0.0, TextMetric::default());
-            picked.select_picked(Some(source));
+            picked.select_picked(&[source]);
             assert_eq!(state(&picked), state(&layout), "{}", source.label);
             assert_eq!(
                 picked.selected_instance(),
@@ -4534,14 +4561,14 @@ mod tests {
             .iter()
             .find(|s| s.pad.is_none() && s.instance.is_some())
             .ok_or("a part body")?;
-        picked.select_picked(Some(body));
+        picked.select_picked(&[body]);
         assert_eq!(
             state(&picked),
             (body.instance, None, None, None, None),
             "{}",
             body.label
         );
-        picked.select_picked(None);
+        picked.select_picked(&[]);
         assert_eq!(state(&picked), (None, None, None, None, None));
         Ok(())
     }

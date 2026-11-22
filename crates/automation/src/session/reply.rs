@@ -3,14 +3,18 @@
 //! `verbose: true` the same request returns the snapshot instead.
 //!
 //! The ids are found by diffing the serialized document, so a collection the
-//! document gains later is reported without changing this module.
+//! document gains later is reported without changing this module. Only the
+//! sections a transaction wrote are serialized: a copy-on-write section
+//! ([`Shared`]) both states still share is left out of both
+//! ([`unshared`]), so a local edit never serializes packed assets or
+//! collections it did not touch.
 use super::{InspectParams, Request, Session};
 use crate::Result;
 use crate::front::{self, AlreadyAllowed, Asker, CallCx, NoOne, Surface, Target, from_request};
 use crate::gate::Caller;
 use serde_json::{Map, Value, json};
 use sparksmith_core::issues::{IssueReport, IssueScope};
-use sparksmith_core::{Class, Document, Finding, Query, QueryResult, layout};
+use sparksmith_core::{Class, Document, Finding, Project, Query, QueryResult, Shared, layout};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -27,11 +31,10 @@ const MAX_DRAFT_FINDINGS: usize = 40;
 const WHOLE: &[&str] = &["rules.profile"];
 
 /// The last document a compact reply described, kept so the next mutation
-/// serializes and checks only its result. Holding the `Arc`s keeps the
-/// pointer comparison sound.
+/// checks only its result. Holding the `Arc`s keeps the pointer comparison
+/// sound.
 pub(super) struct Baseline {
     document: Document,
-    value: Value,
     findings: Vec<Finding>,
 }
 
@@ -39,7 +42,6 @@ impl Baseline {
     fn of(document: &Document, settings: &layout::CheckSettings) -> Result<Self> {
         Ok(Self {
             document: document.clone(),
-            value: serde_json::to_value(document.project.as_ref())?,
             findings: open_findings(&issues_of(document, settings)?),
         })
     }
@@ -48,6 +50,60 @@ impl Baseline {
         Arc::ptr_eq(&self.document.project, &document.project)
             && Arc::ptr_eq(&self.document.drafts, &document.drafts)
     }
+}
+
+/// `before` and `after` as JSON without the copy-on-write sections they
+/// share: a [`Shared`] section both still hold, unchanged by construction,
+/// is left out of both, so the diff serializes only what the transaction
+/// wrote (a via edit: the vias, never the packed assets). Every other field
+/// is serialized and compared in full, so a field the document gains later
+/// is still reported.
+fn unshared(before: &Project, after: &Project) -> Result<(Value, Value)> {
+    let mut old = before.clone();
+    let mut new = after.clone();
+    macro_rules! leave_out_shared {
+        ($($($field:ident).+),* $(,)?) => {
+            $(
+                if Shared::ptr_eq(&old.$($field).+, &new.$($field).+) {
+                    old.$($field).+ = Shared::default();
+                    new.$($field).+ = Shared::default();
+                }
+            )*
+        };
+    }
+    leave_out_shared!(
+        instances,
+        occurrences,
+        wires,
+        junctions,
+        nets,
+        placements,
+        tracks,
+        vias,
+        part_dimensions,
+        model_traces,
+        fills,
+        keepouts,
+        labels,
+        sheet_symbols,
+        drawings,
+        interface,
+        library.components,
+        library.symbols,
+        library.packages,
+        library.footprints,
+        library.bindings,
+        library.quantity_kinds,
+        library.fields,
+        library.parts,
+        library.models,
+        library.package_rows,
+        library.origins,
+        library.assets,
+        library.generated,
+        library.reviews,
+    );
+    Ok((serde_json::to_value(&old)?, serde_json::to_value(&new)?))
 }
 
 /// Every issue of `document`, as `project.issues` lists them.
@@ -248,7 +304,8 @@ impl Session {
                 _ => Baseline::of(before, &settings)?,
             };
             let new = Baseline::of(&after, &settings)?;
-            changes.diff("", &old.value, &new.value);
+            let (old_value, new_value) = unshared(&before.project, &after.project)?;
+            changes.diff("", &old_value, &new_value);
             design = Some(findings_delta(&old.findings, &new.findings));
             self.baseline = Some(new);
         }
@@ -677,10 +734,11 @@ pub fn difference(
     if !Arc::ptr_eq(&before.project, &after.project) {
         let old = Baseline::of(before, settings)?;
         let new = Baseline::of(after, settings)?;
-        changes.diff("", &old.value, &new.value);
-        name_listed(&old.value, &changes.removed, &mut names);
-        name_listed(&new.value, &changes.added, &mut names);
-        name_listed(&new.value, &changes.changed, &mut names);
+        let (old_value, new_value) = unshared(&before.project, &after.project)?;
+        changes.diff("", &old_value, &new_value);
+        name_listed(&old_value, &changes.removed, &mut names);
+        name_listed(&new_value, &changes.added, &mut names);
+        name_listed(&new_value, &changes.changed, &mut names);
         out.insert(
             "findings".to_owned(),
             findings_delta(&old.findings, &new.findings),
@@ -707,6 +765,65 @@ pub fn difference(
 
 /// The person's name of each id in `lists` (collection path to ids) that
 /// `root` holds and that has one.
+/// What changed between two documents, without the findings: each object
+/// added, changed or removed, by its collection's path and its id, with
+/// its designator or name where it has one; and the changed places that
+/// are no collection of objects.
+pub(crate) struct Touched {
+    pub(crate) objects: BTreeMap<(String, String), Option<String>>,
+    pub(crate) fields: Vec<String>,
+}
+
+/// [`Touched`] from `before` to `after`; only the sections that differ are
+/// read.
+pub(crate) fn touched(before: &Document, after: &Document) -> Result<Touched> {
+    let mut objects = BTreeMap::new();
+    let mut fields = Vec::new();
+    let mut compare = |path: &str, old: Value, new: Value| {
+        let mut changes = Changes::default();
+        changes.diff(path, &old, &new);
+        let mut names = Map::new();
+        let root = |value: Value| {
+            let mut map = Map::new();
+            map.insert(path.to_owned(), value);
+            Value::Object(map)
+        };
+        let (old, new) = if path.is_empty() {
+            (old, new)
+        } else {
+            (root(old), root(new))
+        };
+        name_listed(&old, &changes.removed, &mut names);
+        name_listed(&new, &changes.added, &mut names);
+        name_listed(&new, &changes.changed, &mut names);
+        for lists in [&changes.added, &changes.changed, &changes.removed] {
+            for (list, ids) in lists {
+                for id in ids {
+                    let id = id.to_string();
+                    let name = names.get(&id).and_then(Value::as_str).map(str::to_owned);
+                    objects.insert((list.clone(), id), name);
+                }
+            }
+        }
+        fields.extend(changes.fields);
+    };
+    if !Arc::ptr_eq(&before.project, &after.project) {
+        compare(
+            "",
+            serde_json::to_value(before.project.as_ref())?,
+            serde_json::to_value(after.project.as_ref())?,
+        );
+    }
+    if !Arc::ptr_eq(&before.drafts, &after.drafts) {
+        compare(
+            "drafts",
+            serde_json::to_value(before.drafts.as_ref())?,
+            serde_json::to_value(after.drafts.as_ref())?,
+        );
+    }
+    Ok(Touched { objects, fields })
+}
+
 fn name_listed(root: &Value, lists: &BTreeMap<String, Vec<Value>>, names: &mut Map<String, Value>) {
     for (path, ids) in lists {
         let Some(Value::Array(items)) = path.split('.').try_fold(root, |value, key| value.get(key))

@@ -77,11 +77,30 @@ fn every_preset_generates_on_its_lands() -> Result<(), Vec<Problem>> {
     Ok(())
 }
 
+/// Every soldered terminal of every preset, the ground tab's 5 included,
+/// has a lead contact, apart from whether each lies on its land.
+#[test]
+fn every_soldered_terminal_has_a_lead_contact() -> Result<(), Vec<Problem>> {
+    for p in description().presets() {
+        for scope in [Scope::Component, Scope::Package] {
+            let g = Tactile::generate(&request(scope, &preset(&p.key)))?;
+            assert_eq!(
+                golden::terminals_without_contacts(&g),
+                Vec::<&str>::new(),
+                "{}",
+                p.key
+            );
+        }
+    }
+    Ok(())
+}
+
 #[test]
 fn the_evqp2_with_ground_tab() -> Result<(), Vec<Problem>> {
     // Feet 0.7 mm long from the 2.75 mm tips: contacts at ±2.4 mm, ±0.85
     // mm; lands 1.45 × 0.7 mm at ±2.575, ±1.0 mm; the ground land at
-    // −2.025 mm, the tab reaching 0.3 mm beyond the 3.5 mm base.
+    // −2.025 mm, the tab reaching 0.3 mm beyond the 3.5 mm base: its foot
+    // from −1.75 to −2.05 mm, contact at its middle, −1.9 mm.
     let g = Tactile::generate(&request(Scope::Component, &preset("tactile-evqp2-ground")))?;
     let leads: Vec<[i64; 3]> = g.package.geometry.leads.iter().map(|l| l.contact).collect();
     assert_eq!(
@@ -90,7 +109,8 @@ fn the_evqp2_with_ground_tab() -> Result<(), Vec<Problem>> {
             [-2_400_000, -850_000, 0],
             [-2_400_000, 850_000, 0],
             [2_400_000, -850_000, 0],
-            [2_400_000, 850_000, 0]
+            [2_400_000, 850_000, 0],
+            [0, -1_900_000, 0]
         ]
     );
     let at: Vec<(&str, [i64; 2])> = g

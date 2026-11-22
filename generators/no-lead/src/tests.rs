@@ -549,12 +549,25 @@ fn part_presets_name_and_type_their_pins() -> Result<(), Vec<Problem>> {
             row("EP", "VIN", PowerInput),
         ]
     );
+    // PG is an open-drain flag: it never fights a pull-up or another flag.
+    let pg = g
+        .component
+        .iter()
+        .flat_map(|c| &c.terminals)
+        .find(|t| t.key == "7");
+    assert_eq!(pg.and_then(|t| t.drive), Some(v1::Drive::OpenDrain));
     let g = sdk::generate::<NoLead>(&request(Scope::Component, &preset("no-lead-ti-rxb0014a")))?;
     let rows = named(&g);
     assert_eq!(rows.len(), 15);
     assert_eq!(rows.first(), Some(&row("1", "EN/UVLO", Input)));
     assert_eq!(rows.get(9), Some(&row("10", "VCC", PowerOutput)));
     assert_eq!(rows.last(), Some(&row("15", "GND/DAP", PowerInput)));
+    let pg = g
+        .component
+        .iter()
+        .flat_map(|c| &c.terminals)
+        .find(|t| t.key == "14");
+    assert_eq!(pg.and_then(|t| t.drive), Some(v1::Drive::OpenDrain));
     let g = sdk::generate::<NoLead>(&request(
         Scope::Component,
         &preset("no-lead-dfn-4-1.5x1.5-0.8-sensirion-sht4x"),

@@ -713,230 +713,245 @@ impl Request {
 
     /// Every request ID with its one-line summary, description and parameter
     /// schema, generated from the Rust types the dispatcher deserializes.
-    /// The summary says what the command is for in its first words, within
-    /// [`metadata::MAX_SUMMARY`] bytes; the description adds the detail.
+    /// A line names its `Request` variant: the ID, title and class come from
+    /// the variant's declaration and the schema from the type the variant
+    /// carries, so neither can be paired wrongly. The summary says what the
+    /// command is for in its first words, within [`metadata::MAX_SUMMARY`]
+    /// bytes; the description adds the detail.
     pub fn catalog() -> Vec<CommandInfo> {
+        /// `variant` (the constructor, and its name for the declaration).
         fn info<T: JsonSchema>(
-            id: &'static str,
+            _variant: fn(T) -> Request,
+            name: &str,
             summary: &'static str,
             description: &'static str,
-        ) -> CommandInfo {
+        ) -> Option<CommandInfo> {
+            // Every variant is declared ([`declare_entries!`]), in order.
+            let index = Request::VARIANTS.iter().position(|v| *v == name)?;
+            let decl = Request::ENTRIES.get(index)?;
             let mut params = serde_json::to_value(schemars::schema_for!(T)).unwrap_or(Value::Null);
             let takes_path = paths::marks_path(&params);
             // Callers see the schema as before; the mark is the gate's.
             paths::unmark(&mut params);
-            let decl = sparksmith_core::permission::find(Request::ENTRIES, id);
-            CommandInfo {
-                id,
-                // Every listed request has one; the metadata tests check.
-                title: decl.map_or(id, |decl| decl.title),
+            Some(CommandInfo {
+                id: decl.name,
+                title: decl.title,
                 summary,
                 description,
-                // Unlisted cannot pass the gate's tests; refused until then.
-                class: decl.map_or(Class::Never, |decl| decl.class),
+                class: decl.class,
                 takes_path,
                 params,
-                decl,
-            }
+                decl: Some(decl),
+            })
+        }
+        macro_rules! entry {
+            ($variant:ident, $summary:expr, $description:expr $(,)?) => {
+                info(
+                    Request::$variant,
+                    stringify!($variant),
+                    $summary,
+                    $description,
+                )
+            };
         }
         vec![
-            info::<ApplyParams>(
-                "project.apply",
+            entry!(
+                Apply,
                 "Apply one typed document operation at expected_revision; a stale revision or invalid input changes nothing.",
                 "Apply one typed document operation (library, instance including instance.assign_part, schematic, layout including layout.set_fabrication, layout.set_stackup, layout.edit_stackup and layout.add_via, or update) at an expected revision and return its outcome. Fails without changes on stale revisions or invalid input.",
             ),
-            info::<ApplyAllParams>(
-                "project.apply_all",
+            entry!(
+                ApplyAll,
                 "Apply typed document operations in order at expected_revision as one undo step; any failure changes nothing.",
                 "Apply one to 256 typed document operations, in order, at an expected revision as one undo step and one revision, and return their outcomes in order. Each is checked against the document the ones before it made; a stale revision or any failing operation (named by its place) changes nothing.",
             ),
-            info::<InspectParams>(
-                "project.inspect",
+            entry!(
+                Inspect,
                 "Read the revision, object counts, drafts and open findings; at reads one part of the document.",
                 "Return the revision, object counts, each draft's state and open findings by code. verbose: true returns the whole snapshot (project, drafts with their publish findings, ERC and board-check findings; about 0.5 MB on a small board); at: a JSON pointer into it returns just what it names, with lists indexed by position: /project/vias, /project/nets, /drafts (each {draft, check}), /drafts/0/draft/definition/body/pads/0. A pointer that names nothing is refused with the valid keys or indices where it stopped.",
             ),
-            info::<SchemaParams>(
-                "project.schema",
+            entry!(
+                Schema,
                 "Look up one operation, query or command's exact schema and how to send it; without a name, the index.",
                 "The exact JSON schema of one project.apply operation (layout.add_via), project.query query (library.search) or command, with how to send it; large definitions come separately through def. Without a name, the index of all of them with one line each. Not a document change.",
             ),
-            info::<Query>(
-                "project.query",
+            entry!(
+                Query,
                 "Answer one read-only query by name, such as project.issues, library.search or component.inspect.",
                 "Answer one read-only query. component.inspect: an instance's component pin, resolved symbol and implementation, unit states, effective fields with origin, active and unresolved terminal functions, occurrence and placement counts, completeness findings. component.check: a revision's publish findings and the stage each blocks (component.check_drafts: all drafts). library.search: latest published lineages of every ready source ranked for a one-line query (free text, pkg:/has:/missing: filters, unit-aware predicates on the project's fields: res>=10k, tol<=1%, C:1n..100n; a parse error names the term). library.facets: the matches' fields, package labels and badges. library.inspect: one lineage revision with revisions, symbols, implementations, badges. project.bom: resolved instances by Part, unresolved marked. library.footprint_preview: what library.edit_footprint would make of a footprint draft. library.resolve_groups: Part-less instances sharing revision, footprint and requirements, each with a library.search query. library.updates_available: lineages whose source holds a newer revision or modified record. library.promote_preview: what library.promote would write. project.issues: issues in scope (all, component, schematic, board or a selection), most severe first: severity (error: blocks a stage or breaks a rule; warning; to_do: unrouted, unplaced, unpurchased; info), group, title, cause, fix, finding, same-cause findings (also); elsewhere counts the rest.",
             ),
-            info::<RevisionParams>(
-                "project.undo",
+            entry!(
+                Undo,
                 "Undo the last document change at expected_revision.",
                 "Undo the last document change at expected_revision. Refused without changes on a stale revision, so a newer change by someone else is never undone.",
             ),
-            info::<RevisionParams>(
-                "project.redo",
+            entry!(
+                Redo,
                 "Redo the last undone document change at expected_revision.",
                 "Redo the last undone document change at expected_revision. Refused without changes on a stale revision.",
             ),
-            info::<NewParams>(
-                "project.new",
+            entry!(
+                New,
                 "Start a new empty project at expected_revision with its board's fab profile, clearing history.",
                 "Start a new empty project at expected_revision; clears history. profile is the board's fab profile: a profile library id (project.query rules.fab_profiles lists them) or a whole profile file's profile; omitted, the Settings default, else the shipped default. Refused without changes on a stale revision.",
             ),
-            info::<OpenParams>(
-                "project.open",
+            entry!(
+                Open,
                 "Open a .sparksmith project file in place of the document at expected_revision.",
                 "Open a .sparksmith project file of the current format version in place of the document at expected_revision; other versions are refused. Failure, a stale revision included, leaves the session unchanged.",
             ),
-            info::<SaveParams>(
-                "project.save",
+            entry!(
+                Save,
                 "Save the project atomically to a .sparksmith file, by default its current path.",
                 "Atomically save to a .sparksmith file (defaults to the current path). Not undoable.",
             ),
-            info::<PreviewParams>(
-                "project.preview_update",
+            entry!(
+                PreviewUpdate,
                 "Preview a component-revision, instance, schematic or board-sync change and its routed-copper impact.",
                 "Preview a revision-bound component-revision, instance, schematic or PCB-sync change and its routed-copper impact.",
             ),
-            info::<updates::ApplyUpdate>(
-                "project.apply_update",
+            entry!(
+                ApplyUpdate,
                 "Apply a previewed update at its revision, optionally removing the listed conflicting tracks.",
                 "Apply a previewed update at its revision, optionally removing the listed conflicting tracks.",
             ),
-            info::<replace::PreviewReplaceParams>(
-                "project.preview_replace",
+            entry!(
+                PreviewReplace,
                 "Preview replacing placed parts' component by a component of another lineage, with an explicit terminal mapping.",
                 "Preview replacing the component of the placed parts designators (one component revision) by target, a component revision of another lineage the project holds (import a folder part first with library.import_from_folder), with representation and physical (binding and footprint) when the target offers several. terminals maps every terminal of the current component, by id (a number) or exact name (a string), to a terminal of the target or to null to drop it; units maps placed units when a symbol has several. Returns plan (the project.preview_update plan at this revision: nets, wires, pads, detached tracks and vias kept for rerouting, conflicting copper, findings, blockers such as an incomplete mapping) with copper (per part: identical, the old-only and new-only pads, renumbered pads), both components' terminals, and suggested_terminals by equal names, offered only and never applied by itself. Not a document change.",
             ),
-            info::<replace::ReplaceComponentParams>(
-                "project.replace_component",
+            entry!(
+                ReplaceComponent,
                 "Replace placed parts' component by another lineage's at expected_revision, terminals mapped explicitly; one undo step.",
                 "Apply what project.preview_replace previewed (replace holds the same parameters, terminals complete) at expected_revision as one undo step: the parts pin the target revision with its symbol and footprint at the same placement; wires, nets, no-connect markers and pair ends follow the terminal mapping; dropped terminals lose their wires; field overrides the target does not select, function selections, pin configuration and the exact Part are cleared. Tracks and vias are never moved or rerouted: copper the new pads no longer reach stays for rerouting, listed in warnings. Refused, changing nothing, with an incomplete or ambiguous mapping, a stale revision, a blocker, conflicting copper without remove_conflicting_tracks, or joined named nets without merge_named_nets. The reply adds copper, warnings and summary.",
             ),
-            info::<ExportNativeParams>(
-                "project.export_native",
+            entry!(
+                ExportNative,
                 "Export the board as a native parametric .solidcraft 3D model to a new file.",
                 "Write the board plan as a native parametric .solidcraft model to a new file (refused if it exists): tier mechanical (default: laminate, pads, parts) or full (adds every track, via and fill). Each flat body's faces are checked against the plan's outline, holes and heights first; an unfit model is refused (export_unfit, naming each body, nothing written) unless write_anyway. Returns the tier, bodies, check and build/check/save ms. Not a document change.",
             ),
-            info::<FabricationParams>(
-                "project.export_fabrication",
+            entry!(
+                ExportFabrication,
                 "Check the board for production, then write Gerber, drill, pick-and-place, BOM and drawing files.",
                 "Run fabrication.preflight under the chosen fab profile, then write the production files to a new or empty folder or one new .zip: Gerber X2 copper, mask, paste, legend and profile layers with file, aperture and object attributes; plated and non-plated Excellon drills with routed slots, drill map and table; a Gerber job file; pick-and-place and BOM CSVs; fabrication and assembly drawings (PDF). Refused, writing nothing, while unwaived errors remain (waive with project.apply fabrication.waive). Returns the preflight report, files with sizes and step timings. Not a document change.",
             ),
-            info::<NoParams>(
-                "library.sources",
+            entry!(
+                Sources,
                 "List the configured library folders with their state, or why one is disabled.",
                 "List the configured library folders in settings order: path, enabled, writable, state (ready with library id, name, entry and revision counts and how the index was obtained; disabled with the reason, e.g. path missing or unsupported format v2; failed with a diagnostic). Not a document change.",
             ),
-            info::<SourceAddParams>(
-                "library.source.add",
+            entry!(
+                SourceAdd,
                 "Add a library folder as a source in the person's settings.",
                 "Add a library folder (sparksmith-library.json manifest) as a source in the per-user settings. A missing folder, a malformed manifest, another format version, an unknown required feature, a repeated path or a repeated library id is refused and nothing changes. library.search and library.facets then include its entries (source library, with source_lineage).",
             ),
-            info::<SourceCreateParams>(
-                "library.source.create",
+            entry!(
+                SourceCreate,
                 "Create an empty library folder and add it as a writable source.",
                 "Create an empty library folder and add it as a writable source. Its library id is random unless library supplies one (a recorded session passes the id it recorded, so a replay reproduces the folder).",
             ),
-            info::<PathParams>(
-                "library.source.remove",
+            entry!(
+                SourceRemove,
                 "Remove a library source from the settings; the folder stays untouched.",
                 "Remove a library source from the settings. The folder and every project copy are untouched.",
             ),
-            info::<SourceEnableParams>(
-                "library.source.enable",
+            entry!(
+                SourceEnable,
                 "Turn a library source on or off.",
                 "Turn a library source on or off; an off source stays listed as disabled (turned off).",
             ),
-            info::<NoParams>(
-                "library.account",
+            entry!(
+                Account,
                 "Name the online library and who is signed in to it; downloading parts needs a free account, searching does not.",
                 "Name the online library (its host) and whether this computer is signed in to it, with the account's email and name once the registry said them. Read from this computer's sign-in, without the network. Searching works without an account; placing or importing a part from the online library downloads its data, which needs a free account: the person signs in in Settings › Libraries. Without a registry turned on, registry is null.",
             ),
-            info::<NoParams>(
-                "library.sign_out",
+            entry!(
+                SignOut,
                 "Sign out of the online library: the registry revokes the token and this computer forgets it.",
                 "Sign out of the online library: the registry revokes this computer's token (best effort: offline, revoked is false and problem says why) and the token is removed from the system keychain. Searching keeps working; downloading parts needs signing in again in Settings. Refused without a registry turned on.",
             ),
-            info::<NoParams>(
-                "library.rescan",
+            entry!(
+                Rescan,
                 "Re-read every library source's manifest and index, then list the sources.",
                 "Re-read every source's manifest and catalog index (after a git pull or another writer), then list the sources.",
             ),
-            info::<FavouriteParams>(
-                "library.favourite",
+            entry!(
+                Favourite,
                 "Mark or unmark a library lineage as a favourite, which ranks search results.",
                 "Mark or unmark a lineage, keyed by project lineage or by library id and source lineage, as a favourite. Favourites rank library.search results and persist per user, never in a project.",
             ),
-            info::<BundleParams>(
-                "library.bundle",
+            entry!(
+                Bundle,
                 "Read one revision of a folder lineage with its dependency closure and packed assets.",
                 "Read one revision of a folder lineage (default the newest) with its complete dependency closure and packed assets, as the bundle library.import and library.place_from carry.",
             ),
-            info::<ImportFromParams>(
-                "library.import_from_folder",
+            entry!(
+                ImportFrom,
                 "Import a folder lineage's revision and its closure into the project in one undo step.",
                 "Read a folder bundle and apply library.import with it at the expected revision: the closure is copied into the project under fresh project lineages, or appended as the next project revision of a lineage already imported from the same source; an equal origin is reused. One undo step; places nothing. Follow with project.preview_update to move instances to the new revision.",
             ),
-            info::<ImportFromProjectParams>(
-                "library.import_from_project",
+            entry!(
+                ImportFromProject,
                 "Copy one published revision and its closure from another .sparksmith file into this project.",
                 "Copy one published revision of another .sparksmith file (never changed; root: its kind, id and revision there) and its full closure, packed assets included, into this project as one library.import at expected_revision: one undo step, nothing placed. Each copy records its origin (exact source revision, content hash); every pin keeps naming the exact revision it names there; copies are numbered in import order. Ids derive from the file's content, so replays are reproducible and importing again reuses the copies (no undo step); a newer revision of a copied lineage becomes its next project revision. A draft in that file cannot be imported: publish it there first. An unknown root lists what the file holds. Refused without changes on a stale revision, a dangling reference, a model that may not be redistributed, or a revision that differs from the copy already held (library.source_modified).",
             ),
-            info::<PlaceFromParams>(
-                "library.place_from_folder",
+            entry!(
+                PlaceFrom,
                 "Import a folder component if needed and place it, in one undo step.",
                 "Read a folder bundle of a component lineage and apply library.place_from with it: import if needed, then place, as one transaction and one undo step. When the project holds another revision of that lineage, other_revision refuse (default) fails with code library.other_revision and keep_both imports the folder revision beside it.",
             ),
-            info::<PublishParams>(
-                "library.publish_to_folder",
+            entry!(
+                Publish,
                 "Promote a published project revision and its closure to a writable library folder.",
                 "Promote a published project revision and its closure to a writable library source: compute library.promote_preview with fresh lineage ids (random unless fresh supplies them, as a recorded session does so that a replay reproduces the folder and origins; too few refuses before anything is written), write the records and assets to the folder (an existing rNNNN.json with other content refuses the write before anything is written), then apply library.promote, which records the origins as one undo step. Returns the written and unchanged record paths.",
             ),
-            info::<ImportSvgParams>(
-                "library.import_svg",
+            entry!(
+                ImportSvg,
                 "Add a .svg file's drawing to a symbol unit or footprint layer as editable graphics.",
                 "Add a .svg file's drawing (at most 1 MiB) to a symbol unit or a footprint's silkscreen or assembly layer as editable graphics, centred at `at`, scaled from the SVG's millimetre size: circles, arcs and axis-aligned rectangles stay exact, tangent arcs become corner radii, Béziers and ellipses flatten within tolerance_mm, closed fills stay solid, strokes keep their width. Fills with holes become outlines; text, images and use references are skipped (import.notes). One library.edit_graphics undo step at expected_revision; the outcome lists the new graphic IDs.",
             ),
-            info::<BundleParams>(
-                "library.open_preview",
+            entry!(
+                OpenPreview,
                 "Inspect one revision of a folder lineage without importing it.",
                 "Inspect one revision of a folder lineage (default the newest) without importing it: the same report library.inspect gives a project item. Not a document change.",
             ),
-            info::<NoParams>(
-                "library.pinout_schema",
+            entry!(
+                PinoutSchema,
                 "The schema of the pinout document an agent fills from a datasheet, with its pin-rule API.",
                 "The JSON schema of the typed pinout document (format 1) an agent fills from a datasheet: device, package variants, peripherals with roles, pins with explicit numbers per variant, GPIO, options, functions with explicit peripheral, role and mux code, source page, uncertain flags, and Rhai pin-rule scripts. Preview with project.query library.pinout_preview, show the review items to the user, then apply with project.apply library.pinout_apply; never publish without the user seeing the unreviewed count.",
             ),
-            info::<crate::review::ReviewCheckParams>(
-                "library.review_check",
+            entry!(
+                ReviewCheck,
                 "Check a datasheet part's review report against the drafts: citations, confidence and open questions.",
                 "Check a datasheet part's review report (the datasheet_to_component prompt's last step) against the project's drafts: every value with a listed document, page, location (table, figure or section) and confidence (high: a table cell or dimensioned drawing; medium: derived or ambiguous; low: inferred, measured or not stated); distinct sources; open questions when any value is low confidence or any imported pin is uncertain; a component draft; and a source page on every imported function. Returns accepted, the problems, each draft's blocking and warning codes, unreviewed and uncertain pin counts and the report as Markdown for the person. Accepted means ready for a person's review, never verified or publishable. Not a document change.",
             ),
-            info::<firmware::FirmwareParams>(
-                "firmware.export_preview",
+            entry!(
+                FirmwarePreview,
                 "Emit an instance's firmware pin configuration as JSON, C, a Zephyr overlay, Rust or a template.",
                 "Emit one instance's firmware pin configuration (project.pin_config) as JSON, a C header, a Zephyr overlay skeleton, Rust consts or a user template. Pin configuration only; a starting point, never a claim to configure clocks or registers.",
             ),
-            info::<firmware::FirmwareParams>(
-                "firmware.export",
+            entry!(
+                FirmwareExport,
                 "Write a firmware pin-configuration export to a new file.",
                 "Write firmware.export_preview's text atomically to a new file at path. Not a document change.",
             ),
-            info::<marking::SetMarkingParams>(
-                "library.set_marking",
+            entry!(
+                SetMarking,
                 "Set or clear a component draft's display-only 3D marking: text, artwork or polarity marks.",
                 "Set or clear a component draft's marking: display-only decals on the 3D model, never in .solidcraft or fabrication output. Items: template text ({mpn}, {designator}, {field:<id>}, {var:lot}), SVG artwork with its licence (packed by SHA-256; no logo you have no right to: a placeholder box marks the user's own), polarity marks, a QR code (code2d: payload template, size_mm, anchor), an electrolytic's µF/V text and stripe. placement.on: model (top marking area), a box face (top, bottom, pos_x, neg_x, pos_y, neg_y) or a library.marking_surfaces anchor (e.g. can_top, pcb_top, sleeve, body); then offset_mm, rotation_deg, scale, mirror, clip and, on a cylinder, wrap {seam_deg, wrap_deg, along_mm, repeat}. finish: laser_etch, laser_etch_metal, ink_white, {ink: {colour}}, {pad_print: {colour}}, engraved. decals: up to four more (items, finish, placement). One undo step at expected_revision; refused whole on any problem.",
             ),
-            info::<marking::MarkingSurfacesParams>(
-                "library.marking_surfaces",
+            entry!(
+                MarkingSurfaces,
                 "List where a package can be marked: the model area, box faces and named anchors.",
                 "List where a package draft or published package can be marked, for library.set_marking's placement.on: the model area, the six box faces and its family's named anchors (each with a description, plane or cylinder, and size; a cylinder's circumference and whether its u runs along the axis). Not a document change.",
             ),
-            info::<SchematicPdfParams>(
-                "schematic.export_pdf",
+            entry!(
+                SchematicPdf,
                 "Print the schematic as a vector PDF, one page per sheet.",
                 "Print the schematic as a vector PDF at path (written atomically, replacing a file there): one page per sheet in page order at its paper size, with the page frame and title block; sheets limits it to a selection (all when empty) and a sheet symbol links to its child sheet's page. Returns the page count. Not a document change.",
             ),
-            info::<part_files::CheckPartFileParams>(
-                "library.check_part_file",
+            entry!(
+                CheckPartFile,
                 "Evaluate a SolidCraft part file at given parameter values and report its convention check.",
                 concat!(
                     "Evaluate a SolidCraft part file (path to a .solidcraft design, or builtin: a listed name) at literal values for some of its user parameters ({\"can_height\": {\"mm\": 2.465}}; units mm, deg, count, number) and report the convention check (docs/part-templates.md §11): parameters and values, bodies with the ",
@@ -944,152 +959,155 @@ impl Request {
                     " material each appearance names, marking surfaces (marking-<name> planes sized by marking_<name>_u/_v), package datums (opening-<name> planes sized by <datum>_u/_v, optional <datum>_r, _depth, _clearance, normal pointing out along the plug's way in; axis-<name> axes, optional <datum>_d), pin1, bounds, timing and part_file.* findings (read, structure, value, feature, seating, material, marking, datum block; origin, no_marking, import, slow advise). Lists the material appearance names. Not a document change."
                 ),
             ),
-            info::<part_files::UsePartFileParams>(
-                "library.use_part_file",
+            entry!(
+                UsePartFile,
                 "Make a SolidCraft part file a package draft's 3D model, at literal parameter values.",
                 "Make a SolidCraft part file (path with its licence, or a builtin) a package draft's 3D model at literal parameter values: checked, packed as a solidcraft Model (or the same file's reused) and set as the package's model with the evaluated bounds, marking surfaces and declared datums (the package's, marked as the part file's), in one undo step at expected_revision; refused whole on a blocking finding. Footprint, terminals and keep-outs stay the package's. Returns the outcome and the check report.",
             ),
-            info::<part_files::SetPartValuesParams>(
-                "library.set_part_values",
+            entry!(
+                SetPartValues,
                 "Set new parameter values for the part file a package draft uses.",
                 "Replace the literal values of the part file a package draft uses, re-evaluated and checked, in one undo step at expected_revision; refused whole on a blocking finding. Returns the outcome and the check report.",
             ),
-            info::<NoParams>(
-                "library.part_files",
+            entry!(
+                PartFiles,
                 "List the SolidCraft part files this project can place or use.",
                 "List the SolidCraft part files this project can place or use (docs/mechanical-parts.md): the built-ins (name, title, summary, designator prefix, kind pads, mechanical or package, parameters with units and defaults, licence) and the project's Models of format solidcraft (model, name, file, licence). Not a document change.",
             ),
-            info::<generators::GeneratorsParams>(
-                "library.generators",
+            entry!(
+                Generators,
                 "List generator modules (shipped and embedded) and the project's generated parts; generator: <name> for one in full.",
                 "List the generator modules that ship with the program, filtered by generator (a name), family or text: by default each by name, title, families, scopes, version and preset keys (with family or text, also their names); with generator or detail: true in full (module SHA-256, parameters with types, defaults and the project setting that fills them, rules, presets with their values), the modules this project embeds, and its generated parts, each with its part key (module and parameters hashes), result hash, generator version and state: current (the shipped module of its generator is this one or the same version), update_available (a newer version ships: library.generate_part with the same parameters makes the next revision of the part), shipped_older (the shipped version is older; the part is never downgraded), superseded (a newer version already made the next revision of this part) or not_shipped (the embedded copy is the only one). Not a document change.",
             ),
-            info::<generators::GeneratePartParams>(
-                "library.generate_part",
+            entry!(
+                GeneratePart,
                 "Make a part (component or package) with a generator module, e.g. a chip resistor 0603; requires scope and generator or module.",
                 "Make a part with a generator module, through library.generate in one undo step at expected_revision: generator (a shipped name) or module (an embedded SHA-256), scope component (component, symbol, package, footprint, binding) or package, an optional preset and params (lengths in integer nm, angles in integer millidegrees; the rest from project settings and the module's defaults). The module is embedded once by hash, so the project reopens without the generator folder; a part the project already holds with the same key, or that the same generator version made from the same parameters, is returned unchanged (created: false). A newer version of the generator that made a part with the same parameters makes the next revisions of the same lineages (replaced names the old root), and the reply carries update, the project.preview_update plan that moves the placed instances (apply it with project.apply_update); an older version is refused (generated.older_version). Refusals name the module's own problems (param.*) or the host's (generator.*); nothing changes.",
             ),
-            info::<body::BodyFitParams>(
-                "library.body_fit",
+            entry!(
+                BodyFit,
                 "A placed part's package and pads by designator; with a generator, the 3D body it makes fitted to those pads, changing nothing.",
                 "Describe the placed part designator: its package (terminals, envelope, current model), the other parts that use it, and its footprint's pads in the package's datum frame (mm). With generator (a shipped name), preset and params (integer nm and millidegrees) the generator's package-scope body is evaluated and its leads fitted onto those pads (pins maps a lead to another pad number; tolerance in mm, 0–0.5): the reply is the plan library.make_body applies, accepted only when every lead lands on its pad (the contact on the land, within the middle half across it, plus tolerance) on every footprint the parts use, with each lead's miss, the pads no lead lands, the placement, the body before and after, blocking findings and change counts. missing instead of a generator refuses with that reason. Not a document change.",
             ),
-            info::<body::MakeBodyParams>(
-                "library.make_body",
+            entry!(
+                MakeBody,
                 "Give a placed part a generator's 3D body fitted to its existing footprint; every part that uses the package changes.",
                 "Make the body library.body_fit plans and apply it through library.replace_body in one undo step at expected_revision: the package's next revision takes only the generator's model, its placement on the pads, its envelope and lead contacts; footprints, bindings and components are republished pinning it, unchanged otherwise, and every placed part that used the package moves to them. sources (the datasheets with the pages read) is recorded with the package and its model as AI-made and unreviewed. Refused, changing nothing, when a lead misses its pad, when a lineage has a draft or a newer revision, or on the generator's own refusal.",
             ),
-            info::<mechanical_parts::PlacePartFileParams>(
-                "layout.place_part_file",
+            entry!(
+                PlacePartFile,
                 "Place a parametric 3D part such as a nut, standoff, spacer or heatsink on the board.",
                 "Place a parametric 3D part (SMD nut or standoff, spacer, heatsink, bracket: path with its licence, builtin or model) on the board at literal parameter values. The file is checked (blocking findings refuse) and evaluated; lands come from lands, lands_from or a built-in's land rules, else none. With pads terminals, each copper land can join a net via the part's symbol on a sheet. bom defaults to true, pick_and_place to having copper lands. The variant (file, values, lands, flags) is reused or made as a component set with a generated footprint and courtyard, and an instance placed with its symbol unit off-sheet, in one undo step at expected_revision. Returns the outcome (PartPlaced: instance, designator, component, created) and the check report.",
             ),
-            info::<mechanical_parts::SetPartFileValuesParams>(
-                "layout.set_part_file_values",
+            entry!(
+                SetPartFileValues,
                 "Give a placed mechanical part new parameter values, pads or BOM flags.",
                 "Give a placed mechanical part new literal values (they replace the previous values) and optionally new pads, bom or pick_and_place: re-evaluated and checked, a built-in's lands re-derived (other lands kept), and the instance moved to the variant for them (reused or made), keeping its designator, placement and marking, in one undo step at expected_revision. Returns the snapshot, the outcome and the check report.",
             ),
-            info::<sparksmith_core::interface::PublishPreviewParams>(
-                "interface.publish_preview",
+            entry!(
+                InterfacePreview,
                 "Preview publishing the board interface: each exported datum unchanged, moved (by how much), reshaped, added or removed.",
                 "What interface.publish would change for a linked design: each exported datum in slot order, unchanged, moved (offset in mm and turn), reshaped, added, removed (a linked design feature using it will fail) or with a changed status, with the user's sentence (\"J1 opening, 2 mm along X\"); the revision publishing would record and its hash. path: the published .solidcraft design, whose sidecar says where each datum was (else a change reads only as changed). tier: interface, mechanical (default, or the last published) or full. Not a document change.",
             ),
-            info::<sparksmith_core::interface::PublishParams>(
-                "interface.publish",
+            entry!(
+                InterfacePublish,
                 "Publish the board interface: write the .solidcraft design an assembly links and its sidecar, atomically.",
                 "Write the board interface at path: a .solidcraft design whose slots carry every exported datum as named reference bodies with stable face names (plus laminate, pads and parts for tier mechanical, the default; all copper for full) and its sidecar <name>.interface.json, both atomically. Records the publish (revision, hash, per-datum hashes) at expected_revision; no undo step, like a save. A stale revision, another board's files there or a broken reference writes nothing. The revision grows only when datums changed. For mechanical and full, published.check is project.export_native's plan check.",
             ),
-            info::<sparksmith_core::interface::assembly_link::FollowParams>(
-                "assembly.follow",
+            entry!(
+                AssemblyFollow,
                 "Make the board follow a linked design face or length parameter.",
                 "body, face, pick: its trace becomes fixed board-sketch geometry to dimension curves to; or board_param, assembly_param. One undo step.",
             ),
-            info::<sparksmith_core::interface::assembly_link::PreviewParams>(
-                "assembly.preview",
+            entry!(
+                AssemblyPreview,
                 "Preview updating the board from the linked design: what moves, what is lost.",
                 "Read the linked design at path (linked, or a new place) on a copy: references and board edges, holes and parts that would move, and expect_hash. Not a document change.",
             ),
-            info::<sparksmith_core::interface::assembly_link::UpdateParams>(
-                "assembly.update",
+            entry!(
+                AssemblyUpdate,
                 "Link the linked design, or update or relink the board from it as previewed.",
                 "Read the SolidCraft assembly at path whose component links design (interface.publish's path). None linked: link it. Else apply it at expect_hash, relinking if path moved; one undo step.",
             ),
-            info::<crate::view::ContextParams>(
-                "view.context",
+            entry!(
+                ViewContext,
                 "What the window shows: workspace, PCB view, sheet and the selection with ids.",
                 "What the open window shows now: the workspace (component, schematic or pcb), the PCB's view (layout or 3d), the schematic sheet, and the selection as objects with ids and their designators or net names, with the revision. Needs the window (mcp --live); a host without one answers host.unavailable.",
             ),
-            info::<crate::view::SelectParams>(
-                "view.select",
+            entry!(
+                ViewSelect,
                 "Select and frame objects in the window by id; never the document, no undo step.",
                 "Replace the window's selection with the objects named (ids: parts, tracks, vias, fills, keepouts, wires; objects: any finding's object, such as a net, pad or sheet) and frame them, in the shown workspace when it shows them, else in one that does. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
             ),
-            info::<crate::view::OpenParams>(
-                "view.open",
+            entry!(
+                ViewOpen,
                 "Show a workspace: the PCB in layout or 3d, a schematic sheet, or a component draft.",
                 "Show workspace component, schematic or pcb; view layout or 3d for the PCB, sheet for the schematic, definition (a draft's lineage) for the Component editor. Answers what the window then shows, as view.context. No revision, no undo step, no rebuild. Refused while the person is busy in the window (live.busy).",
             ),
-            info::<models::ModelFileParams>(
-                "library.inspect_model_file",
+            entry!(
+                InspectModelFile,
                 "Read a STEP, GLB or .solidcraft model file and report its bodies, materials and bounds.",
                 "Read a STEP AP214/242, GLB or .solidcraft model file and report its bodies (keys, source colours, glTF materials), bounds and whether it has textures, for the import wizard's explicit mapping. Not a document change.",
             ),
-            info::<assist::DocumentTextParams>(
-                "assist.document_text",
+            entry!(
+                DocumentText,
                 "Read the text of pages of a document attached to this run, by its title.",
                 "The text taken from pages of a document the host attached to this session (an assistant run's datasheets), each marked === page N ===: every page, or pages such as 3-5 or 1, 4. By title, never by path; a session without attached documents refuses it.",
             ),
-            info::<assist::DocumentPageParams>(
-                "assist.document_page",
+            entry!(
+                DocumentPage,
                 "See one page of a document attached to this run, rendered as an image.",
                 "One page of an attached document rendered as a PNG (drawings, pin diagrams and land patterns are not in the text), for a model declared with vision; a run may view a limited number of pages.",
             ),
-            info::<assist::PinoutEditParams>(
-                "assist.pinout_edit",
+            entry!(
+                PinoutEdit,
                 "Build a working pinout document in chunks behind a handle; the project does not change.",
                 "Set the working pinout document's header fields (format, device, variants), upsert peripherals and rules by label and pin rows by row key (at most 40 rows a call), remove rows or rules; clear starts over, new starts another document. All or nothing. Answers with the handle, the counts and per variant the pin numbers still missing. The handle lasts as long as the session.",
             ),
-            info::<assist::WorkingPreviewParams>(
-                "assist.pinout_preview",
+            entry!(
+                WorkingPreview,
                 "Preview importing the working pinout document: changes, findings, review items and rule checks.",
                 "library.pinout_preview of the working pinout document (a document given replaces it) on target {target: new, name} or {target: draft, id}: change counts, findings, review items and each rule's evaluation, and the base assist.pinout_apply imports by. Changes nothing in the project.",
             ),
-            info::<assist::WorkingApplyParams>(
-                "assist.pinout_apply",
+            entry!(
+                WorkingApply,
                 "Import exactly the working pinout document last previewed, as one undo step.",
                 "library.pinout_apply of the working pinout document as it was last previewed, by that preview's base (leave base out, or give it exactly; a rounded number is refused): one undo step, imported rows unreviewed. Refused when the working document changed since the preview.",
             ),
-            info::<crate::workflow::entries::WorkflowsParams>(
-                "assist.workflows",
+            entry!(
+                Workflows,
                 "List the workflows this host offers: refined processes for a request, with their inputs.",
                 "The workflows the host lent this session (shipped and the person's own), ranked by text against each one's title, summary and example requests: id, version, title, summary, intents, inputs and, with unavailable, those that cannot run here and why. Not a document change.",
             ),
-            info::<crate::workflow::entries::StepResultParams>(
-                "assist.step_result",
+            entry!(
+                StepResult,
                 "Answer the workflow step you are working on; the answer is checked against the step's output.",
                 "End the open model step of a workflow run with its answer, an object with the fields of the step's output. Answers accepted, or the problems by field (each a pointer into result) with an example; fix them and answer again. A session with no open step refuses it. Not a document change.",
             ),
-            info::<crate::workflow::entries::OfferParams>(
-                "assist.offer",
+            entry!(
+                Offer,
                 "Offer a workflow in the chat as one card with every input the conversation gives; the person accepts and continues, or just chats.",
                 "Show the workflow's card in the window's chat: its title and summary, why it fits (one sentence), the inputs given (each checked against the workflow's input, changed in place by the person; the latest files the person attached fill its files inputs) and an inline field for each required one still missing. Answers the card's id and the missing inputs; the person's answer comes as their next message. Nothing starts until they choose Accept and continue. Not a document change; a host without a window answers host.unavailable.",
             ),
-            info::<crate::workflow::ask::AskParams>(
-                "assist.ask",
+            entry!(
+                AskPerson,
                 "Ask the person what you need to know, as one card of questions in the chat; their answers are the reply.",
                 "Show one card of questions in the window's chat and wait for the person. Each question has an id, a short title, the question in plain words (text) and a type: single (options, each with value, title and a short plain about; one recommended), multiple (options; recommended values), number (unit, min, max, recommended) or text (recommended). Recommended values are chosen until the person changes them. The reply is the card's id and answers by question id; or said, when the person answered in their own words in the chat; or skipped, when they left it to you: choose sensibly and say what you chose. Not a document change; a host without the window's chat answers host.unavailable.",
             ),
-            info::<turns::TurnBeginParams>(
-                "project.turn_begin",
+            entry!(
+                TurnBegin,
                 "Open a turn: calls naming its handle in turn undo as one step under label.",
                 "Open a turn and return its handle. Every call whose envelope names it in turn joins one undo step that reads label; an edit by anyone else in between splits it. Not a document change.",
             ),
-            info::<turns::TurnEndParams>(
-                "project.turn_end",
+            entry!(
+                TurnEnd,
                 "Close a turn.",
                 "Close the turn turn and report its handle and label. Not a document change.",
             ),
         ]
+        .into_iter()
+        .flatten()
+        .collect()
     }
 }
 
@@ -1211,6 +1229,9 @@ pub struct Session {
     descriptions: std::sync::OnceLock<Vec<generators::v1::Description>>,
     /// The online registry the host installed (`online::OnlineSource`).
     online: Option<std::sync::Arc<dyn online::OnlineSource>>,
+    /// The document states this session answered at, which a caller's
+    /// stale edit can be rebased from (`rebase`).
+    seen: rebase::Seen,
 }
 
 /// A test fixture, never in the product: a session on the core's fixture
@@ -1255,6 +1276,7 @@ impl Session {
             turns: turns::Turns::default(),
             descriptions: std::sync::OnceLock::new(),
             online: None,
+            seen: rebase::Seen::default(),
         }
     }
     /// A session without a project of its own, for a host that only lends
@@ -1466,6 +1488,9 @@ impl Session {
                     _ => None,
                 };
                 let summarised = matches!(query, Query::CheckDrafts { detail: false });
+                // The pins a wiring apply reads come with the revision it
+                // is prepared against.
+                let wiring = matches!(query, Query::PartPins { .. });
                 let mut reply = serde_json::to_value(self.engine.query_using(
                     query,
                     &self.sources.context(),
@@ -1477,6 +1502,9 @@ impl Session {
                 }
                 if summarised {
                     reply::summarise_finding_objects(&mut reply["result"]);
+                }
+                if wiring {
+                    reply["revision"] = json!(self.engine.revision());
                 }
                 return Ok(reply);
             }
@@ -2204,6 +2232,7 @@ pub mod part_files;
 pub mod paths;
 mod pinout;
 mod preview;
+pub(crate) mod rebase;
 mod replace;
 mod reply;
 pub use reply::difference;

@@ -226,6 +226,7 @@ fn every_electromechanical_preset_makes_a_part_with_its_model() -> TestResult {
     let temp = tempfile::tempdir()?;
     let root = library(temp.path())?;
     // (generator, preset, overrides, lead bodies, outline x y z in mm); the
+    // EVQP2's ground foot is the fifth lead body (terminal 5); the
     // WROOM-1 binds 40 pads, their 40 castellation platings and nine
     // ground pads.
     type Case = (&'static str, &'static str, Value, usize, [f64; 3]);
@@ -234,7 +235,7 @@ fn every_electromechanical_preset_makes_a_part_with_its_model() -> TestResult {
             "tactile",
             "tactile-evqp2-ground",
             json!({}),
-            4,
+            5,
             [5.5, 4.1, 2.1],
         ),
         ("tactile", "tactile-evqp2", json!({}), 4, [5.5, 3.5, 2.1]),

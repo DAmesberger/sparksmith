@@ -687,6 +687,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             name: (*name).into(),
             direction: Direction::Passive,
             alternates: Vec::new(),
+            drive: None,
         })
         .collect();
     for key in ["CD_A", "CD_B", "SHIELD"] {
@@ -695,6 +696,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             name: key.into(),
             direction: Direction::Passive,
             alternates: Vec::new(),
+            drive: None,
         });
     }
     Ok(Generation {

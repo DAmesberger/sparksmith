@@ -5,7 +5,8 @@
 use serde_json::{Value, json};
 
 /// A valid PDF, written by hand, with one page per text and a known size
-/// (612 × 792 points); a page with empty text has none.
+/// (612 × 792 points); a page with empty text has none, and a text's lines
+/// are the page's lines.
 pub fn text_pdf(pages: &[&str]) -> Vec<u8> {
     let mut objects: Vec<String> = Vec::new();
     let n = pages.len();
@@ -24,6 +25,10 @@ pub fn text_pdf(pages: &[&str]) -> Vec<u8> {
         let stream = if text.is_empty() {
             // A filled square, so a drawing-only page renders something.
             "0 0 0 rg 100 100 200 200 re f".to_owned()
+        } else if text.contains('\n') {
+            // One text line per line, 14 points apart.
+            let lines: Vec<String> = text.lines().map(|l| format!("({l}) Tj T*")).collect();
+            format!("BT /F1 10 Tf 14 TL 36 760 Td {} ET", lines.join(" "))
         } else {
             format!("BT /F1 12 Tf 72 700 Td ({text}) Tj ET")
         };

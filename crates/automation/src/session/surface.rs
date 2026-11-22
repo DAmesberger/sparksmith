@@ -59,7 +59,7 @@ fn input(entry: &Entry) -> &Value {
     }
 }
 
-fn resolve<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
+pub(super) fn resolve<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
     schema
         .get("$ref")
         .and_then(Value::as_str)
@@ -71,7 +71,7 @@ fn resolve<'a>(schema: &'a Value, root: &'a Value) -> &'a Value {
 /// `schema` with the definitions it reaches, renumbered in the order they
 /// are first referenced and without the keywords that change no call, so a
 /// renamed type or an edited doc comment keeps the form.
-fn canonical(schema: &Value, root: &Value) -> Value {
+pub(super) fn canonical(schema: &Value, root: &Value) -> Value {
     let mut order: Vec<String> = Vec::new();
     let mut index: HashMap<String, usize> = HashMap::new();
     let main = rewrite(schema, &mut order, &mut index);

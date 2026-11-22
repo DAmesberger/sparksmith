@@ -36,8 +36,8 @@ fn the_catalog_has_its_272_entries() {
     // and project.replace_component; then library.draft_part; then the six
     // variant.* operations and the variant.list and variant.substitutes
     // queries (assembly variants); then library.account and library.sign_out;
-    // then variant.review_substitute.
-    assert_eq!(metadata::entries().len(), 290);
+    // then variant.review_substitute; then schematic.pins.
+    assert_eq!(metadata::entries().len(), 291);
 }
 
 /// A title is short, says more than the wire name, and is unique within its
@@ -220,5 +220,40 @@ fn inline_and_linked_results_hold_on_the_showcase() -> Fallible<()> {
     assert_eq!(result("project.issues"), Some(ResultSize::Link));
     let issues = size(tools.query("project.issues", json!({"scope": {"kind": "all"}})));
     assert!(issues > metadata::INLINE_RESULT, "issues is {issues} bytes");
+    Ok(())
+}
+
+/// Each request the catalog describes is the declared entry of that name,
+/// once, and its parameter schema is the one the dispatcher deserializes:
+/// the `params` of that command in `Request`'s own schema, compared in
+/// canonical form (definitions renumbered, doc comments and type names
+/// left out).
+#[test]
+fn every_request_schema_is_its_variants_params() -> Fallible<()> {
+    let catalog = Request::catalog();
+    let listed: Vec<&str> = catalog.iter().map(|info| info.id).collect();
+    let unique: std::collections::BTreeSet<&str> = listed.iter().copied().collect();
+    assert_eq!(unique.len(), listed.len(), "a request is listed twice");
+    let declared: std::collections::BTreeSet<&str> =
+        Request::ENTRIES.iter().map(|decl| decl.name).collect();
+    assert_eq!(unique, declared);
+
+    let mut root = serde_json::to_value(schemars::schema_for!(Request))?;
+    paths::unmark(&mut root);
+    let variants = root["oneOf"].as_array().cloned().unwrap_or_default();
+    assert_eq!(variants.len(), catalog.len());
+    for info in &catalog {
+        let variant = variants
+            .iter()
+            .find(|v| v["properties"]["command"]["const"] == info.id)
+            .ok_or_else(|| format!("{} is not a command of Request", info.id))?;
+        let wire = surface::resolve(&variant["properties"]["params"], &root);
+        assert_eq!(
+            surface::canonical(&info.params, &info.params),
+            surface::canonical(wire, &root),
+            "{}: the catalog's schema is not its variant's",
+            info.id
+        );
+    }
     Ok(())
 }

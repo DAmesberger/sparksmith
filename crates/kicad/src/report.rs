@@ -64,7 +64,8 @@ pub enum Case {
     PasteRatioWindow,
     /// G4: footprint text and drawings (silkscreen, courtyard, fab).
     FootprintDrawings,
-    /// G5: net-tie footprints: pads imported, tie behaviour missing.
+    /// G5: net-tie footprints: pads imported on their own nets, the tie
+    /// between the nets not (no net-tie part yet), each named.
     NetTie,
     /// G6: per-pad zone connection and clearance overrides.
     PadZoneOverrides,
@@ -135,6 +136,9 @@ pub enum Case {
     StackupRefused,
     /// A dielectric of several sublayers, summed into one.
     StackupSublayers,
+    /// Solder mask thicknesses that differ by side: the top's kept for
+    /// both (the stackup holds one), the bottom's named in the details.
+    StackupMaskSides,
     /// The outline, imported as a board sketch.
     OutlineSketch,
     /// The outline as the rectangle from the origin around it (no board
@@ -195,8 +199,13 @@ pub enum Case {
     SheetSymbol,
     /// Symbols whose library symbol is missing from the file.
     SymbolWithoutLibrary,
-    /// Symbols with no placed footprint of their reference.
+    /// Parts on the schematic with no placed footprint of their reference:
+    /// placed on their sheet with no footprint chosen (an Issues finding),
+    /// each named.
     SymbolWithoutFootprint,
+    /// Symbols not drawn: no part of their reference could be placed (an
+    /// invalid or repeated designator).
+    SymbolNotDrawn,
     /// Symbol pins with no pad of their number.
     PinWithoutPad,
     /// Footprints with no symbol in the schematic: their pins labelled.
@@ -333,7 +342,7 @@ impl Case {
             Self::NetTie => (
                 "G5",
                 Report,
-                "net-tie footprints: pads imported, tie missing",
+                "net-tie footprints: pads imported on their own nets, the tie between them not imported (no net-tie part)",
             ),
             Self::PadZoneOverrides => (
                 "G6",
@@ -460,6 +469,11 @@ impl Case {
                 Approximate,
                 "dielectrics of several sublayers, summed into one (first Dk kept)",
             ),
+            Self::StackupMaskSides => (
+                "S1",
+                Approximate,
+                "solder mask thicknesses that differ by side: the top's kept for both sides, the bottom's dropped",
+            ),
             Self::OutlineSketch => ("B1", Exact, "board outline imported as a board sketch"),
             Self::OutlineRectangle => (
                 "B1",
@@ -568,7 +582,12 @@ impl Case {
             Self::SymbolWithoutFootprint => (
                 "K5",
                 Report,
-                "symbols without a placed footprint (not on the board)",
+                "parts on the schematic with no footprint on the board, placed without one (each a finding)",
+            ),
+            Self::SymbolNotDrawn => (
+                "K5",
+                Refused,
+                "symbols not drawn: no part of their reference could be placed",
             ),
             Self::PinWithoutPad => ("K5", Report, "symbol pins without a pad of their number"),
             Self::FootprintWithoutSymbol => (
@@ -753,6 +772,18 @@ pub struct Detail {
     pub placeholder: Option<Placeholder>,
 }
 
+impl Detail {
+    /// The detail as one line naming what it is about: the footprint (or
+    /// part) and what the import says of it.
+    fn named(&self) -> String {
+        match (self.footprint.is_empty(), self.path.is_empty()) {
+            (false, false) => format!("{}: {}", self.footprint, self.path),
+            (false, true) => self.footprint.clone(),
+            (true, _) => self.path.clone(),
+        }
+    }
+}
+
 /// A KiCad limit looser than the fab profile's, not taken
 /// ([`Case::RuleLooserThanFab`]): which rule, where KiCad sets it, and
 /// both values.
@@ -882,6 +913,14 @@ pub struct Counts {
     pub source_nets: usize,
     pub source_nets_equal: usize,
 }
+
+/// The cases whose occurrences [`Report::summary_named`] lists by name:
+/// what the import left for the person to resolve.
+pub const NAMED_CASES: [Case; 3] = [
+    Case::NetTie,
+    Case::StackupMaskSides,
+    Case::SymbolWithoutFootprint,
+];
 
 /// Most private details kept (the rows still count every case).
 pub const MAX_DETAILS: usize = 100_000;
@@ -1023,6 +1062,16 @@ impl Report {
         &self.details
     }
 
+    /// For a case of [`NAMED_CASES`], each occurrence as one line naming
+    /// what it is about (the file's names and values): for the person who
+    /// imported their own project, never for a shared log.
+    pub fn named(&self, case: Case) -> impl Iterator<Item = String> + '_ {
+        self.details
+            .iter()
+            .filter(move |d| d.case == case && NAMED_CASES.contains(&case))
+            .map(Detail::named)
+    }
+
     /// The report for people: fixed text and counts only, never a name or
     /// value from the file.
     pub fn summary(&self) -> String {
@@ -1106,6 +1155,13 @@ impl Report {
             if line.ends_with(Case::NetClassPatternRefused.describe().2) {
                 for pattern in &self.patterns {
                     out.push_str(&format!("    {}\n", pattern.line()));
+                }
+            }
+            for case in NAMED_CASES {
+                if line.ends_with(case.describe().2) {
+                    for named in self.named(case) {
+                        out.push_str(&format!("    {named}\n"));
+                    }
                 }
             }
             for case in [Case::TrackRefused, Case::ViaRefused] {

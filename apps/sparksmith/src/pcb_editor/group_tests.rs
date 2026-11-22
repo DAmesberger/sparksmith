@@ -476,11 +476,11 @@ fn a_group_is_the_same_in_layout_and_3d() -> Fallible {
     };
     for id in [r1, r2] {
         picked.toggle_picked(
-            Some(body(&|s| s.instance == Some(id) && s.pad.is_none())?),
+            &[body(&|s| s.instance == Some(id) && s.pad.is_none())?],
             engine.project(),
         );
     }
-    picked.toggle_picked(Some(body(&|s| s.track == Some(track))?), engine.project());
+    picked.toggle_picked(&[body(&|s| s.track == Some(track))?], engine.project());
     assert_eq!(picked.selected(), layout.selected());
     assert_eq!(picked.selected().len(), 3);
     // The 3D highlight takes every body of the three objects, no other.
@@ -496,5 +496,59 @@ fn a_group_is_the_same_in_layout_and_3d() -> Fallible {
     let cached = layout.cached_revision;
     layout.toggle_hit(super::Hit::Part(r1), engine.project());
     assert_eq!(layout.cached_revision, cached);
+    Ok(())
+}
+
+/// The selection filter decides a 3D click as it decides a Layout click:
+/// with Parts off a click on a part passes through it to the next object
+/// the filter allows (in 3D, the next body along the pointer's ray), and
+/// with none there it selects nothing, plain, ⇧ or following a net.
+#[test]
+fn a_3d_click_obeys_the_selection_filter_as_layout_does() -> Fallible {
+    let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+    let engine = board(ROUTED)?;
+    let r1 = by(&engine, "R1")?;
+    let track = engine.project().tracks.first().ok_or("no track")?.id;
+    let model = sparksmith_solidcraft::project::build(engine.project())?;
+    let body = |pred: &dyn Fn(&sparksmith_solidcraft::project::Source) -> bool| {
+        model.sources.iter().find(|s| pred(s)).ok_or("no body")
+    };
+    let package = body(&|s| s.instance == Some(r1) && s.pad.is_none())?;
+    let pad = body(&|s| s.instance == Some(r1) && s.pad.is_some())?;
+    let copper = body(&|s| s.track == Some(track))?;
+    let no_parts = SelectFilter {
+        parts: false,
+        ..SelectFilter::default()
+    };
+    // Layout: a click on R1 passes through to nothing.
+    let (mut layout, ctx) = setup(&engine);
+    *layout.filter_mut() = no_parts;
+    let a = part_at(&layout, &engine, r1)?;
+    click(&mut layout, &engine, &ctx, a, egui::Modifiers::NONE);
+    assert!(layout.selected().is_empty());
+    // 3D: neither R1's package nor its pad selects it.
+    let mut picked = PcbEditor::default();
+    picked.set_3d(true);
+    *picked.filter_mut() = no_parts;
+    for under in [&[package][..], &[pad], &[pad, package]] {
+        picked.select_picked(&[copper]);
+        picked.select_picked(under);
+        assert_eq!(picked.selected(), layout.selected());
+        assert_eq!(picked.highlighted_net(), None);
+    }
+    // The track behind the package is what the click takes.
+    picked.select_picked(&[package, copper]);
+    assert_eq!(picked.selected_track(), Some(track));
+    // ⇧ adds nothing the filter leaves out.
+    picked.toggle_picked(&[package], engine.project());
+    assert_eq!(picked.selected().len(), 1);
+    assert_eq!(picked.selected_track(), Some(track));
+    // Following a net, the package does not select R1 either.
+    picked.select_picked_following(Some(pad), &[package, pad]);
+    assert!(picked.selected().is_empty());
+    // With Parts on, the same clicks select R1.
+    *picked.filter_mut() = SelectFilter::default();
+    picked.select_picked(&[package, copper]);
+    assert_eq!(picked.selected_instance(), Some(r1));
     Ok(())
 }

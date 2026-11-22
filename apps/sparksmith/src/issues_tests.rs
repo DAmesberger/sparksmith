@@ -6,6 +6,7 @@
 
 use super::*;
 use egui::{Event, PointerButton, Pos2, RawInput};
+use sparksmith_core::Query;
 use sparksmith_core::issues::{AreaCount, KNOWN_CODES};
 
 type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -14,6 +15,7 @@ fn report(engine: &Engine, scope: IssueScope) -> Fallible<Arc<IssueReport>> {
     match Answer::of(engine.query(Query::Issues { scope })) {
         Answer::Report(report) => Ok(report),
         Answer::Refused(why) => Err(why.into()),
+        Answer::Pending => Err("a query answers at once".into()),
     }
 }
 
@@ -1139,14 +1141,18 @@ fn a_waived_row_moves_to_waived_and_restore_brings_it_back() -> Fallible<()> {
 }
 
 /// The cached answer is reused for the same document and check settings,
-/// and computed again when only the settings change (the impedance
+/// and the one report of every area and its projection are computed again when only the settings change (the impedance
 /// tolerance in Settings takes no revision).
 #[test]
 fn a_check_settings_change_recomputes_the_cached_issues() -> Fallible<()> {
     let mut engine = Engine::showcase()?;
+    // Without a worker the reports are made on this thread.
+    let mut reports = crate::issue_reports::Reports::default();
     let mut slot = Slot::default();
-    let first = slot.get(&engine, IssueScope::All);
-    let again = slot.get(&engine, IssueScope::All);
+    let all = reports.latest(&engine);
+    let first = slot.get(&engine, &all, IssueScope::All);
+    let all = reports.latest(&engine);
+    let again = slot.get(&engine, &all, IssueScope::All);
     let same = |a: &Answer, b: &Answer| match (a, b) {
         (Answer::Report(a), Answer::Report(b)) => Arc::ptr_eq(a, b),
         _ => false,
@@ -1155,7 +1161,8 @@ fn a_check_settings_change_recomputes_the_cached_issues() -> Fallible<()> {
     engine.set_check_settings(sparksmith_core::layout::CheckSettings {
         impedance_tolerance: Some(10.0),
     })?;
-    let after = slot.get(&engine, IssueScope::All);
+    let all = reports.latest(&engine);
+    let after = slot.get(&engine, &all, IssueScope::All);
     assert!(matches!(after, Answer::Report(_)));
     assert!(
         !same(&first, &after),

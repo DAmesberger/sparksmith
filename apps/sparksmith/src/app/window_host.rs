@@ -140,27 +140,25 @@ fn selection(
     engine: &Engine,
 ) -> Vec<ObjectRef> {
     match workspace {
-        Workspace::Part => {
-            issues::selection(workspace, part.lineage(), None, None, None, None, vec![])
-        }
+        Workspace::Part => issues::selection(workspace, part.lineage(), None, None, vec![]),
         Workspace::Schematic => issues::selection(
             workspace,
             None,
             schematic.selected_instance(),
-            None,
-            None,
             schematic.selected_net(engine),
             schematic.selected_item_refs(engine.project()),
         ),
-        Workspace::Pcb => issues::selection(
-            workspace,
-            None,
-            pcb.selected_instance(),
-            pcb.selected_track(),
-            pcb.selected_via(),
-            pcb.highlighted_net(),
-            vec![],
-        ),
+        // Every selected object, a group's too, then the lit net apart.
+        Workspace::Pcb => {
+            let group = pcb.selected();
+            let objects = (group.parts.iter().map(|&id| ObjectRef::Instance { id }))
+                .chain(group.tracks.iter().map(|&id| ObjectRef::Track { id }))
+                .chain(group.vias.iter().map(|&id| ObjectRef::Via { id }))
+                .chain(group.fills.iter().map(|&id| ObjectRef::Fill { id }));
+            objects
+                .chain(pcb.highlighted_net().map(|id| ObjectRef::Net { id }))
+                .collect()
+        }
     }
 }
 
@@ -281,5 +279,59 @@ impl AskSlot {
         let card = format!("question-{}", self.next);
         self.shown = Some((card.clone(), ask));
         card
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::issues::Locate;
+    use sparksmith_core::layout::{LayoutCommand, RouteRequest};
+    use sparksmith_core::{Layer, Operation};
+
+    type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
+
+    /// Two tracks selected together (a group) are both the selection the
+    /// Issues view and the assistant read.
+    #[test]
+    fn a_group_of_two_tracks_is_the_window_selection() -> Fallible {
+        let _context = sparksmith_core::library::standards::Context::fixture().map(|c| c.enter());
+        let mut engine = Engine::demo()?;
+        let net = engine.project().nets.first().ok_or("no net")?.id;
+        let [w, h] = engine.project().board_size;
+        for y in [h - 2.0, h - 4.0] {
+            engine.apply(
+                engine.revision(),
+                Operation::Layout(LayoutCommand::Route {
+                    request: RouteRequest {
+                        net,
+                        start: [w - 6.0, y],
+                        end: [w - 2.0, y],
+                        width: 0.2,
+                        layer: Layer::Top.into(),
+                    },
+                }),
+            )?;
+        }
+        let tracks: Vec<_> = engine.project().tracks.iter().map(|t| t.id).collect();
+        let [a, b] = tracks[..] else {
+            return Err(format!("expected two tracks, got {tracks:?}").into());
+        };
+        let mut pcb = PcbEditor::default();
+        let refs = [ObjectRef::Track { id: a }, ObjectRef::Track { id: b }];
+        assert!(pcb.locate(&engine, &refs));
+        assert_eq!(pcb.selected().tracks, [a, b].into());
+        let shown = selection(
+            Workspace::Pcb,
+            &PartEditor::default(),
+            &SchematicEditor::default(),
+            &pcb,
+            &engine,
+        );
+        assert_eq!(
+            shown,
+            vec![ObjectRef::Track { id: a }, ObjectRef::Track { id: b }]
+        );
+        Ok(())
     }
 }

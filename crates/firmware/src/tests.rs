@@ -482,3 +482,66 @@ fn template_syntax_is_checked_without_running() {
     assert!(template::check("let x = 1; x").is_ok());
     assert!(matches!(template::check("let = ;"), Err(Error::Invalid(_))));
 }
+
+/// The C compiler a test may use: `$CC`, else `cc` on the path.
+fn c_compiler() -> Option<std::path::PathBuf> {
+    let name = std::env::var_os("CC").unwrap_or_else(|| "cc".into());
+    let probe = std::process::Command::new(&name)
+        .arg("--version")
+        .output()
+        .ok()?;
+    probe.status.success().then(|| name.into())
+}
+
+/// Compiles `header` included from a minimal translation unit in strict
+/// C99 with warnings as errors.
+fn compile_c_header(header: &str) -> Fallible<Option<String>> {
+    let Some(cc) = c_compiler() else {
+        eprintln!("no C compiler (set CC); the header was not compiled");
+        return Ok(None);
+    };
+    let dir = tempfile::tempdir()?;
+    std::fs::write(dir.path().join("pins.h"), header)?;
+    let unit = dir.path().join("unit.c");
+    std::fs::write(
+        &unit,
+        "#include \"pins.h\"\nint main(void) { return U1_PIN_COUNT > 0 ? 0 : 1; }\n",
+    )?;
+    let output = std::process::Command::new(cc)
+        .args([
+            "-std=c99",
+            "-pedantic",
+            "-Wall",
+            "-Werror",
+            "-Wno-unused-const-variable",
+            "-c",
+        ])
+        .arg(&unit)
+        .arg("-o")
+        .arg(dir.path().join("unit.o"))
+        .output()?;
+    Ok(Some(if output.status.success() {
+        String::new()
+    } else {
+        String::from_utf8_lossy(&output.stderr).into_owned()
+    }))
+}
+
+#[test]
+fn the_c_header_compiles_on_its_own() -> Fallible<()> {
+    // One plain GPIO with no optional metadata: port and mux print NULL.
+    let mut ir = report();
+    ir.pins = vec![pin(5, "PA5", "gpio_out", "LED_STATUS", 5)];
+    ir.pins[0].gpio = None;
+    let emitted = emit(&ir, &Emitter::CHeader, None)?;
+    assert!(emitted.text.contains("NULL"), "{}", emitted.text);
+    if let Some(errors) = compile_c_header(&emitted.text)? {
+        assert!(errors.is_empty(), "{errors}\n{}", emitted.text);
+    }
+    // The full fixture too.
+    let emitted = emit(&report(), &Emitter::CHeader, None)?;
+    if let Some(errors) = compile_c_header(&emitted.text)? {
+        assert!(errors.is_empty(), "{errors}\n{}", emitted.text);
+    }
+    Ok(())
+}

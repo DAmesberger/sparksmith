@@ -10,6 +10,7 @@ mod fill_worker;
 mod generator_form;
 mod generator_gallery;
 mod generators;
+mod issue_reports;
 mod issues;
 mod keymap;
 mod keys;

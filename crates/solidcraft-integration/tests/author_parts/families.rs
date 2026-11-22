@@ -251,7 +251,7 @@ fn j_terminal(s: &mut Session, name: &str, minus: bool, y: &str) {
 /// whose side tabs fold down the long sides, and a white POM push plate
 /// through the cover's opening, its upright edges rounded. With `ground`,
 /// the cover's ground tab runs down the −y side to the board (the
-/// EVQP2's unplated frame terminal). Terminals 1 and 2 at −x (y −, +),
+/// EVQP2's frame terminal), its foot a lead body of its own. Terminals 1 and 2 at −x (y −, +),
 /// 3 and 4 at +x. Saved at the EVQP2V02M of Panasonic's catalogue.
 pub fn author_tactile_mini(ground: bool) -> Vec<u8> {
     let mut s = new_design(if ground {
@@ -430,10 +430,12 @@ pub fn author_tactile_mini(ground: bool) -> Vec<u8> {
                 "cover_height - cover_thickness",
             ],
         );
+        // Its foot on the board is a lead body of its own, the ground
+        // terminal's lead (as the microSD shell's feet), unplated metal.
         span_box(
             &mut s,
             "ground foot",
-            Op::Join("cover"),
+            Op::New("ground foot"),
             [
                 "- ground_length / 2",
                 "ground_length / 2",
@@ -514,6 +516,9 @@ pub fn author_tactile_mini(ground: bool) -> Vec<u8> {
         &["terminal 1", "terminal 2", "terminal 3", "terminal 4"],
         MaterialId::TinMatte,
     );
+    if ground {
+        assign_look(&mut s, &["ground foot"], MaterialId::Nickel);
+    }
     marking_up(
         &mut s,
         "top",

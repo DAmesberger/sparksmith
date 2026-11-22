@@ -44,6 +44,8 @@ pub const MAX_EDIT_PINS: usize = 40;
 pub const MAX_WORKING: usize = 8;
 /// Pages one `assist.document_text` call returns.
 pub const MAX_TEXT_PAGES: usize = 200;
+/// Characters of one page an outline keeps.
+pub const OUTLINE_PAGE_CHARS: usize = 240;
 /// What a working document's handle starts with.
 pub const HANDLE_PREFIX: &str = "pin_";
 /// Findings, review items and changes a compact preview lists.
@@ -106,6 +108,11 @@ pub struct DocumentTextParams {
     /// Pages as `3`, `3-5` or `1, 4-6` (1-based); every page when left out.
     #[serde(default)]
     pub pages: Option<String>,
+    /// Only each page's first lines (headings, figure and table titles),
+    /// with the lines repeated on many pages (running headers) left out:
+    /// a map of the document to find the pages worth reading in full.
+    #[serde(default)]
+    pub outline: bool,
 }
 
 /// `assist.document_page`.
@@ -336,6 +343,9 @@ impl Session {
         let text = documents
             .text(&title, &pages)
             .map_err(|why| refused("assist.document", why))?;
+        if params.outline {
+            return Ok(json!({"document": title, "outline": outline(&text)}));
+        }
         Ok(json!({"document": title, "text": text}))
     }
 
@@ -557,6 +567,69 @@ fn bounded(text: Option<&str>) -> Result<Option<&str>> {
         )),
         other => Ok(other),
     }
+}
+
+/// The pages of `text` (each marked `=== page N ===`, as
+/// [`Documents::text`] gives them) by their first lines, up to
+/// [`OUTLINE_PAGE_CHARS`] each. A line on at least a third of the pages
+/// (and on three or more) is a running header or footer and is left out.
+fn outline(text: &str) -> String {
+    let mut pages: Vec<(&str, Vec<&str>)> = Vec::new();
+    for line in text.lines() {
+        let marker = line
+            .strip_prefix("=== page ")
+            .and_then(|rest| rest.strip_suffix(" ==="))
+            .filter(|n| n.parse::<u32>().is_ok());
+        match (marker, pages.last_mut()) {
+            (Some(number), _) => pages.push((number, Vec::new())),
+            (None, Some((_, lines))) => {
+                let line = line.trim();
+                if !line.is_empty() {
+                    lines.push(line);
+                }
+            }
+            (None, None) => {}
+        }
+    }
+    let mut seen: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+    for (_, lines) in &pages {
+        let mut once: Vec<&str> = lines.clone();
+        once.sort_unstable();
+        once.dedup();
+        for line in once {
+            *seen.entry(line).or_insert(0) += 1;
+        }
+    }
+    let running = |line: &str| {
+        let n = seen.get(line).copied().unwrap_or(0);
+        n >= 3 && n * 3 >= pages.len()
+    };
+    let mut out = String::new();
+    for (number, lines) in &pages {
+        let mut head = String::new();
+        for line in lines.iter().filter(|l| !running(l)) {
+            if head.len() >= OUTLINE_PAGE_CHARS {
+                break;
+            }
+            if !head.is_empty() {
+                head.push_str(" | ");
+            }
+            head.push_str(line);
+        }
+        if head.len() > OUTLINE_PAGE_CHARS {
+            let mut end = OUTLINE_PAGE_CHARS;
+            while !head.is_char_boundary(end) {
+                end -= 1;
+            }
+            head.truncate(end);
+            head.push('…');
+        }
+        if head.is_empty() {
+            head.push_str("(no text: a drawing or a blank page)");
+        }
+        out.push_str(&format!("{number}: {head}\n"));
+    }
+    out
 }
 
 /// `1, 3-5` as page numbers, in order, without repeats.
@@ -889,6 +962,32 @@ mod tests {
         assert!(page_list("0").is_err());
         assert!(page_list("a").is_err());
         assert!(page_list("1-100000").is_err());
+    }
+
+    #[test]
+    fn an_outline_keeps_each_pages_first_lines_without_running_headers() {
+        let mut text = String::new();
+        for n in 1..=6 {
+            text.push_str(&format!(
+                "=== page {n} ===\nTLV757P SBVS320C – REVISED MAY 2020\n\nHeading {n}\n{}\nwww.example.com\n",
+                format!("body text {n} ").repeat(60)
+            ));
+        }
+        let got = outline(&text);
+        assert_eq!(got.lines().count(), 6, "{got}");
+        assert!(got.starts_with("1: Heading 1 | body text"), "{got}");
+        assert!(got.contains("\n6: Heading 6 | "), "{got}");
+        assert!(
+            !got.contains("SBVS320C") && !got.contains("example.com"),
+            "{got}"
+        );
+        for line in got.lines() {
+            assert!(line.len() < OUTLINE_PAGE_CHARS + 16, "{line}");
+        }
+        assert_eq!(
+            outline("=== page 1 ===\n\n=== page 2 ===\nPin Configuration\n"),
+            "1: (no text: a drawing or a blank page)\n2: Pin Configuration\n"
+        );
     }
 
     #[test]

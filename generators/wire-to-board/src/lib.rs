@@ -1042,6 +1042,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             name: k.to_string(),
             direction: Direction::Passive,
             alternates: Vec::new(),
+            drive: None,
         })
         .collect();
     terminals.push(Terminal {
@@ -1049,6 +1050,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         name: "MP".into(),
         direction: Direction::Passive,
         alternates: Vec::new(),
+        drive: None,
     });
     Ok(Generation {
         orderable: Vec::new(),

@@ -47,9 +47,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-/// 4: the SDK's pin table (`pin_table`) and part numbers
-/// (`part_numbers`).
-const VERSION: u32 = 4;
+/// 4: the ground terminal's lead contact; 5: the SDK's pin table
+/// (`pin_table`) and part numbers (`part_numbers`).
+const VERSION: u32 = 5;
 
 /// Estimates. Mini: the cover sheet, the J's tab height
 /// (a third of the cover's), foot length, root in the base, the opening's
@@ -407,6 +407,12 @@ impl Dims {
         }
     }
 
+    /// The ground tab's contact from the centre, along −y: the middle of
+    /// its foot, which reaches `GROUND_OUT_NM` beyond the base's side.
+    fn ground_contact_y(&self) -> i64 {
+        part_of(self.bw, 2) + part_of(GROUND_OUT_NM, 2)
+    }
+
     /// The ground tab has a land (and a package terminal).
     fn ground_landed(&self) -> bool {
         self.ground && self.ground_soldered
@@ -685,6 +691,10 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: (*key).into(),
                     contact: [*x, *y, 0],
                 })
+                .chain(d.ground_landed().then(|| Lead {
+                    key: "5".into(),
+                    contact: [0, -d.ground_contact_y(), 0],
+                }))
                 .collect(),
             pin1: "1".into(),
         },
@@ -752,6 +762,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     name: (*name).into(),
                     direction: Direction::Passive,
                     alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "SW".into(),

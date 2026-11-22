@@ -722,6 +722,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
             name: k.to_string(),
             direction: Direction::Passive,
             alternates: Vec::new(),
+            drive: None,
         })
         .collect();
     let mut notes = vec![

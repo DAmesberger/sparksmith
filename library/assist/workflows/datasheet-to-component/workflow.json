@@ -1,7 +1,7 @@
 {
   "format": 1,
   "id": "datasheet-to-component",
-  "version": "1.1",
+  "version": "1.2",
   "title": "Datasheet → component",
   "summary": "Draft a component, symbol, package, footprint, binding and 3D model from manufacturer datasheets, every value cited, for you to review and publish.",
   "intents": [
@@ -13,7 +13,7 @@
   "needs": [
     {"module": "library", "major": 3, "minor": 1},
     {"module": "generators", "major": 1, "minor": 2},
-    {"module": "assist", "major": 1}
+    {"module": "assist", "major": 1, "minor": 4}
   ],
   "reach": {"project": "read", "library": "edit", "generators": "edit", "assist": "edit", "view": "show"},
   "budget": {"requests": 40, "output_tokens": 200000, "minutes": 45},
@@ -44,7 +44,7 @@
   },
   "steps": [
     {"id": "ask", "kind": "input", "title": "Inputs", "inputs": ["datasheets", "part", "notes"]},
-    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title"}},
+    {"id": "read", "kind": "tool", "title": "Read", "call": "assist.document_text", "each": "/inputs/datasheets", "params": {"document": "/item/title", "outline": true}},
     {"id": "gens", "kind": "tool", "title": "Generators", "call": "library.generators", "params": {}},
     {"id": "plan", "kind": "model", "title": "Package", "goal": "Find the pages with the pin layout, the pin table, the mechanical drawing and the land pattern; choose the generator and preset that make the package, give every value the drawing and the land pattern state, give every pin's number, name and kind as the pin_table parameter, and the part asked for as the part_numbers parameter.", "method": "method.md#procedure", "output": "package_plan", "check": "make"},
     {"id": "pick", "kind": "review", "title": "Generator", "gate": "notify", "control": "choice", "show": "/steps/plan/generator", "options": {"list": "/steps/gens/shipped", "value": "/name", "title": "/title"}, "change": "plan"},

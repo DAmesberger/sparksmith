@@ -622,6 +622,7 @@ fn terminals(part: Part) -> Vec<Terminal> {
             name: name.into(),
             direction: Direction::Passive,
             alternates: Vec::new(),
+            drive: None,
         })
         .collect()
 }

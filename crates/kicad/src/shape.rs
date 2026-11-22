@@ -196,13 +196,31 @@ pub fn stackup(board: &Board, presets: &StackupPresets, report: &mut Report) -> 
         }
         dielectric.dk = dk;
     }
-    for layer in layers {
-        if let StackLayer::Mask {
-            thickness: Some(t), ..
-        } = layer
-        {
-            stackup.mask_um = mm(*t) * 1000.0;
-        }
+    // One mask thickness for both sides: the top's where the file states
+    // it, else the bottom's. Sides that differ are an approximation, the
+    // dropped bottom thickness named.
+    let mask = |front: bool| {
+        layers.iter().find_map(|layer| match layer {
+            StackLayer::Mask {
+                front: f,
+                thickness: Some(t),
+            } if *f == front => Some(*t as f64 / 1000.0),
+            _ => None,
+        })
+    };
+    let (top, bottom) = (mask(true), mask(false));
+    if let Some(um) = top.or(bottom) {
+        stackup.mask_um = um;
+    }
+    if let (Some(top), Some(bottom)) = (top, bottom)
+        && (top - bottom).abs() > 1e-6
+    {
+        report.add_detail(
+            Case::StackupMaskSides,
+            "",
+            "",
+            &format!("solder mask top {top} µm kept, bottom {bottom} µm dropped"),
+        );
     }
     if stackup.check().is_err() {
         report.add(Case::StackupRefused);

@@ -203,6 +203,7 @@ pub fn run_workflow(
         session.ensure_generators();
         (session.attach_documents(None), session.open_step(None))
     });
+    let start = desk::with(desk, |session| session.engine().revision());
     let legacy = backend.legacy_tools();
     let mut facts = run::run_facts(&config, backend);
     let mut runner = Runner {
@@ -232,6 +233,7 @@ pub fn run_workflow(
     };
     let end = runner.steps(backend, person, cancel, &mut facts);
     let closed = runner.close_turn();
+    runner.unfinished(&end, start, person);
     let Runner {
         context,
         tally,
@@ -279,6 +281,26 @@ fn describe(end: &RunEnd) -> String {
         RunEnd::Declined { step } => format!("declined at {step}"),
         RunEnd::Limit { why } => format!("limit reached: {why}"),
         RunEnd::Failed { step, why } => format!("{step} failed: {why}"),
+    }
+}
+
+/// `text` with a capital first letter.
+fn sentence(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
+}
+
+/// Whether every pointer of `declared` read something in `filled` (a
+/// pointer to nothing leaves its field out).
+fn resolved(declared: &Value, filled: &Value) -> bool {
+    match declared {
+        Value::Object(map) if !(map.len() == 1 && map.contains_key("literal")) => map
+            .iter()
+            .all(|(key, inner)| filled.get(key).is_some_and(|value| resolved(inner, value))),
+        Value::Array(list) => filled.as_array().is_some_and(|got| got.len() == list.len()),
+        _ => true,
     }
 }
 
@@ -1102,6 +1124,68 @@ impl Runner<'_, '_> {
                 }),
             },
         }
+    }
+
+    /// A run that ended before its result step and left the document
+    /// changed: a result card titled as unfinished says how it ended, what
+    /// the result step's items read so far, and offers its actions whose
+    /// pointers all read something (Open in editor on the drafts) and Undo
+    /// run, so what it made is never left unnamed.
+    fn unfinished(&mut self, end: &RunEnd, start: Option<u64>, person: &mut dyn Person) {
+        if *end == RunEnd::Done {
+            return;
+        }
+        let now = desk::with(self.context.desk, |session| session.engine().revision());
+        if now.is_none() || now == start {
+            return;
+        }
+        let loaded = self.loaded;
+        let Some(step) = loaded
+            .workflow
+            .steps
+            .iter()
+            .find(|s| s.kind == StepKind::Result)
+        else {
+            return;
+        };
+        let mut items = vec![Item {
+            title: "Unfinished".into(),
+            value: Value::String(format!(
+                "{}. What it made so far stays in the project, as one undo step: open it to finish it yourself or in the chat, or Undo run to remove it.",
+                sentence(&describe(end))
+            )),
+        }];
+        items.extend(step.items.iter().filter_map(|item| {
+            let value = self.read(&item.from, None)?;
+            Some(Item {
+                title: item.title.clone(),
+                value: Value::String(super::control::readable(&value)),
+            })
+        }));
+        let actions: Vec<Action> = step
+            .actions
+            .iter()
+            .filter(|a| HostCatalog.entry(&a.call).is_some())
+            .filter_map(|a| {
+                let params = self.fill(&a.params, None)?;
+                resolved(&a.params, &params).then(|| Action {
+                    title: a.title.clone(),
+                    call: a.call.clone(),
+                    params,
+                })
+            })
+            .collect();
+        person.event(&WorkflowEvent::Card {
+            run: self.run_id.clone(),
+            step: step.id.clone(),
+            card: ControlCard::Result {
+                title: format!("{}: unfinished", self.label),
+                items,
+                findings: Vec::new(),
+                actions,
+                undo: true,
+            },
+        });
     }
 
     fn result(&mut self, step: &Step, person: &mut dyn Person) -> Next {

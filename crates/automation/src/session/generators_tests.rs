@@ -927,3 +927,137 @@ fn the_shipped_module_groups_its_row_lists_as_rows() -> TestResult {
     assert!(rows.iter().all(|p| p["group"] == "rows"), "{rows:?}");
     Ok(())
 }
+
+/// Every shipped generator's defaults and presets, in every scope it
+/// offers, complete to the same canonical bytes in the core and on the host
+/// (the bytes a part's params hash covers), and leaving the defaults out
+/// gives the bytes of giving every one. Prints a digest over all of them,
+/// so a run before and after a change to completion can be compared.
+#[test]
+fn shipped_requests_complete_to_the_same_bytes_in_core_and_host() -> TestResult {
+    use sparksmith_generator_abi::v1::Params;
+    use sparksmith_generator_abi::{encode, hex, sha256};
+    let host = |d: &_, s, p: &Params| sparksmith_generators::params::complete(d, s, p);
+    let core = |d: &_, s, p: &Params| sparksmith_core::library::generated::complete(d, s, p);
+    let bytes = |request: Result<_, sparksmith_generator_abi::Failure>| -> TestResult<Vec<u8>> {
+        let request = request.map_err(|f| format!("{:?}", f.problems))?;
+        encode(&request).map_err(|e| format!("{e:?}").into())
+    };
+    let library = ShippedLibrary::locate()?;
+    let runtime = sparksmith_generators::WasmiRuntime::new(sparksmith_generators::Limits::DEFAULT);
+    let mut all = Vec::new();
+    let mut count = 0;
+    for name in library.generators()? {
+        let bundle = library.generator(&name)?;
+        let description = runtime
+            .load(&bundle.module)
+            .and_then(|loaded| loaded.describe())
+            .map_err(|f| format!("{name}: {:?}", f.problems))?;
+        let defaults: Params = description
+            .params()
+            .iter()
+            .map(|p| (p.key.clone(), p.default.clone()))
+            .collect();
+        let mut requests = vec![("defaults".to_owned(), Params::new())];
+        for preset in description.presets() {
+            requests.push((format!("preset {}", preset.key), preset.params.clone()));
+        }
+        for &scope in description.scopes() {
+            let implicit = bytes(core(&description, scope, &Params::new()))?;
+            assert_eq!(
+                implicit,
+                bytes(core(&description, scope, &defaults))?,
+                "{name}: implicit and explicit defaults differ"
+            );
+            for (what, params) in &requests {
+                let from_core = bytes(core(&description, scope, params))?;
+                assert_eq!(
+                    from_core,
+                    bytes(host(&description, scope, params))?,
+                    "{name} {what} {scope:?}"
+                );
+                all.extend_from_slice(name.as_bytes());
+                all.push(0);
+                all.extend_from_slice(&from_core);
+                all.push(0);
+                count += 1;
+            }
+        }
+    }
+    assert!(count > 18, "only {count} shipped requests");
+    println!("{count} shipped requests, digest {}", hex(&sha256(&all)));
+    Ok(())
+}
+
+/// A shipped library in `dir` holding only the no-lead generator's bundle.
+fn no_lead_library(dir: &Path) -> TestResult<PathBuf> {
+    let root = dir.join("library");
+    std::fs::create_dir_all(root.join("generators"))?;
+    std::fs::write(root.join(MARKER), "{\"format\":1}\n")?;
+    copy_dir(
+        &Path::new(BUNDLE).join("../no-lead"),
+        &root.join("generators/no-lead"),
+    )?;
+    Ok(root)
+}
+
+/// Place the root component a `library.generate_part` reply made, by its
+/// first symbol and binding; the instance's fitted Part, if any.
+fn place_made(session: &mut Session, made: &Value) -> TestResult<Option<u64>> {
+    let revisions = made["result"]["outcome"]["report"]["revisions"].clone();
+    let component = revisions[0].clone();
+    let placed = call(
+        session,
+        "project.apply",
+        json!({"operation": {"editor": "Instance", "operation": {"command": "component.place",
+            "params": {"component": {"id": component["id"], "revision": component["revision"]},
+                "properties": [], "representation": revisions[1]["id"], "unit": 1,
+                "physical": {"binding": revisions[4]["id"], "footprint": revisions[3]["id"]}}}}}),
+    );
+    assert_eq!(placed["ok"], true, "{placed}");
+    let project = session.engine().project();
+    let instance = project.instances.last().ok_or("no instance")?;
+    Ok(instance.part.map(|p| p.id.0))
+}
+
+/// E2E run 13 (finding 41): a generated IC had no Value or MPN in the
+/// BOM. A part made for exactly one orderable part number is fitted with
+/// that Part when placed, so the BOM names it; one made for several (a
+/// preset's ordering codes) is left for the person to choose.
+#[test]
+fn a_part_made_for_one_part_number_is_fitted_with_it_when_placed() -> TestResult {
+    let temp = tempfile::tempdir()?;
+    let root = no_lead_library(temp.path())?;
+    let mut session = session(&root)?;
+    let one = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "no-lead", "scope": "component", "preset": "no-lead-ti-dml0010a",
+            "name": "TPS22990DMLR",
+            "params": {"part_numbers": ["Texas Instruments=TPS22990DMLR"]}}),
+    );
+    assert_eq!(one["ok"], true, "{one}");
+    assert!(place_made(&mut session, &one)?.is_some());
+    let bom = session.dispatch(json!({"command": "project.bom", "params": {}}));
+    let lines = bom["result"]["result"]["lines"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert!(
+        lines
+            .iter()
+            .any(|l| l["mpn"] == "TPS22990DMLR" && l["manufacturer"] == "Texas Instruments"),
+        "{bom}"
+    );
+    // The preset's four ordering codes: four Parts, none chosen.
+    let several = call(
+        &mut session,
+        "library.generate_part",
+        json!({"generator": "no-lead", "scope": "component", "preset": "no-lead-ti-dml0010a"}),
+    );
+    assert_eq!(several["ok"], true, "{several}");
+    assert_eq!(place_made(&mut session, &several)?, None);
+    let parts = session.engine().project().library.latest_parts().len();
+    assert_eq!(parts, 1 + 4);
+    Ok(())
+}

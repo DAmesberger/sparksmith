@@ -438,10 +438,12 @@ fn readable_list(list: &[Value]) -> String {
             let name = ["document", "title", "name"]
                 .iter()
                 .find_map(|k| item.get(*k).and_then(Value::as_str))?;
-            let pages = item
-                .get("text")
-                .and_then(Value::as_str)
-                .map_or(0, |t| t.matches("=== page ").count());
+            // A document's text marks its pages; its outline is a page a line.
+            let pages = match (item.get("text"), item.get("outline")) {
+                (Some(Value::String(text)), _) => text.matches("=== page ").count(),
+                (_, Some(Value::String(outline))) => outline.lines().count(),
+                _ => 0,
+            };
             Some(if pages > 0 {
                 format!("{name} · {}", counted(pages as u64, "page"))
             } else {

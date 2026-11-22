@@ -6926,6 +6926,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sparksmith-core",
+ "tempfile",
 ]
 
 [[package]]

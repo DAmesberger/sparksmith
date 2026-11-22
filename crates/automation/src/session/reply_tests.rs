@@ -471,6 +471,70 @@ fn the_difference_between_two_documents_names_what_changed() -> TestResult {
     Ok(())
 }
 
+/// A via edit on a project that packs asset bytes reports that via as
+/// changed and nothing else: no unrelated collection, no field, and the
+/// asset bytes are never part of the reply.
+#[test]
+fn a_local_edit_reports_only_the_objects_it_wrote() -> TestResult {
+    use sparksmith_core::library::bundle::{AssetBytes, PackedAsset, asset_hash};
+    let mut engine = sparksmith_core::Engine::showcase()?;
+    let bytes = vec![7u8; 4096];
+    let mut file = engine.to_file();
+    let mut assets: Vec<PackedAsset> = file.project.library.assets.iter().cloned().collect();
+    assets.push(PackedAsset {
+        hash: asset_hash(&bytes),
+        media_type: "model/step".into(),
+        data: AssetBytes::new(bytes),
+    });
+    file.project.library.assets = sparksmith_core::Shared::new(assets);
+    engine = sparksmith_core::Engine::from_file(file)?;
+    let via = engine.project().vias.first().ok_or("a via")?.clone();
+    let mut session = Session::fixture(engine);
+    let reply = ok(session.respond(
+        Caller::Operator,
+        json!({"command": "project.apply", "params": {
+            "expected_revision": session.engine().revision(),
+            "operation": {"editor": "Layout", "operation": {"command": "layout.via_tent", "params": {
+                "id": via.id, "tented": !via.tented
+            }}},
+        }}),
+    ))?;
+    assert_eq!(
+        reply["changes"],
+        json!({"changed": {"vias": [via.id]}}),
+        "{reply}"
+    );
+    Ok(())
+}
+
+/// The sections both states share are left out of the diff, and a shared
+/// section that changed is still reported by id: a packed asset added to
+/// the library is listed by its hash.
+#[test]
+fn a_changed_library_section_is_reported_by_id() -> TestResult {
+    use sparksmith_core::library::bundle::{AssetBytes, PackedAsset, asset_hash};
+    let session = demo()?;
+    let before = session.engine().document().clone();
+    let mut after = before.clone();
+    let bytes = vec![3u8; 64];
+    let hash = asset_hash(&bytes);
+    let project = std::sync::Arc::make_mut(&mut after.project);
+    let mut assets: Vec<PackedAsset> = project.library.assets.iter().cloned().collect();
+    assets.push(PackedAsset {
+        hash,
+        media_type: "model/step".into(),
+        data: AssetBytes::new(bytes),
+    });
+    project.library.assets = sparksmith_core::Shared::new(assets);
+    let summary = difference(&before, &after, session.engine().check_settings())?;
+    assert_eq!(
+        summary["changes"],
+        json!({"added": {"library.assets": [serde_json::to_value(hash)?]}}),
+        "{summary}"
+    );
+    Ok(())
+}
+
 /// Review finding: the inspect summary said 0 open findings on the
 /// showcase while Issues and fabrication listed its purchasing to-dos. The
 /// summary counts from Issues' own rows: the same findings, the same

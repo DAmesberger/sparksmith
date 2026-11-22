@@ -745,9 +745,29 @@ pub fn place(project: &mut Project, request: NewInstance) -> Result<(Id, Id)> {
     let position = request.position.unwrap_or(PointNm::ORIGIN);
     let occurrence = add_occurrence(project, id, unit, position, sheet)?;
     apply_properties(project, id, &request.properties)?;
+    fit_sole_orderable(project, id)?;
     check_instance(project, id)?;
     check_designators(project)?;
     Ok((id, occurrence))
+}
+
+/// A generated part made for exactly one orderable part number is fitted
+/// with that manufacturer Part when placed, so the BOM names it without a
+/// further choice; it is left generic when the Part would not agree with
+/// the instance (another physical choice).
+fn fit_sole_orderable(project: &mut Project, id: Id) -> Result<()> {
+    let component = instance_mut(project, id)?.component;
+    let Some(part) = crate::library::generated::sole_orderable(&project.library, component) else {
+        return Ok(());
+    };
+    instance_mut(project, id)?.part = Some(part);
+    let fits = project
+        .instance(id)
+        .is_some_and(|i| part_findings(&project.library, i).is_empty());
+    if !fits {
+        instance_mut(project, id)?.part = None;
+    }
+    Ok(())
 }
 
 /// Create one instance with no occurrence: every unit of its

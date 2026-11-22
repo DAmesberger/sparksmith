@@ -22,7 +22,7 @@ pub use sparksmith_generator_abi::surface::{
 pub const MODULES: &[ModuleDecl] = &[
     module_at(
         "project",
-        (7, 18),
+        (7, 19),
         "Project",
         "The open design: inspect, properties, undo, redo, turns, bill of materials, assembly variants.",
     ),
@@ -34,7 +34,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "schematic",
-        (1, 6),
+        (1, 7),
         "Schematic",
         "Sheets, symbols, wires, labels, placed components and their pins.",
     ),
@@ -81,7 +81,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "assist",
-        (1, 3),
+        (1, 4),
         "Assistant",
         "Documents attached to an assistant run, its working pinout documents, its workflows and their cards in the chat, and its questions to the person.",
     ),
@@ -239,6 +239,9 @@ macro_rules! declare_entries {
                     $($($attr)*)?
                 ),
             )+];
+
+            /// Each entry's variant, in the order of [`Self::ENTRIES`].
+            pub const VARIANTS: &'static [&'static str] = &[$(stringify!($variant),)+];
 
             /// This command's permission class.
             pub const fn class(&self) -> $crate::permission::Class {

@@ -1200,6 +1200,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     name: key.clone(),
                     direction: Direction::Passive,
                     alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "U".into(),

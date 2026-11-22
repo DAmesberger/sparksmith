@@ -442,13 +442,13 @@
       "id": 9,
       "name": "ground foot",
       "suppressed": false,
+      "body_names": [
+        "ground foot"
+      ],
       "param_names": [
         "d23",
         "d24",
         "d25"
-      ],
-      "participants": [
-        "cover"
       ],
       "type": "box",
       "corner": [
@@ -459,7 +459,7 @@
       "length": "(ground_length / 2) - (- ground_length / 2)",
       "width": "(- body_width / 2) - (- body_width / 2 - ground_out)",
       "height": "(cover_thickness) - (0 mm)",
-      "operation": "join"
+      "operation": "new_body"
     },
     {
       "id": 10,
@@ -1008,6 +1008,20 @@
         "pbr": {
           "metallic": 1.0,
           "roughness": 0.25,
+          "dielectric_ior": 1.5
+        }
+      },
+      "ground foot": {
+        "name": "nickel",
+        "color": [
+          212,
+          205,
+          192
+        ],
+        "opacity": 1.0,
+        "pbr": {
+          "metallic": 1.0,
+          "roughness": 0.3,
           "dielectric_ior": 1.5
         }
       },

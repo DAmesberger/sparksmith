@@ -1170,7 +1170,7 @@
     "4=VBIAS:power_input",
     "5=ON:input",
     "6=GND:power_input",
-    "7=PG:output",
+    "7=PG:open_drain",
     "8=VOUT:power_output",
     "9=VOUT:power_output",
     "10=VOUT:power_output",
@@ -1189,7 +1189,7 @@
    "page": 31
   },
   "basis": "cited",
-  "note": "Body, terminals (0.25 mm long, 0.24 and 0.28 mm wide, pins 8–10 at 0.56 mm from 0.02 mm off the centre line, lugs 0.125 mm), thermal pad and the land pattern (0.45 mm lands at 1.95 mm, the comb's lugs as unnumbered lands) from the drawing; the height is the drawing's 0.8 mm, the only height it gives (a maximum; standoff 0–0.05 mm); the top marks per orderable part number from the datasheet's package option addendum (p. 27, 3 May 2025: RB990 for TPS22990DMLR and DMLT, RB990N for TPS22990NDMLR and NDMLT), no mark for another part number; the thermal pad's optional pin-1 chamfer is not made. Terminal finish NiPdAu. The pin table is the TPS22990 datasheet's Pin Functions (SLVSDK1C, p. 3): CT (type O, the slew-rate capacitor) passive, VIN and VBIAS power inputs, ON an input, PG an output (open drain), VOUT (8–10) power outputs, the thermal pad EP VIN. The orderable part numbers (part_numbers) are the marking table's, the same ordering information."
+  "note": "Body, terminals (0.25 mm long, 0.24 and 0.28 mm wide, pins 8–10 at 0.56 mm from 0.02 mm off the centre line, lugs 0.125 mm), thermal pad and the land pattern (0.45 mm lands at 1.95 mm, the comb's lugs as unnumbered lands) from the drawing; the height is the drawing's 0.8 mm, the only height it gives (a maximum; standoff 0–0.05 mm); the top marks per orderable part number from the datasheet's package option addendum (p. 27, 3 May 2025: RB990 for TPS22990DMLR and DMLT, RB990N for TPS22990NDMLR and NDMLT), no mark for another part number; the thermal pad's optional pin-1 chamfer is not made. Terminal finish NiPdAu. The pin table is the TPS22990 datasheet's Pin Functions (SLVSDK1C, p. 3): CT (type O, the slew-rate capacitor) passive, VIN and VBIAS power inputs, ON an input, PG an open-drain output, VOUT (8–10) power outputs, the thermal pad EP VIN. The orderable part numbers (part_numbers) are the marking table's, the same ordering information."
  },
  {
   "key": "no-lead-ti-rxb0014a",
@@ -1624,7 +1624,7 @@
     "11=VOUT/FB:input",
     "12=NC:passive",
     "13=MODE/SYNC:input",
-    "14=PG:output",
+    "14=PG:open_drain",
     "15=GND/DAP:power_input"
    ],
    "part_numbers": [
@@ -1648,6 +1648,6 @@
    "page": 55
   },
   "basis": "cited",
-  "note": "Body, terminals (0.25 mm wide, 0.5 mm from the edge, L corners 0.675 mm along the edge, each with a 0.18 mm neck lifted 0.1 mm for the outer 0.1 mm, section A-A) and the 1 mm thermal pad from the outline; the lands are TI's CAD footprint for the package (L-shaped lands 1 and 12 as two rectangles each, small round lands 5 and 8, a plated via in the thermal pad), where the datasheet's example draws 5 and 8 as L-shaped lands too; the top marks per orderable part number from the datasheet's package option addendum (pp. 48–49: LMQ664x0MyzRXBRQ1 marked xMyzQ, for example 3MC3Q on LMQ66430MC3RXBRQ1), no mark for another part number; the thermal pad's pin-1 chamfer and the terminals' corner rounds are not made. Terminal finish NiPdAu. Checked against the outline (20 November 2026): body 2.5–2.7 mm, height 0.95–1.05 mm, pitch 0.5 mm, terminals 0.2–0.3 mm wide and 0.4–0.6 mm long (corner legs 0.575–0.775 mm), thermal pad 1 ± 0.1 mm. The pin table is Table 5-1 Pin Functions of the same datasheet (SNVSBV1F, p. 5), one pinout for the three devices: EN/UVLO, VOUT/FB and MODE/SYNC inputs, VIN, PGND and the thermal pad (GND/DAP, terminal 15 here) power inputs, VCC (the internal LDO, usable as a logic supply) a power output, PG an output (open drain), SW and BOOT passive. The orderable part numbers (part_numbers) are the marking table's, the same ordering information."
+  "note": "Body, terminals (0.25 mm wide, 0.5 mm from the edge, L corners 0.675 mm along the edge, each with a 0.18 mm neck lifted 0.1 mm for the outer 0.1 mm, section A-A) and the 1 mm thermal pad from the outline; the lands are TI's CAD footprint for the package (L-shaped lands 1 and 12 as two rectangles each, small round lands 5 and 8, a plated via in the thermal pad), where the datasheet's example draws 5 and 8 as L-shaped lands too; the top marks per orderable part number from the datasheet's package option addendum (pp. 48–49: LMQ664x0MyzRXBRQ1 marked xMyzQ, for example 3MC3Q on LMQ66430MC3RXBRQ1), no mark for another part number; the thermal pad's pin-1 chamfer and the terminals' corner rounds are not made. Terminal finish NiPdAu. Checked against the outline (20 November 2026): body 2.5–2.7 mm, height 0.95–1.05 mm, pitch 0.5 mm, terminals 0.2–0.3 mm wide and 0.4–0.6 mm long (corner legs 0.575–0.775 mm), thermal pad 1 ± 0.1 mm. The pin table is Table 5-1 Pin Functions of the same datasheet (SNVSBV1F, p. 5), one pinout for the three devices: EN/UVLO, VOUT/FB and MODE/SYNC inputs, VIN, PGND and the thermal pad (GND/DAP, terminal 15 here) power inputs, VCC (the internal LDO, usable as a logic supply) a power output, PG an open-drain output, SW and BOOT passive. The orderable part numbers (part_numbers) are the marking table's, the same ordering information."
  }
 ]

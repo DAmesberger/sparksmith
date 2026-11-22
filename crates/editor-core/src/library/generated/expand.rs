@@ -19,7 +19,7 @@
 //! 1…m; pads 1…p, then the footprint's drawings (silkscreen, assembly,
 //! courtyard).
 use crate::diagnostics::{Error, Result};
-use crate::functions::{Direction, TerminalFunctions};
+use crate::functions::{Direction, Drive, TerminalFunctions};
 use crate::ids::ContentHash;
 use crate::ids::{
     BindingRef, DefinitionId, FootprintRef, FunctionId, GraphicId, PackageRef, PackageTerminalId,
@@ -329,11 +329,20 @@ fn component_definition(
         .map(|((t, (id, function)), alternates)| Terminal {
             id: TerminalId(id),
             name: t.name.clone(),
-            class: TerminalClass::Electrical(TerminalFunctions::with_alternates(
-                FunctionId(function),
-                direction(t.direction),
-                &alternates,
-            )),
+            class: TerminalClass::Electrical({
+                let mut functions = TerminalFunctions::with_alternates(
+                    FunctionId(function),
+                    direction(t.direction),
+                    &alternates,
+                );
+                if let (Some(drive), Some(first)) = (t.drive, functions.functions.first_mut()) {
+                    first.drive = match drive {
+                        v1::Drive::OpenDrain => Drive::OpenDrain,
+                        v1::Drive::OpenSource => Drive::OpenSource,
+                    };
+                }
+                functions
+            }),
         })
         .collect();
     Ok(ComponentDefinition {
@@ -750,7 +759,6 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
     let mut pads = Vec::with_capacity(source.pads.len());
     for pad in &source.pads {
         let shape = pad_shape(&pad.shape)?;
-        let rotation = shape.canonical_rotation(Angle::normalized(pad.rot_mdeg));
         let hole = pad.hole.as_ref().map(hole).transpose()?;
         let kind = match (&hole, pad.kind) {
             (None, Some(v1::PadKind::Mechanical)) => PadKind::Mechanical,
@@ -759,7 +767,7 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
             (Some(h), _) if h.plated => PadKind::PlatedThrough,
             (Some(_), _) => PadKind::NonPlatedHole,
         };
-        pads.push(Pad {
+        let mut built = Pad {
             id: PadId(ids.id(format!("p:{}", pad.key))?),
             // A non-plated hole lands no terminal (a mechanical hole beside
             // the land it belongs to); its generation still names one.
@@ -776,7 +784,8 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
             kind,
             number: pad.number.clone().unwrap_or_else(|| pad.key.clone()),
             position: point(pad.at)?,
-            rotation_mdeg: rotation,
+            // The generation's turn, folded below with everything it turns.
+            rotation_mdeg: Angle::normalized(pad.rot_mdeg),
             side: match pad.side {
                 v1::Side::Top => PadSide::Top,
                 v1::Side::Bottom => PadSide::Bottom,
@@ -814,7 +823,11 @@ fn footprint_pads(generation: &v1::Generation, terminals: &Ids, ids: &mut Ids) -
                 ),
             },
             vias: Vec::new(),
-        });
+        };
+        // Canonical rotation per shape symmetry, turning the hole, slot and
+        // paste windows by what the fold removes.
+        built.fold_rotation()?;
+        pads.push(built);
     }
     Ok(pads)
 }

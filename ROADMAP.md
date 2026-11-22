@@ -2,7 +2,30 @@
 
 The [product plan](docs/sparksmith-plan.md) defines release scope. This file tracks execution; unchecked work is not implemented.
 
-## Current milestone — prove the foundation
+## Workflow support, 22 November 2026
+
+What a person can do today, by workflow, with the evidence and the limits that matter. "Built" means implemented and tested in this repository; it is not a production-release claim. The external codebase review of 21 November 2026 found false passes in checking and fabrication (unnetted copper, mounting-hole lands, stored fills, existing tracks below a changed width, export profiles) and in file ownership; fixes are under review and this table does not count them as fixed until they are on `main`.
+
+| Workflow | Status | Evidence | Main limits |
+| --- | --- | --- | --- |
+| Component authoring | Built: Symbol, Footprint, Mapping and 3D modes, immutable revisions, multi-unit symbols, pin functions, generator families in WASM, datasheet-to-component through MCP | [editor evidence](docs/editor-evidence.md), [generator plugins](docs/generator-plugins.md) | Acceptance scenarios CE-01 to CE-07 remain open; typed field definitions need lower-level authoring |
+| Schematic capture | Built: multi-sheet hierarchy, net labels, power ports, annotation, ERC, PDF printing | [schematic capture](docs/schematic-capture.md) | No buses; a child sheet is used once |
+| Schematic-to-board update and placement | Built: reviewed impact previews, one undo step | [editor evidence](docs/editor-evidence.md) | — |
+| Routing | Built: manual, walkaround and push-and-shove, track drag with shove | [push-and-shove](docs/push-and-shove.md) | Through vias only; corner drags not built |
+| Differential pairs, length tuning, impedance | Built | [high-speed routing](docs/high-speed-routing.md) | No return-path verification; pad and package delay excluded |
+| Pours | Built: fills computed on a worker, thermal relief | [editor evidence](docs/editor-evidence.md) | Stored fill results are trusted (review finding 13) |
+| Board checks and production check | Built | [fabrication output](docs/fabrication-output.md) | The review's false passes above |
+| Manufacturing output | Built: Gerber X2, Excellon, job file, BOM, pick-and-place, fabrication and assembly drawings; the ESP32 example re-exports byte for byte | [fabrication output](docs/fabrication-output.md) | No IPC-2581, ODB++ or panels; the example board is not reviewed by a person or built |
+| Assembly variants | Built: population and fitted part per variant, feeding BOM, placement, drawings and 3D | [assembly variants](docs/assembly-variants.md) | One variant per export |
+| 3D view and native export | Built: board plan meshed live, exact `.solidcraft` export, parity gate | [board plan and interface](docs/architecture/board-plan-and-interface.md) | A cold 3D open of a 10,000-via board takes seconds ([large board](docs/editor-evidence.md#large-board-benchmark)) |
+| Linked mechanical designs | Built: published datum slots, linked-design preview and publication (slices B0–B4, B6) | [board interface](docs/architecture/board-interface.md) | Publication does not yet bind the previewed linked file (review finding 12) |
+| KiCad import | Built: board, schematic, rules and zones, with an import report | [development](docs/development.md#kicad-import-comparison) | No net ties; one solder mask thickness for both sides |
+| Firmware pin configuration | Built: JSON, C header, Rust and Zephyr emitters; the C header is compiled in tests | [component model](docs/component-model.md) | Pin configuration only, no clocks or registers |
+| Automation and the assistant | Built: CLI, JSON lines and MCP through one front door; the built-in assistant uses the same verbs | [extension surface](docs/extension-surface.md), [assistant panel](docs/assistant-panel.md) | — |
+| Files and recovery | Built: atomic saves, recovery snapshots, offline reopen | [development](docs/development.md) | Concurrent saves from two processes are not detected (review finding 9) |
+| Platforms | Linux CI on every push; Windows CI on `main`; macOS checked by hand in the VM | [development](docs/development.md#build-and-run) | No macOS CI job for open, save and quit |
+
+## Milestone 0 — prove the foundation (open items as of 22 November 2026)
 
 - [x] Inspect and pin the Solidcraft research baseline.
 - [x] Record product, library, native integration and copper-performance requirements.
@@ -51,7 +74,7 @@ All scenarios require the common UI/automation, transactional, offline and nativ
 1. Component authoring, project snapshots, single-sheet schematic and ERC.
 2. Schematic-to-board updates, placement, routing, DRC and integrated 3D.
 3. Pours, manufacturing output, native Solidcraft delivery, updates and recovery; complete the first-release workflow.
-4. Release 2: interactive push-and-shove if not delivered in release 1. Extend other features according to real board needs.
+4. Release 2: extend features according to real board needs. Push-and-shove routing is built ([push-and-shove](docs/push-and-shove.md)).
 
 ## Current hardening sequence
 

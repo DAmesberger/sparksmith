@@ -406,6 +406,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     name: (*key).into(),
                     direction: Direction::Passive,
                     alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "SW".into(),

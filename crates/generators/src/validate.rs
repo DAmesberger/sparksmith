@@ -536,6 +536,17 @@ pub fn generation(g: &Generation, scope: Scope) -> Result<(), Failure> {
                     t.alternates.len(),
                     limits::TERMINAL_ALTERNATES,
                 )?;
+                if t.drive.is_some()
+                    && !matches!(
+                        t.direction,
+                        v1::Direction::Output | v1::Direction::Bidirectional
+                    )
+                {
+                    return Err(invalid(format!(
+                        "The generator gives terminal \"{}\" a drive, which only an output or bidirectional terminal has.",
+                        t.key
+                    )));
+                }
                 for (i, d) in t.alternates.iter().enumerate() {
                     if *d == t.direction || t.alternates.get(..i).is_some_and(|a| a.contains(d)) {
                         return Err(invalid(format!(

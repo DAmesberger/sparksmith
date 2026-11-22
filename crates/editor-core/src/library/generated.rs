@@ -34,7 +34,8 @@ use super::{Definition, Library, PackageModel};
 use crate::diagnostics::{Error, Result};
 use crate::fields::{FieldSelection, ValueTemplate};
 use crate::ids::{
-    BindingRef, ContentHash, DefinitionKind, DefinitionRef, FootprintRef, PackageRef, SymbolRef,
+    BindingRef, ComponentRef, ContentHash, DefinitionKind, DefinitionRef, FootprintRef, PackageRef,
+    PartRef, SymbolRef,
 };
 use crate::units::{Nm, PointNm};
 use schemars::JsonSchema;
@@ -131,39 +132,11 @@ impl ParamValue {
 }
 
 /// The request for `given` parameters in `scope`, every default filled
-/// from the description, checked with the ABI's own parameter check (as
-/// `sparksmith_generators::params::complete` does on the host). Defaults
-/// are filled before hashing, so a default that changes in a later module
-/// can never change a part's key.
-pub fn complete(
-    description: &v1::Description,
-    scope: v1::Scope,
-    given: &v1::Params,
-) -> std::result::Result<v1::Request, Failure> {
-    if !description.scopes().contains(&scope) {
-        let what = match scope {
-            v1::Scope::Component => "complete parts",
-            v1::Scope::Package => "packages on their own",
-        };
-        return Err(Failure::one(
-            "param.scope",
-            format!("The {} generator does not make {what}.", description.title),
-        ));
-    }
-    let mut params = given.clone();
-    for param in description.params() {
-        params
-            .entry(param.key.clone())
-            .or_insert_with(|| param.default.clone());
-    }
-    sparksmith_generator_abi::params::check(description, &params)
-        .map_err(|problems| Failure { problems })?;
-    Ok(v1::Request {
-        abi: v1::ABI,
-        scope,
-        params,
-    })
-}
+/// from the description and checked: the ABI's one completion, the same the
+/// host runs (`sparksmith_generators::params::complete`). Defaults are
+/// filled before hashing, so a default that changes in a later module can
+/// never change a part's key.
+pub use sparksmith_generator_abi::params::complete;
 
 /// The value of a project setting a parameter declares as its context, if
 /// the core knows the setting.
@@ -500,6 +473,39 @@ impl GeneratedPart {
 /// The record of a revision `root`, if a generator made it.
 pub fn record_of(library: &Library, root: DefinitionRef) -> Option<&GeneratedPart> {
     library.generated.iter().find(|g| g.root == root)
+}
+
+/// The SDK's parameter of a generation's orderable part numbers
+/// (`sparksmith_generator_sdk::orderable`): `MANUFACTURER=MPN` entries,
+/// recorded with the part's complete parameters.
+pub const ORDERABLE_PARAM: &str = "part_numbers";
+
+/// The one manufacturer Part a placed instance of `component` is fitted
+/// with: when `component` is a generated part whose generation named
+/// exactly one orderable part number, the latest Part of that number
+/// pinning exactly this revision (the one `library.generate` published, or
+/// carried to it). `None` for any other component, for a generation of no
+/// or several part numbers (a module's ordering codes: the person
+/// chooses), or when that Part is gone.
+pub fn sole_orderable(library: &Library, component: ComponentRef) -> Option<PartRef> {
+    let record = record_of(library, component.erased())?;
+    let [ParamValue::Text(entry)] = (match record.from.params.get(ORDERABLE_PARAM)? {
+        ParamValue::List(items) => items.as_slice(),
+        _ => return None,
+    }) else {
+        return None;
+    };
+    let (manufacturer, mpn) = entry.rsplit_once('=')?;
+    let (manufacturer, mpn) = (manufacturer.trim(), mpn.trim());
+    library
+        .latest_parts()
+        .into_iter()
+        .find(|p| {
+            p.definition.component == component
+                && p.definition.manufacturer == manufacturer
+                && p.definition.mpn == mpn
+        })
+        .map(|p| PartRef::new(p.id, p.revision))
 }
 
 /// The recipe a library record of `root` carries when a generator made
