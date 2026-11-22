@@ -251,6 +251,7 @@ fn report_in(
         collect(project, drafts, graph, settings)?,
         scope,
         &|_| None,
+        &|_, _| None,
     ))
 }
 
@@ -260,14 +261,19 @@ fn report_in(
 /// made from the last one's ([`incremental`]). `kept` may give an area's
 /// rows from an earlier report whose findings, waivers and names that
 /// area's rows read are unchanged; they are then used as they are.
+/// `row_of` may give the row an earlier report made of the same merged
+/// findings, when nothing its words read changed.
 fn assemble(
     project: &Project,
     drafts: &Drafts,
     areas: Vec<(IssueArea, Vec<Finding>)>,
     scope: &IssueScope,
     kept: &dyn Fn(IssueArea) -> Option<Vec<IssueRow>>,
+    row_of: &dyn Fn(IssueArea, &[Finding]) -> Option<IssueRow>,
 ) -> IssueReport {
-    let names = names::Names::new(project, drafts);
+    // Names are read only for rows made here.
+    let names = std::cell::OnceCell::new();
+    let names = || names.get_or_init(|| names::Names::new(project, drafts));
     let mut all = Vec::new();
     for (area, mut findings) in areas {
         if let Some(rows) = kept(area) {
@@ -289,11 +295,15 @@ fn assemble(
                     .is_none()
         });
         let groups = match area {
-            IssueArea::Component => merge::component(&names, findings),
+            IssueArea::Component => merge::component(names(), findings),
             IssueArea::Schematic => merge::schematic(findings),
             IssueArea::Board => merge::board(findings),
         };
-        all.extend(groups.into_iter().map(|merged| row(&names, area, merged)));
+        all.extend(
+            groups
+                .into_iter()
+                .map(|merged| row_of(area, &merged).unwrap_or_else(|| row(names(), area, merged))),
+        );
     }
     all.sort_by(|a, b| {
         (a.severity, a.area, &a.group.code, &a.group.key).cmp(&(

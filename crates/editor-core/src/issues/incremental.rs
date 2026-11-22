@@ -13,7 +13,7 @@ use super::{
     IssueArea, IssueReport, IssueScope, assemble, board_area, component_findings,
     schematic_findings,
 };
-use crate::diagnostics::{Finding, Result};
+use crate::diagnostics::{Finding, ObjectRef, Result};
 use crate::ids::{Id, PadId};
 use crate::layout::{
     self, BoardCheck, BoardCopper, CheckSettings, ConnectivityOrder, CopperChanges, CopperGraph,
@@ -210,7 +210,7 @@ impl Checked {
         }
         // The connectivity of the nets reached, from a graph of those nets;
         // every other net's findings are the last state's.
-        let connectivity = kept.and_then(|last| {
+        let mut connectivity = kept.and_then(|last| {
             let old = last
                 .board
                 .iter()
@@ -248,13 +248,14 @@ impl Checked {
             findings.extend(kept.get(from..).into_iter().flatten().map(|o| (*o).clone()));
             Some(findings)
         });
+        let made_connectivity = connectivity.is_some();
         let (board, stopped) =
             layout::check_families(project, &copper, &source, settings, &mut |check| {
                 if let Some((_, items)) = items.iter().find(|(c, _)| *c == check) {
                     return Some(items.findings().cloned().collect());
                 }
                 if check == BoardCheck::Connectivity && connectivity.is_some() {
-                    return connectivity.clone();
+                    return connectivity.take();
                 }
                 let kept = kept.filter(|_| !check.reads_copper())?;
                 kept.board
@@ -262,7 +263,7 @@ impl Checked {
                     .find(|(c, _)| *c == check)
                     .map(|(_, f)| f.clone())
             });
-        let counts = match (kept, connectivity.is_some()) {
+        let counts = match (kept, made_connectivity) {
             (Some(last), true) => sub.counts().or_else(|| last.counts.clone()),
             _ => source.made().and_then(|g| g.net_counts()).map(Arc::new),
         };
@@ -312,14 +313,61 @@ impl Checked {
             }
             Some(rows.into_iter().cloned().collect())
         };
-        let report = Arc::new(assemble(project, drafts, areas, &IssueScope::All, &rows));
+        // A Board row of the last report made of the same findings reads
+        // as it did, unless it names a track or via that changed.
+        let last_rows: HashMap<(&str, &str, &[ObjectRef]), &super::IssueRow> = kept
+            .zip(changes.as_ref())
+            .map(|(last, _)| {
+                last.report
+                    .rows
+                    .iter()
+                    .filter(|r| r.area == IssueArea::Board)
+                    .map(|r| {
+                        let f = &r.finding;
+                        (
+                            (f.code.as_str(), f.message.as_str(), f.objects.as_slice()),
+                            r,
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let changed = |o: &ObjectRef| {
+            changes.as_ref().is_some_and(|c| match *o {
+                ObjectRef::Track { id } => c.keys.contains(&layout::ItemKey::Track(id)),
+                ObjectRef::Via { id } => c.keys.contains(&layout::ItemKey::Via(id)),
+                _ => false,
+            })
+        };
+        let row_of = |area: IssueArea, merged: &[Finding]| {
+            let (first, also) = merged.split_first()?;
+            if area != IssueArea::Board {
+                return None;
+            }
+            let key = (
+                first.code.as_str(),
+                first.message.as_str(),
+                first.objects.as_slice(),
+            );
+            let row = last_rows.get(&key)?;
+            (row.finding == *first && row.also == also && !row.objects().any(changed))
+                .then(|| (*row).clone())
+        };
+        let report = Arc::new(assemble(
+            project,
+            drafts,
+            areas,
+            &IssueScope::All,
+            &rows,
+            &row_of,
+        ));
         #[cfg(test)]
         let paths = Paths {
             kept: kept.is_some(),
             clearance: kept.is_some() && items.iter().any(|(c, _)| *c == BoardCheck::Clearance),
             vias: kept.is_some() && items.iter().any(|(c, _)| *c == BoardCheck::Vias),
             pad_holes: kept.is_some() && items.iter().any(|(c, _)| *c == BoardCheck::PadHoles),
-            connectivity: connectivity.is_some(),
+            connectivity: made_connectivity,
         };
         Ok(Self {
             project: project.clone(),

@@ -911,3 +911,41 @@ fn the_net_that_owns_copper_survives_a_merge_whether_via_or_track() -> Result<()
     assert!(!engine.project().tracks.iter().any(|t| t.id == track));
     Ok(())
 }
+
+/// A moved via is refused against the copper within reach of it alone,
+/// with the same answer as when every track, pad and via is measured:
+/// a via of every net at many points of the routed showcase.
+#[test]
+fn a_moved_via_is_refused_as_against_every_object() -> Result<()> {
+    let engine = Engine::showcase()?;
+    let _context = engine.enter_context();
+    let mut project = engine.project().clone();
+    let nets: Vec<Id> = project.nets.iter().map(|n| n.id).collect();
+    let id = project
+        .vias
+        .first()
+        .map(|v| v.id)
+        .ok_or(Error::NotFound("via".into()))?;
+    let [w, h] = project.board_size;
+    let (mut refused, mut clear) = (0, 0);
+    for k in 0..300u32 {
+        let (x, y) = (f64::from(k % 20) / 20.0, f64::from(k / 20) / 15.0);
+        if let Some(via) = project.vias.iter_mut().find(|v| v.id == id) {
+            via.position = [1.0 + x * (w - 2.0), 1.0 + y * (h - 2.0)];
+            via.net = nets[k as usize % nets.len()];
+        }
+        let near = clearance_of(&project, id, false).map_err(|e| e.to_string());
+        let every = clearance_of(&project, id, true).map_err(|e| e.to_string());
+        assert_eq!(near, every, "position {k}");
+        if near.is_err() {
+            refused += 1
+        } else {
+            clear += 1
+        }
+    }
+    assert!(
+        refused > 30 && clear > 30,
+        "{refused} refused, {clear} clear"
+    );
+    Ok(())
+}
