@@ -20,7 +20,7 @@ pub mod workflow;
 
 pub use front::{Answer, Asker, Call, CallCx, Surface};
 pub use gate::{Caller, Decision, Grant, Mode, Principal, Question};
-pub use session::{Request, Session, part_files};
+pub use session::{FileChange, HostFile, Request, Session, part_files};
 pub use view::WindowHost;
 
 #[derive(Debug, thiserror::Error)]

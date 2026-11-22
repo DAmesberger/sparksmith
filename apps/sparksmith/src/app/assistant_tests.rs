@@ -386,3 +386,111 @@ fn the_chat_moves_the_view_without_asking_by_default() -> Fallible {
     assert_eq!(ax.app.workspace, Workspace::Schematic);
     Ok(())
 }
+
+/// Put `replies` next in the chat's script.
+fn script(ax: &mut Ax, replies: Vec<ModelReply>) {
+    if let Some(model) = &ax.app.assistant.model {
+        let script = Arc::new(Mutex::new(VecDeque::from(replies)));
+        ax.app.assistant.model = Some(ChatModel {
+            profile: model.profile.clone(),
+            connect: Arc::new(move || {
+                Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)
+            }),
+        });
+    }
+}
+
+fn rename(ax: &mut Ax, name: &str) -> Fallible {
+    ax.app.engine.apply(
+        ax.app.engine.revision(),
+        sparksmith_core::Operation::Schematic(
+            sparksmith_core::schematic::SchematicCommand::RenameProject { name: name.into() },
+        ),
+    )?;
+    ax.settle();
+    Ok(())
+}
+
+fn save_in_window(ax: &mut Ax) -> Fallible {
+    ax.app.files.request(crate::file_ui::Action::Save);
+    ax.until("the save", |ax| {
+        !ax.app.files.busy() && !ax.app.files.dirty()
+    })
+}
+
+/// Review finding 8, through the real chat approval: with project A open
+/// and unsaved, an approved chat open of B is refused and nothing moves.
+/// Once A is saved, the approved open moves the window to B, its file,
+/// saved state and recovery included, and the conversation carries on;
+/// the next desktop Save writes B, never A.
+#[test]
+fn an_approved_chat_open_moves_the_window_to_the_opened_file() -> Fallible {
+    let mut ax = chat(LARGE, vec![])?;
+    let a = ax.path();
+    let b = a.with_file_name("other.sparksmith");
+    let mut other = sparksmith_core::Engine::demo()?;
+    other.apply(
+        other.revision(),
+        sparksmith_core::Operation::Schematic(
+            sparksmith_core::schematic::SchematicCommand::RenameProject {
+                name: "Board B".into(),
+            },
+        ),
+    )?;
+    sparksmith_io::write_project(&b, &other.to_file())?;
+    rename(&mut ax, "Board A")?;
+    assert!(ax.app.files.dirty());
+
+    let open = |ax: &Ax| {
+        tool(
+            "act",
+            json!({"name": "project.open", "params": {
+                "path": b.display().to_string(),
+                "expected_revision": ax.app.engine.revision()}}),
+        )
+    };
+    let first = open(&ax);
+    script(&mut ax, vec![first, text("It has unsaved changes.")]);
+    send(&mut ax, "Open the other board")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Allow once"))?;
+    ax.button("Allow once")?;
+    ax.until("the turn's end", idle)?;
+    let refused = ax.app.assistant.conversation.items.iter().any(|i| {
+        matches!(i, Item::Call(row) if row.state == RowState::Refused && row.reply.contains("unsaved changes"))
+    });
+    assert!(refused, "{:?}", ax.app.assistant.conversation.items);
+    assert_eq!(ax.app.engine.project().name, "Board A");
+    assert_eq!(ax.app.files.path(), Some(a.as_path()));
+    assert!(ax.app.files.dirty());
+
+    save_in_window(&mut ax)?;
+    let second = open(&ax);
+    script(&mut ax, vec![second, text("Opened.")]);
+    send(&mut ax, "Open the other board now")?;
+    ax.until("the Ask card", |ax| ax.has(Role::Button, "Allow once"))?;
+    ax.button("Allow once")?;
+    ax.until("the turn's end", idle)?;
+    assert_eq!(ax.app.engine.project().name, "Board B");
+    assert_eq!(ax.app.files.path(), Some(b.as_path()));
+    assert!(!ax.app.files.dirty());
+    // The assistant's own open keeps its conversation.
+    assert!(
+        ax.app
+            .assistant
+            .conversation
+            .items
+            .iter()
+            .any(|i| matches!(i, Item::Reply(t) if t == "Opened.")),
+        "{:?}",
+        ax.app.assistant.conversation.items
+    );
+
+    rename(&mut ax, "Board B, edited")?;
+    save_in_window(&mut ax)?;
+    assert_eq!(
+        sparksmith_io::read_project(&b)?.project.name,
+        "Board B, edited"
+    );
+    assert_eq!(sparksmith_io::read_project(&a)?.project.name, "Board A");
+    Ok(())
+}

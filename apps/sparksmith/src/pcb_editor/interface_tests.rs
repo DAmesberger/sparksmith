@@ -505,6 +505,7 @@ fn preview(engine: &Engine, name: &str) -> PublishPreview {
                 },
             ],
         }),
+        token: Some("publish-test".into()),
     }
 }
 

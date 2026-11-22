@@ -58,9 +58,7 @@ fn arrive(paths: impl IntoIterator<Item = PathBuf>) {
 /// Whether `path` names a Sparksmith project (`.sparksmith`, in any letter case as Finder
 /// matches it).
 pub fn is_project(path: &Path) -> bool {
-    path.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(sparksmith_core::format::is_project_extension)
+    sparksmith_core::format::is_project_path(path)
 }
 
 /// Whether `path` names a file Sparksmith opens: a project, or a KiCad project or board it

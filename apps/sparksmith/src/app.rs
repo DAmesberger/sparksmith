@@ -1132,7 +1132,13 @@ impl App {
         }
     }
 
-    fn replace(&mut self, document: EditorFile, path: Option<PathBuf>, recovered: bool) {
+    fn replace(
+        &mut self,
+        document: EditorFile,
+        path: Option<PathBuf>,
+        identity: Option<sparksmith_io::DiskIdentity>,
+        recovered: bool,
+    ) {
         let name = path
             .as_ref()
             .map(|p| p.display().to_string())
@@ -1146,7 +1152,7 @@ impl App {
             // File › New: ask for the new project's fab profile.
             self.pcb.ask_for_profile();
         }
-        match self.files.adopt(&self.engine, path, recovered) {
+        match self.files.adopt(&self.engine, path, identity, recovered) {
             Ok(()) if recovered => {
                 self.say(Level::Info, format!("Recovered {name}; save it to keep it"));
             }
@@ -1155,16 +1161,22 @@ impl App {
         }
     }
 
-    /// What every new document resets: the editors' state of the old one
-    /// and the last import's report.
+    /// What every new document resets: the editors' state of the old one,
+    /// the last import's report and the conversation.
     fn document_replaced(&mut self) {
+        // One conversation per open project.
+        self.assistant.document_opened();
+        self.editors_replaced();
+    }
+
+    /// [`Self::document_replaced`] but the conversation: the assistant
+    /// itself opened or started the project, so its turn carries on.
+    fn editors_replaced(&mut self) {
         self.sources.forget_project();
         self.pending_import = None;
         // Opened, recovered, new or imported: the launch's project is gone.
         self.launch_profile = false;
         self.import_report.clear();
-        // One conversation per open project.
-        self.assistant.document_opened();
         self.pcb.set_selection(None, None, None);
         self.pcb.document_opened();
         self.scene.document_opened();
@@ -1195,14 +1207,43 @@ impl App {
         }
     }
 
+    /// Take on what a session lent the window's engine did to its file
+    /// ([`sparksmith_automation::Session::lend_file`]): the file workflow
+    /// owns path, saved state and recovery, and an opened or new project
+    /// resets the editors as File › Open does (review finding 8).
+    pub(crate) fn file_changes(&mut self, changes: Vec<sparksmith_automation::FileChange>) {
+        use sparksmith_automation::FileChange;
+        if changes.is_empty() {
+            return;
+        }
+        let opened = changes.iter().rev().find_map(|c| match c {
+            FileChange::Opened { path, .. } => Some(Some(path.clone())),
+            FileChange::New { .. } => Some(None),
+            FileChange::Saved { .. } => None,
+        });
+        if opened.is_some() {
+            self.editors_replaced();
+        }
+        if let Err(error) = self.files.hosted(&self.engine, changes) {
+            self.say(Level::Error, error);
+            return;
+        }
+        if let Some(opened) = opened {
+            let name =
+                opened.map_or_else(|| "a new project".to_owned(), |p| p.display().to_string());
+            self.say(Level::Info, format!("AI assistant opened {name}"));
+        }
+    }
+
     fn file_effects(&mut self, ctx: &egui::Context) {
         for effect in self.files.tick(ctx) {
             match effect {
                 Effect::Replace {
                     document,
                     path,
+                    identity,
                     recovered,
-                } => self.replace(*document, path, recovered),
+                } => self.replace(*document, path, identity, recovered),
                 Effect::Imported {
                     document,
                     source,

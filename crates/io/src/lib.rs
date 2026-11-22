@@ -26,7 +26,9 @@ pub mod settings;
 pub mod shipped;
 pub mod standards;
 
-pub use persistence::{create_project, read_project, write_project};
+pub use persistence::{
+    Conflict, DiskIdentity, create_project, open_project, read_project, save_project, write_project,
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -45,6 +47,14 @@ pub enum Error {
     Io(#[from] std::io::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    /// A save found its file changed on disk since it was opened; both
+    /// versions are kept ([`persistence::Conflict`]).
+    #[error(
+        "{} changed on disk since it was opened (another window or program saved it). Your version was saved as {}; both are kept.",
+        .0.path.display(),
+        .0.kept.display()
+    )]
+    Conflict(Box<persistence::Conflict>),
 }
 
 impl Error {
@@ -56,6 +66,7 @@ impl Error {
             Self::Unsynced(_) => "written_unsynced",
             Self::Io(_) => "io_error",
             Self::Json(_) => "malformed_file",
+            Self::Conflict(_) => "file_conflict",
         }
     }
     pub fn diagnostic(&self) -> sparksmith_core::Diagnostic {

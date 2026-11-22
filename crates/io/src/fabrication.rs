@@ -260,9 +260,11 @@ fn move_into_place(staged: &Path, output: &Path) -> std::io::Result<()> {
 }
 
 /// Write one ZIP atomically, entries in set order with a fixed timestamp,
-/// so the same set gives the same archive.
+/// so the same set gives the same archive. The archive is created, never
+/// replaced: a file that appears at `output` after the export's own check
+/// is kept and the export is refused (review finding 9).
 fn write_zip(output: &Path, files: &[FabFile]) -> Result<()> {
-    crate::persistence::atomic_write_with(output, |target| {
+    let created = crate::persistence::atomic_create_with(output, |target| {
         let mut zip = zip::ZipWriter::new(target);
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated)
@@ -277,7 +279,16 @@ fn write_zip(output: &Path, files: &[FabFile]) -> Result<()> {
         zip.finish()
             .map_err(|e| Error::Invalid(format!("fabrication.zip: {e}")))?;
         Ok(())
-    })
+    });
+    match created {
+        Err(Error::Io(error)) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+            Err(Error::Invalid(format!(
+                "fabrication.output: {} exists; choose a new file",
+                output.display()
+            )))
+        }
+        other => other,
+    }
 }
 
 /// A fabrication profile by id from the user's library
@@ -308,6 +319,29 @@ mod tests {
         move_into_place(&staged, &output)?;
         assert_eq!(std::fs::read_to_string(output.join("board.gbr"))?, "G04*");
         assert!(!staged.exists());
+        Ok(())
+    }
+
+    /// A file that appears at the archive's path after the export checked
+    /// it is kept: the export is refused, never written over it.
+    #[test]
+    fn a_zip_never_replaces_a_file_created_meanwhile() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let output = dir.path().join("fab.zip");
+        std::fs::write(&output, b"another program's file")?;
+        let files = [FabFile {
+            name: "board.gbr".into(),
+            group: sparksmith_core::fabrication::FileGroup::Gerber,
+            description: String::new(),
+            bytes: b"G04*".to_vec(),
+        }];
+        let refused = write_zip(&output, &files)
+            .err()
+            .map(|e| e.to_string())
+            .unwrap_or_default();
+        assert!(refused.contains("exists; choose a new file"), "{refused}");
+        assert_eq!(std::fs::read(&output)?, b"another program's file");
+        assert_eq!(std::fs::read_dir(dir.path())?.count(), 1);
         Ok(())
     }
 

@@ -15,7 +15,8 @@
 use crate::{Error, Result};
 use sparksmith_core::format::{
     self, CONTAINER_ASSET_PREFIX, CONTAINER_DOCUMENT, CONTAINER_MAX_ASSET_BYTES,
-    CONTAINER_MAX_BYTES, CONTAINER_MAX_ENTRIES, CONTAINER_RECOVERY, EditorFile, MAX_FILE_BYTES,
+    CONTAINER_MAX_BYTES, CONTAINER_MAX_DOCUMENT_BYTES, CONTAINER_MAX_ENTRIES, CONTAINER_RECOVERY,
+    EditorFile,
 };
 use sparksmith_core::ids::ContentHash;
 use sparksmith_core::library::bundle::AssetBytes;
@@ -34,9 +35,29 @@ pub fn read_container(path: &Path) -> Result<EditorFile> {
     Ok(read(path, Role::Project, Load::Everything)?.file)
 }
 
+/// [`read_container`] from a file already open.
+pub(crate) fn read_open(file: File) -> Result<EditorFile> {
+    Ok(read_file(file, Role::Project, Load::Everything)?.file)
+}
+
 /// Encode `file` (assets as raw entries) and atomically replace `path`.
 pub fn write_container(path: &Path, file: &EditorFile) -> Result<()> {
     write(path, file, None, Method::Deflated)
+}
+
+/// Encode `file` and replace `path` while it holds `expected`
+/// ([`super::save_project`]).
+pub(crate) fn save_container(
+    path: &Path,
+    file: &EditorFile,
+    expected: Option<super::DiskIdentity>,
+) -> Result<super::DiskIdentity> {
+    let document = format::encode_container_document(file)?;
+    check_total(&document, None, file)?;
+    let temporary = super::staged_with(path, super::Access::Shared, |target| {
+        fill(target, &document, None, file, Method::Deflated)
+    })?;
+    super::replace_checked(temporary, path, expected)
 }
 
 /// Encode `file` and create a container without replacing an existing file.
@@ -80,7 +101,10 @@ pub(crate) struct Contents {
 }
 
 pub(crate) fn read(path: &Path, role: Role, load: Load) -> Result<Contents> {
-    let mut file = File::open(path)?;
+    read_file(File::open(path)?, role, load)
+}
+
+fn read_file(mut file: File, role: Role, load: Load) -> Result<Contents> {
     let length = file.metadata()?.len();
     if length > CONTAINER_MAX_BYTES {
         return Err(Error::TooLarge(format!(
@@ -150,7 +174,7 @@ pub(crate) fn read(path: &Path, role: Role, load: Load) -> Result<Contents> {
             return Err(entry_error(&name, "is not part of the project format"));
         };
         let limit = match kind {
-            Entry::Document => MAX_FILE_BYTES as u64,
+            Entry::Document => CONTAINER_MAX_DOCUMENT_BYTES as u64,
             Entry::Recovery => format::CONTAINER_MAX_RECOVERY_BYTES as u64,
             Entry::Asset(_) => CONTAINER_MAX_ASSET_BYTES,
         };
@@ -228,12 +252,46 @@ pub(crate) fn read(path: &Path, role: Role, load: Load) -> Result<Contents> {
     if load == Load::Everything {
         file.validate()?;
         crate::generated::verify(&file)?;
+        admit(&file, CONTAINER_MAX_DOCUMENT_BYTES)?;
     }
     Ok(Contents {
         file,
         recovery,
         read_bytes,
     })
+}
+
+/// Refuse a project this build could not write again: its saved document
+/// past `limit` bytes, or the whole container past
+/// [`CONTAINER_MAX_BYTES`]. Reading applies the writer's own bounds, so a
+/// project that opens always has a save and a recovery snapshot (review
+/// finding 11); the refusal comes at open, before any work is done in it.
+pub(crate) fn admit(file: &EditorFile, limit: usize) -> Result<()> {
+    let unsaveable = |why: String| {
+        Error::TooLarge(format!(
+            "container.too_large: this project is not opened because it could not be saved again: {why}"
+        ))
+    };
+    let document = format::container_document_len(file, limit).map_err(|_| {
+        unsaveable(format!(
+            "its document would exceed {} MiB",
+            limit / (1024 * 1024)
+        ))
+    })?;
+    let assets: u64 = file
+        .project
+        .library
+        .assets
+        .iter()
+        .map(|a| a.data.len() as u64)
+        .sum();
+    if (document as u64).saturating_add(assets) > CONTAINER_MAX_BYTES {
+        return Err(unsaveable(format!(
+            "its container would exceed {} MiB",
+            CONTAINER_MAX_BYTES / (1024 * 1024)
+        )));
+    }
+    Ok(())
 }
 
 /// Validate `file` and atomically write it as a container to `path`, with
@@ -255,6 +313,20 @@ fn write_with_mode(
     replace: bool,
 ) -> Result<()> {
     let document = format::encode_container_document(file)?;
+    check_total(&document, recovery, file)?;
+    // Only a recovery snapshot carries a recovery entry; it stays owner-only.
+    let access = if recovery.is_some() {
+        super::Access::Private
+    } else {
+        super::Access::Shared
+    };
+    super::write_with(path, replace, access, |target| {
+        fill(target, &document, recovery, file, assets)
+    })
+}
+
+/// The container's size bounds, checked before anything is written.
+fn check_total(document: &[u8], recovery: Option<&[u8]>, file: &EditorFile) -> Result<()> {
     if recovery.is_some_and(|r| r.len() > format::CONTAINER_MAX_RECOVERY_BYTES) {
         return Err(Error::TooLarge(
             "recovery metadata exceeds its entry limit".into(),
@@ -271,35 +343,38 @@ fn write_with_mode(
         }
         total = add_total(total, asset.data.len() as u64)?;
     }
-    // Only a recovery snapshot carries a recovery entry; it stays owner-only.
-    let access = if recovery.is_some() {
-        super::Access::Private
-    } else {
-        super::Access::Shared
-    };
-    super::write_with(path, replace, access, |target| {
-        let mut zip = ZipWriter::new(target);
-        let deflated = options(CompressionMethod::Deflated);
-        zip.start_file(CONTAINER_DOCUMENT, deflated)
+    Ok(())
+}
+
+/// Write the container's entries to `target`.
+fn fill(
+    target: &mut File,
+    document: &[u8],
+    recovery: Option<&[u8]>,
+    file: &EditorFile,
+    assets: Method,
+) -> Result<()> {
+    let mut zip = ZipWriter::new(target);
+    let deflated = options(CompressionMethod::Deflated);
+    zip.start_file(CONTAINER_DOCUMENT, deflated)
+        .map_err(malformed)?;
+    zip.write_all(document)?;
+    if let Some(recovery) = recovery {
+        zip.start_file(CONTAINER_RECOVERY, deflated)
             .map_err(malformed)?;
-        zip.write_all(&document)?;
-        if let Some(recovery) = recovery {
-            zip.start_file(CONTAINER_RECOVERY, deflated)
-                .map_err(malformed)?;
-            zip.write_all(recovery)?;
-        }
-        let method = match assets {
-            Method::Deflated => CompressionMethod::Deflated,
-            Method::Stored => CompressionMethod::Stored,
-        };
-        for asset in &file.project.library.assets {
-            zip.start_file(asset_name(asset.hash), options(method))
-                .map_err(malformed)?;
-            zip.write_all(&asset.data[..])?;
-        }
-        zip.finish().map_err(malformed)?;
-        Ok(())
-    })
+        zip.write_all(recovery)?;
+    }
+    let method = match assets {
+        Method::Deflated => CompressionMethod::Deflated,
+        Method::Stored => CompressionMethod::Stored,
+    };
+    for asset in &file.project.library.assets {
+        zip.start_file(asset_name(asset.hash), options(method))
+            .map_err(malformed)?;
+        zip.write_all(&asset.data[..])?;
+    }
+    zip.finish().map_err(malformed)?;
+    Ok(())
 }
 
 /// The entry name of the asset with content hash `hash`.

@@ -280,11 +280,13 @@ impl App {
             "project.redo" => Some(("AI assistant redid", self.engine.redo_step())),
             _ => None,
         };
-        let path = self.files.path().map(std::path::Path::to_path_buf);
+        let host = self.files.host_file();
         let (mut window, engine, live_mcp) = self.window_for_live(busy);
-        let reply = live_mcp.session.lend(engine, path.as_deref(), |s| {
-            live::run(s, admitted, &mut window)
-        });
+        let (reply, changes) = live_mcp
+            .session
+            .lend_file(engine, &host, |s| live::run(s, admitted, &mut window));
+        // The file workflow takes on a file change with the engine.
+        self.file_changes(changes);
         let _ = request.reply.send(reply);
         let now = self.engine.revision();
         if now != before

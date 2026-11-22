@@ -104,11 +104,40 @@ pub(super) fn open(dir: &Path) -> TestResult<Session> {
 
 pub(super) fn publish(session: &mut Session, path: &Path, tier: &str) -> TestResult<Value> {
     let revision = session.engine().revision();
+    let mut params = json!({
+        "path": path.display().to_string(), "tier": tier, "expected_revision": revision});
+    // With a linked design linked, the publish is the one its preview
+    // dry-ran on it: the preview's token and linked design (finding 12).
+    if let Some(assembly) = linked_file(session) {
+        let preview = ok(
+            session,
+            json!({"command": "interface.publish_preview", "params": {
+                "path": path.display().to_string(), "tier": tier,
+                "assembly_path": assembly.display().to_string()}}),
+        )?;
+        params["assembly_path"] = json!(assembly.display().to_string());
+        params["token"] = preview["token"].clone();
+    }
     ok(
         session,
-        json!({"command": "interface.publish", "params": {
-            "path": path.display().to_string(), "tier": tier, "expected_revision": revision}}),
+        json!({"command": "interface.publish", "params": params}),
     )
+}
+
+/// The linked design's file, resolved against the project's folder.
+pub(super) fn linked_file(session: &Session) -> Option<PathBuf> {
+    let hint = session
+        .engine()
+        .project()
+        .assembly_link
+        .as_deref()?
+        .assembly_hint
+        .clone();
+    let hint = Path::new(&hint);
+    Some(match session.path().and_then(Path::parent) {
+        Some(folder) if hint.is_relative() => folder.join(hint),
+        _ => hint.to_path_buf(),
+    })
 }
 
 pub(super) fn preview(session: &mut Session, path: &Path) -> TestResult<Value> {

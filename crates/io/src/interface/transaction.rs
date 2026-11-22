@@ -34,6 +34,14 @@ pub struct Baseline {
     sidecar_hash: Option<ContentHash>,
 }
 
+impl Baseline {
+    /// The hashes of the design and sidecar this baseline read (`None` for
+    /// a file that was not there): what a publish token binds.
+    pub fn identity(&self) -> (Option<ContentHash>, Option<ContentHash>) {
+        (self.design_hash, self.sidecar_hash)
+    }
+}
+
 /// A participating read: recovery completes before this is returned, and its
 /// lock remains held until drop. Keep it alive through native file opens too.
 /// Never unlink the lock file: another process may already be waiting on it.

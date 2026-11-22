@@ -48,7 +48,12 @@ impl Harness {
             &engine,
             dir.path().to_path_buf(),
         );
-        files.adopt(&engine, Some(dir.path().join("board.sparksmith")), false)?;
+        files.adopt(
+            &engine,
+            Some(dir.path().join("board.sparksmith")),
+            None,
+            false,
+        )?;
         let mut app = App::with_parts(
             &ctx,
             viewport::Viewport::detached(),
@@ -619,8 +624,12 @@ fn opening_another_project_closes_the_production_dialog() -> Fallible {
     h.frame(vec![]);
     assert!(h.app.pcb.production_open());
     let other = Engine::showcase()?.to_file();
-    h.app
-        .replace(other, Some(h.dir.path().join("other.sparksmith")), false);
+    h.app.replace(
+        other,
+        Some(h.dir.path().join("other.sparksmith")),
+        None,
+        false,
+    );
     h.frame(vec![]);
     assert!(!h.app.pcb.production_open(), "{}", said(&h.app));
     Ok(())

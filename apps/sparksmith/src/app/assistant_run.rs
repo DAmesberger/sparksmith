@@ -204,9 +204,10 @@ impl App {
                 FromRun::Workflow(event) => self.run_event(&event),
                 FromRun::Tool(request) => self.run_chat_call(ctx, request, false),
                 FromRun::Work(work, done) => {
-                    let path = self.files.path().map(std::path::Path::to_path_buf);
+                    let host = self.files.host_file();
                     let (_, engine, assistant) = self.window_for_assistant(None);
-                    assistant.session.lend(engine, path.as_deref(), work);
+                    let ((), changes) = assistant.session.lend_file(engine, &host, work);
+                    self.file_changes(changes);
                     let _ = done.send(());
                 }
                 FromRun::Done(result) => self.finish_run(*result),

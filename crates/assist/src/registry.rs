@@ -452,20 +452,26 @@ impl RegistryClient {
                 })
             }
             Err(error) if unreachable(&error) => self
-                .offline_search(text, limit)
+                .offline_search(text, limit, offset)
                 .map_err(|offline| if offline.is_empty() { error } else { offline }),
             Err(error) => Err(error),
         }
     }
 
     /// The same search over the mirrored shards, with the core's own
-    /// index: what works without the network.
-    pub fn offline_search(&self, text: &str, limit: usize) -> Result<OnlineReport, String> {
+    /// index: what works without the network. `offset` pages as the
+    /// registry's search does, so offline page two follows page one.
+    pub fn offline_search(
+        &self,
+        text: &str,
+        limit: usize,
+        offset: usize,
+    ) -> Result<OnlineReport, String> {
         let synced = match self.synced.lock().ok().and_then(|s| s.clone()) {
             Some(s) => s,
             None => Arc::new(self.mirrored().ok_or_else(String::new)?),
         };
-        let mut report = search_shards(&synced.shards, text, limit)?;
+        let mut report = search_shards(&synced.shards, text, limit, offset)?;
         report.source = self.host.clone();
         report.snapshot = synced.index.snapshot.clone();
         report.offline = Some(index_date(synced.fetched));
@@ -548,6 +554,7 @@ pub fn search_shards(
     shards: &[Arc<Shard>],
     text: &str,
     limit: usize,
+    offset: usize,
 ) -> Result<OnlineReport, String> {
     let catalogs: Vec<Arc<SourceCatalog>> =
         shards.iter().map(|s| Arc::new(s.catalog.clone())).collect();
@@ -559,7 +566,9 @@ pub fn search_shards(
         &query,
         &CatalogContext::default(),
         SearchOptions {
-            limit: limit.max(1),
+            // The rows before `offset` too, which this page skips; the
+            // index bounds the whole at its own result limit.
+            limit: limit.max(1).saturating_add(offset),
             include_drafts: false,
         },
     );
@@ -580,6 +589,8 @@ pub fn search_shards(
         results: report
             .results
             .into_iter()
+            .skip(offset)
+            .take(limit.max(1))
             .filter_map(|hit| {
                 let (id, word) = review(&hit).unwrap_or_default();
                 online_row(hit, id, word)

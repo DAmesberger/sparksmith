@@ -39,6 +39,15 @@ pub fn is_project_extension(extension: &str) -> bool {
     extension.eq_ignore_ascii_case(EXTENSION)
 }
 
+/// Whether `path` names a project file: the one predicate the platform's
+/// file arrivals and persistence both use, so a file recognised as a
+/// project is never refused for its name.
+pub fn is_project_path(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(is_project_extension)
+}
+
 /// The `.sparksmith` file is a ZIP container (D0, founder decision F5). It
 /// holds [`CONTAINER_DOCUMENT`], the editor file with every packed asset's
 /// bytes left out, and one raw entry per asset at
@@ -57,18 +66,60 @@ pub const CONTAINER_MAX_BYTES: u64 = 512 * 1024 * 1024;
 pub const CONTAINER_MAX_ENTRIES: usize = 4096;
 /// Bytes of the recovery metadata entry.
 pub const CONTAINER_MAX_RECOVERY_BYTES: usize = 64 * 1024;
+/// Bytes of a container's document, [`CONTAINER_DOCUMENT`], as it is read
+/// and as it is written: one bound, so a document the container admits is
+/// one it can write again. It is larger than [`MAX_FILE_BYTES`] because the
+/// saved form is indented and a document read may be compact.
+pub const CONTAINER_MAX_DOCUMENT_BYTES: usize = 64 * 1024 * 1024;
+const _: () = assert!(CONTAINER_MAX_DOCUMENT_BYTES as u64 <= CONTAINER_MAX_BYTES);
 const _: () = assert!(crate::library::bundle::MAX_ASSETS + 2 <= CONTAINER_MAX_ENTRIES);
 
 /// Validate `file` and encode the container's document: the editor file
 /// with every packed asset's bytes empty, since each asset is an entry of
-/// its own. The document stays bounded by [`MAX_FILE_BYTES`].
+/// its own. The document stays bounded by [`CONTAINER_MAX_DOCUMENT_BYTES`].
 pub fn encode_container_document(file: &EditorFile) -> Result<Vec<u8>> {
     file.validate()?;
+    encode_within(
+        &Stored::of(&without_asset_bytes(file)),
+        CONTAINER_MAX_DOCUMENT_BYTES,
+    )
+}
+
+/// The bytes [`encode_container_document`] would write for an already
+/// validated `file`, counted without keeping them, refused past `limit`.
+/// Reading a container measures the document it admits with this, so a
+/// project that opens is one that saves and that recovery can keep.
+pub fn container_document_len(file: &EditorFile, limit: usize) -> Result<usize> {
+    struct Counted {
+        len: usize,
+        limit: usize,
+    }
+    impl Write for Counted {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if bytes.len() > self.limit.saturating_sub(self.len) {
+                return Err(std::io::Error::other("document exceeds its limit"));
+            }
+            self.len += bytes.len();
+            Ok(bytes.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut counted = Counted { len: 0, limit };
+    serde_json::to_writer_pretty(&mut counted, &Stored::of(&without_asset_bytes(file)))
+        .map_err(|e| encoding_error(e, limit))?;
+    Ok(counted.len)
+}
+
+/// `file` with every packed asset's bytes left out (they share, so this
+/// copies no asset).
+fn without_asset_bytes(file: &EditorFile) -> EditorFile {
     let mut stripped = file.clone();
     for asset in &mut stripped.project.library.assets {
         asset.data = AssetBytes::default();
     }
-    encode_bounded(&Stored::of(&stripped))
+    stripped
 }
 
 /// The saved form of an [`EditorFile`]: its fields, with its collections
@@ -98,7 +149,7 @@ impl<'a> Stored<'a> {
 /// asset entries fill them in, after which the caller validates the whole
 /// file. A document that carries asset bytes inline is refused.
 pub fn decode_container_document(bytes: &[u8]) -> Result<EditorFile> {
-    let file = parse_versioned(bytes)?;
+    let file = parse_versioned(bytes, CONTAINER_MAX_DOCUMENT_BYTES)?;
     if let Some(asset) = file
         .project
         .library
@@ -160,15 +211,19 @@ pub(crate) fn as_saved(mut file: EditorFile) -> EditorFile {
 
 /// Parse and validate a document of the current format version.
 pub fn decode(bytes: &[u8]) -> Result<EditorFile> {
-    let file = parse_versioned(bytes)?;
+    let file = parse_versioned(bytes, MAX_FILE_BYTES)?;
     file.validate()?;
     Ok(file)
 }
 
-/// Parse a bounded document of the current format version, unvalidated.
-fn parse_versioned(bytes: &[u8]) -> Result<EditorFile> {
-    if bytes.len() > MAX_FILE_BYTES {
-        return Err(Error::Limit("editor file exceeds 16 MiB".into()));
+/// Parse a document of at most `limit` bytes of the current format
+/// version, unvalidated.
+fn parse_versioned(bytes: &[u8], limit: usize) -> Result<EditorFile> {
+    if bytes.len() > limit {
+        return Err(Error::Limit(format!(
+            "editor file exceeds {} MiB",
+            limit / (1024 * 1024)
+        )));
     }
     let value: serde_json::Value = serde_json::from_slice(bytes)?;
     let version = value
@@ -203,11 +258,16 @@ pub fn encode(file: &EditorFile) -> Result<Vec<u8>> {
 /// Bound serialization itself rather than allocating an arbitrarily large
 /// buffer and checking it afterwards.
 pub fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>> {
-    struct Bounded(Vec<u8>);
+    encode_within(value, MAX_FILE_BYTES)
+}
+
+/// [`encode_bounded`] with its own `limit` in bytes.
+fn encode_within(value: &impl Serialize, limit: usize) -> Result<Vec<u8>> {
+    struct Bounded(Vec<u8>, usize);
     impl Write for Bounded {
         fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
-            if bytes.len() > MAX_FILE_BYTES.saturating_sub(self.0.len()) {
-                return Err(std::io::Error::other("file exceeds 16 MiB"));
+            if bytes.len() > self.1.saturating_sub(self.0.len()) {
+                return Err(std::io::Error::other("file exceeds its limit"));
             }
             self.0.extend_from_slice(bytes);
             Ok(bytes.len())
@@ -216,15 +276,17 @@ pub fn encode_bounded(value: &impl Serialize) -> Result<Vec<u8>> {
             Ok(())
         }
     }
-    let mut buffer = Bounded(Vec::new());
-    serde_json::to_writer_pretty(&mut buffer, value).map_err(|e| {
-        if e.is_io() {
-            Error::Limit("editor file exceeds 16 MiB".into())
-        } else {
-            Error::Invalid(format!("the document cannot be written: {e}"))
-        }
-    })?;
+    let mut buffer = Bounded(Vec::new(), limit);
+    serde_json::to_writer_pretty(&mut buffer, value).map_err(|e| encoding_error(e, limit))?;
     Ok(buffer.0)
+}
+
+fn encoding_error(error: serde_json::Error, limit: usize) -> Error {
+    if error.is_io() {
+        Error::Limit(format!("editor file exceeds {} MiB", limit / (1024 * 1024)))
+    } else {
+        Error::Invalid(format!("the document cannot be written: {error}"))
+    }
 }
 
 #[cfg(test)]

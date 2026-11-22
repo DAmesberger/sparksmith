@@ -657,7 +657,7 @@ fn a_3d_click_with_select_selects_the_part() -> Fallible {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/esp32-s31-devboard/esp32-s31-devboard.sparksmith");
     h.app
-        .replace(sparksmith_io::read_project(&path)?, None, false);
+        .replace(sparksmith_io::read_project(&path)?, None, None, false);
     h.until_shown()?;
     let j1 = h
         .app

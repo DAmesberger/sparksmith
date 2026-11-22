@@ -1133,12 +1133,68 @@ pub struct CommandInfo {
 
 /// A headless editing session: one engine, the current file path and the
 /// library sources.
+/// The file a host lends with its engine ([`Session::lend_file`]).
+#[derive(Clone, Debug, Default)]
+pub struct HostFile {
+    /// The host's file, which requests that name none (`project.save`) use.
+    pub path: Option<PathBuf>,
+    /// What that file held when the host opened or last saved it.
+    pub identity: Option<sparksmith_io::DiskIdentity>,
+    /// The host holds edits no file has.
+    pub unsaved: bool,
+    /// The host is opening, saving or asking about a file itself.
+    pub busy: bool,
+}
+
+/// What a session lent with [`Session::lend_file`] did to the host's file.
+/// The host takes each on with the engine it gets back: path, saved state
+/// and recovery identity change together with the document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FileChange {
+    /// `project.open`: the engine holds this file's document at
+    /// `revision`, history cleared.
+    Opened {
+        path: PathBuf,
+        identity: sparksmith_io::DiskIdentity,
+        revision: u64,
+    },
+    /// `project.new`: a new project at `revision`, which no file holds.
+    New { revision: u64 },
+    /// `project.save`: the document at `revision` is in this file (on a
+    /// conflict, the new file that kept it).
+    Saved {
+        path: PathBuf,
+        identity: sparksmith_io::DiskIdentity,
+        revision: u64,
+    },
+}
+
+/// A host's lend in progress.
+struct Hosting {
+    /// The host takes file changes ([`Session::lend_file`]).
+    adopts: bool,
+    /// The revision a file (or a new project) holds, if any: an edit past
+    /// it is unsaved work.
+    kept: Option<u64>,
+    busy: bool,
+    changes: Vec<FileChange>,
+}
+
 pub struct Session {
     /// One-shot boundary hook owned only by the test's session.
     #[cfg(test)]
     after_interface_read: Option<Box<dyn FnOnce() -> crate::Result<()> + Send>>,
+    /// A test's check of the interface design against the board plan, in
+    /// place of the build's own.
+    #[cfg(test)]
+    interface_check: Option<sparksmith_solidcraft::export::Check>,
     engine: Engine,
     path: Option<PathBuf>,
+    /// What `path` held when this session opened or last saved it: a save
+    /// there replaces it only while it still does (review finding 9).
+    disk: Option<sparksmith_io::DiskIdentity>,
+    /// Set while a host lends its engine: who owns the file lifecycle.
+    hosting: Option<Hosting>,
     sources: sources::Sources,
     /// Set while [`Session::respond`] runs a request: mutations answer
     /// without building the snapshot.
@@ -1185,8 +1241,12 @@ impl Session {
         Self {
             #[cfg(test)]
             after_interface_read: None,
+            #[cfg(test)]
+            interface_check: None,
             engine,
             path: None,
+            disk: None,
+            hosting: None,
             sources,
             compact: false,
             baseline: None,
@@ -1217,21 +1277,97 @@ impl Session {
         self.path.as_deref()
     }
 
-    /// Run `f` on this session over a host's own engine (the desktop
-    /// window's, for live MCP), then hand the engine back, its revision and
-    /// undo history moved on by whatever `f` did. `path` is the host's file,
-    /// which requests that name none (`project.save`) would use.
+    /// Run `f` on this session over a host's own engine (a fork, for
+    /// work that never touches the host's file), then hand the engine back,
+    /// its revision and undo history moved on by whatever `f` did. `path`
+    /// is the host's file, for paths relative to it. Opening, starting or
+    /// saving a project is refused: a host that owns a file lends it with
+    /// [`Session::lend_file`].
     pub fn lend<R>(
         &mut self,
         engine: &mut Engine,
         path: Option<&Path>,
         f: impl FnOnce(&mut Self) -> R,
     ) -> R {
+        let file = HostFile {
+            path: path.map(Path::to_path_buf),
+            ..HostFile::default()
+        };
+        self.lend_inner(engine, &file, false, f).0
+    }
+
+    /// [`Session::lend`] for a host that owns the document's file (the
+    /// desktop window): `project.open`, `project.new` and `project.save`
+    /// run on its engine and come back as [`FileChange`]s, which the host
+    /// takes on together with the engine, so its file, saved state and
+    /// recovery follow the document (review finding 8). Opening or
+    /// starting a project while the host holds unsaved work, and any of
+    /// the three while it runs a file operation of its own, is refused.
+    pub fn lend_file<R>(
+        &mut self,
+        engine: &mut Engine,
+        file: &HostFile,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> (R, Vec<FileChange>) {
+        self.lend_inner(engine, file, true, f)
+    }
+
+    fn lend_inner<R>(
+        &mut self,
+        engine: &mut Engine,
+        file: &HostFile,
+        adopts: bool,
+        f: impl FnOnce(&mut Self) -> R,
+    ) -> (R, Vec<FileChange>) {
         std::mem::swap(&mut self.engine, engine);
-        self.path = path.map(Path::to_path_buf);
+        self.path = file.path.clone();
+        self.disk = file.identity;
+        self.hosting = Some(Hosting {
+            adopts,
+            kept: (!file.unsaved).then(|| self.engine.revision()),
+            busy: file.busy,
+            changes: Vec::new(),
+        });
         let result = f(self);
+        let changes = self.hosting.take().map(|h| h.changes).unwrap_or_default();
         std::mem::swap(&mut self.engine, engine);
-        result
+        (result, changes)
+    }
+
+    /// Refuse a file lifecycle request (`replaces` the document: open or
+    /// new) the lending host could not take on.
+    fn host_allows(&self, replaces: bool) -> Result<()> {
+        let Some(hosting) = &self.hosting else {
+            return Ok(());
+        };
+        let refuse = |why: &str| Err(sparksmith_io::Error::Invalid(why.to_owned()).into());
+        if !hosting.adopts {
+            return refuse(
+                "This session works on a copy of the project; it cannot open, start or save a project.",
+            );
+        }
+        if hosting.busy {
+            return refuse(
+                "The window is opening, saving or asking about a file; try again once it is done.",
+            );
+        }
+        if replaces && hosting.kept != Some(self.engine.revision()) {
+            return refuse(
+                "The open project has unsaved changes, which opening or starting another project would lose. Save it first (project.save), or ask the person to do it.",
+            );
+        }
+        Ok(())
+    }
+
+    fn host_changed(&mut self, change: FileChange) {
+        if let Some(hosting) = &mut self.hosting {
+            hosting.kept = match &change {
+                FileChange::Opened { revision, .. }
+                | FileChange::New { revision }
+                | FileChange::Saved { revision, .. } => Some(*revision),
+            };
+            hosting.changes.push(change);
+        }
     }
 
     /// Execute one typed request as the operator, answering with the whole
@@ -1355,6 +1491,7 @@ impl Session {
                 return self.stepped(step);
             }
             Request::New(params) => {
+                self.host_allows(true)?;
                 let profile = match params.profile {
                     Some(ProfileChoice::Profile(profile)) => *profile,
                     Some(ProfileChoice::Id(id)) => {
@@ -1377,10 +1514,15 @@ impl Session {
                     drafts: Drafts::default(),
                 })?;
                 self.path = None;
+                self.disk = None;
+                self.host_changed(FileChange::New {
+                    revision: self.engine.revision(),
+                });
             }
             Request::Open(params) => {
+                self.host_allows(true)?;
                 let path = PathBuf::from(params.path);
-                let file = sparksmith_io::read_project(&path)?;
+                let (file, identity) = sparksmith_io::open_project(&path)?;
                 // Stage host data before replacing the document: a missing
                 // library must leave history and the previous save path intact.
                 let defaults = sparksmith_io::new_project::shipped()?;
@@ -1391,9 +1533,16 @@ impl Session {
                 // cannot be computed stays unfilled, and the production
                 // check reports it.
                 let _ = self.engine.refill_stale();
-                self.path = Some(path);
+                self.path = Some(path.clone());
+                self.disk = Some(identity);
+                self.host_changed(FileChange::Opened {
+                    path,
+                    identity,
+                    revision: self.engine.revision(),
+                });
             }
             Request::Save(params) => {
+                self.host_allows(false)?;
                 let path = match params.path {
                     Some(path) => PathBuf::from(path),
                     None => self.path.clone().ok_or_else(|| {
@@ -1402,10 +1551,42 @@ impl Session {
                         )
                     })?,
                 };
-                sparksmith_io::write_project(&path, &self.engine.to_file())?;
+                // The session's own file is replaced only while it holds
+                // what this session opened or saved; another file the
+                // request names is replaced whatever it holds.
+                let expected = if self.path.as_deref() == Some(path.as_path()) {
+                    self.disk
+                } else {
+                    None
+                };
+                let revision = self.engine.revision();
+                let identity =
+                    match sparksmith_io::save_project(&path, &self.engine.to_file(), expected) {
+                        Ok(identity) => identity,
+                        Err(sparksmith_io::Error::Conflict(conflict)) => {
+                            // Both versions are kept; this session's document
+                            // is in the new file, which is its file from now
+                            // on, so a later save never replaces the other.
+                            self.path = Some(conflict.kept.clone());
+                            self.disk = Some(conflict.identity);
+                            self.host_changed(FileChange::Saved {
+                                path: conflict.kept.clone(),
+                                identity: conflict.identity,
+                                revision,
+                            });
+                            return Err(sparksmith_io::Error::Conflict(conflict).into());
+                        }
+                        Err(error) => return Err(error.into()),
+                    };
                 let saved = path.display().to_string();
-                self.path = Some(path);
-                return Ok(json!({"revision": self.engine.revision(), "saved_path": saved}));
+                self.path = Some(path.clone());
+                self.disk = Some(identity);
+                self.host_changed(FileChange::Saved {
+                    path,
+                    identity,
+                    revision,
+                });
+                return Ok(json!({"revision": revision, "saved_path": saved}));
             }
             Request::PreviewUpdate(params) => {
                 return Ok(serde_json::to_value(
@@ -1634,7 +1815,38 @@ impl Session {
     /// `operation` with a fab profile it names by id read by
     /// [`Self::hosted_profile`].
     fn hosted_operation(&self, operation: Operation) -> Result<Operation> {
+        use sparksmith_core::interface::InterfaceCommand;
+        use sparksmith_core::interface::assembly_link::AssemblyCommand;
         use sparksmith_core::rules::RulesCommand;
+        // A receipt of a file transaction comes only from the host that
+        // completed it: `interface.publish` records its publish, and
+        // `assembly.update` and `assembly.follow` what they read. Applied
+        // directly, it would claim a file event that never happened.
+        let receipt = match &operation {
+            Operation::Interface(InterfaceCommand::RecordPublish { .. }) => {
+                Some(("interface.record_publish", "interface.publish"))
+            }
+            Operation::Assembly(AssemblyCommand::RecordLink { .. }) => {
+                Some(("assembly.record_link", "assembly.update"))
+            }
+            Operation::Assembly(AssemblyCommand::RecordUpdate { .. }) => {
+                Some(("assembly.record_update", "assembly.update"))
+            }
+            Operation::Assembly(AssemblyCommand::RecordReference { .. }) => {
+                Some(("assembly.record_reference", "assembly.follow"))
+            }
+            Operation::Assembly(AssemblyCommand::RecordBinding { .. }) => {
+                Some(("assembly.record_binding", "assembly.follow"))
+            }
+            _ => None,
+        };
+        if let Some((entry, host)) = receipt {
+            return Err(sparksmith_core::diagnostics::Error::Invalid(format!(
+                "receipt.host_only: {entry} records a file transaction and is applied only by \
+                 {host}, once its files are written or read; call {host}"
+            ))
+            .into());
+        }
         Ok(match operation {
             Operation::Rules(RulesCommand::SetProfile {
                 profile,
@@ -2011,6 +2223,8 @@ mod dimension_tests;
 mod fabrication_tests;
 #[cfg(test)]
 mod fiducial_tests;
+#[cfg(test)]
+mod file_tests;
 #[cfg(test)]
 mod firmware_tests;
 #[cfg(test)]
