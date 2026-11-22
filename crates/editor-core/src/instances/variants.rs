@@ -12,7 +12,10 @@ use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::fields;
 use crate::ids::{ComponentRef, FootprintRef, Id, PartRef, TerminalId};
 use crate::library::{FootprintDefinition, Library, Pad, PartDefinition};
-use crate::model::variants::{MAX_VARIANT_NAME, MAX_VARIANTS};
+use crate::model::variants::{
+    MAX_EXCEPTION_REASON, MAX_EXCEPTIONS, MAX_VARIANT_NAME, MAX_VARIANTS, RequirementException,
+    SubstituteReview,
+};
 use crate::model::{
     AssemblyVariant, AssemblyVariants, ComponentInstance, Population, Project, VariantOverride,
 };
@@ -26,6 +29,15 @@ pub const MAX_POPULATION_EDIT: usize = 4096;
 /// The finding of a substitute that no longer fits its footprint (a library
 /// update changed the part's footprint or the substitute's binding).
 pub const SUBSTITUTE_UNFIT: &str = "variant.substitute_unfit";
+
+/// The finding of a substitute nobody has reviewed as electrically
+/// equivalent to the part it replaces: it fits the lands, which says
+/// nothing about what each pin does.
+pub const SUBSTITUTE_UNREVIEWED: &str = "variant.substitute_unreviewed";
+
+/// The finding of a substitute that does not meet, rate or compare with a
+/// requirement of the part it replaces, and no review excepts it.
+pub const SUBSTITUTE_UNMET: &str = "variant.substitute_unmet";
 
 /// Edit assembly variants. Each changing command is one undo step; one
 /// that changes nothing is none.
@@ -76,6 +88,21 @@ pub enum VariantCommand {
         #[serde(default)]
         part: Option<PartRef>,
     },
+    /// Record a person's review of a variant's substitute part. It says
+    /// whether the substitute is electrically equivalent to the part it
+    /// replaces (its pinout, beyond the land pattern and pad grouping that
+    /// fitting checks), and which requirements it is deliberately accepted
+    /// not to meet, each with its reason. Not equivalent and no exceptions
+    /// clears the review. The review is bound to the substitute; fitting
+    /// another Part voids it.
+    #[serde(rename = "variant.review_substitute")]
+    ReviewSubstitute {
+        instance: Id,
+        variant: Id,
+        equivalent: bool,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        exceptions: Vec<RequirementException>,
+    },
 }
 
 // A new command chooses its permission class here.
@@ -86,6 +113,7 @@ declare_entries!(VariantCommand in project {
     SetActive "variant.set_active" Edit "Choose the active assembly variant" [since(7, 13)],
     SetPopulation "variant.set_population" Edit "Set whether parts are fitted" [since(7, 13)],
     SetPart "variant.set_part" Edit "Fit another part in a variant" [since(7, 13)],
+    ReviewSubstitute "variant.review_substitute" Ask "Review a variant's substitute part" [since(7, 18)],
 });
 
 /// What one variant fits for one part.
@@ -581,20 +609,21 @@ pub fn apply(project: &mut Project, command: VariantCommand) -> Result<Option<Id
                 )));
             }
             let name = variant_name(&project.variants, &name, None)?;
-            let overrides = match copy_of {
-                Some(id) => project
-                    .variants
-                    .get(id)
-                    .ok_or_else(|| Error::NotFound("The variant to copy no longer exists.".into()))?
-                    .overrides
-                    .clone(),
-                None => BTreeMap::new(),
+            let (overrides, reviews) = match copy_of {
+                Some(id) => {
+                    let source = project.variants.get(id).ok_or_else(|| {
+                        Error::NotFound("The variant to copy no longer exists.".into())
+                    })?;
+                    (source.overrides.clone(), source.reviews.clone())
+                }
+                None => (BTreeMap::new(), BTreeMap::new()),
             };
             let id = project.allocate()?;
             project.variants.list.push(AssemblyVariant {
                 id,
                 name,
                 overrides,
+                reviews,
             });
             Ok(Some(id))
         }
@@ -661,10 +690,78 @@ pub fn apply(project: &mut Project, command: VariantCommand) -> Result<Option<Id
                 } else {
                     v.overrides.insert(instance, next);
                 }
+                // A review is of the substitute it reviewed.
+                v.reviews.remove(&instance);
+            }
+            Ok(None)
+        }
+        VariantCommand::ReviewSubstitute {
+            instance,
+            variant,
+            equivalent,
+            exceptions,
+        } => {
+            if project.instance(instance).is_none() {
+                return Err(Error::NotFound("Unknown component instance.".into()));
+            }
+            check_exceptions(&exceptions)?;
+            let v = variant_mut(&mut project.variants, variant)?;
+            let part = v
+                .overrides
+                .get(&instance)
+                .and_then(|o| o.part)
+                .ok_or_else(|| {
+                    invalid(
+                        "variant.review_substitute: the variant fits no substitute on this part; fit one first (variant.set_part)"
+                            .into(),
+                    )
+                })?;
+            let next = (equivalent || !exceptions.is_empty()).then_some(SubstituteReview {
+                part,
+                equivalent,
+                exceptions,
+            });
+            if v.reviews.get(&instance) != next.as_ref() {
+                match next {
+                    Some(review) => {
+                        v.reviews.insert(instance, review);
+                    }
+                    None => {
+                        v.reviews.remove(&instance);
+                    }
+                }
             }
             Ok(None)
         }
     }
+}
+
+/// A review's exceptions: bounded, one per field, each with a printable
+/// reason.
+fn check_exceptions(exceptions: &[RequirementException]) -> Result<()> {
+    if exceptions.len() > MAX_EXCEPTIONS {
+        return Err(invalid(format!(
+            "a substitute review records at most {MAX_EXCEPTIONS} requirement exceptions"
+        )));
+    }
+    let mut fields = BTreeSet::new();
+    for e in exceptions {
+        let reason = e.reason.trim();
+        if reason.is_empty()
+            || e.reason.len() > MAX_EXCEPTION_REASON
+            || e.reason.chars().any(char::is_control)
+        {
+            return Err(invalid(format!(
+                "a requirement exception needs a printable reason of 1–{MAX_EXCEPTION_REASON} bytes"
+            )));
+        }
+        if !fields.insert(e.field) {
+            return Err(invalid(
+                "a requirement exception names each field once".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn set_population(
@@ -738,6 +835,7 @@ pub fn follow_instances(project: &mut Project) {
     let live: BTreeSet<Id> = project.instances.iter().map(|i| i.id).collect();
     for v in &mut project.variants.list {
         v.overrides.retain(|id, _| live.contains(id));
+        v.reviews.retain(|id, _| live.contains(id));
     }
 }
 
@@ -778,6 +876,16 @@ pub fn check(project: &Project) -> Result<()> {
                 )));
             }
         }
+        for (id, review) in &v.reviews {
+            if v.overrides.get(id).and_then(|o| o.part) != Some(review.part)
+                || (!review.equivalent && review.exceptions.is_empty())
+            {
+                return Err(invalid(format!(
+                    "variant “{name}” keeps a review of a substitute it does not fit"
+                )));
+            }
+            check_exceptions(&review.exceptions)?;
+        }
     }
     if let Some(active) = variants.active
         && variants.get(active).is_none()
@@ -790,6 +898,64 @@ pub fn check(project: &Project) -> Result<()> {
 /// The ids variants take from the project's identity allocator.
 pub fn ids(project: &Project) -> impl Iterator<Item = Id> + '_ {
     project.variants.list.iter().map(|v| v.id)
+}
+
+/// What stands between a fitted substitute and a resolved purchase, beyond
+/// fitting: no review of its electrical equivalence
+/// ([`SUBSTITUTE_UNREVIEWED`]), and each requirement of the instance it
+/// does not rate, meet or compare with that its review does not except
+/// ([`SUBSTITUTE_UNMET`], the comparison of `instances::rating_findings`).
+/// Empty when the substitute is resolved.
+pub fn substitute_findings(
+    library: &Library,
+    variant: &AssemblyVariant,
+    instance: &ComponentInstance,
+    r: PartRef,
+) -> Vec<Finding> {
+    let review = variant
+        .reviews
+        .get(&instance.id)
+        .filter(|review| review.part == r);
+    let Some(part) = library.part(r) else {
+        return Vec::new();
+    };
+    let mpn = &part.definition.mpn;
+    let objects = vec![
+        ObjectRef::Instance { id: instance.id },
+        ObjectRef::Definition { id: r.id },
+    ];
+    let mut out = Vec::new();
+    if !review.is_some_and(|review| review.equivalent) {
+        out.push(Finding::new(
+            SUBSTITUTE_UNREVIEWED,
+            format!(
+                "Variant “{}”: {mpn} fits {}'s lands, but nobody has confirmed that its pins do the job of the part it replaces.",
+                variant.name, instance.designator
+            ),
+            objects,
+        ));
+    }
+    let excepted = |f: &Finding| {
+        f.objects.iter().any(|o| match o {
+            ObjectRef::Property { field, .. } => {
+                review.is_some_and(|review| review.exceptions.iter().any(|e| e.field == *field))
+            }
+            _ => false,
+        })
+    };
+    for f in super::rating_findings(library, instance, r, &part.definition) {
+        if !excepted(&f) {
+            let mut objects = vec![ObjectRef::Instance { id: instance.id }];
+            objects.extend(f.objects.iter().copied());
+            out.push(Finding {
+                code: SUBSTITUTE_UNMET.into(),
+                message: format!("Variant “{}”: {}", variant.name, f.message),
+                objects,
+                ..f
+            });
+        }
+    }
+    out
 }
 
 /// `variant.substitute_unfit`: a substitute that no longer fits its
@@ -811,6 +977,8 @@ pub fn findings(project: &Project) -> Vec<Finding> {
                         ObjectRef::Definition { id: r.id },
                     ],
                 ));
+            } else {
+                out.extend(substitute_findings(&project.library, v, instance, r));
             }
         }
     }

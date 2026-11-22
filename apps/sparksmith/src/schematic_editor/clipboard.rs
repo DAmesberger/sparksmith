@@ -79,6 +79,9 @@ impl SchematicEditor {
         let QueryResult::SheetClip(clip) = engine.query(Query::SheetCopy {
             sheet: Some(self.sheet),
             objects: objects.clone(),
+            // The buffer outlives the open document, so it carries the
+            // parts' library for a paste into another project.
+            portable: true,
         })?
         else {
             return Err(sparksmith_core::Error::Invalid(

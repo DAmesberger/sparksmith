@@ -27,7 +27,9 @@ mod part;
 pub mod pins;
 pub mod text;
 pub mod variants;
-pub use part::{assign_part, binding_name, part_findings, republished_part, requirements};
+pub use part::{
+    assign_part, binding_name, part_findings, rating_findings, republished_part, requirements,
+};
 
 /// Terminals one `instance.set_no_connect` changes.
 pub const MAX_NO_CONNECT_EDIT: usize = 256;

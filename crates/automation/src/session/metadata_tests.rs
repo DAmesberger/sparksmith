@@ -35,8 +35,9 @@ fn the_catalog_has_its_272_entries() {
     // library.body_fit and library.make_body; then project.preview_replace
     // and project.replace_component; then library.draft_part; then the six
     // variant.* operations and the variant.list and variant.substitutes
-    // queries (assembly variants); then library.account and library.sign_out.
-    assert_eq!(metadata::entries().len(), 289);
+    // queries (assembly variants); then library.account and library.sign_out;
+    // then variant.review_substitute.
+    assert_eq!(metadata::entries().len(), 290);
 }
 
 /// A title is short, says more than the wire name, and is unique within its

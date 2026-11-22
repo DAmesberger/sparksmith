@@ -138,7 +138,12 @@ fn mapping_changes_require_listed_track_removal_without_retagging_others() -> Re
     let plan = engine.preview_update(revision_change(r1, target));
     assert_eq!(
         schematic::nets(&before),
-        schematic::nets(&stage_change(&before, &plan.change)?)
+        schematic::nets(&stage_change(
+            &before,
+            &plan.change,
+            &layout::CopperGraph::of(&before),
+            None,
+        )?)
     );
     assert_eq!(plan.conflicting_tracks, vec![shared]);
     assert!(plan.changes.iter().any(|c| c.contains("maps electrical")));
@@ -1227,7 +1232,7 @@ fn a_split_offers_only_the_copper_joining_both_sides() -> Result<()> {
         return Err(invalid("the pad of the other net is named"));
     };
     let net_after = |engine: &Engine, terminal| {
-        stage_change(engine.project(), &plan.change)
+        stage_change(engine.project(), &plan.change, &engine.copper_graph(), None)
             .ok()
             .and_then(|next| next.net_of(terminal).map(|n| n.id))
     };

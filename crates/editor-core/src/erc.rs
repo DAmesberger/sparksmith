@@ -89,36 +89,25 @@ fn net_checks(
                 ],
             ));
         }
-        let drivers = |drive: Drive| {
-            active
-                .iter()
-                .filter(|(_, f)| {
-                    matches!(f.direction, Direction::Output | Direction::Bidirectional)
-                        && f.drive == drive
-                })
-                .count()
-        };
-        let push_pull = drivers(Drive::PushPull);
-        let open_source = drivers(Drive::OpenSource);
-        let open_drain = drivers(Drive::OpenDrain);
-        if push_pull + open_source >= 2 {
-            out.push(Finding::new(
-                "erc.driver_conflict",
-                format!(
-                    "{}: {} push-pull or open-source drivers are connected.",
-                    net.name,
-                    push_pull + open_source
-                ),
-                vec![this],
-            ));
+        // Every pair of drivers, judged by the one matrix; each kind of
+        // fight is reported once per net.
+        let drives: Vec<Drive> = active
+            .iter()
+            .filter(|(_, f)| matches!(f.direction, Direction::Output | Direction::Bidirectional))
+            .map(|(_, f)| f.drive)
+            .collect();
+        let mut fights = BTreeSet::new();
+        for (i, a) in drives.iter().enumerate() {
+            for b in drives.get(i + 1..).unwrap_or_default() {
+                if let Some(fight) = contention(*a, *b) {
+                    fights.insert(fight);
+                }
+            }
         }
-        if push_pull >= 1 && open_drain >= 1 {
+        for fight in fights {
             out.push(Finding::new(
-                "erc.open_drain_contention",
-                format!(
-                    "{}: a push-pull driver shares the net with an open-drain driver.",
-                    net.name
-                ),
+                fight.code(),
+                fight.message(&net.name),
                 vec![this],
             ));
         }
@@ -137,11 +126,7 @@ fn net_checks(
     }
     // A net with a power port reports a missing source once, as
     // `erc.power_port_undriven`.
-    if !power_nets.contains(&net.id)
-        && !active
-            .iter()
-            .any(|(_, f)| f.direction == Direction::PowerOutput)
-    {
+    if !power_nets.contains(&net.id) && !active.iter().any(|(_, f)| supplies(f.direction)) {
         for (endpoint, _) in active
             .iter()
             .filter(|(_, f)| f.direction == Direction::PowerInput)
@@ -158,6 +143,66 @@ fn net_checks(
             ));
         }
     }
+}
+
+/// How two drivers on one net fight, if they do.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Contention {
+    /// Two push-pull drivers: each drives high and low against the other.
+    PushPull,
+    /// A push-pull driver against an open-drain sink: it drives high while
+    /// the sink pulls low.
+    OpenDrain,
+    /// An open-source driver against a push-pull driver or an open-drain
+    /// sink: it sources high while the other pulls low.
+    OpenSource,
+}
+
+impl Contention {
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::PushPull => "erc.driver_conflict",
+            Self::OpenDrain => "erc.open_drain_contention",
+            Self::OpenSource => "erc.open_source_contention",
+        }
+    }
+
+    fn message(self, net: &str) -> String {
+        match self {
+            Self::PushPull => format!("{net}: push-pull drivers are connected to each other."),
+            Self::OpenDrain => {
+                format!("{net}: a push-pull driver shares the net with an open-drain driver.")
+            }
+            Self::OpenSource => {
+                format!("{net}: an open-source driver shares the net with a driver that pulls low.")
+            }
+        }
+    }
+}
+
+/// The drive compatibility matrix, the one place that says which drivers
+/// may share a net: open drains wire-AND, open sources wire-OR, and every
+/// pair that can drive the net high and low at once fights. A drive of
+/// `None` drives nothing. Symmetric.
+pub fn contention(a: Drive, b: Drive) -> Option<Contention> {
+    use Drive::{None, OpenDrain, OpenSource, PushPull};
+    match (a, b) {
+        (None, _) | (_, None) | (OpenDrain, OpenDrain) | (OpenSource, OpenSource) => Option::None,
+        (PushPull, PushPull) => Some(Contention::PushPull),
+        (PushPull, OpenDrain) | (OpenDrain, PushPull) => Some(Contention::OpenDrain),
+        (OpenSource, PushPull | OpenDrain) | (PushPull | OpenDrain, OpenSource) => {
+            Some(Contention::OpenSource)
+        }
+    }
+}
+
+/// Whether a terminal of `direction` supplies a power net: only a power
+/// output does. A passive pin (a capacitor, a connector contact) supplies
+/// nothing; a connector that brings power in declares that contact a
+/// power output. The one answer for `erc.undriven_power_input` and
+/// `erc.power_port_undriven`.
+pub fn supplies(direction: Direction) -> bool {
+    direction == Direction::PowerOutput
 }
 
 /// Every ERC finding of the project, net by net.

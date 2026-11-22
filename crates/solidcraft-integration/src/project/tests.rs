@@ -2591,6 +2591,7 @@ fn the_active_variant_decides_which_bodies_are_placed() -> Result<()> {
             ),
         ]
         .into(),
+        reviews: Default::default(),
     });
     // The default still places both parts on their own package.
     let default = placed_parts(&project)?;

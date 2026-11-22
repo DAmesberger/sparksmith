@@ -647,12 +647,13 @@ fn clearance_section(
         None,
         |ui| {
             for other in &project.rules.net_classes {
-                let pair = project
+                let found = project
                     .rules
                     .class_clearances
                     .iter()
-                    .find(|p| p.is(class.id, other.id))
-                    .map(|p| p.mm);
+                    .find(|p| p.is(class.id, other.id));
+                let pair = found.map(|p| p.mm);
+                let isolation = found.is_some_and(|p| p.isolation);
                 let label = format!("To {}", other.name);
                 if let Some(mm) = ui
                     .push_id(("pair", other.id), |ui| {
@@ -664,6 +665,7 @@ fn clearance_section(
                         a: class.id,
                         b: other.id,
                         mm,
+                        isolation,
                     }));
                 }
             }

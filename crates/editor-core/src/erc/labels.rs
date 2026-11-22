@@ -13,13 +13,14 @@
 //!   label names on one sheet. The net takes the first name by the naming
 //!   rule; the others are probably a mistake.
 //! - `erc.power_port_undriven`: a net with a power port and power inputs
-//!   but nothing that can supply it (a power output, output, bidirectional
-//!   or passive terminal). It replaces `erc.undriven_power_input` on such a
-//!   net, so each cause is reported once.
+//!   but no supply: no power output ([`super::supplies`]; a passive pin
+//!   supplies nothing). It replaces `erc.undriven_power_input` on such a
+//!   net, so each cause is reported once. A net with a ground port is the
+//!   reference node, which nothing supplies, and is not reported.
 use crate::diagnostics::{Finding, ObjectRef};
 use crate::functions::{Direction, Resolution};
 use crate::ids::{Id, SheetId};
-use crate::model::{LabelKind, Project, WireEnd};
+use crate::model::{LabelKind, PowerStyle, Project, WireEnd};
 use crate::nets::{self, NameKind};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -209,8 +210,32 @@ fn conflicts(project: &Project, out: &mut Vec<Finding>) {
     }
 }
 
+/// Nets a ground-style power port names: the reference node, which
+/// returns current and is supplied by nothing, so it needs no source.
+fn grounded(project: &Project) -> BTreeSet<Id> {
+    nets::name_sources(project)
+        .into_iter()
+        .filter(|(_, sources)| {
+            sources.iter().any(|s| match s.end {
+                WireEnd::Label(l) => matches!(
+                    project.label(l.label).map(|l| &l.kind),
+                    Some(LabelKind::Power {
+                        style: PowerStyle::Ground
+                    })
+                ),
+                _ => false,
+            })
+        })
+        .map(|(net, _)| net)
+        .collect()
+}
+
 fn power(project: &Project, resolutions: &BTreeMap<Id, Resolution>, out: &mut Vec<Finding>) {
+    let grounded = grounded(project);
     for net_id in power_nets(project) {
+        if grounded.contains(&net_id) {
+            continue;
+        }
         let Some(net) = project.net(net_id) else {
             continue;
         };
@@ -223,14 +248,10 @@ fn power(project: &Project, resolutions: &BTreeMap<Id, Resolution>, out: &mut Ve
             else {
                 continue;
             };
-            match active.direction {
-                Direction::PowerInput => inputs += 1,
-                Direction::PowerOutput
-                | Direction::Output
-                | Direction::Bidirectional
-                | Direction::Passive => source = true,
-                Direction::Input => {}
+            if active.direction == Direction::PowerInput {
+                inputs += 1;
             }
+            source |= super::supplies(active.direction);
         }
         if inputs > 0 && !source {
             out.push(Finding::new(
