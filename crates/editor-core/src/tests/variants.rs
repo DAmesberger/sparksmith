@@ -303,7 +303,8 @@ fn population_is_typed_and_variants_change_bodies_bom_and_placement() -> Result<
         .ok_or_else(|| Error::NotFound("R1's line".into()))?;
     assert_eq!(r1_line.part, Some(b.cap));
     assert_eq!(r1_line.mpn.as_deref(), Some("EX-C0603-100N"));
-    assert!(r1_line.fitted && !r1_line.unresolved);
+    // Fitting the lands is not a reviewed purchase.
+    assert!(r1_line.fitted && r1_line.unresolved);
     assert_eq!(placed_designators(engine)?, ["R1", "R2"]);
     let rows = assembly::rows(engine.project(), &PlacementConvention::default())?;
     let r1_row = rows
@@ -689,5 +690,130 @@ fn a_copied_part_keeps_its_default_population() -> Result<()> {
     assert!(not.contains(&copy.designator), "{not:?}");
     assert!(!fitted.contains(&copy.designator), "{fitted:?}");
     assert!(!placed_designators(engine)?.contains(&copy.designator));
+    Ok(())
+}
+
+fn unresolved_r1(engine: &Engine) -> Result<Vec<String>> {
+    let report = bom(engine)?;
+    let line = report
+        .lines
+        .iter()
+        .find(|l| l.designators == ["R1"])
+        .ok_or_else(|| Error::NotFound("R1's line".into()))?;
+    let mut codes: Vec<String> = variants::findings(engine.project())
+        .into_iter()
+        .filter(|f| {
+            f.objects.contains(&crate::ObjectRef::Instance {
+                id: line.instances[0],
+            })
+        })
+        .map(|f| f.code)
+        .collect();
+    codes.sort();
+    assert_eq!(line.unresolved, !codes.is_empty(), "{codes:?}");
+    Ok(codes)
+}
+
+/// Physical fit is not electrical equivalence: a substitute on the same
+/// lands with the same pad grouping (which a swapped VCC/GND pinout or a
+/// lower-rated part also has) is resolved only after a person reviewed
+/// its pinout, and only when it meets the requirements of the part it
+/// replaces or each miss is a recorded exception with a reason.
+#[test]
+fn a_substitute_is_resolved_only_after_review_and_within_its_requirements() -> Result<()> {
+    let mut b = board()?;
+    let engine = &mut b.engine;
+    let resistance = crate::instances::requirements(
+        &engine.project().library,
+        engine
+            .project()
+            .instance(b.r1)
+            .ok_or_else(|| Error::NotFound("R1".into()))?,
+    )?
+    .into_iter()
+    .find(|r| r.label == "Resistance")
+    .ok_or_else(|| Error::NotFound("R1 requires a resistance".into()))?;
+    let demo = demo_fixture(engine)?;
+    let rated = |engine: &mut Engine, mpn: &str, ohms: i64| {
+        let mut body = part(
+            mpn,
+            ComponentRef::new(demo.component, Revision::FIRST),
+            BindingRef::new(demo.binding, Revision::FIRST),
+        );
+        body.specs = vec![crate::fields::RatedSpec {
+            field: resistance.field,
+            value: crate::fields::FieldValue::Quantity {
+                si: dec(ohms as f64),
+                display_unit: Some("Ω".into()),
+            },
+            meaning: crate::fields::SpecMeaning::ExactNominal,
+        }];
+        publish_part(engine, body)
+    };
+    let same = rated(engine, "EX-R0603-10K", 10_000)?;
+    let lower = rated(engine, "EX-R0603-1K", 1_000)?;
+    let alt = add(engine, "Alt")?;
+    activate(engine, Some(alt))?;
+    let fit = |engine: &mut Engine, part: PartRef| {
+        variant(
+            engine,
+            VariantCommand::SetPart {
+                instance: b.r1,
+                variant: alt,
+                part: Some(part),
+            },
+        )
+    };
+    let review = |engine: &mut Engine, equivalent: bool, exceptions| {
+        variant(
+            engine,
+            VariantCommand::ReviewSubstitute {
+                instance: b.r1,
+                variant: alt,
+                equivalent,
+                exceptions,
+            },
+        )
+    };
+    let unreviewed = variants::SUBSTITUTE_UNREVIEWED.to_owned();
+    let unmet = variants::SUBSTITUTE_UNMET.to_owned();
+
+    // Reviewing a substitute the variant does not fit is refused.
+    assert!(review(engine, true, vec![]).is_err());
+
+    // An equal part on the same lands: resolved once its pinout is
+    // reviewed.
+    fit(engine, same)?;
+    assert_eq!(unresolved_r1(engine)?, [unreviewed.clone()]);
+    review(engine, true, vec![])?;
+    assert!(unresolved_r1(engine)?.is_empty());
+
+    // A part rated otherwise: fitting it voids the review, and reviewing
+    // its pinout leaves the missed requirement.
+    fit(engine, lower)?;
+    assert_eq!(unresolved_r1(engine)?, [unmet.clone(), unreviewed.clone()]);
+    review(engine, true, vec![])?;
+    assert_eq!(unresolved_r1(engine)?, [unmet.clone()]);
+    // An exception needs a reason.
+    let exception = |reason: &str| crate::model::variants::RequirementException {
+        field: resistance.field.id,
+        reason: reason.into(),
+    };
+    let kept = Snapshot::of(engine);
+    assert!(review(engine, true, vec![exception(" ")]).is_err());
+    kept.assert_kept(engine, "an exception without a reason");
+    review(
+        engine,
+        true,
+        vec![exception("1 kΩ is the bias the Alt build needs")],
+    )?;
+    assert!(unresolved_r1(engine)?.is_empty());
+
+    // The review is saved with the variant, and one undo takes it back.
+    let bytes = format::encode(&format::EditorFile::from_document(engine.document()))?;
+    let reopened = format::decode(&bytes)?;
+    assert_eq!(reopened.project.variants, engine.project().variants);
+    engine.undo()?;
+    assert_eq!(unresolved_r1(engine)?, [unmet]);
     Ok(())
 }

@@ -20,7 +20,14 @@ A **substitute** (`variant.set_part`) is a Part of the project library. Its comp
 2. one of the binding's footprints is the instance's footprint revision, or has the same land pattern: the same pads (kind, number, position, rotation, side, shape, hole, mask, paste and pad vias, in any stored order) and the same datum;
 3. its pads group into terminals exactly as the instance's do: pads that share a terminal share one in the substitute, and no pad that carries a terminal becomes free or the reverse. So no net is joined, split or dropped.
 
-Pin names are never compared, and electrical compatibility is not inferred: the Part's binding is the explicit pin mapping. A substitute that fails any rule is refused with the reason. A library update can leave a substitute that no longer fits. It is then not fitted: the default part is, and Issues reports it as an error (`variant.substitute_unfit`) until it is chosen again or removed.
+Pin names are never compared, and electrical compatibility is not inferred: the Part's binding is the explicit pin mapping. A substitute that fails any rule is refused with the reason.
+
+Fitting is physical fit only. Two parts with VCC and GND swapped, or a part rated lower than the one it replaces, fit the same lands with the same pad grouping. So a substitute is fitted as soon as it fits, but its purchase is resolved only when a person has reviewed it (`variant.review_substitute`, `model::variants::SubstituteReview`, bound to the substitute Part it reviewed):
+
+- **Electrical equivalence:** the person confirms that on every pad the substitute does the job of the part it replaces. Until then Issues reports `variant.substitute_unreviewed` and its BOM line is unresolved.
+- **Requirements:** the instance's requirements are compared with the substitute's rated specs exactly as with its own Part (`instances::rating_findings`). Each one it does not rate, meet or compare with is `variant.substitute_unmet`, unless the review records it as a deliberate exception with a reason (a 0 Ω link where a resistance was required).
+
+Fitting another Part voids the review. A library update can leave a substitute that no longer fits. It is then not fitted: the default part is, and Issues reports it as an error (`variant.substitute_unfit`) until it is chosen again or removed.
 
 A substitute is placed with its own package body and its own markings. Its BOM line is the Part (manufacturer, MPN, rated values), and its value text is the Part's rated values through its component's value template, else its MPN.
 
@@ -36,6 +43,7 @@ All of them are document edits in the `project` module: one undo step each, refu
 | `variant.set_active { variant? }` | Chooses the active variant; null is the default. |
 | `variant.set_population { instances, variant?, population? }` | Sets the default population (no `variant`) or a variant's. In a variant, null follows the default again. |
 | `variant.set_part { instance, variant, part? }` | Fits a substitute Part in a variant; null fits the default part. |
+| `variant.review_substitute { instance, variant, equivalent, exceptions? }` | A person's review of the substitute a variant fits: electrically equivalent or not, and the requirements it is accepted not to meet, each `{field, reason}`. Not equivalent with no exceptions clears it. An Ask entry: it is a person's sign-off. |
 | `variant.list` | Query: the variants, the active one, and each bought part's default and per-variant state. |
 | `variant.substitutes { instance }` | Query: the project library's Parts that fit the instance's footprint. |
 
@@ -43,7 +51,7 @@ Overrides of a removed part are dropped with it. A copied part (`schematic.paste
 
 ## Outputs and checks
 
-- **BOM** (`project.bom`): each instance is listed with the Part the active variant fits. Parts it does not fit group in lines of their own with `fitted: false`; they are not counted as unresolved and `bom.csv` leaves them out. `bom-parts.csv` lists every part with its Fitted column.
+- **BOM** (`project.bom`): each instance is listed with the Part the active variant fits. A substitute's line is resolved only when its review confirms equivalence and leaves no requirement unmet. Parts it does not fit group in lines of their own with `fitted: false`; they are not counted as unresolved and `bom.csv` leaves them out. `bom-parts.csv` lists every part with its Fitted column.
 - **Pick-and-place:** a part that is not fitted has no row; a substitute is written with its package and value.
 - **3D:** a part that is not fitted places no body, in the live view and the exact export alike (both read `placed_parts`); a substitute places its own body, marked from its own data through the same `instance.marking` path as any fitted part: its Part's top mark, else its component's marking, filled with its part number, manufacturer and rated values (a resistor's code, say) on its own package's surface. The instance's own replacing marking describes the default part, so a substitute does not take it; hiding the marking still applies.
 - **Checks:** body checks (`board.body_off_pads`) skip bodies that are not fitted and check a substitute's body against its pads. Electrical, footprint, courtyard and copper checks are unchanged. A part the active variant does not fit is not reported as having no Part chosen.

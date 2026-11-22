@@ -213,6 +213,8 @@ pub fn group_title(code: &str) -> String {
         "library.update_available" => "Library updates",
         "library.source_modified" => "Library sources changed",
         "variant.substitute_unfit" => "Variant parts that no longer fit",
+        "variant.substitute_unreviewed" => "Variant parts not reviewed as equivalent",
+        "variant.substitute_unmet" => "Variant parts that miss a requirement",
         _ => "",
     };
     if !known.is_empty() {
@@ -236,6 +238,12 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         "board.courtyard_overlap" => "Move the parts apart",
         "board.body_off_pads" => "Fit the body to its pads or give the part another body",
         "variant.substitute_unfit" => "Choose another part for the variant or fit the default",
+        "variant.substitute_unreviewed" => {
+            "Check the variant part's pinout against the part it replaces"
+        }
+        "variant.substitute_unmet" => {
+            "Choose a part that meets the requirement, or record it as an exception"
+        }
         "board.outside_outline" => "Move it inside the board",
         "board.unrouted" => "Route the connection",
         "board.unplaced" => "Update the PCB from the schematic",
@@ -784,6 +792,8 @@ pub const KNOWN_CODES: &[&str] = &[
     "text.empty",
     "text.too_long",
     "variant.substitute_unfit",
+    "variant.substitute_unmet",
+    "variant.substitute_unreviewed",
     NO_PART,
     CHECK_FAILED,
 ];
