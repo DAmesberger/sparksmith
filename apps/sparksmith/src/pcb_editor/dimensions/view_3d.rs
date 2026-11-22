@@ -324,15 +324,22 @@ impl PcbEditor {
                         .map(|(target, _)| self.pick_target(project, &target));
                     self.take_pick(found);
                 }
-            } else if !on && ui.input(|i| i.modifiers.shift || i.modifiers.command) {
-                // ⇧ or ⌘ adds the object, or takes it out, as in Layout.
-                self.toggle_picked(pick.and_then(|id| scene.source(id)), project);
-            } else if !on && scene.viewport.following() {
+            } else if !on {
+                // Every body under the pointer, nearest first: a kind the
+                // selection filter leaves out passes the click on.
                 let along = at.map_or_else(Vec::new, |p| scene.viewport.picks_at(p));
                 let along: Vec<_> = along.iter().filter_map(|id| scene.source(*id)).collect();
-                self.select_picked_following(pick.and_then(|id| scene.source(id)), &along);
-            } else if !on {
-                self.select_picked(pick.and_then(|id| scene.source(id)));
+                let picked = pick.and_then(|id| scene.source(id));
+                if ui.input(|i| i.modifiers.shift || i.modifiers.command) {
+                    // ⇧ or ⌘ adds the object, or takes it out, as in Layout.
+                    let picks: Vec<_> = picked.into_iter().chain(along).collect();
+                    self.toggle_picked(&picks, project);
+                } else if scene.viewport.following() {
+                    self.select_picked_following(picked, &along);
+                } else {
+                    let picks: Vec<_> = picked.into_iter().chain(along).collect();
+                    self.select_picked(&picks);
+                }
             }
         }
         let painter = ui.painter_at(rect);
