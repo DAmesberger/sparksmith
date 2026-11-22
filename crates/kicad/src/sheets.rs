@@ -32,6 +32,9 @@ pub(crate) struct Plan {
     children: BTreeMap<(usize, usize), usize>,
     /// Reference (upper case) → where each of its units is drawn.
     pub(crate) places: BTreeMap<String, Vec<UnitPlace>>,
+    /// Reference (upper case) → the reference as first drawn and its
+    /// symbol's `lib_id`.
+    pub(crate) names: BTreeMap<String, (String, String)>,
 }
 
 /// One unit of a symbol on a sheet: our sheet, position (mm) and turn.
@@ -440,10 +443,11 @@ pub(crate) fn sheets(
                 continue;
             }
             let (rotation, mirror) = orientation(symbol);
-            let units = plan
-                .places
-                .entry(reference.to_ascii_uppercase())
-                .or_default();
+            let key = reference.to_ascii_uppercase();
+            plan.names
+                .entry(key.clone())
+                .or_insert_with(|| (reference.clone(), symbol.lib_id.clone()));
+            let units = plan.places.entry(key).or_default();
             // One place per unit; a unit drawn twice keeps its first.
             if !units.iter().any(|u| u.unit == unit) {
                 units.push(UnitPlace {
@@ -728,6 +732,9 @@ impl Anchors {
 /// explicit map (a generated part's terminals carry their own names, and
 /// a pad lands its package terminal, so the pin is never matched by
 /// name). A pad without a terminal, or no such pad, connects nothing.
+/// A part placed without a footprint (one the board does not have) was
+/// made from this KiCad symbol, a terminal per pin named by its number:
+/// its pin connects the terminal it was made for.
 pub(crate) fn terminal(
     project: &sparksmith_core::Project,
     instance: Id,
@@ -735,7 +742,15 @@ pub(crate) fn terminal(
 ) -> Option<TerminalId> {
     let found = project.instance(instance)?;
     let resolved = sparksmith_core::instances::resolve(&project.library, found).ok()?;
-    let physical = resolved.physical?;
+    let Some(physical) = resolved.physical else {
+        return resolved
+            .component
+            .definition
+            .terminals
+            .iter()
+            .find(|t| t.name == number)
+            .map(|t| t.id);
+    };
     let landed = physical
         .footprint
         .definition
@@ -797,7 +812,7 @@ pub(crate) fn wire(
                 .filter(|i| !i.board_only && project.occurrences_of(i.id).next().is_some())
                 .map(|i| i.id);
             let Some(instance) = instance else {
-                report.add(Case::SymbolWithoutFootprint);
+                report.add(Case::SymbolNotDrawn);
                 continue;
             };
             // A generated part draws its generator's symbol, not KiCad's.

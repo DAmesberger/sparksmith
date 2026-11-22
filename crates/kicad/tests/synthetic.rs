@@ -674,3 +674,46 @@ fn a_placeholder_body_is_centred_on_its_pads_not_on_the_footprint_origin() -> Fa
     );
     Ok(())
 }
+
+/// A net tie (KiCad's `net_tie_pad_groups`) joins distinct nets on
+/// purpose; Sparksmith has no net-tie part, so its pads come in on their
+/// own nets and the tie does not. The import names each such footprint
+/// as not carried over, for the person importing their own project.
+#[test]
+fn net_tie_footprints_are_named_as_not_carried_over() -> Fallible<()> {
+    let mut tie = Footprint::new(
+        "NT1",
+        [10.0, 10.0, 0.0],
+        false,
+        vec![
+            Pad::smd("1", "rect", [-0.5, 0.0, 0.0], [0.6, 0.6]).with("(net 1 \"GND\")"),
+            Pad::smd("2", "rect", [0.5, 0.0, 0.0], [0.6, 0.6]).with("(net 2 \"AGND\")"),
+        ],
+    );
+    tie.name = "Synthetic:Tie".into();
+    tie.extra = " (net_tie_pad_groups \"1, 2\")".into();
+    let board = Board {
+        copper: 2,
+        origin: None,
+        setup: "(pad_to_mask_clearance 0)".into(),
+        footprints: vec![tie],
+        items: "  (net 1 \"GND\") (net 2 \"AGND\")
+  (gr_rect (start 0 0) (end 20 20) (stroke (width 0.1) (type default)) (layer \"Edge.Cuts\"))\n"
+            .into(),
+    };
+    let imported = import(board.text().as_bytes())?;
+    let report = &imported.report;
+    assert_eq!(report.count(Case::NetTie), 1);
+    let detail = report
+        .details()
+        .iter()
+        .find(|d| d.case == Case::NetTie)
+        .ok_or("no detail naming the net tie")?;
+    assert_eq!(detail.footprint, "NT1");
+    let title = Case::NetTie.describe().2;
+    assert!(title.contains("not imported"), "{title}");
+    let named = report.summary_named();
+    assert!(named.contains("NT1"), "{named}");
+    assert!(!report.summary().contains("NT1"));
+    Ok(())
+}

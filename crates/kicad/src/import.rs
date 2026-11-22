@@ -103,6 +103,12 @@ impl Imported {
 const PROVENANCE: &str = "Imported from a KiCad board's embedded footprint copy. Project-only: \
      it may come from KiCad's CC-BY-SA libraries, so never publish it to a shared library.";
 
+/// The provenance of a part made from a schematic symbol alone (one the
+/// board has no footprint of).
+const SYMBOL_PROVENANCE: &str = "Imported from a KiCad schematic's embedded symbol copy, with no \
+     footprint (the board has none). Project-only: it may come from KiCad's CC-BY-SA libraries, \
+     so never publish it to a shared library.";
+
 /// Schematic spacing of the imported instances, mm.
 const SHEET_PITCH_MM: f64 = 25.4;
 
@@ -341,7 +347,7 @@ pub fn import_with_models(
             report.add_n(Case::Models, fp.models.len());
         }
         if fp.net_tie {
-            report.add(Case::NetTie);
+            report.add_detail(Case::NetTie, &fp.reference, "", "");
         }
         report.add_n(
             Case::PadZoneOverrides,
@@ -661,6 +667,19 @@ pub fn import_with_models(
             &mut report,
         );
     }
+    // Parts on the schematic the board has no footprint of: placed on
+    // their sheets with no footprint chosen, so a partly laid out project
+    // keeps them (Issues lists each as having no footprint).
+    if let Some((_, plan)) = &plan {
+        schematic_only(
+            &mut session,
+            plan,
+            &by_reference,
+            &schematic_values,
+            &mut names_taken,
+            &mut report,
+        )?;
+    }
     let mut layout = Vec::with_capacity(instances.len());
     for (fp, instance) in placed.iter().zip(&instances) {
         let (position, rotation_deg, layer) = compose(
@@ -799,6 +818,109 @@ pub fn import_with_models(
 }
 
 /// The designator prefix of a reference: its leading capital letters.
+/// Place each schematic part whose reference no placed part has (the
+/// board has no footprint of it) as a part of its KiCad symbol alone,
+/// with no footprint chosen, its units where KiCad draws them and its
+/// value set. Parts of one KiCad symbol share a definition. A reference
+/// that is no valid designator stays undrawn ([`Case::SymbolNotDrawn`]).
+fn schematic_only(
+    session: &mut Session<'_>,
+    plan: &crate::sheets::Plan,
+    symbols: &BTreeMap<String, crate::schematic::LibSymbol>,
+    values: &BTreeMap<String, String>,
+    names_taken: &mut BTreeMap<String, usize>,
+    report: &mut Report,
+) -> Result<(), ImportError> {
+    let mut parts: BTreeMap<String, (ComponentRef, DefinitionId, u32)> = BTreeMap::new();
+    let mut place = Vec::new();
+    let mut pending = Vec::new();
+    for (key, units) in &plan.places {
+        let (Some((reference, lib_id)), Some(lib), Some(first)) =
+            (plan.names.get(key), symbols.get(key), units.first())
+        else {
+            continue;
+        };
+        if session
+            .engine
+            .project()
+            .instance_by_designator(reference)
+            .is_some()
+            || !sparksmith_core::instances::designator_valid(reference)
+        {
+            continue;
+        }
+        let part = match parts.get(lib_id) {
+            Some(part) => *part,
+            None => {
+                let naming = definition_name(lib_id, names_taken.len(), names_taken);
+                let made =
+                    session.symbol_only_set(&naming.name, lib_id, &prefix_of(reference), lib)?;
+                parts.insert(lib_id.clone(), made);
+                made
+            }
+        };
+        let (component, symbol, count) = part;
+        let unit = first.unit.clamp(1, count.max(1));
+        let later: Vec<crate::sheets::UnitPlace> = units[1..]
+            .iter()
+            .filter(|u| u.unit <= count && u.unit != unit)
+            .copied()
+            .collect();
+        report.add_n(
+            Case::UnitMerged,
+            units.len().saturating_sub(1 + later.len()),
+        );
+        place.push(Operation::Instance(InstanceCommand::Place(NewInstance {
+            sheet: Some(first.sheet),
+            component,
+            designator: Some(reference.clone()),
+            properties: vec![],
+            representation: Some(symbol),
+            unit: Some(UnitId(unit)),
+            position: Some(PointNm::from_mm_f64_rounded(first.at).map_err(|e| {
+                ImportError::Refused {
+                    step: "component.place",
+                    reason: e.to_string(),
+                }
+            })?),
+            physical: None,
+        })));
+        let first = crate::sheets::UnitPlace { unit, ..*first };
+        pending.push((reference.clone(), component, key, first, later));
+    }
+    let mut instances = Vec::with_capacity(place.len());
+    let mut occurrences = Vec::with_capacity(place.len());
+    let mut firsts = Vec::with_capacity(place.len());
+    let mut laters = Vec::with_capacity(place.len());
+    for (outcome, (reference, component, key, first, later)) in session
+        .batches("component.place", place)?
+        .into_iter()
+        .zip(pending)
+    {
+        let Outcome::InstancePlaced {
+            instance,
+            occurrence,
+            ..
+        } = outcome
+        else {
+            return Err(ImportError::Refused {
+                step: "component.place",
+                reason: "no instance placed".into(),
+            });
+        };
+        report.add_detail(Case::SymbolWithoutFootprint, &reference, "", "");
+        if let Some(value) = values.get(key).and_then(|v| value_text(v)) {
+            crate::values::set(session, instance, component, &value, report)?;
+        }
+        instances.push(instance);
+        occurrences.push(Some(occurrence));
+        firsts.push(Some(first));
+        laters.push(later);
+    }
+    crate::sheets::units(session, &instances, &occurrences, &firsts, &laters, report);
+    Ok(())
+}
+
 fn prefix_of(reference: &str) -> String {
     let letters: String = reference
         .chars()
@@ -1388,6 +1510,96 @@ impl Session<'_> {
         Ok(out)
     }
 
+    /// A part of a KiCad symbol alone, for a schematic part the board has
+    /// no footprint of: a passive terminal per pin number, named by it, and
+    /// no implementation (placed with no footprint chosen). Its component,
+    /// symbol and the symbol's unit count.
+    fn symbol_only_set(
+        &mut self,
+        name: &str,
+        lib_id: &str,
+        prefix: &str,
+        lib: &crate::schematic::LibSymbol,
+    ) -> Result<(ComponentRef, DefinitionId, u32), ImportError> {
+        let refused = |reason: String| ImportError::Refused {
+            step: "library.edit",
+            reason,
+        };
+        let reserve = [DefinitionKind::Component, DefinitionKind::Symbol]
+            .iter()
+            .map(|kind| {
+                Operation::Library(LibraryCommand::NewDraft {
+                    meta: DefinitionMeta::default(),
+                    definition: Definition::empty(*kind),
+                })
+            })
+            .collect();
+        let mut ids = Vec::with_capacity(2);
+        for outcome in self.batches("library.new_draft", reserve)? {
+            if let Outcome::DraftCreated { id } = outcome {
+                ids.push(id);
+            }
+        }
+        let [component, symbol] = ids[..] else {
+            return Err(ImportError::Refused {
+                step: "library.new_draft",
+                reason: "two drafts expected".into(),
+            });
+        };
+        let mut numbers: Vec<&str> = Vec::new();
+        for pin in &lib.pins {
+            let number = pin.number.as_str();
+            if !number.trim().is_empty() && !numbers.contains(&number) {
+                numbers.push(number);
+            }
+        }
+        let named: Vec<(TerminalId, &str)> = (1u32..)
+            .map(TerminalId)
+            .zip(numbers.iter().copied())
+            .collect();
+        let mut unpinned = 0;
+        let symbol_body = crate::sheets::kicad_symbol(component, lib, &named, &mut unpinned)
+            .map_err(|e| refused(e.to_string()))?;
+        let units = u32::try_from(symbol_body.units.len()).unwrap_or(1);
+        let mut body = component_body(prefix, &named, symbol, None);
+        if let Some(value) = self.part_value_selection()? {
+            body.fields = vec![value];
+        }
+        let id: String = lib_id
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(4 * MAX_NAME_CHARS)
+            .collect();
+        let meta = |name: String| DefinitionMeta {
+            name,
+            description: String::new(),
+            provenance: format!("{SYMBOL_PROVENANCE}\nKiCad symbol: {id}"),
+        };
+        let edits = vec![
+            DraftEdit {
+                id: component,
+                meta: meta(name.to_owned()),
+                definition: Definition::Component(body),
+            },
+            DraftEdit {
+                id: symbol,
+                meta: meta(format!("{name} symbol")),
+                definition: Definition::Symbol(symbol_body),
+            },
+        ];
+        self.batches(
+            "library.publish",
+            vec![
+                Operation::Library(LibraryCommand::Edit { edits }),
+                Operation::Library(LibraryCommand::Publish {
+                    drafts: vec![component, symbol],
+                    close: true,
+                }),
+            ],
+        )?;
+        Ok((ComponentRef::new(component, Revision::FIRST), symbol, units))
+    }
+
     fn component_set(
         &mut self,
         source: ComponentSource<'_>,
@@ -1566,6 +1778,45 @@ fn definition_name(lib_id: &str, k: usize, taken: &mut BTreeMap<String, usize>) 
     }
 }
 
+/// An imported component: passive terminals `named`, drawn by `symbol`,
+/// implemented by `binding` (none for a part the board does not have).
+fn component_body(
+    prefix: &str,
+    named: &[(TerminalId, &str)],
+    symbol: DefinitionId,
+    binding: Option<DefinitionId>,
+) -> ComponentDefinition {
+    let count = u32::try_from(named.len()).unwrap_or(u32::MAX);
+    ComponentDefinition {
+        pin_rules: Vec::new(),
+        marking: None,
+        review: None,
+        value_template: None,
+        generic: None,
+        next_local: count.saturating_mul(2).saturating_add(1),
+        designator_prefix: prefix.into(),
+        terminals: named
+            .iter()
+            .map(|(id, name)| Terminal {
+                id: *id,
+                name: (*name).to_owned(),
+                class: TerminalClass::Electrical(TerminalFunctions::fixed(
+                    FunctionId(id.0.saturating_add(count)),
+                    Direction::Passive,
+                )),
+            })
+            .collect(),
+        resources: vec![],
+        constraints: vec![],
+        representations: vec![SymbolRef::new(symbol, Revision::FIRST)],
+        implementations: binding
+            .map(|b| BindingRef::new(b, Revision::FIRST))
+            .into_iter()
+            .collect(),
+        fields: Vec::new(),
+    }
+}
+
 /// The five definition bodies of one imported footprint, under `name`:
 /// the component and footprint take it as it is, the symbol, package and
 /// binding with their kind after it.
@@ -1630,31 +1881,12 @@ fn drafts(
         DraftEdit {
             id: component,
             meta: meta("component"),
-            definition: Definition::Component(ComponentDefinition {
-                pin_rules: Vec::new(),
-                marking: None,
-                review: None,
-                value_template: None,
-                generic: None,
-                next_local: 2 * count + 1,
-                designator_prefix: prefix.into(),
-                terminals: named
-                    .iter()
-                    .map(|(id, name)| Terminal {
-                        id: *id,
-                        name: (*name).to_owned(),
-                        class: TerminalClass::Electrical(TerminalFunctions::fixed(
-                            FunctionId(id.0 + count),
-                            Direction::Passive,
-                        )),
-                    })
-                    .collect(),
-                resources: vec![],
-                constraints: vec![],
-                representations: vec![SymbolRef::new(symbol, Revision::FIRST)],
-                implementations: vec![BindingRef::new(binding, Revision::FIRST)],
-                fields: Vec::new(),
-            }),
+            definition: Definition::Component(component_body(
+                prefix,
+                &named,
+                symbol,
+                Some(binding),
+            )),
         },
         DraftEdit {
             id: symbol,

@@ -222,6 +222,18 @@ fn compare_nets(
             .get(&e)
             .map_or(Place::Alone(e), |n| Place::Net(*n))
     };
+    // A schematic part with no footprint is on no board net by having
+    // none: the board says nothing of its terminals.
+    let on_board = |ends: &[Endpoint]| -> Vec<Endpoint> {
+        ends.iter()
+            .copied()
+            .filter(|e| {
+                project
+                    .instance(e.instance)
+                    .is_some_and(|i| i.physical.is_some())
+            })
+            .collect()
+    };
     let mut out = Vec::new();
     for ends in members.values() {
         let groups = grouped(ends, ours);
@@ -240,7 +252,7 @@ fn compare_nets(
                 .nets
                 .iter()
                 .find(|n| n.id == id)
-                .is_some_and(|n| grouped(&n.terminals, board).len() == 1),
+                .is_some_and(|n| grouped(&on_board(&n.terminals), board).len() == 1),
             _ => alone,
         };
         if equal {
@@ -250,7 +262,7 @@ fn compare_nets(
         }
     }
     for net in project.nets.iter() {
-        let groups = grouped(&net.terminals, board);
+        let groups = grouped(&on_board(&net.terminals), board);
         if groups.len() > 1 {
             out.push(NetDisagreement {
                 kind: DisagreementKind::BoardSplits,

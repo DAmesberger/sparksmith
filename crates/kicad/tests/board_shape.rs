@@ -145,3 +145,48 @@ fn the_stackup_takes_the_files_thicknesses_kinds_and_dk() -> Fallible<()> {
     assert!(close(stackup.mask_um, 20.0));
     Ok(())
 }
+
+/// Solder mask thicknesses that differ by side: our stackup holds one
+/// thickness for both sides, so the top's is kept (whatever order the file
+/// lists them in) and the import says the conversion is approximate, naming
+/// the bottom's thickness it dropped.
+#[test]
+fn unequal_mask_sides_keep_the_top_and_name_the_dropped_bottom() -> Fallible<()> {
+    // The bottom listed last, as KiCad writes it: it must not win.
+    let mut board = outlined();
+    board.setup = board
+        .setup
+        .replace(
+            "(type \"Top Solder Mask\") (thickness 0.02)",
+            "(type \"Top Solder Mask\") (thickness 0.01)",
+        )
+        .replace(
+            "(type \"Bottom Solder Mask\") (thickness 0.02)",
+            "(type \"Bottom Solder Mask\") (thickness 0.025)",
+        );
+    let imported = import(board.text().as_bytes())?;
+    let report = &imported.report;
+    assert!(close(imported.engine.project().stackup.mask_um, 10.0));
+    assert_eq!(report.count(Case::StackupImported), 1);
+    assert_eq!(report.count(Case::StackupMaskSides), 1);
+    assert_eq!(
+        Case::StackupMaskSides.describe().1,
+        sparksmith_kicad::report::Fidelity::Approximate
+    );
+    let detail = report
+        .details()
+        .iter()
+        .find(|d| d.case == Case::StackupMaskSides)
+        .ok_or("no detail for the mask sides")?;
+    assert!(detail.path.contains("bottom 25 µm"), "{}", detail.path);
+    assert!(detail.path.contains("top 10 µm"), "{}", detail.path);
+    let named = report.summary_named();
+    assert!(named.contains("bottom 25 µm"), "{named}");
+    // The fixed summary names no value from the file.
+    assert!(!report.summary().contains("25 µm"));
+
+    // Equal sides are exact: no approximation row.
+    let imported = import(outlined().text().as_bytes())?;
+    assert_eq!(imported.report.count(Case::StackupMaskSides), 0);
+    Ok(())
+}
