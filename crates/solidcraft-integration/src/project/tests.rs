@@ -2497,7 +2497,8 @@ fn every_plated_hole_of_the_inventory_has_its_wall_in_the_exact_model() -> Resul
     }
     let model = build(&project)?;
     let geometry = model.native_geometry()?;
-    let thickness = project.stackup.dielectric_mm();
+    // The laminate: every dielectric and the inner foils between them.
+    let thickness = project.stackup.laminate_mm();
     let plated: Vec<physical::Hole> = physical::holes(&project)
         .into_iter()
         .filter(|h| h.plated && !matches!(h.owner, physical::HoleOwner::Pad { .. }))
