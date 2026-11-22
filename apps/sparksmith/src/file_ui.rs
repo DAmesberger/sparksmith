@@ -1683,8 +1683,11 @@ pub(crate) fn new_project() -> Result<Engine, String> {
     };
     let mut project = sparksmith_core::Project::new(&defaults.board);
     project.rules.profile = Some(profile);
-    sparksmith_core::reconcile_rules(&mut project, sparksmith_core::Foils::Follow)
-        .map_err(|e| e.to_string())?;
+    sparksmith_core::layout::restack::reconcile_rules(
+        &mut project,
+        sparksmith_core::layout::restack::Foils::Follow,
+    )
+    .map_err(|e| e.to_string())?;
     let mut engine = Engine::from_file_with(
         sparksmith_core::format::EditorFile {
             version: sparksmith_core::format::FILE_VERSION,

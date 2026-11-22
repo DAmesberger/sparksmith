@@ -8,7 +8,7 @@
 //! the one that orders the board's outer foils; the stackup, the active
 //! variant, the waivers and the computed fills as the project holds them.
 //! The choices are carried and reconciled as a rules edit does it
-//! ([`crate::reconcile_rules`]), except that the board is never changed to
+//! ([`crate::layout::restack::reconcile_rules`]), except that the board is never changed to
 //! fit the profile. A profile the design cannot take (a kept override it
 //! conflicts with, no copper weight for the board's foils) gives no
 //! snapshot: [`ProductionSnapshot::resolve`] refuses it
@@ -79,7 +79,12 @@ impl<'a> ProductionSnapshot<'a> {
                 keep_overrides: true,
             },
         )
-        .and_then(|_| crate::reconcile_rules(&mut candidate, crate::Foils::Keep))
+        .and_then(|_| {
+            crate::layout::restack::reconcile_rules(
+                &mut candidate,
+                crate::layout::restack::Foils::Keep,
+            )
+        })
         .map_err(|e| refused(&p.name, &e.to_string()))?;
         Ok(Self {
             project: Cow::Owned(candidate),

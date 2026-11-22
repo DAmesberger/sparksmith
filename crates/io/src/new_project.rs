@@ -166,7 +166,10 @@ pub fn profiled_engine(context: &Arc<Context>) -> Result<Engine> {
             false,
         ),
     )?;
-    sparksmith_core::reconcile_rules(&mut project, sparksmith_core::Foils::Follow)?;
+    sparksmith_core::layout::restack::reconcile_rules(
+        &mut project,
+        sparksmith_core::layout::restack::Foils::Follow,
+    )?;
     let mut engine = Engine::from_file_with(
         EditorFile {
             version: sparksmith_core::format::FILE_VERSION,

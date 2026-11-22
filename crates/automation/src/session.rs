@@ -1532,7 +1532,10 @@ impl Session {
                     &mut project.rules,
                     sparksmith_core::rules::RulesCommand::set_profile(profile, false),
                 )?;
-                sparksmith_core::reconcile_rules(&mut project, sparksmith_core::Foils::Follow)?;
+                sparksmith_core::layout::restack::reconcile_rules(
+                    &mut project,
+                    sparksmith_core::layout::restack::Foils::Follow,
+                )?;
                 self.engine.replace_document(EditorFile {
                     version: sparksmith_core::format::FILE_VERSION,
                     project,
