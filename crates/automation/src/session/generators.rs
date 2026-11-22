@@ -286,11 +286,8 @@ impl Session {
     pub fn generate_request(&self, params: GeneratePartParams) -> Result<Generate> {
         let (mut generate, bundle, made) = self.run_request(params)?;
         let made = made.map_err(|f| crate::Error::Document(generated::failure(&f)))?;
-        generate.model = Some(super::generated_models::generated_model(
-            &self.engine,
-            &made.generation,
-            bundle.as_ref(),
-        )?);
+        generate.model =
+            super::generated_models::model_for(&self.engine, &made.generation, bundle.as_ref())?;
         Ok(generate)
     }
 

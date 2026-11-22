@@ -9,7 +9,7 @@ Release plan step 5: a real ESP32-S31-WROOM-3 development board designed from co
 | File | What |
 |---|---|
 | `esp32-s31-devboard.sparksmith` | The project. Open it in the desktop app. It holds the parts library, two schematic sheets, the 4-layer board, the fills and the waiver-free production state. |
-| `esp32-s31-devboard.replay.jsonl` | The full command sequence: 597 JSON-lines requests through `sparksmith stdio --operator`. It replays to the committed project, byte for byte (`cargo test -p sparksmith-automation --test example_replay` checks it). |
+| `esp32-s31-devboard.replay.jsonl` | The full command sequence: 605 JSON-lines requests through `sparksmith stdio --operator`. It replays to the committed project, byte for byte (`cargo test -p sparksmith-automation --test example_replay` checks it). |
 | `regenerate.sh` | Replays the board and writes `fab/` and the schematic PDF. With `NATIVE=1` it also writes the `.solidcraft` model (about 10 s of CPU). |
 | `fab/` | Gerber X2 for 4 copper layers, masks, top paste, top legend and profile; plated and non-plated Excellon; drill map and table; job file; top pick-and-place; both BOMs; fabrication and assembly PDFs. |
 | `esp32-s31-devboard-schematic.pdf` | The schematic, two sheets. |

@@ -92,7 +92,10 @@ fn numeric(value: &FieldValue, value_type: Option<&ValueType>) -> Option<f64> {
 /// ([`instances::variants::fitted`]): a substitute Part is marked from its
 /// own data (its top mark, else its component's spec; its part number,
 /// manufacturer and rated values; its package's surface), never with the
-/// default part's. The instance's replacing spec describes the default
+/// default part's. A fitted Part's rated values are the part's own data
+/// and win over the instance's field values, which are requirements: a
+/// field the Part does not rate is read from the instance (default part)
+/// or its component's defaults (substitute). The instance's replacing spec describes the default
 /// part, so a substitute does not take it; hiding and the template
 /// variables still apply.
 pub fn layout(project: &Project, instance: Id) -> Result<Option<MarkingLayout>> {
@@ -150,18 +153,20 @@ pub fn layout(project: &Project, instance: Id) -> Result<Option<MarkingLayout>> 
         let value_type = library.field(field.field).map(|f| &f.definition.value_type);
         fields.insert(field.field.id, (text.clone(), numeric(value, value_type)));
     }
-    if fitted.substituted {
-        for spec in part.iter().flat_map(|p| &p.definition.specs) {
-            let Some(view) = library.field_view(spec.field) else {
-                continue;
-            };
-            let value_type = &view.field.definition.value_type;
-            let text = crate::fields::display(&spec.value, value_type, view.kind_body());
-            fields.insert(
-                spec.field.id,
-                (text, numeric(&spec.value, Some(value_type))),
-            );
-        }
+    // The fitted Part's own rated values over them, the default part's as
+    // a substitute's: the part carries its own value and tolerance, which
+    // the instance's requirements only bound (a ±5 % requirement may be met
+    // by a ±1 % part, which prints its own code).
+    for spec in part.iter().flat_map(|p| &p.definition.specs) {
+        let Some(view) = library.field_view(spec.field) else {
+            continue;
+        };
+        let value_type = &view.field.definition.value_type;
+        let text = crate::fields::display(&spec.value, value_type, view.kind_body());
+        fields.insert(
+            spec.field.id,
+            (text, numeric(&spec.value, Some(value_type))),
+        );
     }
     let inputs = MarkingInputs {
         designator: target.designator.clone(),

@@ -681,6 +681,8 @@ struct Style {
     opacity: f64,
     color: Option<[u8; 3]>,
     font_size: f64,
+    /// CSS `font-weight`, 1–1000 (400 normal, 700 bold).
+    font_weight: u16,
     anchor: TextAnchor,
 }
 
@@ -705,6 +707,7 @@ impl Default for Style {
             opacity: 1.0,
             color: None,
             font_size: 16.0,
+            font_weight: 400,
             anchor: TextAnchor::Start,
         }
     }
@@ -910,6 +913,9 @@ fn style(attrs: &[(String, String)], inherited: &Style) -> Style {
     {
         s.font_size = f;
     }
+    if let Some(w) = declared(attrs, "font-weight").and_then(|w| font_weight(&w, s.font_weight)) {
+        s.font_weight = w;
+    }
     match declared(attrs, "text-anchor").as_deref() {
         Some("middle") => s.anchor = TextAnchor::Middle,
         Some("end") => s.anchor = TextAnchor::End,
@@ -917,6 +923,66 @@ fn style(attrs: &[(String, String)], inherited: &Style) -> Style {
         _ => {}
     }
     s
+}
+
+/// A CSS `font-weight` (`normal`, `bold`, `bolder`, `lighter` or a
+/// number 1–1000) against the inherited weight.
+fn font_weight(value: &str, inherited: u16) -> Option<u16> {
+    match value.trim() {
+        "normal" => Some(400),
+        "bold" => Some(700),
+        "bolder" => Some(inherited.saturating_add(300).min(900)),
+        "lighter" => Some(inherited.saturating_sub(300).max(100)),
+        number => number
+            .parse::<u16>()
+            .ok()
+            .filter(|w| (1..=1000).contains(w)),
+    }
+}
+
+/// How far a weight above normal widens each glyph's outline, either side,
+/// as a share of the font size: the built-in font has one weight, so
+/// heavier text is its outline offset outward (0.03 em a side at bold,
+/// 700, as a bold face's stems are about 0.06 em wider than a regular
+/// face's; est.), lighter weights are drawn as normal.
+fn embolden_em(weight: u16) -> f64 {
+    f64::from(weight.saturating_sub(400)) / 300.0 * 0.03
+}
+
+/// `loops` grouped where their x ranges overlap, in order along x: a hole
+/// lies within its outline's range, so each group fills as the whole did.
+fn apart_along_x(mut loops: Vec<Vec<Point>>) -> Vec<Vec<Vec<Point>>> {
+    let range = |l: &Vec<Point>| {
+        l.iter()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), p| {
+                (a.min(p[0]), b.max(p[0]))
+            })
+    };
+    loops.sort_by(|a, b| range(a).0.total_cmp(&range(b).0));
+    let mut groups: Vec<Vec<Vec<Point>>> = Vec::new();
+    let mut reach = f64::NEG_INFINITY;
+    for l in loops {
+        let (lo, hi) = range(&l);
+        match groups.last_mut() {
+            Some(group) if lo <= reach => group.push(l),
+            _ => groups.push(vec![l]),
+        }
+        reach = reach.max(hi);
+    }
+    groups
+}
+
+/// `loops` (filled non-zero) grown by `half` on every side, round at the
+/// corners: the union of the glyphs first (`i_overlay`), then its outline
+/// offset, outer boundaries out and holes in.
+fn embolden(loops: &[Vec<Point>], half: f64) -> Vec<Vec<Point>> {
+    use i_overlay::core::fill_rule::FillRule as Rule;
+    use i_overlay::float::simplify::SimplifyShape;
+    use i_overlay::mesh::float::outline::offset::OutlineOffset;
+    use i_overlay::mesh::float::style::{LineJoin, OutlineStyle};
+    let shapes = loops.to_vec().simplify_shape(Rule::NonZero);
+    let style = OutlineStyle::new(half).line_join(LineJoin::Round(0.25));
+    shapes.outline(&style).into_iter().flatten().collect()
 }
 
 // ---------------------------------------------------------------- gradients
@@ -1454,11 +1520,24 @@ impl<'a> Walk<'a> {
                     .collect()
             })
             .collect();
-        self.push(Painted {
-            colour,
-            loops,
-            rule: FillRule::NonZero,
-        })
+        // A heavier weight: the glyphs grown by their outline offset
+        // (round joins), so counters shrink as a heavier face's do.
+        let half = embolden_em(s.font_weight) * s.font_size * m.length_scale();
+        let loops = if half > 0.0 && half.is_finite() {
+            embolden(&loops, half)
+        } else {
+            loops
+        };
+        // Each run of glyphs apart along the line is filled on its own: a
+        // line filled whole costs the fill a sweep across every glyph.
+        for loops in apart_along_x(loops) {
+            self.push(Painted {
+                colour,
+                loops,
+                rule: FillRule::NonZero,
+            })?;
+        }
+        Ok(())
     }
 
     fn image(&mut self, attrs: &[(String, String)], frame: &Frame) -> Result<()> {

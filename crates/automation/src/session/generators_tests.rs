@@ -783,7 +783,7 @@ fn generated_parts_mark_their_values_by_rule() -> TestResult {
         Option<Vec<&'a str>>,
         usize,
     );
-    let cases: [Case<'_>; 11] = [
+    let cases: [Case<'_>; 13] = [
         ("resistor 0805 10k", "R1", Some("1%"), Some(vec!["1002"]), 0),
         ("resistor 0805 10k", "R2", Some("5%"), Some(vec!["103"]), 0),
         ("resistor 0805 10k", "R3", None, Some(vec!["103"]), 0),
@@ -812,6 +812,16 @@ fn generated_parts_mark_their_values_by_rule() -> TestResult {
             None,
             Some(vec!["470", "25V"]),
             1,
+        ),
+        // Moulded tantalum: the pF code and the voltage letter (Kyocera
+        // AVX TAJ), beside the anode band of the part file.
+        ("tantalum B 10u 16V", "C3", None, Some(vec!["106 C"]), 0),
+        (
+            "tantalum case A 4.7u 6.3V",
+            "C4",
+            None,
+            Some(vec!["475 J"]),
+            0,
         ),
     ];
     for (words, designator, tolerance, texts, marks) in cases {

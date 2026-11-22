@@ -264,7 +264,21 @@ fn asked<'a>(
                         .is_some_and(|w| same_word(w, word))
                         || p.aliases.iter().any(|a| same_word(a, word))
                 })?;
-                let first = preset.name.split_whitespace().next().unwrap_or(word);
+                // The word as the preset spells it: its name's first word,
+                // else the alias the text named.
+                let first = preset
+                    .name
+                    .split_whitespace()
+                    .next()
+                    .filter(|w| same_word(w, word))
+                    .or_else(|| {
+                        preset
+                            .aliases
+                            .iter()
+                            .find(|a| same_word(a, word))
+                            .map(String::as_str)
+                    })
+                    .unwrap_or(word);
                 out.words.push((name.clone(), first.to_owned()));
                 out.preset = Some(preset);
             }

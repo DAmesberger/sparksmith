@@ -490,8 +490,15 @@ fn item(graphic: &v1::Graphic) -> Result<Item> {
     })
 }
 
+/// Whether the generator marks the part complete without a body of its own
+/// (`Model::NoBody`: a fiducial, whose land the board draws).
+pub fn no_body(generation: &v1::Generation) -> bool {
+    matches!(generation.model, Some(v1::Model::NoBody))
+}
+
 /// The part file a generation's model names, by its SHA-256, and the
-/// values it gives it; refused when the generation has no model.
+/// values it gives it; refused when the generation has no model or none
+/// of its own.
 pub fn part_file(generation: &v1::Generation) -> Result<(ContentHash, &v1::Params)> {
     match &generation.model {
         Some(v1::Model::PartFile { asset, values }) => {
@@ -502,6 +509,9 @@ pub fn part_file(generation: &v1::Generation) -> Result<(ContentHash, &v1::Param
             })?;
             Ok((hash, values))
         }
+        Some(v1::Model::NoBody) => Err(refused(
+            "the generator makes this part without a body, so it names no part file".into(),
+        )),
         None => Err(refused(
             "the generator made no 3D model; a part needs one".into(),
         )),
@@ -545,13 +555,21 @@ fn package(
 ) -> Result<PackageDefinition> {
     let geometry = &generation.package.geometry;
     let [length, width, height] = geometry.envelope_nm;
-    let (_, values) = part_file(generation)?;
-    let PackageModel::PartFile(part) = &model else {
-        return Err(refused(
-            "a generated package's 3D model is its generator's part file".into(),
-        ));
-    };
-    part_values_match(values, &part.values)?;
+    if no_body(generation) {
+        if !matches!(model, PackageModel::NoBody) {
+            return Err(refused(
+                "the generator makes this package without a body; it takes no 3D model".into(),
+            ));
+        }
+    } else {
+        let (_, values) = part_file(generation)?;
+        let PackageModel::PartFile(part) = &model else {
+            return Err(refused(
+                "a generated package's 3D model is its generator's part file".into(),
+            ));
+        };
+        part_values_match(values, &part.values)?;
+    }
     let package = PackageDefinition {
         next_local: terminals.next_local(),
         terminals: generation
@@ -883,7 +901,8 @@ fn polarity(
     })
 }
 
-/// A generated copper keep-out: its polygon on every copper layer.
+/// A generated copper keep-out: its polygon on every copper layer, or on
+/// the outer layer its side names.
 fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
     let mm = |p: &v1::Point| point(*p).map(PointNm::to_mm_f64);
     let Some(first) = k.outline.first() else {
@@ -903,7 +922,11 @@ fn keepout(k: &v1::Keepout) -> Result<FootprintKeepout> {
     Ok(FootprintKeepout {
         name: k.name.clone(),
         outline: Outline { start, segments },
-        scope: KeepoutScope::AllCopper,
+        scope: match k.side {
+            None => KeepoutScope::AllCopper,
+            Some(v1::Side::Top) => KeepoutScope::ComponentSide,
+            Some(v1::Side::Bottom) => KeepoutScope::OppositeSide,
+        },
         forbid_pads: false,
     })
 }

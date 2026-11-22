@@ -436,6 +436,8 @@ pub enum GenericFamily {
     Diode,
     /// Aluminium electrolytic capacitors, SMD and radial.
     Electrolytic,
+    /// Moulded tantalum chip capacitors, cases A to E.
+    Tantalum,
 }
 
 impl GenericFamily {
@@ -449,6 +451,7 @@ impl GenericFamily {
             Self::Led => "led",
             Self::Diode => "diode",
             Self::Electrolytic => "electrolytic",
+            Self::Tantalum => "tantalum",
         }
     }
 }
