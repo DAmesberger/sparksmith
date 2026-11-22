@@ -535,7 +535,10 @@ fn a_long_datasheet_reaches_the_model_as_an_outline_and_the_pages_it_reads() -> 
     for (k, post) in posts.iter().enumerate() {
         let sent = post.2["messages"].to_string();
         for n in (1..=41u32).filter(|n| *n != 3) {
-            assert!(!sent.contains(&format!("BODY p{n} l20 ")), "request {k}: page {n}");
+            assert!(
+                !sent.contains(&format!("BODY p{n} l20 ")),
+                "request {k}: page {n}"
+            );
         }
         assert_eq!(sent.contains("BODY p3 l20 "), k == 1, "request {k}");
     }
@@ -574,10 +577,9 @@ fn a_run_stopped_by_its_limit_names_what_it_kept_with_undo() -> Fallible {
     assert!(!session.engine().drafts().items.is_empty());
     let card = person.events.iter().rev().find_map(|e| match e {
         WorkflowEvent::Card {
-            card:
-                ControlCard::Result {
-                    title, items, undo, ..
-                },
+            card: ControlCard::Result {
+                title, items, undo, ..
+            },
             ..
         } => Some((title.clone(), items.clone(), *undo)),
         _ => None,
@@ -588,7 +590,10 @@ fn a_run_stopped_by_its_limit_names_what_it_kept_with_undo() -> Fallible {
     let titles: Vec<&str> = items.iter().map(|i| i.title.as_str()).collect();
     assert_eq!(titles.first(), Some(&"Unfinished"), "{titles:?}");
     assert!(titles.contains(&"Drafts"), "{titles:?}");
-    let first = items.first().map(|i| i.value.to_string()).unwrap_or_default();
+    let first = items
+        .first()
+        .map(|i| i.value.to_string())
+        .unwrap_or_default();
     assert!(first.contains("Limit reached"), "{first}");
     assert!(matches!(
         person.events.last(),

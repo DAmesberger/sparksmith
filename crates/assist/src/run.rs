@@ -565,8 +565,7 @@ pub(crate) fn converse(
     let mut last_prompt = 0u64;
     let mut appended = 0u64;
     let mut first = true;
-    let fixed_chars =
-        (system.len() + serde_json::to_string(specs).map_or(0, |t| t.len())) as u64;
+    let fixed_chars = (system.len() + serde_json::to_string(specs).map_or(0, |t| t.len())) as u64;
     // Refused calls by tool and exact input since the last call that
     // succeeded, to notice a model repeating one.
     let mut refused: HashMap<(String, String), u32> = HashMap::new();

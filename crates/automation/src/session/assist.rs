@@ -977,7 +977,10 @@ mod tests {
         assert_eq!(got.lines().count(), 6, "{got}");
         assert!(got.starts_with("1: Heading 1 | body text"), "{got}");
         assert!(got.contains("\n6: Heading 6 | "), "{got}");
-        assert!(!got.contains("SBVS320C") && !got.contains("example.com"), "{got}");
+        assert!(
+            !got.contains("SBVS320C") && !got.contains("example.com"),
+            "{got}"
+        );
         for line in got.lines() {
             assert!(line.len() < OUTLINE_PAGE_CHARS + 16, "{line}");
         }

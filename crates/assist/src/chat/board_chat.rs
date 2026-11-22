@@ -519,7 +519,9 @@ fn placed() -> Fallible<(ChatConfig, Session, Vec<Message>)> {
         &config,
         &mut model,
         &mut history,
-        vec![Part::text("Place a 2-pin header, a 4.7k 0603 resistor and a red 0603 LED.")],
+        vec![Part::text(
+            "Place a 2-pin header, a 4.7k 0603 resistor and a red 0603 LED.",
+        )],
         &mut tools,
         &mut |_| {},
         &AtomicBool::new(false),

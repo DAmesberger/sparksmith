@@ -296,16 +296,10 @@ fn sentence(text: &str) -> String {
 /// pointer to nothing leaves its field out).
 fn resolved(declared: &Value, filled: &Value) -> bool {
     match declared {
-        Value::Object(map) if !(map.len() == 1 && map.contains_key("literal")) => {
-            map.iter().all(|(key, inner)| {
-                filled
-                    .get(key)
-                    .is_some_and(|value| resolved(inner, value))
-            })
-        }
-        Value::Array(list) => filled
-            .as_array()
-            .is_some_and(|got| got.len() == list.len()),
+        Value::Object(map) if !(map.len() == 1 && map.contains_key("literal")) => map
+            .iter()
+            .all(|(key, inner)| filled.get(key).is_some_and(|value| resolved(inner, value))),
+        Value::Array(list) => filled.as_array().is_some_and(|got| got.len() == list.len()),
         _ => true,
     }
 }

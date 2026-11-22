@@ -84,9 +84,13 @@ fn shared(ours: &reply::Touched, theirs: &reply::Touched) -> Vec<String> {
         let same = theirs.objects.contains_key(&(path.clone(), id.clone()))
             || theirs.fields.iter().any(|f| overlaps(f, path));
         if same {
-            let name = name
-                .clone()
-                .or_else(|| theirs.objects.get(&(path.clone(), id.clone())).cloned().flatten());
+            let name = name.clone().or_else(|| {
+                theirs
+                    .objects
+                    .get(&(path.clone(), id.clone()))
+                    .cloned()
+                    .flatten()
+            });
             both.push(match name {
                 Some(name) => format!("{name} ({path})"),
                 None => format!("{path} {id}"),
