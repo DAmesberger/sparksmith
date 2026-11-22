@@ -149,6 +149,7 @@ fn compare_board(board: &Path, dir: &Path) -> Result<(String, bool)> {
             base_name: Some("ours".into()),
             ..FabricationOptions::default()
         },
+        &Default::default(),
     )?;
     let ours: Vec<File> = set
         .files
@@ -476,6 +477,7 @@ mod tests {
         let set = fabrication::generate(
             &fabrication::ProductionSnapshot::resolve(imported.engine.project(), None)?,
             &FabricationOptions::default(),
+            &Default::default(),
         )?;
         let ours: Vec<File> = set
             .files

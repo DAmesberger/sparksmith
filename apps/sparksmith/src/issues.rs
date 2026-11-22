@@ -1522,6 +1522,7 @@ fn instance_of(engine: &Engine, object: &ObjectRef) -> Option<Id> {
     match *object {
         ObjectRef::Instance { id }
         | ObjectRef::Pad { instance: id, .. }
+        | ObjectRef::PadVia { instance: id, .. }
         | ObjectRef::Unit { instance: id, .. }
         | ObjectRef::Property { instance: id, .. } => Some(id),
         ObjectRef::Terminal { endpoint } => Some(endpoint.instance),

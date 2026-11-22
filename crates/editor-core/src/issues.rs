@@ -237,6 +237,9 @@ pub const NO_WAIVER: &[&str] = &[
     layout::dimensions::REFERENCE_INEXACT,
     crate::interface::findings::ASSEMBLY_CYCLE,
     "rules.no_fab_profile",
+    // Violations a fill's audit found but does not list: a waiver could
+    // not say which copper it accepts.
+    layout::fill::CLEARANCE_UNLISTED,
 ];
 
 /// Whether a finding of `code` may be waived (it is not in [`NO_WAIVER`]).

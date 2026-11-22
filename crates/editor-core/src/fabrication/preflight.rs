@@ -195,6 +195,7 @@ fn instead(code: &str) -> &'static str {
             "place the part (Update PCB); to leave it unassembled, mark it Not fitted in a variant"
         }
         "rules.no_fab_profile" => "choose a fab profile",
+        crate::layout::fill::CLEARANCE_UNLISTED => "refill the fill",
         _ => "re-pick or acknowledge the reference",
     }
 }

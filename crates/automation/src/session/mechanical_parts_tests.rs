@@ -165,6 +165,7 @@ fn the_starter_set_builds_in_3d_and_reaches_the_outputs() -> TestResult {
     let set = sparksmith_core::fabrication::generate(
         &sparksmith_core::fabrication::ProductionSnapshot::resolve(&project, None)?,
         &options,
+        &Default::default(),
     )?;
     assert!(!set.files.is_empty());
     let rows = sparksmith_core::fabrication::assembly::rows(

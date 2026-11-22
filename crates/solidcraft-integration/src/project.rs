@@ -2276,9 +2276,9 @@ fn via_style(
 }
 
 /// The washers of plated mounting holes, in the board's own component
-/// (the mounting holes are its sketch's), each ring on its layer as a via
-/// ring stands: outer rings on the laminate's faces, inner rings in the
-/// circle the foil level leaves for them.
+/// (the mounting holes are its sketch's), as a via's copper stands: the
+/// plated barrel through the laminate, outer rings on the laminate's
+/// faces, inner rings in the circle the foil level leaves for them.
 fn washers(b: &mut Builder, project: &Project, planned: &[plan::WasherPlan]) -> Result<()> {
     for body in planned.iter().flat_map(|w| &w.bodies) {
         let plan::Origin::Washer { layer, .. } = body.source else {
@@ -2287,11 +2287,18 @@ fn washers(b: &mut Builder, project: &Project, planned: &[plan::WasherPlan]) -> 
                 body.name
             )));
         };
-        let height = copper_param(layer);
-        let offset: Expr = match layer {
-            CopperLayer::Top => "board_thickness".into(),
-            CopperLayer::Bottom => format!("- {height}").into(),
-            CopperLayer::Inner(_) => inner_base(&project.stackup, layer)?.into(),
+        // The barrel spans the laminate, as a via's does.
+        let (offset, height): (Expr, String) = match layer {
+            None => (0.into(), "board_thickness".into()),
+            Some(layer) => {
+                let height = copper_param(layer);
+                let offset = match layer {
+                    CopperLayer::Top => "board_thickness".into(),
+                    CopperLayer::Bottom => format!("- {height}").into(),
+                    CopperLayer::Inner(_) => inner_base(&project.stackup, layer)?.into(),
+                };
+                (offset, height)
+            }
         };
         b.native.profile_body(ProfileBody {
             name: &body.name,

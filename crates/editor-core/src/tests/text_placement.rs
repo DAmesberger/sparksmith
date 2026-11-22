@@ -311,6 +311,7 @@ fn the_legend_gerber_prints_the_moved_text_where_the_command_put_it() -> Fallibl
         let set = fabrication::generate(
             &fabrication::ProductionSnapshot::resolve(engine.project(), None)?,
             &FabricationOptions::default(),
+            &Default::default(),
         )?;
         let file = set
             .files
