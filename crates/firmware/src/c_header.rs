@@ -38,6 +38,8 @@ pub fn emit(report: &PinConfigReport) -> String {
     }
     out.push_str(" */\n");
     let _ = writeln!(out, "#ifndef {guard}\n#define {guard}\n");
+    // NULL marks data the design does not state.
+    out.push_str("#include <stddef.h>\n\n");
     let assigned: Vec<&FirmwarePin> = report.pins.iter().filter(|p| p.assigned).collect();
     let defaults: Vec<&FirmwarePin> = report.pins.iter().filter(|p| !p.assigned).collect();
     if !defaults.is_empty() {
