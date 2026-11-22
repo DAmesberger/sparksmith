@@ -130,6 +130,11 @@ pub struct Viewport {
     /// The selected object's pick identities among `highlighted`, drawn in
     /// the strong selection tint (the rest are its net's).
     selected: Vec<u64>,
+    /// The model-space bounds of each selected object on a shown layer,
+    /// which the selection rings project each frame: made once per
+    /// selection, model and layers ([`Self::forget_rings`]), never per
+    /// frame, so an orbit with thousands selected stays linear.
+    ring_boxes: std::cell::OnceCell<Vec<Aabb3>>,
     slot: SceneSlot,
     key: u64,
     sketch_key: u64,
@@ -279,6 +284,7 @@ impl Viewport {
             bounds: Self::initial_bounds(),
             highlighted: vec![],
             selected: vec![],
+            ring_boxes: Default::default(),
             slot: Arc::new(Mutex::new(None)),
             key: next_key(),
             sketch_slot: Arc::new(Mutex::new(None)),
@@ -414,6 +420,7 @@ impl Viewport {
         self.model = Some(model);
         // Its bodies are new: a hover over the last model's is gone.
         self.hovered = None;
+        self.forget_rings();
         self.generation = self.generation.wrapping_add(1);
         self.repack = None;
         self.publish_stream(stream);
@@ -496,6 +503,7 @@ impl Viewport {
             return;
         }
         self.layers = layers;
+        self.forget_rings();
         // X-ray draws the copper see-through: the same repack.
         self.fade = self.wanted_fade();
         self.publish_shadows();
@@ -724,8 +732,41 @@ impl Viewport {
         if self.highlighted != ids || self.selected != selected {
             self.highlighted = ids;
             self.selected = selected;
+            self.forget_rings();
             self.publish_highlight();
         }
+    }
+
+    /// The selection, the model or the shown layers changed: the rings'
+    /// bounds are made again when next drawn.
+    fn forget_rings(&mut self) {
+        self.ring_boxes = Default::default();
+    }
+
+    /// The model-space bounds of each selected object's shown bodies, in
+    /// the order the model first names them: one pass over the geometry,
+    /// with the selection looked up by hash.
+    fn selected_boxes(&self) -> Vec<Aabb3> {
+        let Some(model) = self.model.as_ref().filter(|_| !self.selected.is_empty()) else {
+            return Vec::new();
+        };
+        let selected: std::collections::HashSet<u64> = self.selected.iter().copied().collect();
+        let mut at: std::collections::HashMap<u64, usize> = Default::default();
+        let mut boxes: Vec<Aabb3> = Vec::new();
+        for g in model.geometry.iter().filter(|g| self.layers.shows(g)) {
+            let Some(item) = g.item.filter(|i| selected.contains(i)) else {
+                continue;
+            };
+            let index = *at.entry(item).or_insert_with(|| {
+                boxes.push(Aabb3::EMPTY);
+                boxes.len() - 1
+            });
+            if let Some(b) = boxes.get_mut(index) {
+                b.add(Vec3::new(g.min[0], g.min[1], g.min[2]));
+                b.add(Vec3::new(g.max[0], g.max[1], g.max[2]));
+            }
+        }
+        boxes
     }
 
     /// The selection: cached flat blocks of the highlighted items in the
@@ -754,6 +795,7 @@ impl Viewport {
             &self.highlighted
         };
         if let Some(model) = &self.model {
+            let tinted: std::collections::HashSet<u64> = tinted.iter().copied().collect();
             scene.blocks = model
                 .highlight
                 .iter()
@@ -761,7 +803,6 @@ impl Viewport {
                 .map(|(_, _, block)| block.clone())
                 .collect();
             if !tinted.is_empty() {
-                let highlighted: std::collections::HashSet<u64> = tinted.iter().copied().collect();
                 let selected: std::collections::HashSet<u64> =
                     self.selected.iter().copied().collect();
                 let display = self.display_place();
@@ -770,7 +811,7 @@ impl Viewport {
                     .iter()
                     .filter(|i| self.layers.draws(i.layer))
                     .filter_map(|i| {
-                        i.highlight(&model.geometry, display.as_ref(), &highlighted, &selected)
+                        i.highlight(&model.geometry, display.as_ref(), &tinted, &selected)
                     })
                     .collect();
             }
@@ -809,30 +850,11 @@ impl Viewport {
     /// `width` × `height` view: each one's centre and radius in view
     /// points. Shown layers only; a net's other objects get none.
     fn selection_rings(&self, width: f64, height: f64) -> Vec<([f64; 2], f64)> {
-        let Some(model) = self.model.as_ref().filter(|_| !self.selected.is_empty()) else {
-            return Vec::new();
-        };
-        let mut boxes: Vec<(u64, Aabb3)> = Vec::new();
-        for g in model.geometry.iter().filter(|g| self.layers.shows(g)) {
-            let Some(item) = g.item.filter(|i| self.selected.contains(i)) else {
-                continue;
-            };
-            let at = match boxes.iter().position(|(i, _)| *i == item) {
-                Some(at) => at,
-                None => {
-                    boxes.push((item, Aabb3::EMPTY));
-                    boxes.len() - 1
-                }
-            };
-            if let Some((_, b)) = boxes.get_mut(at) {
-                b.add(Vec3::new(g.min[0], g.min[1], g.min[2]));
-                b.add(Vec3::new(g.max[0], g.max[1], g.max[2]));
-            }
-        }
+        let boxes = self.ring_boxes.get_or_init(|| self.selected_boxes());
         let radius = self.bounds.diagonal();
         boxes
-            .into_iter()
-            .filter_map(|(_, b)| {
+            .iter()
+            .filter_map(|b| {
                 let (lo, hi) = ([b.min.x, b.min.y, b.min.z], [b.max.x, b.max.y, b.max.z]);
                 let mut screen: Option<[f64; 4]> = None;
                 for k in 0..8 {
@@ -1572,6 +1594,8 @@ pub use decals::DecalRequest;
 mod navigation_tests;
 #[cfg(test)]
 mod pictures;
+#[cfg(test)]
+mod selection_tests;
 
 #[cfg(test)]
 mod tests {

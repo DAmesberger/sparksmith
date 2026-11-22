@@ -728,6 +728,18 @@ pub fn name_by_file(project: &mut Arc<Project>, file: &std::path::Path) -> Optio
     Some(project.name.clone())
 }
 
+/// The inputs of a check report ([`Engine::report_key`]): equal keys give
+/// equal reports.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReportKey {
+    revision: u64,
+    /// The document's identity: a state can change without a revision (a
+    /// first save's project identity), never without a new allocation.
+    project: usize,
+    drafts: usize,
+    checks: layout::CheckSettings,
+}
+
 /// The document, its revision and one shared undo history.
 ///
 /// Every mutation is staged on a candidate and validated before it replaces
@@ -869,6 +881,20 @@ impl Engine {
     /// The check settings the host set ([`Self::set_check_settings`]).
     pub fn check_settings(&self) -> &layout::CheckSettings {
         &self.check_settings
+    }
+
+    /// What a check report of this engine is computed from: the document
+    /// state and the host's check settings. A view that caches findings
+    /// (Issues, the inspector's slot, the production check) keys them on
+    /// this, so a settings change (the impedance tolerance) refreshes every
+    /// view together, though it takes no revision.
+    pub fn report_key(&self) -> ReportKey {
+        ReportKey {
+            revision: self.revision,
+            project: Arc::as_ptr(&self.document.project) as usize,
+            drafts: Arc::as_ptr(&self.document.drafts) as usize,
+            checks: self.check_settings,
+        }
     }
 
     fn with_document(document: Document) -> Self {

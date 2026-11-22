@@ -15,8 +15,7 @@ use crate::refusal::{self, Origin};
 use crate::symbol_view::{self, View};
 use egui::{Align2, Color32, FontId, PointerButton, Pos2, Rect, Sense, Shape, Stroke, Ui, Vec2};
 use sparksmith_core::{
-    CopperLayer, Engine, Id, Layer, ObjectRef, Operation, Placement, Point, Project, Query,
-    QueryResult, Via,
+    CopperLayer, Engine, Id, Layer, ObjectRef, Operation, Placement, Point, Project, Via,
     geometry::{Bounds, Shape as CoreShape, Transform2},
     instances,
     issues::{IssueArea, IssueScope},
@@ -516,8 +515,15 @@ pub struct PcbEditor {
     net_classes: Option<net_classes::NetClassesCard>,
     /// The Assembly variants card while it is open.
     variants: Option<variants_card::VariantsCard>,
-    /// The issue slot of the last inspected subject, per document revision.
-    issue_slot: Option<((u64, usize, Inspected), Option<IssueSlot>)>,
+    /// The issue slot of the last inspected subject, per report of every
+    /// area and document state.
+    issue_slot: Option<(
+        (crate::issue_reports::ViewKey, Inspected),
+        Option<IssueSlot>,
+    )>,
+    /// The window's one report of every area, which the issue slot
+    /// projects from ([`crate::issue_reports`]).
+    reports: crate::issue_reports::SharedReports,
     /// The selected copper fill.
     fill: Option<Id>,
     /// The fills' display copper, kept while their copper is unchanged.
@@ -654,6 +660,7 @@ impl Default for PcbEditor {
             net_classes: None,
             variants: None,
             issue_slot: None,
+            reports: Default::default(),
             fill: None,
             fill_meshes: Default::default(),
             stale_fills: BTreeSet::new(),
@@ -1474,21 +1481,28 @@ impl PcbEditor {
         }
     }
 
-    /// The issue slot of `inspected`: its Board issues from the one
-    /// `project.issues` query, cached per document revision. `None` (an
-    /// empty slot) when the query refuses.
+    /// Project the issue slot from `reports`, the window's one report of
+    /// every area, which the Issues surface shares.
+    pub fn share_reports(&mut self, reports: crate::issue_reports::SharedReports) {
+        self.reports = reports;
+        self.issue_slot = None;
+    }
+
+    /// The issue slot of `inspected`: its Board issues projected from the
+    /// one report of every area ([`crate::issue_reports`]), kept until that
+    /// report or the subject changes. `None` (an empty slot) when the
+    /// query refuses or before the first report.
     fn issue_slot(&mut self, engine: &Engine, inspected: Inspected) -> Option<IssueSlot> {
-        let key = (
-            engine.revision(),
-            std::sync::Arc::as_ptr(engine.project_arc()) as usize,
-            inspected,
-        );
+        let Some(crate::issues::Answer::Report(whole)) = self.reports.latest(engine) else {
+            return None;
+        };
+        let key = (crate::issue_reports::view_key(&whole, engine), inspected);
         if let Some((cached, slot)) = &self.issue_slot
             && *cached == key
         {
             return slot.clone();
         }
-        let slot = issue_slot_of(engine, inspected);
+        let slot = issue_slot_of(engine, &whole, inspected);
         self.issue_slot = Some((key, slot.clone()));
         slot
     }
@@ -3335,7 +3349,11 @@ fn locate(objects: &[sparksmith_core::diagnostics::ObjectRef]) -> Option<Selecti
 
 /// The Board issues on `inspected` and the words after their counts ("on
 /// R13"), from `project.issues`. The board card counts the whole board.
-fn issue_slot_of(engine: &Engine, inspected: Inspected) -> Option<IssueSlot> {
+fn issue_slot_of(
+    engine: &Engine,
+    whole: &sparksmith_core::issues::IssueReport,
+    inspected: Inspected,
+) -> Option<IssueSlot> {
     let project = engine.project();
     let designator = |id: Id| {
         project
@@ -3373,9 +3391,7 @@ fn issue_slot_of(engine: &Engine, inspected: Inspected) -> Option<IssueSlot> {
         // A group's findings are on its objects' own cards.
         Inspected::Group => return None,
     };
-    let Ok(QueryResult::Issues(report)) = engine.query(Query::Issues { scope }) else {
-        return None;
-    };
+    let report = whole.scoped(&scope, project);
     let mut counts = sparksmith_core::issues::IssueCounts::default();
     for row in report.rows.iter().filter(|r| r.area == IssueArea::Board) {
         let slot = match row.severity {
@@ -3609,7 +3625,7 @@ mod tests {
     use super::*;
     use crate::schematic_editor::{mdeg, nm, pt};
     use sparksmith_core::layout::RouteRequest;
-    use sparksmith_core::{Fabrication, MaskColour};
+    use sparksmith_core::{Fabrication, MaskColour, Query, QueryResult};
 
     fn ids(engine: &Engine) -> (Id, Id) {
         let id = |d| {

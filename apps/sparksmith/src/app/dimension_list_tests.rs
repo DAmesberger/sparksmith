@@ -271,6 +271,13 @@ fn the_updating_chip_sits_beside_the_issues_badge() -> Fallible {
         }),
     )?;
     ax.frame(vec![]);
+    // The issues are checked off the UI thread, in milliseconds here.
+    assert!(
+        ax.app
+            .issues
+            .wait_current(&ax.app.engine, std::time::Duration::from_secs(30)),
+        "the issues of the moved part are checked"
+    );
     ax.frame(vec![]);
     let now = crate::scene::ModelKey::Project(Arc::clone(ax.app.engine.project_arc()));
     assert_eq!(

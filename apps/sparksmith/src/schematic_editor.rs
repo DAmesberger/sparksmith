@@ -306,7 +306,10 @@ pub struct SchematicEditor {
     /// sent on.
     join_watch: Option<(u64, String, Option<u64>)>,
     /// The subject's issue slot at one document (revision and project).
-    slot: Option<(u64, usize, Subject, Option<IssueSlot>)>,
+    slot: Option<(crate::issue_reports::ViewKey, Subject, Option<IssueSlot>)>,
+    /// The window's one report of every area, which the issue slot
+    /// projects from ([`crate::issue_reports`]).
+    reports: crate::issue_reports::SharedReports,
     /// Sheet bounds a locate asked the canvas to bring into view.
     frame_request: Option<Bounds>,
     /// The net card lists every member instead of the first eight.
@@ -430,6 +433,7 @@ impl Default for SchematicEditor {
             purchasing_watch: None,
             join_watch: None,
             slot: None,
+            reports: Default::default(),
             frame_request: None,
             all_members: false,
             placed: Arc::default(),
@@ -1334,13 +1338,24 @@ impl SchematicEditor {
         }
     }
 
+    /// Project the issue slot from `reports`, the window's one report of
+    /// every area, which the Issues surface shares.
+    pub fn share_reports(&mut self, reports: crate::issue_reports::SharedReports) {
+        self.reports = reports;
+        self.slot = None;
+    }
+
     /// The issue slot of `subject`: what `project.issues` counts on it in
-    /// the Schematic area ("on R1", "on N3", "in the schematic"), once per
-    /// document revision. Subjects that are commands have no slot.
+    /// the Schematic area ("on R1", "on N3", "in the schematic"), projected
+    /// from the one report of every area ([`crate::issue_reports`]) and
+    /// kept until that report or the subject changes. Subjects that are
+    /// commands have no slot, nor any before the first report.
     fn issue_slot(&mut self, engine: &Engine, subject: Subject) -> Option<IssueSlot> {
-        let document = Arc::as_ptr(engine.project_arc()) as usize;
-        if let Some((revision, at, cached, slot)) = &self.slot
-            && *revision == engine.revision()
+        let Some(crate::issues::Answer::Report(whole)) = self.reports.latest(engine) else {
+            return None;
+        };
+        let document = crate::issue_reports::view_key(&whole, engine);
+        if let Some((at, cached, slot)) = &self.slot
             && *at == document
             && *cached == subject
         {
@@ -1381,10 +1396,8 @@ impl SchematicEditor {
             ),
             _ => (IssueScope::All, None),
         };
-        let slot = label.and_then(|label| {
-            let Ok(QueryResult::Issues(report)) = engine.query(Query::Issues { scope }) else {
-                return None;
-            };
+        let slot = label.map(|label| {
+            let report = whole.scoped(&scope, project);
             // The slot counts what the Schematic's Issues show for it.
             let mut counts = IssueCounts::default();
             for row in report
@@ -1400,13 +1413,13 @@ impl SchematicEditor {
                 };
                 *count = count.saturating_add(1);
             }
-            Some(IssueSlot {
+            IssueSlot {
                 counts,
                 label,
                 whole: subject == Subject::Sheet,
-            })
+            }
         });
-        self.slot = Some((engine.revision(), document, subject, slot.clone()));
+        self.slot = Some((document, subject, slot.clone()));
         slot
     }
 

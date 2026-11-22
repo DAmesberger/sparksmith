@@ -280,25 +280,54 @@ fn report_in(
         let selected = Selected::of(scope);
         move |r| in_scope(r, scope, &selected)
     });
-    let mut elsewhere = Vec::new();
-    if matches!(scope, IssueScope::Area { .. }) {
-        for area in [IssueArea::Component, IssueArea::Schematic, IssueArea::Board] {
-            let outside: Vec<&IssueRow> = rest.iter().filter(|r| r.area == area).collect();
-            if !outside.is_empty() {
-                elsewhere.push(AreaCount {
-                    area,
-                    counts: counts(outside.iter().copied()),
-                    blocking: outside.iter().filter(|r| r.blocks().is_some()).count(),
-                });
-            }
-        }
-    }
     Ok(IssueReport {
         counts: counts(rows.iter()),
+        elsewhere: elsewhere(rest.iter(), scope),
         rows,
-        elsewhere,
         coverage: coverage(scope, project),
     })
+}
+
+impl IssueReport {
+    /// The report of `scope`, from `self`, the report of every area
+    /// ([`IssueScope::All`]) of `project`: equal to [`report`] of `scope`
+    /// on the same state, without running a check again. A host keeps one
+    /// report per state and check settings and projects each view (an
+    /// area, a selection, one object's slot) from it.
+    pub fn scoped(&self, scope: &IssueScope, project: &Project) -> IssueReport {
+        let selected = Selected::of(scope);
+        let (rows, rest): (Vec<&IssueRow>, Vec<&IssueRow>) = self
+            .rows
+            .iter()
+            .partition(|r| in_scope(r, scope, &selected));
+        IssueReport {
+            counts: counts(rows.iter().copied()),
+            elsewhere: elsewhere(rest.into_iter(), scope),
+            rows: rows.into_iter().cloned().collect(),
+            coverage: coverage(scope, project),
+        }
+    }
+}
+
+/// The areas an area scope leaves out that hold issues, from the rows
+/// outside it.
+fn elsewhere<'a>(rest: impl Iterator<Item = &'a IssueRow>, scope: &IssueScope) -> Vec<AreaCount> {
+    let mut elsewhere = Vec::new();
+    if !matches!(scope, IssueScope::Area { .. }) {
+        return elsewhere;
+    }
+    let rest: Vec<&IssueRow> = rest.collect();
+    for area in [IssueArea::Component, IssueArea::Schematic, IssueArea::Board] {
+        let outside: Vec<&IssueRow> = rest.iter().copied().filter(|r| r.area == area).collect();
+        if !outside.is_empty() {
+            elsewhere.push(AreaCount {
+                area,
+                counts: counts(outside.iter().copied()),
+                blocking: outside.iter().filter(|r| r.blocks().is_some()).count(),
+            });
+        }
+    }
+    elsewhere
 }
 
 /// The user's name of each of `objects`, in order, as issue titles name

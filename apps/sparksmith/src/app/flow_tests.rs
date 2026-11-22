@@ -575,7 +575,7 @@ fn a_placement_says_what_it_joined_and_the_issues_it_added() -> Fallible {
         let workspace = h.app.workspace;
         h.app
             .issues
-            .summary(&h.app.engine, workspace)
+            .counted_now(&h.app.engine, workspace)
             .counts()
             .map(|c| c.error + c.warning + c.to_do + c.info)
             .ok_or("not counted")

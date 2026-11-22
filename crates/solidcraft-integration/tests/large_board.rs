@@ -7,132 +7,29 @@
 //!
 //! `cargo test --profile ci -p sparksmith-solidcraft --test large_board -- --ignored --nocapture`
 //! (release-like; a debug build is several times slower).
+mod large_board_fixture;
+
+use large_board_fixture::{BOARD, Fallible, TRACK_WIDTH, VIA_GRID, large_board};
 use sparksmith_core::issues::IssueScope;
 use sparksmith_core::layout::fill::RefillTarget;
 use sparksmith_core::layout::{self, LayoutCommand, RouteRequest};
-use sparksmith_core::model::{Layer, Placement, Stackup};
-use sparksmith_core::{Engine, Id, Operation, Project, Query, Track, Via, ViaSpan, format};
+use sparksmith_core::model::Layer;
+use sparksmith_core::{Engine, ObjectRef, Operation, Query, QueryResult, format};
 use sparksmith_solidcraft::models::imported::SourceCache;
 use sparksmith_solidcraft::project::{self, Flat, plan};
 use std::time::Instant;
-
-type Fallible<T = ()> = Result<T, Box<dyn std::error::Error>>;
-
-/// Via field: `VIA_GRID` × `VIA_GRID` through vias at `PITCH`.
-const VIA_GRID: usize = 100;
-const PITCH: f64 = 1.27;
-/// Clear of the showcase's own parts and copper, which stay where they are.
-const VIA_ORIGIN: [f64; 2] = [80.0, 10.0];
-/// Routed channels between via rows, on every copper layer, of segments
-/// two pitches long.
-const SEGMENT_PITCHES: usize = 2;
-const TRACK_WIDTH: f64 = 0.15;
-const PLACEMENTS: usize = 2_000;
-/// Placement grid pitch, mm; above the via field.
-const PART_PITCH: f64 = 9.0;
-const PART_ORIGIN: [f64; 2] = [12.0, 150.0];
-const BOARD: [f64; 2] = [500.0, 560.0];
 
 fn ms(start: Instant) -> f64 {
     start.elapsed().as_secs_f64() * 1e3
 }
 
-/// The large board: the showcase's 4-layer copy with its small parts
-/// repeated `PLACEMENTS` times, `VIA_GRID`² vias on two nets and about
-/// 20,000 tracks in the channels between them. Legal by construction:
-/// via gap 0.67 mm, track to via 0.26 mm, parts 9 mm apart.
-fn large_board() -> Fallible<Project> {
-    let mut p = Engine::showcase()?.project().clone();
-    p.stackup = Stackup::preset(4)?;
-    p.board_size = BOARD;
-    for fill in p.fills.iter_mut() {
-        fill.computed = None;
-    }
-    let nets: Vec<Id> = p.nets.iter().map(|n| n.id).collect();
-    let [a, b] = [nets[0], nets[1 % nets.len()]];
-    // Parts: the showcase's placed parts whose pads fit a pitch cell.
-    let pads = layout::pads(&p);
-    let template: Vec<Placement> = p
-        .placements
-        .iter()
-        .filter(|placement| {
-            pads.iter()
-                .filter(|pad| pad.instance == placement.instance)
-                .all(|pad| {
-                    (pad.position[0] - placement.position[0]).abs() < PART_PITCH * 0.3
-                        && (pad.position[1] - placement.position[1]).abs() < PART_PITCH * 0.3
-                })
-        })
-        .cloned()
-        .collect();
-    assert!(!template.is_empty(), "no small parts to repeat");
-    let columns = ((BOARD[0] - 2.0 * PART_ORIGIN[0]) / PART_PITCH) as usize;
-    for k in 0..PLACEMENTS {
-        let source = &template[k % template.len()];
-        let mut instance = p
-            .instance(source.instance)
-            .ok_or("template instance")?
-            .clone();
-        let id = p.allocate()?;
-        instance.id = id;
-        instance.designator = format!("{}S{k}", instance.designator);
-        p.instances.push(instance);
-        p.placements.push(Placement {
-            instance: id,
-            position: [
-                PART_ORIGIN[0] + (k % columns) as f64 * PART_PITCH,
-                PART_ORIGIN[1] + (k / columns) as f64 * PART_PITCH,
-            ],
-            rotation_deg: 0.0,
-            layer: Layer::Top,
-            locked: false,
-            fill_override: Default::default(),
-            pad_fill_overrides: Vec::new(),
-        });
-    }
-    // Each new part's terminals start on nets of their own, as placing a
-    // part from the library leaves them.
-    sparksmith_core::nets::reconcile(&mut p)?;
-    for i in 0..VIA_GRID {
-        for j in 0..VIA_GRID {
-            let id = p.allocate()?;
-            p.vias.push(Via {
-                id,
-                net: if (i + j) % 2 == 0 { a } else { b },
-                position: [
-                    VIA_ORIGIN[0] + i as f64 * PITCH,
-                    VIA_ORIGIN[1] + j as f64 * PITCH,
-                ],
-                drill: 0.3,
-                diameter: 0.6,
-                span: ViaSpan::Through,
-                tented: true,
-                locked: false,
-            });
-        }
-    }
-    let layers = p.stackup.layers();
-    let length = SEGMENT_PITCHES as f64 * PITCH;
-    for (l, layer) in layers.iter().enumerate() {
-        for row in 0..VIA_GRID - 1 {
-            let y = VIA_ORIGIN[1] + (row as f64 + 0.5) * PITCH;
-            let net = if (row + l) % 2 == 0 { a } else { b };
-            for s in 0..(VIA_GRID - 1) / SEGMENT_PITCHES {
-                let x = VIA_ORIGIN[0] + s as f64 * length;
-                let id = p.allocate()?;
-                p.tracks.push(Track {
-                    id,
-                    net,
-                    start: [x, y],
-                    end: [x + length, y],
-                    width: TRACK_WIDTH,
-                    layer: *layer,
-                    locked: false,
-                });
-            }
-        }
-    }
-    Ok(p)
+/// Best and median of `times`, ms.
+fn best_median(times: &mut [f64]) -> (f64, f64) {
+    times.sort_by(f64::total_cmp);
+    (
+        times.first().copied().unwrap_or(f64::NAN),
+        times.get(times.len() / 2).copied().unwrap_or(f64::NAN),
+    )
 }
 
 #[test]
@@ -222,10 +119,68 @@ fn large_board_timings() -> Fallible {
         "the checks stopped at a limit"
     );
     let start = Instant::now();
-    engine.query(Query::Issues {
+    let QueryResult::Issues(whole) = engine.query(Query::Issues {
         scope: IssueScope::All,
-    })?;
-    eprintln!("project.issues (every area): {:.0} ms", ms(start));
+    })?
+    else {
+        return Err("not an issue report".into());
+    };
+    eprintln!(
+        "project.issues (every area): {:.0} ms, {} rows",
+        ms(start),
+        whole.rows.len()
+    );
+    // A selection's issues as the UI path gets them: the selection-scoped
+    // query (what a cache miss ran on the UI thread before 22 November
+    // 2026) against the projection from the one report of every area
+    // (`IssueReport::scoped`, what the views do now). Each must equal the
+    // other.
+    let p = engine.project();
+    let selections: Vec<(&str, Vec<ObjectRef>)> = vec![
+        (
+            "one part",
+            vec![ObjectRef::Instance {
+                id: p.placements.last().ok_or("part")?.instance,
+            }],
+        ),
+        (
+            "one track",
+            vec![ObjectRef::Track {
+                id: p.tracks.get(p.tracks.len() / 2).ok_or("track")?.id,
+            }],
+        ),
+        (
+            "every track (19,462)",
+            p.tracks
+                .iter()
+                .map(|t| ObjectRef::Track { id: t.id })
+                .collect(),
+        ),
+    ];
+    for (what, objects) in selections {
+        let scope = IssueScope::Selection { objects };
+        let mut query = Vec::new();
+        let mut projected = Vec::new();
+        for _ in 0..5 {
+            let start = Instant::now();
+            let QueryResult::Issues(asked) = engine.query(Query::Issues {
+                scope: scope.clone(),
+            })?
+            else {
+                return Err("not an issue report".into());
+            };
+            query.push(ms(start));
+            let start = Instant::now();
+            let scoped = whole.scoped(&scope, engine.project());
+            projected.push(ms(start));
+            assert_eq!(scoped, asked, "the projection equals the query");
+        }
+        let (qb, qm) = best_median(&mut query);
+        let (pb, pm) = best_median(&mut projected);
+        eprintln!(
+            "selection issues, {what}: query best {qb:.1} / median {qm:.1} ms; projection best {pb:.3} / median {pm:.3} ms"
+        );
+    }
 
     // Typical edits, each a committed operation through the engine.
     let via = engine.project().vias[VIA_GRID * VIA_GRID / 2].clone();
