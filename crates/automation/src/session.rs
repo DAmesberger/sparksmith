@@ -1488,6 +1488,9 @@ impl Session {
                     _ => None,
                 };
                 let summarised = matches!(query, Query::CheckDrafts { detail: false });
+                // The pins a wiring apply reads come with the revision it
+                // is prepared against.
+                let wiring = matches!(query, Query::PartPins { .. });
                 let mut reply = serde_json::to_value(self.engine.query_using(
                     query,
                     &self.sources.context(),
@@ -1499,6 +1502,9 @@ impl Session {
                 }
                 if summarised {
                     reply::summarise_finding_objects(&mut reply["result"]);
+                }
+                if wiring {
+                    reply["revision"] = json!(self.engine.revision());
                 }
                 return Ok(reply);
             }

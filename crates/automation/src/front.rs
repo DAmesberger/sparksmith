@@ -277,16 +277,22 @@ impl Session {
     }
 }
 
+/// Entries that only put a card in the chat, which the busy rule lets
+/// through.
+const CHAT_CARDS: [&str; 2] = ["assist.ask", "assist.offer"];
+
 /// The busy rule: while the person holds `window` (typing, dragging, a
 /// menu, dialog or review), a call of `class` other than a read or a dry
-/// run is refused with `live.busy`, naming why.
+/// run is refused with `live.busy`, naming why; a chat card never is.
 pub fn busy(
     window: &dyn WindowHost,
     subject: &str,
     class: sparksmith_core::Class,
     dry_run: bool,
 ) -> Option<Box<Error>> {
-    if class == sparksmith_core::Class::Read || dry_run {
+    // A card in the chat (a question, an offer) changes neither the
+    // document nor what the person is working on.
+    if class == sparksmith_core::Class::Read || dry_run || CHAT_CARDS.contains(&subject) {
         return None;
     }
     window.busy().map(|reason| {

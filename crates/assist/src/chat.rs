@@ -276,9 +276,10 @@ pub fn turn(
             .div_ceil(CHARS_PER_TOKEN)
     };
     let context = profile.capabilities.context_tokens;
+    let window = policy.window(context);
     // At the turn's start, a boundary: condense, and summarise the earlier
     // turns if even that leaves too much.
-    let share = |history: &[Message]| estimate(history) as f64 / context.max(1) as f64;
+    let share = |history: &[Message]| estimate(history) as f64 / window.max(1) as f64;
     let before = estimate(history);
     let over = share(history) > policy.trigger;
     let mut condensed = context::condense(history, policy, context, &estimate);
@@ -326,7 +327,17 @@ pub fn turn(
     if let Some(condensed) = condensed {
         events(Event::Condensed(condensed));
     }
+    // Tokens at the turn's last change: reading past the policy's idle
+    // allowance with nothing changed ends the turn with what to do.
+    let mut changed_at = 0u64;
     let end = loop {
+        let spent = usage(&tally).tokens;
+        if spent.saturating_sub(changed_at) > policy.idle_tokens {
+            break End::Limit(format!(
+                "about {} k tokens of reading without a change; nothing more was sent. Name the parts and pins to connect (\"R3 pin 2 to U1 EN\"), or select them, and ask again",
+                spent.saturating_sub(changed_at) / 1_000
+            ));
+        }
         let allowance = match (crate::request::Driver {
             backend,
             budget,
@@ -468,6 +479,13 @@ pub fn turn(
             }));
             let answer = tools.call(&name, &input);
             let ok = answer["ok"] == true;
+            // An edit, an action or a question the person answered moves
+            // the turn on.
+            let asked = name == crate::verbs::SHOW
+                && matches!(input["name"].as_str(), Some("assist.ask" | "assist.offer"));
+            if ok && (asked || matches!(name.as_str(), crate::verbs::APPLY | crate::verbs::ACT)) {
+                changed_at = usage(&tally).tokens;
+            }
             let mut body = if ok {
                 answer["result"].clone()
             } else {

@@ -1,10 +1,10 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "7.18", "digest": "sha256:de5e777f7dcdf86c0156b59ad682d77c4e47c36749bfe3839ae9d56e46f8614c", "entries": [
+ {"id": "project", "version": "7.19", "digest": "sha256:a1756998c3cdfde0a380e33a19a1e4d84d5df0b2aaff7e1c5f8ac9e98b64cf8d", "entries": [
   {"name":"project.apply","class":"edit","schema":"986931477e1c53b4","fields":[["expected_revision","9295ea67127970c6"],["operation","5e92132f9bf27527"]],"required":["expected_revision","operation"]},
   {"name":"project.apply_all","class":"edit","schema":"fc8b9b4061524a37","fields":[["expected_revision","9295ea67127970c6"],["operations","b88dd219736c5653"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"project.inspect","class":"read","schema":"249aa00f4b2dbec1","fields":[["at","40bd5b57f4261fe2"]],"required":[]},
-  {"name":"project.query","class":"read","schema":"bd4da3e80ac7bb72","fields":[],"required":[]},
+  {"name":"project.query","class":"read","schema":"e8f254a0cd72d06f","fields":[],"required":[]},
   {"name":"project.redo","class":"edit","schema":"5d360ab06dd84fb0","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]},
   {"name":"project.rename","class":"edit","schema":"92c2e30151865925","fields":[["name","f186891b5656c9ae"]],"required":["name"]},
   {"name":"project.schema","class":"read","schema":"7e398ef3b2cf4d96","fields":[["def","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"]],"required":[]},
@@ -27,7 +27,7 @@
   {"name":"project.open","class":"ask","schema":"7317cdb697af20e5","fields":[["expected_revision","9295ea67127970c6"],["path","f186891b5656c9ae"]],"required":["expected_revision","path"]},
   {"name":"project.save","class":"ask","schema":"d6b27c72606417bf","fields":[["path","40bd5b57f4261fe2"]],"required":[]}
  ]},
- {"id": "schematic", "version": "1.6", "digest": "sha256:c625a1767890351d77fa1b95428d619c0434bc963eb5e3872e23ea7cf662755e", "entries": [
+ {"id": "schematic", "version": "1.7", "digest": "sha256:7ca99e78e67a4d1d6b9d3fa7a9e2f2100c4c1354110bb69cfa81a24c98fad7b3", "entries": [
   {"name":"component.inspect","class":"read","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
   {"name":"component.place","class":"edit","schema":"c33c11f7baa52915","fields":[["component","22aa48fd0ddcd4f9"],["designator","428293de17850c2e"],["physical","022b01e9723dbee2"],["position","bb2fc2c0f053c755"],["properties","008c01f70eeca47c"],["representation","6fcbdbe3a9c678cf"],["sheet","3b67158582ea34e4"],["unit","3b67158582ea34e4"]],"required":["component"]},
   {"name":"component.remove","class":"edit","schema":"d0db1335626b7e65","fields":[["instance","9295ea67127970c6"]],"required":["instance"]},
@@ -62,6 +62,7 @@
   {"name":"schematic.net_places","class":"read","schema":"1cae6f693afb7b2c","fields":[["net","9295ea67127970c6"]],"required":["net"]},
   {"name":"schematic.net_rename","class":"edit","schema":"d0b91a176a61140e","fields":[["name","f186891b5656c9ae"],["net","9295ea67127970c6"]],"required":["name","net"]},
   {"name":"schematic.paste","class":"edit","schema":"8acd995c19f0779d","fields":[["clip","099726713dbac75e"],["offset","3a24a71d71b5fbb1"],["sheet","3b67158582ea34e4"]],"required":["clip","offset"]},
+  {"name":"schematic.pins","class":"read","schema":"8649c33cede45de9","fields":[["designators","1e052309e6b92305"]],"required":["designators"]},
   {"name":"schematic.scene","class":"read","schema":"d25f03721ddf4c75","fields":[["sheet","4fc1bca01b237b23"]],"required":["sheet"]},
   {"name":"schematic.set_net_disagreements","class":"edit","schema":"7b5542040b839eaa","fields":[["disagreements","38c3c689edc0872d"]],"required":["disagreements"]},
   {"name":"schematic.sheets","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},

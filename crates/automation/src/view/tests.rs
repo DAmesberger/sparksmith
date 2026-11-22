@@ -151,6 +151,20 @@ fn a_busy_window_refuses_steering_but_answers_reads() -> Fallible {
         call("view.context", json!({})),
     );
     assert!(context.is_ok(), "{context:?}");
+    // A question card goes to the chat, not under the person's hands: it
+    // shows while they drag (E2E run 13 saw it refused twice).
+    let asked = run(
+        &mut session,
+        Some(&mut window),
+        call(
+            "assist.ask",
+            json!({"questions": [{"id": "go", "title": "Build it?", "type": "single",
+                "options": [{"value": "build", "title": "Build it"},
+                            {"value": "change", "title": "Change something"}]}]}),
+        ),
+    );
+    assert!(asked.is_ok(), "{asked:?}");
+    assert_eq!(window.asks.len(), 1);
     Ok(())
 }
 

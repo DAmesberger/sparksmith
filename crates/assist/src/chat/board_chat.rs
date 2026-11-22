@@ -492,3 +492,226 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
     assert!(prompts.iter().all(|p| *p < 25_000), "{prompts:?}");
     Ok(())
 }
+
+/// A fresh project with J1, R1 and D1 placed by the script's first six
+/// steps, and the conversation that placed them.
+fn placed() -> Fallible<(ChatConfig, Session, Vec<Message>)> {
+    let library = ChatLibrary::locate()?;
+    let config = ChatConfig::new(
+        &library,
+        crate::model::ModelProfile::anthropic("claude-opus-5-5"),
+        unbounded(),
+    );
+    let mut session = fresh()?;
+    let grant = library.reach.grant();
+    let mut history = Vec::new();
+    let mut model = Scripted {
+        steps: steps().into_iter().take(6).collect(),
+        n: 0,
+        sent: Vec::new(),
+    };
+    let mut tools = Verbs {
+        session: &mut session,
+        grant: &grant,
+        refused: Vec::new(),
+    };
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text("Place a 2-pin header, a 4.7k 0603 resistor and a red 0603 LED.")],
+        &mut tools,
+        &mut |_| {},
+        &AtomicBool::new(false),
+    );
+    assert_eq!(outcome.end, End::Answered);
+    assert!(tools.refused.is_empty(), "{:#?}", tools.refused);
+    Ok((config, session, history))
+}
+
+/// Earlier turns of a long conversation: `n` messages that each read a
+/// 12 000-character reply, about 4 000 tokens apiece.
+fn long_past(history: &mut Vec<Message>, n: usize) {
+    for k in 0..n {
+        let id = format!("old{k}");
+        history.push(Message {
+            role: Role::User,
+            content: vec![Part::text(format!("Earlier question {k}."))],
+        });
+        history.push(Message {
+            role: Role::Assistant,
+            content: vec![Part::ToolCall {
+                id: id.clone(),
+                name: "query".into(),
+                input: json!({"name": "project.inspect", "params": {"at": "/project/instances"}}),
+                malformed: None,
+                replay: None,
+            }],
+        });
+        history.push(Message {
+            role: Role::User,
+            content: vec![Part::ToolResult {
+                call_id: id,
+                text: format!("{{\"rows\": \"{}\"}}", "x".repeat(12_000)),
+                error: false,
+                images: Vec::new(),
+            }],
+        });
+        history.push(Message {
+            role: Role::Assistant,
+            content: vec![Part::text("Done.")],
+        });
+    }
+}
+
+/// The terminal of the pin named `name` in a `schematic.pins` part.
+fn pin(part: &Value, name: &str) -> Value {
+    part["pins"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|row| row[2] == name)
+        .map_or(Value::Null, |row| row[0].clone())
+}
+
+#[test]
+fn wiring_placed_parts_takes_one_read_and_one_apply_on_a_long_conversation() -> Fallible {
+    let (config, mut session, mut history) = placed()?;
+    // About 80 000 tokens of earlier turns: a 1 000 000-token model's
+    // trigger alone would never condense them.
+    long_past(&mut history, 20);
+    let grant = ChatLibrary::locate()?.reach.grant();
+    let mut steps: Vec<Step> = Vec::new();
+    // 1. The parts' pins, one compact read.
+    steps.push(Box::new(|_| {
+        vec![(
+            "query",
+            json!({"name": "schematic.pins", "params": {"designators": ["J1", "R1", "D1"]}}),
+        )]
+    }));
+    // 2. One apply: J1.1 to R1.1, R1.2 to the LED's anode, its cathode to J1.2.
+    steps.push(Box::new(|m| {
+        let parts = reply_to(m, "c1_0")["result"].clone();
+        let end = |k: usize, name: &str| {
+            json!({"instance": parts[k]["instance"], "terminal": pin(&parts[k], name)})
+        };
+        let wires = [
+            (end(0, "1"), end(1, "1")),
+            (end(1, "2"), end(2, "A")),
+            (end(2, "K"), end(0, "2")),
+        ];
+        let ops: Vec<Value> = wires
+            .into_iter()
+            .map(|(from, to)| json!({"op": "schematic.connect", "params": {"from": from, "to": to}}))
+            .collect();
+        vec![(
+            "apply",
+            json!({"expected_revision": revision(m), "operations": ops}),
+        )]
+    }));
+    // 3. One check.
+    steps.push(Box::new(|_| {
+        vec![(
+            "query",
+            json!({"name": "project.issues", "params": {"scope": {"kind": "all"}}}),
+        )]
+    }));
+    let mut model = Scripted {
+        steps: steps.into(),
+        n: 0,
+        sent: Vec::new(),
+    };
+    let mut tools = Verbs {
+        session: &mut session,
+        grant: &grant,
+        refused: Vec::new(),
+    };
+    let mut condensed = None;
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text(
+            "The window shows: {\"workspace\": \"schematic\"}\n\nWire them: the header powers the LED through the resistor.",
+        )],
+        &mut tools,
+        &mut |e| {
+            if let Event::Condensed(c) = e {
+                condensed.get_or_insert(c);
+            }
+        },
+        &AtomicBool::new(false),
+    );
+    assert_eq!(outcome.end, End::Answered, "{:#?}", tools.refused);
+    assert!(tools.refused.is_empty(), "{:#?}", tools.refused);
+    // The earlier turns were condensed before the first request.
+    let condensed = condensed.ok_or("the long past was not condensed")?;
+    assert!(condensed.cleared >= 20, "{condensed:?}");
+    assert!(condensed.after_tokens < 56_000, "{condensed:?}");
+    // Three tool requests and the answer, in a small budget: about 80 000
+    // tokens a request was re-sent before (E2E run 13).
+    assert_eq!(outcome.usage.requests, 4);
+    assert!(
+        outcome.usage.tokens < 80_000,
+        "{} tokens: {:?}",
+        outcome.usage.tokens,
+        model.sent
+    );
+    // The three nets join what was asked.
+    let project = session.engine().project();
+    let joined = project
+        .nets
+        .iter()
+        .filter(|n| n.terminals.len() == 2)
+        .count();
+    assert_eq!(joined, 3, "{:?}", project.nets);
+    Ok(())
+}
+
+#[test]
+fn reading_without_a_change_stops_the_turn_saying_what_to_give() -> Fallible {
+    let (config, mut session, mut history) = placed()?;
+    let grant = ChatLibrary::locate()?.reach.grant();
+    let steps: Vec<Step> = (0..200)
+        .map(|_| -> Step {
+            Box::new(|_| {
+                vec![(
+                    "query",
+                    json!({"name": "project.inspect", "params": {"at": "/project"}}),
+                )]
+            })
+        })
+        .collect();
+    let mut model = Scripted {
+        steps: steps.into(),
+        n: 0,
+        sent: Vec::new(),
+    };
+    let mut tools = Verbs {
+        session: &mut session,
+        grant: &grant,
+        refused: Vec::new(),
+    };
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text("Wire the reset, boot, LED and I2C circuits.")],
+        &mut tools,
+        &mut |_| {},
+        &AtomicBool::new(false),
+    );
+    let End::Limit(why) = &outcome.end else {
+        return Err(format!("{:?}", outcome.end).into());
+    };
+    assert!(why.contains("without a change"), "{why}");
+    assert!(why.contains("Name the parts and pins"), "{why}");
+    let idle = Policy::CHAT.idle_tokens;
+    assert!(outcome.usage.tokens > idle, "{}", outcome.usage.tokens);
+    assert!(
+        outcome.usage.tokens < idle + 60_000,
+        "{} tokens",
+        outcome.usage.tokens
+    );
+    Ok(())
+}
