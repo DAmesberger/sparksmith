@@ -1,6 +1,6 @@
 //! Native tests: the golden hashes, hand-derived geometry and refusals.
 use super::*;
-use sparksmith_generator_sdk::golden;
+use sparksmith_generator_sdk::{self as sdk, golden};
 
 fn request(scope: Scope, overrides: &[(String, ParamValue)]) -> Request {
     let mut params = v1::Params::new();
@@ -45,7 +45,7 @@ fn presets_are_the_starter_rows_and_all_generate() -> Result<(), Vec<Problem>> {
     assert_eq!(description.presets().len(), 11);
     for p in description.presets() {
         for scope in [Scope::Component, Scope::Package] {
-            let g = Tabbed::generate(&request(scope, &preset(&p.key)))?;
+            let g = sdk::generate::<Tabbed>(&request(scope, &preset(&p.key)))?;
             let pins = g.footprint.pads.len();
             assert_eq!(g.package.geometry.leads.len(), pins, "{}", p.key);
             assert_eq!(g.package.terminals.len(), pins, "{}", p.key);
@@ -59,7 +59,7 @@ fn sot23_5_leads_run_counter_clockwise_with_their_own_spacing() -> Result<(), Ve
     // Three −y leads at 0.95 mm, two +y leads two grid positions apart;
     // the feet's centres (2.8 − 0.4) / 2 = 1.2 mm off the centre line,
     // their lands 0.1 mm further out.
-    let g = Tabbed::generate(&request(Scope::Component, &preset("tabbed-sot-23-5")))?;
+    let g = sdk::generate::<Tabbed>(&request(Scope::Component, &preset("tabbed-sot-23-5")))?;
     let at: Vec<Point2> = g.footprint.pads.iter().map(|p| p.at).collect();
     assert_eq!(
         at,
@@ -107,7 +107,7 @@ fn a_flange_sits_on_its_solderable_area_and_widens_nothing() -> Result<(), Vec<P
     // DPAK: the flange's outer edge 6.1 / 2 + 1 = 4.05 mm out; its 5.3 mm
     // contact centred 2.65 mm inside it; its land 0.2 wider, 0.4 longer,
     // not moved out.
-    let g = Tabbed::generate(&request(Scope::Package, &preset("tabbed-dpak")))?;
+    let g = sdk::generate::<Tabbed>(&request(Scope::Package, &preset("tabbed-dpak")))?;
     let tab = g.footprint.pads.get(2).map(|p| (p.at, p.shape.clone()));
     assert_eq!(
         tab,
@@ -136,7 +136,7 @@ fn a_flange_sits_on_its_solderable_area_and_widens_nothing() -> Result<(), Vec<P
 fn a_tab_lead_is_the_last_terminal_its_land_moved_out() -> Result<(), Vec<Problem>> {
     // SOT-223: the tab's foot centre 7 / 2 − 0.9 / 2 = 3.05 mm out, its
     // land 0.1 mm further.
-    let g = Tabbed::generate(&request(Scope::Component, &preset("tabbed-sot-223")))?;
+    let g = sdk::generate::<Tabbed>(&request(Scope::Component, &preset("tabbed-sot-223")))?;
     assert_eq!(g.footprint.pads.len(), 4);
     assert_eq!(
         g.footprint.pads.get(3).map(|p| (p.at, p.shape.clone())),
@@ -165,7 +165,7 @@ fn a_given_land_pattern_replaces_the_estimates() -> Result<(), Vec<Problem>> {
         kv("land_length", 1_100_000),
         kv("land_span", 2_600_000),
     ]);
-    let g = Tabbed::generate(&request(Scope::Component, &given))?;
+    let g = sdk::generate::<Tabbed>(&request(Scope::Component, &given))?;
     let lands: Vec<([i64; 2], PadShape)> = g
         .footprint
         .pads
@@ -186,7 +186,8 @@ fn a_given_land_pattern_replaces_the_estimates() -> Result<(), Vec<Problem>> {
         ]
     );
     // The leads and the model are the estimate's: only the lands moved.
-    let estimated = Tabbed::generate(&request(Scope::Component, &preset("tabbed-sot-23-5")))?;
+    let estimated =
+        sdk::generate::<Tabbed>(&request(Scope::Component, &preset("tabbed-sot-23-5")))?;
     assert_eq!(g.package, estimated.package);
     assert_eq!(g.model, estimated.model);
     assert!(g.notes.iter().any(|n| n.contains("given land pattern")));
@@ -198,7 +199,7 @@ fn a_given_land_pattern_replaces_the_estimates() -> Result<(), Vec<Problem>> {
     ] {
         let mut bad = given.clone();
         bad.push(kv(key, value));
-        let refused = Tabbed::generate(&request(Scope::Package, &bad)).err();
+        let refused = sdk::generate::<Tabbed>(&request(Scope::Package, &bad)).err();
         assert!(
             refused.is_some_and(|p| p.iter().any(|p| p.field.as_deref() == Some(field))),
             "{key}"
@@ -209,7 +210,7 @@ fn a_given_land_pattern_replaces_the_estimates() -> Result<(), Vec<Problem>> {
 
 #[test]
 fn package_scope_has_no_component_symbol_or_binding() -> Result<(), Vec<Problem>> {
-    let g = Tabbed::generate(&request(Scope::Package, &[]))?;
+    let g = sdk::generate::<Tabbed>(&request(Scope::Package, &[]))?;
     assert!(g.component.is_none() && g.symbol.is_none() && g.binding.is_empty());
     assert_eq!(g.footprint.pads.len(), 3);
     Ok(())
@@ -227,7 +228,7 @@ fn refusals_name_the_field_in_plain_words() {
     // A tab with +y leads.
     let tab = (String::from("tab"), ParamValue::Text("lead".into()));
     assert_eq!(
-        found(Tabbed::generate(&request(
+        found(sdk::generate::<Tabbed>(&request(
             Scope::Component,
             &[tab, kv("body_length", 6_500_000), kv("span", 7_000_000)]
         ))),
@@ -238,7 +239,7 @@ fn refusals_name_the_field_in_plain_words() {
         )]
     );
     // Leads too close.
-    let codes = found(Tabbed::generate(&request(
+    let codes = found(sdk::generate::<Tabbed>(&request(
         Scope::Component,
         &[kv("step_s", 1), kv("pitch", 300_000)],
     )));
@@ -249,7 +250,7 @@ fn refusals_name_the_field_in_plain_words() {
         "{codes:?}"
     );
     // A row as long as the body leaves no room for the corner rounds.
-    let codes = found(Tabbed::generate(&request(
+    let codes = found(sdk::generate::<Tabbed>(&request(
         Scope::Component,
         &[kv("body_length", 2_300_000)],
     )));
@@ -259,7 +260,7 @@ fn refusals_name_the_field_in_plain_words() {
         "{codes:?}"
     );
     // Out of range.
-    let codes = found(Tabbed::generate(&request(
+    let codes = found(sdk::generate::<Tabbed>(&request(
         Scope::Component,
         &[kv("leads_s", 17)],
     )));
@@ -275,7 +276,7 @@ fn refusals_name_the_field_in_plain_words() {
 #[test]
 fn every_preset_names_its_part_file_with_every_value() -> Result<(), String> {
     for p in description().presets() {
-        let g = Tabbed::generate(&request(Scope::Package, &preset(&p.key)))
+        let g = sdk::generate::<Tabbed>(&request(Scope::Package, &preset(&p.key)))
             .map_err(|e| format!("{e:?}"))?;
         let Some(v1::Model::PartFile { asset, values }) = &g.model else {
             return Err(format!("{}: no model", p.key));
@@ -338,5 +339,31 @@ fn the_part_file_hashes_are_the_bundles_files() -> Result<(), String> {
             hash
         );
     }
+    Ok(())
+}
+
+/// The WS2812B preset carries its datasheet's pin table.
+#[test]
+fn the_ws2812b_names_and_types_its_pins() -> Result<(), Vec<Problem>> {
+    use Direction::{Input, Output, PowerInput};
+    let g = sdk::generate::<Tabbed>(&request(
+        Scope::Component,
+        &preset("tabbed-plcc4-5050-ws2812b"),
+    ))?;
+    let named: Vec<(&str, &str, Direction)> = g
+        .component
+        .iter()
+        .flat_map(|c| &c.terminals)
+        .map(|t| (t.key.as_str(), t.name.as_str(), t.direction))
+        .collect();
+    assert_eq!(
+        named,
+        [
+            ("1", "VDD", PowerInput),
+            ("2", "DOUT", Output),
+            ("3", "VSS", PowerInput),
+            ("4", "DIN", Input),
+        ]
+    );
     Ok(())
 }

@@ -94,6 +94,7 @@ impl Generator for Fixture {
         let arc = draw::arc([0, 0], 1_000_000, 0, 45_000)
             .ok_or_else(|| problem("fixture.arc", "The arc overflowed."))?;
         Ok(Generation {
+            orderable: Vec::new(),
             marking: None,
             component: None,
             symbol: None,

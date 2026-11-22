@@ -32,7 +32,9 @@ use sparksmith_generator_sdk::{Generator, export_generator};
 const PRESETS: &str = include_str!("../presets.json");
 
 /// The generator's version (`Description::version`).
-const VERSION: u32 = 2;
+/// 3: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 3;
 
 /// The top outer chamfer and the bore's mouth chamfer (est.), each at most
 /// an eighth of the wall.
@@ -364,12 +366,15 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.length).trim_end_matches(" mm"),
     );
     Ok(Generation {
+        orderable: Vec::new(),
         marking: None,
         component: component_part.then(|| Component {
             terminals: vec![Terminal {
                 key: "1".into(),
                 name: "1".into(),
                 direction: Direction::Passive,
+                alternates: Vec::new(),
+                drive: None,
             }],
             prefix: "H".into(),
             name,

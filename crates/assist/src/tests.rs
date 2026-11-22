@@ -21,7 +21,7 @@ fn profiled_session() -> Session {
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-use crate::fixtures::{module_values, pinout};
+use crate::fixtures::{module_values, pinout, plan_params};
 
 fn tool_turn(id: &str, name: &str, input: Value) -> Value {
     json!({"id": format!("msg_{id}"), "type": "message", "role": "assistant", "model": "claude-opus-5-5",

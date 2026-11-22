@@ -39,7 +39,9 @@ const PRESETS: &str = include_str!("../presets.json");
 /// on the can top in black ([`marking`]); 4 at the height its preset gives
 /// (`marking_height`) and the vent scored as a V; 5 scores it finer and
 /// shallower (the `-vent` part file), a subtle cross under the print.
-const VERSION: u32 = 5;
+/// 6: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 6;
 
 /// The seat plate's height (est.: 0.9–1.2 mm on 4–10 mm parts), at most a
 /// quarter of the overall height.
@@ -478,6 +480,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         mm_text(d.l).trim_end_matches(" mm"),
     );
     Ok(Generation {
+        orderable: Vec::new(),
         marking: Some(marking(
             sparksmith_generator_sdk::marking::height(&args).map_err(|p| vec![p])?,
         )),
@@ -488,6 +491,8 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: (*key).into(),
                     name: (*name).into(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: "C".into(),

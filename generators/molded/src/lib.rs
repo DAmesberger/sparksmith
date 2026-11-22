@@ -37,7 +37,9 @@ const PRESETS: &str = include_str!("../presets.json");
 /// The generator's version (`Description::version`): 4 sets the marking
 /// text at the height its preset gives (`marking_height`); 5 marks a
 /// polarised capacitor's value by its value code ([`value_code_line`]).
-const VERSION: u32 = 5;
+/// 6: the SDK's pin table (`pin_table`) and part numbers
+/// (`part_numbers`).
+const VERSION: u32 = 6;
 
 /// A moulded polarised (tantalum) capacitor's value code as marking data:
 /// the capacitance in picofarads as the three-digit code and the rated
@@ -836,6 +838,7 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
         }
     }
     Ok(Generation {
+        orderable: Vec::new(),
         marking,
         component: component_part.then(|| Component {
             terminals: ["1", "2"]
@@ -845,6 +848,8 @@ fn generate(request: &Request) -> Result<Generation, Vec<Problem>> {
                     key: (*key).into(),
                     name: name.into(),
                     direction: Direction::Passive,
+                    alternates: Vec::new(),
+                    drive: None,
                 })
                 .collect(),
             prefix: d.part.prefix().into(),

@@ -373,13 +373,19 @@
    "lands": "explicit",
    "land_width": 900000,
    "land_length": 1500000,
-   "land_span": 4900000
+   "land_span": 4900000,
+   "pin_table": [
+    "1=VDD:power_input",
+    "2=DOUT:output",
+    "3=VSS:power_input",
+    "4=DIN:input"
+   ]
   },
   "citation": {
    "document": "Worldsemi WS2812B datasheet, mechanical dimensions",
    "page": 3
   },
   "basis": "cited_unverified",
-  "note": "Pins 1–4 (VDD, DOUT, VSS, DIN) counter-clockwise from above; the drawing's left column is the −y row here. The lead thickness and the feet's reach under the housing are estimated."
+  "note": "Pins 1–4 (VDD, DOUT, VSS, DIN) counter-clockwise from above; the drawing's left column is the −y row here. The lead thickness and the feet's reach under the housing are estimated. The pin table is the WS2812B datasheet's PIN function table (Worldsemi's 5-page edition, p. 2): VDD and VSS power, DOUT the data output, DIN the data input. The SK6812 alias shares the package, not necessarily this pin table: check its datasheet."
  }
 ]
