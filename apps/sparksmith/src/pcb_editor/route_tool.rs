@@ -179,6 +179,19 @@ impl Planned {
         }
     }
 
+    /// What the preview says at the pointer: a pair in the way that could
+    /// not be shoved as one unit, else why the head stopped short. A step
+    /// that stops short is never silent before the click (e2e run 13,
+    /// finding 32: the reason showed only as a toast after it).
+    pub(super) fn message(&self) -> Option<&str> {
+        let blocked = match self {
+            Planned::Single(plan) => plan.blocked.as_deref(),
+            Planned::Pair(plan) => plan.blocked.as_deref(),
+        };
+        self.note()
+            .or_else(|| (!self.reached()).then_some(blocked).flatten())
+    }
+
     /// The track, via or pad the head stopped at, when it stopped short.
     pub(super) fn blocker(&self) -> Option<ObjectRef> {
         match self {
@@ -613,7 +626,7 @@ impl PcbEditor {
                 end: plan.end(),
                 pointer: end,
                 target_ring: true,
-                note: plan.note(),
+                note: plan.message(),
             },
         );
         if let Some(outline) = plan

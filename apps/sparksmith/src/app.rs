@@ -1400,6 +1400,30 @@ impl App {
         }
     }
 
+    /// The PCB canvas, with the Place palette over it while Place component
+    /// (`pcb.place`) chooses a part for the board: the schematic's palette,
+    /// its generator parts made the same way.
+    fn pcb_canvas(&mut self, ui: &mut egui::Ui) -> Option<Operation> {
+        if self.pcb.take_place_request() {
+            self.schematic.open_board_place();
+        }
+        let area = ui.max_rect();
+        let canvas = self.pcb.canvas(ui, &self.engine);
+        if !self.schematic.board_place_active() {
+            return canvas;
+        }
+        let made = self.schematic.board_palette(ui, area, &self.engine);
+        let ctx = ui.ctx().clone();
+        let placed = self
+            .schematic
+            .take_board_pick()
+            .and_then(|(component, created)| {
+                self.pcb
+                    .place_board_part(&ctx, &self.engine, component, created)
+            });
+        placed.or(made).or(canvas)
+    }
+
     fn canvas(&mut self, ui: &mut egui::Ui) {
         if self.workspace == Workspace::Part {
             // Which component is open, above every view of it.
@@ -1426,10 +1450,14 @@ impl App {
                     }
                     sheet.or(canvas)
                 }
-                Workspace::Pcb => self.pcb.canvas(ui, &self.engine),
+                Workspace::Pcb => self.pcb_canvas(ui),
             };
             let ctx = ui.ctx().clone();
             self.apply(&ctx, Origin::Canvas, operation);
+            // A just-created part placed on the board joins its create.
+            if let Some(revision) = self.pcb.take_place_join() {
+                let _ = self.engine.join_last_step(revision);
+            }
             // The first placement of a just-created part joins its create:
             // one undo takes back both (refused, harmlessly, if it failed).
             if let Some(revision) = self.schematic.take_template_join() {

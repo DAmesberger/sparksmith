@@ -208,6 +208,35 @@ fn a_blocked_step_points_at_the_blocking_track() -> TestResult {
     Ok(())
 }
 
+/// A step that stops short says why at the pointer before any click, not
+/// only in the toast after it (e2e run 13, finding 32: a route stopped at
+/// the USB pair with no message on screen); a step that arrives says
+/// nothing.
+#[test]
+fn a_step_stopped_short_says_why_in_the_preview() -> TestResult {
+    let mut canvas = Canvas::new();
+    let mut editor = PcbEditor::default();
+    let (engine, _) = setup(&mut canvas, &mut editor)?;
+    editor.route.mode = RouteMode::Walkaround;
+    let hover = |editor: &PcbEditor, at: Point| {
+        vec![egui::Event::PointerMoved(super::route_tests::screen(
+            editor, &engine, at,
+        ))]
+    };
+    let events = hover(&editor, [12.0, 10.5]);
+    canvas.frame(&mut editor, &engine, events, egui::Modifiers::NONE);
+    let (_, planned) = editor.route.planned.as_ref().ok_or("no plan")?;
+    assert!(!planned.reached());
+    let message = planned.message().ok_or("the preview says nothing")?;
+    assert!(message.starts_with("Blocked by a track on"), "{message}");
+    let events = hover(&editor, [10.0, 8.0]);
+    canvas.frame(&mut editor, &engine, events, egui::Modifiers::NONE);
+    let (_, planned) = editor.route.planned.as_ref().ok_or("no plan")?;
+    assert!(planned.reached());
+    assert_eq!(planned.message(), None);
+    Ok(())
+}
+
 /// A push reaching a pair where its halves do not run coupled cannot keep it
 /// whole: the pair's track stays, and the plan names the pair for the
 /// message the preview paints.

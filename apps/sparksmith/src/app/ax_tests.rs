@@ -559,6 +559,23 @@ fn waivable_board_row(engine: &Engine) -> Fallible<sparksmith_core::issues::Issu
 fn an_issue_is_waived_inline_with_a_reason_and_one_undo_restores_it() -> Fallible {
     let mut ax = Ax::new(Workspace::Pcb)?;
     ax.app.engine.require_waiver_reason(true);
+    // The demo's own findings are unrouted connections, which cannot be
+    // waived: put R2 over R1 for pad clearance findings that can.
+    let placements = ax.app.engine.project().placements.clone();
+    let (first, second) = (
+        placements.first().ok_or("no first part")?,
+        placements.get(1).ok_or("no second part")?,
+    );
+    ax.app.engine.apply(
+        ax.app.engine.revision(),
+        sparksmith_core::Operation::Layout(sparksmith_core::layout::LayoutCommand::Move {
+            instance: second.instance,
+            position: first.position,
+            rotation_deg: first.rotation_deg,
+            layer: first.layer,
+        }),
+    )?;
+    ax.settle();
     let row = waivable_board_row(&ax.app.engine)?;
     let keys: Vec<String> = std::iter::once(&row.finding)
         .chain(&row.also)

@@ -369,3 +369,60 @@ fn removing_a_board_only_part_takes_its_placement() -> Result<()> {
     assert!(engine.project().placements.is_empty());
     Ok(())
 }
+
+/// `component.place_board_only` with `at` puts the new part on the board in
+/// the same step (the PCB workspace's Place, e2e run 13 finding 30): one
+/// undo takes back both; a position that is not a number is refused and
+/// changes nothing.
+#[test]
+fn a_board_only_part_is_placed_on_the_board_in_one_step() -> Result<()> {
+    use crate::commands::{BoardPlace, InstanceCommand};
+    let mut engine = Engine::demo()?;
+    let template = engine
+        .project()
+        .instances
+        .first()
+        .cloned()
+        .ok_or_else(|| missing("an instance"))?;
+    let physical = template.physical.ok_or_else(|| missing("a footprint"))?;
+    let place = |at: [f64; 2]| {
+        Operation::Instance(InstanceCommand::PlaceBoardOnly {
+            component: template.component,
+            representation: template.representation,
+            physical,
+            designator: None,
+            at: Some(BoardPlace {
+                position: at,
+                rotation_deg: 90.0,
+                layer: Layer::Bottom,
+            }),
+        })
+    };
+    let kept = Snapshot::of(&engine);
+    assert!(apply(&mut engine, place([f64::NAN, 5.0])).is_err());
+    kept.assert_kept(&engine, "a position that is not a number");
+    let Outcome::PartPlaced { instance, .. } = apply(&mut engine, place([30.0, 20.0]))? else {
+        return Err(missing("PartPlaced"));
+    };
+    let placed = engine
+        .project()
+        .placement_of(instance)
+        .cloned()
+        .ok_or_else(|| missing("the placement"))?;
+    assert_eq!(placed.position, [30.0, 20.0]);
+    assert_eq!(placed.rotation_deg, 90.0);
+    assert_eq!(placed.layer, Layer::Bottom);
+    assert!(
+        engine
+            .project()
+            .instance(instance)
+            .is_some_and(|i| i.board_only)
+    );
+    engine.undo()?;
+    assert!(
+        engine.project().instance(instance).is_none(),
+        "one undo step"
+    );
+    assert!(engine.project().placement_of(instance).is_none());
+    Ok(())
+}
