@@ -13,7 +13,7 @@ use super::{
     IssueArea, IssueReport, IssueScope, assemble, board_area, component_findings,
     schematic_findings,
 };
-use crate::diagnostics::{Finding, ObjectRef, Result};
+use crate::diagnostics::{Finding, Result};
 use crate::ids::{Id, PadId};
 use crate::layout::{
     self, BoardCheck, BoardCopper, CheckSettings, ConnectivityOrder, CopperChanges, CopperGraph,
@@ -313,54 +313,7 @@ impl Checked {
             }
             Some(rows.into_iter().cloned().collect())
         };
-        // A Board row of the last report made of the same findings reads
-        // as it did, unless it names a track or via that changed.
-        let last_rows: HashMap<(&str, &str, &[ObjectRef]), &super::IssueRow> = kept
-            .zip(changes.as_ref())
-            .map(|(last, _)| {
-                last.report
-                    .rows
-                    .iter()
-                    .filter(|r| r.area == IssueArea::Board)
-                    .map(|r| {
-                        let f = &r.finding;
-                        (
-                            (f.code.as_str(), f.message.as_str(), f.objects.as_slice()),
-                            r,
-                        )
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        let changed = |o: &ObjectRef| {
-            changes.as_ref().is_some_and(|c| match *o {
-                ObjectRef::Track { id } => c.keys.contains(&layout::ItemKey::Track(id)),
-                ObjectRef::Via { id } => c.keys.contains(&layout::ItemKey::Via(id)),
-                _ => false,
-            })
-        };
-        let row_of = |area: IssueArea, merged: &[Finding]| {
-            let (first, also) = merged.split_first()?;
-            if area != IssueArea::Board {
-                return None;
-            }
-            let key = (
-                first.code.as_str(),
-                first.message.as_str(),
-                first.objects.as_slice(),
-            );
-            let row = last_rows.get(&key)?;
-            (row.finding == *first && row.also == also && !row.objects().any(changed))
-                .then(|| (*row).clone())
-        };
-        let report = Arc::new(assemble(
-            project,
-            drafts,
-            areas,
-            &IssueScope::All,
-            &rows,
-            &row_of,
-        ));
+        let report = Arc::new(assemble(project, drafts, areas, &IssueScope::All, &rows));
         #[cfg(test)]
         let paths = Paths {
             kept: kept.is_some(),
