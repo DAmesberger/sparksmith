@@ -181,7 +181,11 @@ fn a_valid_alternate_keeps_the_foils_and_takes_the_matching_weight() -> Fallible
         // Against the file: 2 oz has its own minimum, wider than 1 oz's.
         assert!(width > weighed(&alternate, "1oz")?.rules().copper.track_width_min);
 
-        let set = fabrication::generate(&snapshot, &FabricationOptions::default())?;
+        let set = fabrication::generate(
+            &snapshot,
+            &FabricationOptions::default(),
+            &Default::default(),
+        )?;
         let drawing =
             fabrication::drawing::data(&snapshot, &set.identity, engine.check_settings())?;
         assert!(
