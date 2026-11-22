@@ -14,7 +14,7 @@ workspace = true
 test-fixtures = []
 
 [dependencies]
-sparksmith-generator-abi = { workspace = true, features = ["nfc"] }
+sparksmith-generator-abi = { workspace = true, features = ["nfc", "complete"] }
 # The WebAssembly interpreter (MIT OR Apache-2.0). Core modules only, no
 # SIMD (the feature stays off, so SIMD modules fail validation), no wat
 # parser; `deterministic` canonicalises NaN results; `portable-dispatch`

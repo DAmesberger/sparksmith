@@ -13,6 +13,9 @@ workspace = true
 # Host-side strictness: decoding also refuses strings that are not in Unicode
 # NFC. Modules leave it off, so the normalisation tables stay out of them.
 nfc = ["dep:unicode-normalization"]
+# Host-side request completion (`params::complete`), which the core and the
+# host call. Modules leave it off, so their bytes stay what they were.
+complete = []
 
 # no_std + alloc throughout: this crate is compiled into every generator
 # module, so it must not pull in `std` or anything that embeds host paths.

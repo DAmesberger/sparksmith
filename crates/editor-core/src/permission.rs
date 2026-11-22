@@ -239,6 +239,9 @@ macro_rules! declare_entries {
                 ),
             )+];
 
+            /// Each entry's variant, in the order of [`Self::ENTRIES`].
+            pub const VARIANTS: &'static [&'static str] = &[$(stringify!($variant),)+];
+
             /// This command's permission class.
             pub const fn class(&self) -> $crate::permission::Class {
                 match self {
