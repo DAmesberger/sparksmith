@@ -112,6 +112,25 @@ fn only_a_power_output_supplies_a_power_net() -> Result<()> {
     let (engine, _) = pair(power_in(), passive())?;
     assert_eq!(all_codes(&engine), ["erc.undriven_power_input"]);
 
+    // A ground port names the reference node, which nothing supplies: the
+    // power inputs' ground pins need no source.
+    let (mut engine, net) = pair(power_in(), passive())?;
+    let load = by_designator(&engine, "U1")?;
+    apply(
+        &mut engine,
+        Operation::Schematic(SchematicCommand::PlaceLabel {
+            sheet: None,
+            name: "GND".into(),
+            kind: LabelKind::Power {
+                style: PowerStyle::Ground,
+            },
+            position: pt([0.0, 0.0]),
+            rotation: Default::default(),
+            attach: Some(WireTarget::from(ep(load, 1))),
+        }),
+    )?;
+    assert!(on_net(&engine, net).is_empty(), "{:?}", all_codes(&engine));
+
     // Decoupling alone, two passive pins under a port, has no power input
     // to supply and no finding.
     let (mut engine, net) = pair(passive(), passive())?;

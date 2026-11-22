@@ -178,8 +178,10 @@ fn cut_removes_as_delete_does() -> TestResult {
 }
 
 /// What the sheet cannot copy says so, and a refused paste keeps the
-/// document: a sheet symbol has no copy, and a clip from another project
-/// names a component this one does not hold.
+/// document: a sheet symbol has no copy, and a plain clip from another
+/// project names library revisions this one does not hold. The desktop's
+/// own copy carries the part's library, so it pastes into another project
+/// with the same pins on the same pads.
 #[test]
 fn what_cannot_be_copied_or_pasted_says_so() -> TestResult {
     let (mut editor, mut engine, ctx) = editor_on_demo()?;
@@ -208,9 +210,40 @@ fn what_cannot_be_copied_or_pasted_says_so() -> TestResult {
     let mut other = Engine::default();
     let revision = other.revision();
     let before = other.project().clone();
-    assert!(other.apply(revision, operation).is_err());
+    // A plain clip, as `schematic.copy` gives one without `portable`.
+    let QueryResult::SheetClip(plain) = engine.query(Query::SheetCopy {
+        sheet: None,
+        objects: vec![ClipObject::Instance { id: r1 }],
+        portable: false,
+    })?
+    else {
+        return Err("not a clip".into());
+    };
+    let refused = other.apply(
+        revision,
+        Operation::Schematic(SchematicCommand::Paste {
+            sheet: None,
+            clip: plain,
+            offset: crate::schematic_editor::pt([0.0, 0.0]),
+        }),
+    );
+    assert!(refused.is_err());
     assert_eq!(other.project(), &before);
     assert_eq!(other.revision(), revision);
+    // The desktop's copy pastes there with R1's pins on R1's pads.
+    let Outcome::Pasted { report } = other.apply(revision, operation)? else {
+        return Err("not pasted".into());
+    };
+    let pasted = other
+        .project()
+        .instance(report.symbols[0].instance)
+        .ok_or("the pasted part")?;
+    let source = engine.project().instance(r1).ok_or("R1")?;
+    use sparksmith_core::schematic::clipboard::terminal_pads;
+    assert_eq!(
+        terminal_pads(&other.project().library, pasted)?,
+        terminal_pads(&engine.project().library, source)?
+    );
     Ok(())
 }
 

@@ -88,13 +88,13 @@ pub enum VariantCommand {
         #[serde(default)]
         part: Option<PartRef>,
     },
-    /// Record a person's review of the substitute a variant fits on a part:
-    /// whether it is electrically equivalent to the part it replaces (its
-    /// pinout, beyond the land pattern and pad grouping that fitting
-    /// checks), and the requirements it is deliberately accepted not to
-    /// meet, each with its reason. Not equivalent and no exceptions clears
-    /// the review. The review is bound to the substitute; fitting another
-    /// Part voids it.
+    /// Record a person's review of a variant's substitute part. It says
+    /// whether the substitute is electrically equivalent to the part it
+    /// replaces (its pinout, beyond the land pattern and pad grouping that
+    /// fitting checks), and which requirements it is deliberately accepted
+    /// not to meet, each with its reason. Not equivalent and no exceptions
+    /// clears the review. The review is bound to the substitute; fitting
+    /// another Part voids it.
     #[serde(rename = "variant.review_substitute")]
     ReviewSubstitute {
         instance: Id,

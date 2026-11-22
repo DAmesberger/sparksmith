@@ -78,7 +78,7 @@ Generated IC boxes are as wide as their pin names (`samples::fit_pin_names`): on
 
 ## Power ports
 
-A power port is a label of kind `power`: global scope, drawn as the ground bars or a supply bar or arrow (the shapes of `library::symbol_style`'s ground and power kinds). It adds no component instance, no BOM line and no footprint. It names its net with the highest priority, so `GND` stays `GND` whatever local labels say. ERC: a net with a power port, power inputs and no supply is `erc.power_port_undriven`, reported once per net instead of once per power input. Only a power-output terminal supplies a net (`erc::supplies`): a passive pin, such as a decoupling capacitor, supplies nothing, and a connector that brings power in declares that contact a power output, as the USB-C receptacle's VBUS does.
+A power port is a label of kind `power`: global scope, drawn as the ground bars or a supply bar or arrow (the shapes of `library::symbol_style`'s ground and power kinds). It adds no component instance, no BOM line and no footprint. It names its net with the highest priority, so `GND` stays `GND` whatever local labels say. ERC: a net with a power port, power inputs and no supply is `erc.power_port_undriven`, reported once per net instead of once per power input. Only a power-output terminal supplies a net (`erc::supplies`): a passive pin, such as a decoupling capacitor, supplies nothing, and a connector that brings power in declares that contact a power output, as the USB-C receptacle's VBUS does. A net with a ground port is the reference node, which nothing supplies, so it is never reported.
 
 ## Sheets and hierarchy
 
