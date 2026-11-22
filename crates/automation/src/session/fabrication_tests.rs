@@ -5,6 +5,9 @@
 //! undo as one step each.
 use super::*;
 
+#[path = "../../tests/support/esp32_preflight.rs"]
+mod esp32_preflight;
+
 type Fallible<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 fn ok(session: &mut Session, request: Value) -> Fallible<Value> {
@@ -387,15 +390,10 @@ fn opening_a_file_refills_its_fills_before_answering() -> Fallible<()> {
         &mut session,
         json!({"command": "project.query", "params": {"query": "fabrication.preflight", "params": {}}}),
     )?;
-    let codes: Vec<&str> = report["result"]["items"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|i| i["code"].as_str())
-        .collect();
-    // The example is clean once filled: an unfilled or stale fill would
-    // show here as `fabrication.fill_unfilled` or `fill.stale`.
-    assert!(codes.is_empty(), "{codes:?}");
+    // Every fill is computed. The only remaining finding is the measured
+    // USB impedance coverage warning on this particular board.
+    let report = serde_json::from_value(report["result"].clone())?;
+    esp32_preflight::assert_usb_preflight(&report, esp32_preflight::USB_UNCOUPLED_MM);
     Ok(())
 }
 

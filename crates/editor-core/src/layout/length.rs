@@ -727,7 +727,7 @@ fn check_pair(
             findings.push(Finding::new(
                 "impedance.uncoupled",
                 format!(
-                    "{}: the {} Ω differential impedance check excludes {} mm of {} and {} mm of {} where the tracks run uncoupled",
+                    "{}: {} Ω check excludes {} mm of {} and {} mm of {}; the tracks run uncoupled",
                     pair.name,
                     mm(target),
                     super::limits::mm_against(uncoupled[0], 0.0),
