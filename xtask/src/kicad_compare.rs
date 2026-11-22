@@ -144,7 +144,7 @@ fn compare_board(board: &Path, dir: &Path) -> Result<(String, bool)> {
     let copper = imported.report.counts.copper_layers;
     let theirs = reference::plot(board, project.as_deref(), copper, dir)?;
     let set = fabrication::generate(
-        imported.engine.project(),
+        &fabrication::ProductionSnapshot::resolve(imported.engine.project(), None),
         &FabricationOptions {
             base_name: Some("ours".into()),
             ..FabricationOptions::default()
@@ -473,7 +473,10 @@ mod tests {
               (pad \"QQ7\" smd rect (at 0.4321 0 90) (size 1.2345 0.6789) (layers \"F.Cu\" \"F.Paste\" \"F.Mask\") \
                 (net 1 \"QQSECRETNET\") (pinfunction \"QQPINFN\") (zqxtoken 1))))";
         let imported = import(text.as_bytes(), None, None)?;
-        let set = fabrication::generate(imported.engine.project(), &FabricationOptions::default())?;
+        let set = fabrication::generate(
+            &fabrication::ProductionSnapshot::resolve(imported.engine.project(), None),
+            &FabricationOptions::default(),
+        )?;
         let ours: Vec<File> = set
             .files
             .iter()

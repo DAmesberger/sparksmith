@@ -213,19 +213,12 @@ impl Answer {
 /// What a cached answer was computed from.
 #[derive(Clone, Debug, PartialEq)]
 struct Key {
-    revision: u64,
-    project: usize,
+    report: sparksmith_core::ReportKey,
     scope: IssueScope,
 }
 
-fn document(engine: &Engine) -> (u64, usize) {
-    (
-        engine.revision(),
-        Arc::as_ptr(engine.project_arc()) as usize,
-    )
-}
-
-/// One query's answer, recomputed only when the document or scope changes.
+/// One query's answer, recomputed only when the document, the check
+/// settings or the scope change.
 #[derive(Default)]
 struct Slot {
     cached: Option<(Key, Answer)>,
@@ -233,10 +226,8 @@ struct Slot {
 
 impl Slot {
     fn get(&mut self, engine: &Engine, scope: IssueScope) -> Answer {
-        let (revision, project) = document(engine);
         let key = Key {
-            revision,
-            project,
+            report: engine.report_key(),
             scope,
         };
         if let Some((cached, answer)) = &self.cached
@@ -528,7 +519,7 @@ const WAIVED_FOLD: &str = "\u{1f}waived";
 /// once per document revision. Titles would need the production check,
 /// so the objects stand in for them.
 struct WaivedRows {
-    at: (u64, usize),
+    at: sparksmith_core::ReportKey,
     /// The waiver keys, for Restore.
     keys: Vec<String>,
     views: Vec<WaivedView>,
@@ -566,7 +557,7 @@ fn waived_rows(engine: &Engine) -> WaivedRows {
         })
         .collect();
     WaivedRows {
-        at: document(engine),
+        at: engine.report_key(),
         keys: waivers.iter().map(|w| w.key.clone()).collect(),
         views,
     }
@@ -602,7 +593,7 @@ pub struct Surface {
     all: Slot,
     selection: Slot,
     names: Option<Names>,
-    badges: Option<((u64, usize), Arc<Badges>)>,
+    badges: Option<(sparksmith_core::ReportKey, Arc<Badges>)>,
     waived: Option<Arc<WaivedRows>>,
     waiving: Option<Waiving>,
     /// A row's right-click menu, by the row's key.
@@ -845,7 +836,7 @@ impl Surface {
     /// The project's waivers as the Waived group shows them, recomputed
     /// only when the document changes.
     fn waived(&mut self, engine: &Engine) -> Arc<WaivedRows> {
-        let at = document(engine);
+        let at = engine.report_key();
         match &self.waived {
             Some(rows) if rows.at == at => rows.clone(),
             _ => {
@@ -1253,7 +1244,7 @@ impl Surface {
 
     /// The Browser's severity dots, from every issue of the project.
     pub fn badges(&mut self, engine: &Engine) -> Arc<Badges> {
-        let at = document(engine);
+        let at = engine.report_key();
         if let Some((key, badges)) = &self.badges
             && *key == at
         {

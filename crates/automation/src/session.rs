@@ -1402,6 +1402,10 @@ impl Session {
                         )
                     })?,
                 };
+                // A project first saved takes its identity, which every
+                // manufacturing file then states. No nonce: a script saved
+                // under the same file name reproduces it.
+                self.engine.identify_by_file(&path, "");
                 sparksmith_io::write_project(&path, &self.engine.to_file())?;
                 let saved = path.display().to_string();
                 self.path = Some(path);

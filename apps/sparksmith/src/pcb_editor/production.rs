@@ -16,7 +16,8 @@
 //!
 //! The pre-flight check and the export run off the UI thread on a snapshot
 //! of the document (shared handles, no copy). A report computed for an
-//! older revision or another profile is dropped and computed again; an
+//! older document, other check settings or another profile is dropped and
+//! computed again; an
 //! export keeps the snapshot it started from.
 use super::PcbEditor;
 use crate::kit::{
@@ -35,7 +36,7 @@ use sparksmith_core::fabrication::{
 use sparksmith_core::issues::Severity;
 use sparksmith_core::model::Document;
 use sparksmith_core::rules::RuleProfile;
-use sparksmith_core::{Engine, Operation};
+use sparksmith_core::{Engine, Operation, ReportKey};
 use sparksmith_io::fabrication::{ExportReport, ExportRequest, Progress};
 use sparksmith_io::rule_profiles::ProfileLibrary;
 use sparksmith_ui::theme::Tokens;
@@ -86,8 +87,13 @@ pub(super) enum Format {
     Zip,
 }
 
-/// A pre-flight report, for one revision and profile.
-type Checked = (u64, Pick, Result<PreflightReport, String>);
+/// What a pre-flight report was computed for: the document state and check
+/// settings ([`Engine::report_key`]), the pick and the picked profile's
+/// content, so an edited profile file is never shown as checked.
+type Wanted = (ReportKey, Pick, Option<RuleProfile>);
+
+/// A pre-flight report and what it was computed for.
+type Checked = (Wanted, Result<PreflightReport, String>);
 
 enum ExportMessage {
     Progress(Progress),
@@ -96,8 +102,10 @@ enum ExportMessage {
 
 /// The Production files dialog's state while it is open.
 pub(super) struct ProductionDialog {
-    /// The user's fab profiles, read once when the dialog opens.
-    user_profiles: Vec<RuleProfile>,
+    /// The user's fab profile library, read again before an export.
+    library: Option<ProfileLibrary>,
+    /// The user's fab profiles as last read.
+    pub(super) user_profiles: Vec<RuleProfile>,
     pub(super) pick: Pick,
     pub(super) format: Format,
     /// The folder chosen to hold the output folder, or the ZIP file.
@@ -105,7 +113,7 @@ pub(super) struct ProductionDialog {
     pub(super) options: FabricationOptions,
     /// The current report and what it was computed for.
     pub(super) report: Option<Checked>,
-    checking: Option<(u64, Pick, Receiver<Checked>)>,
+    checking: Option<(Wanted, Receiver<Checked>)>,
     /// Ticked findings and the reason being typed.
     pub(super) waiving: Waiving,
     picking: Option<Receiver<Option<PathBuf>>>,
@@ -126,6 +134,7 @@ impl ProductionDialog {
             .map(|l| l.profiles)
             .unwrap_or_default();
         Self {
+            library,
             user_profiles,
             pick: Pick::Board,
             format: Format::Folder,
@@ -164,68 +173,78 @@ impl ProductionDialog {
         out
     }
 
-    /// Start or take the pre-flight report for the current revision and
-    /// profile. A result for an older revision or profile is dropped.
+    /// What the current report must have been computed for.
+    fn wanted(&self, engine: &Engine) -> Wanted {
+        (engine.report_key(), self.pick.clone(), self.profile())
+    }
+
+    /// Read the user's profiles again, so a file edited while the dialog
+    /// is open is what the next check and export use. A library that no
+    /// longer reads keeps the profiles last read.
+    fn reload_profiles(&mut self) {
+        if let Some(listing) = self.library.as_ref().and_then(|l| l.list().ok()) {
+            self.user_profiles = listing.profiles;
+        }
+    }
+
+    /// Start or take the pre-flight report for the current document, check
+    /// settings and profile content. A result for an older one is dropped.
     fn check(&mut self, ctx: &egui::Context, engine: &Engine) {
-        let wanted = (engine.revision(), self.pick.clone());
-        if let Some((revision, pick, receiver)) = &self.checking {
+        let wanted = self.wanted(engine);
+        if let Some((pending, receiver)) = &self.checking {
             match receiver.try_recv() {
                 Ok(checked) => {
                     self.checking = None;
-                    if (checked.0, &checked.1) == (wanted.0, &wanted.1) {
+                    if checked.0 == wanted {
                         self.report = Some(checked);
                     }
                 }
                 Err(TryRecvError::Disconnected) => {
                     self.checking = None;
                     self.report = Some((
-                        wanted.0,
-                        wanted.1.clone(),
+                        wanted.clone(),
                         Err("The production check stopped unexpectedly".into()),
                     ));
                 }
-                Err(TryRecvError::Empty) if (*revision, pick) == (wanted.0, &wanted.1) => return,
+                Err(TryRecvError::Empty) if *pending == wanted => return,
                 Err(TryRecvError::Empty) => self.checking = None,
             }
         }
-        let current = self
-            .report
-            .as_ref()
-            .is_some_and(|(r, p, _)| (*r, p) == (wanted.0, &wanted.1));
+        let current = self.report.as_ref().is_some_and(|(w, _)| *w == wanted);
         if current || self.checking.is_some() {
             return;
         }
         let document = engine.document().clone();
         let checks = *engine.check_settings();
-        let profile = self.profile();
         let (sender, receiver) = std::sync::mpsc::channel();
-        let (revision, pick) = wanted.clone();
         let repaint = ctx.clone();
+        let computed = wanted.clone();
         let spawned = std::thread::Builder::new()
             .name("sparksmith-preflight".into())
             .spawn(sparksmith_core::library::standards::carried(move || {
-                let report = preflight(&document, profile.as_ref(), &checks);
-                let _ = sender.send((revision, pick, report));
+                let report = preflight(&document, computed.2.as_ref(), &checks);
+                let _ = sender.send((computed, report));
                 repaint.request_repaint();
             }));
         match spawned {
-            Ok(_) => self.checking = Some((wanted.0, wanted.1, receiver)),
+            Ok(_) => self.checking = Some((wanted, receiver)),
             Err(error) => {
                 self.report = Some((
-                    wanted.0,
-                    wanted.1,
+                    wanted,
                     Err(format!("The production check could not start: {error}")),
                 ));
             }
         }
     }
 
-    /// The report for the current revision and profile, if computed.
+    /// The report for the current document, check settings and profile
+    /// content, if computed.
     pub(super) fn current(&self, engine: &Engine) -> Option<&Result<PreflightReport, String>> {
+        let wanted = self.wanted(engine);
         self.report
             .as_ref()
-            .filter(|(r, p, _)| *r == engine.revision() && *p == self.pick)
-            .map(|(_, _, report)| report)
+            .filter(|(w, _)| *w == wanted)
+            .map(|(_, report)| report)
     }
 
     /// Take a picked location.
@@ -344,6 +363,17 @@ impl ProductionDialog {
         stem: String,
     ) {
         if self.exporting.is_some() {
+            return;
+        }
+        // The profile file may have changed since it was checked: export
+        // only what the shown check passed.
+        let checked = self.profile();
+        self.reload_profiles();
+        if self.profile() != checked {
+            self.refusal = Some(
+                "The fab profile's file changed since the check; check the new rules, then export"
+                    .into(),
+            );
             return;
         }
         let request = ExportRequest {

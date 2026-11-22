@@ -9,7 +9,8 @@ use crate::Result;
 use crate::front::{self, AlreadyAllowed, Asker, CallCx, NoOne, Surface, Target, from_request};
 use crate::gate::Caller;
 use serde_json::{Map, Value, json};
-use sparksmith_core::{Class, Document, Finding, Project, Query, QueryResult, erc, layout};
+use sparksmith_core::issues::{IssueReport, IssueScope};
+use sparksmith_core::{Class, Document, Finding, Query, QueryResult, layout};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
@@ -25,29 +26,51 @@ const MAX_DRAFT_FINDINGS: usize = 40;
 /// (`rules.effective` lists them).
 const WHOLE: &[&str] = &["rules.profile"];
 
-/// The last project a compact reply described, kept so the next mutation
-/// serializes and checks only its result. Holding the `Arc` keeps the
+/// The last document a compact reply described, kept so the next mutation
+/// serializes and checks only its result. Holding the `Arc`s keeps the
 /// pointer comparison sound.
 pub(super) struct Baseline {
-    project: Arc<Project>,
+    document: Document,
     value: Value,
     findings: Vec<Finding>,
 }
 
 impl Baseline {
-    fn of(project: &Arc<Project>, settings: &layout::CheckSettings) -> Result<Self> {
+    fn of(document: &Document, settings: &layout::CheckSettings) -> Result<Self> {
         Ok(Self {
-            project: project.clone(),
-            value: serde_json::to_value(project.as_ref())?,
-            findings: design_findings(project, settings),
+            document: document.clone(),
+            value: serde_json::to_value(document.project.as_ref())?,
+            findings: open_findings(&issues_of(document, settings)?),
         })
+    }
+
+    fn describes(&self, document: &Document) -> bool {
+        Arc::ptr_eq(&self.document.project, &document.project)
+            && Arc::ptr_eq(&self.document.drafts, &document.drafts)
     }
 }
 
-fn design_findings(project: &Project, settings: &layout::CheckSettings) -> Vec<Finding> {
-    let mut findings = erc::checks(project);
-    findings.extend(layout::checks(project, settings));
-    findings
+/// Every issue of `document`, as `project.issues` lists them.
+fn issues_of(document: &Document, settings: &layout::CheckSettings) -> Result<IssueReport> {
+    Ok(sparksmith_core::issues::report(
+        &document.project,
+        &document.drafts,
+        &IssueScope::All,
+        settings,
+    )?)
+}
+
+/// The open findings of an issue report, each once: every row's finding
+/// and the findings merged into it. The summary, the change replies and
+/// Issues count from these same rows, so they never disagree on scope
+/// (purchasing to-dos and component findings included).
+fn open_findings(report: &IssueReport) -> Vec<Finding> {
+    report
+        .rows
+        .iter()
+        .flat_map(|row| std::iter::once(&row.finding).chain(&row.also))
+        .cloned()
+        .collect()
 }
 
 impl Session {
@@ -181,13 +204,24 @@ impl Session {
         Ok(self.snapshot())
     }
 
-    /// Project name, object counts, drafts and open findings per code.
+    /// Project name, object counts, drafts and the open findings: from
+    /// `project.issues`' own rows, `open` findings and `by_code`, and
+    /// `issues`, the rows by severity as Issues counts them.
     fn summary(&self) -> Result<Value> {
         let project = self.engine.project();
         let value = serde_json::to_value(project)?;
         let mut counts = Map::new();
         count_collections(&value, "", &mut counts);
-        let findings = design_findings(project, self.engine.check_settings());
+        let QueryResult::Issues(report) = self.engine.query(Query::Issues {
+            scope: IssueScope::All,
+        })?
+        else {
+            return Err(sparksmith_core::Error::Invalid(
+                "project.issues gave another report".into(),
+            )
+            .into());
+        };
+        let findings = open_findings(&report);
         let mut by_code: BTreeMap<&str, u64> = BTreeMap::new();
         for finding in &findings {
             *by_code.entry(&finding.code).or_default() += 1;
@@ -198,7 +232,7 @@ impl Session {
             "path": self.path.as_ref().map(|p| p.display().to_string()),
             "counts": counts,
             "drafts": drafts,
-            "findings": {"open": findings.len(), "by_code": by_code},
+            "findings": {"open": findings.len(), "by_code": by_code, "issues": report.counts},
         }))
     }
 
@@ -210,10 +244,10 @@ impl Session {
         let mut design = None;
         if !Arc::ptr_eq(&before.project, &after.project) {
             let old = match self.baseline.take() {
-                Some(baseline) if Arc::ptr_eq(&baseline.project, &before.project) => baseline,
-                _ => Baseline::of(&before.project, &settings)?,
+                Some(baseline) if baseline.describes(before) => baseline,
+                _ => Baseline::of(before, &settings)?,
             };
-            let new = Baseline::of(&after.project, &settings)?;
+            let new = Baseline::of(&after, &settings)?;
             changes.diff("", &old.value, &new.value);
             design = Some(findings_delta(&old.findings, &new.findings));
             self.baseline = Some(new);
@@ -641,8 +675,8 @@ pub fn difference(
     let mut names = Map::new();
     let mut out = Map::new();
     if !Arc::ptr_eq(&before.project, &after.project) {
-        let old = Baseline::of(&before.project, settings)?;
-        let new = Baseline::of(&after.project, settings)?;
+        let old = Baseline::of(before, settings)?;
+        let new = Baseline::of(after, settings)?;
         changes.diff("", &old.value, &new.value);
         name_listed(&old.value, &changes.removed, &mut names);
         name_listed(&new.value, &changes.added, &mut names);

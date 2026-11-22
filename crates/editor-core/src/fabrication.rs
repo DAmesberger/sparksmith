@@ -22,6 +22,7 @@ pub mod excellon;
 pub mod gerber;
 pub mod job;
 pub mod preflight;
+pub mod snapshot;
 #[cfg(test)]
 mod tests;
 
@@ -29,6 +30,7 @@ pub use assembly::{BottomRotation, PlacementConvention, PlacementOrigin, Rotatio
 pub use drawing::DrawingData;
 pub use drill::{DrillHole, DrillTable, DrillTool, HoleFeature, HoleFunction};
 pub use preflight::{FabricationCommand, PreflightItem, PreflightReport, ProfileChoice};
+pub use snapshot::{Identity, ProductionSnapshot};
 
 /// Files in one fabrication set (a target bound on the output, well above
 /// a 32-layer board's).
@@ -123,6 +125,8 @@ pub struct FabFile {
 pub struct FabricationSet {
     pub files: Vec<FabFile>,
     pub drills: DrillTable,
+    /// The release identity every file states.
+    pub identity: Identity,
 }
 
 impl FabricationSet {
@@ -186,38 +190,97 @@ pub fn base_name(project: &Project, options: &FabricationOptions) -> Result<Stri
     }
 }
 
-/// Every text file of the set for `project`: Gerber layers and the job
+/// Every text file of the set for `snapshot`: Gerber layers and the job
 /// file, drill files, drill map and table, pick-and-place and BOM, in a
-/// fixed order. Deterministic: the same design and options give the same
-/// bytes. The PDF drawings are `sparksmith-io`'s ([`drawing::data`]).
+/// fixed order, all from the snapshot's one project. Deterministic: the
+/// same snapshot and options give the same bytes. The PDF drawings are
+/// `sparksmith-io`'s, from [`drawing::data`] of the same snapshot and the
+/// set's [`FabricationSet::identity`].
 ///
-/// Generation does not check the design; run [`preflight::report`] first.
-/// It fails only on input it cannot represent (a coordinate past the
-/// format, an output past the bounds).
-pub fn generate(project: &Project, options: &FabricationOptions) -> Result<FabricationSet> {
+/// Every file states one release identity ([`Identity`]): the project's
+/// stored identity and, as the revision, a digest of the set written
+/// without an identity, so the revision names exactly what the files say
+/// (an edit that changes no file, such as a construction line, changes no
+/// revision).
+///
+/// Generation does not check the design; run [`preflight::check`] on the
+/// same snapshot first. It fails only on input it cannot represent (a
+/// coordinate past the format, an output past the bounds).
+pub fn generate(
+    snapshot: &ProductionSnapshot<'_>,
+    options: &FabricationOptions,
+) -> Result<FabricationSet> {
+    let project = snapshot.project();
     let stem = base_name(project, options)?;
+    let undated = FabricationOptions {
+        creation_date: None,
+        ..options.clone()
+    };
+    let unnamed = Identity {
+        name: project.name.clone(),
+        ..Identity::default()
+    };
+    let assembly = if options.outputs.assembly {
+        assembly::files(project, options, &stem)?
+    } else {
+        Vec::new()
+    };
+    let digest = {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(b"sparksmith release 1\0");
+        for file in fabrication_files(project, &unnamed, &undated, &stem)?
+            .iter()
+            .chain(&assembly)
+        {
+            hasher.update(file.name.as_bytes());
+            hasher.update(b"\0");
+            hasher.update((file.bytes.len() as u64).to_le_bytes());
+            hasher.update(&file.bytes);
+        }
+        hasher.finalize()
+    };
+    let identity = Identity {
+        guid: project
+            .production
+            .project_id
+            .clone()
+            .unwrap_or_else(|| crate::model::production::guid_of(&digest)),
+        revision: digest.iter().take(8).map(|b| format!("{b:02x}")).collect(),
+        ..unnamed
+    };
     let mut set = FabricationSet {
         drills: drill::table(&drill::holes(project)),
+        identity: identity.clone(),
         ..Default::default()
     };
-    if options.outputs.gerber {
-        for file in artwork::layers(project, options, &stem)? {
-            set.push(file)?;
-        }
-    }
-    if options.outputs.drill {
-        for file in excellon::files(project, options, &stem)? {
-            set.push(file)?;
-        }
-    }
-    if options.outputs.gerber {
-        let job = job::file(project, options, &stem, &set.files)?;
-        set.push(job)?;
-    }
-    if options.outputs.assembly {
-        for file in assembly::files(project, options, &stem)? {
-            set.push(file)?;
-        }
+    for file in fabrication_files(project, &identity, options, &stem)?
+        .into_iter()
+        .chain(assembly)
+    {
+        set.push(file)?;
     }
     Ok(set)
+}
+
+/// The Gerber, drill and job files of `options`' outputs, stating
+/// `identity`.
+fn fabrication_files(
+    project: &Project,
+    identity: &Identity,
+    options: &FabricationOptions,
+    stem: &str,
+) -> Result<Vec<FabFile>> {
+    let mut files = Vec::new();
+    if options.outputs.gerber {
+        files.extend(artwork::layers(project, identity, options, stem)?);
+    }
+    if options.outputs.drill {
+        files.extend(excellon::files(project, identity, options, stem)?);
+    }
+    if options.outputs.gerber {
+        let job = job::file(project, identity, options, stem, &files)?;
+        files.push(job);
+    }
+    Ok(files)
 }

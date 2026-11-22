@@ -28,6 +28,7 @@ mod part_authoring;
 mod parts;
 mod paste;
 mod placement;
+mod profile_fit;
 mod profile_rules;
 mod publish_sets;
 mod rubber_band;

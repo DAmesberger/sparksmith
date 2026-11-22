@@ -516,8 +516,8 @@ pub struct PcbEditor {
     net_classes: Option<net_classes::NetClassesCard>,
     /// The Assembly variants card while it is open.
     variants: Option<variants_card::VariantsCard>,
-    /// The issue slot of the last inspected subject, per document revision.
-    issue_slot: Option<((u64, usize, Inspected), Option<IssueSlot>)>,
+    /// The issue slot of the last inspected subject, per report key.
+    issue_slot: Option<((sparksmith_core::ReportKey, Inspected), Option<IssueSlot>)>,
     /// The selected copper fill.
     fill: Option<Id>,
     /// The fills' display copper, kept while their copper is unchanged.
@@ -1478,14 +1478,11 @@ impl PcbEditor {
     }
 
     /// The issue slot of `inspected`: its Board issues from the one
-    /// `project.issues` query, cached per document revision. `None` (an
+    /// `project.issues` query, cached per report key (document and check
+    /// settings, [`Engine::report_key`]). `None` (an
     /// empty slot) when the query refuses.
     fn issue_slot(&mut self, engine: &Engine, inspected: Inspected) -> Option<IssueSlot> {
-        let key = (
-            engine.revision(),
-            std::sync::Arc::as_ptr(engine.project_arc()) as usize,
-            inspected,
-        );
+        let key = (engine.report_key(), inspected);
         if let Some((cached, slot)) = &self.issue_slot
             && *cached == key
         {

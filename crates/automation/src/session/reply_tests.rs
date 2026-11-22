@@ -130,9 +130,12 @@ fn a_refused_request_answers_with_its_diagnostic_and_changes_nothing() -> TestRe
 #[test]
 fn findings_report_what_appeared_and_what_went() -> TestResult {
     let mut session = demo()?;
-    let open = |session: &Session| {
-        let project = session.engine().project();
-        layout::checks(project, &Default::default()).len() + erc::checks(project).len()
+    // Open findings as Issues lists them: every row and what it merges.
+    let open = |session: &Session| match session.engine().query(Query::Issues {
+        scope: sparksmith_core::issues::IssueScope::All,
+    }) {
+        Ok(QueryResult::Issues(issues)) => issues.rows.iter().map(|r| r.findings()).sum(),
+        _ => usize::MAX,
     };
     let resolved = |findings: &Value| -> usize {
         findings["resolved"]
@@ -231,9 +234,15 @@ fn inspect_summarizes_and_reads_one_part() -> TestResult {
         reply["summary"]["drafts"].as_array().map(Vec::len),
         Some(session.engine().drafts().items.len())
     );
+    let QueryResult::Issues(issues) = session.engine().query(Query::Issues {
+        scope: sparksmith_core::issues::IssueScope::All,
+    })?
+    else {
+        return Err("project.issues gave another report".into());
+    };
     assert_eq!(
         reply["summary"]["findings"]["open"],
-        layout::checks(project, &Default::default()).len() + erc::checks(project).len()
+        issues.rows.iter().map(|r| r.findings()).sum::<usize>()
     );
     assert!(reply.get("project").is_none());
 
@@ -459,5 +468,52 @@ fn the_difference_between_two_documents_names_what_changed() -> TestResult {
         std::collections::BTreeMap::from([("layout.parts".to_owned(), vec![json!(7), json!(8)])]);
     super::reply::tests_support::name_listed(&root, &listed, &mut names);
     assert_eq!(Value::Object(names), json!({"7": "U1"}));
+    Ok(())
+}
+
+/// Review finding: the inspect summary said 0 open findings on the
+/// showcase while Issues and fabrication listed its purchasing to-dos. The
+/// summary counts from Issues' own rows: the same findings, the same
+/// counts by severity.
+#[test]
+fn the_summary_counts_what_issues_lists() -> TestResult {
+    let mut session = Session::new(Engine::showcase()?);
+    let reply = ok(session.respond(
+        Caller::Operator,
+        json!({"command": "project.inspect", "params": {}}),
+    ))?;
+    let QueryResult::Issues(issues) = session.engine().query(Query::Issues {
+        scope: sparksmith_core::issues::IssueScope::All,
+    })?
+    else {
+        return Err("project.issues gave another report".into());
+    };
+    assert!(
+        issues.counts.to_do > 0,
+        "the showcase's parts have no Part chosen"
+    );
+    let findings = &reply["summary"]["findings"];
+    assert_eq!(findings["issues"], serde_json::to_value(issues.counts)?);
+    let open: usize = issues.rows.iter().map(|r| r.findings()).sum();
+    assert_eq!(findings["open"], open);
+    assert!(
+        findings["by_code"]
+            .get("purchasing.no_part")
+            .and_then(Value::as_u64)
+            .is_some_and(|n| n > 0),
+        "{findings}"
+    );
+    // A change reply's `open` is the same count.
+    let changed = ok(session.respond(Caller::Operator, add_via(&session, [1.0, 1.0])))?;
+    let QueryResult::Issues(after) = session.engine().query(Query::Issues {
+        scope: sparksmith_core::issues::IssueScope::All,
+    })?
+    else {
+        return Err("project.issues gave another report".into());
+    };
+    assert_eq!(
+        changed["findings"]["open"],
+        after.rows.iter().map(|r| r.findings()).sum::<usize>()
+    );
     Ok(())
 }

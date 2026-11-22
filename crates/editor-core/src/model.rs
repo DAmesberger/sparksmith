@@ -525,6 +525,43 @@ pub enum PadFinish {
     ImmersionSilver,
 }
 
+impl PadFinish {
+    pub const ALL: [Self; 5] = [
+        Self::Enig,
+        Self::Hasl,
+        Self::LeadFreeHasl,
+        Self::Osp,
+        Self::ImmersionSilver,
+    ];
+
+    /// The stored name (`"enig"`), as files and fab profiles write it.
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Enig => "enig",
+            Self::Hasl => "hasl",
+            Self::LeadFreeHasl => "lead_free_hasl",
+            Self::Osp => "osp",
+            Self::ImmersionSilver => "immersion_silver",
+        }
+    }
+
+    /// The finish a stored name names.
+    pub fn from_id(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|f| f.id() == id)
+    }
+
+    /// The finish in the user's words ("ENIG", "lead-free HASL").
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Enig => "ENIG",
+            Self::Hasl => "HASL",
+            Self::LeadFreeHasl => "lead-free HASL",
+            Self::Osp => "OSP",
+            Self::ImmersionSilver => "immersion silver",
+        }
+    }
+}
+
 /// Legend (silkscreen) ink colour.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, JsonSchema, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]

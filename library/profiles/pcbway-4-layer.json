@@ -14,6 +14,12 @@
       "kind": "not_published",
       "source": "The tolerances page gives finished hole sizes and their tolerance (±0.08 mm; a 0.6 mm drill finishes 0.52–0.68 mm) but does not say whether drill files list finished or drilled sizes."
     },
+    "boards": {
+      "copper_layers": [
+        4
+      ],
+      "source": "The profile covers PCBWay's 4-layer standard service with 1 oz inner copper (see the profile's notes)."
+    },
     "options": [
       {
         "id": "limits",

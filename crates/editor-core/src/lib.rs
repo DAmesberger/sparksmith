@@ -734,6 +734,46 @@ pub fn name_by_file(project: &mut Arc<Project>, file: &std::path::Path) -> Optio
     Some(project.name.clone())
 }
 
+/// Give `project` its identity when it has none, as it is first saved to
+/// `file`: [`model::production::project_id_for`] of the file's name, the
+/// host's `nonce` and the project. A host that wants every new project
+/// distinct whatever it holds (the desktop) passes random bytes as the
+/// nonce; a scripted host (a replay through a session) passes none, so the
+/// same script saved under the same file name reproduces the identity, in
+/// any folder. Returns the identity given; `None` when it had one. A host
+/// that saves a copy of the engine's document (off the UI thread) gives
+/// the copy its identity here, then the engine the same with
+/// [`Engine::adopt_project_id`] once the file holds it.
+pub fn identify_by_file(
+    project: &mut Arc<Project>,
+    file: &std::path::Path,
+    nonce: &str,
+) -> Option<String> {
+    if project.production.project_id.is_some() {
+        return None;
+    }
+    let bytes = serde_json::to_vec(project.as_ref()).ok()?;
+    let name = file
+        .file_name()
+        .map(|n| n.to_string_lossy())
+        .unwrap_or_default();
+    let id = model::production::project_id_for(&format!("{name}\0{nonce}"), &bytes);
+    Arc::make_mut(project).production.project_id = Some(id.clone());
+    Some(id)
+}
+
+/// The inputs of a check report ([`Engine::report_key`]): equal keys give
+/// equal reports.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ReportKey {
+    revision: u64,
+    /// The document's identity: a state can change without a revision (a
+    /// first save's project identity), never without a new allocation.
+    project: usize,
+    drafts: usize,
+    checks: layout::CheckSettings,
+}
+
 /// The document, its revision and one shared undo history.
 ///
 /// Every mutation is staged on a candidate and validated before it replaces
@@ -875,6 +915,20 @@ impl Engine {
     /// The check settings the host set ([`Self::set_check_settings`]).
     pub fn check_settings(&self) -> &layout::CheckSettings {
         &self.check_settings
+    }
+
+    /// What a check report of this engine is computed from: the document
+    /// state and the host's check settings. A view that caches findings
+    /// (Issues, the inspector's slot, the production check) keys them on
+    /// this, so a settings change (the impedance tolerance) refreshes every
+    /// view together, though it takes no revision.
+    pub fn report_key(&self) -> ReportKey {
+        ReportKey {
+            revision: self.revision,
+            project: Arc::as_ptr(&self.document.project) as usize,
+            drafts: Arc::as_ptr(&self.document.drafts) as usize,
+            checks: self.check_settings,
+        }
     }
 
     fn with_document(document: Document) -> Self {
@@ -2502,10 +2556,43 @@ impl Engine {
     /// slot and datum counters keep their highest values, so a slot or id
     /// handed out once is never handed out again
     /// (`interface::auto::carry`).
+    ///
+    /// The project's identity ([`model::production::Production::project_id`])
+    /// stays too: given once, it names the project in every state.
     fn carry_interface(current: &Document, restored: &mut Document) -> Result<()> {
         if let Some(table) = interface::auto::carry(&current.project.interface, &restored.project)?
         {
             Arc::make_mut(&mut restored.project).interface = table.into();
+        }
+        let id = &current.project.production.project_id;
+        if id.is_some() && restored.project.production.project_id != *id {
+            Arc::make_mut(&mut restored.project).production.project_id = id.clone();
+        }
+        Ok(())
+    }
+
+    /// Give the project its identity when it has none, as it is first
+    /// saved to `file` ([`identify_by_file`]). It names the project, not a
+    /// state of it, so it takes no revision and no undo step, and undo and
+    /// redo keep it. A project that has one keeps it.
+    pub fn identify_by_file(&mut self, file: &std::path::Path, nonce: &str) {
+        identify_by_file(&mut self.document.project, file, nonce);
+    }
+
+    /// Take `id`, the identity a save gave a copy of this document
+    /// ([`identify_by_file`]), when the project has none; as for
+    /// [`Self::identify_by_file`], no revision and no undo step. An id that
+    /// is not RFC 4122-shaped is refused.
+    pub fn adopt_project_id(&mut self, id: String) -> Result<()> {
+        if !model::production::is_guid(&id) {
+            return Err(Error::Invalid(format!(
+                "project.id: {id} is not a project identity"
+            )));
+        }
+        if self.document.project.production.project_id.is_none() {
+            Arc::make_mut(&mut self.document.project)
+                .production
+                .project_id = Some(id);
         }
         Ok(())
     }

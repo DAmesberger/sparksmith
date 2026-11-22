@@ -82,6 +82,11 @@ fn save_and_open_are_file_effects_outside_undo_history() -> TestResult {
     let revision = session.engine().revision();
 
     let saved = session.dispatch(json!({"command": "project.save", "params": {"path": path_text}}));
+    // The first save gives the project its identity, and nothing else.
+    let mut before = before;
+    before.project.production.project_id = session.engine().project().production.project_id.clone();
+    assert!(before.project.production.project_id.is_some());
+    assert_eq!(session.engine().to_file(), before);
     assert_eq!(saved["result"]["saved_path"], path_text.as_str());
     assert_eq!(
         session.engine().revision(),
@@ -194,7 +199,15 @@ fn refused_open_preserves_document_history_and_save_path() -> TestResult {
         )["ok"],
         true
     );
-    assert_eq!(session.engine().to_file(), other.engine().to_file());
+    // Two files, two projects: each took its identity when first saved.
+    let (mut mine, mut theirs) = (session.engine().to_file(), other.engine().to_file());
+    assert_ne!(
+        mine.project.production.project_id,
+        theirs.project.production.project_id
+    );
+    mine.project.production.project_id = None;
+    theirs.project.production.project_id = None;
+    assert_eq!(mine, theirs);
     Ok(())
 }
 

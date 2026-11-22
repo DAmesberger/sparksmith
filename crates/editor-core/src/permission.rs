@@ -28,7 +28,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "files",
-        (1, 1),
+        (1, 2),
         "Files",
         "New, open and save a project file.",
     ),
@@ -64,7 +64,7 @@ pub const MODULES: &[ModuleDecl] = &[
     ),
     module_at(
         "checks",
-        (1, 1),
+        (1, 2),
         "Checks",
         "Issues, the production check and its waivers.",
     ),

@@ -1,10 +1,10 @@
 //! The Gerber job file (`.gbrjob`), from Ucamco's public Gerber Job File
-//! format: JSON with the generating software, the project identity, board
+//! format: JSON with the generating software, the release identity, board
 //! size, layer count, thickness and finish, the outer-layer design rules,
 //! every file with its file function and polarity, and the material
 //! stackup top to bottom. Keys are written in sorted order, so the same
 //! design gives the same bytes.
-use super::artwork;
+use super::snapshot::Identity;
 use super::{FabFile, FabricationOptions, FileGroup};
 use crate::diagnostics::Result;
 use crate::model::{DielectricKind, GlassStyle, MaskColour, PadFinish, Project, SilkscreenColour};
@@ -81,6 +81,7 @@ fn declared(file: &FabFile) -> Option<(String, String)> {
 /// The `.gbrjob` describing the Gerber and drill files among `files`.
 pub fn file(
     project: &Project,
+    identity: &Identity,
     options: &FabricationOptions,
     stem: &str,
     files: &[FabFile],
@@ -148,9 +149,9 @@ pub fn file(
         "Header": header,
         "GeneralSpecs": {
             "ProjectId": {
-                "Name": project.name,
-                "GUID": artwork::project_guid(project),
-                "Revision": "1",
+                "Name": identity.name,
+                "GUID": identity.guid,
+                "Revision": identity.revision,
             },
             "Size": {"X": mm(board.size()[0]), "Y": mm(board.size()[1])},
             "LayerNumber": layers.len(),
