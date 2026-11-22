@@ -508,7 +508,7 @@ fn report_like_the_run(engine: &Engine) -> PreflightReport {
     }
     for n in 1..=12 {
         items.push(item(
-            format!("purchasing.no_part instance:{n}"),
+            format!(r#"purchasing.no_part [{{"kind":"instance","id":{n}}}]"#),
             "purchasing.no_part",
             Severity::Warning,
             format!("R{n}: no Part"),
@@ -566,13 +566,24 @@ fn a_whole_group_is_waived_with_one_reason_in_one_undo_step() -> TestResult {
         !shown.iter().any(|t| t == "VBUS: 2 pads unrouted"),
         "folded"
     );
-    // Waive all… on the group opens the reason form right under it.
-    let header = hover(&mut editor, &engine, &ctx, "Unrouted connections")?;
+    // Unrouted connections cannot be waived: their group offers no
+    // Waive all… (e2e run 13, finding 37).
+    hover(&mut editor, &engine, &ctx, "Unrouted connections")?;
+    assert!(
+        click(&mut editor, &engine, &ctx, "Waive all…").is_err(),
+        "no Waive all… on the unrouted group"
+    );
+    assert!(dialog(&mut editor)?.waiving.ticked.is_empty());
+    // Waive all… on a group opens the reason form right under it.
+    let header = hover(&mut editor, &engine, &ctx, "No Part chosen")?;
     assert!(click(&mut editor, &engine, &ctx, "Waive all…")?.is_none());
-    assert_eq!(dialog(&mut editor)?.waiving.ticked.len(), 9);
+    assert_eq!(dialog(&mut editor)?.waiving.ticked.len(), 12);
     let (output, _) = frame(&mut editor, &engine, &ctx, vec![]);
     let reason = at(&output, "Reason")?;
-    let next = at(&output, "No Part chosen")?;
+    let next = at(
+        &output,
+        "Legend of R3 runs into the board edge cutout near the mounting hole",
+    )?;
     assert!(
         header.y < reason.y && reason.y < next.y,
         "the form is under its group, before the next: {header:?} {reason:?} {next:?}"
@@ -580,7 +591,7 @@ fn a_whole_group_is_waived_with_one_reason_in_one_undo_step() -> TestResult {
     hint_shows_whole(&mut editor, &engine, &ctx, "Required")?;
     // The reason is required by the setting: without one, Waive does
     // nothing, and the engine refuses such a waiver unchanged.
-    assert!(click(&mut editor, &engine, &ctx, "Waive 9 findings")?.is_none());
+    assert!(click(&mut editor, &engine, &ctx, "Waive 12 findings")?.is_none());
     let revision = engine.revision();
     let keys: Vec<String> = dialog(&mut editor)?
         .waiving
@@ -596,16 +607,16 @@ fn a_whole_group_is_waived_with_one_reason_in_one_undo_step() -> TestResult {
     assert_eq!(engine.revision(), revision);
     assert!(engine.project().production.waivers.is_empty());
     "prototype".clone_into(&mut dialog(&mut editor)?.waiving.reason);
-    let op = click(&mut editor, &engine, &ctx, "Waive 9 findings")?.ok_or("no waiver edit")?;
+    let op = click(&mut editor, &engine, &ctx, "Waive 12 findings")?.ok_or("no waiver edit")?;
     let Operation::Fabrication(FabricationCommand::Waive { keys, reason }) = &op else {
         return Err(format!("not a waiver: {op:?}").into());
     };
-    assert_eq!(keys.len(), 9);
-    assert!(keys.iter().all(|k| k.starts_with("board.unrouted ")));
+    assert_eq!(keys.len(), 12);
+    assert!(keys.iter().all(|k| k.starts_with("purchasing.no_part ")));
     assert_eq!(reason, "prototype");
     assert!(dialog(&mut editor)?.waiving.at.is_none(), "the form closes");
     engine.apply(engine.revision(), op)?;
-    assert_eq!(engine.project().production.waivers.len(), 9);
+    assert_eq!(engine.project().production.waivers.len(), 12);
     engine.undo()?;
     assert!(
         engine.project().production.waivers.is_empty(),
@@ -620,27 +631,27 @@ fn a_shift_click_ticks_a_run_and_the_form_follows_the_row() -> TestResult {
     let report = report_like_the_run(&engine);
     let groups = groups(&report);
     let mut w = Waiving::default();
-    tick_row(&mut w, &groups, "purchasing.no_part instance:2", false);
-    assert_eq!(w.at, Some(At::Row("purchasing.no_part instance:2".into())));
-    tick_row(&mut w, &groups, "purchasing.no_part instance:6", true);
+    tick_row(&mut w, &groups, r#"purchasing.no_part [{"kind":"instance","id":2}]"#, false);
+    assert_eq!(w.at, Some(At::Row(r#"purchasing.no_part [{"kind":"instance","id":2}]"#.into())));
+    tick_row(&mut w, &groups, r#"purchasing.no_part [{"kind":"instance","id":6}]"#, true);
     assert_eq!(w.ticked.len(), 5, "R2 to R6: {:?}", w.ticked);
-    assert_eq!(w.at, Some(At::Row("purchasing.no_part instance:6".into())));
+    assert_eq!(w.at, Some(At::Row(r#"purchasing.no_part [{"kind":"instance","id":6}]"#.into())));
     // A plain click unticks one; the last untick closes the form.
-    tick_row(&mut w, &groups, "purchasing.no_part instance:6", false);
+    tick_row(&mut w, &groups, r#"purchasing.no_part [{"kind":"instance","id":6}]"#, false);
     assert_eq!(w.ticked.len(), 4);
     for n in 2..=5 {
         tick_row(
             &mut w,
             &groups,
-            &format!("purchasing.no_part instance:{n}"),
+            &format!(r#"purchasing.no_part [{{"kind":"instance","id":{n}}}]"#),
             false,
         );
     }
     assert!(w.ticked.is_empty());
     assert!(w.at.is_none());
     // A row of a folded group keeps its form under the group's header.
-    w.ticked.insert("purchasing.no_part instance:12".into());
-    w.at = Some(At::Row("purchasing.no_part instance:12".into()));
+    w.ticked.insert(r#"purchasing.no_part [{"kind":"instance","id":12}]"#.into());
+    w.at = Some(At::Row(r#"purchasing.no_part [{"kind":"instance","id":12}]"#.into()));
     let lines = entries(&w, &groups);
     let form = lines.iter().position(|e| matches!(e, Entry::Form));
     let header = lines

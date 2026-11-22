@@ -253,6 +253,7 @@ fn report_in(
         findings.retain(|finding| {
             project.production.is_default()
                 || finding.blocks.is_some()
+                || !crate::fabrication::preflight::can_waive(&finding.code)
                 || project
                     .production
                     .waiver(&crate::model::production::waiver_key(

@@ -319,7 +319,8 @@ fn notes(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Stri
 
 /// One note per waived production finding, asking the fabricator to
 /// confirm it in its DFM review: the board check's message (the code when
-/// no current board finding matches) and the waiver's reason.
+/// no current board finding matches) and the waiver's reason. A saved
+/// waiver of a finding that may not be waived is ignored.
 fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<String> {
     let waivers = &project.production.waivers;
     if waivers.is_empty() {
@@ -328,6 +329,9 @@ fn waived(project: &Project, settings: &crate::layout::CheckSettings) -> Vec<Str
     let findings = layout::checks(project, settings);
     waivers
         .iter()
+        .filter(|w| {
+            super::preflight::can_waive(w.key.split_whitespace().next().unwrap_or_default())
+        })
         .map(|w| {
             let what = findings
                 .iter()

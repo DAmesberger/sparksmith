@@ -68,9 +68,10 @@ pub fn apply(
                 ));
             }
             if let Some(k) = keys.iter().find(|k| unwaivable(k)) {
+                let code = k.split_whitespace().next().unwrap_or_default();
                 return Err(Error::Conflict(format!(
-                    "fabrication.not_waivable: `{k}` cannot be waived; re-pick or acknowledge the \
-                     reference"
+                    "fabrication.not_waivable: `{k}` cannot be waived; {}",
+                    instead(code)
                 )));
             }
             if reason_required && reason.is_empty() {
@@ -176,12 +177,15 @@ impl PreflightReport {
 /// Characters of a legend text a finding quotes, so its title stays one line.
 const MAX_LEGEND_NAME: usize = 16;
 
-/// Finding codes that block export and cannot be waived: a lost or
-/// inexact dimension reference (docs/board-sketch-references.md §5.5) and
-/// a loop through positions between the board and its linked design. A
-/// broken assembly reference blocks only publishing to the linked design
+/// Finding codes that block export and cannot be waived: an unrouted
+/// connection (a waiver would make an unfinished board look finished and
+/// export it as if complete: route it), a lost or inexact dimension
+/// reference (docs/board-sketch-references.md §5.5) and a loop through
+/// positions between the board and its linked design. A broken assembly
+/// reference blocks only publishing to the linked design
 /// (docs/architecture/board-interface.md, "Findings").
 pub const NO_WAIVER: &[&str] = &[
+    "board.unrouted",
     layout::dimensions::REFERENCE_LOST,
     layout::dimensions::REFERENCE_INEXACT,
     crate::interface::findings::ASSEMBLY_CYCLE,
@@ -191,7 +195,22 @@ pub const NO_WAIVER: &[&str] = &[
 /// Whether the finding a waiver key names may not be waived.
 fn unwaivable(key: &str) -> bool {
     let code = key.split_whitespace().next().unwrap_or_default();
-    NO_WAIVER.contains(&code)
+    !can_waive(code)
+}
+
+/// Whether a finding of `code` may be waived (it is not in [`NO_WAIVER`]).
+/// A saved waiver of one that may not is ignored.
+pub fn can_waive(code: &str) -> bool {
+    !NO_WAIVER.contains(&code)
+}
+
+/// What resolves a finding of `code` instead of a waiver, for the refusal.
+fn instead(code: &str) -> &'static str {
+    match code {
+        "board.unrouted" => "route the connection",
+        "rules.no_fab_profile" => "choose a fab profile",
+        _ => "re-pick or acknowledge the reference",
+    }
 }
 
 /// The waiver key of a finding: its code and the objects it names.
