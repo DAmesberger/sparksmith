@@ -105,7 +105,7 @@ fn solvers_invert_the_formulas() -> Result<()> {
 fn layers_find_their_reference_planes() -> Result<()> {
     let two = Stackup::default();
     let top = structure(&two, CopperLayer::Top)?;
-    assert_eq!(top.structure, Structure::Microstrip { h: 1.6, er: 4.6 });
+    assert_eq!(top.structure, Structure::Microstrip { h: 1.53, er: 4.6 });
     assert!(top.assumed_references && top.dk_estimated);
     let four = Stackup::preset(4)?;
     let top = structure(&four, CopperLayer::Top)?;

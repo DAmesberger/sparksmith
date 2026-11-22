@@ -26,7 +26,7 @@ sh examples/esp32-s31-devboard/regenerate.sh
 ## Board
 
 - **Size:** 40 × 64 mm, 1.5 mm corner radius, four M2.5 mounting holes (2.7 mm NPTH, board-level holes), each `inset` (3.5 mm) from its two nearest edges, so the sketch is fully defined and the holes follow a width or height change.
-- **Stackup:** 4 layers, 1.74 mm. From the top: signal, prepreg 0.2 mm (2116), GND plane, core 1.2 mm (7628), 3V3 plane, prepreg 0.2 mm, signal. Both inner foils are marked as reference planes. The Dk values are Sparksmith's generic estimates.
+- **Stackup:** 4 layers, 1.6 mm finished. From the top: signal, prepreg 0.2 mm (2116), GND plane, core 1.06 mm (7628), 3V3 plane, prepreg 0.2 mm, signal. Both inner foils are marked as reference planes. The Dk values are Sparksmith's generic estimates.
 - **Rules:** the profile file [`library/profiles/pcbway-4-layer.json`](../../library/profiles/pcbway-4-layer.json), written from PCBWay's [manufacturing tolerances](https://www.pcbway.com/pcb_prototype/PCB_Manufacturing_tolerances.html) and [capabilities](https://www.pcbway.com/capabilities.html) pages (read 2026-11-16; every rule cites its row), with *PCBWay values* set to *Minimum* (`rules.set_fab_options`, `limits: minimum`). The board uses PCBWay because its published minimum, 0.15 mm from an unplated hole to copper, admits J1's land pattern as GCT draws it; JLCPCB's 0.2 mm does not, with no option that relaxes it. Overrides: copper (track, pad, via, fill) to board edge 0.3 mm, which is PCBWay's own value, so the override only pins it, and legend to edge 0.2 mm (PCBWay publishes no legend-to-edge limit).
 - **Net classes:**
   - Power (GND, +3V3, VBUS): 0.5 mm tracks, 0.3 mm minimum.

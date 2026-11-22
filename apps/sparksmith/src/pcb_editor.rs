@@ -3983,7 +3983,7 @@ mod tests {
             painted(&output)
                 .texts
                 .iter()
-                .any(|t| t == "2 layers · 1.67 mm")
+                .any(|t| t == "2 layers · 1.6 mm")
         );
         assert!(click(&mut editor, &engine, &ctx, "Stackup…")?.is_none());
         assert_eq!(editor.subject(), Subject::Dialog);

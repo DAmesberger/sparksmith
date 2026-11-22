@@ -27,9 +27,7 @@ fn every_even_count_up_to_the_bound_has_a_symmetric_preset_that_passes_the_rules
         // layers (e2e run 13,
         // finding 2: the 4-layer preset was 1.74 mm).
         let finished = s.thickness_mm();
-        if count == 2 {
-            assert!((s.dielectric_mm() - 1.6).abs() < 1e-9, "{count}");
-        } else if count <= 10 {
+        if count <= 10 {
             assert!((finished - 1.6).abs() < 0.0025, "{count}: {finished}");
         } else {
             assert!(finished > 1.6, "{count}: {finished}");

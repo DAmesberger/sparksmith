@@ -36,7 +36,7 @@ endobj
 
 7 0 obj
 <<
-  /Length 58373
+  /Length 58372
 >>
 stream
 1 J
@@ -2094,7 +2094,7 @@ S
 BT
 /F2 10.771653 Tf
 1 0 0 1 725.6693 676.063 Tm
-(Stackup (4 copper layers, 1.74 mm over copper)) Tj
+(Stackup (4 copper layers, 1.60 mm over copper)) Tj
 ET
 0.5102362 w
 0 G
@@ -2227,7 +2227,7 @@ ET
 BT
 /F1 7.937008 Tf
 1 0 0 1 1070.0629 574.01575 Tm
-(1.200) Tj
+(1.060) Tj
 ET
 725.6693 569.7638 m
 1094.1732 569.7638 l
@@ -2338,7 +2338,7 @@ ET
 BT
 /F1 7.937008 Tf
 1 0 0 1 742.6772 460.6299 Tm
-(Nominal board thickness 1.74 over the outer copper, solder mask and legend excluded; 4 copper layers.) Tj
+(Nominal board thickness 1.6 over the outer copper, solder mask and legend excluded; 4 copper layers.) Tj
 ET
 BT
 /F1 7.937008 Tf
@@ -2508,7 +2508,7 @@ ET
 BT
 /F1 8.503937 Tf
 1 0 0 1 844.7244 118.48819 Tm
-<34302E303020D72036342E3030206D6D2C2034206C61796572732C20312E3734206D6D> Tj
+<34302E303020D72036342E3030206D6D2C2034206C61796572732C20312E3630206D6D> Tj
 ET
 737.0079 96.37795 m
 1162.2047 96.37795 l
@@ -2553,7 +2553,7 @@ ET
 BT
 /F1 8.503937 Tf
 1 0 0 1 844.7244 67.46457 Tm
-(8e053a0bbec0b8ce) Tj
+(ae5bef1813e27665) Tj
 ET
 737.0079 45.354332 m
 1162.2047 45.354332 l
@@ -2568,7 +2568,7 @@ ET
 BT
 /F1 8.503937 Tf
 1 0 0 1 844.7244 50.45669 Tm
-(6bbf0bbb-e39f-8bcd-ad99-dd8c361d6a64) Tj
+(8d390fa6-0f43-83a2-b6ef-915fdb548a97) Tj
 ET
 737.0079 28.346457 m
 1162.2047 28.346457 l
@@ -2616,11 +2616,11 @@ endobj
 xref
 0 8
 0000000000 65535 f
-0000058906 00000 n
-0000058842 00000 n
+0000058905 00000 n
+0000058841 00000 n
 0000000016 00000 n
 0000000122 00000 n
-0000058960 00000 n
+0000058959 00000 n
 0000000233 00000 n
 0000000413 00000 n
 trailer
@@ -2630,5 +2630,5 @@ trailer
   /Info 5 0 R
 >>
 startxref
-59057
+59056
 %%EOF

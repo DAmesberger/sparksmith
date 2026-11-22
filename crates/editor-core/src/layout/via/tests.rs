@@ -466,7 +466,8 @@ fn stackup_heights_stack_from_the_bottom_dielectric_face() -> Result<()> {
     let two = Stackup::default();
     assert_eq!(two.copper_span(CopperLayer::Bottom), Some((-0.035, 0.0)));
     let top = two.copper_span(CopperLayer::Top).ok_or_else(missing)?;
-    assert!((top.0 - 1.6).abs() < 1e-12 && (top.1 - 1.635).abs() < 1e-12);
+    // The 1.53 mm core of a 1.6 mm finished two-layer board.
+    assert!((top.0 - 1.53).abs() < 1e-12 && (top.1 - 1.565).abs() < 1e-12);
     let four = Stackup::preset(4)?;
     let inner = four
         .copper_span(CopperLayer::Inner(2))

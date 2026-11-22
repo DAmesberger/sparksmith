@@ -1199,21 +1199,43 @@ fn dielectric_param(index: usize) -> String {
     format!("dielectric_{}_thickness", index + 1)
 }
 
+/// The board height (an expression) of `dielectrics[index]`'s lower face:
+/// the dielectrics below it and the inner foils between them
+/// (`Stackup::dielectric_span`), `0 mm` for the lowest.
+fn dielectric_base(stackup: &Stackup, index: usize) -> String {
+    let count = stackup.dielectrics.len();
+    let layers = stackup.layers();
+    let mut terms = vec![dielectric_sum(stackup, index + 1..count)];
+    terms.extend(
+        layers
+            .iter()
+            .filter(|l| l.side().is_none() && stackup.index(**l).is_some_and(|k| k > index))
+            .map(|l| copper_param(*l)),
+    );
+    terms.retain(|t| t != "0 mm");
+    if terms.is_empty() {
+        "0 mm".into()
+    } else {
+        terms.join(" + ")
+    }
+}
+
 /// The board height (an expression) of an inner layer's lower face: the
-/// dielectrics below it, less its foil (inner foils lie at the top of the
-/// dielectric below them, as `Stackup::copper_span` places them).
+/// top of the dielectric it lies on, as `Stackup::copper_span` places it.
 fn inner_base(stackup: &Stackup, layer: CopperLayer) -> Result<String> {
     let index = stackup
         .index(layer)
         .ok_or_else(|| Error::Invalid(format!("the stackup has no {} layer", layer.name())))?;
-    let below: Vec<String> = (index..stackup.dielectrics.len())
-        .map(dielectric_param)
-        .collect();
-    Ok(format!("{} - {}", below.join(" + "), copper_param(layer)))
+    Ok(format!(
+        "{} + {}",
+        dielectric_base(stackup, index),
+        dielectric_param(index)
+    ))
 }
 
 /// The stackup's parameters: each dielectric and foil thickness, the board
-/// (laminate) thickness as their sum, and the board outline.
+/// (laminate) thickness as the dielectrics and inner foils added, and the
+/// board outline.
 fn stackup_params(b: &mut Builder, project: &Project) -> Result<()> {
     let stackup = &project.stackup;
     stackup.check().map_err(|e| Error::Invalid(e.to_string()))?;
@@ -1222,12 +1244,9 @@ fn stackup_params(b: &mut Builder, project: &Project) -> Result<()> {
     if let [only] = stackup.dielectrics.as_slice() {
         b.param("board_thickness", only.thickness_mm, "mm")?;
     } else {
-        let mut sum = Vec::new();
         for (index, dielectric) in stackup.dielectrics.iter().enumerate() {
             b.param(&dielectric_param(index), dielectric.thickness_mm, "mm")?;
-            sum.push(dielectric_param(index));
         }
-        b.native.parameter("board_thickness", sum.join(" + "))?;
     }
     let layers = stackup.layers();
     let top = stackup
@@ -1244,6 +1263,20 @@ fn stackup_params(b: &mut Builder, project: &Project) -> Result<()> {
         } else {
             b.param(&name, foil.thickness_um / 1000.0, "mm")?;
         }
+    }
+    if stackup.dielectrics.len() > 1 {
+        // The laminate holds the inner foils too (`Stackup::laminate_mm`),
+        // so it follows their parameters, defined above.
+        let mut sum: Vec<String> = (0..stackup.dielectrics.len())
+            .map(dielectric_param)
+            .collect();
+        sum.extend(
+            layers
+                .iter()
+                .filter(|l| l.side().is_none())
+                .map(|l| copper_param(*l)),
+        );
+        b.native.parameter("board_thickness", sum.join(" + "))?;
     }
     Ok(())
 }
@@ -2581,27 +2614,15 @@ fn laminate(b: &mut Builder, project: &Project, slabs: &[plan::PlanBody]) -> Res
             .ok_or_else(|| Error::Verification(format!("slab {} has no outline", slab.name)))?;
         let (offset, height): (String, String) = match level {
             plan::Level::Dielectric(index) => (
-                dielectric_sum(stackup, index + 1..count),
+                dielectric_base(stackup, index),
                 dielectric_sum(stackup, index..index + 1),
             ),
             plan::Level::Foil { layer, .. } => (inner_base(stackup, layer)?, copper_param(layer)),
-            plan::Level::UnderFoil(index) => {
-                let foil = stackup
-                    .layers()
-                    .into_iter()
-                    .find(|l| l.side().is_none() && stackup.index(*l) == Some(index))
-                    .ok_or_else(|| {
-                        Error::Verification(format!("slab {} has no foil above it", slab.name))
-                    })?;
-                (
-                    dielectric_sum(stackup, index + 1..count),
-                    format!(
-                        "{} - {}",
-                        dielectric_sum(stackup, index..index + 1),
-                        copper_param(foil)
-                    ),
-                )
-            }
+            // The whole dielectric under an inner foil (which lies on it).
+            plan::Level::UnderFoil(index) => (
+                dielectric_base(stackup, index),
+                dielectric_sum(stackup, index..index + 1),
+            ),
         };
         let body = ProfileBody {
             name: &slab.name,

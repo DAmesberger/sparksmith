@@ -81,7 +81,7 @@ enum RowEdit {
     Remove(usize),
 }
 
-/// "4 layers · 1.67 mm": the stackup in one line.
+/// "4 layers · 1.6 mm": the stackup in one line.
 pub(super) fn stackup_summary(stackup: &Stackup) -> String {
     format!(
         "{} layers · {} mm",
