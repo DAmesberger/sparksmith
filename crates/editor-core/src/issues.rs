@@ -222,14 +222,17 @@ pub fn report_on(
 }
 
 /// Finding codes that block export and cannot be waived: an unrouted
-/// connection (a waiver would make an unfinished board look finished and
-/// export it as if complete: route it), a lost or inexact dimension
+/// connection or a part not on the board (a waiver would make an
+/// unfinished board look finished and export it as if complete: route it,
+/// place it; a part to leave unassembled is placed and Not fitted in a
+/// variant), a lost or inexact dimension
 /// reference (docs/board-sketch-references.md §5.5) and a loop through
 /// positions between the board and its linked design. A broken assembly
 /// reference blocks only publishing to the linked design
 /// (docs/architecture/board-interface.md, "Findings").
 pub const NO_WAIVER: &[&str] = &[
     "board.unrouted",
+    "board.unplaced",
     layout::dimensions::REFERENCE_LOST,
     layout::dimensions::REFERENCE_INEXACT,
     crate::interface::findings::ASSEMBLY_CYCLE,
