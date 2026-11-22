@@ -284,3 +284,69 @@ fn an_unrouted_connection_cannot_be_waived() -> Fallible<()> {
     assert_eq!(open, unrouted.len(), "every unrouted connection stays open");
     Ok(())
 }
+
+/// A part not on the board cannot be waived either: the waiver is refused,
+/// changing nothing, and a saved one is ignored, so the part still blocks
+/// export; the fix points to placing it, or to Not fitted in a variant
+/// for a part left unassembled.
+#[test]
+fn an_unplaced_part_cannot_be_waived() -> Fallible<()> {
+    let mut engine = Engine::demo()?;
+    let template = engine
+        .project()
+        .instances
+        .first()
+        .cloned()
+        .ok_or("no instance")?;
+    engine.apply(
+        engine.revision(),
+        Operation::Instance(crate::commands::InstanceCommand::Place(
+            crate::instances::NewInstance {
+                sheet: None,
+                component: template.component,
+                designator: Some("R9".into()),
+                properties: vec![],
+                representation: Some(template.representation),
+                unit: None,
+                position: None,
+                physical: template.physical,
+            },
+        )),
+    )?;
+    let before = report(&engine)?;
+    let unplaced = before
+        .items
+        .iter()
+        .find(|i| i.code == "board.unplaced")
+        .ok_or("R9 is not reported unplaced")?;
+    assert!(unplaced.blocks());
+    let fix = unplaced.fix.as_deref().ok_or("no fix")?;
+    assert!(fix.contains("Not fitted in a variant"), "{fix}");
+    let key = unplaced.key.clone();
+    let revision = engine.revision();
+    let refused = engine.apply(
+        revision,
+        Operation::Fabrication(FabricationCommand::Waive {
+            keys: vec![key.clone()],
+            reason: "prototype".into(),
+        }),
+    );
+    let message = refused.err().ok_or("the waiver was accepted")?.to_string();
+    assert!(message.contains("place the part"), "{message}");
+    assert_eq!(engine.revision(), revision);
+    let mut file = engine.to_file();
+    file.project.production.waivers = vec![crate::model::production::Waiver {
+        key: key.clone(),
+        reason: "prototype".into(),
+    }];
+    let engine = Engine::from_file(file)?;
+    let after = report(&engine)?;
+    assert_eq!(after.blocking, before.blocking);
+    assert!(
+        after
+            .items
+            .iter()
+            .any(|i| i.key == key && i.blocks() && i.waiver.is_none())
+    );
+    Ok(())
+}

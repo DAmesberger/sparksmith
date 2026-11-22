@@ -170,7 +170,7 @@ fn legend_over_a_track_stands_on_its_mask_cap() -> Result<()> {
         .iter()
         .filter(|g| g.kind == BodyKind::Silkscreen)
         .collect();
-    let crown = 1.6 + 0.035 + project.stackup.mask_um / 1000.0;
+    let crown = project.stackup.laminate_mm() + 0.035 + project.stackup.mask_um / 1000.0;
     let raised: Vec<&&Geometry> = films
         .iter()
         // 15 µm of legend ink (the shipped finishes).

@@ -179,7 +179,8 @@ fn layout(stackup: &Stackup, board: &Board) -> Vec<(Band, f64, f64)> {
     for (layer, z0, z1) in &foils {
         out.push((Band::Copper(*layer), *z0, *z1));
     }
-    // Each dielectric less the inner foils embedded in it.
+    // Each dielectric, less any foil band inside it (the foils lie between
+    // the dielectrics, `Stackup::copper_span`, so none is).
     for index in 0..stackup.dielectrics.len() {
         let Some((low, high)) = stackup.dielectric_span(index) else {
             continue;
@@ -238,8 +239,7 @@ mod tests {
             .iter()
             .filter(|g| g.kind == BodyKind::EdgeDielectric)
             .collect();
-        // Two prepregs and the core, the core and the prepregs split by
-        // the inner foils embedded at their tops.
+        // Two prepregs and the core, the inner foils between them.
         assert!(dielectric.len() >= 3);
         for g in &dielectric {
             assert_eq!(g.detail.pattern, Pattern::Weave);
@@ -258,7 +258,7 @@ mod tests {
         let high = spans.last().map_or(0.0, |s| s.1);
         let cap = 0.035 + stackup.mask_um / 1000.0;
         assert!((low + cap).abs() < 1e-9);
-        assert!((high - (stackup.dielectric_mm() + cap)).abs() < 1e-9);
+        assert!((high - (stackup.laminate_mm() + cap)).abs() < 1e-9);
         // Each band hugs the routed edge, just proud of it.
         for g in &bands {
             assert!(g.min[0] < 0.0 && g.min[0] > -0.01);

@@ -366,7 +366,7 @@ Two corrections in the graph build (`connectivity/build.rs`), both about where j
 
 ### Behaviour changes and test corrections
 
-New tests in `connectivity/lengths/tests.rs`, each with a hand-derived answer: `c1_a_pair_path_runs_through_a_mid_span_crossing` (path 13.4/17.4 of both tracks; before: no path), `c2_off_centre_vias_carry_the_path_and_their_barrels` (12 mm of track and two 1.635 mm barrels; net length counts both barrels, which the centre-line rule missed; before: no path), `c6_a_pair_path_crosses_side_by_side_overlap` (13.4 mm; before: no path), `a_path_enters_a_pad_at_its_centre` (a last leg whose corner lies on the pad, and a track overshooting the centre, both 13.4 mm), `a_path_through_a_fill_is_measured_and_marked` (10.2 mm, `via_fill`; before: no path), and the two timings below.
+New tests in `connectivity/lengths/tests.rs`, each with a hand-derived answer: `c1_a_pair_path_runs_through_a_mid_span_crossing` (path 13.4/17.4 of both tracks; before: no path), `c2_off_centre_vias_carry_the_path_and_their_barrels` (12 mm of track and two 1.565 mm barrels on the 1.6 mm two-layer board; net length counts both barrels, which the centre-line rule missed; before: no path), `c6_a_pair_path_crosses_side_by_side_overlap` (13.4 mm; before: no path), `a_path_enters_a_pad_at_its_centre` (a last leg whose corner lies on the pad, and a track overshooting the centre, both 13.4 mm), `a_path_through_a_fill_is_measured_and_marked` (10.2 mm, `via_fill`; before: no path), and the two timings below.
 
 Changed expectations in existing tests, each a correction under the founder's ruling that a pin-to-pin link is a track between two pins:
 

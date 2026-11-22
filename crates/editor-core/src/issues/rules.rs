@@ -267,7 +267,9 @@ pub(super) fn fix(code: &str) -> Option<&'static str> {
         }
         "board.outside_outline" => "Move it inside the board",
         "board.unrouted" => "Route the connection",
-        "board.unplaced" => "Update the PCB from the schematic",
+        "board.unplaced" => {
+            "Update PCB to place it; to leave it unassembled, mark it Not fitted in a variant"
+        }
         "board.via_annular_ring" => "Enlarge the via pad or shrink its drill",
         "board.via_drill_clearance" | "board.via_hole_spacing" => "Move the via",
         "board.via_dangling" => "Route copper to the via or delete it",

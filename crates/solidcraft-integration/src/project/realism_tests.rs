@@ -86,7 +86,7 @@ fn inner_copper_and_via_barrels_are_saved_copper_at_their_stackup_heights() -> R
         .iter()
         .find(|g| g.kind == BodyKind::Substrate)
         .ok_or_else(|| invalid("no substrate"))?;
-    near(substrate.max[2], stackup.dielectric_mm());
+    near(substrate.max[2], stackup.laminate_mm());
     for (id, layer) in tracks
         .iter()
         .zip([CopperLayer::Inner(1), CopperLayer::Inner(2)])
@@ -131,12 +131,12 @@ fn inner_copper_and_via_barrels_are_saved_copper_at_their_stackup_heights() -> R
         let low = copper.iter().map(|g| g.min[2]).fold(f64::MAX, f64::min);
         let high = copper.iter().map(|g| g.max[2]).fold(f64::MIN, f64::max);
         near(low, -0.035);
-        near(high, stackup.dielectric_mm() + 0.035);
+        near(high, stackup.laminate_mm() + 0.035);
         // The 0.3 mm drill is the finished bore; the barrel lines a hole
         // drilled wider by its wall.
         let (r, d, b) = (0.3, 0.15 + pad_outline::PLATING_MM, 0.15);
         let pi = std::f64::consts::PI;
-        let barrel = pi * (d * d - b * b) * stackup.dielectric_mm();
+        let barrel = pi * (d * d - b * b) * stackup.laminate_mm();
         let outer = 2.0 * pi * (r * r - b * b) * 0.035;
         // Inner rings are exact annuli round the drill, the circle the
         // laminate's foil level leaves for them.
@@ -170,7 +170,7 @@ fn the_laminate_is_physical_around_inner_copper_and_drills() -> Result<()> {
             .sum::<f64>()
     };
     let pi = std::f64::consts::PI;
-    let t = project.stackup.dielectric_mm();
+    let t = project.stackup.laminate_mm();
     let foil = 0.035;
     // Each inner layer loses the union of its track and two via rings:
     // the track's 10 × 0.3 rectangle and the two ring discs less what of
@@ -244,7 +244,7 @@ fn stackup_parameters_drive_the_saved_board_after_reopening() -> Result<()> {
     let mut native = before.native.ok_or_else(crate::project::no_design)?;
     native.change_parameters(json!({"dielectric_3_thickness": "0.5 mm"}))?;
     before = finish(native, before.sources)?;
-    let t = project.stackup.dielectric_mm() + 0.3;
+    let t = project.stackup.laminate_mm() + 0.3;
     let substrate = before
         .geometry
         .iter()
@@ -252,10 +252,11 @@ fn stackup_parameters_drive_the_saved_board_after_reopening() -> Result<()> {
         .ok_or_else(|| invalid("no substrate"))?;
     near(substrate.max[2], t);
     let inner2 = geometry_of(&before, |s| s.track == Some(tracks[1]));
-    near(inner2[0].max[2], 0.5);
+    // Each inner foil lies on the dielectric below it: Inner 2 on the
+    // thickened 0.5 mm prepreg, Inner 1 on the preset's 1.06 mm core.
+    near(inner2[0].max[2], 0.5 + 0.035);
     let inner1 = geometry_of(&before, |s| s.track == Some(tracks[0]));
-    // The thickened 0.5 mm prepreg and the preset's 1.06 mm core.
-    near(inner1[0].max[2], 0.5 + 1.06);
+    near(inner1[0].max[2], 0.5 + 0.035 + 1.06 + 0.035);
     let via = geometry_of(&before, |s| s.via == Some(vias[0]));
     let high = via.iter().map(|g| g.max[2]).fold(f64::MIN, f64::max);
     near(high, t + 0.035);
@@ -267,7 +268,7 @@ fn tented_vias_dome_under_the_mask_and_open_ones_show_rings_and_a_dark_bore() ->
     let _context = crate::looks::test_context().map(|c| c.enter());
     let (project, _, vias) = four_layer()?;
     let model = build(&project)?;
-    let t = project.stackup.dielectric_mm();
+    let t = project.stackup.laminate_mm();
     let shown = |id: Id| -> Vec<(BodyKind, Option<CopperLayer>)> {
         let mut kinds: Vec<_> = geometry_of(&model, |s| s.via == Some(id))
             .into_iter()
@@ -428,7 +429,7 @@ fn silkscreen_prints_the_legend_on_the_mask_clear_of_openings() -> Result<()> {
         .filter(|g| g.kind == BodyKind::Silkscreen)
         .collect();
     assert!(!films.is_empty());
-    let mask_top = 1.6 + project.stackup.mask_laminate_nm.to_mm_f64();
+    let mask_top = project.stackup.laminate_mm() + project.stackup.mask_laminate_nm.to_mm_f64();
     for film in &films {
         // Each part's legend shares the part's pick identity.
         let source = model
@@ -447,7 +448,7 @@ fn silkscreen_prints_the_legend_on_the_mask_clear_of_openings() -> Result<()> {
     let pads = layout::placed_pads(&project);
     for pad in &pads {
         let c = pad.center();
-        let z = 1.6 + project.stackup.mask_laminate_nm.to_mm_f64();
+        let z = project.stackup.laminate_mm() + project.stackup.mask_laminate_nm.to_mm_f64();
         for film in &films {
             assert!(
                 !film.world_mesh().contains(Vec3::new(c[0], c[1], z)),
@@ -514,7 +515,7 @@ fn a_through_hole_pad_s_lands_and_barrels_carry_their_own_layers() -> Result<()>
     {
         match g.layer {
             Some(CopperLayer::Bottom) => assert!(g.max[2] <= 1e-6, "{:?}", g.max),
-            Some(CopperLayer::Top) => assert!(g.min[2] >= project.stackup.dielectric_mm() - 1e-6),
+            Some(CopperLayer::Top) => assert!(g.min[2] >= project.stackup.laminate_mm() - 1e-6),
             _ => {}
         }
     }
@@ -538,7 +539,7 @@ fn a_twelve_layer_board_saves_deep_inner_copper_at_its_height() -> Result<()> {
         .iter()
         .find(|g| g.kind == BodyKind::Substrate)
         .ok_or_else(|| invalid("no substrate"))?;
-    near(substrate.max[2], project.stackup.dielectric_mm());
+    near(substrate.max[2], project.stackup.laminate_mm());
     let (low, high) = project
         .stackup
         .copper_span(layer)

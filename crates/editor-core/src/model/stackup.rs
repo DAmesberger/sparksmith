@@ -229,12 +229,11 @@ pub struct PresetDielectric {
 /// (`library/stackups/`, loaded by `sparksmith-io`); this type holds the
 /// build logic only.
 ///
-/// A two-layer preset is [`Self::two_layer_core`]. A preset of more layers
-/// is a symmetric foil build: prepreg outside and between the cores, which
-/// carry the inner layers in pairs. Its finished thickness, copper foils
-/// included, is [`Self::board_mm`] up to [`Self::board_mm_up_to_layers`]
-/// layers and [`Self::board_mm_per_layer_above`] a layer above that;
-/// its prepregs are [`Self::prepreg_mm`] up to
+/// Every preset's finished thickness, copper foils included, is [`Self::board_mm`] up to [`Self::board_mm_up_to_layers`]
+/// layers and [`Self::board_mm_per_layer_above`] a layer above that. A
+/// two-layer preset is one core of what its two foils leave. A preset of
+/// more layers is a symmetric foil build: prepreg outside and between the
+/// cores, which carry the inner layers in pairs; its prepregs are [`Self::prepreg_mm`] up to
 /// [`Self::prepreg_mm_up_to_layers`] layers and [`Self::prepreg_mm_above`]
 /// above; the cores share the rest, rounded to µm.
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -248,8 +247,6 @@ pub struct StackupPresets {
     pub mask_um: f64,
     /// Soldermask over bare laminate, µm.
     pub mask_laminate_um: f64,
-    /// The two-layer build's one core.
-    pub two_layer_core: PresetDielectric,
     pub board_mm: f64,
     pub board_mm_up_to_layers: usize,
     pub board_mm_per_layer_above: f64,
@@ -279,7 +276,6 @@ impl StackupPresets {
             && MASK_UM_RANGE.contains(&self.mask_um)
             && MASK_UM_RANGE.contains(&self.mask_laminate_um)
             && [
-                self.two_layer_core.thickness_mm,
                 self.prepreg_mm,
                 self.prepreg_mm_above,
                 self.added_prepreg.thickness_mm,
@@ -342,19 +338,25 @@ impl StackupPresets {
     /// this family's Dk estimates.
     pub fn preset(&self, count: usize) -> Result<Stackup> {
         check_count(count)?;
+        let lossy = |v: usize| f64::from(u32::try_from(v).unwrap_or(u32::MAX));
+        let board = if count <= self.board_mm_up_to_layers {
+            self.board_mm
+        } else {
+            self.board_mm_per_layer_above * lossy(count)
+        };
+        // The foils are part of the finished thickness.
+        let total = board - self.copper_um / 1000.0 * lossy(count);
         let dielectrics = if count == MIN_COPPER_LAYERS {
-            vec![Self::dielectric(DielectricKind::Core, self.two_layer_core)]
+            let core_mm = (total * 1000.0).round() / 1000.0;
+            vec![Dielectric {
+                kind: DielectricKind::Core,
+                thickness_mm: core_mm,
+                glass: Self::glass(&self.core_glass, core_mm)?,
+                dk: None,
+            }]
         } else {
             let prepregs = count / 2;
             let cores = prepregs - 1;
-            let lossy = |v: usize| f64::from(u32::try_from(v).unwrap_or(u32::MAX));
-            let board = if count <= self.board_mm_up_to_layers {
-                self.board_mm
-            } else {
-                self.board_mm_per_layer_above * lossy(count)
-            };
-            // The foils are part of the finished thickness.
-            let total = board - self.copper_um / 1000.0 * lossy(count);
             let prepreg_mm = if count <= self.prepreg_mm_up_to_layers {
                 self.prepreg_mm
             } else {
@@ -495,9 +497,8 @@ impl Stackup {
         })
     }
 
-    /// Total dielectric thickness in mm: the native substrate's height. The
-    /// outer foils lie outside it (bottom copper below z = 0, top copper
-    /// above this height).
+    /// Total dielectric thickness in mm, foils excluded. The laminate's
+    /// height adds the inner foils ([`Self::laminate_mm`]).
     pub fn dielectric_mm(&self) -> f64 {
         self.dielectrics.iter().map(|d| d.thickness_mm).sum()
     }
@@ -540,37 +541,54 @@ impl Stackup {
                 .sum::<f64>()
     }
 
+    /// The z of the bottom face of `dielectrics[index]`: every dielectric
+    /// below it and every inner foil between them, with z = 0 at the bottom
+    /// face of the lowest dielectric.
+    fn dielectric_base(&self, index: usize) -> f64 {
+        let n = self.copper.len();
+        let below: f64 = self
+            .dielectrics
+            .iter()
+            .skip(index + 1)
+            .map(|d| d.thickness_mm)
+            .sum();
+        let foils: f64 = self
+            .copper
+            .iter()
+            .enumerate()
+            .filter(|(k, _)| *k > index && k + 1 < n)
+            .map(|(_, c)| c.thickness_um / 1000.0)
+            .sum();
+        below + foils
+    }
+
+    /// The laminate's height in mm: every dielectric and every inner foil,
+    /// from the bottom foil's face (z = 0) to the top foil's. With the outer
+    /// foils it is the finished thickness, [`Self::thickness_mm`].
+    pub fn laminate_mm(&self) -> f64 {
+        self.dielectric_span(0).map_or(0.0, |(_, top)| top)
+    }
+
     /// A copper layer's z range in mm, with z = 0 at the bottom face of the
-    /// lowest dielectric. Inner foils are embedded at the top of the
-    /// dielectric below them (the bonding prepreg fills around them).
+    /// lowest dielectric. Every foil takes its own height, as a fabricator's
+    /// stackup lists it: an inner foil lies on the dielectric below it,
+    /// the bottom foil under z = 0 and the top foil on the laminate.
     pub fn copper_span(&self, layer: CopperLayer) -> Option<(f64, f64)> {
         let index = self.index(layer)?;
         let foil = self.copper.get(index)?.thickness_um / 1000.0;
         if layer == CopperLayer::Bottom {
             return Some((-foil, 0.0));
         }
-        let top: f64 = self
-            .dielectrics
-            .iter()
-            .skip(index)
-            .map(|d| d.thickness_mm)
-            .sum();
-        if layer == CopperLayer::Top {
-            return Some((top, top + foil));
-        }
-        Some((top - foil, top))
+        let below = if layer == CopperLayer::Top { 0 } else { index };
+        let (_, top) = self.dielectric_span(below)?;
+        Some((top, top + foil))
     }
 
     /// The z range in mm of `dielectrics[index]`.
     pub fn dielectric_span(&self, index: usize) -> Option<(f64, f64)> {
         let dielectric = self.dielectrics.get(index)?;
-        let top: f64 = self
-            .dielectrics
-            .iter()
-            .skip(index)
-            .map(|d| d.thickness_mm)
-            .sum();
-        Some((top - dielectric.thickness_mm, top))
+        let base = self.dielectric_base(index);
+        Some((base, base + dielectric.thickness_mm))
     }
 
     /// The stackup rules: an even number of copper layers from

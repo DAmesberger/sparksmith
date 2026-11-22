@@ -105,7 +105,7 @@ fn solvers_invert_the_formulas() -> Result<()> {
 fn layers_find_their_reference_planes() -> Result<()> {
     let two = Stackup::default();
     let top = structure(&two, CopperLayer::Top)?;
-    assert_eq!(top.structure, Structure::Microstrip { h: 1.6, er: 4.6 });
+    assert_eq!(top.structure, Structure::Microstrip { h: 1.53, er: 4.6 });
     assert!(top.assumed_references && top.dk_estimated);
     let four = Stackup::preset(4)?;
     let top = structure(&four, CopperLayer::Top)?;
@@ -118,8 +118,9 @@ fn layers_find_their_reference_planes() -> Result<()> {
         return Err(Error::Invalid("stripline".into()));
     };
     assert!(
-        // The 1.06 mm core less Inner 2's 35 µm foil.
-        (h1 - 0.2).abs() < 1e-9 && (h2 - 1.025).abs() < 1e-9,
+        // The top prepreg above, the 1.06 mm core below: the foils lie
+        // between the dielectrics.
+        (h1 - 0.2).abs() < 1e-9 && (h2 - 1.06).abs() < 1e-9,
         "{h1} {h2}"
     );
     // Only Inner 2 a plane: Inner 1 is embedded microstrip under the top
@@ -136,15 +137,15 @@ fn layers_find_their_reference_planes() -> Result<()> {
         return Err(Error::Invalid("embedded".into()));
     };
     assert!(
-        (h - 1.025).abs() < 1e-9 && (cover - 0.235).abs() < 1e-9,
+        (h - 1.06).abs() < 1e-9 && (cover - 0.235).abs() < 1e-9,
         "{h} {cover}"
     );
     assert_eq!(inner.references, vec![CopperLayer::Inner(2)]);
     // The top layer has no plane under it once planes are marked and
     // Inner 1 is not one: the next plane down is Inner 2.
     let top = structure(&marked, CopperLayer::Top)?;
-    // The top prepreg and the core: 0.2 + 1.06 mm.
-    assert!(matches!(top.structure, Structure::Microstrip { h, .. } if (h - 1.26).abs() < 1e-9));
+    // The top prepreg, Inner 1's foil and the core: 0.2 + 0.035 + 1.06 mm.
+    assert!(matches!(top.structure, Structure::Microstrip { h, .. } if (h - 1.295).abs() < 1e-9));
     Ok(())
 }
 

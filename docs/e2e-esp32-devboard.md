@@ -7,7 +7,7 @@ The agent used the tools as a user would. It added no features and made no code 
 ## Outcome
 
 - **Board:**
-  - 40 × 64 mm, 4 layers (signal / GND / power / signal), 1.74 mm.
+  - 40 × 64 mm, 4 layers (signal / GND / power / signal), 1.6 mm.
   - 20 parts in 15 BOM lines, every line resolved to a manufacturer Part.
   - Two schematic sheets: 133 labels and power ports, 18 named nets.
   - 187 routed steps, 55 vias, 4 fills.
