@@ -139,12 +139,22 @@ pub struct NetClassPattern {
 }
 
 /// A class-to-class clearance, unordered (`a <= b`).
+///
+/// Fab spacing by default: what the fabricator needs between copper of the
+/// two classes. Two pads of one placed footprint are exempt from it, since
+/// the footprint fixes their spacing (a QFN's pitch cannot meet a power
+/// class's spacing to its own exposed pad). An `isolation` clearance is an
+/// electrical separation the design requires between the two classes (an
+/// isolator's two sides, a mains connector's live and low-voltage pins),
+/// so it applies between the pads of one footprint too.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ClassClearance {
     pub a: NetClassId,
     pub b: NetClassId,
     pub mm: f64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub isolation: bool,
 }
 
 impl ClassClearance {
@@ -332,13 +342,23 @@ pub(super) fn apply(rules: &mut ProjectRules, command: RulesCommand) -> Result<O
             }
         }
         RulesCommand::SetPatterns { patterns } => rules.patterns = patterns,
-        RulesCommand::SetClassClearance { a, b, mm } => {
+        RulesCommand::SetClassClearance {
+            a,
+            b,
+            mm,
+            isolation,
+        } => {
             exists(rules, a)?;
             exists(rules, b)?;
             let (a, b) = if a <= b { (a, b) } else { (b, a) };
             rules.class_clearances.retain(|p| !p.is(a, b));
             if let Some(mm) = mm {
-                rules.class_clearances.push(ClassClearance { a, b, mm });
+                rules.class_clearances.push(ClassClearance {
+                    a,
+                    b,
+                    mm,
+                    isolation,
+                });
                 rules.class_clearances.sort_by_key(|p| (p.a, p.b));
             }
         }

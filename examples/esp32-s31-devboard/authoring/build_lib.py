@@ -235,7 +235,10 @@ def build(s):
             ("a8", "A8", "SBU1"), ("b5", "B5", "CC2"), ("b4a9", "B4A9", "VBUS"), ("b1a12", "B1A12", "GND"),
             ("shell", "S", "SHIELD")]
     ids = pinout(s, "USB4105-GF-A", "usb4105", V, 13,
-                 [pin(r, n, name, "passive", V, "unspecified", page=1, table="Pin/Signal table") for r, n, name in rows])
+                 # VBUS brings the board its power: a power output, so ERC
+                 # finds the rail supplied. The other contacts are passive.
+                 [pin(r, n, name, *(("power_output", V, "power") if name == "VBUS" else ("passive", V, "unspecified")),
+                      page=1, table="Pin/Signal table") for r, n, name in rows])
     comp, sym, pkg, bind = ids
     # The stacked numbers ("A1B12", "B4A9") need 7.5 mm stubs at full
     # height; the pinout's 2.5 mm stubs shrank them to less than half of it.

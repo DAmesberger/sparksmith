@@ -413,12 +413,25 @@ impl BoardCopper {
                 if a.layer != b.layer && !a.through && !b.through {
                     continue;
                 }
+                if a.conductor.same(b.conductor) {
+                    continue;
+                }
                 let (an, bn) = class_nets(a, b);
-                if !a.conductor.same(b.conductor)
-                    && a.ring
-                        .closer_than(b.ring, limits.clearance(a.kind, an, b.kind, bn))
-                {
-                    let need = limits.clearance_need(a.kind, an, b.kind, bn);
+                let mut gap = limits.clearance(a.kind, an, b.kind, bn);
+                // The footprint exception spares the classes' fab spacing
+                // only: an isolation clearance between their classes still
+                // holds between two pads of one footprint.
+                let isolation = match (within_footprint(a, b), a.net(), b.net()) {
+                    (true, Some(x), Some(y)) => limits.isolation(x, y),
+                    _ => None,
+                }
+                .filter(|need| need.mm > gap);
+                if let Some(need) = &isolation {
+                    gap = need.mm;
+                }
+                if a.ring.closer_than(b.ring, gap) {
+                    let need =
+                        isolation.unwrap_or_else(|| limits.clearance_need(a.kind, an, b.kind, bn));
                     issues.push(Finding::new(
                         "board.clearance",
                         format!(
@@ -441,17 +454,26 @@ impl BoardCopper {
     }
 }
 
-/// The nets whose classes set the clearance between `a` and `b`: none
-/// for two pads of one placed footprint, whose spacing the footprint
-/// fixes (a QFN's pitch cannot meet a power class's clearance to its own
-/// exposed pad), so they are held to the profile's pad-to-pad clearance
-/// (and its overrides) only.
+/// Whether `a` and `b` are two pads of one placed footprint: the
+/// footprint exception. The footprint fixes their spacing (a QFN's pitch
+/// cannot meet a power class's spacing to its own exposed pad), so they
+/// are held to the profile's pad-to-pad clearance (and its overrides) and
+/// to an isolation clearance between their classes
+/// (`ClassClearance::isolation`), but not to the classes' fab spacing.
+fn within_footprint(a: &Copper<'_>, b: &Copper<'_>) -> bool {
+    matches!(
+        (a.object, b.object),
+        (ObjectRef::Pad { instance: x, .. }, ObjectRef::Pad { instance: y, .. }) if x == y
+    )
+}
+
+/// The nets whose classes set the fab spacing between `a` and `b`: none
+/// within one footprint ([`within_footprint`]).
 fn class_nets(a: &Copper<'_>, b: &Copper<'_>) -> (Option<Id>, Option<Id>) {
-    match (a.object, b.object) {
-        (ObjectRef::Pad { instance: x, .. }, ObjectRef::Pad { instance: y, .. }) if x == y => {
-            (None, None)
-        }
-        _ => (a.net(), b.net()),
+    if within_footprint(a, b) {
+        (None, None)
+    } else {
+        (a.net(), b.net())
     }
 }
 

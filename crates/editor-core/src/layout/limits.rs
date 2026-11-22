@@ -298,6 +298,25 @@ impl<'a> BoardRules<'a> {
         best
     }
 
+    /// The isolation clearance between the classes of nets `an` and `bn`
+    /// (`ClassClearance::isolation`), with its cite: an electrical
+    /// separation the design requires, which holds even between two pads
+    /// of one footprint, where the classes' fab spacing does not.
+    pub fn isolation(&self, an: Id, bn: Id) -> Option<Need> {
+        let (ca, cb) = (self.class_of(Some(an))?, self.class_of(Some(bn))?);
+        let pair = self
+            .project
+            .class_clearances
+            .iter()
+            .find(|p| p.isolation && p.is(ca, cb))?;
+        let name = |c| self.project.class(c).map_or("?", |c| c.name.as_str());
+        Some(Need {
+            mm: pair.mm,
+            source: format!("net classes {} and {}", name(pair.a), name(pair.b)),
+            rule: "isolation".into(),
+        })
+    }
+
     /// [`Self::clearance`] with its cite, for a message.
     pub fn clearance_need(
         &self,
@@ -408,6 +427,7 @@ mod tests {
             a: NetClassId(1),
             b: NetClassId(2),
             mm: 0.5,
+            isolation: false,
         }];
         let limits = BoardRules::of(&project);
         for a in CopperObject::ALL {

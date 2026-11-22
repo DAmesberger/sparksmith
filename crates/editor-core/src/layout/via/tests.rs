@@ -796,3 +796,113 @@ fn drills_exactly_at_the_hole_spacing_pass_and_closer_ones_read_as_closer() -> R
     );
     Ok(())
 }
+
+/// Which net owns copper is one predicate (`Project::routed_nets`): vias
+/// count as tracks do. Joining R1.1's net to R1.2's, the net with copper
+/// keeps its ID and its copper, whether that copper is a lone via or a
+/// track; with copper on both sides the older routed net survives and the
+/// other side's copper is offered for removal.
+#[test]
+fn the_net_that_owns_copper_survives_a_merge_whether_via_or_track() -> Result<()> {
+    use crate::tests::support::{by_designator, ep, net_of};
+    use crate::updates::{ApplyUpdate, Change};
+    let base = Engine::demo()?;
+    let r1 = by_designator(&base, "R1")?;
+    let (a, b) = (net_of(&base, ep(r1, 1))?, net_of(&base, ep(r1, 2))?);
+    let (older, younger) = (a.min(b), a.max(b));
+    let routed = base.project().routed_nets();
+    assert!(!routed.contains(&older) && !routed.contains(&younger));
+    let join = Change::Schematic {
+        command: crate::schematic::SchematicCommand::Connect {
+            from: ep(r1, 1).into(),
+            to: ep(r1, 2).into(),
+        },
+    };
+    let merged = |engine: &mut Engine| -> Result<Id> {
+        let plan = engine.preview_update(join.clone());
+        assert!(plan.blockers.is_empty(), "{:?}", plan.blockers);
+        engine.apply(
+            engine.revision(),
+            Operation::Update(Box::new(ApplyUpdate {
+                expected_revision: engine.revision(),
+                change: join.clone(),
+                remove_conflicting_tracks: true,
+                merge_named_nets: false,
+            })),
+        )?;
+        net_of(engine, ep(r1, 1))
+    };
+    let via_on = |engine: &mut Engine, net: Id, at: Point| -> Result<Id> {
+        match layout(
+            engine,
+            LayoutCommand::AddVia {
+                via: ViaRequest::fixture(net, at),
+            },
+        )? {
+            Outcome::ViaAdded { via } => Ok(via),
+            other => Err(Error::Invalid(format!("{other:?}"))),
+        }
+    };
+    let track_on = |engine: &mut Engine, net: Id| -> Result<Id> {
+        let before: Vec<Id> = engine.project().tracks.iter().map(|t| t.id).collect();
+        layout(
+            engine,
+            LayoutCommand::Route {
+                request: crate::layout::RouteRequest {
+                    net,
+                    start: [30.0, 30.0],
+                    end: [34.0, 30.0],
+                    width: 0.3,
+                    layer: CopperLayer::Top,
+                },
+            },
+        )?;
+        engine
+            .project()
+            .tracks
+            .iter()
+            .map(|t| t.id)
+            .find(|id| !before.contains(id))
+            .ok_or_else(|| Error::NotFound("track".into()))
+    };
+
+    // A via-only younger net: the plan keeps its via, and so does the apply.
+    let mut engine = base.fork();
+    let via = via_on(&mut engine, younger, [30.0, 20.0])?;
+    assert!(engine.project().routed_nets().contains(&younger));
+    let plan = engine.preview_update(join.clone());
+    assert!(
+        plan.conflicting_vias.is_empty(),
+        "{:?}",
+        plan.conflicting_vias
+    );
+    assert_eq!(merged(&mut engine)?, younger);
+    assert_eq!(engine.project().via(via).map(|v| v.net), Some(younger));
+
+    // A routed younger net keeps its ID and track the same way.
+    let mut engine = base.fork();
+    let track = track_on(&mut engine, younger)?;
+    assert_eq!(merged(&mut engine)?, younger);
+    assert_eq!(
+        engine
+            .project()
+            .tracks
+            .iter()
+            .find(|t| t.id == track)
+            .map(|t| t.net),
+        Some(younger)
+    );
+
+    // Copper on both sides: the older net survives with its via, and the
+    // younger net's track is offered and removed.
+    let mut engine = base.fork();
+    let via = via_on(&mut engine, older, [30.0, 20.0])?;
+    let track = track_on(&mut engine, younger)?;
+    let plan = engine.preview_update(join.clone());
+    assert_eq!(plan.conflicting_tracks, vec![track]);
+    assert!(plan.conflicting_vias.is_empty());
+    assert_eq!(merged(&mut engine)?, older);
+    assert_eq!(engine.project().via(via).map(|v| v.net), Some(older));
+    assert!(!engine.project().tracks.iter().any(|t| t.id == track));
+    Ok(())
+}

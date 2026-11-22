@@ -269,6 +269,29 @@ fn findings_with(
             objects.clone(),
         ));
     }
+    out.extend(rating_findings(library, instance, r, part));
+    out
+}
+
+/// Whether `part`'s rated specs meet `instance`'s requirements: a finding
+/// per requirement it does not rate (`part.spec_unrated`), does not meet
+/// (`part.spec_mismatch`) or cannot be compared with
+/// (`part.spec_uncomparable`), each naming the instance's property. The
+/// one comparison for the instance's own Part and for a variant's
+/// substitute.
+pub fn rating_findings(
+    library: &Library,
+    instance: &ComponentInstance,
+    r: PartRef,
+    part: &PartDefinition,
+) -> Vec<Finding> {
+    let name = &instance.designator;
+    let mpn = &part.mpn;
+    let objects = vec![
+        ObjectRef::Instance { id: instance.id },
+        ObjectRef::Definition { id: r.id },
+    ];
+    let mut out = Vec::new();
     match requirements_for(library, instance, Some(part)) {
         Err(error) => out.push(Finding::new(
             "part.spec_uncomparable",

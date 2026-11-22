@@ -178,6 +178,7 @@ pub fn import(
             revision: record.revision,
         };
         if let Some(known) = map.revisions.get(&at) {
+            carry_review(library, record, known.local);
             done.insert(
                 i,
                 ImportedRevision {
@@ -249,6 +250,7 @@ pub fn import(
             id,
             revision,
         };
+        carry_review(library, record, local);
         let origin = OriginRecord {
             local,
             origin: Origin {
@@ -286,6 +288,29 @@ pub fn import(
         root,
         revisions: done.into_values().collect(),
     })
+}
+
+/// The pin review `record` carries, kept beside its project copy `local`
+/// as publishing keeps it (`Library::reviews`), so the pins still to check
+/// against the datasheet stay flagged in every project that reuses the
+/// part. The review is part of the record's content hash, so a reused copy
+/// holds the same one; a copy that lacks it (imported before reviews
+/// travelled) takes it now.
+fn carry_review(library: &mut Library, record: &RevisionRecord, local: DefinitionRef) {
+    let Some(review) = record
+        .review
+        .as_ref()
+        .filter(|r| local.kind == DefinitionKind::Component && !r.is_empty())
+    else {
+        return;
+    };
+    let component = crate::ids::ComponentRef::new(local.id, local.revision);
+    if library.review_of(component).is_none() {
+        library.reviews.push(super::pinout::PublishedReview {
+            component,
+            review: review.clone(),
+        });
+    }
 }
 
 /// The library every copy from a `.sparksmith` file names as its origin

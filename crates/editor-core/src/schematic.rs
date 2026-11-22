@@ -1151,12 +1151,7 @@ pub fn rename_net(project: &mut Project, net: Id, name: String) -> Result<()> {
 /// The refusal names the routed nets and the first pin that would join or
 /// leave one (a placed part's pin landing on a wire joins it).
 pub fn protect_routed_nets(before: &Project, after: &Project) -> Result<()> {
-    let routed: BTreeSet<Id> = before
-        .tracks
-        .iter()
-        .map(|t| t.net)
-        .chain(before.vias.iter().map(|v| v.net))
-        .collect();
+    let routed = before.routed_nets();
     let mut names = Vec::new();
     let mut pin = None;
     for id in routed {

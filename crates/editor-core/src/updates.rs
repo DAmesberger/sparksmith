@@ -27,6 +27,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
+pub(crate) mod finalize;
 mod models;
 mod replace;
 mod review;
@@ -911,7 +912,35 @@ pub fn stage(project: &mut Project, change: &InstanceChange, policy: EditPolicy)
     }
 }
 
-fn stage_change(project: &Project, change: &Change) -> Result<Project> {
+/// `change` applied to a copy of `project` and finalized as every entry
+/// path finalizes ([`finalize`]), so the review shows the design the apply
+/// commits, and the same edit made directly ends there too. `graph` is the
+/// copper graph of `project`.
+fn stage_change(
+    project: &Project,
+    change: &Change,
+    graph: &layout::CopperGraph,
+    evaluator: Option<&dyn layout::outline::BoardShapeEvaluator>,
+) -> Result<Project> {
+    let mut next = edited(project, change)?;
+    finalize::finalize(
+        project,
+        &mut next,
+        &finalize::Finalize {
+            graph,
+            evaluator,
+            moved_parts: &[],
+            loose: None,
+            preserve_copper: false,
+            reviewed: true,
+            assembly_command: false,
+        },
+    )?;
+    Ok(next)
+}
+
+/// `change` applied to a copy of `project`, not yet finalized.
+fn edited(project: &Project, change: &Change) -> Result<Project> {
     let mut next = project.clone();
     match change {
         Change::ComponentRevision {
@@ -935,8 +964,6 @@ fn stage_change(project: &Project, change: &Change) -> Result<Project> {
             replacement,
         } => replace::replace(&mut next, instances, replacement)?,
     }
-    schematic::tidy(&mut next)?;
-    nets::reconcile(&mut next)?;
     Ok(next)
 }
 
@@ -2535,16 +2562,7 @@ pub(crate) fn preview(
     evaluator: Option<&dyn layout::outline::BoardShapeEvaluator>,
 ) -> (UpdatePlan, Option<Project>) {
     let mut plan = UpdatePlan::new(revision, change.clone());
-    let staged = stage_change(project, &change).and_then(|mut next| {
-        // As the engine does after the update: the 3D model references
-        // are traced in the new package revisions, the dimensioned parts
-        // solved, and a solved part carries its copper.
-        let placed = layout::dimensions::follow(project, &mut next, evaluator)?;
-        if !placed.is_empty() {
-            layout::dimensions::carry(project, &mut next, graph, &placed, None)?;
-        }
-        Ok(next)
-    });
+    let staged = stage_change(project, &change, graph, evaluator);
     let mut next = match staged {
         Ok(next) => next,
         Err(error) => {

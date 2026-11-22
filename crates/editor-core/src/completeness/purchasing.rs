@@ -182,12 +182,25 @@ fn fitted_row<'a>(project: &'a Project, mut row: Row<'a>) -> Result<Row<'a>> {
         part.map(|p| spec_values(library, &p.definition.specs))
             .unwrap_or_default(),
     );
+    // Fitting the lands is not buying the right part: the substitute is
+    // resolved only once its electrical equivalence is reviewed and the
+    // instance's requirements are met or deliberately excepted.
+    let findings = match (project.variants.active(), fitted.part) {
+        (Some(variant), Some(r)) => {
+            instances::variants::substitute_findings(library, variant, row.instance, r)
+        }
+        _ => Vec::new(),
+    };
     row.report = PurchasingReport {
-        state: PurchasingState::Resolved,
+        state: if findings.is_empty() {
+            PurchasingState::Resolved
+        } else {
+            PurchasingState::Unresolved
+        },
         part: fitted.part,
         manufacturer: part.map(|p| p.definition.manufacturer.clone()),
         mpn: part.map(|p| p.definition.mpn.clone()),
-        findings: Vec::new(),
+        findings,
     };
     Ok(row)
 }

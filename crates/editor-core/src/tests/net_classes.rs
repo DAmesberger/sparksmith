@@ -219,6 +219,7 @@ fn refused_class_commands_leave_the_document_unchanged() -> Result<()> {
             a: class,
             b: NetClassId(77),
             mm: Some(0.3),
+            isolation: false,
         },
         RulesCommand::DeleteNetClass {
             class: NetClassId(77),
@@ -312,6 +313,87 @@ fn class_clearance_spares_pads_of_one_footprint() -> Result<()> {
         "{findings:#?}"
     );
     assert!(findings.iter().all(|f| !same_part(&f.objects)));
+    Ok(())
+}
+
+/// The footprint exception is for fab spacing only. With VCC and GND in
+/// classes of their own, a 1 mm class-to-class clearance flags no two pads
+/// of one footprint; marked as an isolation clearance, the separation the
+/// design requires, it flags the VCC and GND pads of one footprint too,
+/// citing the isolation.
+#[test]
+fn an_isolation_clearance_holds_inside_a_footprint_and_fab_spacing_does_not() -> Result<()> {
+    use crate::diagnostics::ObjectRef;
+    let mut engine = Engine::showcase()?;
+    let net = |engine: &Engine, name: &str| -> Result<crate::Id> {
+        engine
+            .project()
+            .nets
+            .iter()
+            .find(|n| n.name == name)
+            .map(|n| n.id)
+            .ok_or_else(|| Error::Invalid(name.into()))
+    };
+    let (vcc, gnd) = (net(&engine, "VCC")?, net(&engine, "GND")?);
+    let supply = add_class(
+        &mut engine,
+        NetClassSpec {
+            name: "Supply".into(),
+            ..Default::default()
+        },
+    )?;
+    let ground = add_class(
+        &mut engine,
+        NetClassSpec {
+            name: "Ground".into(),
+            ..Default::default()
+        },
+    )?;
+    assign(&mut engine, vec![vcc], Some(supply))?;
+    assign(&mut engine, vec![gnd], Some(ground))?;
+    let set = |engine: &mut Engine, isolation: bool| {
+        apply(
+            engine,
+            Operation::Rules(RulesCommand::SetClassClearance {
+                a: supply,
+                b: ground,
+                mm: Some(1.0),
+                isolation,
+            }),
+        )
+    };
+    let inside = |engine: &Engine| -> Vec<crate::diagnostics::Finding> {
+        layout::checks(engine.project(), engine.check_settings())
+            .into_iter()
+            .filter(|f| f.code == "board.clearance")
+            .filter(|f| {
+                matches!(
+                    f.objects.as_slice(),
+                    [ObjectRef::Pad { instance: a, .. }, ObjectRef::Pad { instance: b, .. }]
+                        if a == b
+                )
+            })
+            .collect()
+    };
+    set(&mut engine, false)?;
+    assert!(inside(&engine).is_empty(), "{:#?}", inside(&engine));
+    set(&mut engine, true)?;
+    let found = inside(&engine);
+    assert!(!found.is_empty(), "the VCC and GND pads of one part");
+    for f in &found {
+        assert!(
+            f.message
+                .contains("(net classes Supply and Ground: isolation)"),
+            "{}",
+            f.message
+        );
+        assert!(f.message.starts_with("Clearance < 1 mm"), "{}", f.message);
+    }
+    // The isolation flag is saved with the pair.
+    let file = crate::format::EditorFile::from_document(engine.document());
+    let bytes = crate::format::encode(&file)?;
+    let reopened = crate::format::decode(&bytes)?;
+    assert!(reopened.project.rules.class_clearances[0].isolation);
     Ok(())
 }
 

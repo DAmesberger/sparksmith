@@ -1602,12 +1602,18 @@ pub enum RulesCommand {
     /// Replace the ordered name-pattern rules.
     #[serde(rename = "net_class.set_patterns")]
     SetPatterns { patterns: Vec<NetClassPattern> },
-    /// Set (`Some`) or remove (`None`) a class-to-class clearance.
+    /// Set (`Some`) or remove (`None`) a class-to-class clearance. With
+    /// `isolation`, it is an electrical separation the design requires,
+    /// which also holds between the pads of one footprint; otherwise it is
+    /// fab spacing, which a footprint's own pad spacing is exempt from
+    /// ([`netclass::ClassClearance`]).
     #[serde(rename = "net_class.set_clearance")]
     SetClassClearance {
         a: NetClassId,
         b: NetClassId,
         mm: Option<f64>,
+        #[serde(default)]
+        isolation: bool,
     },
     /// Make two nets a differential pair with an explicit polarity; the
     /// outcome names it (`Outcome::DiffPairAdded`). A net is in at most
