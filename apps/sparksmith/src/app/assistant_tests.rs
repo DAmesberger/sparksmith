@@ -360,8 +360,9 @@ fn the_chat_publishes_into_the_project_unasked_and_asks_to_publish_to_a_library(
     assert!(reach.unasked("library.publish"));
     assert!(!reach.unasked("library.promote"));
     assert!(!reach.unasked("library.publish_to_folder"));
-    // No per-turn caps on the chat's changes or calls.
-    assert_eq!(sparksmith_assist::chat::unbounded().max_requests, u32::MAX);
+    // The chat's turns are limited by default (Settings › AI's limits).
+    let limits = sparksmith_assist::settings::Shipped::locate()?.limits;
+    assert!(limits.requests < u32::MAX && limits.total_tokens < u64::MAX);
     Ok(())
 }
 
@@ -548,5 +549,137 @@ fn an_edit_made_during_a_turn_is_not_counted_as_the_assistants() -> Fallible {
     );
     // Show selects the assistant's two vias, not the person's.
     assert_eq!(summary.show.len(), 2);
+    Ok(())
+}
+
+/// The chat's turn stops at its request limit with a card that names the
+/// limit, says what was done so far and its cost, and offers Continue,
+/// which runs one more turn's worth on the person's click.
+#[test]
+fn a_turn_at_its_limit_says_which_and_continues_on_the_persons_click() -> Fallible {
+    let mut ax = chat(LARGE, vec![])?;
+    let start = ax.app.engine.revision();
+    let vias = ax.app.engine.project().vias.len();
+    let first = add_via(&ax, 1.0);
+    let mut second = add_via(&ax, 2.0);
+    second["expected_revision"] = json!(start + 1);
+    let script = Arc::new(Mutex::new(VecDeque::from(vec![
+        tool("apply", first),
+        tool("apply", second),
+        text("Both vias are in."),
+    ])));
+    if let Some(model) = &ax.app.assistant.model {
+        ax.app.assistant.model = Some(ChatModel {
+            profile: model.profile.clone(),
+            connect: Arc::new(move || {
+                Ok(Box::new(Script(Arc::clone(&script))) as Box<dyn ModelBackend>)
+            }),
+        });
+    }
+    let mut limits = sparksmith_assist::settings::Shipped::locate()?.limits;
+    limits.requests = 2;
+    ax.app.assistant.model_limits = Some(limits);
+    ax.app.assistant.model_price = Some(sparksmith_assist::price::Price {
+        provider: sparksmith_assist::settings::Wire::Openai,
+        base_url: "http://localhost".into(),
+        model: "scripted".into(),
+        currency: "USD".into(),
+        per_million: sparksmith_assist::price::Rates {
+            input: 10.0,
+            cache_write: 12.5,
+            cache_read: 1.0,
+            output: 20.0,
+        },
+        source: "https://example/pricing".into(),
+        as_of: "2026-11-03".into(),
+    });
+    send(&mut ax, "Add two vias")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    assert_eq!(ax.app.engine.project().vias.len(), vias + 2);
+    for line in [
+        "Stopped at a limit · 1 undo step",
+        "This turn's limit of 2 model requests was reached.",
+        "Done so far:",
+        "Vias: 2 added",
+        // Two requests of 1 000 tokens in and 50 out at 10 and 20 USD a
+        // million.
+        "This turn: 2000 in, 100 out · about 0.02 USD",
+        "This conversation: 2000 in, 100 out · about 0.02 USD",
+    ] {
+        assert!(ax.texts.iter().any(|t| t == line), "{line}: {:?}", ax.texts);
+    }
+    let go = ax.find(Role::Button, crate::assistant::CONTINUE)?;
+    assert!(!go.disabled);
+    // Nothing runs until the person clicks.
+    let messages = |ax: &Ax| {
+        ax.app
+            .assistant
+            .conversation
+            .items
+            .iter()
+            .filter(|i| matches!(i, Item::You { .. }))
+            .count()
+    };
+    ax.settle();
+    assert_eq!(messages(&ax), 1);
+    ax.button(crate::assistant::CONTINUE)?;
+    ax.until("the continued turn's end", idle)?;
+    ax.settle();
+    let conversation = &ax.app.assistant.conversation;
+    assert_eq!(conversation.state, State::Idle, "{:?}", conversation.items);
+    assert!(matches!(
+        conversation.items.iter().rev().find(|i| matches!(i, Item::You { .. })),
+        Some(Item::You { text, .. }) if text == crate::assistant::CONTINUE_MESSAGE
+    ));
+    assert!(
+        ax.texts
+            .iter()
+            .any(|t| t == "This conversation: 3000 in, 150 out · about 0.03 USD"),
+        "{:?}",
+        ax.texts
+    );
+    // The first card's Continue is used up.
+    let buttons = ax.all(Role::Button, crate::assistant::CONTINUE);
+    assert!(buttons.iter().all(|b| b.disabled), "{buttons:?}");
+    Ok(())
+}
+
+/// A conversation that has used its tokens stops before it sends, says
+/// it was the conversation's limit, and Continue raises it.
+#[test]
+fn a_conversation_at_its_limit_stops_before_sending_and_continue_raises_it() -> Fallible {
+    let mut ax = chat(LARGE, vec![text("Here."), text("Here again.")])?;
+    let mut limits = sparksmith_assist::settings::Shipped::locate()?.limits;
+    limits.conversation_tokens = 1;
+    ax.app.assistant.model_limits = Some(limits);
+    send(&mut ax, "Hello")?;
+    ax.until("the turn's end", idle)?;
+    ax.settle();
+    assert!(
+        ax.texts
+            .iter()
+            .any(|t| t == "This conversation's limit of 1 tokens was reached."),
+        "{:?}",
+        ax.texts
+    );
+    assert!(
+        ax.texts
+            .iter()
+            .any(|t| t == "Done so far: nothing in the design."),
+        "{:?}",
+        ax.texts
+    );
+    // No price for this model: tokens only.
+    assert!(
+        !ax.texts.iter().any(|t| t.contains("USD")),
+        "{:?}",
+        ax.texts
+    );
+    ax.button(crate::assistant::CONTINUE)?;
+    ax.until("the continued turn's end", idle)?;
+    let conversation = &ax.app.assistant.conversation;
+    assert_eq!(conversation.state, State::Idle, "{:?}", conversation.items);
+    assert_eq!(conversation.raised, limits.total_tokens);
     Ok(())
 }

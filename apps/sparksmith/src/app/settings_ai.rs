@@ -565,7 +565,7 @@ impl AiPage {
         kit::section(
             ui,
             "settings-ai-run-limits",
-            "Run limits",
+            "Chat limits",
             false,
             None,
             |ui| limits(ui, state, &settings, &shipped),
@@ -1481,51 +1481,65 @@ fn permissions(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, 
     }
 }
 
-/// The person's own limits on model runs: off by default, so the chat can
-/// build a whole board; a workflow brings its own budget, held within
-/// these when they are on.
+/// The chat's limits: per turn and per conversation, the shipped ones
+/// until the person sets their own. A workflow runs on its own budget.
 fn limits(ui: &mut egui::Ui, state: &mut State, settings: &AssistSettings, shipped: &Shipped) {
     use workflow::{MAX_MINUTES, MAX_OUTPUT_TOKENS, MAX_REQUESTS, MAX_TOTAL_TOKENS};
-    let mut on = settings.limits.is_some();
-    if kit::check_row(ui, "Limit model runs", &mut on) {
-        let mut next = settings.clone();
-        next.limits = on.then_some(shipped.limits_start);
-        state.commit(next);
-        return;
-    }
-    let Some(mut l) = settings.limits else {
-        kit::hint(
-            ui,
-            "No limit: the chat runs until it is done or you stop it",
-            "A workflow brings its own budget (the datasheet workflow: its requests and minutes). Turn this on to hold every run, the chat's and the workflows', within your own limits.",
-        );
-        return;
-    };
+    let mut l = settings.limits_or(shipped);
     let before = l;
-    number_u32(ui, "Model requests", &mut l.requests, "", (1, MAX_REQUESTS));
     number_u64(
         ui,
-        "Output tokens",
-        &mut l.output_tokens,
-        "",
-        (1, MAX_OUTPUT_TOKENS),
-    );
-    number_u64(
-        ui,
-        "All tokens",
+        "Tokens a message",
         &mut l.total_tokens,
         "",
         (1, MAX_TOTAL_TOKENS),
     );
-    number_u32(ui, "Time", &mut l.minutes, "min", (1, MAX_MINUTES));
+    number_u32(
+        ui,
+        "Model requests a message",
+        &mut l.requests,
+        "",
+        (1, MAX_REQUESTS),
+    );
+    number_u64(
+        ui,
+        "Output tokens a message",
+        &mut l.output_tokens,
+        "",
+        (1, MAX_OUTPUT_TOKENS),
+    );
+    number_u32(
+        ui,
+        "Time a message",
+        &mut l.minutes,
+        "min",
+        (1, MAX_MINUTES),
+    );
+    number_u64(
+        ui,
+        "Tokens a conversation",
+        &mut l.conversation_tokens,
+        "",
+        (1, MAX_TOTAL_TOKENS),
+    );
     kit::hint(
         ui,
-        "A model run stops at the first of these it reaches",
-        "All tokens counts prompt and output. A workflow's budget is held within these, never above. An agent's tokens are its own; its time still holds.",
+        "The chat stops at the first of these it reaches and offers Continue",
+        "Tokens count the prompt and the reply of every request. The card at the end of each message shows its tokens and, for a model with a known price, what they cost. A workflow runs on its own budget. An agent's tokens are its own; its time still holds.",
     );
-    if l != before {
+    let mut reset = false;
+    if settings.limits.is_some() {
+        kit::actions(ui, |ui| {
+            reset = ui_kit::button(ui, "Use the defaults", Button::Normal).clicked();
+        });
+    }
+    if reset {
         let mut next = settings.clone();
-        next.limits = Some(l);
+        next.limits = None;
+        state.commit(next);
+    } else if l != before {
+        let mut next = settings.clone();
+        next.limits = (l != shipped.limits).then_some(l);
         state.commit(next);
     }
 }

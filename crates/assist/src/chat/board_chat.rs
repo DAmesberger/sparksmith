@@ -703,7 +703,11 @@ fn reading_without_a_change_stops_the_turn_saying_what_to_give() -> Fallible {
         &mut |_| {},
         &AtomicBool::new(false),
     );
-    let End::Limit(why) = &outcome.end else {
+    let End::Limit {
+        hit: Hit::Idle,
+        why,
+    } = &outcome.end
+    else {
         return Err(format!("{:?}", outcome.end).into());
     };
     assert!(why.contains("without a change"), "{why}");

@@ -7,11 +7,12 @@
     "publish_library": "ask",
     "view": "always"
   },
-  "limits_start": {
-    "requests": 40,
-    "output_tokens": 200000,
-    "total_tokens": 4000000,
-    "minutes": 45
+  "limits": {
+    "requests": 20,
+    "output_tokens": 100000,
+    "total_tokens": 400000,
+    "minutes": 45,
+    "conversation_tokens": 2000000
   },
   "endpoint_presets": [
     {
@@ -65,7 +66,7 @@
   ],
   "sources": {
     "permissions": "The founder's defaults for agents (docs/design/extension-abi-design.md): edits run inside the reviewable turn, which undoes as one step; files and publishing to a library ask; the built-in chat moves the view without asking (founder, 14 November: view steering is on for the built-in agent). Publishing a part into the open project never asks (founder, 16 November). Each ask offers Allow once, Allow for this session, Always allow and Deny.",
-    "limits_start": "Limits are unset by default, so the chat can build a whole board (founder, 16 November); a workflow brings its own budget in its workflow.json. These are only the values the limits start from when the person turns them on: docs/assistant-panel.md §6.3, 40 model requests, 200 000 output tokens and 4 000 000 tokens as approved on 9 November, 45 minutes as approved in Q7. There are no per-turn caps on edits or calls.",
+    "limits": "The chat's limits until the person sets their own in Settings › AI; per turn, except conversation_tokens. Sized from E2E run 13 after its fixes: a wiring turn took about 4 requests and under 80 000 tokens, with the history condensed at 56 000 tokens down to 28 000 and the turn stopped after 250 000 tokens of reading with nothing changed. A turn may use 400 000 tokens (5 such turns' worth and above the 250 000 idle stop, so a turn that reads without changing anything ends at the idle stop first) and 20 requests (5 times the measured 4). Its output is held to 100 000 tokens: the whole run used about 40 000 over every turn. A conversation may use 2 000 000 tokens, 5 full turns. At the Opus 5.5 rates in prices.json (4 USD a million prompt tokens, 20 USD a million output tokens) a full turn costs at most about 1.60 USD plus its output and a full conversation about 8 USD plus output, before cache reads lower both; the run's old 4 000 000-token turn could cost about 16 USD and more. 45 minutes as approved in Q7, since a model on the person's computer takes about 31 minutes for one 32 000-token reply. A stop says which limit was reached and offers Continue, which runs one more turn's worth. A workflow brings its own budget in its workflow.json.",
     "endpoint_presets": "The choices of Settings › AI › Connection, in this order, titled in plain words (founder, 16 November: no jargon on the first screen). Anthropic's API base URL; OpenAI's API base URL, https://api.openai.com/v1 (OpenAI's API reference); Ollama's OpenAI-compatible endpoint on its default port 11434 (the person changes it for LM Studio, llama-server or another server under Advanced). OpenAI names no model here: its model ids change often, so the person types the one they use. The context is a starting value the person corrects to what their server gives the model; tool calling is declared on, vision and PDF reading off until the person declares them. Timeouts: 30 minutes for a hosted model; 90 for a local one, which at 17 tokens a second takes 31 minutes for 32 000 output tokens.",
     "agent_presets": "The ACP launch commands each agent documents: claude-agent-acp, codex-acp, gemini --acp, opencode acp. Titles name the agent only; the command shows under Advanced."
   }

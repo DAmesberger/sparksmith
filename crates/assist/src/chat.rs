@@ -110,9 +110,9 @@ impl ChatLibrary {
     }
 }
 
-/// The chat's budget: no per-turn caps (founder, 16 November 2026); a long
-/// conversation is compacted instead (a later slice). Stop still ends a
-/// turn.
+/// A budget with no caps, for a scripted model in tests and for the
+/// host's test model; the chat itself runs within Settings › AI's limits
+/// ([`crate::settings::Limits::turn_budget`]).
 pub fn unbounded() -> Budget {
     Budget {
         max_requests: u32::MAX,
@@ -183,6 +183,21 @@ pub struct Use {
     /// Prompt plus output tokens, every request counted.
     pub tokens: u64,
     pub seconds: f64,
+    /// The tokens as the provider reported them: uncached, cache written,
+    /// cache read and output.
+    pub reported: crate::usage::Usage,
+}
+
+/// Which limit ended a turn or a run.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Hit {
+    Requests,
+    OutputTokens,
+    /// Prompt plus output tokens.
+    Tokens,
+    Time,
+    /// Reading past the policy's allowance with nothing changed.
+    Idle,
 }
 
 /// How a turn ended. What its calls changed stays, as one undo step.
@@ -192,8 +207,8 @@ pub enum End {
     Answered,
     /// The person pressed Stop.
     Stopped,
-    /// A limit of the turn was reached; which.
-    Limit(String),
+    /// A limit of the turn was reached: which, and the numbers in words.
+    Limit { hit: Hit, why: String },
     /// The reply stopped at the output limit before it was complete.
     CutOff(String),
     /// The model declined.
@@ -206,7 +221,7 @@ impl From<crate::request::Stopped> for End {
     fn from(stop: crate::request::Stopped) -> Self {
         match stop {
             crate::request::Stopped::Cancelled => Self::Stopped,
-            crate::request::Stopped::Limit(why) => Self::Limit(why),
+            crate::request::Stopped::Limit(hit, why) => Self::Limit { hit, why },
             crate::request::Stopped::Failed(why) => Self::Failed(why),
         }
     }
@@ -217,7 +232,7 @@ impl std::fmt::Display for End {
         match self {
             Self::Answered => write!(f, "answered"),
             Self::Stopped => write!(f, "stopped"),
-            Self::Limit(why) => write!(f, "limit reached: {why}"),
+            Self::Limit { why, .. } => write!(f, "limit reached: {why}"),
             Self::CutOff(why) => write!(f, "cut off: {why}"),
             Self::Declined(why) => write!(f, "the model declined: {why}"),
             Self::Failed(why) => write!(f, "failed: {why}"),
@@ -256,6 +271,7 @@ pub fn turn(
             .prompt()
             .saturating_add(tally.usage.output_tokens),
         seconds: started.elapsed().as_secs_f64(),
+        reported: tally.usage,
     };
     if let Err(error) = config.check() {
         return Outcome {
@@ -333,10 +349,13 @@ pub fn turn(
     let end = loop {
         let spent = usage(&tally).tokens;
         if spent.saturating_sub(changed_at) > policy.idle_tokens {
-            break End::Limit(format!(
-                "about {} k tokens of reading without a change, so nothing more was sent. Say exactly what to change and on which parts (\"connect R3 pin 2 to U1 EN\"), or select them, and ask again",
-                spent.saturating_sub(changed_at) / 1_000
-            ));
+            break End::Limit {
+                hit: Hit::Idle,
+                why: format!(
+                    "about {} k tokens of reading without a change, so nothing more was sent. Say exactly what to change and on which parts (\"connect R3 pin 2 to U1 EN\"), or select them, and ask again",
+                    spent.saturating_sub(changed_at) / 1_000
+                ),
+            };
         }
         let allowance = match (crate::request::Driver {
             backend,

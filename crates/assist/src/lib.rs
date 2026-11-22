@@ -35,6 +35,7 @@ pub mod fixtures;
 pub mod legacy;
 pub mod model;
 pub mod pins;
+pub mod price;
 pub mod profile;
 pub mod registry;
 pub mod report;
@@ -170,6 +171,9 @@ pub struct Meter {
     pub output_tokens: Gauge,
     pub tokens: Gauge,
     pub minutes: Gauge,
+    /// The tokens as the provider reported them: uncached, cache written,
+    /// cache read and output.
+    pub reported: crate::usage::Usage,
 }
 
 /// Why a run stopped.

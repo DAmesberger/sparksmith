@@ -21,10 +21,10 @@ Design for founder approval, 16 November 2026, written against `main` at 0123559
 | 7 | Category as a standard field | Yes | §3.3 |
 | 8 | Which generic parts are complete | **No hard-coded list.** A generator declares, as data, which outputs are parts (pins with an explicit pin mapping) | §3.2 |
 | 9 | One ranked list | Yes; groups only when browsing | §1.2 |
-| 10 | Chat entry | The chat **can do everything**: plan, make parts, place, route, check and export ("Claude Code for PCBs"), with the same verbs as every caller, under the person's permissions and review gates. No narrow `view.arm_place`. No turn limits | §5 |
+| 10 | Chat entry | The chat **can do everything**: plan, make parts, place, route, check and export ("Claude Code for PCBs"), with the same verbs as every caller, under the person's permissions and review gates. No narrow `view.arm_place`. Turn and conversation limits with Continue ([assistant panel §6.3](../assistant-panel.md#63-chat-limits)) | §5 |
 | 11 | Online sources | Yes. Define the registry format; it will be hosted at `parts.sparksmith.io` | §6 (sketch; follow-up design) |
 
-- **Founder answers, round 2** (16 November 2026), recorded as decisions in §9: categories are not stored in projects; categories merge by id with name mapping; every pin has a name or the typed no-connect mode, and strict types replace strings wherever automation reasons; publishing a part into the project never asks, publishing to a library asks with harness-style choices; no turn limits, context compaction instead; a default designator prefix per category; modules are nothing special; the registry ships result and recipe; registry accounts, upload and moderation are designed in R0.
+- **Founder answers, round 2** (16 November 2026), recorded as decisions in §9: categories are not stored in projects; categories merge by id with name mapping; every pin has a name or the typed no-connect mode, and strict types replace strings wherever automation reasons; publishing a part into the project never asks, publishing to a library asks with harness-style choices; context compaction for long conversations; a default designator prefix per category; modules are nothing special; the registry ships result and recipe; registry accounts, upload and moderation are designed in R0.
 
 Run 11 (`docs/e2e-run-11.md`, not yet on `main`) adds three concrete problems this design must fix:
 
@@ -387,7 +387,7 @@ What bounds it is the person's, never the design's:
 
 - **Permissions** (Settings › AI › Permissions), per kind of action, as a coding agent's harness asks: each kind is Ask every time, Ask once a session, Always allow or Deny, and an ask offers **Allow once**, **Allow for this session**, **Always allow** and **Deny**. Document edits run inside a reviewable turn; **publishing a part into the project never asks**; **publishing to a library asks** (unless the person chose otherwise); files and network (the registry) ask. Keys, endpoints and grants are Never-class.
 - **Review gates**: every preview is a dry run with an impact card bound to its revision; a workflow's `confirm` gates; each message is one labelled undo step with **Undo turn**.
-- **No turn limits.** A whole board may be one message. A long conversation stays within the model's context through compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)); the person's optional run limits and a workflow's budget are the only stops besides Stop.
+- **Chat limits.** A message runs within the chat's turn and conversation limits ([assistant panel §6.3](../assistant-panel.md#63-chat-limits)); a stop at one offers Continue. A long conversation stays within the model's context through compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)).
 
 ### 5.2 Part search and part making, end to end in the chat
 
@@ -606,7 +606,7 @@ At most five agents at once. Every slice ships with its tests. UI evidence is ga
 2. **Categories merge by id, with name mapping.** Equal paths are one category; `same_as` maps a differing id onto it; titles come from the highest-precedence source (§3.1).
 3. **Every pin has a name or the no-connect mode.** A part with pins "1…5" is refused; no-connect is a typed mode, not the name "NC" (§3.6). Create and open still allows unfinished drafts. Strict types replace strings wherever automation reasons (the audit in §3.6).
 4. **Publishing.** Into the project never asks: `library.new_part` publishes as part of the turn, one undo step. To a library asks, with Allow once, Allow for this session, Always allow and Deny. The datasheet workflow publishes nothing itself; Publish is on its result card.
-5. **No turn limits.** A board-sized request may be one message; long conversations stay within the context by compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)).
+5. **Chat limits.** Each message and conversation runs within limits whose stop offers Continue ([assistant panel §6.3](../assistant-panel.md#63-chat-limits)); long conversations stay within the context by compaction ([assistant panel §6.5](../assistant-panel.md#65-context-compaction)).
 6. **Default designator prefix per category**, optional, in `categories.json` (§3.1), used as the New part dialog's default.
 7. **Modules are nothing special.** Neither a category nor a package style: a module is a part filed by its function, and its package style is its pad form (castellated, LGA) (§1.3).
 8. **The registry ships result and recipe.** The client accepts the result by digest and signature and, when the generator is approved, regenerates from the recipe and compares result hashes ("verified by generator" in the import preview).

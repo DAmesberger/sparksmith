@@ -32,8 +32,8 @@ const PER_FRAME: usize = 64;
 const RESULT_CHARS: usize = 4_000;
 
 /// The run's model configuration: the run profile Settings › AI's model
-/// selects (shipped or the person's own), the person's limits as `budget`
-/// (the runner holds the workflow's own budget within them).
+/// selects (shipped or the person's own), and `budget`, which the runner
+/// holds the workflow's own budget within.
 fn run_config(profile: ModelProfile, budget: Budget) -> Result<RunConfig, String> {
     let shipped = AssistLibrary::locate().map_err(|e| e.to_string())?;
     let folder = sparksmith_io::settings::UserDirs::from_env()
@@ -150,13 +150,17 @@ impl App {
                 State::Error(format!("The workflow {workflow} cannot run here"));
             return;
         };
-        let (model, budget, permissions) = match self.chat_model() {
+        let chosen = match self.chat_model() {
             Ok(chosen) => chosen,
             Err(why) => {
                 self.assistant.conversation.state = State::NotSetUp(why);
                 return;
             }
         };
+        let (model, permissions) = (chosen.model, chosen.permissions);
+        // A workflow runs on its own budget (its workflow.json); the chat's
+        // turn and conversation limits are the chat's.
+        let budget = sparksmith_assist::chat::unbounded();
         self.assistant.permissions = Some(permissions);
         let started = self
             .chat_grant()
