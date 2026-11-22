@@ -690,3 +690,59 @@ fn a_new_qfn_places_on_a_routed_imported_sheet() -> Fallible<()> {
     }
     Ok(())
 }
+
+/// A partly laid out project: R2 is on the schematic with no footprint on
+/// the board. It comes in as a part on the sheet where KiCad draws it,
+/// wired as KiCad wires it, with no footprint chosen; after the project is
+/// saved and reopened, Issues still lists it as having no footprint. The
+/// board and schematic do not disagree over it: it is not on the board.
+#[test]
+fn a_symbol_without_a_footprint_is_kept_as_a_part_without_one() -> Fallible<()> {
+    let board = row_board(&[("R1", &[("1", Some((1, "A"))), ("2", Some((2, "SIG")))])]);
+    // R1.2 at (50, 53.81) wired to R2.1 at (60, 46.19).
+    let schematic = sheet(
+        &[("R1", "50 50 0"), ("R2", "60 50 0")],
+        "(wire (pts (xy 50 53.81) (xy 55 53.81) (xy 55 46.19) (xy 60 46.19)))",
+    );
+    let imported = import_sheet(&board, schematic)?;
+    let report = &imported.report;
+    assert_eq!(report.count(Case::SymbolWithoutFootprint), 1);
+    assert_eq!(report.count(Case::SymbolNotDrawn), 0);
+    let detail = report
+        .details()
+        .iter()
+        .find(|d| d.case == Case::SymbolWithoutFootprint)
+        .ok_or("no detail naming the part")?;
+    assert_eq!(detail.footprint, "R2");
+    let project = imported.engine.project();
+    let r2 = project.instance_by_designator("R2").ok_or("R2 dropped")?;
+    assert!(r2.physical.is_none());
+    assert!(project.placement_of(r2.id).is_none());
+    // On the sheet where KiCad has it: (60, 50) is (30, −20) on ours.
+    let occurrence = project.occurrences_of(r2.id).next().ok_or("on no sheet")?;
+    let at = occurrence.position.to_mm_f64();
+    assert!(
+        (at[0] - 30.0).abs() < 1e-9 && (at[1] + 20.0).abs() < 1e-9,
+        "{at:?}"
+    );
+    // Wired as KiCad wires it, and the source's nets come in whole.
+    assert!(net_of(project, "R1", "2").is_some());
+    assert_eq!(net_of(project, "R1", "2"), net_of(project, "R2", "1"));
+    assert_eq!(
+        (report.counts.source_nets, report.counts.source_nets_equal),
+        (3, 3)
+    );
+    assert!(project.net_disagreements.is_empty());
+    assert_eq!(report.count(Case::BoardSplitsNet), 0);
+    // Saved and reopened, Issues names it as having no footprint.
+    let file = sparksmith_core::format::EditorFile::from_document(imported.engine.document());
+    let bytes = sparksmith_core::format::encode(&file)?;
+    let reopened = sparksmith_core::format::decode(&bytes)?;
+    let rows = issue_rows(&reopened.project)?;
+    let row = rows
+        .iter()
+        .find(|(code, _)| code == "instance.no_physical_choice")
+        .ok_or("no Issues row for the part without a footprint")?;
+    assert!(row.1.contains("R2"), "{}", row.1);
+    Ok(())
+}
