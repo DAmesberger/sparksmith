@@ -320,7 +320,8 @@ impl App {
         }
         let mut pcb = pcb_editor::PcbEditor::default();
         // One report of every issue, made off the UI thread, for the
-        // Issues surface and the PCB and Schematic inspectors.
+        // Issues surface, the PCB canvas and the PCB, Schematic and part
+        // editor inspectors.
         let reports = crate::issue_reports::SharedReports::start(ctx.clone());
         pcb.share_reports(reports.clone());
         *pcb.filter_mut() = sources.selection_filter();
@@ -332,6 +333,7 @@ impl App {
         let shelf = crate::generators::Shelf::load(ctx);
         schematic.palette_mut().set_shelf(&shelf);
         let mut part = part_editor::PartEditor::default();
+        part.share_reports(reports.clone());
         part.set_shelf(&shelf);
         Self {
             scene: SceneController::new(ctx.clone(), viewport),

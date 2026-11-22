@@ -581,3 +581,44 @@ fn the_summary_counts_what_issues_lists() -> TestResult {
     );
     Ok(())
 }
+
+/// A reply leaves out the tracks and vias both states hold unchanged, and
+/// still reports exactly what diffing the whole documents reports: changed,
+/// added and removed ones by id, and an order change alone as the field.
+#[test]
+fn trimmed_copper_reports_what_whole_documents_report() -> TestResult {
+    use super::reply::tests_support::{changes_between, changes_of};
+    let engine = sparksmith_core::Engine::showcase()?;
+    let before = engine.project().clone();
+    let whole = |a: &Project, b: &Project| -> Result<Value> {
+        Ok(changes_of(
+            &serde_json::to_value(a)?,
+            &serde_json::to_value(b)?,
+        ))
+    };
+    let mut edits: Vec<Project> = Vec::new();
+    // One track changed, one via removed, one track added.
+    let mut p = before.clone();
+    p.tracks[1].width += 0.05;
+    p.vias.remove(0);
+    let mut t = p.tracks[2].clone();
+    t.id = p.next_id;
+    p.next_id += 1;
+    p.tracks.push(t);
+    edits.push(p);
+    // Only the order of the tracks.
+    let mut p = before.clone();
+    p.tracks.swap(0, 1);
+    edits.push(p);
+    // The order and one track.
+    let mut p = before.clone();
+    p.tracks.swap(0, 1);
+    p.tracks[3].width += 0.05;
+    edits.push(p);
+    for after in &edits {
+        let reported = changes_between(&before, after)?;
+        assert_eq!(reported, whole(&before, after)?);
+        assert_ne!(reported, Value::Null);
+    }
+    Ok(())
+}

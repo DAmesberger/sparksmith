@@ -59,8 +59,8 @@ fn the_worker_report_is_applied_only_to_its_own_state() -> Fallible {
     let mut engine = Engine::showcase()?;
     let mut reports = Reports::start(egui::Context::default());
     assert!(reports.wait(&engine, PATIENCE), "the first report arrives");
-    let expected = engine.query(Query::Issues {
-        scope: IssueScope::All,
+    let expected = engine.query(sparksmith_core::Query::Issues {
+        scope: sparksmith_core::issues::IssueScope::All,
     })?;
     let sparksmith_core::QueryResult::Issues(expected) = expected else {
         return Err("not an issue report".into());
@@ -85,9 +85,10 @@ fn the_worker_report_is_applied_only_to_its_own_state() -> Fallible {
     assert!(reports.wait(&engine, PATIENCE), "the newest report arrives");
     assert_ne!(engine.report_key(), middle);
     let newest = reports.latest(&engine).ok_or("a report")?;
-    let sparksmith_core::QueryResult::Issues(expected) = engine.query(Query::Issues {
-        scope: IssueScope::All,
-    })?
+    let sparksmith_core::QueryResult::Issues(expected) =
+        engine.query(sparksmith_core::Query::Issues {
+            scope: sparksmith_core::issues::IssueScope::All,
+        })?
     else {
         return Err("not an issue report".into());
     };
@@ -134,9 +135,10 @@ fn current_checks_the_current_state_at_once() -> Fallible {
     tent_first_via(&mut engine, !tented)?;
     let answer = reports.current(&engine);
     assert!(reports.is_current(&engine));
-    let sparksmith_core::QueryResult::Issues(expected) = engine.query(Query::Issues {
-        scope: IssueScope::All,
-    })?
+    let sparksmith_core::QueryResult::Issues(expected) =
+        engine.query(sparksmith_core::Query::Issues {
+            scope: sparksmith_core::issues::IssueScope::All,
+        })?
     else {
         return Err("not an issue report".into());
     };

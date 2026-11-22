@@ -149,6 +149,42 @@ pub struct CopperGraph {
     islands: usize,
     /// Joining stopped at a limit: some joints may be missing.
     partial: bool,
+    /// Per net, the outline pairs the scan compared and the joints it
+    /// found, net by net ([`Self::net_counts`]).
+    scanned: BTreeMap<Id, (usize, usize)>,
+}
+
+/// What one net adds to the copper graph's joining limits: the pairs its
+/// scan compared, the joints it found, its outlines and its elements. A
+/// net's numbers are the same in the whole board's graph and in a graph
+/// of some nets ([`CopperGraph::of_nets`]), as nets never join.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NetCounts {
+    pub pairs: usize,
+    pub joints: usize,
+    pub shapes: usize,
+    pub elements: usize,
+}
+
+impl NetCounts {
+    /// The sum of `counts`.
+    pub fn total<'a>(counts: impl IntoIterator<Item = &'a NetCounts>) -> NetCounts {
+        counts
+            .into_iter()
+            .fold(NetCounts::default(), |t, c| NetCounts {
+                pairs: t.pairs.saturating_add(c.pairs),
+                joints: t.joints.saturating_add(c.joints),
+                shapes: t.shapes.saturating_add(c.shapes),
+                elements: t.elements.saturating_add(c.elements),
+            })
+    }
+
+    /// Whether a graph with these totals finds every joint: its scan never
+    /// passes its pair budget or its joint limit.
+    pub fn within_limits(&self) -> bool {
+        self.pairs <= crate::layout::check_pair_budget(self.shapes)
+            && self.joints <= self.elements.saturating_mul(build::MAX_JOINTS_PER_ELEMENT)
+    }
 }
 
 impl CopperGraph {
@@ -167,6 +203,35 @@ impl CopperGraph {
 
     pub fn edges(&self) -> &[Edge] {
         &self.edges
+    }
+
+    /// Each net's [`NetCounts`], when the graph is complete. A graph of
+    /// the whole board is complete exactly when the total of every net's
+    /// counts is [`NetCounts::within_limits`], so the totals of a next
+    /// state follow from the counts of the nets it changed.
+    pub fn net_counts(&self) -> Option<BTreeMap<Id, NetCounts>> {
+        if self.partial {
+            return None;
+        }
+        let mut out: BTreeMap<Id, NetCounts> = BTreeMap::new();
+        for (net, (pairs, joints)) in &self.scanned {
+            let c = out.entry(*net).or_default();
+            c.pairs = *pairs;
+            c.joints = *joints;
+        }
+        let nets = self
+            .tracks
+            .iter()
+            .map(|t| t.net)
+            .chain(self.vias.iter().map(|v| v.net))
+            .chain(self.pads.iter().map(|p| p.net));
+        for net in nets {
+            out.entry(net).or_default().shapes += 1;
+        }
+        for e in &self.elements {
+            out.entry(e.net).or_default().elements += 1;
+        }
+        Some(out)
     }
 
     /// Whether every joint was found. When a limit stopped joining, the

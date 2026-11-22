@@ -32,6 +32,12 @@ use std::collections::BTreeSet;
 
 /// The etch-hazard findings of `project`, whose copper graph is `graph`.
 pub fn checks(project: &Project, graph: &CopperGraph) -> Vec<Finding> {
+    checks_from(project, &super::GraphSource::given(graph))
+}
+
+/// [`checks`], asking `graph` for the copper graph only when a rule needs
+/// it.
+pub(crate) fn checks_from(project: &Project, graph: &super::GraphSource<'_>) -> Vec<Finding> {
     let rules = project.rules.effective();
     let mut out = hatch_findings(project, &rules);
     let EtchRules {
@@ -39,10 +45,10 @@ pub fn checks(project: &Project, graph: &CopperGraph) -> Vec<Finding> {
         sliver_width_min,
     } = rules.etch;
     if copper_angle_min > 0.0 {
-        acute(project, graph, copper_angle_min, &mut out);
+        acute(project, graph.get(), copper_angle_min, &mut out);
     }
     if sliver_width_min > 0.0 {
-        slivers(project, graph, sliver_width_min, &mut out);
+        slivers(project, graph.get(), sliver_width_min, &mut out);
     }
     out
 }

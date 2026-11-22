@@ -35,14 +35,16 @@ const WHOLE: &[&str] = &["rules.profile"];
 /// sound.
 pub(super) struct Baseline {
     document: Document,
-    findings: Vec<Finding>,
+    report: Arc<IssueReport>,
 }
 
 impl Baseline {
-    fn of(document: &Document, settings: &layout::CheckSettings) -> Result<Self> {
+    /// `document` and its report of every issue: the engine's, made from
+    /// the last report it made ([`sparksmith_core::Engine::issue_report_of`]).
+    fn of(engine: &sparksmith_core::Engine, document: &Document) -> Result<Self> {
         Ok(Self {
             document: document.clone(),
-            findings: open_findings(&issues_of(document, settings)?),
+            report: engine.issue_report_of(document)?,
         })
     }
 
@@ -103,29 +105,67 @@ fn unshared(before: &Project, after: &Project) -> Result<(Value, Value)> {
         library.generated,
         library.reviews,
     );
+    // A local edit changes a few of the board's many tracks and vias:
+    // both sides leave out the ones they hold unchanged.
+    if let Some((a, b)) = trim(&old.tracks, &new.tracks, |t| t.id) {
+        (old.tracks, new.tracks) = (Shared::new(a), Shared::new(b));
+    }
+    if let Some((a, b)) = trim(&old.vias, &new.vias, |v| v.id) {
+        (old.vias, new.vias) = (Shared::new(a), Shared::new(b));
+    }
     Ok((serde_json::to_value(&old)?, serde_json::to_value(&new)?))
 }
 
-/// Every issue of `document`, as `project.issues` lists them.
-fn issues_of(document: &Document, settings: &layout::CheckSettings) -> Result<IssueReport> {
-    Ok(sparksmith_core::issues::report(
-        &document.project,
-        &document.drafts,
-        &IssueScope::All,
-        settings,
-    )?)
+/// `old` and `new` without the elements both hold equal under one
+/// identity, when that leaves their diff as it was: identities unique on
+/// both sides (so the diff matches elements by identity) and some element
+/// added, removed or changed (an order change alone is reported as a field,
+/// so it keeps both whole). `None` keeps both whole.
+fn trim<T: Clone + PartialEq>(
+    old: &[T],
+    new: &[T],
+    id: impl Fn(&T) -> sparksmith_core::Id,
+) -> Option<(Vec<T>, Vec<T>)> {
+    let mut at: HashMap<sparksmith_core::Id, usize> = HashMap::with_capacity(new.len());
+    for (k, item) in new.iter().enumerate() {
+        if at.insert(id(item), k).is_some() {
+            return None;
+        }
+    }
+    let mut seen = std::collections::HashSet::with_capacity(old.len());
+    let mut same = vec![false; new.len()];
+    let mut kept = Vec::new();
+    for item in old {
+        if !seen.insert(id(item)) {
+            return None;
+        }
+        match at.get(&id(item)) {
+            Some(&k) if new.get(k) == Some(item) => {
+                if let Some(s) = same.get_mut(k) {
+                    *s = true;
+                }
+            }
+            _ => kept.push(item.clone()),
+        }
+    }
+    let rest: Vec<T> = new
+        .iter()
+        .zip(&same)
+        .filter(|(_, same)| !**same)
+        .map(|(item, _)| item.clone())
+        .collect();
+    (!kept.is_empty() || !rest.is_empty()).then_some((kept, rest))
 }
 
 /// The open findings of an issue report, each once: every row's finding
 /// and the findings merged into it. The summary, the change replies and
 /// Issues count from these same rows, so they never disagree on scope
 /// (purchasing to-dos and component findings included).
-fn open_findings(report: &IssueReport) -> Vec<Finding> {
+fn open_findings(report: &IssueReport) -> Vec<&Finding> {
     report
         .rows
         .iter()
         .flat_map(|row| std::iter::once(&row.finding).chain(&row.also))
-        .cloned()
         .collect()
 }
 
@@ -295,18 +335,20 @@ impl Session {
     /// Add `changes`, `findings` and `drafts` for what differs from `before`.
     fn add_changes(&mut self, before: &Document, reply: &mut Value) -> Result<()> {
         let after = self.engine.document().clone();
-        let settings = *self.engine.check_settings();
         let mut changes = Changes::default();
         let mut design = None;
         if !Arc::ptr_eq(&before.project, &after.project) {
             let old = match self.baseline.take() {
                 Some(baseline) if baseline.describes(before) => baseline,
-                _ => Baseline::of(before, &settings)?,
+                _ => Baseline::of(&self.engine, before)?,
             };
-            let new = Baseline::of(&after, &settings)?;
+            let new = Baseline::of(&self.engine, &after)?;
             let (old_value, new_value) = unshared(&before.project, &after.project)?;
             changes.diff("", &old_value, &new_value);
-            design = Some(findings_delta(&old.findings, &new.findings));
+            design = Some(findings_delta(
+                &open_findings(&old.report),
+                &open_findings(&new.report),
+            ));
             self.baseline = Some(new);
         }
         let mut drafts = None;
@@ -672,22 +714,20 @@ fn count_collections(value: &Value, path: &str, counts: &mut Map<String, Value>)
 
 /// Which findings appeared and which went: findings compare by code, message
 /// and objects, so a repeated finding counts each time it occurs.
-fn findings_delta(old: &[Finding], new: &[Finding]) -> Value {
-    fn key(finding: &Finding) -> String {
-        format!(
-            "{}\0{}\0{:?}",
-            finding.code, finding.message, finding.objects
-        )
+fn findings_delta(old: &[&Finding], new: &[&Finding]) -> Value {
+    fn key(finding: &Finding) -> (&str, &str, &[sparksmith_core::ObjectRef]) {
+        (&finding.code, &finding.message, &finding.objects)
     }
-    let mut remaining: HashMap<String, (usize, &str)> = HashMap::with_capacity(old.len());
-    for finding in old {
+    let mut remaining: HashMap<(&str, &str, &[sparksmith_core::ObjectRef]), (usize, &str)> =
+        HashMap::with_capacity(old.len());
+    for finding in old.iter().copied() {
         remaining
             .entry(key(finding))
             .or_insert((0, &finding.code))
             .0 += 1;
     }
     let mut appeared = Vec::new();
-    for finding in new {
+    for finding in new.iter().copied() {
         match remaining.get_mut(&key(finding)) {
             Some((count, _)) if *count > 0 => *count -= 1,
             _ => appeared.push(finding),
@@ -732,8 +772,25 @@ pub fn difference(
     let mut names = Map::new();
     let mut out = Map::new();
     if !Arc::ptr_eq(&before.project, &after.project) {
-        let old = Baseline::of(before, settings)?;
-        let new = Baseline::of(after, settings)?;
+        use sparksmith_core::issues::incremental::Checked;
+        let graph = |p: &Arc<Project>| {
+            let p = p.clone();
+            move || Arc::new(layout::CopperGraph::of(&p))
+        };
+        let old = Checked::full(
+            &before.project,
+            &before.drafts,
+            settings,
+            &graph(&before.project),
+        )?;
+        // The state after is made from the one before: only what the
+        // change touched is checked again.
+        let new = old.next(
+            &after.project,
+            &after.drafts,
+            settings,
+            &graph(&after.project),
+        )?;
         let (old_value, new_value) = unshared(&before.project, &after.project)?;
         changes.diff("", &old_value, &new_value);
         name_listed(&old_value, &changes.removed, &mut names);
@@ -741,7 +798,7 @@ pub fn difference(
         name_listed(&new_value, &changes.changed, &mut names);
         out.insert(
             "findings".to_owned(),
-            findings_delta(&old.findings, &new.findings),
+            findings_delta(&open_findings(old.report()), &open_findings(new.report())),
         );
     }
     if !Arc::ptr_eq(&before.drafts, &after.drafts) {
@@ -856,8 +913,17 @@ pub(super) mod tests_support {
         changes.into_value().unwrap_or(Value::Null)
     }
 
+    /// The changes a compact reply reports from `before` to `after`.
+    pub fn changes_between(before: &Project, after: &Project) -> Result<Value> {
+        let (a, b) = unshared(before, after)?;
+        Ok(changes_of(&a, &b))
+    }
+
     pub fn delta(old: &[Finding], new: &[Finding]) -> Value {
-        findings_delta(old, new)
+        findings_delta(
+            &old.iter().collect::<Vec<_>>(),
+            &new.iter().collect::<Vec<_>>(),
+        )
     }
 
     pub fn name_listed(

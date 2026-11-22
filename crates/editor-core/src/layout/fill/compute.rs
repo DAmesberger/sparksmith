@@ -126,6 +126,42 @@ pub(crate) fn effective_keepouts(project: &Project) -> Vec<(crate::model::Keepou
     out
 }
 
+/// A fill's net (when it has stored copper), its layer and the area
+/// within which a track or via can change its key ([`key_reaches`]).
+pub(crate) type KeyReach = (Option<Id>, CopperLayer, Option<crate::geometry::Bounds>);
+
+/// Each fill's net (`None` for a fill without stored copper, which is
+/// never fresh whatever its key), its layer and the board area within
+/// which a track or via can change its key ([`Ctx::key`], and so whether
+/// its stored copper is fresh): its outline's bounds grown by its reach,
+/// as [`Ctx::relevant`] finds the objects it hashes. A fill's key also
+/// hashes the keys of the fills it clears on its layer, so a caller treats
+/// every fill on that layer as reached once one is.
+pub(crate) fn key_reaches(project: &Project) -> Vec<KeyReach> {
+    if project.fills.iter().all(|f| f.computed.is_none()) {
+        return Vec::new();
+    }
+    let ctx = Ctx::new(project);
+    project
+        .fills
+        .iter()
+        .map(|fill| {
+            let reach = ctx.reach(fill);
+            let bounds = bounds_of(&fill.outline.flatten(FILL_CHORD_MM)).map(|[lo, hi]| {
+                crate::geometry::Bounds {
+                    min: [lo[0] - reach, lo[1] - reach],
+                    max: [hi[0] + reach, hi[1] + reach],
+                }
+            });
+            (
+                fill.net.filter(|_| fill.computed.is_some()),
+                fill.layer,
+                bounds,
+            )
+        })
+        .collect()
+}
+
 impl<'a> Ctx<'a> {
     pub(crate) fn new(project: &'a Project) -> Self {
         let pads = placed_pads(project);

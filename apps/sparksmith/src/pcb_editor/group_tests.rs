@@ -552,3 +552,43 @@ fn a_3d_click_obeys_the_selection_filter_as_layout_does() -> Fallible {
     assert_eq!(picked.selected_instance(), Some(r1));
     Ok(())
 }
+
+/// The canvas's markers, the Connections rows and the inspector's issue
+/// slot project from the window's one report of every issue: hovering the
+/// board and selecting parts and a track in real frames runs no check.
+#[test]
+fn hover_and_selection_run_no_check() -> Fallible {
+    let engine = board(ROUTED)?;
+    let (r1, r2) = (by(&engine, "R1")?, by(&engine, "R2")?);
+    let ctx = egui::Context::default();
+    fonts::setup_bundled_fonts(&ctx);
+    let reports = crate::issue_reports::SharedReports::default();
+    let mut editor = PcbEditor::default();
+    editor.share_reports(reports.clone());
+    frame(&mut editor, &engine, &ctx, egui::Modifiers::NONE, vec![]);
+    let _ = editor.card(&engine);
+    assert_eq!(reports.computed(), 1, "one report of the state");
+    let view = view_of(&editor, &engine);
+    let (a, b) = (
+        part_at(&editor, &engine, r1)?,
+        part_at(&editor, &engine, r2)?,
+    );
+    for k in 0..=20 {
+        let at = view.screen([2.0 + 1.5 * f64::from(k), 10.0]);
+        frame(
+            &mut editor,
+            &engine,
+            &ctx,
+            egui::Modifiers::NONE,
+            vec![egui::Event::PointerMoved(at)],
+        );
+    }
+    for at in [a, b, view.screen([17.5, 10.0]), a] {
+        click(&mut editor, &engine, &ctx, at, egui::Modifiers::NONE);
+        let _ = editor.card(&engine);
+    }
+    let _ = editor.connections(r1);
+    assert_eq!(editor.selected_instance(), Some(r1));
+    assert_eq!(reports.computed(), 1, "hover and selection made no report");
+    Ok(())
+}

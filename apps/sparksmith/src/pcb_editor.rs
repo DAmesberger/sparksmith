@@ -20,8 +20,8 @@ use sparksmith_core::{
     instances,
     issues::{IssueArea, IssueScope},
     layout::{
-        self, BoardCopper, BoardDrawing, CopperGraph, LayoutCommand, PlacedGraphic, PlacedHole,
-        PlacedItem, PlacedPad, WorldPad,
+        self, BoardDrawing, CopperGraph, LayoutCommand, PlacedGraphic, PlacedHole, PlacedItem,
+        PlacedPad, WorldPad,
     },
     library::{PadKind, PlacedText, TextMetric},
     updates::Change,
@@ -422,14 +422,15 @@ pub struct PcbEditor {
     drag_airwires: Option<DragAirwires>,
     show_airwires: bool,
     cached_revision: Option<u64>,
-    /// Connected pads with their exact outlines, built once per revision,
-    /// for the clearance checks.
-    copper: BoardCopper,
-    /// The engine's copper graph of the cached revision: the checks'
-    /// connectivity, the airwires and the drag preview read it.
+    /// The engine's copper graph of the cached revision: the airwires and
+    /// the drag preview read it.
     graph: Arc<CopperGraph>,
     airwires: Vec<(WorldPad, WorldPad)>,
-    issues: Vec<sparksmith_core::Finding>,
+    /// What the canvas and the Connections rows mark, projected from the
+    /// window's one report of every issue ([`Self::reports`]) and kept
+    /// until that report or the document changes. The checks never run on
+    /// the UI thread for them.
+    markers: Option<(crate::issue_reports::ViewKey, Markers)>,
     /// The board plan's copper, the only copper Layout draws, per revision.
     layout_copper: copper_paint::LayoutCopper,
     board_pads: Vec<BoardPad>,
@@ -625,10 +626,9 @@ impl Default for PcbEditor {
             drag_airwires: None,
             show_airwires: true,
             cached_revision: None,
-            copper: BoardCopper::default(),
             graph: Arc::default(),
             airwires: vec![],
-            issues: vec![],
+            markers: None,
             layout_copper: Default::default(),
             board_pads: vec![],
             graphics: vec![],
@@ -909,16 +909,8 @@ impl PcbEditor {
             {
                 self.fill = None;
             }
-            self.copper = BoardCopper::of(engine.project());
             self.graph = engine.copper_graph();
             self.airwires = self.graph.airwires();
-            // Every board check, as the core runs them, on this copper.
-            self.issues = layout::checks_on(
-                engine.project(),
-                &self.copper,
-                &self.graph,
-                engine.check_settings(),
-            );
             self.cache_board(engine.project());
             self.cached_revision = Some(engine.revision());
             // An instance without a placement stays selected: the card
@@ -945,6 +937,7 @@ impl PcbEditor {
                 self.reset_route();
             }
         }
+        self.project_markers(engine);
         let key = (
             engine.revision(),
             self.instance.or(self.track).or(self.via).or(self.fill),
@@ -1684,19 +1677,30 @@ impl PcbEditor {
         crate::keys::pressed(ui.ctx(), "pcb.delete").then_some(operation)
     }
 
-    /// The two parts of each courtyard-overlap finding, with the side.
-    fn courtyard_overlaps(&self) -> Vec<(Id, Id)> {
-        self.issues
-            .iter()
-            .filter(|f| f.code == layout::courtyard::COURTYARD_OVERLAP)
-            .filter_map(|f| {
-                let mut parts = f.objects.iter().filter_map(|o| match o {
-                    sparksmith_core::diagnostics::ObjectRef::Instance { id } => Some(*id),
-                    _ => None,
-                });
-                Some((parts.next()?, parts.next()?))
-            })
-            .collect()
+    /// The canvas's issue markers from the window's one report of every
+    /// issue: the courtyard overlaps. Until the report of this state
+    /// arrives the last one's stay.
+    fn project_markers(&mut self, engine: &Engine) {
+        let Some(crate::issues::Answer::Report(whole)) = self.reports.latest(engine) else {
+            return;
+        };
+        let key = crate::issue_reports::view_key(&whole, engine);
+        if self.markers.as_ref().is_some_and(|(at, _)| *at == key) {
+            return;
+        }
+        self.markers = Some((key, Markers::of(&whole)));
+    }
+
+    /// The two parts of each courtyard overlap the canvas marks.
+    fn courtyard_overlaps(&self) -> &[(Id, Id)] {
+        self.markers.as_ref().map_or(&[], |(_, m)| &m.overlaps)
+    }
+
+    /// The pads the report finds unrouted.
+    pub(super) fn unrouted_pads(
+        &self,
+    ) -> Option<&std::collections::BTreeSet<(Id, sparksmith_core::PadId)>> {
+        self.markers.as_ref().map(|(_, m)| &m.unrouted)
     }
 
     pub fn canvas(&mut self, ui: &mut Ui, engine: &Engine) -> Option<Operation> {
@@ -3363,6 +3367,46 @@ fn locate(objects: &[sparksmith_core::diagnostics::ObjectRef]) -> Option<Selecti
     }
 }
 
+/// What the Layout canvas and its cards mark from the report of every
+/// issue.
+#[derive(Debug, Default)]
+struct Markers {
+    /// The two parts of each courtyard overlap.
+    overlaps: Vec<(Id, Id)>,
+    /// Every pad an unrouted finding names.
+    unrouted: std::collections::BTreeSet<(Id, sparksmith_core::PadId)>,
+}
+
+impl Markers {
+    fn of(report: &sparksmith_core::issues::IssueReport) -> Self {
+        use sparksmith_core::diagnostics::ObjectRef;
+        let mut markers = Self::default();
+        for f in report
+            .rows
+            .iter()
+            .flat_map(|row| std::iter::once(&row.finding).chain(&row.also))
+        {
+            if f.code == layout::courtyard::COURTYARD_OVERLAP {
+                let mut parts = f.objects.iter().filter_map(|o| match o {
+                    ObjectRef::Instance { id } => Some(*id),
+                    _ => None,
+                });
+                if let (Some(a), Some(b)) = (parts.next(), parts.next()) {
+                    markers.overlaps.push((a, b));
+                }
+            } else if f.code == "board.unrouted" {
+                markers
+                    .unrouted
+                    .extend(f.objects.iter().filter_map(|o| match *o {
+                        ObjectRef::Pad { instance, pad } => Some((instance, pad)),
+                        _ => None,
+                    }));
+            }
+        }
+        markers
+    }
+}
+
 /// The Board issues on `inspected` and the words after their counts ("on
 /// R13"), from `project.issues`. The board card counts the whole board.
 fn issue_slot_of(
@@ -4746,23 +4790,27 @@ mod tests {
         Ok(())
     }
 
-    /// The board checks and airwires the editor caches per revision are
-    /// the core's, built once from the same copper.
+    /// The airwires the editor caches per revision are the core's, and
+    /// its courtyard markers are the courtyard overlaps of the one report
+    /// of every issue, which it projects rather than checking again.
     #[test]
-    fn cached_copper_matches_the_core_checks_and_airwires() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn cached_airwires_and_markers_match_the_core() -> Result<(), Box<dyn std::error::Error>> {
         let engine = shaped_board()?;
         let mut editor = PcbEditor::default();
         editor.sync(&engine);
         assert_eq!(editor.airwires, layout::airwires(engine.project()));
-        assert_eq!(
-            editor.issues,
-            layout::checks(engine.project(), engine.check_settings())
-        );
-        assert_eq!(
-            editor.copper.lands(),
-            layout::physical::lands(engine.project()).as_slice()
-        );
+        let expected: Vec<(Id, Id)> = layout::checks(engine.project(), engine.check_settings())
+            .iter()
+            .filter(|f| f.code == layout::courtyard::COURTYARD_OVERLAP)
+            .filter_map(|f| {
+                let mut parts = f.objects.iter().filter_map(|o| match o {
+                    sparksmith_core::diagnostics::ObjectRef::Instance { id } => Some(*id),
+                    _ => None,
+                });
+                Some((parts.next()?, parts.next()?))
+            })
+            .collect();
+        assert_eq!(editor.courtyard_overlaps(), expected.as_slice());
         Ok(())
     }
 
