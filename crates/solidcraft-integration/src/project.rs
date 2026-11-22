@@ -2597,7 +2597,6 @@ fn dielectric_sum(stackup: &Stackup, range: std::ops::Range<usize>) -> String {
 /// heights follow the stackup parameters.
 fn laminate(b: &mut Builder, project: &Project, slabs: &[plan::PlanBody]) -> Result<()> {
     let stackup = &project.stackup;
-    let count = stackup.dielectrics.len();
     // A sketched board's outline; a rectangular one's follows the size
     // parameters ([`Native::board_slab`]).
     let shaped = !project.board_shape.is_rectangle();
