@@ -286,7 +286,16 @@ Measured 22 November 2026 on this checkout, `ci` profile, the same Apple M5 Max,
 | Track width (`layout.track_set`, a track of the same net) | 298–303 / 310–315 ms | 83–85 / 85–88 ms |
 | Peak memory footprint of the run (`/usr/bin/time -l`) | 490–517 MB | 576–587 MB |
 
-The target of a reply for a local edit under 50 ms is met for the via tent and not yet for the via move or the track width. Profiled at a load of about 20, each of those two replies spends about 40 ms in checks (the copper graph of the via's net, 9 ms; its connectivity findings, 7 ms; the report's rows, 7 ms; the pad holes of that net checked again, about 6 ms) and the rest applying the edit: `layout.track_set` validates the route against an obstacle index of the whole board (about 35 ms), a via move about 20 ms. The engine now keeps a second state's outlines and per-item findings, which is the higher peak memory. Selection and hover in the PCB canvas make no report (`pcb_editor/group_tests.rs`). These are measurements of this benchmark board on a shared machine, not targets; the targets above stay targets.
+Applying an edit then looked only at the copper near it: a committed route is validated against an index of the copper, holes and pads within reach of its pieces (`RouteIndex::near`, in the whole index's order; `layout/router/tests/committed.rs` compares its refusals with the whole board's for 400 pieces), and a moved via measures only the tracks, pads and vias within any clearance of it (`layout/via/tests.rs` compares it with measuring every object). The pad hole check keeps its placed pads, labels and pad and mounting holes for the next state. Measured the same way after that, alternately against this section's after (`perf-checks` at `f86dd039`), three runs each, each started at a one-minute load average of 7.2–10.0; the second before run is left out because the load rose during it:
+
+| Compact automation reply | Before (`f86dd039`) | After |
+| --- | --- | --- |
+| Via tent | 28–30 / 29–31 ms | 28–29 / 29–32 ms |
+| Via move | 64–68 / 66–71 ms | 49–53 / 52–55 ms |
+| Track width | 89–94 / 92–97 ms | 54–58 / 57–60 ms |
+| Peak memory footprint of the run | 581–596 MB | 588–601 MB |
+
+The target of a reply for a local edit under 50 ms is met for the via tent, reached at best for the via move and not yet met for the track width. Profiled at a load of about 9, each of those two replies spends about 37 ms in checks, most of it on the via's net, the board's largest (the copper graph of that net, 9 ms; its connectivity findings, 6 ms), and 9 ms (via move) or 15 ms (track width) applying the edit. Keeping the last report's Board rows for unchanged findings did not pay on this board and was left out. The engine keeps a second state's outlines and per-item findings, which is the higher peak memory against `main` before this work. Selection and hover in the PCB canvas make no report (`pcb_editor/group_tests.rs`). These are measurements of this benchmark board on a shared machine, not targets; the targets above stay targets.
 
 ## Remaining release work
 

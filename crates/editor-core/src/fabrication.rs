@@ -78,7 +78,8 @@ pub struct Outputs {
     #[serde(default = "yes")]
     pub assembly: bool,
     /// The fabrication and assembly drawings (PDF, written by
-    /// `sparksmith-io`; the core ignores this flag).
+    /// `sparksmith-io` from the set's drawing data, which the release
+    /// revision covers).
     #[serde(default = "yes")]
     pub drawings: bool,
 }
@@ -127,6 +128,10 @@ pub struct FabricationSet {
     pub drills: DrillTable,
     /// The release identity every file states.
     pub identity: Identity,
+    /// What the drawings print, stating [`Self::identity`], when the
+    /// drawings are asked for ([`Outputs::drawings`]); `sparksmith-io`
+    /// lays them out on paper.
+    pub drawing: Option<drawing::DrawingData>,
 }
 
 impl FabricationSet {
@@ -192,16 +197,20 @@ pub fn base_name(project: &Project, options: &FabricationOptions) -> Result<Stri
 
 /// Every text file of the set for `snapshot`: Gerber layers and the job
 /// file, drill files, drill map and table, pick-and-place and BOM, in a
-/// fixed order, all from the snapshot's one project. Deterministic: the
-/// same snapshot and options give the same bytes. The PDF drawings are
-/// `sparksmith-io`'s, from [`drawing::data`] of the same snapshot and the
-/// set's [`FabricationSet::identity`].
+/// fixed order, all from the snapshot's one project, and the drawings'
+/// data ([`FabricationSet::drawing`], [`drawing::data`] under the host's
+/// check `settings`). Deterministic: the same snapshot and options give
+/// the same bytes. The PDF drawings are `sparksmith-io`'s, laid out from
+/// that data.
 ///
 /// Every file states one release identity ([`Identity`]): the project's
-/// stored identity and, as the revision, a digest of the set written
-/// without an identity, so the revision names exactly what the files say
-/// (an edit that changes no file, such as a construction line, changes no
-/// revision).
+/// stored identity and, as the revision, a digest of everything delivered
+/// written without an identity: each file of the set and, when the
+/// drawings are asked for, everything they print (their data, canonical
+/// JSON). So the revision names exactly what the files and drawings say:
+/// a waiver's reason or a profile name that only a drawing prints changes
+/// it, and an edit that changes nothing delivered (a construction line)
+/// does not.
 ///
 /// Generation does not check the design; run [`preflight::check`] on the
 /// same snapshot first. It fails only on input it cannot represent (a
@@ -209,6 +218,7 @@ pub fn base_name(project: &Project, options: &FabricationOptions) -> Result<Stri
 pub fn generate(
     snapshot: &ProductionSnapshot<'_>,
     options: &FabricationOptions,
+    settings: &crate::layout::CheckSettings,
 ) -> Result<FabricationSet> {
     let project = snapshot.project();
     let stem = base_name(project, options)?;
@@ -225,10 +235,17 @@ pub fn generate(
     } else {
         Vec::new()
     };
+    // The drawings as printed without an identity: their title blocks
+    // state it once it is known.
+    let drawing = if options.outputs.drawings {
+        Some(drawing::data(snapshot, &unnamed, settings)?)
+    } else {
+        None
+    };
     let digest = {
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
-        hasher.update(b"sparksmith release 1\0");
+        hasher.update(b"sparksmith release 2\0");
         for file in fabrication_files(project, &unnamed, &undated, &stem)?
             .iter()
             .chain(&assembly)
@@ -237,6 +254,13 @@ pub fn generate(
             hasher.update(b"\0");
             hasher.update((file.bytes.len() as u64).to_le_bytes());
             hasher.update(&file.bytes);
+        }
+        if let Some(drawing) = &drawing {
+            let printed = serde_json::to_vec(drawing)
+                .map_err(|e| Error::Invalid(format!("fabrication.drawing: {e}")))?;
+            hasher.update(b"drawings\0");
+            hasher.update((printed.len() as u64).to_le_bytes());
+            hasher.update(&printed);
         }
         hasher.finalize()
     };
@@ -249,9 +273,15 @@ pub fn generate(
         revision: digest.iter().take(8).map(|b| format!("{b:02x}")).collect(),
         ..unnamed
     };
+    let drawing = drawing.map(|mut d| {
+        d.release.clone_from(&identity.revision);
+        d.project_id.clone_from(&identity.guid);
+        d
+    });
     let mut set = FabricationSet {
         drills: drill::table(&drill::holes(project)),
         identity: identity.clone(),
+        drawing,
         ..Default::default()
     };
     for file in fabrication_files(project, &identity, options, &stem)?

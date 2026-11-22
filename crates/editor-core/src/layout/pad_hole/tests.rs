@@ -3,7 +3,7 @@
 //! example profile. Every expected ring and gap is derived by hand from
 //! the pad and hole sizes.
 use super::super::tests::fixture;
-use crate::diagnostics::{Error, Finding, Result};
+use crate::diagnostics::{Error, Finding, ObjectRef, Result};
 use crate::geometry::Point;
 use crate::ids::Id;
 use crate::layout::{PlacedPad, checks, placed_pads};
@@ -358,11 +358,24 @@ fn a_slot_and_its_own_via_in_pad_hole_are_named_as_the_pads() -> Result<()> {
     );
     let gap = gap_in(message, "via-in-pad hole are ")?;
     assert!((gap - 0.15).abs() <= 0.01, "{message}");
+    // Each hole by its own identity: the pad's slot and its via.
+    let r1 = own[0].objects.first().and_then(|o| match o {
+        ObjectRef::Pad { instance, .. } => Some(*instance),
+        _ => None,
+    });
     assert_eq!(
-        own[0].objects.len(),
-        1,
-        "the pad once: {:?}",
-        own[0].objects
+        own[0].objects,
+        vec![
+            ObjectRef::Pad {
+                instance: r1.unwrap_or_default(),
+                pad: crate::ids::PadId(1)
+            },
+            ObjectRef::PadVia {
+                instance: r1.unwrap_or_default(),
+                pad: crate::ids::PadId(1),
+                index: 0
+            },
+        ],
     );
     assert!(
         !findings

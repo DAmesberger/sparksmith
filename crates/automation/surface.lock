@@ -1,10 +1,10 @@
 {"format": 1, "modules": [
- {"id": "project", "version": "7.20", "digest": "sha256:9f5bf83fe25b550cc618199bb0143864bef20d2b137b910fa0a96d43f7011989", "entries": [
-  {"name":"project.apply","class":"edit","schema":"1344aba9387ef43e","fields":[["expected_revision","9295ea67127970c6"],["operation","23717d2a35086c24"]],"required":["expected_revision","operation"]},
-  {"name":"project.apply_all","class":"edit","schema":"a9cdcaa188460446","fields":[["expected_revision","9295ea67127970c6"],["operations","9aca6906c56474ab"]],"required":["expected_revision","operations"]},
+ {"id": "project", "version": "7.21", "digest": "sha256:fa010e6edf5cd7a7b329206d310b8d16960a8c59f4c1ad2579b2892da8019812", "entries": [
+  {"name":"project.apply","class":"edit","schema":"8e4ed1a46a0da6ce","fields":[["expected_revision","9295ea67127970c6"],["operation","3f6471ed11f3ae05"]],"required":["expected_revision","operation"]},
+  {"name":"project.apply_all","class":"edit","schema":"fed9f4e63cb4e34d","fields":[["expected_revision","9295ea67127970c6"],["operations","8b949125cfecc12b"]],"required":["expected_revision","operations"]},
   {"name":"project.bom","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"project.inspect","class":"read","schema":"249aa00f4b2dbec1","fields":[["at","40bd5b57f4261fe2"]],"required":[]},
-  {"name":"project.query","class":"read","schema":"e8f254a0cd72d06f","fields":[],"required":[]},
+  {"name":"project.query","class":"read","schema":"dc00ee9b5bf02821","fields":[],"required":[]},
   {"name":"project.redo","class":"edit","schema":"5d360ab06dd84fb0","fields":[["expected_revision","9295ea67127970c6"]],"required":["expected_revision"]},
   {"name":"project.rename","class":"edit","schema":"92c2e30151865925","fields":[["name","f186891b5656c9ae"]],"required":["name"]},
   {"name":"project.schema","class":"read","schema":"7e398ef3b2cf4d96","fields":[["def","40bd5b57f4261fe2"],["name","40bd5b57f4261fe2"]],"required":[]},
@@ -95,7 +95,7 @@
   {"name":"wire.set_path","class":"edit","schema":"705ecb1ce27bb5a3","fields":[["corners","73d1f761686fc06c"],["from","846e8bebc4584c84"],["to","846e8bebc4584c84"],["wire","9295ea67127970c6"]],"required":["wire"]},
   {"name":"wire.set_radius","class":"edit","schema":"e42e553e7eecee31","fields":[["index","2edcfeee1addbd20"],["radius","9bb62b1d9da95c32"],["wire","9295ea67127970c6"]],"required":["index","radius","wire"]}
  ]},
- {"id": "layout", "version": "2.5", "digest": "sha256:8d09b1b1f128b9c0911fefce01bc006e5fe02655f009367394cdd6b334f1e9d7", "entries": [
+ {"id": "layout", "version": "2.6", "digest": "sha256:0b0fd76c2b34c091ba6e1e37afe2f40ea444556bbbea6402dfc214fa664e9a46", "entries": [
   {"name":"board.edit","class":"edit","schema":"61a6f30290e0b1f2","fields":[["edits","162f1d8bbf2ef47c"]],"required":["edits"]},
   {"name":"board.set_rectangle","class":"edit","schema":"a40811035afccce6","fields":[["size","6a3d87a414a20bc3"]],"required":["size"]},
   {"name":"board.shape","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
@@ -111,8 +111,8 @@
   {"name":"fill.refill","class":"edit","schema":"3995183b00d92f49","fields":[["target","054c1d772730f4fa"]],"required":["target"]},
   {"name":"fill.set_pad_override","class":"edit","schema":"9932c63ca1b5c5a0","fields":[["instance","9295ea67127970c6"],["pad","3b67158582ea34e4"],["settings","9ea9d1f466963fcd"]],"required":["instance","settings"]},
   {"name":"fill.status","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
-  {"name":"fill.store","class":"edit","schema":"4d588a2168420ac3","fields":[["copper","5a1128ac9be3ac8d"],["fill","9295ea67127970c6"]],"required":["copper","fill"]},
-  {"name":"fill.store_all","class":"edit","schema":"90dd29fed558ff02","fields":[["fills","55ba43482951fe5a"]],"required":["fills"]},
+  {"name":"fill.store","class":"edit","schema":"c539a5a143c73477","fields":[["copper","1c1d067400950a1c"],["fill","9295ea67127970c6"]],"required":["copper","fill"]},
+  {"name":"fill.store_all","class":"edit","schema":"f33d56e8e295e093","fields":[["fills","aea0113118d8bc25"]],"required":["fills"]},
   {"name":"keepout.add","class":"edit","schema":"ecdadc61edde2063","fields":[["keepout","c2ba2a61ce6ac36e"]],"required":["keepout"]},
   {"name":"keepout.delete","class":"edit","schema":"244adef7c3868093","fields":[["id","9295ea67127970c6"]],"required":["id"]},
   {"name":"keepout.edit","class":"edit","schema":"c8578dc526a9cb49","fields":[["keepout","4485955f4a4b7e17"]],"required":["keepout"]},
@@ -260,11 +260,11 @@
   {"name":"library.package_from_generator","class":"edit","schema":"8248aaf36c0871dc","fields":[["draft","dd016f7f1c3e2ab4"],["generate","30f2121f19452737"],["renumber","1cf910d60612b79c"],["replace","e3ce44acd037492c"],["terminals","b37f263751eb0f75"]],"required":["draft","generate"]},
   {"name":"library.replace_body","class":"edit","schema":"d7235cbf648197c3","fields":[["generate","30f2121f19452737"],["package","22aa48fd0ddcd4f9"],["pins","8c061a0ec6daf112"],["provenance","f186891b5656c9ae"],["tolerance","c2c9404499233196"]],"required":["generate","package","provenance"]}
  ]},
- {"id": "checks", "version": "1.2", "digest": "sha256:1fc53e28ae2cfb8668e7b5462cc3275617da5ee66ff82599554c45b1397520a2", "entries": [
+ {"id": "checks", "version": "1.3", "digest": "sha256:1de753fec37379b7e40de77af0fd4b38db1dbe1a50b1e8fb09188675a4ccf182", "entries": [
   {"name":"fabrication.preflight","class":"read","schema":"a3ec66cfe9c6655c","fields":[["profile","f2974fe458a8a4dd"]],"required":[]},
   {"name":"fabrication.unwaive","class":"edit","schema":"232b613e54233060","fields":[["key","f186891b5656c9ae"]],"required":["key"]},
   {"name":"fabrication.waive","class":"ask","schema":"6426510821e7b240","fields":[["keys","1e052309e6b92305"],["reason","12a58c6f6b36f1bf"]],"required":["keys"]},
-  {"name":"project.issues","class":"read","schema":"585e83bfa3ed771d","fields":[["scope","d4125d8c9470c0c8"]],"required":["scope"]}
+  {"name":"project.issues","class":"read","schema":"8179456145cb1eba","fields":[["scope","2015d78ab725b874"]],"required":["scope"]}
  ]},
  {"id": "fab", "version": "1.0", "digest": "sha256:784e89e7ad17a2ee130ea5bf5145da7327e07d586ebf857e5c964e314b897e95", "entries": [
   {"name":"firmware.export","class":"ask","schema":"f95242d5ae761fe0","fields":[["emitter","69912512f59befcc"],["instance","9295ea67127970c6"],["path","40bd5b57f4261fe2"],["template_file","40bd5b57f4261fe2"]],"required":["emitter","instance"]},
@@ -309,9 +309,9 @@
   {"name":"assist.step_result","class":"read","schema":"62d1f9b0c9d2a315","fields":[["result","3239974ff60fabf0"],["step","f186891b5656c9ae"]],"required":["result","step"]},
   {"name":"assist.workflows","class":"read","schema":"d2a6eaec77fd86c3","fields":[["limit","178b2cc08ce4e9d4"],["text","428293de17850c2e"],["unavailable","90c3f0cfcf6ff8f0"]],"required":[]}
  ]},
- {"id": "view", "version": "1.1", "digest": "sha256:3b31529101fb3005dabc8f950820dad478df5bf29550de63d663ad2846785b56", "entries": [
+ {"id": "view", "version": "1.2", "digest": "sha256:a2be7cf0c02d199489614d4949386620755fad4c832297b738f83010ebdabec2", "entries": [
   {"name":"view.context","class":"read","schema":"2c692f52f8c0092b","fields":[],"required":[]},
   {"name":"view.open","class":"show","schema":"f138f09bd022744a","fields":[["definition","6fcbdbe3a9c678cf"],["sheet","3b67158582ea34e4"],["view","c6274c58684e265b"],["workspace","145314089e5b05c0"]],"required":["workspace"]},
-  {"name":"view.select","class":"show","schema":"dbae14c8b6c35b31","fields":[["designators","4becd9a3f6ae1227"],["ids","6d2acba515ad7076"],["objects","3e3681f4b10bca22"]],"required":[]}
+  {"name":"view.select","class":"show","schema":"74fda399933448fc","fields":[["designators","4becd9a3f6ae1227"],["ids","6d2acba515ad7076"],["objects","30082e1094ad81ae"]],"required":[]}
  ]}
 ]}

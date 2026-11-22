@@ -31,6 +31,7 @@ mod placement;
 mod profile_fit;
 mod profile_rules;
 mod publish_sets;
+mod release_gate;
 mod room;
 mod rubber_band;
 mod sheets;

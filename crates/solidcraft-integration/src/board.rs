@@ -1506,9 +1506,15 @@ pub fn laminate(project: &sparksmith_core::Project) -> Option<Laminate> {
         .iter()
         .map(|c| Contour::Outline(c.outline.clone()))
         .collect();
+    // A plated hole is drilled its plating wider than it is finished: the
+    // barrel fills the difference ([`crate::project::plan`]).
     through.extend(board.holes.iter().map(|h| Contour::Circle {
         center: h.at,
-        radius: h.drill / 2.0,
+        radius: if h.plated {
+            crate::pad_outline::plated_drill_radius(h.drill)
+        } else {
+            h.drill / 2.0
+        },
     }));
     Some(Laminate {
         outline: Contour::Outline(board.outer.clone()),

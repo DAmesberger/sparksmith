@@ -32,25 +32,32 @@ const WHOLE: &[&str] = &["rules.profile"];
 
 /// The last document a compact reply described, kept so the next mutation
 /// checks only its result. Holding the `Arc`s keeps the pointer comparison
-/// sound.
+/// sound. The report holds under the check settings it was made with: a
+/// settings change (an impedance tolerance) at the same revision changes
+/// findings that no edit made.
 pub(super) struct Baseline {
     document: Document,
+    checks: layout::CheckSettings,
     report: Arc<IssueReport>,
 }
 
 impl Baseline {
-    /// `document` and its report of every issue: the engine's, made from
-    /// the last report it made ([`sparksmith_core::Engine::issue_report_of`]).
+    /// `document` and its report of every issue under the engine's check
+    /// settings: the engine's, made from the last report it made
+    /// ([`sparksmith_core::Engine::issue_report_of`]).
     fn of(engine: &sparksmith_core::Engine, document: &Document) -> Result<Self> {
         Ok(Self {
             document: document.clone(),
+            checks: *engine.check_settings(),
             report: engine.issue_report_of(document)?,
         })
     }
 
-    fn describes(&self, document: &Document) -> bool {
+    /// Whether this is the report of `document` under `checks`.
+    fn describes(&self, document: &Document, checks: &layout::CheckSettings) -> bool {
         Arc::ptr_eq(&self.document.project, &document.project)
             && Arc::ptr_eq(&self.document.drafts, &document.drafts)
+            && self.checks == *checks
     }
 }
 
@@ -339,7 +346,9 @@ impl Session {
         let mut design = None;
         if !Arc::ptr_eq(&before.project, &after.project) {
             let old = match self.baseline.take() {
-                Some(baseline) if baseline.describes(before) => baseline,
+                Some(baseline) if baseline.describes(before, self.engine.check_settings()) => {
+                    baseline
+                }
                 _ => Baseline::of(&self.engine, before)?,
             };
             let new = Baseline::of(&self.engine, &after)?;

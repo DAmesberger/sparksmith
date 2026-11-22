@@ -210,7 +210,7 @@ impl Checked {
         }
         // The connectivity of the nets reached, from a graph of those nets;
         // every other net's findings are the last state's.
-        let connectivity = kept.and_then(|last| {
+        let mut connectivity = kept.and_then(|last| {
             let old = last
                 .board
                 .iter()
@@ -248,13 +248,14 @@ impl Checked {
             findings.extend(kept.get(from..).into_iter().flatten().map(|o| (*o).clone()));
             Some(findings)
         });
+        let made_connectivity = connectivity.is_some();
         let (board, stopped) =
             layout::check_families(project, &copper, &source, settings, &mut |check| {
                 if let Some((_, items)) = items.iter().find(|(c, _)| *c == check) {
                     return Some(items.findings().cloned().collect());
                 }
                 if check == BoardCheck::Connectivity && connectivity.is_some() {
-                    return connectivity.clone();
+                    return connectivity.take();
                 }
                 let kept = kept.filter(|_| !check.reads_copper())?;
                 kept.board
@@ -262,7 +263,7 @@ impl Checked {
                     .find(|(c, _)| *c == check)
                     .map(|(_, f)| f.clone())
             });
-        let counts = match (kept, connectivity.is_some()) {
+        let counts = match (kept, made_connectivity) {
             (Some(last), true) => sub.counts().or_else(|| last.counts.clone()),
             _ => source.made().and_then(|g| g.net_counts()).map(Arc::new),
         };
@@ -319,7 +320,7 @@ impl Checked {
             clearance: kept.is_some() && items.iter().any(|(c, _)| *c == BoardCheck::Clearance),
             vias: kept.is_some() && items.iter().any(|(c, _)| *c == BoardCheck::Vias),
             pad_holes: kept.is_some() && items.iter().any(|(c, _)| *c == BoardCheck::PadHoles),
-            connectivity: connectivity.is_some(),
+            connectivity: made_connectivity,
         };
         Ok(Self {
             project: project.clone(),

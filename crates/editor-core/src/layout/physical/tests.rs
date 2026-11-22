@@ -48,7 +48,7 @@ pub(crate) struct Gate {
     pub net_b: Id,
 }
 
-fn rect(min: Point, max: Point) -> Outline {
+pub(crate) fn rect(min: Point, max: Point) -> Outline {
     Outline {
         start: min,
         segments: vec![
@@ -425,7 +425,12 @@ fn tracks_of_two_nets_on_a_plated_washer_are_clearance_findings() -> Result<()> 
         let track = ObjectRef::Track { id };
         let hit = found
             .iter()
-            .find(|f| f.objects.contains(&track) && f.objects.contains(&ObjectRef::Board))
+            .find(|f| {
+                f.objects.contains(&track)
+                    && f.objects.contains(&ObjectRef::BoardFeature {
+                        feature: gate.hole.0,
+                    })
+            })
             .ok_or_else(|| Error::Invalid(format!("no washer finding for {id}: {found:?}")))?;
         assert!(
             hit.message.contains("plated mounting hole at (40, 20) mm"),
