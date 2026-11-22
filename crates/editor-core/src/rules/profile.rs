@@ -212,7 +212,41 @@ pub struct FabChoice {
     /// no choice lists is one the fabricator does not offer.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mask_colours: Vec<String>,
+    /// What the board must be for the fabricator to make it with this
+    /// choice (a thin board and a gold or OSP finish for its smallest
+    /// drill): a board that is not gets a finding, never a silent pass.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires: Option<ChoiceRequires>,
 }
+
+/// What a [`FabChoice`] needs of the board. Each stated condition must
+/// hold; the option's `source` says where it comes from.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ChoiceRequires {
+    /// The board's nominal thickness at most, mm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub board_thickness_max_mm: Option<f64>,
+    /// The surface finishes it is made with, as `layout.set_fabrication`
+    /// names them (`"enig"`, `"osp"`); empty for any.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub finishes: Vec<String>,
+}
+
+/// The boards a profile's numbers are for. A profile that leaves it out
+/// says nothing about them, and no board is checked against it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProfileBoards {
+    /// The copper layer counts the fabricator's rows cover, ascending.
+    pub copper_layers: Vec<u32>,
+    /// Where the counts come from ("" means the profile's source).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub source: String,
+}
+
+/// The most copper layers a profile can name (the stackup's bound).
+pub const MAX_PROFILE_LAYERS: u32 = 64;
 
 /// Options a profile offers, and choices one option offers.
 pub const MAX_OPTIONS: usize = 16;
@@ -268,6 +302,8 @@ pub struct RuleProfile {
     pub name: String,
     pub source: ProfileSource,
     pub drill_files: DrillFiles,
+    /// The boards its numbers are for, when it says.
+    pub boards: Option<ProfileBoards>,
     /// The manufacturing options it offers, in shown order.
     options: Vec<FabOption>,
     /// The choice of every option.
@@ -308,6 +344,7 @@ impl RuleProfile {
             name: name.into(),
             source,
             drill_files,
+            boards: None,
             options: Vec::new(),
             chosen: BTreeMap::new(),
             entries,
@@ -526,6 +563,19 @@ impl RuleProfile {
                     "{}'s default {} is not a choice",
                     o.name, o.default
                 ));
+            }
+            for c in &o.choices {
+                let Some(r) = &c.requires else { continue };
+                if r.board_thickness_max_mm
+                    .is_some_and(|t| !(t.is_finite() && t > 0.0))
+                    || r.finishes.len() > MAX_OPTIONS
+                    || r.finishes.iter().any(|f| !printable(f))
+                {
+                    return bad(format!(
+                        "{}'s requirements need a thickness above 0 mm and named finishes",
+                        c.name
+                    ));
+                }
             }
             let mut colours = BTreeSet::new();
             for c in &o.choices {
@@ -752,6 +802,22 @@ impl RuleProfile {
                     .into(),
             ));
         }
+        if let Some(boards) = &self.boards {
+            let counts = &boards.copper_layers;
+            if counts.is_empty()
+                || counts.len() > MAX_PROFILE_LAYERS as usize
+                || counts.windows(2).any(|w| w[0] >= w[1])
+                || counts.iter().any(|n| !(1..=MAX_PROFILE_LAYERS).contains(n))
+                || boards.source.len() > MAX_PROFILE_NOTES
+                || !printable(&boards.source)
+            {
+                return Err(Error::Invalid(format!(
+                    "rules.fab_profile_boards: {} lists its copper layer counts once each, \
+                     ascending, 1–{MAX_PROFILE_LAYERS}",
+                    self.name
+                )));
+            }
+        }
         self.check_options()?;
         if s.publisher.trim().is_empty() || !valid_date(&s.date) {
             return Err(Error::Invalid(format!(
@@ -813,6 +879,10 @@ pub struct ProfileData {
     pub name: String,
     pub source: ProfileSource,
     pub drill_files: DrillFiles,
+    /// The boards its numbers are for: `{"copper_layers": [2], "source":
+    /// "…"}`. Left out, no board is checked against it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boards: Option<ProfileBoards>,
     /// The manufacturing options it offers, in shown order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub options: Vec<FabOption>,
@@ -941,6 +1011,7 @@ impl From<RuleProfile> for ProfileData {
             name: p.name,
             source: p.source,
             drill_files: p.drill_files,
+            boards: p.boards,
             options: p.options,
             chosen: p.chosen,
             rules,
@@ -1013,7 +1084,9 @@ impl TryFrom<ProfileData> for RuleProfile {
         }
         // The rules without options first: they must be valid on their
         // own; then the options, their cases and the stored choices.
-        let profile = Self::new(&data.id, &data.name, data.source, data.drill_files, entries)?;
+        let mut profile = Self::new(&data.id, &data.name, data.source, data.drill_files, entries)?;
+        profile.boards = data.boards;
+        profile.validate()?;
         if data.options.is_empty() && cases.is_empty() && data.chosen.is_empty() {
             return Ok(profile);
         }

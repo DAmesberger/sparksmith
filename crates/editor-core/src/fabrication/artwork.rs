@@ -25,6 +25,7 @@
 //!   slots, with exact arcs. Plated straight slots are routed in the plated
 //!   drill file instead.
 use super::gerber::{Aperture, Seg, Writer, escape, macro_body, units};
+use super::snapshot::Identity;
 use super::{FabFile, FabricationOptions, FileGroup};
 use crate::diagnostics::Result;
 use crate::geometry::{Point, Shape, Transform2, rounded_path, signed_area2};
@@ -40,9 +41,11 @@ use std::collections::BTreeMap;
 /// The pen the profile is drawn with, mm (its centre line is the edge).
 pub const PROFILE_PEN_MM: f64 = 0.05;
 
-/// The file attributes every layer of one set shares.
+/// The file attributes every layer of one set shares: the generating
+/// software, the creation date when asked, the release identity
+/// (`.ProjectId,<name>,<guid>,<revision>`) and that all share coordinates.
 pub(super) fn common_attributes(
-    project: &Project,
+    identity: &Identity,
     options: &FabricationOptions,
 ) -> Vec<(&'static str, String)> {
     let mut out = vec![(
@@ -58,33 +61,15 @@ pub(super) fn common_attributes(
     }
     out.push((
         "ProjectId",
-        format!("{},{},1", escape(&project.name), project_guid(project)),
+        format!(
+            "{},{},{}",
+            escape(&identity.name),
+            identity.guid,
+            escape(&identity.revision)
+        ),
     ));
     out.push(("SameCoordinates", String::new()));
     out
-}
-
-/// A stable RFC 4122-shaped identifier of the project, derived from its
-/// name (version nibble 8, custom), so the same design always carries the
-/// same id.
-pub(super) fn project_guid(project: &Project) -> String {
-    use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(format!("sparksmith project {}", project.name).as_bytes());
-    let mut b = [0u8; 16];
-    for (i, byte) in digest.iter().take(16).enumerate() {
-        b[i] = *byte;
-    }
-    b[6] = (b[6] & 0x0f) | 0x80;
-    b[8] = (b[8] & 0x3f) | 0x80;
-    let hex: String = b.iter().map(|x| format!("{x:02x}")).collect();
-    format!(
-        "{}-{}-{}-{}-{}",
-        &hex[0..8],
-        &hex[8..12],
-        &hex[12..16],
-        &hex[16..20],
-        &hex[20..32]
-    )
 }
 
 /// The X2 file function of a copper layer: `Copper,L2,Inr`.
@@ -176,9 +161,14 @@ impl<'a> Board<'a> {
 
 /// Every Gerber layer file of `project`, copper top to bottom, then mask,
 /// paste and legend (top, bottom) and the profile.
-pub fn layers(project: &Project, options: &FabricationOptions, stem: &str) -> Result<Vec<FabFile>> {
+pub fn layers(
+    project: &Project,
+    identity: &Identity,
+    options: &FabricationOptions,
+    stem: &str,
+) -> Result<Vec<FabFile>> {
     let board = Board::of(project);
-    let common = common_attributes(project, options);
+    let common = common_attributes(identity, options);
     let mut files = Vec::new();
     for layer in project.stackup.layers() {
         let mut attributes = common.clone();

@@ -1551,6 +1551,10 @@ impl Session {
                         )
                     })?,
                 };
+                // A project first saved takes its identity, which every
+                // manufacturing file then states. No nonce: a script saved
+                // under the same file name reproduces it.
+                self.engine.identify_by_file(&path, "");
                 // The session's own file is replaced only while it holds
                 // what this session opened or saved; another file the
                 // request names is replaced whatever it holds.

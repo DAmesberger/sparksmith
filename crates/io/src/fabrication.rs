@@ -6,7 +6,7 @@ use crate::{Error, Result};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sparksmith_core::fabrication::{
-    self, FabFile, FabricationOptions, FileGroup, PreflightReport, drawing,
+    self, FabFile, FabricationOptions, FileGroup, PreflightReport, ProductionSnapshot, drawing,
 };
 use sparksmith_core::library::Drafts;
 use sparksmith_core::rules::RuleProfile;
@@ -63,9 +63,13 @@ pub struct Progress {
 
 const STEPS: usize = 4;
 
-/// Check, generate and write one fabrication set. Refused (nothing
-/// written) while the pre-flight report has unwaived errors, when the
-/// output exists and is not an empty folder, or on any generation error.
+/// Check, generate and write one fabrication set. The project and the
+/// request's profile resolve once to a [`ProductionSnapshot`]; the check,
+/// every Gerber, drill, job and assembly file and both drawings are made
+/// from it, so every file describes the rules the check passed. Refused
+/// (nothing written) while the pre-flight report has unwaived errors, when
+/// the output exists and is not an empty folder, or on any generation
+/// error.
 /// `checks` are the host's check settings ([`sparksmith_core::Engine::check_settings`]).
 /// `progress` is called before each step; it may be a no-op.
 pub fn export(
@@ -89,7 +93,8 @@ pub fn export(
         label: "Checking the design",
     });
     let start = Instant::now();
-    let report = preflight::report(project, drafts, request.profile.as_ref(), checks)?;
+    let snapshot = ProductionSnapshot::resolve(project, request.profile.as_ref());
+    let report = preflight::check(&snapshot, drafts, checks)?;
     timed("preflight", start);
     if !report.ready() {
         return Err(Error::Document(sparksmith_core::Error::Conflict(format!(
@@ -105,7 +110,7 @@ pub fn export(
         label: "Writing Gerber, drill and assembly files",
     });
     let start = Instant::now();
-    let mut set = fabrication::generate(project, &request.options)?;
+    let mut set = fabrication::generate(&snapshot, &request.options)?;
     timed("generate", start);
     if request.options.outputs.drawings {
         progress(Progress {
@@ -114,8 +119,8 @@ pub fn export(
             label: "Drawing the fabrication and assembly PDFs",
         });
         let start = Instant::now();
-        let stem = fabrication::base_name(project, &request.options)?;
-        let data = drawing::data(project, &request.options, checks)?;
+        let stem = fabrication::base_name(snapshot.project(), &request.options)?;
+        let data = drawing::data(&snapshot, &set.identity, checks)?;
         for (suffix, description, bytes) in [
             (
                 "fabrication.pdf",

@@ -216,12 +216,18 @@ fn every_deliberate_violation_names_its_object_and_blocks_production() -> Fallib
 fn every_plotted_conductor_and_drill_is_in_the_physical_inventory() -> Fallible<()> {
     let (engine, _) = gate_board()?;
     let project = engine.project();
-    let set = fabrication::generate(project, &FabricationOptions::default())?;
+    let set = fabrication::generate(
+        &fabrication::ProductionSnapshot::resolve(project, None),
+        &FabricationOptions::default(),
+    )?;
     copper_matches(project, &set)?;
     drills_match(project, &set)?;
     // The showcase too: four layers, inner fills, every pad kind it has.
     let showcase = Engine::showcase()?;
-    let set = fabrication::generate(showcase.project(), &FabricationOptions::default())?;
+    let set = fabrication::generate(
+        &fabrication::ProductionSnapshot::resolve(showcase.project(), None),
+        &FabricationOptions::default(),
+    )?;
     copper_matches(showcase.project(), &set)?;
     drills_match(showcase.project(), &set)?;
     Ok(())

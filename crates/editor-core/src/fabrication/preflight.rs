@@ -6,6 +6,7 @@
 //! shown with only an envelope model, legend over pads or off the board and
 //! slots the drill file cannot route. Errors block export unless waived; waivers are saved
 //! in the project (`Project::production`).
+use super::snapshot::ProductionSnapshot;
 use crate::diagnostics::{Error, ObjectRef, Result};
 use crate::geometry::{Bounds, Point, polyline_polygon_distance};
 use crate::ids::{DefinitionId, Id};
@@ -16,10 +17,9 @@ use crate::library::{Drafts, PackageModel};
 use crate::model::board::CutoutKind;
 use crate::model::production::{MAX_WAIVE_KEYS, MAX_WAIVER_TEXT, Production, Waiver};
 use crate::model::{CopperLayer, Layer, Project, Track};
-use crate::rules::{self, RuleProfile, RulesCommand};
+use crate::rules::RuleProfile;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Waive or restore pre-flight findings. Each is one undo step; a command
@@ -228,46 +228,33 @@ fn severity(row: &IssueRow) -> Option<Severity> {
 }
 
 /// The pre-flight report of `project` checked under `profile` (the
-/// project's own rules when `None`; overrides and net classes are kept).
-/// Fill copper computed under other rules is reported stale: refill under
-/// the fabrication profile before export. `settings` are the host's check
-/// settings ([`crate::Engine::check_settings`]).
+/// project's own rules when `None`; overrides and net classes are kept):
+/// [`check`] of the [`ProductionSnapshot`] they resolve to. An export
+/// resolves the snapshot once and checks and writes from it.
 pub fn report(
     project: &Project,
     drafts: &Drafts,
     profile: Option<&RuleProfile>,
     settings: &crate::layout::CheckSettings,
 ) -> Result<PreflightReport> {
-    let mut items = Vec::new();
-    let checked: Cow<'_, Project> = match profile {
-        Some(p) if project.rules.profile.as_ref() != Some(p) => {
-            let mut candidate = project.clone();
-            match rules::apply(
-                &mut candidate.rules,
-                RulesCommand::set_profile(p.clone(), true),
-            )
-            .and_then(|_| {
-                crate::layout::mask_colour::follow(
-                    &mut candidate.rules,
-                    candidate.fabrication.mask_colour,
-                )
-            }) {
-                Ok(_) => Cow::Owned(candidate),
-                Err(e) => {
-                    items.push(item(
-                        "fabrication.profile_refused",
-                        Severity::Error,
-                        format!("The design cannot use {}: {}", p.name, e),
-                        Some("Clear the overrides that conflict with the profile".into()),
-                        Vec::new(),
-                    ));
-                    Cow::Borrowed(project)
-                }
-            }
-        }
-        _ => Cow::Borrowed(project),
-    };
-    let p: &Project = &checked;
+    check(
+        &ProductionSnapshot::resolve(project, profile),
+        drafts,
+        settings,
+    )
+}
+
+/// The pre-flight report of `snapshot`. Fill copper computed under other
+/// rules is reported stale: refill under the fabrication profile before
+/// export. `settings` are the host's check settings
+/// ([`crate::Engine::check_settings`]).
+pub fn check(
+    snapshot: &ProductionSnapshot<'_>,
+    drafts: &Drafts,
+    settings: &crate::layout::CheckSettings,
+) -> Result<PreflightReport> {
+    let mut items = snapshot.findings().to_vec();
+    let p: &Project = snapshot.project();
     for row in &crate::issues::production_rows(p, drafts, settings)? {
         let Some(severity) = severity(row) else {
             continue;
@@ -294,7 +281,7 @@ pub fn report(
         i.waiver = if unwaivable(&i.key) {
             None
         } else {
-            project.production.waiver(&i.key).cloned()
+            p.production.waiver(&i.key).cloned()
         };
     }
     items.sort_by(|a, b| {
@@ -315,7 +302,7 @@ pub fn report(
     })
 }
 
-fn item(
+pub(super) fn item(
     code: &str,
     severity: Severity,
     title: String,

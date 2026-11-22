@@ -1,7 +1,6 @@
 //! What the fabrication and assembly drawings print, in board millimetres,
 //! curves already flattened: `sparksmith-io` lays it out as PDF pages and
 //! interprets nothing.
-use super::FabricationOptions;
 use super::drill::{DrillHole, DrillTable};
 use crate::diagnostics::Result;
 use crate::geometry::{Bounds, Point};
@@ -64,6 +63,10 @@ pub struct AssemblySide {
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct DrawingData {
     pub title: String,
+    /// The release the drawings belong to, as every file of the set states
+    /// it ([`super::Identity`]): its revision and the project's identity.
+    pub release: String,
+    pub project_id: String,
     /// The board outline's exact bounds.
     pub bounds: Bounds,
     /// The outer outline (counter-clockwise), closed, flattened.
@@ -489,12 +492,14 @@ fn assembly_sides(project: &Project) -> Vec<AssemblySide> {
     sides
 }
 
-/// The drawing data of `project`.
+/// The drawing data of `snapshot`, for the release `identity` (the
+/// [`super::FabricationSet::identity`] of the same snapshot).
 pub fn data(
-    project: &Project,
-    _options: &FabricationOptions,
+    snapshot: &super::ProductionSnapshot<'_>,
+    identity: &super::Identity,
     settings: &crate::layout::CheckSettings,
 ) -> Result<DrawingData> {
+    let project = snapshot.project();
     let board = project.board();
     let holes = super::drill::holes(project);
     let mut outline = bounded(flatten(&board.outer, DRAWING_CHORD_MM));
@@ -516,6 +521,8 @@ pub fn data(
     let f = &project.fabrication;
     Ok(DrawingData {
         title: project.name.clone(),
+        release: identity.revision.clone(),
+        project_id: identity.guid.clone(),
         bounds: board.bounds(),
         outline,
         cutouts,
@@ -546,8 +553,8 @@ mod tests {
         use crate::model::production::{Waiver, waiver_key};
         let mut project = Engine::showcase()?.project().clone();
         let before = data(
-            &project,
-            &FabricationOptions::default(),
+            &super::super::ProductionSnapshot::resolve(&project, None),
+            &Default::default(),
             &Default::default(),
         )?
         .notes;
@@ -589,8 +596,8 @@ mod tests {
         ];
         project.production.waivers.sort_by(|a, b| a.key.cmp(&b.key));
         let notes = data(
-            &project,
-            &FabricationOptions::default(),
+            &super::super::ProductionSnapshot::resolve(&project, None),
+            &Default::default(),
             &Default::default(),
         )?
         .notes;
@@ -623,7 +630,11 @@ mod tests {
     fn the_showcase_drawing_data_matches_the_board() -> Result<()> {
         let engine = Engine::showcase()?;
         let project = engine.project();
-        let d = data(project, &FabricationOptions::default(), &Default::default())?;
+        let d = data(
+            &super::super::ProductionSnapshot::resolve(project, None),
+            &Default::default(),
+            &Default::default(),
+        )?;
         let size = project.board_size;
         assert!((d.bounds.max[0] - d.bounds.min[0] - size[0]).abs() < 1e-9);
         assert!((d.bounds.max[1] - d.bounds.min[1] - size[1]).abs() < 1e-9);

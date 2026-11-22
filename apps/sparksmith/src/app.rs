@@ -1249,6 +1249,10 @@ impl App {
                     source,
                     report,
                 } => self.imported(*document, source, *report),
+                Effect::Identify { id, saved } => match self.engine.adopt_project_id(id) {
+                    Ok(()) => self.files.identified(&self.engine, saved),
+                    Err(error) => self.say(Level::Error, format!("Save failed: {error}")),
+                },
                 Effect::Rename { name, saved } => {
                     let rename = Operation::Schematic(
                         sparksmith_core::schematic::SchematicCommand::RenameProject { name },

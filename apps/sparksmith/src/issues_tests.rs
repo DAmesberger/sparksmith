@@ -1137,3 +1137,29 @@ fn a_waived_row_moves_to_waived_and_restore_brings_it_back() -> Fallible<()> {
     }
     Ok(())
 }
+
+/// The cached answer is reused for the same document and check settings,
+/// and computed again when only the settings change (the impedance
+/// tolerance in Settings takes no revision).
+#[test]
+fn a_check_settings_change_recomputes_the_cached_issues() -> Fallible<()> {
+    let mut engine = Engine::showcase()?;
+    let mut slot = Slot::default();
+    let first = slot.get(&engine, IssueScope::All);
+    let again = slot.get(&engine, IssueScope::All);
+    let same = |a: &Answer, b: &Answer| match (a, b) {
+        (Answer::Report(a), Answer::Report(b)) => Arc::ptr_eq(a, b),
+        _ => false,
+    };
+    assert!(same(&first, &again), "cached");
+    engine.set_check_settings(sparksmith_core::layout::CheckSettings {
+        impedance_tolerance: Some(10.0),
+    })?;
+    let after = slot.get(&engine, IssueScope::All);
+    assert!(matches!(after, Answer::Report(_)));
+    assert!(
+        !same(&first, &after),
+        "computed again under the new settings"
+    );
+    Ok(())
+}

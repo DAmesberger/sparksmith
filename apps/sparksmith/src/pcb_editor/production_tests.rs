@@ -271,8 +271,7 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
     {
         let d = dialog(&mut editor)?;
         d.report = Some((
-            engine.revision(),
-            Pick::Board,
+            (engine.report_key(), Pick::Board, None),
             Ok(report_with_error(&engine)),
         ));
         d.location = Some(tmp.path().to_path_buf());
@@ -314,8 +313,7 @@ fn an_unwaived_error_blocks_export_and_a_waiver_unblocks_it() -> TestResult {
     {
         let d = dialog(&mut editor)?;
         d.report = Some((
-            engine.revision(),
-            Pick::Board,
+            (engine.report_key(), Pick::Board, None),
             Ok(report_with_error(&engine)),
         ));
         let report = d.current(&engine).cloned();
@@ -359,8 +357,7 @@ fn a_waiver_without_a_reason_is_committed_by_default() -> TestResult {
     let mut editor = open(&engine)?;
     let ctx = context();
     dialog(&mut editor)?.report = Some((
-        engine.revision(),
-        Pick::Board,
+        (engine.report_key(), Pick::Board, None),
         Ok(report_with_error(&engine)),
     ));
     hover(
@@ -552,8 +549,7 @@ fn a_whole_group_is_waived_with_one_reason_in_one_undo_step() -> TestResult {
     let mut editor = open(&engine)?;
     let ctx = context();
     dialog(&mut editor)?.report = Some((
-        engine.revision(),
-        Pick::Board,
+        (engine.report_key(), Pick::Board, None),
         Ok(report_like_the_run(&engine)),
     ));
     // The findings read as groups: the nine unrouted nets are one row.
@@ -659,8 +655,7 @@ fn run_dialog(engine: &Engine) -> Result<PcbEditor, Box<dyn std::error::Error>> 
     let mut editor = open(engine)?;
     let d = dialog(&mut editor)?;
     d.report = Some((
-        engine.revision(),
-        Pick::Board,
+        (engine.report_key(), Pick::Board, None),
         Ok(report_like_the_run(engine)),
     ));
     d.waiving.open.insert("board.unrouted".into());
@@ -744,5 +739,62 @@ fn group_titles_fit_a_narrow_column() -> TestResult {
         assert!(!cut.contains(title), "{title} is cut: {cut:?}");
         assert!(shown.contains(title), "{title} is not shown: {shown:?}");
     }
+    Ok(())
+}
+
+/// A check settings change (the impedance tolerance in Settings) takes no
+/// revision, yet the production check computed before it is not the
+/// current one any more: the dialog checks again under the new settings.
+#[test]
+fn a_check_settings_change_refreshes_the_production_check() -> TestResult {
+    let mut engine = Engine::showcase()?;
+    let mut editor = open(&engine)?;
+    let ctx = context();
+    dialog(&mut editor)?.wait_check(&ctx, &engine);
+    assert!(dialog(&mut editor)?.current(&engine).is_some());
+    let revision = engine.revision();
+    engine.set_check_settings(sparksmith_core::layout::CheckSettings {
+        impedance_tolerance: Some(10.0),
+    })?;
+    assert_eq!(engine.revision(), revision);
+    assert!(
+        dialog(&mut editor)?.current(&engine).is_none(),
+        "a report of other settings is not shown as current"
+    );
+    dialog(&mut editor)?.wait_check(&ctx, &engine);
+    assert!(dialog(&mut editor)?.current(&engine).is_some());
+    Ok(())
+}
+
+/// The check is keyed on the picked profile's content, not its id: the
+/// same profile file edited (another minimum width) is not shown as
+/// checked, and the dialog checks it again.
+#[test]
+fn an_edited_profile_is_checked_again() -> TestResult {
+    use sparksmith_core::rules::{RuleEntry, RuleKey, RuleValue};
+    let engine = Engine::showcase()?;
+    let mut editor = open(&engine)?;
+    let ctx = context();
+    let mut profile = sparksmith_core::rules::fixtures::prototype()?;
+    profile.id = "mine".into();
+    {
+        let d = dialog(&mut editor)?;
+        d.user_profiles = vec![profile.clone()];
+        d.pick = Pick::User("mine".into());
+        d.wait_check(&ctx, &engine);
+        assert!(d.current(&engine).is_some());
+    }
+    profile.set(
+        RuleKey::TrackWidthMin,
+        RuleEntry::value(RuleValue::Length(0.15), "Test fixture."),
+    )?;
+    let d = dialog(&mut editor)?;
+    d.user_profiles = vec![profile];
+    assert!(
+        d.current(&engine).is_none(),
+        "a check of the profile as it was is not current"
+    );
+    d.wait_check(&ctx, &engine);
+    assert!(d.current(&engine).is_some());
     Ok(())
 }

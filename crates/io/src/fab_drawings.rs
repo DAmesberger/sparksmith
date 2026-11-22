@@ -618,6 +618,8 @@ pub fn fabrication_pdf(data: &DrawingData) -> Result<Vec<u8>> {
             ),
             ("Finish", data.finish.clone()),
             ("Mask / legend", format!("{} / {}", data.mask, data.legend)),
+            ("Release", data.release.clone()),
+            ("Project id", data.project_id.clone()),
             ("Generator", sparksmith_core::product::NAME.into()),
         ],
     );
@@ -757,6 +759,8 @@ fn assembly_page(data: &DrawingData, side: &AssemblySide) -> Page {
             ),
             ("View", heading.into()),
             ("Parts", side.parts.len().to_string()),
+            ("Release", data.release.clone()),
+            ("Project id", data.project_id.clone()),
             ("Generator", sparksmith_core::product::NAME.into()),
         ],
     );
@@ -793,13 +797,13 @@ fn assembly_pages(data: &DrawingData) -> Vec<Page> {
 mod tests {
     use super::*;
     use sparksmith_core::Engine;
-    use sparksmith_core::fabrication::{FabricationOptions, drawing};
+    use sparksmith_core::fabrication::drawing;
 
     fn showcase() -> Result<DrawingData> {
         let engine = Engine::showcase()?;
         Ok(drawing::data(
-            engine.project(),
-            &FabricationOptions::default(),
+            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &Default::default(),
             engine.check_settings(),
         )?)
     }
@@ -866,8 +870,8 @@ mod tests {
     fn an_empty_board_still_draws() -> Result<()> {
         let engine = Engine::default();
         let data = drawing::data(
-            engine.project(),
-            &FabricationOptions::default(),
+            &sparksmith_core::fabrication::ProductionSnapshot::resolve(engine.project(), None),
+            &Default::default(),
             engine.check_settings(),
         )?;
         assert!(fabrication_pdf(&data)?.starts_with(b"%PDF-"));
