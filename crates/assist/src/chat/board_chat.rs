@@ -707,7 +707,7 @@ fn reading_without_a_change_stops_the_turn_saying_what_to_give() -> Fallible {
         return Err(format!("{:?}", outcome.end).into());
     };
     assert!(why.contains("without a change"), "{why}");
-    assert!(why.contains("Name the parts and pins"), "{why}");
+    assert!(why.contains("Say exactly what to change"), "{why}");
     let idle = Policy::CHAT.idle_tokens;
     assert!(outcome.usage.tokens > idle, "{}", outcome.usage.tokens);
     assert!(

@@ -600,7 +600,12 @@ pub(crate) fn converse(
             let counted = |_: &[Message]| grown;
             if let Some(condensed) = crate::chat::context::condense(
                 &mut messages,
-                &crate::chat::Policy::CHAT,
+                // Of the whole context: a run's history only grows, so its
+                // prompt cache holds until the context truly fills.
+                &crate::chat::Policy {
+                    window_tokens: u64::MAX,
+                    ..crate::chat::Policy::CHAT
+                },
                 profile.capabilities.context_tokens,
                 &counted,
             ) {

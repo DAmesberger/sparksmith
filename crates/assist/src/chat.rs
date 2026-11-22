@@ -334,7 +334,7 @@ pub fn turn(
         let spent = usage(&tally).tokens;
         if spent.saturating_sub(changed_at) > policy.idle_tokens {
             break End::Limit(format!(
-                "about {} k tokens of reading without a change; nothing more was sent. Name the parts and pins to connect (\"R3 pin 2 to U1 EN\"), or select them, and ask again",
+                "about {} k tokens of reading without a change, so nothing more was sent. Say exactly what to change and on which parts (\"connect R3 pin 2 to U1 EN\"), or select them, and ask again",
                 spent.saturating_sub(changed_at) / 1_000
             ));
         }
