@@ -129,11 +129,69 @@ pub fn items(
     copper: &BoardCopper,
     project: &Project,
     graph: &dyn Fn(&BTreeSet<Id>) -> Option<std::sync::Arc<CopperGraph>>,
+    last: Option<(
+        &super::Items,
+        &PadHoleIndex,
+        &super::CopperChanges,
+        &BTreeSet<Id>,
+    )>,
+) -> Option<(super::Items, PadHoleIndex)> {
+    // A change that reaches no pad hole keeps every item, without the
+    // pad holes being made again.
+    if let Some((old, index, changes, nets)) = last
+        && !index.reached(changes, nets)
+        && old.pairs() <= index.budget(copper)
+    {
+        return Some((old.clone(), index.clone()));
+    }
+    made(copper, project, graph, last.map(|(i, _, c, n)| (i, c, n)))
+}
+
+/// Where a board's pad holes are and which nets their pads carry, which a
+/// change of tracks and vias alone leaves as they are: what decides
+/// whether a change reaches a pad hole check.
+#[derive(Clone, Debug, Default)]
+pub struct PadHoleIndex {
+    /// Each pad hole's bounds and its pad's net.
+    holes: Vec<(Option<crate::geometry::Bounds>, Option<Id>)>,
+    reach: f64,
+    mounts: usize,
+}
+
+impl PadHoleIndex {
+    /// Whether `changes`, whose reached nets are `nets`, reach a pad hole:
+    /// a changed track or via near it, or its pad's island on such a net.
+    fn reached(&self, changes: &super::CopperChanges, nets: &BTreeSet<Id>) -> bool {
+        self.holes.iter().any(|(bounds, net)| {
+            bounds.is_some_and(|b| changes.near(&b, self.reach))
+                || net.is_some_and(|n| nets.contains(&n))
+        })
+    }
+
+    /// The pair budget of the check on `copper` ([`PadHoleCx::budget`]).
+    fn budget(&self, copper: &BoardCopper) -> usize {
+        let vias = copper.vias().len();
+        let shapes = copper.lands().len() + vias + copper.tracks().len();
+        let holes = if self.holes.is_empty() {
+            0
+        } else {
+            self.holes.len() + vias + self.mounts
+        };
+        check_pair_budget(shapes.saturating_add(holes))
+    }
+}
+
+/// [`items`], making the pad holes whatever reached them.
+fn made(
+    copper: &BoardCopper,
+    project: &Project,
+    graph: &dyn Fn(&BTreeSet<Id>) -> Option<std::sync::Arc<CopperGraph>>,
     last: Option<(&super::Items, &super::CopperChanges, &BTreeSet<Id>)>,
-) -> Option<super::Items> {
+) -> Option<(super::Items, PadHoleIndex)> {
     use super::ItemKey;
     let Some(cx) = PadHoleCx::new(copper, project) else {
-        return super::Items::made(&[ItemKey::Rings], None, |_| Some((Vec::new(), 0)));
+        let items = super::Items::made(&[ItemKey::Rings], None, |_| Some((Vec::new(), 0)))?;
+        return Some((items, PadHoleIndex::default()));
     };
     let keys: Vec<ItemKey> = std::iter::once(ItemKey::Rings)
         .chain((0..cx.pad_holes).map(ItemKey::PadHole))
@@ -206,7 +264,17 @@ pub fn items(
             .ok()?;
         Some((out, pairs))
     })?;
-    (items.pairs() <= cx.budget()).then_some(items)
+    let index = PadHoleIndex {
+        holes: (0..cx.pad_holes)
+            .map(|i| (cx.hole_bounds.get(i).copied().flatten(), net_of(i)))
+            .collect(),
+        reach: cx.reach,
+        mounts: cx
+            .holes
+            .len()
+            .saturating_sub(cx.pad_holes + copper.vias().len()),
+    };
+    (items.pairs() <= cx.budget()).then_some((items, index))
 }
 
 /// One state's pad hole checks: the placed pads, the board's holes (pad

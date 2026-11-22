@@ -105,7 +105,56 @@ fn unshared(before: &Project, after: &Project) -> Result<(Value, Value)> {
         library.generated,
         library.reviews,
     );
+    // A local edit changes a few of the board's many tracks and vias:
+    // both sides leave out the ones they hold unchanged.
+    if let Some((a, b)) = trim(&old.tracks, &new.tracks, |t| t.id) {
+        (old.tracks, new.tracks) = (Shared::new(a), Shared::new(b));
+    }
+    if let Some((a, b)) = trim(&old.vias, &new.vias, |v| v.id) {
+        (old.vias, new.vias) = (Shared::new(a), Shared::new(b));
+    }
     Ok((serde_json::to_value(&old)?, serde_json::to_value(&new)?))
+}
+
+/// `old` and `new` without the elements both hold equal under one
+/// identity, when that leaves their diff as it was: identities unique on
+/// both sides (so the diff matches elements by identity) and some element
+/// added, removed or changed (an order change alone is reported as a field,
+/// so it keeps both whole). `None` keeps both whole.
+fn trim<T: Clone + PartialEq>(
+    old: &[T],
+    new: &[T],
+    id: impl Fn(&T) -> sparksmith_core::Id,
+) -> Option<(Vec<T>, Vec<T>)> {
+    let mut at: HashMap<sparksmith_core::Id, usize> = HashMap::with_capacity(new.len());
+    for (k, item) in new.iter().enumerate() {
+        if at.insert(id(item), k).is_some() {
+            return None;
+        }
+    }
+    let mut seen = std::collections::HashSet::with_capacity(old.len());
+    let mut same = vec![false; new.len()];
+    let mut kept = Vec::new();
+    for item in old {
+        if !seen.insert(id(item)) {
+            return None;
+        }
+        match at.get(&id(item)) {
+            Some(&k) if new.get(k) == Some(item) => {
+                if let Some(s) = same.get_mut(k) {
+                    *s = true;
+                }
+            }
+            _ => kept.push(item.clone()),
+        }
+    }
+    let rest: Vec<T> = new
+        .iter()
+        .zip(&same)
+        .filter(|(_, same)| !**same)
+        .map(|(item, _)| item.clone())
+        .collect();
+    (!kept.is_empty() || !rest.is_empty()).then_some((kept, rest))
 }
 
 /// The open findings of an issue report, each once: every row's finding
@@ -803,6 +852,12 @@ pub(super) mod tests_support {
         let mut changes = Changes::default();
         changes.diff("", before, after);
         changes.into_value().unwrap_or(Value::Null)
+    }
+
+    /// The changes a compact reply reports from `before` to `after`.
+    pub fn changes_between(before: &Project, after: &Project) -> Result<Value> {
+        let (a, b) = unshared(before, after)?;
+        Ok(changes_of(&a, &b))
     }
 
     pub fn delta(old: &[Finding], new: &[Finding]) -> Value {

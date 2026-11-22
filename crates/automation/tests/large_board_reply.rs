@@ -35,6 +35,46 @@ fn tent(session: &Session, via: u64, tented: bool) -> Value {
     }})
 }
 
+fn layout(session: &Session, command: &str, params: Value) -> Value {
+    json!({"command": "project.apply", "params": {
+        "expected_revision": session.engine().revision(),
+        "operation": {"editor": "Layout", "operation": {"command": command, "params": params}},
+    }})
+}
+
+/// Eleven warm replies after a first one, each from `request(k)`; each must
+/// name `kind`'s object `id` as changed. Prints best and median.
+fn replies(
+    session: &mut Session,
+    label: &str,
+    kind: &str,
+    id: u64,
+    request: impl Fn(&Session, usize) -> Value,
+) {
+    let mut times = Vec::new();
+    for k in 0..12 {
+        let request = request(session, k);
+        let start = Instant::now();
+        let reply = session.respond(Caller::Operator, request);
+        times.push(ms(start));
+        assert_eq!(reply["ok"], true, "{reply}");
+        assert_eq!(
+            reply["result"]["changes"]["changed"][kind],
+            json!([id]),
+            "{reply}"
+        );
+    }
+    let mut warm = times[1..].to_vec();
+    warm.sort_by(f64::total_cmp);
+    eprintln!(
+        "compact reply, {label}: first {:.0} ms; then best {:.0} ms, median {:.0} ms ({} replies)",
+        times[0],
+        warm[0],
+        warm[warm.len() / 2],
+        warm.len()
+    );
+}
+
 #[test]
 #[ignore = "scale benchmark; run with --ignored --nocapture"]
 fn compact_reply_for_a_small_edit_on_the_large_board() -> Fallible {
@@ -106,6 +146,35 @@ fn compact_reply_for_a_small_edit_on_the_large_board() -> Fallible {
         warm[warm.len() / 2],
         warm.len()
     );
+    // A via moved on the same (largest) net, and a track's width.
+    let at = session
+        .engine()
+        .project()
+        .via(via)
+        .map(|v| v.position)
+        .ok_or("via")?;
+    replies(&mut session, "via move", "vias", via, |s, k| {
+        let dx = if k % 2 == 0 { 0.01 } else { 0.0 };
+        layout(
+            s,
+            "layout.via_move",
+            json!({"id": via, "position": [at[0] + dx, at[1]]}),
+        )
+    });
+    let track =
+        session.engine().project().tracks[session.engine().project().tracks.len() / 2].clone();
+    replies(&mut session, "track width", "tracks", track.id, |s, k| {
+        let width = if k % 2 == 0 {
+            track.width * 0.9
+        } else {
+            track.width
+        };
+        layout(
+            s,
+            "layout.track_set",
+            json!({"id": track.id, "width": width}),
+        )
+    });
     // What each reply's findings delta costs: the design checks of the
     // new state (ERC, then the board checks with their copper graph).
     let project = session.engine().project();

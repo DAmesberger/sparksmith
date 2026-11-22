@@ -208,6 +208,12 @@ impl SharedReports {
             .is_ok_and(|mut reports| reports.wait(engine, patience))
     }
 
+    /// Reports computed so far (tests).
+    #[cfg(test)]
+    pub(crate) fn computed(&self) -> usize {
+        self.0.try_borrow().map_or(0, |r| r.computed)
+    }
+
     /// [`Reports::latest`]; `None` too while another view holds it, which
     /// one thread never does across a call.
     pub fn latest(&self, engine: &Engine) -> Option<Answer> {

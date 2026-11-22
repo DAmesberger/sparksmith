@@ -508,6 +508,8 @@ impl BoardCopper {
     /// in either state.
     pub fn changes_from(&self, last: &BoardCopper) -> CopperChanges {
         let mut changes = CopperChanges::default();
+        // The copper graph reads neither lock, a via's tenting nor its
+        // drill: an edit of those alone joins and splits nothing.
         diff_items(
             &self.tracks,
             &self.track_rings,
@@ -515,6 +517,11 @@ impl BoardCopper {
             &last.track_rings,
             |t| t.id,
             |t| t.net,
+            |old, new| {
+                let mut old = old.clone();
+                old.locked = new.locked;
+                old == *new
+            },
             ItemKey::Track,
             &mut changes,
         );
@@ -525,6 +532,13 @@ impl BoardCopper {
             &last.via_rings,
             |v| v.id,
             |v| v.net,
+            |old, new| {
+                let mut old = old.clone();
+                old.locked = new.locked;
+                old.tented = new.tented;
+                old.drill = new.drill;
+                old == *new
+            },
             ItemKey::Via,
             &mut changes,
         );
@@ -541,7 +555,9 @@ pub struct CopperChanges {
     /// The copper bounds, in either state, of every track and via added,
     /// changed or removed: an unchanged shape near one is checked again.
     pub bounds: Vec<Bounds>,
-    /// Their nets, in either state.
+    /// The nets, in either state, of the tracks and vias added, removed or
+    /// changed in what the copper graph reads: the nets whose connectivity
+    /// can change.
     pub nets: std::collections::BTreeSet<Id>,
 }
 
@@ -571,7 +587,8 @@ impl CopperChanges {
 }
 
 /// Record in `changes` the items of `new` (with outlines `rings`) that
-/// differ from `old`'s, and the items of `old` that are gone.
+/// differ from `old`'s, and the items of `old` that are gone. `joins_alike`
+/// says whether two states of an item are alike to the copper graph.
 #[allow(clippy::too_many_arguments)]
 fn diff_items<T: PartialEq>(
     new: &[T],
@@ -580,6 +597,7 @@ fn diff_items<T: PartialEq>(
     old_rings: &[std::sync::Arc<CopperRing>],
     id: impl Fn(&T) -> Id,
     net: impl Fn(&T) -> Id,
+    joins_alike: impl Fn(&T, &T) -> bool,
     key: impl Fn(Id) -> ItemKey,
     changes: &mut CopperChanges,
 ) {
@@ -596,7 +614,9 @@ fn diff_items<T: PartialEq>(
                 changes
                     .bounds
                     .extend(ring.bounds.into_iter().chain(old_ring.bounds));
-                changes.nets.extend([net(item), net(before)]);
+                if !joins_alike(before, item) {
+                    changes.nets.extend([net(item), net(before)]);
+                }
                 kept += 1;
             }
             None => {

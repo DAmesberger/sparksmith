@@ -64,7 +64,7 @@ pub use copper::{BoardCopper, CURVE_SLACK_MM, CopperChanges, CopperRing, ItemKey
 #[cfg(test)]
 pub(crate) use courtyard::limit_finding as courtyard_limit_finding;
 pub use courtyard::{PlacedCourtyard, placed_courtyards};
-pub use pad_hole::items as pad_hole_items;
+pub use pad_hole::{PadHoleIndex, items as pad_hole_items};
 pub use placed::{
     BoardDrawing, PlacedGraphic, PlacedHole, PlacedItem, PlacedKeepout, PlacedPad, model_to_board,
     pick_graphic, pick_pad, placed_graphics, placed_keepouts, placed_pads, placement_transform,
@@ -1615,7 +1615,7 @@ pub fn pad_clearance_conflicts(
 }
 
 /// Every board check: clearance and edges over the exact outlines
-/// ([`BoardCopper::checks`]), connectivity from the copper graph, fills,
+/// ([`BoardCheck`]), connectivity from the copper graph, fills,
 /// outline, lengths and etch hazards ([`etch`]). Builds the copper graph; callers holding the
 /// revision's graph ([`crate::Engine::copper_graph`]) call
 /// [`checks_with`]. `settings` are the host's values for limits the
@@ -1779,6 +1779,7 @@ impl BoardCheck {
         match self {
             Self::Clearance => copper.clearance_items(project, last),
             Self::Vias => via::items(copper, project, last),
+            Self::Physical => Some(physical::items(project, last)),
             _ => None,
         }
     }

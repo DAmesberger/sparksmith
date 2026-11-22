@@ -70,6 +70,8 @@ pub struct Checked {
     board: Vec<(BoardCheck, Vec<Finding>)>,
     /// The findings of the families that check item by item, per item.
     items: Vec<(BoardCheck, Items)>,
+    /// Where the pad holes are, for whether a change reaches them.
+    holes: Option<layout::PadHoleIndex>,
     /// Each net's copper graph counts, when the state's graph is complete.
     counts: Option<Arc<BTreeMap<Id, NetCounts>>>,
     /// The index of each connected pad, for the connectivity order.
@@ -133,6 +135,7 @@ impl Checked {
                 schematic: self.schematic.clone(),
                 board: self.board.clone(),
                 items: self.items.clone(),
+                holes: self.holes.clone(),
                 counts: self.counts.clone(),
                 pads: self.pads.clone(),
                 fills: self.fills.clone(),
@@ -185,7 +188,11 @@ impl Checked {
                 .map(|(_, items)| items)
         };
         let mut items: Vec<(BoardCheck, Items)> = Vec::new();
-        for check in [BoardCheck::Clearance, BoardCheck::Vias] {
+        for check in [
+            BoardCheck::Clearance,
+            BoardCheck::Vias,
+            BoardCheck::Physical,
+        ] {
             if let Some(made) =
                 check.items(project, &copper, last_items(check).zip(changes.as_ref()))
             {
@@ -193,29 +200,53 @@ impl Checked {
             }
         }
         let last_holes = last_items(BoardCheck::PadHoles)
+            .zip(kept.and_then(|l| l.holes.as_ref()))
             .zip(changes.as_ref())
-            .map(|(items, changes)| (items, changes, &touched));
-        if let Some(made) = layout::pad_hole_items(&copper, project, &graph_of, last_holes) {
+            .map(|((items, index), changes)| (items, index, changes, &touched));
+        let mut holes = None;
+        if let Some((made, index)) = layout::pad_hole_items(&copper, project, &graph_of, last_holes)
+        {
             items.push((BoardCheck::PadHoles, made));
+            holes = Some(index);
         }
         // The connectivity of the nets reached, from a graph of those nets;
         // every other net's findings are the last state's.
         let connectivity = kept.and_then(|last| {
-            let graph = graph_of(&BTreeSet::new())?;
-            let nets = sub.nets();
-            let order = ConnectivityOrder::new(project, &pads);
             let old = last
                 .board
                 .iter()
                 .find(|(c, _)| *c == BoardCheck::Connectivity)?;
-            let mut findings: Vec<Finding> = old
+            // Nothing the copper graph reads changed.
+            if touched.is_empty() {
+                return Some(old.1.clone());
+            }
+            let graph = graph_of(&BTreeSet::new())?;
+            let nets = sub.nets();
+            let order = ConnectivityOrder::new(project, &pads);
+            let kept: Vec<&Finding> = old
                 .1
                 .iter()
                 .filter(|f| order.net(f).is_none_or(|n| !nets.contains(&n)))
-                .cloned()
-                .chain(graph.findings(project))
                 .collect();
-            findings.sort_by_key(|f| order.key(f));
+            // Both lists are in the graph's order: merge them.
+            let mut findings = Vec::with_capacity(kept.len());
+            let mut from = 0usize;
+            for f in graph.findings(project) {
+                let key = order.key(&f);
+                let to = from
+                    + kept
+                        .get(from..)
+                        .map_or(0, |rest| rest.partition_point(|o| order.key(o) < key));
+                findings.extend(
+                    kept.get(from..to)
+                        .into_iter()
+                        .flatten()
+                        .map(|o| (*o).clone()),
+                );
+                findings.push(f);
+                from = to;
+            }
+            findings.extend(kept.get(from..).into_iter().flatten().map(|o| (*o).clone()));
             Some(findings)
         });
         let (board, stopped) =
@@ -233,7 +264,7 @@ impl Checked {
                     .map(|(_, f)| f.clone())
             });
         let counts = match (kept, connectivity.is_some()) {
-            (Some(_), true) => sub.counts(),
+            (Some(last), true) => sub.counts().or_else(|| last.counts.clone()),
             _ => source.made().and_then(|g| g.net_counts()).map(Arc::new),
         };
         let (component, schematic, links) = match kept {
@@ -300,6 +331,7 @@ impl Checked {
             schematic,
             board,
             items,
+            holes,
             counts,
             pads,
             fills,
