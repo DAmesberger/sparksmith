@@ -368,9 +368,12 @@ fn discovery(cx: &mut Builder) -> Value {
     let class = cx.typed::<Class>();
     let defs = json!({"type":"object","additionalProperties":schema_object()});
     let opt_defs = [("$defs", defs), ("more_defs", cx.typed::<Vec<String>>())];
+    let family = json!({"enum":["command","query","operation"]});
+    let person = json!({"enum":[null,sparksmith_core::permission::Person::Approval,sparksmith_core::permission::Person::Review]});
+    let reach = array(json!({"enum":sparksmith_core::permission::Reach::ALL}));
     let matched = object(
         &[
-            ("kind", json!({"enum":["command","query","operation"]})),
+            ("kind", family.clone()),
             ("class", class.clone()),
             ("name", text.clone()),
             ("schema", schema_object()),
@@ -379,14 +382,8 @@ fn discovery(cx: &mut Builder) -> Value {
         &[
             ("title", text.clone()),
             ("summary", text.clone()),
-            (
-                "person",
-                json!({"enum":[null, sparksmith_core::permission::Person::Approval, sparksmith_core::permission::Person::Review]}),
-            ),
-            (
-                "reach",
-                array(json!({"enum":sparksmith_core::permission::Reach::ALL})),
-            ),
+            ("person", person.clone()),
+            ("reach", reach.clone()),
             (
                 "full",
                 object(
@@ -425,7 +422,34 @@ fn discovery(cx: &mut Builder) -> Value {
         ],
         &[],
     );
-    let matches = object(&[("name", text.clone()), ("matches", array(matched))], &[]);
+    let target = |detail| {
+        object(
+            &[("name", text.clone()), ("detail", json!({"const":detail}))],
+            &[],
+        )
+    };
+    let card = object(
+        &[
+            ("name", text.clone()),
+            ("kind", family),
+            ("class", cx.typed::<Class>()),
+            ("title", text.clone()),
+            ("summary", text.clone()),
+            ("line", text.clone()),
+            ("person", person),
+            ("reach", reach),
+            ("input", target("input")),
+            ("full", target("full")),
+        ],
+        &[("asks_with_path", cx.typed::<bool>())],
+    );
+    let matches = object(
+        &[
+            ("name", text.clone()),
+            ("matches", array(json!({"oneOf":[matched,card]}))),
+        ],
+        &[],
+    );
     let def = object(
         &[
             ("name", text.clone()),

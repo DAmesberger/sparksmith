@@ -248,6 +248,55 @@ fn a_misspelt_op_is_refused_with_the_nearest_names() -> Fallible<()> {
     })?
 }
 
+/// The MCP and raw schema paths expose the same signature and gate metadata.
+#[test]
+fn line_find_describe_and_raw_schema_agree() -> Fallible<()> {
+    let dir = tempfile::tempdir()?;
+    block_on(async move {
+        let client = Connection::open(Mode::AutoAllowEdits, dir.path()).await?;
+        for name in [
+            "layout.place_part_file",
+            "library.sign_out",
+            "project.query",
+        ] {
+            let found = client.ok(FIND, json!({"text":name,"limit":1})).await?;
+            let hit = &found["hits"][0];
+            let line = client
+                .ok(DESCRIBE, json!({"name":name,"detail":"line"}))
+                .await?;
+            let raw = client
+                .ok(
+                    QUERY,
+                    json!({"name":"project.schema","params":{"name":name,"detail":"line"}}),
+                )
+                .await?;
+            let schema = &raw["matches"][0];
+            for key in [
+                "line",
+                "class",
+                "name",
+                "summary",
+                "title",
+                "person",
+                "reach",
+                "asks_with_path",
+            ] {
+                assert_eq!(hit.get(key), line.get(key), "{name}: {key}");
+                assert_eq!(schema.get(key), line.get(key), "{name}: {key}");
+            }
+            assert_eq!(line["name"], name);
+            assert!(line.get("schema").is_none());
+            let input = client.ok(DESCRIBE, line["input"].clone()).await?;
+            for key in ["class", "person", "reach", "asks_with_path"] {
+                assert_eq!(line.get(key), input.get(key), "{name}: {key}");
+            }
+            let full = client.ok(DESCRIBE, line["full"].clone()).await?;
+            assert!(full.get("reply").is_some());
+        }
+        Ok(())
+    })?
+}
+
 /// `find` names entries by what they do, of the kind asked, within its
 /// bounds; `describe` gives one's schema and the call that sends it.
 #[test]
@@ -1188,6 +1237,11 @@ fn project_schema_describes_the_detail_selector_it_accepts() -> Fallible<()> {
             assert_eq!(matched["asks_with_path"], true);
         }
     }
+    let params = json!({"name":"project.save","detail":"line"});
+    assert!(validator.is_valid(&params));
+    let lines = tools.ok(QUERY, json!({"name":"project.schema","params":params}))?;
+    assert!(result.is_valid(&lines), "{lines}");
+    assert!(lines["matches"][0]["line"].is_string());
     for invalid in [
         json!({"name":"project.save", "detail":"typo"}),
         json!({"name":"project.save", "unexpected":true}),
@@ -1207,5 +1261,84 @@ fn describe_refuses_unknown_detail() -> Fallible<()> {
     let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
     let (failed, error) = tools.call(DESCRIBE, json!({"name":"project.undo","detail":"typo"}));
     assert!(failed && error.to_string().contains("typo"), "{error}");
+    Ok(())
+}
+
+#[test]
+fn wiring_intent_returns_a_revision_bound_apply_through_the_six_verbs() -> Fallible<()> {
+    let tools = super::testing::Tools::new(
+        Session::new(sparksmith_core::Engine::demo()?),
+        Grant::new(Mode::AutoAllowEdits, []),
+    )?;
+    let read = tools.ok(
+        QUERY,
+        json!({"name":"schematic.pins","params":{"designators":["R1","R2"]}}),
+    )?;
+    let parts = read["result"].as_array().ok_or("missing parts")?;
+    // The demo already joins R1.2 to R2.1. Connect its two outer ends and
+    // retain the original inner net. All IDs come from the one pin read.
+    let before = tools
+        .with_session(|s| {
+            s.engine()
+                .project()
+                .nets
+                .iter()
+                .find(|net| net.terminals.len() == 2)
+                .cloned()
+        })
+        .flatten()
+        .ok_or("no joined inner net")?;
+    let mut outer = Vec::new();
+    for (part, terminal) in parts.iter().zip([1, 2]) {
+        let row = part["pins"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|row| row[0] == terminal))
+            .ok_or("demo pin")?;
+        outer.push(json!({"instance":part["instance"],"terminal":row[0]}));
+    }
+    assert_eq!(outer.len(), 2);
+    let plan = tools.ok(
+        QUERY,
+        json!({"name":"schematic.check_intent","params":{"nets":{"RETURN": outer}}}),
+    )?;
+    assert_eq!(plan["report"], "net_intent");
+    assert_eq!(plan["revision"], read["revision"]);
+    assert!(plan["result"].get("blocked").is_none(), "{plan}");
+    assert_eq!(
+        plan["result"]["operations"].as_array().map(Vec::len),
+        Some(2)
+    );
+    tools.ok(
+        APPLY,
+        json!({"expected_revision":plan["revision"],"operations":plan["result"]["operations"]}),
+    )?;
+    let expected: std::collections::BTreeSet<sparksmith_core::Endpoint> =
+        serde_json::from_value(json!(outer))?;
+    let members = tools
+        .with_session(|s| {
+            s.engine()
+                .project()
+                .nets
+                .iter()
+                .find(|net| net.name == "RETURN")
+                .map(|n| n.terminals.clone())
+        })
+        .flatten()
+        .ok_or("no RETURN")?;
+    assert_eq!(
+        members
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>(),
+        expected
+    );
+    let inner_id = before.id;
+    let inner_after = tools
+        .with_session(move |s| s.engine().project().net(inner_id).cloned())
+        .flatten();
+    assert_eq!(inner_after, Some(before));
+    assert_eq!(
+        tools.revision(),
+        read["revision"].as_u64().ok_or("read revision")? + 1
+    );
     Ok(())
 }

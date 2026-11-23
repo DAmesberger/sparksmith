@@ -107,6 +107,7 @@ pub enum SchemaDetail {
     #[default]
     Input,
     Full,
+    Line,
 }
 
 /// Which schema `project.schema` returns.
@@ -117,7 +118,7 @@ pub struct SchemaParams {
     /// or a command or tool name. Without it, the index of all of them.
     #[serde(default)]
     pub name: Option<String>,
-    /// A key listed in `more_defs` or `reply.more_defs`, including its prefix.
+    /// A `more_defs` or `reply.more_defs` key with its prefix.
     #[serde(default)]
     pub def: Option<String>,
     #[serde(default)]
@@ -1567,7 +1568,7 @@ impl Session {
                 let summarised = matches!(query, Query::CheckDrafts { detail: false });
                 // The pins a wiring apply reads come with the revision it
                 // is prepared against.
-                let wiring = matches!(query, Query::PartPins { .. });
+                let wiring = matches!(query, Query::PartPins { .. } | Query::CheckIntent { .. });
                 let mut reply = serde_json::to_value(self.engine.query_using(
                     query,
                     &self.sources.context(),
@@ -2340,6 +2341,7 @@ mod replace;
 mod reply;
 mod reply_schema;
 pub(crate) mod schema_walk;
+mod signature;
 pub use reply::difference;
 pub mod shipped_parts;
 pub mod surface;

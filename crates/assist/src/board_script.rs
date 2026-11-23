@@ -1,4 +1,6 @@
 //! Shared offline model scripts for the developer bench and chat regression tests.
+pub mod wiring;
+
 use crate::Result;
 use crate::model::{Message, ModelBackend, ModelReply, ModelRequest, Part, StopReason};
 use crate::usage::Usage;
@@ -48,6 +50,7 @@ pub struct Scripted {
     /// cache is).
     pub cached: Vec<usize>,
     last: String,
+    answer: fn(&[Message]) -> Result<String>,
 }
 
 impl ModelBackend for Scripted {
@@ -87,7 +90,7 @@ impl ModelBackend for Scripted {
         let Some(mut step) = self.steps.pop_front() else {
             return Ok(ModelReply {
                 model: "scripted".into(),
-                content: vec![Part::text("The board is built, routed and checked.")],
+                content: vec![Part::text((self.answer)(request.messages)?)],
                 stop: StopReason::EndTurn,
                 usage,
                 usage_estimated: true,
@@ -333,13 +336,6 @@ pub(crate) fn steps() -> Vec<Step> {
             ],
         )]
     }));
-    // 14. The check.
-    out.push(Box::new(|_| {
-        vec![(
-            "query",
-            json!({"name": "project.issues", "params": {"scope": {"kind": "all"}}}),
-        )]
-    }));
     out
 }
 
@@ -361,11 +357,122 @@ impl Scripted {
             sent: Vec::new(),
             cached: Vec::new(),
             last: String::new(),
+            answer: |_| Ok("The board is built, routed and checked.".into()),
         }
     }
 
     pub fn board_build() -> Self {
-        Self::from_steps(steps())
+        Self::from_checked_steps(steps())
+    }
+
+    fn last_result(messages: &[Message]) -> Result<Value> {
+        let text = messages
+            .last()
+            .into_iter()
+            .flat_map(|m| m.content.iter().rev())
+            .find_map(|part| match part {
+                Part::ToolResult { text, .. } => Some(text),
+                _ => None,
+            })
+            .ok_or_else(|| crate::Error::Protocol("missing final tool result".into()))?;
+        Ok(serde_json::from_str(text)?)
+    }
+
+    /// Report the all-scope check the final edit actually returned.
+    fn check_after_edit(messages: &[Message]) -> Result<String> {
+        let reply = Self::last_result(messages)?;
+        let findings = &reply["findings"];
+        let counts: sparksmith_core::issues::IssueCounts =
+            serde_json::from_value(findings["issues"].clone())?;
+        let open = findings["open"]
+            .as_u64()
+            .ok_or_else(|| crate::Error::Protocol("missing count of open findings".into()))?;
+        Ok(format!(
+            "Checked the board. Open findings {open} (errors {}, warnings {}, to-dos {}, informational {}).",
+            counts.error, counts.warning, counts.to_do, counts.info
+        ))
+    }
+
+    /// The wiring-only regression also ends with an edit that reports its check.
+    pub(crate) fn from_checked_steps(steps: Vec<Step>) -> Self {
+        let mut script = Self::from_steps(steps);
+        script.answer = Self::check_after_edit;
+        script
+    }
+
+    /// Both variants read the same starting issues and require the same
+    /// successful repair before saving. The comparison adds one issues query.
+    pub fn drc_fix(code: sparksmith_core::diagnostics::FindingCode, recheck: bool) -> Self {
+        let inspect = || {
+            (
+                "query",
+                json!({"name":"project.issues","params":{"scope":{"kind":"all"}}}),
+            )
+        };
+        let save = || ("act", json!({"name":"project.save","params":{}}));
+        let mut script: Vec<Step> = vec![
+            Box::new(move |_| {
+                vec![
+                    inspect(),
+                    (
+                        "query",
+                        json!({"name":"project.inspect","params":{"at":"/revision"}}),
+                    ),
+                ]
+            }),
+            Box::new(move |m| {
+                let report = reply_to(m, "c1_0");
+                let id = report["result"]["rows"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|row| {
+                        std::iter::once(&row["finding"])
+                            .chain(row["also"].as_array().into_iter().flatten())
+                    })
+                    .find(|finding| finding["code"] == code.as_str())
+                    .and_then(|finding| finding["objects"].as_array())
+                    .and_then(|objects| objects.iter().find(|object| object["kind"] == "via"))
+                    .map(|object| object["id"].clone());
+                vec![(
+                    "apply",
+                    json!({"expected_revision":revision(m),"operations":[{"op":"layout.via_delete","params":{"id":id}}]}),
+                )]
+            }),
+            Box::new(move |m| {
+                let result = reply_to(m, "c2_0");
+                let findings = &result["findings"];
+                if findings["resolved"][code.as_str()] != 1
+                    || findings["resolved_total"] != 1
+                    || findings["new"] != json!([])
+                {
+                    return Vec::new();
+                }
+                vec![if recheck { inspect() } else { save() }]
+            }),
+        ];
+        if recheck {
+            script.push(Box::new(move |m| {
+                let report = reply_to(m, "c3_0");
+                if report["result"]["rows"].is_array() {
+                    vec![save()]
+                } else {
+                    Vec::new()
+                }
+            }));
+        }
+        let mut result = Self::from_steps(script);
+        result.answer = |messages| {
+            let saved = Self::last_result(messages)?;
+            if saved.get("saved_path").is_some() {
+                Ok("The dangling via was removed and the checked repair was saved.".into())
+            } else {
+                Err(crate::Error::Protocol(
+                    "the repair was not confirmed and saved".into(),
+                ))
+            }
+        };
+        result
     }
 
     /// Each track ID and the guarded revision come from the actual query replies.

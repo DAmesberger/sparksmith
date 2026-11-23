@@ -1,6 +1,7 @@
 //! Developer-only evaluation of the six verbs against original generic fixtures.
 mod batch;
 mod external;
+mod lines;
 mod live;
 mod run;
 mod spend;
@@ -113,6 +114,8 @@ impl Ceilings {
     }
 }
 
+const SCENARIOS: &[&str] = &["board-build", "two-header", "drc-fix", "subcircuit-wiring"];
+
 struct Task {
     mark: WorkflowMark,
     spec: Spec,
@@ -125,7 +128,7 @@ struct Task {
 
 impl Task {
     fn load(name: &str) -> Result<Self> {
-        if !matches!(name, "board-build" | "two-header") {
+        if !SCENARIOS.contains(&name) {
             return Err(format!("unknown task {name:?}").into());
         }
         let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -140,9 +143,17 @@ impl Task {
             Ok(bytes)
         };
         let spec: Spec = serde_json::from_slice(&read("task.json")?)?;
-        let goal = String::from_utf8(read("goal.txt")?)?;
+        let mut goal = String::from_utf8(read("goal.txt")?)?;
         let expected = read("expected.json")?;
         let (expected, start, initial) = match name {
+            "subcircuit-wiring" => {
+                let (_, session, _) = board_script::wiring::placed()?;
+                (
+                    verify::Expected::Wiring(serde_json::from_slice(&expected)?),
+                    None,
+                    session.engine().to_file(),
+                )
+            }
             "board-build" => {
                 #[derive(Deserialize)]
                 #[serde(deny_unknown_fields)]
@@ -157,6 +168,35 @@ impl Task {
                     session.engine().to_file(),
                 )
             }
+            "drc-fix" => {
+                #[derive(Deserialize)]
+                #[serde(deny_unknown_fields)]
+                struct Seed {
+                    net: String,
+                    position_mm: [f64; 2],
+                }
+                let seed: Seed = serde_json::from_slice(&read("start.json")?)?;
+                let base = dir.with_file_name("two-header").join("start.sparksmith");
+                let mut engine = verify::engine(sparksmith_io::read_project(&base)?)?;
+                let project = engine.project();
+                let net = project
+                    .nets
+                    .iter()
+                    .find(|n| n.name == seed.net)
+                    .ok_or("repair fixture net is missing")?;
+                let via = sparksmith_core::layout::class_via(project, net.id, seed.position_mm);
+                engine.apply(
+                    engine.revision(),
+                    sparksmith_core::Operation::Layout(
+                        sparksmith_core::layout::LayoutCommand::AddVia { via },
+                    ),
+                )?;
+                (
+                    verify::Expected::Repair(serde_json::from_slice(&expected)?),
+                    None,
+                    engine.to_file(),
+                )
+            }
             _ => {
                 read("start.sparksmith")?;
                 let file = dir.join("start.sparksmith");
@@ -168,6 +208,10 @@ impl Task {
                 )
             }
         };
+        if let verify::Expected::Wiring(wiring) = &expected {
+            goal.push('\n');
+            goal.push_str(&serde_json::to_string(&wiring.nets)?);
+        }
         // A change to the shipped blank board or selected profile invalidates older recordings.
         hash.update(b"starting-document\0");
         hash.update(Sha256::digest(serde_json::to_vec(&initial)?));
@@ -208,9 +252,11 @@ impl Task {
         Ok(Session::fixture(engine))
     }
     fn scripted(&self) -> Scripted {
-        match self.expected {
+        match &self.expected {
+            verify::Expected::Wiring(spec) => board_script::wiring::wire(spec.nets.clone()),
             verify::Expected::Build(_) => Scripted::board_build(),
             verify::Expected::Change(_) => Scripted::two_header(),
+            verify::Expected::Repair(spec) => Scripted::drc_fix(spec.finding, false),
         }
     }
 }
@@ -228,23 +274,80 @@ fn offline(
             let reported = replay.reports_usage();
             ("recorded", Box::new(replay), reported)
         }
+        None if task.mark.id == "board-build" && detail == SchemaDetail::Line => {
+            ("scripted-lines-first", Box::new(lines::Board::new()), false)
+        }
         None => ("scripted", Box::new(task.scripted()), false),
     };
-    let arm = run::Arm {
+    run::run(
+        task,
+        dir,
+        offline_arm(runner, backend, reports_usage, detail),
+        gate,
+    )
+}
+
+fn offline_arm(
+    runner: &str,
+    backend: Box<dyn ModelBackend>,
+    reports_usage: bool,
+    detail: SchemaDetail,
+) -> run::Arm {
+    run::Arm {
         runner: runner.into(),
         backend,
         profile: ModelProfile::anthropic("claude-opus-5-5"),
         budget: chat::unbounded(),
         detail,
         reports_usage,
+    }
+}
+
+/// Measure the extra read in an otherwise identical repair. Equal-length
+/// directory names keep the save path's contribution to both prompts equal.
+fn compare_repair(dir: &Path) -> Result<()> {
+    let task = Task::load("drc-fix")?;
+    let verify::Expected::Repair(ref repair) = task.expected else {
+        return Err("missing repair task".into());
     };
-    run::run(task, dir, arm, gate)
+    fs::create_dir(dir)?;
+    let delta = offline(&task, &dir.join("delta"), None, SchemaDetail::Input, false)?;
+    let arm = offline_arm(
+        "scripted-recheck",
+        Box::new(Scripted::drc_fix(repair.finding, true)),
+        false,
+        SchemaDetail::Input,
+    );
+    let control = run::run(&task, &dir.join("query"), arm, false)?;
+    let (
+        Row::Finish {
+            metrics: a,
+            saved_sha256: left,
+            ..
+        },
+        Row::Finish {
+            metrics: b,
+            saved_sha256: right,
+            ..
+        },
+    ) = (delta, control)
+    else {
+        return Err("missing repair results".into());
+    };
+    if left != right
+        || a.calls.get("query").copied().unwrap_or(0) + 1
+            != b.calls.get("query").copied().unwrap_or(0)
+        || a.model_requests + 1 != b.model_requests
+    {
+        return Err("the paired scenarios did not produce identical boards with one extra query and model request".into());
+    }
+    Ok(())
 }
 
 /// Write proposed limits beside successful traces. Updating tracked limits is an explicit review step.
 fn measure(dir: &Path) -> Result<()> {
     fs::create_dir(dir)?;
-    for name in ["board-build", "two-header"] {
+    for &name in SCENARIOS {
         let task = Task::load(name)?;
         let arm = dir.join(name);
         let run = offline(&task, &arm, None, SchemaDetail::Input, false)?;
@@ -256,7 +359,10 @@ fn measure(dir: &Path) -> Result<()> {
         else {
             return Err(format!("{name}: incomplete or unsuccessful scripted run").into());
         };
-        let path_size = if task.start.is_some() {
+        let path_size = if matches!(
+            task.expected,
+            verify::Expected::Change(_) | verify::Expected::Repair(_)
+        ) {
             Some(PathSize::of(
                 &arm.canonicalize()?.join("revised.sparksmith"),
             )?)
@@ -281,6 +387,7 @@ fn measure(dir: &Path) -> Result<()> {
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().skip(1).collect();
     match args.as_slice() {
+        [command, out] if command == "compare-drc" => return compare_repair(Path::new(out)),
         [command, operator] if command == "plan" => return batch::plan(Path::new(operator)),
         [command, operator, out, binary] if command == "batch" => {
             return batch::execute(Path::new(operator), Path::new(out), Path::new(binary));
@@ -310,7 +417,7 @@ fn main() -> Result<()> {
         return measure(Path::new(dir));
     }
     let [kind, name, dir, rest @ ..] = args.as_slice() else {
-        return Err("usage: cargo xtask agent-bench measure NEW_DIR | scripted TASK NEW_DIR [input|full] | replay TASK NEW_DIR TRACE [input|full]".into());
+        return Err("usage: cargo xtask agent-bench measure NEW_DIR | compare-drc NEW_DIR | scripted TASK NEW_DIR [line|input|full] | replay TASK NEW_DIR TRACE [line|input|full]".into());
     };
     let task = Task::load(name)?;
     let (recording, rest) = match (kind.as_str(), rest) {
@@ -333,7 +440,7 @@ mod tests {
     #[test]
     fn scripted_boards_verify_and_stay_within_the_measured_ceilings() -> Result<()> {
         let root = tempfile::tempdir()?;
-        for name in ["board-build", "two-header"] {
+        for &name in SCENARIOS {
             let task = Task::load(name)?;
             let dir = root.path().join(format!("{name}-a"));
             let first = offline(&task, &dir, None, SchemaDetail::Input, true)?;
@@ -370,7 +477,7 @@ mod tests {
                     SchemaDetail::Input,
                     true,
                 )?;
-            } else {
+            } else if name == "board-build" {
                 // A different segmentation of the same physical route is valid.
                 let saved = dir.join("revised.sparksmith");
                 let mut changed = sparksmith_io::read_project(&saved)?;
@@ -397,12 +504,45 @@ mod tests {
                 sparksmith_io::write_project(&missing_pour, &changed)?;
                 assert!(task.expected.verify(None, &missing_pour).is_err());
             }
+            if name == "drc-fix" {
+                let start = dir.join("start.sparksmith");
+                let saved = dir.join("revised.sparksmith");
+                assert!(
+                    task.expected.verify(Some(&start), &start).is_err(),
+                    "an unchanged board still has the identified defect"
+                );
+                let mut tampered = sparksmith_io::read_project(&saved)?;
+                tampered.project.board_size[0] += 1.0;
+                let unrelated = root.path().join("unrelated-board-edit.sparksmith");
+                sparksmith_io::persistence::create_project(&unrelated, &tampered)?;
+                assert!(task.expected.verify(Some(&start), &unrelated).is_err());
+                assert_eq!(a.calls.get("apply"), Some(&1));
+                assert_eq!(a.calls.get("query"), Some(&2)); // discovery and revision; no post-edit read
+            }
             let mut wrong = task.mark.clone();
             wrong.version.push_str("-different");
             assert!(trace::replay(&dir.join("trace.jsonl"), &wrong).is_err());
         }
         Ok(())
     }
+    #[test]
+    fn board_build_reads_matching_lines_before_editing_and_verifies_the_saved_board() -> Result<()>
+    {
+        let root = tempfile::tempdir()?;
+        let task = Task::load("board-build")?;
+        let dir = root.path().join("lines-first");
+        let row = offline(&task, &dir, None, SchemaDetail::Line, false)?;
+        assert!(matches!(
+            row,
+            Row::Finish {
+                success: true,
+                artifact_verified: Some(true),
+                ..
+            }
+        ));
+        Ok(())
+    }
+
     #[test]
     fn one_extra_visible_byte_fails_the_gate() {
         let limits = Ceilings {
@@ -422,3 +562,6 @@ mod tests {
         assert!(limits.check(&m, Path::new("unneeded")).is_err());
     }
 }
+
+#[cfg(test)]
+mod wiring_tests;

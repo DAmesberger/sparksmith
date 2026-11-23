@@ -244,3 +244,18 @@ fn task_and_person_profiles_replace_all_model_harness_settings() -> Fallible {
     assert_eq!(chat.surface_view.strategy, SchemaDetail::Full);
     Ok(())
 }
+
+#[test]
+fn a_lines_first_strategy_honours_explicit_details() {
+    let view = SurfaceView {
+        strategy: SchemaDetail::Line,
+        full_on_request: true,
+    };
+    let mut describe = json!({"name":"project.inspect"});
+    view.apply("describe", &mut describe);
+    assert_eq!(describe["detail"], "line");
+    let mut query =
+        json!({"name":"project.schema","params":{"name":"project.inspect","detail":"full"}});
+    view.apply("query", &mut query);
+    assert_eq!(query["params"]["detail"], "full");
+}

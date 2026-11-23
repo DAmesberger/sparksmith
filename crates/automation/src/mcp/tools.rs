@@ -465,19 +465,15 @@ fn find(args: FindArgs, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
     // Stable: equal scores keep catalog order.
     scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
     let more = scored.len().saturating_sub(limit);
-    let hits: Vec<Value> = scored
+    let hits = scored
         .into_iter()
         .take(limit)
-        .map(|(_, e)| {
-            json!({
-                "name": e.name,
-                "kind": e.kind,
-                "class": e.class,
-                "title": e.title,
-                "summary": e.summary,
-            })
-        })
-        .collect();
+        .map(|(_, entry)| entry.line_card())
+        .collect::<Result<Vec<_>, _>>();
+    let hits = match hits {
+        Ok(hits) => hits,
+        Err(reason) => return desk::failure("catalog.line_too_long", reason),
+    };
     let mut result = json!({"hits": hits});
     if more > 0 {
         result["more"] = json!(more);
@@ -561,6 +557,11 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
         return Unreachable::unknown(&entry.name, None).reply();
     };
     let mut described = found;
+    if args.detail == crate::session::SchemaDetail::Line {
+        described["kind"] = json!(entry.kind);
+        reply["result"] = described;
+        return reply;
+    }
     if let Some(object) = described.as_object_mut() {
         if args.detail == crate::session::SchemaDetail::Input {
             object.remove("reply");

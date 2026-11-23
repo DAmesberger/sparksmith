@@ -25,7 +25,18 @@ pub struct Build {
     errors: usize,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Repair {
+    pub finding: sparksmith_core::diagnostics::FindingCode,
+}
+
+mod wiring;
+pub use wiring::Wiring;
+
 pub enum Expected {
+    Wiring(Wiring),
+    Repair(Repair),
     Change(Change),
     Build(Build),
 }
@@ -37,13 +48,18 @@ fn require(ok: bool, reason: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn engine(file: sparksmith_core::format::EditorFile) -> Result<Engine> {
+    let defaults = sparksmith_io::new_project::shipped()?;
+    let mut engine = Engine::from_file_with(file, &defaults.presets.glass_dk)?;
+    engine.set_context(sparksmith_io::standards::shipped_context()?);
+    engine.refill_stale()?;
+    Ok(engine)
+}
+
 impl Expected {
     pub fn verify(&self, start: Option<&Path>, saved: &Path) -> Result<()> {
         let file = sparksmith_io::read_project(saved)?;
-        let defaults = sparksmith_io::new_project::shipped()?;
-        let mut engine = Engine::from_file_with(file, &defaults.presets.glass_dk)?;
-        engine.set_context(sparksmith_io::standards::shipped_context()?);
-        engine.refill_stale()?;
+        let engine = engine(file)?;
         let project = engine.project();
         for symbol in project.occurrences.iter() {
             let sheet = project
@@ -69,6 +85,20 @@ impl Expected {
             "the saved schematic did not render",
         )?;
         match self {
+            Self::Repair(spec) => {
+                spec.verify(start.ok_or("missing seeded repair board")?, saved, &engine)?
+            }
+            Self::Wiring(spec) => {
+                let before =
+                    sparksmith_io::read_project(start.ok_or("missing placed subcircuit")?)?;
+                require(
+                    project.instances == before.project.instances
+                        && project.occurrences == before.project.occurrences
+                        && project.placements == before.project.placements,
+                    "wiring changed the components or their placements",
+                )?;
+                spec.verify(project)?;
+            }
             Self::Change(spec) => {
                 let before = sparksmith_io::read_project(start.ok_or("missing starting board")?)?;
                 spec.topology(&before.project, project)?;
@@ -107,6 +137,63 @@ impl Expected {
             }
         }
         Ok(())
+    }
+}
+
+impl Repair {
+    fn verify(&self, start: &Path, saved: &Path, after: &Engine) -> Result<()> {
+        use sparksmith_core::ObjectRef;
+        use sparksmith_core::diagnostics::FindingCode;
+        use std::collections::HashMap;
+        let findings = |board: &Engine| -> Result<HashMap<(FindingCode, Vec<ObjectRef>), usize>> {
+            let report = board.issue_report()?;
+            let mut counts = HashMap::new();
+            for row in &report.rows {
+                for item in std::iter::once(&row.finding).chain(&row.also) {
+                    *counts.entry((item.code, item.objects.clone())).or_default() += 1;
+                }
+            }
+            Ok(counts)
+        };
+        let mut expected = sparksmith_io::read_project(start)?;
+        let before = engine(expected.clone())?;
+        let mut open = findings(&before)?;
+        let mut targets = open.keys().filter(|(code, _)| *code == self.finding);
+        let key = targets
+            .next()
+            .cloned()
+            .ok_or("the starting board has no dangling-via finding")?;
+        require(
+            targets.next().is_none(),
+            "the starting board has multiple dangling vias",
+        )?;
+        let [ObjectRef::Via { id }, ObjectRef::Net { id: net }] = key.1.as_slice() else {
+            return Err("the finding does not identify a via and its net".into());
+        };
+        let id = *id;
+        require(
+            expected
+                .project
+                .vias
+                .iter()
+                .any(|via| via.id == id && via.net == *net),
+            "the starting finding refers to the wrong via or net",
+        )?;
+        require(open.remove(&key) == Some(1), "ambiguous starting finding")?;
+        require(
+            open == findings(after)?,
+            "the saved board failed to resolve exactly the identified finding",
+        )?;
+        let count = expected.project.vias.len();
+        expected.project.vias.retain(|via| via.id != id);
+        require(
+            expected.project.vias.len() + 1 == count,
+            "the identified via did not exist",
+        )?;
+        require(
+            sparksmith_io::read_project(saved)? == expected,
+            "the saved project changed something in addition to removing the identified via",
+        )
     }
 }
 

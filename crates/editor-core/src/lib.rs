@@ -364,6 +364,10 @@ pub enum Query {
     /// name and net. What wiring with `schematic.connect` needs.
     #[serde(rename = "schematic.pins")]
     PartPins { designators: Vec<String> },
+    /// Compare exact named net memberships with the schematic and rehearse the
+    /// corrective operations. Use instance and terminal IDs from schematic.pins.
+    #[serde(rename = "schematic.check_intent")]
+    CheckIntent { nets: schematic::intent::IntentNets },
     /// C4: the firmware pin-configuration IR of one instance.
     #[serde(rename = "project.pin_config")]
     PinConfig { instance: Id },
@@ -569,6 +573,7 @@ declare_entries!(Query in project {
     PinoutPreview "library.pinout_preview" Read "Preview a pinout import" [in library, long, link, returns(pinout_plan)],
     SuggestPins "functions.suggest" Read "Suggest pin assignments" [in schematic, link, returns(suggest_pins)],
     PinReport "project.pin_report" Read "Pin report" [in schematic, link, returns(pin_report)],
+    CheckIntent "schematic.check_intent" Read "Check intended net connections" [in schematic, long, link, since(1, 12), returns(net_intent)],
     PartPins "schematic.pins" Read "List parts' pins" [in schematic, link, since(1, 7), returns(part_pins)],
     PinConfig "project.pin_config" Read "Firmware pin configuration" [in fab, link, returns(pin_config)],
     Marking "instance.marking" Read "Resolve an instance's marking" [in schematic, returns(marking)],
@@ -623,6 +628,7 @@ pub enum QueryResult {
     SuggestPins(functions::suggest::SuggestReport),
     PinReport(Box<pins::PinReport>),
     PartPins(Vec<pins::PartPins>),
+    NetIntent(Box<schematic::intent::Report>),
     PinConfig(Box<firmware::PinConfigReport>),
     Marking(Option<library::marking::MarkingLayout>),
     Rules(Box<rules::RulesReport>),
@@ -2528,6 +2534,11 @@ impl Engine {
             Query::PinReport { instance } => Ok(QueryResult::PinReport(Box::new(
                 pins::pin_report(&self.document.project, instance)?,
             ))),
+            Query::CheckIntent { nets } => {
+                let report =
+                    schematic::intent::check(self.project(), &nets, MAX_BATCH, &mut self.fork())?;
+                Ok(QueryResult::NetIntent(Box::new(report)))
+            }
             Query::PartPins { designators } => Ok(QueryResult::PartPins(pins::part_pins(
                 &self.document.project,
                 &designators,
@@ -2970,6 +2981,17 @@ pub fn schemas() -> serde_json::Value {
         "pinout": library::pinout::schema(),
         "pin_config": firmware::schema(),
     })
+}
+
+impl schematic::intent::Trial for Engine {
+    fn snapshot(&self) -> &Project {
+        self.project()
+    }
+
+    fn try_edit(&mut self, command: schematic::SchematicCommand) -> Result<()> {
+        self.apply(self.revision(), Operation::Schematic(command))?;
+        Ok(())
+    }
 }
 
 /// A test fixture, never in the product: an engine on the fixture project

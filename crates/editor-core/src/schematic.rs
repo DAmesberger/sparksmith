@@ -40,6 +40,7 @@ pub mod annotate;
 pub mod arrange;
 pub mod clipboard;
 pub mod hierarchy;
+pub mod intent;
 pub mod labels;
 pub mod params;
 pub mod scene;

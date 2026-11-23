@@ -257,6 +257,8 @@ impl Session {
     /// Run `request` at `expected` and answer with what it changed.
     pub(crate) fn run_compact(&mut self, request: Request, expected: Option<u64>) -> Result<Value> {
         let replaced = matches!(request, Request::Open(_) | Request::New(_));
+        let edit = request.effective_class() == Class::Edit
+            || matches!(request, Request::Apply(_) | Request::ApplyAll(_));
         let before = self.engine.document().clone();
         self.compact = true;
         let result = self.run(request, expected);
@@ -271,7 +273,7 @@ impl Session {
         if replaced {
             reply["summary"] = self.summary()?;
         } else {
-            self.add_changes(&before, &mut reply)?;
+            self.add_changes(&before, &mut reply, edit)?;
         }
         Ok(reply)
     }
@@ -344,28 +346,33 @@ impl Session {
     }
 
     /// Add `changes`, `findings` and `drafts` for what differs from `before`.
-    fn add_changes(&mut self, before: &Document, reply: &mut Value) -> Result<()> {
+    fn add_changes(&mut self, before: &Document, reply: &mut Value, edit: bool) -> Result<()> {
         let after = self.engine.document().clone();
         let mut changes = Changes::default();
-        let mut design = None;
-        if !Arc::ptr_eq(&before.project, &after.project) {
+        let project_changed = !Arc::ptr_eq(&before.project, &after.project);
+        let drafts_changed = !Arc::ptr_eq(&before.drafts, &after.drafts);
+        if edit || project_changed || drafts_changed {
             let old = match self.baseline.take() {
                 Some(baseline) if baseline.describes(before, self.engine.check_settings()) => {
                     baseline
                 }
                 _ => Baseline::of(&self.engine, before)?,
             };
-            let new = Baseline::of(&self.engine, &after)?;
+            if project_changed || drafts_changed {
+                let new = Baseline::of(&self.engine, &after)?;
+                reply["findings"] = report_delta(&old.report, &new.report);
+                self.baseline = Some(new);
+            } else {
+                reply["findings"] = report_delta(&old.report, &old.report);
+                self.baseline = Some(old);
+            }
+        }
+        if project_changed {
             let (old_value, new_value) = unshared(&before.project, &after.project)?;
             changes.diff("", &old_value, &new_value);
-            design = Some(findings_delta(
-                &open_findings(&old.report),
-                &open_findings(&new.report),
-            ));
-            self.baseline = Some(new);
         }
         let mut drafts = None;
-        if !Arc::ptr_eq(&before.drafts, &after.drafts) {
+        if drafts_changed {
             let old = serde_json::to_value(before.drafts.as_ref())?;
             let new = serde_json::to_value(after.drafts.as_ref())?;
             let mut delta = Changes::default();
@@ -385,10 +392,6 @@ impl Session {
         }
         if let Some(changes) = changes.into_value() {
             reply["changes"] = changes;
-        }
-        if let Some(design) = design.filter(|d| d["new"] != json!([]) || d["resolved"] != json!({}))
-        {
-            reply["findings"] = design;
         }
         if let Some(drafts) = drafts {
             reply["drafts"] = Value::Array(drafts);
@@ -725,33 +728,41 @@ fn count_collections(value: &Value, path: &str, counts: &mut Map<String, Value>)
     }
 }
 
-/// Which findings appeared and which went: findings compare by code, message
-/// and objects, so a repeated finding counts each time it occurs.
+/// Both the delta and the final check come from the same all-scope reports.
+fn report_delta(old: &IssueReport, new: &IssueReport) -> Value {
+    let mut result = if std::ptr::eq(old, new) {
+        let open: usize = new.rows.iter().map(|row| row.findings()).sum();
+        json!({"new":[], "resolved":{}, "resolved_total":0, "open":open})
+    } else {
+        findings_delta(&open_findings(old), &open_findings(new))
+    };
+    result["issues"] = json!(new.counts);
+    result
+}
+
+/// Match the stable rule and involved objects. Display names and measured
+/// values can change while a violation remains open. Count repeated keys.
 fn findings_delta(old: &[&Finding], new: &[&Finding]) -> Value {
-    fn key(finding: &Finding) -> (&str, &str, &[sparksmith_core::ObjectRef]) {
-        (&finding.code, &finding.message, &finding.objects)
-    }
-    let mut remaining: HashMap<(&str, &str, &[sparksmith_core::ObjectRef]), (usize, &str)> =
-        HashMap::with_capacity(old.len());
-    for finding in old.iter().copied() {
-        remaining
-            .entry(key(finding))
-            .or_insert((0, &finding.code))
-            .0 += 1;
+    let mut remaining = HashMap::with_capacity(old.len());
+    for finding in old {
+        *remaining
+            .entry((finding.code, finding.objects.as_slice()))
+            .or_insert(0_usize) += 1;
     }
     let mut appeared = Vec::new();
     for finding in new.iter().copied() {
-        match remaining.get_mut(&key(finding)) {
-            Some((count, _)) if *count > 0 => *count -= 1,
+        match remaining.get_mut(&(finding.code, finding.objects.as_slice())) {
+            Some(count) if *count > 0 => *count -= 1,
             _ => appeared.push(finding),
         }
     }
-    let mut resolved: BTreeMap<&str, usize> = BTreeMap::new();
-    for (count, code) in remaining.values() {
-        if *count > 0 {
-            *resolved.entry(code).or_default() += count;
+    let mut resolved = BTreeMap::new();
+    for ((code, _), count) in remaining {
+        if count > 0 {
+            *resolved.entry(code.as_str()).or_insert(0_usize) += count;
         }
     }
+    let resolved_total: usize = resolved.values().sum();
     let listed: Vec<Value> = appeared
         .iter()
         .take(MAX_FINDINGS)
@@ -763,7 +774,7 @@ fn findings_delta(old: &[&Finding], new: &[&Finding]) -> Value {
             row
         })
         .collect();
-    let mut out = json!({"new": listed, "resolved": resolved, "open": new.len()});
+    let mut out = json!({"new": listed, "resolved": resolved, "resolved_total":resolved_total, "open": new.len()});
     if appeared.len() > MAX_FINDINGS {
         out["omitted"] = json!(appeared.len() - MAX_FINDINGS);
     }
@@ -784,7 +795,9 @@ pub fn difference(
     let mut changes = Changes::default();
     let mut names = Map::new();
     let mut out = Map::new();
-    if !Arc::ptr_eq(&before.project, &after.project) {
+    let project_changed = !Arc::ptr_eq(&before.project, &after.project);
+    let drafts_changed = !Arc::ptr_eq(&before.drafts, &after.drafts);
+    if project_changed || drafts_changed {
         use sparksmith_core::issues::incremental::Checked;
         let graph = |p: &Arc<Project>| {
             let p = p.clone();
@@ -804,17 +817,19 @@ pub fn difference(
             settings,
             &graph(&after.project),
         )?;
+        out.insert(
+            "findings".to_owned(),
+            report_delta(old.report(), new.report()),
+        );
+    }
+    if project_changed {
         let (old_value, new_value) = unshared(&before.project, &after.project)?;
         changes.diff("", &old_value, &new_value);
         name_listed(&old_value, &changes.removed, &mut names);
         name_listed(&new_value, &changes.added, &mut names);
         name_listed(&new_value, &changes.changed, &mut names);
-        out.insert(
-            "findings".to_owned(),
-            findings_delta(&open_findings(old.report()), &open_findings(new.report())),
-        );
     }
-    if !Arc::ptr_eq(&before.drafts, &after.drafts) {
+    if drafts_changed {
         let old = json!({"drafts": serde_json::to_value(before.drafts.as_ref())?});
         let new = json!({"drafts": serde_json::to_value(after.drafts.as_ref())?});
         let mut delta = Changes::default();

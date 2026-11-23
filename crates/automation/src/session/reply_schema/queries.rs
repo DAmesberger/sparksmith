@@ -36,7 +36,7 @@ fn reports(cx: &mut Builder, tags: Option<&[&str]>) -> Value {
     }
     for variant in variants.iter_mut() {
         match variant["properties"]["report"]["const"].as_str() {
-            Some("part_pins") => required(variant, "revision", cx.typed::<u64>()),
+            Some("part_pins" | "net_intent") => required(variant, "revision", cx.typed::<u64>()),
             Some("drafts") => {
                 let mut finding = cx.typed::<Finding>();
                 finding["properties"]["objects_more"] = cx.typed::<usize>();

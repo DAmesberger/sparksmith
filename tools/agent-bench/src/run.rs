@@ -91,6 +91,11 @@ pub fn run_with_prompt(
         // Keep the exact generated starting project with this arm's evidence.
         sparksmith_io::persistence::create_project(&dir.join("start.sparksmith"), &task.initial)?;
     }
+    let generated_start = dir.join("start.sparksmith");
+    let start = match &task.expected {
+        crate::verify::Expected::Repair(_) => Some(generated_start.as_path()),
+        _ => task.start.as_deref(),
+    };
     let mut session = task.session()?;
     let lib = ChatLibrary::locate()?;
     let mut cfg = ChatConfig::new(&lib, arm.profile, arm.budget)?;
@@ -103,7 +108,7 @@ pub fn run_with_prompt(
     grant.mode = task.spec.mode;
     grant.folders = vec![dir.clone()];
     let path = dir.join("revised.sparksmith");
-    if let Some(start) = &task.start {
+    if let Some(start) = start {
         // Open the run's private copy. Its original bytes survive unless
         // the model itself saves through the file action.
         std::fs::copy(start, &path)?;
@@ -149,13 +154,14 @@ pub fn run_with_prompt(
         &AtomicBool::new(false),
     );
     io_result?;
-    if task.start.is_none() {
-        // The board-build goal ends at checking the in-memory board.
+    if start.is_none() {
+        // Build and wiring goals end with the in-memory design.
         sparksmith_io::write_project(&path, &session.engine().to_file())?;
     }
     let metrics = std::mem::take(&mut *trace.metrics.borrow_mut());
 
-    let verification = task.expected.verify(task.start.as_deref(), &path);
+    let initial = task.start.as_deref().unwrap_or(&generated_start);
+    let verification = task.expected.verify(Some(initial), &path);
     let artifact_verified = verification.is_ok();
     let verification_reason = verification.as_ref().err().map(ToString::to_string);
     let status = (|| -> Result<()> {

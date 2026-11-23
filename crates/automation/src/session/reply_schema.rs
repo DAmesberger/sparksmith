@@ -93,7 +93,14 @@ impl Builder {
                 ("resolved", counts),
                 ("open", self.typed::<usize>()),
             ],
-            &[("omitted", self.typed::<usize>())],
+            &[
+                ("omitted", self.typed::<usize>()),
+                ("resolved_total", self.typed::<usize>()),
+                (
+                    "issues",
+                    self.typed::<sparksmith_core::issues::IssueCounts>(),
+                ),
+            ],
         );
         let mut rerouted = self.typed::<sparksmith_core::layout::router::reroute::Rerouted>();
         required(&mut rerouted, "summary", self.typed::<String>());

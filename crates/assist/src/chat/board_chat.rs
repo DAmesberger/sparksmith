@@ -9,37 +9,14 @@
 //! shortened or cleared (the chat before K1), and the test prints each
 //! request's estimated prompt (`--nocapture`), so the two can be compared.
 use super::*;
-use crate::board_script::{Scripted, Step, fresh, pin, reply_to, revision, steps};
+use crate::board_script::wiring::{Verbs, placed};
+use crate::board_script::{Scripted, Step, fresh, pin, reply_to, revision};
 use crate::verbs::Agent;
 use serde_json::json;
+use sparksmith_automation::Session;
 use sparksmith_automation::front::NoOne;
-use sparksmith_automation::{Grant, Session};
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
-
-struct Verbs<'a> {
-    session: &'a mut Session,
-    grant: &'a Grant,
-    refused: Vec<String>,
-}
-
-impl Tools for Verbs<'_> {
-    fn call(&mut self, verb: &str, input: &Value) -> Value {
-        let answer = Agent {
-            session: self.session,
-            grant: self.grant,
-            window: None,
-            turn: None,
-            asker: &mut NoOne,
-        }
-        .verb(verb, input.clone());
-        if answer["ok"] != true {
-            self.refused
-                .push(format!("{verb} {input}: {}", answer["error"]));
-        }
-        answer
-    }
-}
 
 /// A build: estimated prompts, characters sent, the session, refused calls.
 /// A scripted build: each request's estimated prompt tokens, its
@@ -51,6 +28,7 @@ struct Built {
     cached: Vec<usize>,
     session: Session,
     refused: Vec<String>,
+    answer: String,
 }
 
 /// One run of the script on a fresh project under `policy`.
@@ -69,8 +47,9 @@ fn build(policy: Policy) -> Fallible<Built> {
         grant: &grant,
         refused: Vec::new(),
     };
-    let mut model = Scripted::from_steps(steps());
+    let mut model = Scripted::board_build();
     let mut prompts = Vec::new();
+    let mut answer = String::new();
     let outcome = turn(
         &config,
         &mut model,
@@ -79,16 +58,17 @@ fn build(policy: Policy) -> Fallible<Built> {
             "The window shows: {\"workspace\": \"schematic\"}\n\nBuild a small board: a 2-pin header powers a red 0603 LED through a 4.7k 0603 resistor. Put them on the schematic, update the PCB, place them close together, route every net, pour GND on the bottom and check it.",
         )],
         &mut tools,
-        &mut |e| {
-            if let Event::Request { prompt_tokens, .. } = e {
-                prompts.push(prompt_tokens);
-            }
+        &mut |e| match e {
+            Event::Request { prompt_tokens, .. } => prompts.push(prompt_tokens),
+            Event::Text(text) => answer = text,
+            _ => (),
         },
         &AtomicBool::new(false),
     );
     assert_eq!(outcome.end, End::Answered);
     let refused = tools.refused;
     Ok(Built {
+        answer,
         prompts,
         sent: model.sent,
         cached: model.cached,
@@ -100,6 +80,7 @@ fn build(policy: Policy) -> Fallible<Built> {
 #[test]
 fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Fallible {
     let Built {
+        answer,
         prompts,
         sent,
         cached,
@@ -127,6 +108,11 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
     })?;
     let report = serde_json::to_value(report)?;
     assert_eq!(report["result"]["counts"]["error"], 0, "{report}");
+    assert_eq!(report["result"]["counts"]["to_do"], 3, "{report}");
+    assert_eq!(
+        answer,
+        "Checked the board. Open findings 4 (errors 0, warnings 1, to-dos 3, informational 0)."
+    );
     // One warning: the board has surface-mount parts and no fiducials,
     // which its PCBWay profile asks three of for assembly.
     assert_eq!(report["result"]["counts"]["warning"], 1, "{report}");
@@ -207,40 +193,6 @@ fn the_chat_builds_a_small_board_routed_and_checked_in_small_requests() -> Falli
     Ok(())
 }
 
-/// A fresh project with J1, R1 and D1 placed by the script's first six
-/// steps, and the conversation that placed them.
-fn placed() -> Fallible<(ChatConfig, Session, Vec<Message>)> {
-    let library = ChatLibrary::locate()?;
-    let config = ChatConfig::new(
-        &library,
-        crate::model::ModelProfile::anthropic("claude-opus-5-5"),
-        unbounded(),
-    )?;
-    let mut session = fresh()?;
-    let grant = library.reach.grant();
-    let mut history = Vec::new();
-    let mut model = Scripted::from_steps(steps().into_iter().take(6));
-    let mut tools = Verbs {
-        session: &mut session,
-        grant: &grant,
-        refused: Vec::new(),
-    };
-    let outcome = turn(
-        &config,
-        &mut model,
-        &mut history,
-        vec![Part::text(
-            "Place a 2-pin header, a 4.7k 0603 resistor and a red 0603 LED.",
-        )],
-        &mut tools,
-        &mut |_| {},
-        &AtomicBool::new(false),
-    );
-    assert_eq!(outcome.end, End::Answered);
-    assert!(tools.refused.is_empty(), "{:#?}", tools.refused);
-    Ok((config, session, history))
-}
-
 /// Earlier turns of a long conversation: `n` messages that each read a
 /// 12 000-character reply, about 4 000 tokens apiece.
 fn long_past(history: &mut Vec<Message>, n: usize) {
@@ -311,14 +263,7 @@ fn wiring_placed_parts_takes_one_read_and_one_apply_on_a_long_conversation() -> 
             json!({"expected_revision": revision(m), "operations": ops}),
         )]
     }));
-    // 3. One check.
-    steps.push(Box::new(|_| {
-        vec![(
-            "query",
-            json!({"name": "project.issues", "params": {"scope": {"kind": "all"}}}),
-        )]
-    }));
-    let mut model = Scripted::from_steps(steps);
+    let mut model = Scripted::from_checked_steps(steps);
     let mut tools = Verbs {
         session: &mut session,
         grant: &grant,
@@ -350,9 +295,9 @@ fn wiring_placed_parts_takes_one_read_and_one_apply_on_a_long_conversation() -> 
     let condensed = condensed.ok_or("the long past was not condensed")?;
     assert!(condensed.cleared >= 20, "{condensed:?}");
     assert!(condensed.after_tokens < 56_000, "{condensed:?}");
-    // Three tool requests and the answer, in a small budget: about 80 000
+    // Two tool requests and the answer, in a small budget: about 80 000
     // tokens a request was re-sent before (E2E run 13).
-    assert_eq!(outcome.usage.requests, 4);
+    assert_eq!(outcome.usage.requests, 3);
     assert!(
         outcome.usage.tokens < 80_000,
         "{} tokens: {:?}",

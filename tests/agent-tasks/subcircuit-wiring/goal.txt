@@ -1,0 +1,1 @@
+Wire the three placed components into the requested named nets. Each pair below is a designator and pin name. Read the pins, check the intended connections, and apply the correction batch at the revision supplied by the check.

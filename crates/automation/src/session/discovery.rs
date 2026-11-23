@@ -313,11 +313,29 @@ pub(super) fn schema_reply(params: SchemaParams) -> Result<Value> {
     let matches: Vec<Value> = found
         .iter()
         .map(|entry| describe(entry, params.detail))
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
     Ok(json!({"name": name, "matches": matches}))
 }
 
-fn describe(entry: &Entry, detail: SchemaDetail) -> Value {
+fn describe(entry: &Entry, detail: SchemaDetail) -> Result<Value> {
+    let meta = || {
+        super::metadata::find(&entry.name)
+            .ok_or_else(|| not_found(format!("missing catalog metadata for {}", entry.name)))
+    };
+    if detail == SchemaDetail::Line {
+        let meta = meta()?;
+        if meta.kind.is_none() {
+            return Err(not_found(format!(
+                "no model-facing entry named {}",
+                entry.name
+            )));
+        }
+        let mut out = meta.line_card().map_err(|message| invalid(&message))?;
+        out["kind"] = json!(entry.kind);
+        out["input"] = json!({"name":entry.name,"detail":"input"});
+        out["full"] = json!({"name":entry.name,"detail":"full"});
+        return Ok(out);
+    }
     let schema = inline_top_ref(&entry.params, entry.root);
     let mut out = json!({
         "kind": entry.kind,
@@ -325,19 +343,18 @@ fn describe(entry: &Entry, detail: SchemaDetail) -> Value {
         "class": entry.class,
         "schema": schema,
     });
-    match detail {
-        SchemaDetail::Full => out["reply"] = reply_page(entry),
-        SchemaDetail::Input => {
-            let meta = super::metadata::meta(entry);
-            out["title"] = json!(meta.title);
-            out["summary"] = json!(meta.summary);
-            out["person"] = json!(meta.person);
-            out["reach"] = json!(meta.reach.iter().collect::<Vec<_>>());
-            // The raw project.schema contract promises a JSON Schema in
-            // reply. Its URI can be fetched as def, including on JSON lines.
-            out["reply"] = json!({"$ref": format!("{REPLY_URI}{}", entry.name)});
-            out["full"] = json!({"name": entry.name, "detail": "full"});
-        }
+    if detail == SchemaDetail::Full {
+        out["reply"] = reply_page(entry);
+    } else {
+        let meta = meta()?;
+        out["title"] = json!(meta.title);
+        out["summary"] = json!(meta.summary);
+        out["person"] = json!(meta.person);
+        out["reach"] = json!(meta.reach.iter().collect::<Vec<_>>());
+        // The raw project.schema contract promises a JSON Schema in
+        // reply. Its URI can be fetched as def, including on JSON lines.
+        out["reply"] = json!({"$ref": format!("{REPLY_URI}{}", entry.name)});
+        out["full"] = json!({"name": entry.name, "detail": "full"});
     }
     let examples = examples(&entry.name);
     if !examples.is_empty() {
@@ -361,7 +378,7 @@ fn describe(entry: &Entry, detail: SchemaDetail) -> Value {
     if detail == SchemaDetail::Input {
         fit_input_page(&mut out);
     }
-    out
+    Ok(out)
 }
 
 fn reply_page(entry: &Entry) -> Value {
@@ -631,14 +648,15 @@ fn not_found(text: String) -> Error {
 /// The parameter schema of the entry `name` and the schema whose `$defs`
 /// its references name, for a reader that walks a call's parameters.
 pub fn params_schema(name: &str) -> Option<(&'static Value, &'static Value)> {
-    let entry = entries().iter().find(|e| e.name == name)?;
+    let entry = named(name)?;
     Some((&entry.params, entry.root))
 }
 
 /// Stand-alone schema of a successful result for an addressable entry.
 pub fn result_schema(name: &str) -> Option<&'static Value> {
-    entries()
-        .iter()
-        .find(|entry| entry.name == name)
-        .map(Entry::reply_schema)
+    named(name).map(Entry::reply_schema)
+}
+
+pub(super) fn named(name: &str) -> Option<&'static Entry> {
+    entries().iter().find(|entry| entry.name == name)
 }

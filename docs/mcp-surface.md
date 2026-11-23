@@ -437,6 +437,7 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
 - **`query {project?, name, params}`**: a query becomes `project.query`, and a read command runs as itself.
 - **`apply {project?, expected_revision, operations, dry_run?}`**: 1–256 steps.
   - Document operations run as one new request, `project.apply_all`: one revision and one undo step, all or nothing.
+  - A successful compact edit includes `findings.new` (up to 20 finding rows, with any excess counted in `omitted`), `resolved` (counts by code), and `resolved_total`. The check compares rule code and affected objects across the edit, counting repeated findings. `open` counts every current finding and `issues` counts them by severity, including when the edit changes no findings. These totals use the same all-scope report as `project.issues` and include draft findings. Dry runs describe the proposed result.
   - A failing step is named in the message as `(operation 2 of 3)`.
   - Command-level edits go alone: `project.undo`, `project.redo`, `project.apply_update` and the folder imports. Mixing one into a batch is refused with `apply.alone`.
   - `expected_revision` is filled into a command whose schema takes it.
@@ -459,6 +460,9 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
   - `Engine::apply_all_hosted` applies the steps on a history-free copy and commits once (`MAX_BATCH` 256).
   - `Engine::fork` copies the engine with its history.
   - `Error::in_batch` names the failing step after the message, so a leading rule code stays readable.
+- **Reading a signature.** Each catalog `find` hit and `describe {name,detail:"line"}` share a generated `line` of at most 160 UTF-8 bytes. Required input names come first. A trailing `?` marks an optional name and `…` means further optional names are available in the input view. A tagged union lists fields required in every variant. After `->`, the signature shows the result shape and permission class. A report names its result field. The structured summary, person step, external reach and path approval accompany the line. Follow `input` for exact parameters and variant conditions, or `full` for the result. Direct `project.schema` calls accept the same detail. Select `"strategy":"line"` in a harness profile’s `surface_view` to start model calls at this tier. An explicit detail on a call takes precedence.
+- Signature types use `text`, `int`, `num`, `bool`, `path`, `id`, `len`, `angle` and `layer`. An array is `[…]`, an object is `{…}` and `ref` refers to the input contract for further detail. Long signatures can omit type hints to preserve the required field names.
+
 - **Reading a reply contract.** For a catalog entry, `describe {name, detail:"full"}` returns its parameter schema in `schema` and its successful front-door result schema in `reply`. The suggested MCP invocation names the entry it submits in `call_reply_entry`. For example, `describe {name:"project.rename", detail:"full"}` describes the single edit's `outcome`. Its MCP `apply` submits `project.apply_all`, whose reply has an `outcomes` array even for one step. Request full detail for that entry to read the batch schema. A result definition deferred from either page can be fetched by passing its exact key from `reply.more_defs` as `def`. MCP then supplies the project handle for project calls as described above.
 - **Catalog.** `project.apply_all` ("Apply operations as one step", Edit) is the 42nd request, so the catalog now has 229 entries. Its class is the strictest of its operations, and at least Edit. Today's server lists it as a tool too, from the same catalog.
 - **Deviations from §3:**
@@ -530,3 +534,5 @@ Slice S3 of the [extension ABI design](design/extension-abi-design.md#51-slices)
 **SDK:**
 - `rmcp` 3.9.0 README (MRTR, `RequestStateCodec`, subscriptions, tasks): https://github.com/modelcontextprotocol/rust-sdk/blob/rmcp-v3.9.0/README.md
 - crates.io: https://crates.io/crates/rmcp
+
+The read-only `schematic.check_intent` query compares each named net with its complete intended list of `{instance, terminal}` pairs from `schematic.pins`. Its result lists missing, extra and wrongly assigned pins. When a complete correction is available, pass its `operations` to one `apply` at the returned `revision`. An already matching intent needs no edit. A blocked correction identifies the conflict and returns an empty operation list.
