@@ -39,6 +39,24 @@ pub fn run(args: &[String]) -> Result<()> {
         };
     let mut generated = registries::generate(&library, &dir, update)?;
     generated.push(("findings", sparksmith_core::help::finding_entries()?));
+    let topic_dir = shelf.join("topics");
+    let manifest = help::Manifest {
+        format: 1,
+        generated: generated
+            .iter()
+            .map(|(registry, _)| format!("{registry}.json"))
+            .chain(["commands.json".to_owned(), "entries.json".to_owned()])
+            .collect(),
+        topics: help::files(&topic_dir, "md")?
+            .iter()
+            .map(|p| help::relative_name(&topic_dir, p))
+            .collect::<sparksmith_io::Result<_>>()?,
+    };
+    compare(
+        &shelf.join("manifest.json"),
+        &(serde_json::to_string_pretty(&manifest)? + "\n"),
+        update,
+    )?;
     for (registry, mut entries) in generated {
         entries.sort_by(|a, b| a.id.cmp(&b.id));
         compare(

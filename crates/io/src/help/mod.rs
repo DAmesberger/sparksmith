@@ -161,6 +161,51 @@ pub fn files(root: &Path, extension: &str) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
+/// The registry and topic files that make up one release. The installer
+/// can lose an entire shard; a directory scan alone cannot distinguish
+/// that from a library with no entries of that kind.
+#[derive(serde::Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Manifest {
+    pub format: u32,
+    pub generated: BTreeSet<String>,
+    pub topics: BTreeSet<String>,
+}
+
+pub fn relative_name(root: &Path, path: &Path) -> Result<String> {
+    path.strip_prefix(root)
+        .map_err(|_| Error::Invalid(format!("{} is outside {}", path.display(), root.display())))?
+        .components()
+        .map(|part| {
+            part.as_os_str()
+                .to_str()
+                .ok_or_else(|| Error::Invalid(format!("Invalid UTF-8 in {}", path.display())))
+        })
+        .collect::<Result<Vec<_>>>()
+        .map(|s| s.join("/"))
+}
+
+fn installed(dir: &Path, ext: &str, expected: &BTreeSet<String>) -> Result<Vec<PathBuf>> {
+    let paths = files(dir, ext)?;
+    let actual = paths
+        .iter()
+        .map(|p| relative_name(dir, p))
+        .collect::<Result<BTreeSet<_>>>()?;
+    if let Some(missing) = expected.difference(&actual).next() {
+        return Err(Error::Invalid(format!(
+            "Missing help file {}/{missing}",
+            dir.display()
+        )));
+    }
+    if let Some(extra) = actual.difference(expected).next() {
+        return Err(Error::Invalid(format!(
+            "Unexpected help file {}/{extra}",
+            dir.display()
+        )));
+    }
+    Ok(paths)
+}
+
 pub fn source(path: &Path) -> Result<String> {
     let bytes = crate::library_folder::read_bounded(path, 16 * 1024 * 1024)
         .map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?;
@@ -169,8 +214,18 @@ pub fn source(path: &Path) -> Result<String> {
 
 pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
     let root = shipped.shelf(Shelf::Help);
+    let manifest_path = root.join("manifest.json");
+    let manifest: Manifest = serde_json::from_str(&source(&manifest_path)?)
+        .map_err(|e| Error::Invalid(format!("{}: {e}", manifest_path.display())))?;
+    if manifest.format != 1 {
+        return Err(Error::Invalid(format!(
+            "{} has unsupported help format {}",
+            manifest_path.display(),
+            manifest.format
+        )));
+    }
     let mut index = Index::new();
-    for path in files(&root.join("generated"), "json")? {
+    for path in installed(&root.join("generated"), "json", &manifest.generated)? {
         let entries: Vec<HelpEntry> = serde_json::from_str(&source(&path)?)
             .map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?;
         for entry in entries {
@@ -184,7 +239,7 @@ pub fn load(shipped: &ShippedLibrary) -> Result<Index> {
         }
     }
     let mut topics = BTreeSet::new();
-    for path in files(&root.join("topics"), "md")? {
+    for path in installed(&root.join("topics"), "md", &manifest.topics)? {
         let text = source(&path)?;
         let (head, body) =
             parse_topic(&text).map_err(|e| Error::Invalid(format!("{}: {e}", path.display())))?;
