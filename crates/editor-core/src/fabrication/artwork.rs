@@ -395,11 +395,10 @@ fn mask(board: &Board<'_>, side: Layer, attributes: &[(&str, String)]) -> Result
 fn paste(board: &Board<'_>, side: Layer, attributes: &[(&str, String)]) -> Result<Option<Vec<u8>>> {
     let mut w = Writer::new(attributes);
     let mut any = false;
-    for pad in board
-        .pads
-        .iter()
-        .filter(|p| p.layer == side && crate::instances::ties::prints_paste(board.project, p))
-    {
+    for pad in board.pads.iter().filter(|p| {
+        p.layer == side
+            && crate::instances::ties::prints_paste(board.project, p.instance, p.terminal)
+    }) {
         let t = pad.pad_transform();
         let shrink = |by: f64| pad.pad.shape.grown(-by, CHECK_CHORD_MM);
         let shapes: Vec<Shape> = match &pad.pad.paste {

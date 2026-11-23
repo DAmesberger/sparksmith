@@ -199,7 +199,12 @@ pub(super) fn findings(
                     }
                 }
                 if spec.form.needs_bridge() {
-                    if !bridges_join(fp, binding, spec) {
+                    if !bridges_join(
+                        fp,
+                        binding,
+                        spec,
+                        fp.bridges.iter().filter(|b| group_of(b) == Some(spec.id)),
+                    ) {
                         report(
                             "tie.bridge",
                             "The copper bridge must connect the declared lands of every tie end.",
@@ -238,34 +243,14 @@ pub(crate) fn owner(
 
 // Check the authored pad groups as a connected network. Footprint validation
 // separately checks that each declared land actually touches its bridge.
-fn bridges_join(fp: &FootprintDefinition, binding: &BindingDefinition, spec: &TieSpec) -> bool {
-    let mut groups = Vec::new();
-    for bridge in fp.bridges.iter().filter(|b| {
-        b.pads.iter().all(|id| {
-            fp.pad(*id)
-                .and_then(|p| p.terminal)
-                .and_then(|t| binding.terminal_of(t))
-                .is_some_and(|t| spec.ends.contains(&t))
-        })
-    }) {
-        let mut group = BTreeSet::new();
-        for pad in &bridge.pads {
-            let Some(end) = fp
-                .pads
-                .iter()
-                .find(|p| p.id == *pad)
-                .and_then(|p| p.terminal)
-                .and_then(|p| binding.terminal_of(p))
-            else {
-                return false;
-            };
-            if !spec.ends.contains(&end) {
-                return false;
-            }
-            group.insert(*pad);
-        }
-        groups.push(group);
-    }
+fn bridges_join<'a>(
+    fp: &FootprintDefinition,
+    binding: &BindingDefinition,
+    spec: &TieSpec,
+    bridges: impl Iterator<Item = &'a Bridge>,
+) -> bool {
+    let mut groups: Vec<BTreeSet<PadId>> =
+        bridges.map(|b| b.pads.iter().copied().collect()).collect();
     let Some(mut joined) = groups.pop() else {
         return false;
     };

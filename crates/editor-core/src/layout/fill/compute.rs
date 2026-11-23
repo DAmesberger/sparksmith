@@ -706,22 +706,6 @@ impl<'a> Ctx<'a> {
                         mark(&via_copper(v));
                     }
                 }
-                for b in rel.bridges.iter().filter_map(|i| self.bridges.get(*i)) {
-                    if let Some(ring) = geom::ccw(b.outline.flatten(tol)) {
-                        let gap = b
-                            .nets
-                            .iter()
-                            .map(|n| {
-                                self.clearance(fill, CopperObject::Track, self.class(Some(*n)))
-                            })
-                            .fold(self.clearance(fill, CopperObject::Track, None), f64::max);
-                        regions.extend(geom::offset(
-                            &[vec![ring]],
-                            gap + if arcs(&b.outline) { tol } else { 0.0 },
-                            tol,
-                        ));
-                    }
-                }
                 for t in rel.tracks.iter().filter_map(|i| p.tracks.get(*i)) {
                     if t.net == net {
                         mark(&track_copper(t));

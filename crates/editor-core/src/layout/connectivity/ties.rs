@@ -213,12 +213,19 @@ impl CopperGraph {
                     if !foreign.contains(&item.object) {
                         foreign.push(item.object);
                     }
-                } else if bridge.nets.iter().any(|n| {
-                    copper.closer_than(
-                        &item.ring,
-                        rules.clearance(CopperObject::Track, Some(*n), item.kind, item.net),
-                    )
-                }) {
+                } else if copper.closer_than(
+                    &item.ring,
+                    bridge
+                        .nets
+                        .iter()
+                        .map(|n| {
+                            rules.clearance(CopperObject::Track, Some(*n), item.kind, item.net)
+                        })
+                        .reduce(f64::max)
+                        .unwrap_or_else(|| {
+                            rules.clearance(CopperObject::Track, None, item.kind, item.net)
+                        }),
+                ) {
                     let name = project
                         .instance(bridge.instance)
                         .map_or("Tie", |i| &i.designator);

@@ -32,6 +32,7 @@ pub enum ObstacleKind {
 #[derive(Clone, Debug)]
 pub struct Obstacle {
     pub net: Option<Id>,
+    bridge_nets: Box<[Id]>,
     pub kind: ObstacleKind,
     /// The copper layers it occupies.
     pub layers: Vec<CopperLayer>,
@@ -39,6 +40,30 @@ pub struct Obstacle {
 }
 
 impl Obstacle {
+    /// A route must clear every net on a fabricated bridge, even when it carries one of them.
+    pub(crate) fn rule_nets(&self) -> impl Iterator<Item = Option<Id>> + '_ {
+        self.bridge_nets
+            .iter()
+            .copied()
+            .map(Some)
+            .chain(self.bridge_nets.is_empty().then_some(self.net))
+    }
+
+    pub(crate) fn limiting_net(
+        &self,
+        rules: &BoardRules<'_>,
+        object: CopperObject,
+        net: Id,
+    ) -> Option<Id> {
+        self.rule_nets()
+            .max_by(|a, b| {
+                rules
+                    .clearance(object, Some(net), self.object(), *a)
+                    .total_cmp(&rules.clearance(object, Some(net), self.object(), *b))
+            })
+            .flatten()
+    }
+
     pub(crate) fn object(&self) -> CopperObject {
         match self.kind {
             ObstacleKind::Track(_) | ObstacleKind::Bridge => CopperObject::Track,
@@ -113,6 +138,7 @@ impl Obstacles {
         {
             items.push(Obstacle {
                 net: Some(track.net),
+                bridge_nets: Box::default(),
                 kind: ObstacleKind::Track(track.id),
                 layers: vec![track.layer],
                 ring: CopperRing::of_track(track),
@@ -127,6 +153,7 @@ impl Obstacles {
         {
             items.push(Obstacle {
                 net: Some(via.net),
+                bridge_nets: Box::default(),
                 kind: ObstacleKind::Via(via.id),
                 layers: layers
                     .iter()
@@ -152,6 +179,7 @@ impl Obstacles {
             objects.push(land.object());
             items.push(Obstacle {
                 net: land.net(),
+                bridge_nets: Box::default(),
                 kind: ObstacleKind::Land(index),
                 layers: layers.iter().copied().filter(|l| land.on(*l)).collect(),
                 ring: land.ring,
@@ -173,6 +201,7 @@ impl Obstacles {
             ));
             items.push(Obstacle {
                 net: None,
+                bridge_nets: bridge.nets.into_boxed_slice(),
                 kind: ObstacleKind::Bridge,
                 layers: vec![bridge.layer],
                 ring,
@@ -253,7 +282,12 @@ impl Obstacles {
                         && !self.reaches_anchor(*k, net, &ring)
                         && ring.closer_than(
                             &o.ring,
-                            rules.clearance(CopperObject::Track, Some(net), o.object(), o.net),
+                            rules.clearance(
+                                CopperObject::Track,
+                                Some(net),
+                                o.object(),
+                                o.limiting_net(rules, CopperObject::Track, net),
+                            ),
                         )
                 })
             })
@@ -275,7 +309,12 @@ impl Obstacles {
     ) -> Option<String> {
         let first = *self.hits(rules, net, layer, a, b, width).first()?;
         let o = self.items.get(first)?;
-        let need = rules.clearance_need(CopperObject::Track, Some(net), o.object(), o.net);
+        let need = rules.clearance_need(
+            CopperObject::Track,
+            Some(net),
+            o.object(),
+            o.limiting_net(rules, CopperObject::Track, net),
+        );
         Some(format!(
             "Too close to {}: {}",
             self.labels.get(first).map_or("copper", String::as_str),
