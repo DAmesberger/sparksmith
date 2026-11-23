@@ -673,3 +673,43 @@ fn concurrent_saves_of_one_opened_file_replace_it_once() -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(unix)]
+#[test]
+fn saving_through_absolute_and_relative_links_keeps_the_link_and_both_writers() -> Result<()> {
+    for relative in [true, false] {
+        let dir = tempfile::tempdir()?;
+        let boards = dir.path().join("boards");
+        std::fs::create_dir(&boards)?;
+        let target = boards.join("board.sparksmith");
+        let alias = dir.path().join("alias.sparksmith");
+        let link = if relative {
+            PathBuf::from("boards/board.sparksmith")
+        } else {
+            target.clone()
+        };
+        let mut file = Engine::demo()?.to_file();
+        write_project(&target, &file)?;
+        std::os::unix::fs::symlink(&link, &alias)?;
+        let (_, original) = open_project(&alias)?;
+        file.project.name = "First edit".into();
+        let saved = save_project(&alias, &file, Some(original))?;
+        assert_eq!(std::fs::read_link(&alias)?, link);
+        assert_eq!(open_project(&target)?, (file.clone(), saved));
+        file.project.name = "Concurrent edit".into();
+        write_project(&target, &file)?;
+        let mut mine = file.clone();
+        mine.project.name = "Local edit".into();
+        let Err(Error::Conflict(conflict)) = save_project(&alias, &mine, Some(saved)) else {
+            return Err(Error::Invalid("expected a competing edit".into()));
+        };
+        assert_eq!(std::fs::read_link(&alias)?, link);
+        assert_eq!(read_project(&alias)?, file);
+        assert_eq!(read_project(&conflict.kept)?, mine);
+        assert_eq!(
+            conflict.kept.parent(),
+            Some(boards.canonicalize()?.as_path())
+        );
+    }
+    Ok(())
+}

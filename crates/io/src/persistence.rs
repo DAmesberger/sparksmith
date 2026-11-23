@@ -134,7 +134,15 @@ pub fn save_project(
     expected: Option<DiskIdentity>,
 ) -> Result<DiskIdentity> {
     check_project_path(path)?;
-    container::save_container(path, file, expected)
+    // Stage and publish beside the linked file, including across volumes.
+    // A dangling link cannot safely identify an existing save destination.
+    let target = match std::fs::symlink_metadata(path) {
+        Ok(meta) if meta.is_symlink() => path.canonicalize()?,
+        Ok(_) => path.to_owned(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => path.to_owned(),
+        Err(error) => return Err(error.into()),
+    };
+    container::save_container(&target, file, expected)
 }
 
 /// The SHA-256 of `file`'s bytes, read from its start (bounded by the
