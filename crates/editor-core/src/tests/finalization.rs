@@ -34,7 +34,7 @@ fn issues(engine: &Engine) -> Result<Vec<(String, Vec<crate::ObjectRef>)>> {
         QueryResult::Issues(report) => Ok(report
             .rows
             .into_iter()
-            .map(|r| (r.finding.code, r.finding.objects))
+            .map(|r| (r.finding.code.to_string(), r.finding.objects))
             .collect()),
         other => Err(Error::Invalid(format!("{other:?}"))),
     }

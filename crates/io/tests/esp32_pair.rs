@@ -368,7 +368,7 @@ fn issues_and_the_production_check_count_alike_but_for_production_findings() -> 
     assert_eq!(counted.len(), 1, "{counted:?}");
     let issue = counted[0];
     assert_eq!(issue.severity, usb.severity);
-    assert_eq!(issue.finding.code, usb.code);
+    assert_eq!(issue.finding.code.as_str(), usb.code);
     assert_eq!(issue.finding.objects, usb.objects);
     assert_eq!(issue.title, usb.title);
     assert!(issue.also.is_empty(), "{issue:?}");

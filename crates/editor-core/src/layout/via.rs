@@ -15,7 +15,7 @@ use super::{
     BoardCopper, CopperRing, EPS, Error, Result, RouteEditSet, RouteRequest, WorldPad,
     check_pair_budget, distance, invalid,
 };
-use crate::diagnostics::{Finding, ObjectRef, Requirement};
+use crate::diagnostics::{Finding, FindingCode, ObjectRef, Requirement};
 use crate::geometry::{Bounds, Point, point_valid};
 use crate::ids::Id;
 use crate::library::names::capitalised;
@@ -767,7 +767,7 @@ impl<'a> ViaCx<'a> {
                 let gap = ring.gap(drill, need.mm + 1.0);
                 issues.push(
                     Finding::new(
-                        HOLE_SPACING,
+                        FindingCode::BoardHoleSpacing,
                         format!(
                             "{name} and a via on {}: drills are {} mm apart; {}",
                             project.net_name(via.net),
@@ -801,7 +801,7 @@ impl<'a> ViaCx<'a> {
                 };
                 issues.push(
                     Finding::new(
-                        HOLE_SPACING,
+                        FindingCode::BoardHoleSpacing,
                         format!("{name} and {}: holes {how}; {}", other.name, need.text()),
                         vec![me, other.object()],
                     )

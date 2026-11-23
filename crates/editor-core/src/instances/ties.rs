@@ -1,6 +1,6 @@
 //! The schematic view of deliberate joins. Electrical checks can follow a
 //! closed tie while the source netlist retains every distinct net and pin.
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, FindingCode, ObjectRef};
 use crate::ids::{Endpoint, Id, TerminalId, TieId};
 use crate::library::tie::{JumperState, TieForm, TiePurpose};
 use crate::model::Project;

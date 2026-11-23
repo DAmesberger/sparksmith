@@ -4,7 +4,7 @@ use super::{
     BindingDefinition, ComponentDefinition, FootprintDefinition, Library, Outline, PackageModel,
     PadKind, PadSide,
 };
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, FindingCode, ObjectRef};
 use crate::ids::{BridgeId, DefinitionId, Id, PadId, TerminalId, TieId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

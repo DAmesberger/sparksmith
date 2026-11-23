@@ -12,7 +12,7 @@
 //!
 //! [`ProfileBoards`]: crate::rules::ProfileBoards
 //! [`ChoiceRequires`]: crate::rules::ChoiceRequires
-use crate::diagnostics::{Error, Finding, ObjectRef, Requirement, Result};
+use crate::diagnostics::{Error, Finding, FindingCode, ObjectRef, Requirement, Result};
 use crate::model::{PadFinish, Project};
 
 /// The board's copper layer count is not one its fab profile is for.
@@ -70,7 +70,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             .collect();
         out.push(
             Finding::new(
-                LAYERS,
+                FindingCode::BoardProfileLayers,
                 format!(
                     "{} is for {}-layer boards; the board has {layers} copper layers",
                     profile.name,

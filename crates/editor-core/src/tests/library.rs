@@ -662,7 +662,7 @@ fn footprint_codes(engine: &Engine, f: &Fixture, blocking: bool) -> Result<Vec<S
         .findings
         .into_iter()
         .filter(|x| x.blocks_stage(Stage::Publish) == blocking)
-        .map(|x| x.code)
+        .map(|x| x.code.to_string())
         .collect())
 }
 

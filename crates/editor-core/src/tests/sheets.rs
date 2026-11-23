@@ -1799,7 +1799,7 @@ fn replacing_from_channel_b_maps_the_drawing_and_both_physical_parts() -> Result
             );
             assert_eq!(net_of(&e, ep(id, 2))?, net);
         }
-        assert!(e.project().wires_at(ep(local, 2).into()).next().is_some());
+        assert!(e.project().wires_at(ep(local, 2)).next().is_some());
     }
     Ok(())
 }

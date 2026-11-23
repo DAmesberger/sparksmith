@@ -1,6 +1,6 @@
 //! Cross-section of a fabricated neck between the lands named by its bridge.
 use super::CopperGraph;
-use crate::diagnostics::Finding;
+use crate::diagnostics::{Finding, FindingCode};
 use crate::ids::Id;
 use crate::instances::{self, ties::TieRow};
 use crate::layout::{PlacedBridge, PlacedPad, fill::geom, physical, placed_pads};

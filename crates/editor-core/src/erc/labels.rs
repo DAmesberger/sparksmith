@@ -179,7 +179,7 @@ fn hierarchy(project: &Project, out: &mut Vec<Finding>) {
                     .as_deref()
                     .map_or_else(|| sheet_name(project, label.sheet), str::to_owned);
                 out.push(Finding::new(
-                    "erc.hierarchy_mismatch",
+                    crate::diagnostics::FindingCode::ErcHierarchyMismatch,
                     format!(
                         "Hierarchical label {} on {channel} has no sheet pin.",
                         label.name

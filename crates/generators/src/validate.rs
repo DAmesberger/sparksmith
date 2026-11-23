@@ -853,6 +853,7 @@ mod tests {
                 direction: Direction::Passive,
                 alternates: Vec::new(),
                 drive: None,
+                unconnected: None,
             })
             .into();
         let group = |id, pair: [&str; 2]| Tie {

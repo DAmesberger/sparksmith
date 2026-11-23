@@ -122,7 +122,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
             }
             out.push(
                 Finding::new(
-                    MASK_WEB,
+                    crate::diagnostics::FindingCode::BoardMaskWeb,
                     format!(
                         "The solder-mask web between {} and {} on the {} side is {} mm; {}",
                         name(a),

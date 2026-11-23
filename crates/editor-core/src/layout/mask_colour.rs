@@ -89,7 +89,7 @@ pub fn findings(project: &Project) -> Vec<Finding> {
         .collect();
     vec![
         Finding::new(
-            NOT_OFFERED,
+            crate::diagnostics::FindingCode::BoardMaskColourNotOffered,
             format!(
                 "{} does not offer a {} solder mask; it offers {}",
                 profile.name,

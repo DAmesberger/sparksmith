@@ -1139,7 +1139,7 @@ pub fn substitute_findings(
     let mut out = Vec::new();
     if !changed.is_empty() {
         out.push(Finding::new(
-            SUBSTITUTE_UNREVIEWED,
+            crate::diagnostics::FindingCode::VariantSubstituteUnreviewed,
             format!(
                 "Variant “{}”: the review of {mpn} on {} no longer applies, since {} changed after it was made; review it again.",
                 variant.name,

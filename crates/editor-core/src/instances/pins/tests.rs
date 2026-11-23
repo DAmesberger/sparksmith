@@ -1017,7 +1017,7 @@ fn declaration_problems_name_malformed_pin_data() {
     }];
     let problems: Vec<(&str, u32)> = declaration_problems(&component.declarations(), &resources)
         .iter()
-        .map(|p| (p.code, p.local))
+        .map(|p| (p.code.as_str(), p.local))
         .collect::<Vec<_>>()
         .into_iter()
         .collect();

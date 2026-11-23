@@ -596,7 +596,7 @@ fn a_missing_required_value_blocks_electrical_resolution() -> Result<()> {
             .findings
             .into_iter()
             .filter(|x| x.code == "instance.field_required")
-            .map(|x| (x.code, x.objects, x.blocks))
+            .map(|x| (x.code.to_string(), x.objects, x.blocks))
             .collect())
     };
     // The component default satisfies the requirement.
@@ -935,7 +935,7 @@ fn publication_checks_field_kind_and_selection_rules() -> Result<()> {
                 .findings
                 .iter()
                 .filter(|x| x.blocks_stage(Stage::Publish))
-                .map(|x| x.code.clone())
+                .map(|x| x.code.to_string())
                 .collect();
             let error = publish(engine, vec![id])
                 .err()

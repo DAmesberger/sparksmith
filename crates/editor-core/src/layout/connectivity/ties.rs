@@ -1,7 +1,7 @@
 //! Contacts made by fabricated tie bridges. A bridge has several nets and
 //! no island. Only the individual lands are members of their net's islands.
 use super::{BoundsGrid, CopperGraph, CopperRing, build};
-use crate::diagnostics::{Finding, ObjectRef};
+use crate::diagnostics::{Finding, FindingCode, ObjectRef};
 use crate::geometry::Bounds;
 use crate::ids::{Id, PadId};
 use crate::layout::{PlacedBridge, check_pair_budget, fill, physical, placed_bridges};
