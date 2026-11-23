@@ -1513,8 +1513,9 @@ fn an_undo_clears_a_sketch_dimension_value_error() -> Fallible {
 }
 
 /// Demo run item 6: the shipped ESP32 example's board sketch is fully
-/// defined; its mounting holes sit `inset` from their nearest edges, so a
-/// width change carries the right-hand holes along.
+/// defined; its mounting holes and its mounting slot sit `inset` from
+/// their edges, so a width change carries the right-hand hole and the
+/// slot along.
 #[test]
 fn the_esp32_examples_holes_follow_the_board_width() -> Fallible {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1544,10 +1545,26 @@ fn the_esp32_examples_holes_follow_the_board_width() -> Fallible {
         .map(|h| h.at[0])
         .collect();
     xs.sort_by(f64::total_cmp);
-    assert_eq!(xs.len(), 4);
-    for (x, want) in xs.iter().zip([3.5, 3.5, 46.5, 46.5]) {
+    assert_eq!(xs.len(), 3);
+    for (x, want) in xs.iter().zip([3.5, 3.5, 46.5]) {
         assert!((x - want).abs() < 1e-6, "{xs:?}");
     }
+    // The slot's caps, 2.7 mm across and 1 mm apart, about 46.5 mm.
+    let board = engine.project().board();
+    let slot = board
+        .cutouts
+        .iter()
+        .find(|c| matches!(c.kind, sparksmith_core::model::board::CutoutKind::Slot { .. }))
+        .ok_or("the example's mounting slot")?;
+    let xs: Vec<f64> = slot.outline.flatten(0.001).iter().map(|p| p[0]).collect();
+    let (lo, hi) = (
+        xs.iter().copied().fold(f64::INFINITY, f64::min),
+        xs.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+    );
+    assert!(
+        (lo - 44.65).abs() < 1e-3 && (hi - 48.35).abs() < 1e-3,
+        "the slot spans {lo} to {hi}"
+    );
     Ok(())
 }
 

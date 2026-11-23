@@ -202,6 +202,20 @@ impl Harness {
 
     /// Arm the Dimension tool with its key, Shift+D, as in 3D, and wait for
     /// the body traces.
+    /// Where to click the board's `bottom` edge with the tool on: on the
+    /// edge, clear of J1, and off every drawn dimension's label (a click
+    /// on a label opens that dimension instead of picking).
+    fn on_bottom_edge(&self) -> Fallible<[f64; 2]> {
+        let labels = self.app.pcb.dimensions_drawn();
+        for at in along_bottom_edge(self.app.engine.project())? {
+            let p = self.screen(at)?;
+            if !labels.iter().any(|(_, _, text, _)| text.expand(6.0).contains(p)) {
+                return Ok(at);
+            }
+        }
+        Err("every point tried on the bottom edge is under a dimension's label".into())
+    }
+
     fn arm(&mut self) -> Fallible {
         let canvas = self.screen([0.0, 0.0])?;
         self.frame(vec![egui::Event::PointerMoved(canvas)]);
@@ -241,6 +255,28 @@ fn bottom_left(project: &Project) -> (f64, f64) {
         outline.iter().map(|p| p[1]).fold(f64::INFINITY, f64::min),
         outline.iter().map(|p| p[0]).fold(f64::INFINITY, f64::min),
     )
+}
+
+/// Points along the board's `bottom` edge, from 0.05 mm inside each end
+/// inwards in steps of 0.05 mm for 0.6 mm: the edge is the USB tab's, J1
+/// stands on its middle, and J1's courtyard, which a pick takes before a
+/// board edge within its reach, ends 0.9 mm short of the tab's ends.
+fn along_bottom_edge(project: &Project) -> Fallible<Vec<[f64; 2]>> {
+    let board = project.board();
+    let edge = board
+        .edges
+        .iter()
+        .find(|e| e.name.0 == "bottom")
+        .ok_or("the bottom edge")?;
+    let (dx, dy) = (edge.b[0] - edge.a[0], edge.b[1] - edge.a[1]);
+    let length = dx.hypot(dy);
+    let at = |from: [f64; 2], sign: f64, k: u32| {
+        let d = sign * 0.05 * f64::from(k);
+        [from[0] + dx / length * d, from[1] + dy / length * d]
+    };
+    Ok((1..=12)
+        .flat_map(|k| [at(edge.a, 1.0, k), at(edge.b, -1.0, k)])
+        .collect())
 }
 
 /// The distance from `p` to the line through `a` and `b` (board mm).
@@ -385,7 +421,6 @@ fn a_layout_pick_on_r5s_body_trace_is_the_reference_a_3d_pick_makes() -> Fallibl
     let placement = project.placement_of(r5).ok_or("R5 placed")?.clone();
     let end = r5_end_face(project, r5)?;
     let mid = board_mid(&placement, &end.trace)?;
-    let (bottom, left) = bottom_left(project);
     let mut h = Harness::new(engine)?;
     h.arm()?;
     let revision = h.app.engine.revision();
@@ -413,8 +448,8 @@ fn a_layout_pick_on_r5s_body_trace_is_the_reference_a_3d_pick_makes() -> Fallibl
         return Err(format!("{chosen:?}").into());
     };
     assert_eq!(*on, r5);
-    // The bottom edge, away from the parts.
-    h.click(h.screen([left + 1.5, bottom])?);
+    // The bottom edge, away from the parts and the drawn dimensions.
+    h.click(h.screen(h.on_bottom_edge()?)?);
     let (n, value, error) = h.app.pcb.dimension_draft();
     assert_eq!((n, error), (2, None));
     let value = value.ok_or("the value opened")?;
@@ -628,7 +663,6 @@ fn a_dimension_made_in_either_view_shows_in_the_other() -> Fallible {
     let r5_placement = project.placement_of(r5).ok_or("R5 placed")?.clone();
     let end = r5_end_face(project, r5)?;
     let r5_mid = board_mid(&r5_placement, &end.trace)?;
-    let (bottom, left) = bottom_left(project);
     // J1's face dimension is made again with the 3D tool.
     engine.apply_hosted(
         engine.revision(),
@@ -701,7 +735,7 @@ fn a_dimension_made_in_either_view_shows_in_the_other() -> Fallible {
         let (_, row) = rows.first().ok_or("an empty chooser")?;
         h.click(row.center());
     }
-    h.click(h.screen([left + 1.5, bottom])?);
+    h.click(h.screen(h.on_bottom_edge()?)?);
     assert_eq!(
         h.app.pcb.dimension_draft().0,
         2,

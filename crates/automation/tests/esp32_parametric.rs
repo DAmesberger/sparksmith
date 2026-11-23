@@ -203,11 +203,11 @@ fn publish(session: &mut Session, design: &Path) -> Fallible<Value> {
     )
 }
 
-/// A linked design on the published interface, as an enclosure is: a wall
+/// A linked design on the published interface: a wall
 /// in front of the USB tab with a cutout projected from the receptacle's
 /// opening. Returns it with the wall's own box faces.
-fn enclosure(design: &Path, opening: &str) -> Fallible<(LinkedDesign, Vec<String>)> {
-    let mut linked = LinkedDesign::new("Enclosure")?;
+fn linked_wall(design: &Path, opening: &str) -> Fallible<(LinkedDesign, Vec<String>)> {
+    let mut linked = LinkedDesign::new("Assembly")?;
     let bodies = linked.link(&design.display().to_string(), "Board")?;
     assert!(bodies.iter().any(|b| b == opening), "{bodies:?}");
     let front = linked
@@ -373,10 +373,10 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
         .id;
     let opening = format!("i{j1}.opening");
 
-    // An enclosure on the interface as published now.
+    // A linked design on the interface as published now.
     let design = dir.path().join("board.solidcraft");
     publish(&mut session, &design)?;
-    let (mut linked, box_faces) = enclosure(&design, &opening)?;
+    let (mut linked, box_faces) = linked_wall(&design, &opening)?;
     let wall = faces(&mut linked, "Wall")?;
     let walls = [
         hole_wall(&mut linked, [3.5, 3.5])?,
@@ -556,7 +556,7 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
         "{origin:?}"
     );
 
-    // Published again and its links updated, the enclosure's copy of the
+    // Published again and its links updated, the linked design's copy of the
     // board has every face under the name it had, the mounting holes'
     // walls where the holes are now, and the cutout projected from the
     // receptacle's opening follows the receptacle; the wall's own faces

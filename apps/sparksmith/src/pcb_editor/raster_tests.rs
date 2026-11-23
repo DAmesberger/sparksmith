@@ -630,7 +630,7 @@ fn mounting_holes_show_at_every_zoom() -> TestResult {
     bare.fills.clear();
     let engine = with_project(&engine, bare)?;
     let holes = engine.project().board().holes.clone();
-    assert_eq!(holes.len(), 4);
+    assert_eq!(holes.len(), 3);
     assert!(holes.iter().all(|h| !h.plated));
     let track = engine.project().tracks.first().ok_or("no track")?.id;
     // The unplated edge is light: every channel well above the dark board

@@ -47,7 +47,7 @@ PARAMETERS = [
     ("corner_r", 1.5, "Outside corner radius"),
     ("inner_r", 0.5, "Inside corner radius (the router bit's)"),
     ("usb_tab_w", 12.0, "Width of the tab that carries the USB-C receptacle"),
-    ("usb_tab_d", 1.0, "How far the tab stands out of the bottom edge (the enclosure wall)"),
+    ("usb_tab_d", 1.0, "How far the tab stands out of the bottom edge"),
     ("tab_x", "(width - usb_tab_w) / 2", "Tab side from the nearer side edge"),
     ("ant_w", 23.2, "Width of the notch under the module's antenna"),
     ("ant_d", 5.5, "Depth of the antenna notch"),
