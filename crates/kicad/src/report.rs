@@ -256,8 +256,11 @@ pub enum Case {
     ViaUnusedLayers,
     /// Zones imported as fills (one per copper layer).
     Zone,
-    /// Rule areas imported as keepouts.
+    /// Rule areas imported with every restriction intact.
     Keepout,
+    /// Source rule areas that prohibit footprint placement, which a
+    /// Sparksmith keepout cannot enforce.
+    FootprintRestrictionOmitted,
     /// Zones not imported (arcs in the outline, no net with pads, no rules).
     ZoneRefused,
     /// Zones of several outline polygons, each a fill.
@@ -682,6 +685,11 @@ impl Case {
                 "zone layers imported as fills, filled by our engine",
             ),
             Self::Keepout => ("Z1", Exact, "rule areas imported as keepouts"),
+            Self::FootprintRestrictionOmitted => (
+                "Z1",
+                Approximate,
+                "footprint placement restrictions omitted from rule areas",
+            ),
             Self::ZoneRefused => (
                 "Z1",
                 Refused,
