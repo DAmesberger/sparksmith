@@ -52,8 +52,6 @@ const SQUARE: f64 = 1e-6;
 const FLAT_MM: f64 = 1e-6;
 /// Faces a refusal lists for an agent to pick from.
 const LISTED: usize = 12;
-/// Triangles of one face read for its extent.
-const MAX_FACE_TRIANGLES: usize = 2_000_000;
 /// A point a note offers to pick again lies this far from the stored pick
 /// at least (mm), so picking it is a new reference.
 const REPICK_MM: f64 = 1e-3;
@@ -183,8 +181,12 @@ pub fn faces(request: &FacesRequest<'_>) -> Result<Vec<BodyFace>> {
         let names = naming::face_names(b);
         let spots = naming::face_spots(b);
         let mesh = b.mesh();
-        if mesh.triangles.len() > MAX_FACE_TRIANGLES {
-            continue;
+        // Index once per body. Each face then visits only its own triangles.
+        let mut triangles = vec![Vec::new(); names.len()];
+        for (tri, face) in mesh.triangles.iter().zip(&mesh.tri_face) {
+            if let Some(list) = triangles.get_mut(*face as usize) {
+                list.push(tri);
+            }
         }
         for (i, (name, spot)) in names.iter().zip(&spots).enumerate() {
             let Some(spot) = spot.as_ref() else {
@@ -193,13 +195,20 @@ pub fn faces(request: &FacesRequest<'_>) -> Result<Vec<BodyFace>> {
             if name.is_empty() {
                 continue;
             }
+            let points = || {
+                triangles[i]
+                    .iter()
+                    .filter_map(|tri| mesh.tri(tri))
+                    .flatten()
+                    .map(|corner| frame.apply(arr(corner)))
+            };
             let trace = match face_surface(&b.body, i) {
                 Some(FaceSurface::Plane { normal, point }) => {
                     let n = frame.apply_vector(arr(normal.vec()));
                     if n[2].abs() > SQUARE {
                         continue;
                     }
-                    plane_line(b, i, n, frame.apply(arr(point)), frame)
+                    plane_line(n, frame.apply(arr(point)), points())
                 }
                 Some(FaceSurface::Cylinder { origin, axis, .. }) => {
                     axis_point(frame, arr(origin), arr(axis.vec()))
@@ -213,14 +222,8 @@ pub fn faces(request: &FacesRequest<'_>) -> Result<Vec<BodyFace>> {
                 continue;
             };
             let mut z: Option<[f64; 2]> = None;
-            for (tri, f) in mesh.triangles.iter().zip(&mesh.tri_face) {
-                if *f as usize != i {
-                    continue;
-                }
-                for corner in mesh.tri(tri).into_iter().flatten() {
-                    let h = frame.apply(arr(corner))[2];
-                    z = Some(z.map_or([h, h], |[lo, hi]| [lo.min(h), hi.max(h)]));
-                }
+            for [_, _, h] in points() {
+                z = Some(z.map_or([h, h], |[lo, hi]| [lo.min(h), hi.max(h)]));
             }
             let Some(z) = z else {
                 continue;
@@ -501,7 +504,16 @@ fn trace_face(
             if n[2].abs() > SQUARE {
                 return Err(sloped());
             }
-            plane_line(b, hit.face, n, frame.apply(arr(point)), frame).ok_or_else(sloped)?
+            let mesh = b.mesh();
+            let points = mesh
+                .triangles
+                .iter()
+                .zip(&mesh.tri_face)
+                .filter(|(_, f)| **f as usize == hit.face)
+                .filter_map(|(tri, _)| mesh.tri(tri))
+                .flatten()
+                .map(|corner| frame.apply(arr(corner)));
+            plane_line(n, frame.apply(arr(point)), points).ok_or_else(sloped)?
         }
         Some(FaceSurface::Cylinder { origin, axis, .. }) => {
             axis_point(frame, arr(origin), arr(axis.vec())).ok_or_else(sloped)?
@@ -540,31 +552,19 @@ fn axis_point(frame: &Transform3, origin: [f64; 3], axis: [f64; 3]) -> Option<Fe
 /// face's horizontal direction, counter-clockwise round the part seen from
 /// above (outward normal on the right), over the face's extent.
 fn plane_line(
-    b: &ModelBody,
-    face: usize,
     n: [f64; 3],
     on: [f64; 3],
-    frame: &Transform3,
+    points: impl Iterator<Item = [f64; 3]>,
 ) -> Option<FeatureGeometry> {
     let flat = n[0].hypot(n[1]);
     if flat <= SQUARE {
         return None;
     }
     let t = [-n[1] / flat, n[0] / flat];
-    let mesh = b.mesh();
-    if mesh.triangles.len() > MAX_FACE_TRIANGLES {
-        return None;
-    }
     let mut span: Option<(f64, f64)> = None;
-    for (tri, f) in mesh.triangles.iter().zip(&mesh.tri_face) {
-        if *f as usize != face {
-            continue;
-        }
-        for corner in mesh.tri(tri)? {
-            let p = frame.apply(arr(corner));
-            let s = (p[0] - on[0]) * t[0] + (p[1] - on[1]) * t[1];
-            span = Some(span.map_or((s, s), |(lo, hi)| (lo.min(s), hi.max(s))));
-        }
+    for p in points {
+        let s = (p[0] - on[0]) * t[0] + (p[1] - on[1]) * t[1];
+        span = Some(span.map_or((s, s), |(lo, hi)| (lo.min(s), hi.max(s))));
     }
     let (lo, hi) = span?;
     (hi - lo > FLAT_MM).then(|| FeatureGeometry::Line {

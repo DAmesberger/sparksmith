@@ -140,6 +140,69 @@ fn placed() -> Fallible<(Engine, Id, Vec<u8>, BoardRef)> {
     Ok((engine, instance, bytes, face))
 }
 
+/// A host returning many finite traces, with an independently identifiable last face.
+#[test]
+fn layout_lists_the_trace_after_4096_other_faces() -> Fallible<()> {
+    use crate::board::SketchBoardEvaluator;
+    use sparksmith_core::layout::dimensions::model::{BodyFace, body_faces};
+    use sparksmith_core::layout::outline::{BoardEvaluation, BoardShapeEvaluator};
+    use sparksmith_core::library::footprint_source::{
+        EvaluatorRef, SketchBlob, SketchEdit, SketchOutcome,
+    };
+    use sparksmith_core::model::board::BoardSketch;
+    struct ManyFaces;
+    impl BoardShapeEvaluator for ManyFaces {
+        fn evaluator(&self) -> EvaluatorRef {
+            SketchBoardEvaluator.evaluator()
+        }
+        fn rectangle(&self, size: [f64; 2], fit: f64) -> Result<BoardSketch> {
+            SketchBoardEvaluator.rectangle(size, fit)
+        }
+        fn apply_sketch(&self, sketch: &SketchBlob, edit: &SketchEdit) -> Result<SketchOutcome> {
+            SketchBoardEvaluator.apply_sketch(sketch, edit)
+        }
+        fn evaluate(&self, board: &BoardSketch) -> Result<BoardEvaluation> {
+            SketchBoardEvaluator.evaluate(board)
+        }
+        fn model_faces(&self, _: &FacesRequest<'_>) -> Result<Vec<BodyFace>> {
+            Ok((0..=4096)
+                .map(|i| {
+                    let x = f64::from(i) / 1000.0;
+                    BodyFace {
+                        at: [x, 0.0, 0.0],
+                        z: [0.0, 1.0],
+                        face: ModelFaceRef {
+                            body: BodyName("Part".into()),
+                            face: FaceName(format!("Face {i}")),
+                            pick: [x, 0.0, 0.0],
+                        },
+                        trace: FeatureGeometry::Line {
+                            a: [x, 0.0],
+                            b: [x, 1.0],
+                        },
+                    }
+                })
+                .collect())
+        }
+    }
+    let (engine, instance, _, _) = placed()?;
+    let result = body_faces(engine.project(), &ManyFaces, instance)?;
+    assert_eq!(result.faces.len(), 4097);
+    let last = result
+        .faces
+        .iter()
+        .find(|f| f.face.face.0 == "Face 4096")
+        .ok_or("last face")?;
+    assert_eq!(
+        last.trace,
+        FeatureGeometry::Line {
+            a: [4.096, 0.0],
+            b: [4.096, 1.0]
+        }
+    );
+    Ok(())
+}
+
 fn flush(face: BoardRef, edge: BoardRef) -> PartDimensionSpec {
     PartDimensionSpec {
         kind: PartRelation::Dim(DimKind::Distance),
