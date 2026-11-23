@@ -605,7 +605,7 @@ fn help_resource_and_query_serve_identical_bytes_and_complete_ids() -> Fallible<
         let id = "finding/board.via_annular_ring";
         let cases = [
             (1, help::INDEX.to_owned(), "help.search", json!({"text":""})),
-            (3, format!("{}/{id}", help::INDEX), "help.topic", json!({"id":id})),
+            (3, format!("{}/{}", help::INDEX, id.replace('/', "%2F")), "help.topic", json!({"id":id})),
         ];
         for (n, uri, name, params) in cases {
             let read = request(n, "resources/read", json!({"uri":uri}));
