@@ -11,8 +11,8 @@
 //! report names what was re-routed, and one undo restores the board.
 use sparksmith_automation::session::{ApplyParams, Request, Session, hosted};
 use sparksmith_core::format::EditorFile;
-use sparksmith_core::layout::fill::{FillCache, compute_stale};
 use sparksmith_core::layout::dimensions::DimensionCommand;
+use sparksmith_core::layout::fill::{FillCache, compute_stale};
 use sparksmith_core::layout::pair::{PairLeg, PairRouteRequest};
 use sparksmith_core::layout::{self, LayoutCommand, RouteEditSet, length};
 use sparksmith_core::library::footprint_source::{DimValue, Expr};

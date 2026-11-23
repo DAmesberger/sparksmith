@@ -843,13 +843,22 @@ fn a_fresh_fill_is_never_reported_in_the_keepout_it_was_cut_by() -> Fallible<()>
         solved.outer = Outline {
             start: [0.0, r],
             segments: vec![
-                Segment::Arc { to: [r, 0.0], bulge },
+                Segment::Arc {
+                    to: [r, 0.0],
+                    bulge,
+                },
                 Segment::Line { to: [w - r, 0.0] },
                 Segment::Arc { to: [w, r], bulge },
                 Segment::Line { to: [w, h - r] },
-                Segment::Arc { to: [w - r, h], bulge },
+                Segment::Arc {
+                    to: [w - r, h],
+                    bulge,
+                },
                 Segment::Line { to: [r, h] },
-                Segment::Arc { to: [0.0, h - r], bulge },
+                Segment::Arc {
+                    to: [0.0, h - r],
+                    bulge,
+                },
                 Segment::Line { to: [0.0, r] },
             ],
         };

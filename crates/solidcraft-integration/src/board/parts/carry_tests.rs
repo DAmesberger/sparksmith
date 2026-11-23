@@ -213,9 +213,15 @@ fn a_route_between_parts_that_slide_two_ways_keeps_its_directions() -> Fallible<
         project.tracks.first().ok_or("track")?,
         project.tracks.get(1).ok_or("track")?,
     );
-    assert!(close(first.start, pad(project, r1, 1)?.position), "{first:?}");
+    assert!(
+        close(first.start, pad(project, r1, 1)?.position),
+        "{first:?}"
+    );
     assert!(close(second.start, first.end), "{second:?}");
-    assert!(close(second.end, pad(project, r2, 0)?.position), "{second:?}");
+    assert!(
+        close(second.end, pad(project, r2, 0)?.position),
+        "{second:?}"
+    );
     assert_eq!(unrouted(project), 0);
     assert_eq!(board_codes(project), codes);
     Ok(())
@@ -236,8 +242,15 @@ fn a_narrower_board_takes_the_copper_its_held_part_carries() -> Fallible<()> {
             .flat_map(|t| [t.start[0], t.end[0]])
             .fold(0.0, f64::max)
     };
-    edit(&mut engine, vec![set("width", &format!("{} mm", 3.0 * width))])?;
-    assert!(reach(engine.project()) > width, "{}", reach(engine.project()));
+    edit(
+        &mut engine,
+        vec![set("width", &format!("{} mm", 3.0 * width))],
+    )?;
+    assert!(
+        reach(engine.project()) > width,
+        "{}",
+        reach(engine.project())
+    );
     edit(&mut engine, vec![set("width", &format!("{width} mm"))])?;
     let project = engine.project();
     assert_eq!(project.board_size[0], width);

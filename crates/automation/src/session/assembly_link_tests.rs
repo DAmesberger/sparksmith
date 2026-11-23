@@ -145,9 +145,7 @@ pub(super) fn edge(session: &Session, name: &str) -> TestResult<([f64; 2], [f64;
 
 /// The board sketch's `height` dimension and an end of its `top` edge, by
 /// their sketch ids.
-pub(super) fn height_and_top(
-    session: &Session,
-) -> TestResult<(SketchConstraintId, SketchPointId)> {
+pub(super) fn height_and_top(session: &Session) -> TestResult<(SketchConstraintId, SketchPointId)> {
     let BoardShape::Sketch(sketch) = &session.engine().project().board_shape else {
         return Err("a sketch board".into());
     };
@@ -176,10 +174,7 @@ pub(super) fn height_and_top(
         .and_then(|a| stored["points"].get(a))
         .and_then(|p| p["id"].as_str())
         .ok_or("an end of the top edge")?;
-    Ok((
-        SketchConstraintId(height.into()),
-        SketchPointId(end.into()),
-    ))
+    Ok((SketchConstraintId(height.into()), SketchPointId(end.into())))
 }
 
 pub(super) fn position(session: &Session, designator: &str) -> TestResult<[f64; 2]> {

@@ -209,7 +209,10 @@ impl Harness {
         let labels = self.app.pcb.dimensions_drawn();
         for at in along_bottom_edge(self.app.engine.project())? {
             let p = self.screen(at)?;
-            if !labels.iter().any(|(_, _, text, _)| text.expand(6.0).contains(p)) {
+            if !labels
+                .iter()
+                .any(|(_, _, text, _)| text.expand(6.0).contains(p))
+            {
                 return Ok(at);
             }
         }

@@ -253,13 +253,13 @@ fn assert_moved(before: &[Face], after: &[Face], by: [f64; 3], what: &str) {
     assert_eq!(before.len(), after.len(), "{what}: face count");
     for (a, b) in before.iter().zip(after) {
         assert_eq!(a.name, b.name, "{what}");
-        for k in 0..3 {
-            let moved = b.centroid[k] - a.centroid[k];
+        let axes = a.centroid.iter().zip(&b.centroid).zip(&by);
+        for (axis, ((from, to), want)) in axes.enumerate() {
+            let moved = to - from;
             assert!(
-                (moved - by[k]).abs() <= 1e-3,
-                "{what}: {} moved {moved} along axis {k}, not {}",
-                a.name,
-                by[k]
+                (moved - want).abs() <= 1e-3,
+                "{what}: {} moved {moved} along axis {axis}, not {want}",
+                a.name
             );
         }
     }
@@ -286,8 +286,14 @@ fn the_outline_is_fully_defined_by_its_parameters_and_every_part_is_held() -> Fa
         .iter()
         .filter(|k| k.get("value").is_some() && k.get("param").is_none())
         .collect();
-    assert!(unbound.is_empty(), "dimensions held by a number: {unbound:?}");
-    let bound = constraints.iter().filter(|k| k.get("param").is_some()).count();
+    assert!(
+        unbound.is_empty(),
+        "dimensions held by a number: {unbound:?}"
+    );
+    let bound = constraints
+        .iter()
+        .filter(|k| k.get("param").is_some())
+        .count();
     assert!(bound >= 30, "{bound} dimensions bound to parameters");
     // Only the origin is fixed in place.
     let fixed: Vec<&str> = stored["points"]
@@ -325,11 +331,7 @@ fn the_outline_is_fully_defined_by_its_parameters_and_every_part_is_held() -> Fa
     let holes: Vec<(Point, f64)> = board.holes.iter().map(|h| (h.at, h.drill)).collect();
     assert_eq!(
         holes,
-        [
-            ([3.5, 3.5], 2.7),
-            ([36.5, 3.5], 2.7),
-            ([3.5, 60.5], 2.7)
-        ]
+        [([3.5, 3.5], 2.7), ([36.5, 3.5], 2.7), ([3.5, 60.5], 2.7)]
     );
 
     // Every placed part is named by at least two part dimensions (one
@@ -466,7 +468,11 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
     };
     assert!(near(now["J1"], [w / 2.0, 3.675]), "{:?}", now["J1"]);
     assert!(near(now["U1"], [w / 2.0, h - 15.0]), "{:?}", now["U1"]);
-    assert!(near(now["J2"], [(w - 34.92) / 2.0, 21.0]), "{:?}", now["J2"]);
+    assert!(
+        near(now["J2"], [(w - 34.92) / 2.0, 21.0]),
+        "{:?}",
+        now["J2"]
+    );
     assert!(
         near(now["J3"], [w - (w - 34.92) / 2.0, 21.0]),
         "{:?}",
@@ -550,7 +556,8 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
         assert_eq!(hole["geometry"]["diameter"], 2.7);
     }
     let j1_opening = datum(&mut session, "J1 opening")?;
-    let origin: Vec<f64> = serde_json::from_value(j1_opening["geometry"]["frame"]["origin"].clone())?;
+    let origin: Vec<f64> =
+        serde_json::from_value(j1_opening["geometry"]["frame"]["origin"].clone())?;
     assert!(
         (origin[0] - w / 2.0).abs() < 1e-9 && origin[1].abs() < 1e-9,
         "{origin:?}"
@@ -577,7 +584,11 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
         .iter()
         .zip([[3.5, 3.5], [w - 3.5, 3.5], [3.5, h - 3.5]])
     {
-        assert_eq!(&hole_wall(&mut linked, at)?, name, "the hole wall round {at:?}");
+        assert_eq!(
+            &hole_wall(&mut linked, at)?,
+            name,
+            "the hole wall round {at:?}"
+        );
     }
     let wall_now = faces(&mut linked, "Wall")?;
     assert_eq!(wall_now.len(), wall.len());
@@ -614,7 +625,6 @@ fn changing_the_driving_parameters_moves_everything_that_follows_them() -> Falli
     }
     assert_eq!(project.tracks.len(), start.project.tracks.len());
     assert_valid(&session, "the board back at its shipped values")
-
 }
 
 /// A change the design cannot take is refused with the reason, in words
@@ -673,9 +683,8 @@ fn a_parameter_change_that_breaks_the_design_is_reported() -> Fallible {
     // production check blocks on the pad it leaves too close to the edge.
     set(&mut session, &[("ant_w", "24 mm")])?;
     refill(&mut session)?;
-    let QueryResult::Preflight(report) = session
-        .engine()
-        .query(Query::Preflight { profile: None })?
+    let QueryResult::Preflight(report) =
+        session.engine().query(Query::Preflight { profile: None })?
     else {
         return Err("not a preflight report".into());
     };
@@ -686,7 +695,8 @@ fn a_parameter_change_that_breaks_the_design_is_reported() -> Fallible {
         .find(|i| i.code == "board.edge_clearance")
         .ok_or("an edge clearance finding")?;
     assert!(
-        item.title.contains("SW2 pad 2 is 0.15 mm from the board edge"),
+        item.title
+            .contains("SW2 pad 2 is 0.15 mm from the board edge"),
         "{}",
         item.title
     );

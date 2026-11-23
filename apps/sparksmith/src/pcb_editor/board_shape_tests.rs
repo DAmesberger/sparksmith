@@ -1554,7 +1554,12 @@ fn the_esp32_examples_holes_follow_the_board_width() -> Fallible {
     let slot = board
         .cutouts
         .iter()
-        .find(|c| matches!(c.kind, sparksmith_core::model::board::CutoutKind::Slot { .. }))
+        .find(|c| {
+            matches!(
+                c.kind,
+                sparksmith_core::model::board::CutoutKind::Slot { .. }
+            )
+        })
         .ok_or("the example's mounting slot")?;
     let xs: Vec<f64> = slot.outline.flatten(0.001).iter().map(|p| p[0]).collect();
     let (lo, hi) = (
