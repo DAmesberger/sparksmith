@@ -76,6 +76,10 @@ All scenarios require the common UI/automation, transactional, offline and nativ
 3. Pours, manufacturing output, native Solidcraft delivery, updates and recovery; complete the first-release workflow.
 4. Release 2: extend features according to real board needs. Push-and-shove routing is built ([push-and-shove](docs/push-and-shove.md)).
 
+Candidates, not yet scheduled:
+
+- **ODB++ export** (user decision, 23 November 2026), from the same production snapshot as the Gerber set. Professional users name its absence as a reason to rule a tool out (comments on Hackaday's KiCad 9 review, 2025).
+
 ## Current hardening sequence
 
 At the user's request, execute in this order:
