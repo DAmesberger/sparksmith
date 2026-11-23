@@ -395,19 +395,23 @@ fn host_completes_defaults_and_refuses_bad_params_before_running() -> TestResult
     for g in goldens()? {
         let loaded = runtime.load(&g.module).map_err(|f| f.to_string())?;
         let description = loaded.describe().map_err(|f| f.to_string())?;
+        // A package when the generator makes packages on their own, else a
+        // complete part (the tie generator makes only complete parts).
+        let scope = if description.scopes().contains(&Scope::Package) {
+            Scope::Package
+        } else {
+            Scope::Component
+        };
         // An empty request completes to the defaults and generates.
-        let request = sparksmith_generators::params::complete(
-            &description,
-            Scope::Package,
-            &v1::Params::new(),
-        )
-        .map_err(|f| f.to_string())?;
+        let request =
+            sparksmith_generators::params::complete(&description, scope, &v1::Params::new())
+                .map_err(|f| f.to_string())?;
         loaded.generate(&request).map_err(|f| f.to_string())?;
         // An unknown parameter is refused by the host, naming it.
         let mut given = v1::Params::new();
         given.insert("no_such_param".into(), v1::ParamValue::Int(1));
         let refused: Result<Request, Failure> =
-            sparksmith_generators::params::complete(&description, Scope::Package, &given);
+            sparksmith_generators::params::complete(&description, scope, &given);
         assert_eq!(
             refused.err().and_then(|f| f.code().map(str::to_string)),
             Some("param.unknown".into())

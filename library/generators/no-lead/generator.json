@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "no-lead.wasm",
-    "sha256": "670448004de2018187c066c0eceb93fb4a207e799cdcc528818d50ef21be73eb"
+    "sha256": "27d9203fff11afe31dcfa01fea670d8fa904096c290dd63602f163381d7e998c"
   },
   "name": "no-lead",
   "parts": [

@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "tie.wasm",
-    "sha256": "6e636ea6bca2197b0995aa8f518d3a63758fee43f029013b04cc4bf032d4cb71"
+    "sha256": "30e9e1c73a57a3932bcbc7e34ed002b8adbcae87ff86ebed23ece5951e92bb5b"
   },
   "name": "tie",
   "parts": [

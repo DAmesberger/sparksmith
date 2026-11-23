@@ -2,7 +2,7 @@
   "format": 1,
   "module": {
     "file": "module.wasm",
-    "sha256": "eb681a7571c6b06413d06a21369d6ab91db651e1a8eb14f2ee651a89ad56a9e1"
+    "sha256": "21d003ccd33e7bd825a1791bd19f41a2f02599288c180ed6013994c87c38c350"
   },
   "name": "module",
   "parts": [
