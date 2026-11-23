@@ -172,6 +172,31 @@ fn findings_report_what_appeared_and_what_went() -> TestResult {
         "{undone}"
     );
     assert_eq!(undone["findings"]["open"], open_before, "{undone}");
+    let rename = |revision| {
+        json!({"command":"project.apply","params":{
+            "expected_revision": revision,
+            "operation":{"editor":"Schematic","operation":{"command":"project.rename","params":{"name":"Renamed board"}}}
+        }})
+    };
+    ok(session.respond(Caller::Operator, rename(session.engine().revision())))?;
+    let revision = session.engine().revision();
+    let unchanged = ok(session.respond(Caller::Operator, rename(revision)))?;
+    assert_eq!(
+        session.engine().revision(),
+        revision,
+        "unchanged title is a no-op"
+    );
+    let report = session.engine().issue_report()?;
+    assert_eq!(unchanged["findings"]["issues"], json!(report.counts));
+    assert_eq!(unchanged["findings"]["open"], open(&session));
+    assert_eq!(unchanged["findings"]["new"], json!([]));
+    assert_eq!(unchanged["findings"]["resolved_total"], 0);
+    let query = ok(session.respond(
+        Caller::Operator,
+        json!({"command":"project.inspect", "params":{"at":"/revision"}}),
+    ))?;
+    assert!(query.get("findings").is_none());
+
     Ok(())
 }
 
@@ -209,7 +234,12 @@ fn only_the_changed_draft_is_reported() -> TestResult {
     assert_eq!(drafts[0]["name"], "Only this");
     assert_eq!(drafts[0]["kind"], "symbol");
     assert!(drafts[0]["findings"].is_array());
-    assert!(reply.get("findings").is_none(), "{reply}");
+    let all = session.engine().issue_report()?;
+    assert_eq!(reply["findings"]["issues"], json!(all.counts));
+    assert_eq!(
+        reply["findings"]["open"],
+        all.rows.iter().map(|r| r.findings()).sum::<usize>()
+    );
     Ok(())
 }
 
@@ -435,6 +465,22 @@ mod diff {
     }
 
     #[test]
+    fn a_changed_measurement_on_the_same_objects_remains_one_open_finding() {
+        let old = Finding::new(
+            FindingCode::BoardClearance,
+            "gap 0.10 mm".into(),
+            vec![sparksmith_core::ObjectRef::Track { id: 9 }],
+        );
+        let mut changed = old.clone();
+        changed.message = "gap 0.15 mm".into();
+        let out = delta(&[old], &[changed]);
+        assert_eq!(out["new"], json!([]));
+        assert_eq!(out["resolved"], json!({}));
+        assert_eq!(out["resolved_total"], 0);
+        assert_eq!(out["open"], 1);
+    }
+
+    #[test]
     fn repeated_findings_count_each_time_and_long_lists_are_cut() {
         let finding = |code, text: &str| Finding::new(code, text.to_owned(), vec![]);
         let old = [
@@ -456,6 +502,7 @@ mod diff {
             json!({"board.clearance": 1, "board.unrouted": 1})
         );
         assert_eq!(out["open"], 2);
+        assert_eq!(out["resolved_total"], 2);
         assert!(out.get("omitted").is_none());
 
         let many: Vec<_> = (0..100)

@@ -1,0 +1,1 @@
+Find the isolated unused via on the two-header adapter and remove it. Check the repair and save the project. Keep every other part of the design, its rules and its waivers as they are.

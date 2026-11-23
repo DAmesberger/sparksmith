@@ -437,6 +437,7 @@ The new server is `crates/automation/src/mcp/surface.rs` (`mcp::surface::Server`
 - **`query {project?, name, params}`**: a query becomes `project.query`, and a read command runs as itself.
 - **`apply {project?, expected_revision, operations, dry_run?}`**: 1–256 steps.
   - Document operations run as one new request, `project.apply_all`: one revision and one undo step, all or nothing.
+  - A successful compact edit includes `findings.new` (up to 20 finding rows, with any excess counted in `omitted`), `resolved` (counts by code), and `resolved_total`. The check compares rule code and affected objects across the edit, counting repeated findings. `open` counts every current finding and `issues` counts them by severity, including when the edit changes no findings. These totals use the same all-scope report as `project.issues` and include draft findings. Dry runs describe the proposed result.
   - A failing step is named in the message as `(operation 2 of 3)`.
   - Command-level edits go alone: `project.undo`, `project.redo`, `project.apply_update` and the folder imports. Mixing one into a batch is refused with `apply.alone`.
   - `expected_revision` is filled into a command whose schema takes it.
