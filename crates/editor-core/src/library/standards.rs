@@ -49,6 +49,7 @@ pub struct Standards {
     pub symbols: SymbolDrawings,
     /// The part categories (`catalog/categories.json`).
     pub categories: Categories,
+    pub pairs: crate::rules::signal::PairCatalog,
 }
 
 impl Standards {
@@ -61,7 +62,9 @@ impl Standards {
         generic: GenericGrammar,
         symbols: SymbolDrawings,
         categories: Categories,
+        pairs: crate::rules::signal::PairCatalog,
     ) -> Result<Self> {
+        pairs.check()?;
         categories.check()?;
         for family in &generic.families {
             if let Some(path) = &family.category
@@ -121,6 +124,7 @@ impl Standards {
             generic,
             symbols,
             categories,
+            pairs,
         })
     }
 }
@@ -999,7 +1003,11 @@ pub mod fixture {
             "catalog/categories.json",
             shipped!("catalog/categories.json"),
         )?;
-        Standards::new(fields, marking, generic, symbols, categories)
+        let pairs = parse(
+            "standards/differential-pairs.json",
+            shipped!("standards/differential-pairs.json"),
+        )?;
+        Standards::new(fields, marking, generic, symbols, categories, pairs)
     }
 }
 

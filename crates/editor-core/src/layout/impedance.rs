@@ -601,8 +601,31 @@ pub fn pair_gap_min(project: &Project) -> f64 {
 /// profile's track clearance. When a target cannot be met, the nearest
 /// value within the rules is given with a problem line.
 pub fn derive(project: &Project, class: Option<NetClassId>, layer: CopperLayer) -> Derived {
+    derive_with(project, class, layer, project.rules.signal(class))
+}
+
+/// The routing dimensions for a specific pair, including its confirmed target.
+pub fn derive_pair(
+    project: &Project,
+    pair: &crate::rules::signal::DiffPair,
+    layer: CopperLayer,
+) -> Derived {
+    let class = super::net_class(project, pair.positive);
+    derive_with(
+        project,
+        class,
+        layer,
+        pair.signal(project.rules.signal(class)),
+    )
+}
+
+fn derive_with(
+    project: &Project,
+    class: Option<NetClassId>,
+    layer: CopperLayer,
+    signal: crate::rules::signal::SignalRules,
+) -> Derived {
     let rules = &project.rules;
-    let signal = rules.signal(class);
     let class_def = class.and_then(|c| rules.class(c));
     let mut out = Derived {
         layer,
@@ -779,7 +802,10 @@ pub fn route_width_on(project: &Project, net: Id, layer: CopperLayer) -> f64 {
 /// profile's track clearance.
 pub fn pair_width_gap(project: &Project, positive: Id, layer: CopperLayer) -> (f64, f64) {
     let class = super::net_class(project, positive);
-    let derived = derive(project, class, layer);
+    let derived = project.rules.pair_of(positive).map_or_else(
+        || derive(project, class, layer),
+        |pair| derive_pair(project, pair, layer),
+    );
     if let (Some(w), Some(g)) = (derived.pair_width, derived.pair_gap) {
         return (w, g);
     }

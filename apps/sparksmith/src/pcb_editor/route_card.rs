@@ -153,7 +153,7 @@ impl PcbEditor {
                 };
                 kit::value_row(ui, "Pair", &format!("{} · {state}", pair.name));
             }
-            super::impedance_view::route_rows(ui, project, class_id, self.layer, self.width, pair);
+            super::impedance_view::route_rows(ui, project, net, self.layer, self.width, pair);
         }
         let rows = crate::keys::rows(ui.ctx(), &super::route_tool::route_key_table());
         kit::section(ui, "route-keys", "Keys", true, None, |ui| {

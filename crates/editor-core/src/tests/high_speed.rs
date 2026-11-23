@@ -129,6 +129,7 @@ fn usb(signal: SignalRules) -> Result<Usb> {
         &mut engine,
         Operation::Rules(RulesCommand::AddDiffPair {
             pair: DiffPairSpec {
+                target: None,
                 name: "USB_D".into(),
                 positive: nets[0],
                 negative: nets[1],
@@ -619,6 +620,118 @@ fn straight_pair_at_gap(usb: &Usb, width: f64, gap: f64) -> Result<Engine> {
 }
 
 #[test]
+fn suggested_target_is_reviewed_saved_and_checked_for_this_pair() -> Result<()> {
+    let mut usb = usb(SignalRules::default())?;
+    apply(
+        &mut usb.engine,
+        Operation::Rules(RulesCommand::DeleteDiffPair { pair: usb.pair }),
+    )?;
+    // Leave room to route the out-of-tolerance control above minimum width.
+    let mut class = usb.engine.project().rules.net_classes[0].clone();
+    class.diff_pair_gap = Some(0.6);
+    apply(
+        &mut usb.engine,
+        Operation::Rules(RulesCommand::EditNetClass { class }),
+    )?;
+    let previous = usb.engine.revision();
+    let QueryResult::PairSuggestions(rows) = usb.engine.query(Query::SuggestPairs {})? else {
+        return Err(Error::Invalid("suggestions".into()));
+    };
+    let row = rows
+        .into_iter()
+        .find(|s| s.positive == usb.nets[0])
+        .ok_or_else(|| Error::NotFound("USB suggestion".into()))?;
+    let offered = serde_json::to_value(&row).map_err(|e| Error::Invalid(e.to_string()))?;
+    assert_eq!(offered["target"]["ohms"], 90.0);
+    assert_eq!(offered["target"]["tolerance_pct"], 15.0);
+    assert_eq!(usb.engine.revision(), previous);
+    assert!(usb.engine.project().rules.diff_pairs.is_empty());
+    let mut invalid = row.pair_spec(true);
+    let target = invalid
+        .target
+        .as_mut()
+        .ok_or_else(|| Error::NotFound("USB target".into()))?;
+    target.source.clear();
+    let kept = Snapshot::of(&usb.engine);
+    assert!(
+        usb.engine
+            .apply(
+                previous,
+                Operation::Rules(RulesCommand::AddDiffPair { pair: invalid })
+            )
+            .is_err()
+    );
+    kept.assert_kept(&usb.engine, "target missing its source");
+    let Outcome::DiffPairAdded { pair } = apply(
+        &mut usb.engine,
+        Operation::Rules(RulesCommand::AddDiffPair {
+            pair: row.pair_spec(true),
+        }),
+    )?
+    else {
+        return Err(Error::Invalid("add pair".into()));
+    };
+    usb.pair = pair;
+    usb.engine.undo()?;
+    assert!(usb.engine.project().rules.diff_pairs.is_empty());
+    usb.engine.redo()?;
+    assert_eq!(
+        usb.engine.project().rules.net_classes[0].signal,
+        SignalRules::default()
+    );
+    let bytes = crate::format::encode(&usb.engine.to_file())?;
+    usb.engine = Engine::from_file(crate::format::decode(&bytes)?)?;
+    let pair = &usb.engine.project().rules.diff_pairs[0];
+    let saved = serde_json::to_value(pair).map_err(|e| Error::Invalid(e.to_string()))?;
+    assert_eq!(saved["target"], offered["target"]);
+    // A later class edit applies to the rest of the class. This pair keeps
+    // its accepted 90 Ω ±15 % for both routing and the coupled-line check.
+    let mut class = usb.engine.project().rules.net_classes[0].clone();
+    class.signal.diff_impedance = Some(100.0);
+    class.signal.impedance_tolerance = Some(1.0);
+    apply(
+        &mut usb.engine,
+        Operation::Rules(RulesCommand::EditNetClass { class }),
+    )?;
+    let (width, gap) =
+        layout::impedance::pair_width_gap(usb.engine.project(), usb.nets[0], CopperLayer::Top);
+    let line = layout::impedance::structure(&usb.engine.project().stackup, CopperLayer::Top)?;
+    assert!((line.structure.zdiff(width, gap, line.t) - 90.0).abs() < 0.01);
+    for (z, mismatch) in [(102.0, false), (106.0, true)] {
+        let width = line
+            .structure
+            .width_for_diff(z, gap, line.t)
+            .ok_or_else(|| Error::Invalid("test width".into()))?;
+        let engine = straight_pair_at_gap(&usb, nm(width).to_mm_f64(), gap)?;
+        let findings = layout::checks(engine.project(), engine.check_settings());
+        assert!(
+            !findings.iter().any(|f| f.code == "impedance.uncoupled"),
+            "{findings:?}"
+        );
+        let mismatches: Vec<_> = findings
+            .iter()
+            .filter(|f| f.code == "impedance.mismatch")
+            .collect();
+        assert_eq!(mismatches.len(), usize::from(mismatch), "{findings:?}");
+        assert!(
+            mismatches
+                .iter()
+                .all(|f| f.message.contains("90.0 Ω ± 15 %")),
+            "{findings:?}"
+        );
+    }
+    let engine = straight_pair_at_gap(&usb, nm(width).to_mm_f64(), 5.0)?;
+    let findings = layout::checks(engine.project(), engine.check_settings());
+    assert!(
+        findings.iter().any(|f| f.code == "impedance.uncoupled"
+            && f.message.contains("90 Ω")
+            && f.message.contains("20 mm of USB_D+")),
+        "{findings:?}"
+    );
+    Ok(())
+}
+
+#[test]
 fn impedance_names_the_uncoupled_length_without_an_uncoupled_limit() -> Result<()> {
     let mut usb = usb(SignalRules {
         diff_impedance: Some(90.0),
@@ -847,6 +960,7 @@ fn pairs_survive_the_file_round_trip_and_follow_undo() -> Result<()> {
         usb.engine.revision(),
         Operation::Rules(RulesCommand::AddDiffPair {
             pair: DiffPairSpec {
+                target: None,
                 name: "Ghost".into(),
                 positive: 9_999,
                 negative: usb.nets[0],

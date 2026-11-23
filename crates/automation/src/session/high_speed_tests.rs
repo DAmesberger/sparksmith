@@ -70,3 +70,49 @@ fn pairs_groups_and_impedance_travel_as_json() -> TestResult {
     assert_eq!(session.engine().revision(), revision);
     Ok(())
 }
+
+#[test]
+fn suggested_usb_target_can_be_reviewed_then_applied_over_stdio() -> TestResult {
+    let mut engine = Engine::demo()?;
+    let ids: Vec<_> = engine.project().nets.iter().take(2).map(|n| n.id).collect();
+    let [p, n] = ids[..] else {
+        return Err("fixture needs two nets".into());
+    };
+    for (net, name) in [(p, "USB_D+"), (n, "USB_D-")] {
+        engine.apply(
+            engine.revision(),
+            sparksmith_core::Operation::Schematic(
+                sparksmith_core::schematic::SchematicCommand::RenameNet {
+                    net,
+                    name: name.into(),
+                },
+            ),
+        )?;
+    }
+    let revision = engine.revision();
+    let mut session = Session::new(engine);
+    let reply = session.dispatch(query("diff_pair.suggest", json!({})));
+    let row = &reply["result"]["result"][0];
+    assert_eq!(row["positive"], p, "{reply}");
+    assert_eq!(row["negative"], n);
+    let target = &row["target"];
+    assert_eq!(target["ohms"], 90.0);
+    assert_eq!(target["tolerance_pct"], 15.0);
+    assert!(
+        target["source"]
+            .as_str()
+            .is_some_and(|s| s.contains("§5.3"))
+    );
+    assert!(session.engine().project().rules.diff_pairs.is_empty());
+    let reply = session.dispatch(json!({"command":"project.apply","params":{
+        "expected_revision":revision,"operation":{"editor":"Rules","operation":{
+            "command":"diff_pair.add","params":{"pair":{
+                "name":row["name"],"positive":p,"negative":n,"target":target
+            }}
+        }}
+    }}));
+    assert_eq!(reply["ok"], true, "{reply}");
+    let saved = &session.engine().project().rules.diff_pairs[0];
+    assert_eq!(&serde_json::to_value(&saved.target)?, target);
+    Ok(())
+}

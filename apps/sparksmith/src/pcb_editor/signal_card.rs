@@ -15,8 +15,8 @@ use sparksmith_core::layout::length::{self, LengthReport};
 use sparksmith_core::layout::length::{PairMeasured, PairRow, path};
 use sparksmith_core::rules::RulesCommand;
 use sparksmith_core::rules::signal::{
-    self, DiffPair, DiffPairId, DiffPairSpec, LengthGroup, LengthGroupId, LengthGroupSpec,
-    PairEndpoints,
+    DiffPair, DiffPairId, LengthGroup, LengthGroupId, LengthGroupSpec, PairEndpoints,
+    PairSuggestion, PairTarget,
 };
 use sparksmith_core::{Engine, Id, Operation, Project};
 use sparksmith_ui::ui_kit::{self, Button};
@@ -31,6 +31,8 @@ pub struct SignalCard {
     /// A number being typed, by field.
     staged: HashMap<egui::Id, f64>,
     nets_all: bool,
+    suggestions_all: bool,
+    suggestions: Vec<PairSuggestion>,
     /// The length report and the revision it is of.
     report: Option<(u64, LengthReport)>,
 }
@@ -65,6 +67,15 @@ impl PcbEditor {
         };
         let project = engine.project();
         if card.report.as_ref().map(|(r, _)| *r) != Some(engine.revision()) {
+            if let Some(ctx) = engine.context() {
+                card.suggestions = ctx.standards().pairs.suggest(
+                    &project.rules,
+                    project.nets.iter().map(|n| (n.id, n.name.as_str())),
+                );
+            } else {
+                card.suggestions.clear();
+            }
+
             card.report = Some((
                 engine.revision(),
                 length::report_with(project, &engine.copper_graph()),
@@ -188,7 +199,7 @@ fn body(
         let row = report.pairs.iter().find(|r| r.pair == pair.id);
         operation = pair_section(ui, project, pair, row).or(operation);
     }
-    let suggested = signal::suggest(rules, project.nets.iter().map(|n| (n.id, n.name.as_str())));
+    let suggested = &card.suggestions;
     if !suggested.is_empty() {
         kit::section(
             ui,
@@ -197,24 +208,39 @@ fn body(
             true,
             Some(suggested.len()),
             |ui| {
-                kit::list_frame(ui, suggested.len(), kit::LIST_MAX_ROWS, |ui, i| {
+                let max = if card.suggestions_all {
+                    suggested.len()
+                } else {
+                    kit::LIST_MAX_ROWS
+                };
+                let shown = kit::list_frame(ui, suggested.len(), max, |ui, i| {
                     let Some(s) = suggested.get(i) else {
                         return;
                     };
-                    let text = format!("{} + / − {}", s.positive_name, s.negative_name);
-                    kit::row(ui, &s.name, |ui| {
-                        if kit::summary_row(ui, &text, Some("Add")) {
-                            refusal::mark(ui.ctx(), Origin::Command);
-                            operation = Some(Operation::Rules(RulesCommand::AddDiffPair {
-                                pair: DiffPairSpec {
-                                    name: s.name.clone(),
-                                    positive: s.positive,
-                                    negative: s.negative,
-                                },
-                            }));
-                        }
-                    });
+                    let text = format!("{} / {}", s.positive_name, s.negative_name);
+                    let mut accepted = None;
+                    if let Some(target) = &s.target {
+                        kit::value_row(ui, &s.name, &text);
+                        target_rows(ui, target);
+                        kit::actions(ui, |ui| {
+                            if ui_kit::button(ui, "Add pair only", Button::Small).clicked() {
+                                accepted = Some(false);
+                            }
+                            if kit::primary(ui, "Add with target", true).clicked() {
+                                accepted = Some(true);
+                            }
+                        });
+                    } else if kit::row(ui, &s.name, |ui| kit::summary_row(ui, &text, Some("Add"))) {
+                        accepted = Some(false);
+                    }
+                    if let Some(with_target) = accepted {
+                        refusal::mark(ui.ctx(), Origin::Command);
+                        operation = Some(Operation::Rules(RulesCommand::AddDiffPair {
+                            pair: s.pair_spec(with_target),
+                        }));
+                    }
                 });
+                card.suggestions_all |= shown.show_all;
             },
         );
     }
@@ -326,6 +352,19 @@ fn body(
     (operation, lit)
 }
 
+/// The same citation accompanies the proposal and the saved pair.
+fn target_rows(ui: &mut Ui, target: &PairTarget) {
+    kit::value_row(
+        ui,
+        &target.interface,
+        &format!("{} Ω ± {} %", target.ohms, target.tolerance_pct),
+    );
+    kit::value_row(ui, "Source", &target.source);
+    if kit::action_row(ui, "Open source", &target.url) {
+        ui.ctx().open_url(egui::OpenUrl::new_tab(&target.url));
+    }
+}
+
 /// The selected pair: what its lengths measure, each half's path (from-pin,
 /// to-pin, length), the skew, the uncoupled length and its endpoints.
 fn pair_section(
@@ -336,6 +375,9 @@ fn pair_section(
 ) -> Option<Operation> {
     let mut edited: Option<Option<PairEndpoints>> = None;
     kit::section(ui, ("signal-pair", pair.id), &pair.name, true, None, |ui| {
+        if let Some(target) = &pair.target {
+            target_rows(ui, target);
+        }
         let Some(row) = row else {
             return;
         };

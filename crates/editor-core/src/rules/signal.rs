@@ -5,7 +5,7 @@
 //! them live here; the impedance model, pair geometry, length measurement
 //! and checks read them from `layout` (docs/high-speed-routing.md).
 //!
-//! A pair is never inferred: [`suggest`] proposes pairs from net names
+//! A pair is never inferred: [`PairCatalog::suggest`] proposes pairs from net names
 //! (`USB_D+`/`USB_D-`, `_P`/`_N`, `DP`/`DM`), and only `diff_pair.add`
 //! makes one.
 use super::{MAX_PROFILE_TEXT, ProjectRules, RulesCommand};
@@ -14,6 +14,9 @@ use crate::ids::{Endpoint, Id};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+
+mod suggestions;
+pub use suggestions::{PairCatalog, PairSuggestion, PairTarget};
 
 /// Single-ended impedance targets accepted, Ω.
 pub const IMPEDANCE_RANGE: std::ops::RangeInclusive<f64> = 10.0..=200.0;
@@ -137,9 +140,9 @@ pub struct DiffPairId(pub u32);
 pub struct LengthGroupId(pub u32);
 
 /// A differential pair: two distinct nets routed together, with an
-/// explicit polarity. Its width, gap, impedance and limits come from the
-/// positive net's class.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+/// explicit polarity. A confirmed target overrides the differential impedance
+/// and tolerance of the positive net's class for this pair alone.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct DiffPair {
     pub id: DiffPairId,
@@ -147,6 +150,9 @@ pub struct DiffPair {
     pub name: String,
     pub positive: Id,
     pub negative: Id,
+    /// Published differential impedance accepted for this pair.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<PairTarget>,
     /// Where the pair's signal path runs, for skew and uncoupled length;
     /// derived from the copper when unset (`layout::length::path`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -167,6 +173,16 @@ impl DiffPair {
         self.positive == net || self.negative == net
     }
 
+    /// All class rules still apply, with the accepted differential target and
+    /// tolerance taking precedence for this pair alone.
+    pub fn signal(&self, mut class_signal: SignalRules) -> SignalRules {
+        if let Some(target) = &self.target {
+            class_signal.diff_impedance = Some(target.ohms);
+            class_signal.impedance_tolerance = Some(target.tolerance_pct);
+        }
+        class_signal
+    }
+
     /// The other half of the pair from `net`.
     pub fn partner(&self, net: Id) -> Option<Id> {
         if net == self.positive {
@@ -180,12 +196,15 @@ impl DiffPair {
 }
 
 /// A new pair's values (`diff_pair.add`).
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct DiffPairSpec {
     pub name: String,
     pub positive: Id,
     pub negative: Id,
+    /// Published differential impedance accepted for this pair.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<PairTarget>,
 }
 
 /// Nets whose routed lengths must match. With a `target`, every member
@@ -262,6 +281,9 @@ pub(super) fn validate(rules: &ProjectRules) -> Result<()> {
     let mut names = BTreeSet::new();
     let mut halves = BTreeSet::new();
     for pair in &rules.diff_pairs {
+        if let Some(target) = &pair.target {
+            target.check()?;
+        }
         if !name_ok(&pair.name) {
             return Err(Error::Invalid(
                 "diff_pair.name: a pair needs a short, non-blank name".into(),
@@ -352,6 +374,7 @@ pub(super) fn apply(rules: &mut ProjectRules, command: RulesCommand) -> Result<O
                 name: pair.name,
                 positive: pair.positive,
                 negative: pair.negative,
+                target: pair.target,
                 endpoints: None,
             });
             return Ok(Some(Added::Pair(id)));
@@ -466,85 +489,6 @@ pub fn follow_nets(rules: &mut ProjectRules, merged: &[(Id, Id)], live: &BTreeSe
         .retain(|g| !g.nets.is_empty() || !g.pairs.is_empty());
 }
 
-/// A pair [`suggest`] proposes from two net names.
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct PairSuggestion {
-    /// The shared stem, such as `USB_D`.
-    pub name: String,
-    pub positive: Id,
-    pub negative: Id,
-    pub positive_name: String,
-    pub negative_name: String,
-}
-
-/// Name endings that mark the positive and negative halves of a pair,
-/// tried in order: `D+`/`D-`, `_P`/`_N`, `DP`/`DM` (USB), `P`/`N`.
-const SUFFIXES: [(&str, &str); 6] = [
-    ("+", "-"),
-    ("_P", "_N"),
-    ("_p", "_n"),
-    ("DP", "DM"),
-    ("P", "N"),
-    ("p", "n"),
-];
-
-/// Pairs proposed from net names (`(id, name)`): two nets whose names
-/// differ only in a positive and a negative ending ([`SUFFIXES`]) and that
-/// are in no pair yet. A suggestion is never applied by itself.
-pub fn suggest<'a>(
-    rules: &ProjectRules,
-    nets: impl IntoIterator<Item = (Id, &'a str)>,
-) -> Vec<PairSuggestion> {
-    let paired: BTreeSet<Id> = rules
-        .diff_pairs
-        .iter()
-        .flat_map(|p| [p.positive, p.negative])
-        .collect();
-    let by_name: BTreeMap<&str, Id> = nets
-        .into_iter()
-        .filter(|(id, _)| !paired.contains(id))
-        .map(|(id, name)| (name, id))
-        .collect();
-    let mut used = BTreeSet::new();
-    let mut out = Vec::new();
-    for (name, id) in &by_name {
-        if used.contains(id) {
-            continue;
-        }
-        for (plus, minus) in SUFFIXES {
-            let Some(stem) = name.strip_suffix(plus) else {
-                continue;
-            };
-            if stem.is_empty() {
-                continue;
-            }
-            let other = format!("{stem}{minus}");
-            let Some(negative) = by_name.get(other.as_str()).copied() else {
-                continue;
-            };
-            if negative == *id || used.contains(&negative) {
-                continue;
-            }
-            used.insert(*id);
-            used.insert(negative);
-            let stem = stem.trim_end_matches(['_', '-', '.']);
-            out.push(PairSuggestion {
-                name: if stem.is_empty() {
-                    (*name).to_owned()
-                } else {
-                    stem.to_owned()
-                },
-                positive: *id,
-                negative,
-                positive_name: (*name).to_owned(),
-                negative_name: other,
-            });
-            break;
-        }
-    }
-    out
-}
-
 impl ProjectRules {
     pub fn diff_pair(&self, id: DiffPairId) -> Option<&DiffPair> {
         self.diff_pairs.iter().find(|p| p.id == id)
@@ -586,9 +530,13 @@ mod tests {
     }
 
     #[test]
-    fn suggestions_pair_names_with_polarity_endings() {
+    fn suggestions_pair_names_with_polarity_endings() -> Result<()> {
+        let context = crate::library::standards::Context::fixture()?;
         let rules = ProjectRules::default();
-        let got: Vec<(String, Id, Id)> = suggest(&rules, names())
+        let got: Vec<(String, Id, Id)> = context
+            .standards()
+            .pairs
+            .suggest(&rules, names())
             .into_iter()
             .map(|s| (s.name, s.positive, s.negative))
             .collect();
@@ -600,6 +548,7 @@ mod tests {
                 ("USB_D".to_owned(), 1, 2),
             ]
         );
+        Ok(())
     }
 
     #[test]
@@ -609,13 +558,21 @@ mod tests {
             &mut rules,
             RulesCommand::AddDiffPair {
                 pair: DiffPairSpec {
+                    target: None,
                     name: "USB".into(),
                     positive: 1,
                     negative: 2,
                 },
             },
         )?;
-        assert!(suggest(&rules, names()).iter().all(|s| s.positive != 1));
+        assert!(
+            crate::library::standards::Context::fixture()?
+                .standards()
+                .pairs
+                .suggest(&rules, names())
+                .iter()
+                .all(|s| s.positive != 1)
+        );
         Ok(())
     }
 
@@ -626,6 +583,7 @@ mod tests {
             &mut rules,
             RulesCommand::AddDiffPair {
                 pair: DiffPairSpec {
+                    target: None,
                     name: "USB".into(),
                     positive: 1,
                     negative: 2,
@@ -642,6 +600,7 @@ mod tests {
                 &mut copy,
                 RulesCommand::AddDiffPair {
                     pair: DiffPairSpec {
+                        target: None,
                         name: name.into(),
                         positive,
                         negative,

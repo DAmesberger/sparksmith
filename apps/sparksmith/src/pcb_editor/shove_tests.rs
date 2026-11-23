@@ -249,6 +249,7 @@ fn a_held_pair_stays_and_the_preview_says_so() -> TestResult {
         engine.revision(),
         Operation::Rules(sparksmith_core::rules::RulesCommand::AddDiffPair {
             pair: sparksmith_core::rules::signal::DiffPairSpec {
+                target: None,
                 name: "USB".into(),
                 positive: OTHER,
                 negative: 1,

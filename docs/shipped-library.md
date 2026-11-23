@@ -22,7 +22,7 @@ If none is found, the message lists every folder searched and names the variable
 | Fabricators | `fabricators/` | Fabricator records the profiles name (`<id>.json`: id, name, website, source); a user's `fabricators/` folder adds or replaces them |
 | Stackups | `stackups/` | Layer stackups and their materials |
 | Materials | `materials/` | Body, board, finish and mask materials |
-| Standards | `standards/` | Published standards and conventions: preferred number series, marking codes, schematic symbol drawings (`symbols/`) |
+| Standards | `standards/` | Published standards and conventions: preferred number series, marking codes, schematic symbol drawings (`symbols/`), and differential pair names and sourced PCB impedance targets (`differential-pairs.json`) |
 | Standard fields | `standard-fields/` | Standard quantity fields, as a bundle `library.import` takes, and what each is for |
 | Catalog | `catalog/` | The part catalog's search vocabulary: the generic-part families, their patterns and defaults; the part categories by function and the designator prefixes that file a part under them (`categories.json`) |
 | Assist | `assist/` | Assistant run profiles and prompts; workflows, `workflows/<id>/` ([workflow format](workflow-format.md)) |

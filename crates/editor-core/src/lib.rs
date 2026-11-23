@@ -579,7 +579,7 @@ declare_entries!(Query in project {
     SheetScene "schematic.scene" Read "Sheet scene" [in schematic, link, returns(sheet_scene)],
     ImpedanceCalculate "impedance.calculate" Read "Calculate impedance" [in rules, returns(impedance)],
     ImpedanceTable "impedance.table" Read "Impedance table" [in rules, link, returns(impedance_table)],
-    SuggestPairs "diff_pair.suggest" Read "Suggest differential pairs" [in layout, link, returns(pair_suggestions)],
+    SuggestPairs "diff_pair.suggest" Read "Suggest differential pairs" [in layout, link, since(2, 9), returns(pair_suggestions)],
     LengthReport "layout.length_report" Read "Length report" [in layout, link, returns(length_report)],
     Pads "layout.pads" Read "List the pads to route between" [in layout, link, since(2, 1), returns(pads)],
     RoutePreview "layout.route_preview" Read "Preview a route" [in layout, link, returns(route_preview)],
@@ -2445,10 +2445,12 @@ impl Engine {
             ))),
             Query::SuggestPairs {} => {
                 let project = &self.document.project;
-                Ok(QueryResult::PairSuggestions(rules::signal::suggest(
-                    &project.rules,
-                    project.nets.iter().map(|n| (n.id, n.name.as_str())),
-                )))
+                Ok(QueryResult::PairSuggestions(
+                    library::standards::get()?.pairs.suggest(
+                        &project.rules,
+                        project.nets.iter().map(|n| (n.id, n.name.as_str())),
+                    ),
+                ))
             }
             Query::Pads { designators, net } => Ok(QueryResult::Pads(layout::pad_rows(
                 &self.document.project,
