@@ -126,7 +126,7 @@ fn centres(engine: &Engine, instance: Id) -> Vec<[f64; 2]> {
 
 #[test]
 fn typed_ties_in_released_copper_paste_cut_steps_and_assembly_csvs() -> Fallible<()> {
-    let mut engine = Engine::default();
+    let mut engine = Engine::profiled()?;
     let copper = tie_part(&mut engine, "Copper return", TieForm::Copper)?;
     let (nt, _) = place(&mut engine, &copper, "NT1", 1, [20., 10.])?;
     let jumper = |bridge| TieForm::SolderJumper {
