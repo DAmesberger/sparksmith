@@ -1,0 +1,1 @@
+The starting project is the original generic two-header adapter from the Sparksmith review at revision `8dea4ac3`. It was built from an empty project using the shipped header generators. The verifier reads the saved project and compares it with this fixture.

@@ -199,6 +199,19 @@ pub fn run_workflow(
     config.profile.check()?;
     let system = run::system_prompt(&config)?;
     let specs = run::tool_specs(&config.run_profile);
+    // Resolve every selected profile before the workflow opens a turn.
+    let mut step_harnesses = HashMap::new();
+    for step in workflow
+        .steps
+        .iter()
+        .filter(|step| step.kind == StepKind::Model)
+    {
+        let harness = config.harness_for(
+            workflow.harness_profile.as_deref(),
+            step.harness_profile.as_deref(),
+        )?;
+        step_harnesses.insert(step.id.clone(), harness);
+    }
     let lent = desk::with(desk, |session| {
         session.ensure_generators();
         (session.attach_documents(None), session.open_step(None))
@@ -209,6 +222,7 @@ pub fn run_workflow(
     let mut runner = Runner {
         loaded,
         config: &config,
+        step_harnesses,
         system,
         specs,
         context: ToolContext {
@@ -308,6 +322,7 @@ fn resolved(declared: &Value, filled: &Value) -> bool {
 struct Runner<'a, 's> {
     loaded: &'a Loaded,
     config: &'a RunConfig,
+    step_harnesses: HashMap<String, crate::harness::HarnessProfile>,
     system: String,
     specs: Vec<crate::model::ToolSpec>,
     context: ToolContext<'s>,
@@ -887,8 +902,15 @@ impl Runner<'_, '_> {
             session.open_step(Some(open));
         });
         let estimate = run::first_estimate(&self.system, &self.specs, 0)
-            .saturating_add((brief.len() as u64).div_ceil(3));
+            .saturating_add(crate::usage::estimated_tokens(brief.len() as u64));
+        let Some(harness) = self.step_harnesses.get(&step.id) else {
+            return Next::End(RunEnd::Failed {
+                step: step.id.clone(),
+                why: "missing harness profile".into(),
+            });
+        };
         let conversation = Conversation {
+            harness,
             system: &self.system,
             specs: &self.specs,
             messages: vec![Message {

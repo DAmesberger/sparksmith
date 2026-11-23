@@ -39,7 +39,7 @@ pub struct Policy {
     pub keep_rounds: usize,
     /// A reply at least this long is cleared once it is older.
     pub bulky_chars: usize,
-    /// Older bulky replies are cleared together once they add up to this.
+    /// Older bulky replies are cleared together once their JSON strings occupy this many bytes.
     pub batch_chars: usize,
     /// Condense when the prompt passes this share of the context.
     pub trigger: f64,
@@ -56,27 +56,6 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// The chat's policy.
-    pub const CHAT: Self = Self {
-        reply_chars: 12_000,
-        keep_rounds: 2,
-        bulky_chars: 1_500,
-        // Measured on the scripted board build (board_chat): clearing at
-        // 12 000 rather than 18 000 sends 11 % fewer prompt tokens and 17 %
-        // fewer that a prompt cache cannot serve, since each clear comes
-        // while less sits after it.
-        batch_chars: 12_000,
-        trigger: 0.70,
-        target: 0.35,
-        // E2E run 13: on a 1 000 000-token model the 70 % trigger never
-        // came, and each request re-sent about 80 000 tokens of earlier
-        // turns. Condense at 56 000, down to 28 000.
-        window_tokens: 80_000,
-        // The same run read the project 8 times for 791 000 tokens and
-        // changed nothing.
-        nudge_tokens: 250_000,
-    };
-
     /// Nothing shortened or cleared: the conversation as it grew (what the
     /// chat did before K1), for comparisons.
     pub const KEEP_ALL: Self = Self {
@@ -113,6 +92,45 @@ pub struct Condensed {
 // ---------------------------------------------------------------------------
 // Shortening one reply
 
+/// Catalog pages already have server-side pagination. Keep their contracts
+/// and approvals whole when a profile shortens other tool replies.
+pub(crate) fn reply_text(verb: &str, args: &Value, mut value: Value, budget: usize) -> String {
+    match verb {
+        crate::verbs::DESCRIBE => complete_permissions(&mut value),
+        crate::verbs::FIND => {}
+        crate::verbs::QUERY if args["name"] == "project.schema" => {
+            if let Some(entries) = value.get_mut("matches").and_then(Value::as_array_mut) {
+                for entry in entries {
+                    complete_permissions(entry);
+                }
+            }
+        }
+        _ => return shrink(&value, budget),
+    }
+    value.to_string()
+}
+
+/// Older full contracts omit some gate metadata. Show the catalog's own
+/// declarations on those model-facing views, leaving definition pages and
+/// ordinary tool results alone.
+fn complete_permissions(entry: &mut Value) {
+    if entry.get("schema").is_none() || entry.get("class").is_none() || entry.get("reach").is_some()
+    {
+        return;
+    }
+    let Some(meta) = entry["name"]
+        .as_str()
+        .and_then(sparksmith_automation::session::metadata::find)
+    else {
+        return;
+    };
+    entry["person"] = serde_json::json!(meta.person);
+    entry["reach"] = serde_json::json!(meta.reach.iter().collect::<Vec<_>>());
+    if meta.takes_path {
+        entry["asks_with_path"] = Value::Bool(true);
+    }
+}
+
 /// `value` as text of at most `budget` characters: as it is when it fits,
 /// else shortened as JSON, saying so.
 pub fn shrink(value: &Value, budget: usize) -> String {
@@ -144,13 +162,22 @@ pub fn shrink(value: &Value, budget: usize) -> String {
             return text;
         }
     }
+    const NOTE: &str =
+        "… [cut: the reply exceeded the chat's reply limit; ask for a narrower view]";
+    let (prefix_bytes, suffix) = if budget >= NOTE.len() {
+        (budget.saturating_sub(200), NOTE)
+    } else {
+        // Preserve a prefix even when the profile leaves room only for an ellipsis.
+        let marker = match budget {
+            0 => "",
+            1 | 2 => ".",
+            _ => "…",
+        };
+        (budget - marker.len(), marker)
+    };
     let mut text = whole;
-    let mut end = budget.saturating_sub(200).min(text.len());
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    text.truncate(end);
-    text.push_str("… [cut: the reply exceeded the chat's reply limit; ask for a narrower view]");
+    text.truncate(text.floor_char_boundary(prefix_bytes));
+    text.push_str(suffix);
     text
 }
 
@@ -321,24 +348,39 @@ fn clear_before(
     (count, saved)
 }
 
+/// Bytes that a plain UTF-8 string occupies in the request JSON,
+/// including its quotes. Count escapes without allocating another string.
+fn json_string_bytes(text: &str) -> usize {
+    text.bytes().fold(2usize, |bytes, byte| {
+        let encoded = match byte {
+            b'"' | b'\\' | b'\n' | b'\r' | b'\t' | 0x08 | 0x0c => 2,
+            0x00..=0x1f => 6,
+            _ => 1,
+        };
+        bytes.saturating_add(encoded)
+    })
+}
+
 /// Clear older bulky replies once enough have piled up: how many were
 /// cleared (0 when they were left).
 pub fn clear_settled(history: &mut [Message], policy: &Policy) -> usize {
     let from = kept_from(history, policy.keep_rounds);
-    let piled: usize = history
+    let mut piled = 0usize;
+    let batch_ready = history
         .iter()
         .take(from)
         .flat_map(|m| &m.content)
-        .filter_map(|p| match p {
-            Part::ToolResult { text, .. }
-                if !text.starts_with(STUB) && text.len() >= policy.bulky_chars =>
-            {
-                Some(text.len())
+        .any(|part| {
+            let Part::ToolResult { text, .. } = part else {
+                return false;
+            };
+            if text.len() < policy.bulky_chars || text.starts_with(STUB) {
+                return false;
             }
-            _ => None,
-        })
-        .sum();
-    if piled < policy.batch_chars {
+            piled = piled.saturating_add(json_string_bytes(text));
+            piled >= policy.batch_chars
+        });
+    if !batch_ready {
         return 0;
     }
     clear_before(history, from, |text| text.len() >= policy.bulky_chars).0

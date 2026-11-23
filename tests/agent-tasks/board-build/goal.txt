@@ -1,0 +1,3 @@
+The window shows: {"workspace": "schematic"}
+
+Build a small board: a 2-pin header powers a red 0603 LED through a 4.7k 0603 resistor. Put them on the schematic, update the PCB, place them close together, route every net, pour GND on the bottom and check it.

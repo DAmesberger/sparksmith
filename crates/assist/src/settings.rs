@@ -98,6 +98,8 @@ pub struct EndpointSetting {
     /// The API's base URL; the keychain keeps its key under it.
     pub base_url: String,
     pub model: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness_profile: Option<String>,
     /// Longest wait for one response.
     pub timeout_minutes: u32,
     /// What the model can do, declared; an OpenAI-compatible endpoint
@@ -139,6 +141,7 @@ impl EndpointSetting {
                 p
             }
         };
+        profile.harness_profile.clone_from(&self.harness_profile);
         profile.request_timeout = Duration::from_secs(u64::from(self.timeout_minutes) * 60);
         Ok(profile)
     }
@@ -151,6 +154,13 @@ impl EndpointSetting {
 
     fn check(&self) -> std::result::Result<(), String> {
         check_name(&self.name)?;
+        if self
+            .harness_profile
+            .as_deref()
+            .is_some_and(|name| !crate::profile::valid_name(name))
+        {
+            return Err("harness_profile: invalid harness profile name".into());
+        }
         self.endpoint().map_err(|e| e.to_string())?;
         let model = self.model.trim();
         if model.is_empty() || model.len() > MAX_MODEL || model.chars().any(char::is_control) {

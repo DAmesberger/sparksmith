@@ -36,6 +36,7 @@ const USAGE: &str = concat!(
                                    not a model; every class runs (settings, library
                                    sources, any path), as at the command line
   mcp [--permission-mode MODE] [--allow-folder DIR]... [FILE.sparksmith]
+      [--bench-trace NEW_FILE [--bench-detail input|full]]
                                    MCP server on stdio (protocol 2026-07-28), always
                                    gated: the mode (ask-every-time, auto-allow-edits
                                    by default, allow-all) decides what runs, paths are
@@ -164,6 +165,8 @@ struct McpOptions {
     operator: bool,
     folders: Vec<String>,
     project: Option<String>,
+    bench_trace: Option<std::path::PathBuf>,
+    bench_detail: Option<session::SchemaDetail>,
 }
 
 impl McpOptions {
@@ -180,12 +183,21 @@ impl McpOptions {
                     options.mode = Some(value("--permission-mode")?.parse::<Mode>()?);
                 }
                 "--allow-folder" => options.folders.push(value("--allow-folder")?.clone()),
+                "--bench-trace" => options.bench_trace = Some(value("--bench-trace")?.into()),
+                "--bench-detail" => {
+                    options.bench_detail = Some(serde_json::from_value(serde_json::json!(value(
+                        "--bench-detail"
+                    )?))?)
+                }
                 "--operator" => options.operator = true,
                 other if other.starts_with("--") || options.project.is_some() => {
                     return Err(format!("unexpected argument {other}\n{USAGE}").into());
                 }
                 _ => options.project = Some(arg.clone()),
             }
+        }
+        if options.bench_detail.is_some() && options.bench_trace.is_none() {
+            return Err("--bench-detail requires --bench-trace".into());
         }
         if options.operator && (options.mode.is_some() || !options.folders.is_empty()) {
             return Err(format!(
@@ -215,6 +227,9 @@ impl McpOptions {
     /// The gate for `stdio`: [`McpOptions::policy`], as for `mcp`, unless
     /// `--operator` names the person's own script.
     fn stdio_policy(&self) -> Result<Option<Grant>> {
+        if self.bench_trace.is_some() {
+            return Err("--bench-trace is available for mcp".into());
+        }
         if self.operator {
             Ok(None)
         } else {
@@ -274,6 +289,12 @@ fn run() -> Result<()> {
             };
             let server =
                 mcp::Server::with_new_projects(session, options.policy()?, Box::new(new_session))?;
+            let server = match options.bench_trace {
+                Some(path) => {
+                    server.with_bench_trace(&path, options.bench_detail.unwrap_or_default())?
+                }
+                None => server,
+            };
             Ok(server.serve_stdio()?)
         }
         [command, path, rest @ ..]

@@ -1069,7 +1069,7 @@ fn sessions_answer_with_their_own_context() -> TestResult {
 fn describe_exposes_the_wire_reply_for_a_query() -> TestResult {
     let mut session = Session::new(Engine::demo()?);
     let description = session.dispatch(json!({
-        "command": "project.schema", "params": {"name": "project.issues"}
+        "command": "project.schema", "params": {"name": "project.issues", "detail":"full"}
     }));
     let reply = session.dispatch(json!({
         "command": "project.query", "params": {"query": "project.issues", "params": {"scope": {"kind": "all"}}}
@@ -1125,6 +1125,7 @@ fn describes_a_paged_reply_definition_from_its_own_schema() -> TestResult {
         discovery::schema_reply(SchemaParams {
             name: Some("project.apply".into()),
             def,
+            detail: SchemaDetail::Full,
         })
     };
     let response = describe(None)?;
@@ -1140,5 +1141,58 @@ fn describes_a_paged_reply_definition_from_its_own_schema() -> TestResult {
         .ok_or("missing reply definition prefix")?;
     let full = discovery::result_schema("project.apply").ok_or("missing apply contract")?;
     assert_eq!(page["schema"], full["$defs"][key]);
+    Ok(())
+}
+
+#[test]
+fn raw_input_view_uses_a_resolvable_reply_reference() -> TestResult {
+    let mut session = Session::default();
+    let name = "library.publish";
+    let mut describe =
+        |params| session.dispatch(json!({"command":"project.schema","params":params}));
+    let input = describe(json!({"name":name}));
+    let input = &input["result"]["matches"][0];
+    let reference = input["reply"]["$ref"]
+        .as_str()
+        .ok_or("no reply reference")?;
+    let full = describe(input["full"].clone());
+    let page = describe(json!({"name":name,"def":reference}));
+    assert_eq!(page["ok"], true, "{page}");
+    assert_eq!(
+        page["result"]["schema"],
+        full["result"]["matches"][0]["reply"]
+    );
+    let wrong = describe(json!({"name":"project.undo","def":reference}));
+    assert_eq!(wrong["ok"], false);
+    let contract = discovery::result_schema("project.schema").ok_or("discovery schema")?;
+    assert!(
+        jsonschema::draft202012::new(contract)?.is_valid(&json!({"name":name,"matches":[input]}))
+    );
+    Ok(())
+}
+
+#[test]
+fn input_definitions_can_be_read_from_their_advertised_pages() -> TestResult {
+    let read = |def| {
+        discovery::schema_reply(SchemaParams {
+            name: Some("project.apply".into()),
+            def,
+            ..SchemaParams::default()
+        })
+    };
+    let response = read(None)?;
+    let page = &response["matches"][0];
+    let names = page["more_defs"]
+        .as_array()
+        .ok_or("project.apply input exceeds one page")?;
+    let entry = discovery::entries()
+        .iter()
+        .find(|entry| entry.name == "project.apply")
+        .ok_or("missing project.apply")?;
+    for key in names {
+        let key = key.as_str().ok_or("non-string page key")?;
+        let def = read(Some(key.to_owned()))?;
+        assert_eq!(def["schema"], entry.root["$defs"][key], "{key}");
+    }
     Ok(())
 }

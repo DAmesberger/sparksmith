@@ -761,8 +761,8 @@ fn a_model_adds_a_library_source_only_when_a_person_allows_it() -> Fallible {
 /// I-A1: the server instructions never tell a model to call a request,
 /// operation or query of the Never class, which every model is refused.
 #[test]
-fn the_instructions_name_no_never_class_command() {
-    let instructions = crate::mcp::instructions(true);
+fn the_instructions_name_no_never_class_command() -> Fallible {
+    let instructions = crate::mcp::instructions(true)?;
     let never = Request::ENTRIES
         .iter()
         .chain(Operation::entries())
@@ -777,4 +777,5 @@ fn the_instructions_name_no_never_class_command() {
             "the instructions name {name}, which is never run for a model"
         );
     }
+    Ok(())
 }

@@ -6952,6 +6952,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparksmith-agent-bench"
+version = "0.1.0"
+dependencies = [
+ "rmcp",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sparksmith-assist",
+ "sparksmith-automation",
+ "sparksmith-core",
+ "sparksmith-io",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "sparksmith-assist"
 version = "0.1.0"
 dependencies = [
@@ -6963,6 +6979,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "serde_path_to_error",
  "sha2 0.10.9",
  "sparksmith-automation",
  "sparksmith-core",
@@ -7705,6 +7722,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

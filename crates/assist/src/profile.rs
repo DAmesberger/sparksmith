@@ -28,9 +28,10 @@ pub const PROFILE_FORMAT: u32 = 1;
 pub const USER_FOLDER: &str = "assist-profiles";
 /// The profile of a model that has none of its own.
 pub const DEFAULT_PROFILE: &str = "default";
-const MAX_FILE_BYTES: u64 = 256 * 1024;
+pub(crate) const MAX_FILE_BYTES: u64 = 256 * 1024;
 const MAX_PROMPT_CHARS: usize = 64 * 1024;
-const MAX_NAME: usize = 64;
+use sparksmith_automation::workflow::MAX_PROFILE_NAME as MAX_NAME;
+pub(crate) use sparksmith_automation::workflow::valid_profile_name as valid_name;
 const MAX_MODELS: usize = 32;
 /// The shipped assistant settings, in the library's `assist/` folder.
 pub const SETTINGS_FILE: &str = "assist.json";
@@ -62,27 +63,12 @@ pub enum SystemPrompt {
     Replace(Vec<String>),
 }
 
-/// How the loop reacts, where a model needs something other than the
-/// default.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// An older run profile can override the refusal threshold.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Harness {
-    /// The same refused call (same tool, same input) this many times ends
-    /// the run with the reason; the model is told from the second time.
-    #[serde(default = "default_repeat_limit")]
-    pub repeat_limit: u32,
-}
-
-fn default_repeat_limit() -> u32 {
-    3
-}
-
-impl Default for Harness {
-    fn default() -> Self {
-        Self {
-            repeat_limit: default_repeat_limit(),
-        }
-    }
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repeat_limit: Option<u32>,
 }
 
 /// One model's run profile, as stored.
@@ -101,6 +87,8 @@ pub struct RunProfile {
     pub omit_tools: Vec<String>,
     #[serde(default)]
     pub harness: Harness,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub harness_profile: Option<String>,
     /// The Messages API may answer from its default model when a model in
     /// `models` declines; for no other model.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -116,6 +104,7 @@ impl Default for RunProfile {
             system: SystemPrompt::Base,
             omit_tools: Vec::new(),
             harness: Harness::default(),
+            harness_profile: None,
             server_fallback: false,
         }
     }
@@ -183,7 +172,18 @@ impl RunProfile {
                 );
             }
         }
-        if !(2..=20).contains(&self.harness.repeat_limit) {
+        if self
+            .harness_profile
+            .as_deref()
+            .is_some_and(|name| !valid_name(name))
+        {
+            return Err("harness_profile: invalid profile name".into());
+        }
+        if self
+            .harness
+            .repeat_limit
+            .is_some_and(|n| !(2..=20).contains(&n))
+        {
             return Err("harness.repeat_limit: from 2 to 20".into());
         }
         if self.server_fallback && self.models.is_empty() {
@@ -215,14 +215,6 @@ impl RunProfile {
     }
 }
 
-fn valid_name(name: &str) -> bool {
-    !name.is_empty()
-        && name.len() <= MAX_NAME
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b))
-}
-
 /// `assist/assist.json`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -232,12 +224,14 @@ struct Settings {
     #[allow(dead_code, reason = "a note for the person reading the file")]
     about: String,
     default_model: String,
+    default_harness: String,
 }
 
 /// What ships for the assistant: the base system prompt, the default model
 /// and the built-in run profiles, read from the shipped library.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssistLibrary {
+    pub(crate) harnesses: crate::harness::HarnessLibrary,
     /// The base system prompt, with the program's name filled in.
     pub system: String,
     /// The model a run uses when none is named.
@@ -280,6 +274,12 @@ impl AssistLibrary {
         if settings.default_model.trim().is_empty() || settings.default_model.len() > 200 {
             return Err(Error::Config(format!(
                 "{}: default_model must be a model id",
+                settings_path.display()
+            )));
+        }
+        if !valid_name(&settings.default_harness) {
+            return Err(Error::Config(format!(
+                "{}: default_harness is not a valid profile name",
                 settings_path.display()
             )));
         }
@@ -327,6 +327,11 @@ impl AssistLibrary {
         }
         Ok(Self {
             system,
+            harnesses: crate::harness::HarnessLibrary {
+                shipped: shipped.clone(),
+                default: settings.default_harness,
+                user_folder: None,
+            },
             default_model: settings.default_model,
             built_in,
             reach,
@@ -495,21 +500,26 @@ pub fn user_folder(config: &Path) -> PathBuf {
     config.join(USER_FOLDER)
 }
 
-/// Read and check the profile file `path` (a user's or a built-in).
-pub fn read_file(path: &Path) -> Result<RunProfile> {
+/// Read bounded UTF-8 text from a profile file.
+pub(crate) fn bounded_text(path: &Path, max: u64) -> Result<String> {
     use std::io::Read as _;
     let origin = path.display().to_string();
     let mut text = String::new();
     std::fs::File::open(path)
-        .map_err(|e| Error::Config(format!("run profile {origin}: {e}")))?
-        .take(MAX_FILE_BYTES + 1)
+        .map_err(|e| Error::Config(format!("{origin}: {e}")))?
+        .take(max + 1)
         .read_to_string(&mut text)
-        .map_err(|e| Error::Config(format!("run profile {origin}: {e}")))?;
-    if text.len() as u64 > MAX_FILE_BYTES {
-        return Err(Error::Config(format!(
-            "run profile {origin}: larger than {MAX_FILE_BYTES} bytes"
-        )));
+        .map_err(|e| Error::Config(format!("{origin}: {e}")))?;
+    if text.len() as u64 > max {
+        return Err(Error::Config(format!("{origin}: larger than {max} bytes")));
     }
+    Ok(text)
+}
+
+/// Read and check the user's or the installed run profile at `path`.
+pub fn read_file(path: &Path) -> Result<RunProfile> {
+    let origin = path.display().to_string();
+    let text = bounded_text(path, MAX_FILE_BYTES)?;
     let profile = RunProfile::parse(&text, &origin)?;
     let stem = path.file_stem().map(|s| s.to_string_lossy().into_owned());
     if stem.as_deref() != Some(profile.name.as_str()) {
@@ -602,7 +612,17 @@ mod tests {
         assert!(error.to_string().contains(SETTINGS_FILE), "{error}");
         std::fs::write(
             assist.join(SETTINGS_FILE),
-            r#"{"format": 1, "default_model": "m"}"#,
+            r#"{"format":1,"default_model":"m","default_harness":"../bad"}"#,
+        )?;
+        let error = AssistLibrary::load(&shipped).err().ok_or("refused")?;
+        assert!(
+            error.to_string().contains(SETTINGS_FILE)
+                && error.to_string().contains("default_harness"),
+            "{error}"
+        );
+        std::fs::write(
+            assist.join(SETTINGS_FILE),
+            r#"{"format": 1, "default_model": "m", "default_harness":"test"}"#,
         )?;
         let error = AssistLibrary::load(&shipped).err().ok_or("refused")?;
         assert!(error.to_string().contains(PROMPT_FILE), "{error}");

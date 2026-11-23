@@ -1,0 +1,1 @@
+This is an unattended evaluation on a fresh generic project. Go ahead without stopping for plan or stage reviews. Use the granted tools to build and check the board.

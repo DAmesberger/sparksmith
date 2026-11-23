@@ -185,7 +185,7 @@ pub fn reach(decl: Option<&EntryDecl>, takes_path: bool) -> Reaches {
     }
 }
 
-fn meta(entry: &Entry) -> EntryMeta {
+pub(super) fn meta(entry: &Entry) -> EntryMeta {
     let decl = entry.decl;
     let kind = kind(entry.class, entry.takes_path);
     let reach = reach(decl, entry.takes_path);

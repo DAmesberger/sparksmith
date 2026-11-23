@@ -1,0 +1,1 @@
+This server edits the project open in the person's {product} window. They see each change and can undo it. If they are typing, dragging or using a dialog, wait and read the revision again. Opening, saving and starting projects are theirs.

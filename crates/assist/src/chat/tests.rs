@@ -76,13 +76,13 @@ fn calls(parts: Vec<Part>) -> ModelReply {
     reply(parts, StopReason::ToolCalls)
 }
 
-fn config() -> Fallible<ChatConfig> {
+pub(super) fn config() -> Fallible<ChatConfig> {
     let library = ChatLibrary::locate()?;
     Ok(ChatConfig::new(
         &library,
         crate::model::ModelProfile::openai_compatible("scripted", 32_768),
         Budget::default(),
-    ))
+    )?)
 }
 
 fn summary_history() -> Vec<Message> {
@@ -352,6 +352,66 @@ fn an_answer_without_tools_ends_the_turn_and_the_history_keeps_both_sides() -> F
     assert!(tools.calls.is_empty());
     assert!(matches!(events.first(), Some(Event::Request { n: 1, .. })));
     assert!(events.contains(&Event::Text("The board has 4 layers.".into())));
+    Ok(())
+}
+
+#[test]
+fn a_zero_nudge_allowance_follows_each_metered_read_but_resets_on_an_edit() -> Fallible {
+    let mut config = config()?;
+    config.policy.nudge_tokens = 0;
+    let mut model = Script::new([
+        calls(vec![call(
+            "read",
+            "query",
+            json!({"name":"project.issues"}),
+        )]),
+        calls(vec![call("edit", "apply", json!({"operations":[]}))]),
+        calls(vec![call(
+            "read2",
+            "query",
+            json!({"name":"project.issues"}),
+        )]),
+        text("Done."),
+    ]);
+    let mut tools = Recorder {
+        calls: Vec::new(),
+        answer: |_: &str, _: &Value| ok(json!({})),
+    };
+    let mut nudges = Vec::new();
+    let mut history = Vec::new();
+    let outcome = turn(
+        &config,
+        &mut model,
+        &mut history,
+        vec![Part::text("Check, edit, then check.")],
+        &mut tools,
+        &mut |event| {
+            if let Event::Nudged { tokens, .. } = event {
+                nudges.push(tokens);
+            }
+        },
+        &AtomicBool::new(false),
+    );
+    assert_eq!(outcome.end, End::Answered);
+    assert_eq!(nudges, [110, 110]);
+    let nudged_after: Vec<_> = history
+        .iter()
+        .filter_map(|message| {
+            if message
+                .content
+                .iter()
+                .any(|p| matches!(p, Part::Text {text,..} if text == &config.nudge))
+            {
+                message.content.iter().find_map(|p| match p {
+                    Part::ToolResult { call_id, .. } => Some(call_id.as_str()),
+                    _ => None,
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(nudged_after, ["read", "read2"]);
     Ok(())
 }
 
@@ -643,3 +703,14 @@ mod board_trace;
 
 #[path = "board_chat.rs"]
 mod board_chat;
+
+#[test]
+fn chat_and_mcp_share_one_copy_of_the_method() -> Fallible {
+    let library = ShippedLibrary::locate()?;
+    let method = sparksmith_automation::mcp::agent_method(&library)?;
+    let chat = ChatLibrary::load(&library)?;
+    assert_eq!(chat.system.matches(&method).count(), 1);
+    assert_eq!(sparksmith_automation::mcp::instructions(false)?, method);
+    assert!(sparksmith_automation::mcp::instructions(true)?.starts_with(&method));
+    Ok(())
+}

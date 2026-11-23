@@ -100,6 +100,15 @@ pub struct InspectParams {
     pub at: Option<String>,
 }
 
+/// How much of a named catalog contract to return.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SchemaDetail {
+    #[default]
+    Input,
+    Full,
+}
+
 /// Which schema `project.schema` returns.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -111,6 +120,8 @@ pub struct SchemaParams {
     /// A key listed in `more_defs` or `reply.more_defs`, including its prefix.
     #[serde(default)]
     pub def: Option<String>,
+    #[serde(default)]
+    pub detail: SchemaDetail,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -568,7 +579,7 @@ declare_requests! {
     Apply "project.apply" Edit "Apply an operation",
     ApplyAll "project.apply_all" Edit "Apply operations as one step",
     Inspect "project.inspect" Read "Inspect the project" [link],
-    Schema "project.schema" Read "Look up a schema" [link],
+    Schema "project.schema" Read "Look up a schema" [link, since(7, 23)],
     Query "project.query" Read "Run a query" [link],
     Undo "project.undo" Edit "Undo",
     Redo "project.redo" Edit "Redo",
@@ -2328,7 +2339,7 @@ pub(crate) mod rebase;
 mod replace;
 mod reply;
 mod reply_schema;
-mod schema_walk;
+pub(crate) mod schema_walk;
 pub use reply::difference;
 pub mod shipped_parts;
 pub mod surface;

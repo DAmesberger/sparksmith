@@ -1,0 +1,24 @@
+[package]
+name = "sparksmith-agent-bench"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+sparksmith-assist = { workspace = true, features = ["test-fixtures"] }
+sparksmith-automation.workspace = true
+sparksmith-core.workspace = true
+sparksmith-io.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+rmcp = { workspace = true, features = ["client","transport-io"] }
+tokio = { workspace = true, features = ["rt","time","io-util","process"] }
+
+[dev-dependencies]
+tempfile.workspace = true

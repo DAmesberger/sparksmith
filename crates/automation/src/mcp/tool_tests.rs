@@ -325,9 +325,17 @@ fn find_and_describe_reach_the_catalog() -> Fallible<()> {
             .ok(DESCRIBE, json!({"name": "library.pinout_apply"}))
             .await?;
         assert_eq!(reviewed["person"], "review");
+        assert_eq!(reviewed["class"], "edit");
         let save = c.ok(DESCRIBE, json!({"name": "project.save"})).await?;
         assert_eq!(save["call"]["tool"], ACT);
         assert_eq!(save["person"], "approval");
+        assert_eq!(save["asks_with_path"], true);
+        assert!(
+            save["reach"]
+                .as_array()
+                .is_some_and(|reach| reach.contains(&json!("files"))),
+            "{save}"
+        );
 
         // A definition the reply names apart is read with def.
         let pinout = c
@@ -883,14 +891,16 @@ fn no_describe_answers_with_a_bare_top_level_ref() -> Fallible<()> {
 }
 
 #[test]
-fn every_describe_example_is_what_apply_and_query_accept() -> Fallible<()> {
+fn every_describe_example_passes_the_field_check_and_typed_reader() -> Fallible<()> {
     let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
     let mut examples = 0;
     for entry in super::catalog::reachable() {
         let sent = match entry.kind {
             Some(crate::session::metadata::Kind::Operation) => super::fields::Sent::Apply,
             Some(crate::session::metadata::Kind::Query) => super::fields::Sent::Query,
-            _ => continue,
+            Some(crate::session::metadata::Kind::Action) => super::fields::Sent::Act,
+            Some(crate::session::metadata::Kind::Show) => super::fields::Sent::Show,
+            None => return Err(format!("unreachable entry {}", entry.name).into()),
         };
         let name = entry.name.as_str();
         let described = tools.ok(DESCRIBE, json!({"name": name}))?;
@@ -1004,14 +1014,19 @@ fn describe_binds_one_mcp_operation_to_its_batch_reply() -> Fallible<()> {
     let dir = tempfile::tempdir()?;
     block_on(async move {
         let c = Connection::open(Mode::AutoAllowEdits, dir.path()).await?;
-        let described = c.ok(DESCRIBE, json!({"name":"project.rename"})).await?;
+        let described = c
+            .ok(DESCRIBE, json!({"name":"project.rename","detail":"full"}))
+            .await?;
         assert_eq!(described["call_reply_entry"], "project.apply_all");
         assert_eq!(
             described["reply"]["properties"]["outcome"]["properties"]["outcome"]["const"],
             "none"
         );
         let batch = c
-            .ok(DESCRIBE, json!({"name":described["call_reply_entry"]}))
+            .ok(
+                DESCRIBE,
+                json!({"name":described["call_reply_entry"],"detail":"full"}),
+            )
             .await?;
         assert!(batch["reply"]["properties"]["outcomes"].is_object());
         let inspect = c.ok(QUERY, json!({"name":"project.inspect"})).await?;
@@ -1040,4 +1055,157 @@ fn describe_binds_one_mcp_operation_to_its_batch_reply() -> Fallible<()> {
         assert!(jsonschema::draft202012::new(full)?.is_valid(&reply));
         c.close().await
     })?
+}
+
+/// Model-facing compact contracts must keep the permission facts and the
+/// input schema, including every definition advertised on this page.
+#[test]
+fn input_descriptions_keep_permissions_and_fit_the_catalog_budget() -> Fallible<()> {
+    let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
+    let mut sizes = Vec::new();
+    let mut measured = std::collections::BTreeMap::new();
+    for entry in super::catalog::reachable() {
+        let name = entry.name.as_str();
+        let input = tools.ok(DESCRIBE, json!({"name": name}))?;
+        assert!(input.get("reply").is_none(), "{name} defaults to input");
+        assert_eq!(
+            input,
+            tools.ok(DESCRIBE, json!({"name":name, "detail":"input"}))?
+        );
+        assert_eq!(input["class"], json!(entry.class), "{name}");
+        assert_eq!(
+            input.get("asks_with_path"),
+            entry.takes_path.then(|| json!(true)).as_ref(),
+            "{name}"
+        );
+        assert_eq!(input.get("person"), Some(&json!(entry.person)), "{name}");
+        assert_eq!(
+            input["reach"],
+            json!(entry.reach.iter().collect::<Vec<_>>()),
+            "{name}"
+        );
+        assert_eq!(input["full"], json!({"name":name, "detail":"full"}));
+        let full = tools.ok(DESCRIBE, input["full"].clone())?;
+        assert!(full["reply"].is_object(), "{name}");
+        for field in [
+            "schema",
+            "examples",
+            "kind",
+            "title",
+            "summary",
+            "call",
+            "call_reply_entry",
+        ] {
+            assert_eq!(input.get(field), full.get(field), "{name}.{field}");
+        }
+        // Both paging layouts must resolve the same typed inputs, including
+        // recursive types and definitions that have another page of their own.
+        let (_, root) = crate::session::discovery::params_schema(name).ok_or("missing root")?;
+        let mut queue = Vec::new();
+        let mut seen = std::collections::BTreeSet::new();
+        let mut available = input["$defs"].as_object().cloned().unwrap_or_default();
+        let mut deferred: std::collections::BTreeSet<String> =
+            serde_json::from_value(input.get("more_defs").cloned().unwrap_or_else(|| json!([])))?;
+        crate::session::schema_walk::visit_refs(&input["schema"], |key| queue.push(key.to_owned()));
+        while let Some(key) = queue.pop() {
+            if !seen.insert(key.clone()) {
+                continue;
+            }
+            let schema = match available.remove(&key) {
+                Some(value) => value,
+                None => {
+                    assert!(deferred.contains(&key), "{name}: unadvertised {key}");
+                    let page = tools.ok(DESCRIBE, json!({"name":name, "def":key}))?;
+                    if let Some(defs) = page["$defs"].as_object() {
+                        available.extend(defs.clone());
+                    }
+                    if let Some(more) = page.get("more_defs") {
+                        deferred.extend(serde_json::from_value::<Vec<String>>(more.clone())?);
+                    }
+                    page["schema"].clone()
+                }
+            };
+            assert_eq!(Some(&schema), root["$defs"].get(&key), "{name}.{key}");
+            crate::session::schema_walk::visit_refs(&schema, |key| queue.push(key.to_owned()));
+        }
+        let bytes = serde_json::to_vec(&input)?.len();
+        let wire = serde_json::to_vec(&full)?;
+        use sha2::{Digest, Sha256};
+        println!(
+            "{name}\t{}\t{bytes}\t{:x}",
+            wire.len(),
+            Sha256::digest(&wire)
+        );
+        measured.insert(name.to_owned(), bytes);
+        sizes.push(bytes);
+    }
+    sizes.sort_unstable();
+    let median = sizes.get(sizes.len() / 2).ok_or("empty catalog")?;
+    assert!(*median <= 1024, "median input description: {median} bytes");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/mcp/golden/input-view-bytes.json");
+    if std::env::var_os("SPARKSMITH_RECORD_DESCRIBE_SIZES").is_some() {
+        std::fs::write(
+            &path,
+            format!("{}\n", serde_json::to_string_pretty(&measured)?),
+        )?;
+    }
+    let ceilings: std::collections::BTreeMap<String, usize> =
+        serde_json::from_slice(&std::fs::read(&path)?)?;
+    for (name, bytes) in measured {
+        let limit = ceilings
+            .get(&name)
+            .ok_or_else(|| format!("{name}: missing size ceiling"))?;
+        assert!(bytes <= *limit, "{name}: {bytes} bytes, ceiling {limit}");
+    }
+    Ok(())
+}
+
+/// An MCP client can validate and invoke the selector using the full
+/// contract of project.schema itself. Its pre-selector schema rejected
+/// every unknown field, including detail.
+#[test]
+fn project_schema_describes_the_detail_selector_it_accepts() -> Fallible<()> {
+    let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
+    let full = tools.ok(DESCRIBE, json!({"name":"project.schema","detail":"full"}))?;
+    let mut schema = full["schema"].clone();
+    schema["$defs"] = full["$defs"].clone();
+    let validator = jsonschema::draft202012::new(&schema)?;
+    let result = jsonschema::draft202012::new(&full["reply"])?;
+    for params in [
+        json!({"name":"project.save"}),
+        json!({"name":"project.save","detail":"input"}),
+        json!({"name":"project.save","detail":"full"}),
+    ] {
+        assert!(validator.is_valid(&params), "{params}");
+        let reply = tools.ok(QUERY, json!({"name":"project.schema", "params":params}))?;
+        assert!(result.is_valid(&reply), "{reply}");
+        let matched = &reply["matches"][0];
+        if params["detail"] == "full" {
+            assert!(matched["reply"].get("properties").is_some(), "{matched}");
+        } else {
+            assert!(matched["reply"]["$ref"].is_string(), "{matched}");
+            assert_eq!(matched["person"], "approval");
+            assert_eq!(matched["asks_with_path"], true);
+        }
+    }
+    for invalid in [
+        json!({"name":"project.save", "detail":"typo"}),
+        json!({"name":"project.save", "unexpected":true}),
+    ] {
+        assert!(!validator.is_valid(&invalid), "{invalid}");
+        assert!(
+            tools
+                .call(QUERY, json!({"name":"project.schema","params":invalid}))
+                .0
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn describe_refuses_unknown_detail() -> Fallible<()> {
+    let tools = super::testing::Tools::new(Session::default(), Grant::default())?;
+    let (failed, error) = tools.call(DESCRIBE, json!({"name":"project.undo","detail":"typo"}));
+    assert!(failed && error.to_string().contains("typo"), "{error}");
+    Ok(())
 }

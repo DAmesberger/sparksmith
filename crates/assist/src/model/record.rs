@@ -1,17 +1,17 @@
-//! Recording and replay, in one neutral format: JSON lines of
-//! [`ModelReply`]. A recording made on any backend replays offline, with no
-//! key and no network. Requests carry the datasheets and are not written;
-//! the key is never part of a reply. A workflow run's recording starts with
-//! one line naming the workflow, its version and the digest of its files
-//! ([`WorkflowMark`]), so a replay against another version is refused.
+//! Model and tool activity share a JSON-lines trace. A workflow or task names
+//! its version and fixture digest in its first row. Input prompts are never recorded.
+pub mod trace;
 use super::{Delta, Message, ModelBackend, ModelReply, ModelRequest, ToolSpec};
 use crate::{Error, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::io::Write;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+/// Maximum size of a recording accepted into the in-memory replay queue.
+const MAX_RECORDING_BYTES: u64 = 256 * 1024 * 1024;
 
 /// What a replay kept of a request, for tests to inspect.
 #[derive(Clone, Debug, PartialEq)]
@@ -45,7 +45,8 @@ struct Header {
 pub struct Replay {
     /// The workflow the recording names, when it is a workflow run's.
     pub workflow: Option<WorkflowMark>,
-    replies: VecDeque<ModelReply>,
+    /// A failed backend attempt occupies its original request slot.
+    replies: VecDeque<Option<ModelReply>>,
     source: String,
     /// Keep each request (they hold the datasheets, so off for real files).
     pub keep_requests: bool,
@@ -60,36 +61,101 @@ pub struct Replay {
 impl Replay {
     pub fn new(replies: Vec<ModelReply>) -> Self {
         Self {
-            replies: replies.into(),
+            replies: replies.into_iter().map(Some).collect(),
             source: "a test script".into(),
             keep_requests: true,
             ..Self::default()
         }
     }
 
+    /// Whether every neutral reply carries metered usage from its original provider.
+    pub fn reports_usage(&self) -> bool {
+        !self.replies.is_empty()
+            && self
+                .replies
+                .iter()
+                .all(|r| r.as_ref().is_some_and(|reply| !reply.usage_estimated))
+    }
+
     /// Replies from a recording.
     pub fn from_file(path: &Path) -> Result<Self> {
-        let text = std::fs::read_to_string(path)?;
+        Self::load(path, None)
+    }
+
+    /// Load a complete benchmark trace, bound to this task and all of its fixtures.
+    pub fn from_run(path: &Path, expected: &WorkflowMark) -> Result<Self> {
+        Self::load(path, Some(expected))
+    }
+
+    fn load(path: &Path, expected: Option<&WorkflowMark>) -> Result<Self> {
         let mut replies = Vec::new();
         let mut workflow = None;
-        for (k, line) in text.lines().enumerate() {
+        let mut finished = false;
+        let mut bench = false;
+        let mut reader = BufReader::new(std::fs::File::open(path)?.take(MAX_RECORDING_BYTES + 1));
+        let mut line = String::new();
+        let mut k = 0;
+        while reader.read_line(&mut line)? > 0 {
+            if reader.get_ref().limit() == 0 && reader.buffer().is_empty() {
+                return Err(Error::Config(format!(
+                    "{}: recording exceeds {MAX_RECORDING_BYTES} bytes",
+                    path.display()
+                )));
+            }
+            k += 1;
             if line.trim().is_empty() {
+                line.clear();
                 continue;
             }
-            if replies.is_empty()
-                && workflow.is_none()
-                && let Ok(header) = serde_json::from_str::<Header>(line)
-            {
-                workflow = Some(header.workflow);
-                continue;
+            let invalid =
+                |why: &str| Error::Config(format!("{} line {}: {why}", path.display(), k));
+            if finished {
+                return Err(invalid("unexpected row after the end of the run"));
             }
-            replies.push(serde_json::from_str(line).map_err(|e| {
-                Error::Config(format!(
-                    "{} line {} is not a neutral reply: {e}",
-                    path.display(),
-                    k + 1
-                ))
-            })?);
+            let value: serde_json::Value =
+                serde_json::from_str(&line).map_err(|e| invalid(&e.to_string()))?;
+            if value.get("record").is_some() {
+                let row: trace::Row =
+                    serde_json::from_value(value).map_err(|e| invalid(&e.to_string()))?;
+                match row {
+                    trace::Row::Start {
+                        workflow: mark,
+                        runner,
+                        ..
+                    } => {
+                        bench = runner != "workflow";
+                        if workflow.is_some() || !replies.is_empty() || k != 1 {
+                            return Err(invalid("unexpected run header"));
+                        }
+                        workflow = Some(mark);
+                    }
+                    trace::Row::Model { reply, .. } => replies.push(Some(reply)),
+                    trace::Row::Call(_) => (),
+                    trace::Row::ModelError { .. } => replies.push(None),
+                    trace::Row::Finish { .. } => finished = true,
+                }
+            } else if workflow.is_none() && replies.is_empty() && value.get("workflow").is_some() {
+                // Workflow recordings predating combined run traces used an untagged header.
+                let old: Header =
+                    serde_json::from_value(value).map_err(|e| invalid(&e.to_string()))?;
+                workflow = Some(old.workflow);
+            } else {
+                // Their remaining rows were bare neutral replies.
+                replies.push(Some(
+                    serde_json::from_value(value).map_err(|e| invalid(&e.to_string()))?,
+                ));
+            }
+            line.clear();
+        }
+        if let Some(mark) = expected {
+            if workflow.as_ref() != Some(mark) {
+                return Err(Error::Config(
+                    "the recording belongs to a different task, version or fixture".into(),
+                ));
+            }
+            if bench && !finished {
+                return Err(Error::Config("incomplete run trace".into()));
+            }
         }
         Ok(Self {
             replies: replies.into(),
@@ -121,7 +187,8 @@ impl ModelBackend for Replay {
         let reply = self
             .replies
             .pop_front()
-            .ok_or_else(|| Error::Http("the recording has no more responses".into()))?;
+            .ok_or_else(|| Error::Http("the recording has no more responses".into()))?
+            .ok_or_else(|| Error::Http("the recorded model request failed".into()))?;
         self.legacy |= reply.content.iter().any(|part| {
             matches!(part, super::Part::ToolCall { name, .. }
                 if !crate::verbs::NAMES.contains(&name.as_str()))
@@ -138,7 +205,7 @@ impl ModelBackend for Replay {
     }
 
     fn legacy_tools(&self) -> bool {
-        self.replies.iter().any(|reply| {
+        self.replies.iter().flatten().any(|reply| {
             reply.content.iter().any(|part| {
                 matches!(part, super::Part::ToolCall { name, .. }
                     if !crate::verbs::NAMES.contains(&name.as_str()))
@@ -162,17 +229,32 @@ impl<B> Recording<B> {
     /// A workflow run's recording: a new file at `path` whose first line
     /// names `workflow`. An existing file is refused.
     pub fn for_workflow(inner: B, path: PathBuf, workflow: WorkflowMark) -> Result<Self> {
-        let line = serde_json::to_string(&Header { workflow })?;
+        let line = serde_json::to_string(&trace::Row::Start {
+            workflow,
+            runner: "workflow".into(),
+            detail: String::new(),
+        })?;
         crate::write_new(&path, format!("{line}\n").as_bytes())?;
         Ok(Self { inner, path })
     }
 
-    fn append(&self, reply: &ModelReply) -> Result<()> {
+    fn append(
+        &self,
+        request: &ModelRequest<'_>,
+        started: Instant,
+        result: &Result<ModelReply>,
+    ) -> Result<()> {
         let mut file = std::fs::OpenOptions::new()
             .create(true)
             .append(true)
             .open(&self.path)?;
-        writeln!(file, "{}", serde_json::to_string(reply)?)?;
+        let row = trace::Row::model(
+            request.prompt_bytes()?,
+            started.elapsed().as_secs_f64() * 1000.0,
+            result,
+        );
+        serde_json::to_writer(&mut file, &row)?;
+        writeln!(file)?;
         Ok(())
     }
 }
@@ -218,9 +300,10 @@ impl<B: ModelBackend> ModelBackend for Recording<B> {
     }
 
     fn send(&mut self, request: &ModelRequest<'_>) -> Result<ModelReply> {
-        let reply = self.inner.send(request)?;
-        self.append(&reply)?;
-        Ok(reply)
+        let started = Instant::now();
+        let reply = self.inner.send(request);
+        self.append(request, started, &reply)?;
+        reply
     }
 
     fn stream(
@@ -230,9 +313,10 @@ impl<B: ModelBackend> ModelBackend for Recording<B> {
         cancel: &AtomicBool,
     ) -> Result<ModelReply> {
         // A stopped reply is recorded too: its replay stops where it did.
-        let reply = self.inner.stream(request, deltas, cancel)?;
-        self.append(&reply)?;
-        Ok(reply)
+        let started = Instant::now();
+        let reply = self.inner.stream(request, deltas, cancel);
+        self.append(request, started, &reply)?;
+        reply
     }
 
     fn count_prompt_tokens(&mut self, request: &ModelRequest<'_>) -> Result<Option<u64>> {
@@ -246,7 +330,6 @@ mod tests {
     use super::super::{Endpoint, ModelProfile, Part, Secret, StopReason, openai};
     use super::*;
     use crate::usage::Usage;
-    use std::io::Read;
 
     fn reply(id: &str) -> ModelReply {
         ModelReply {
@@ -346,6 +429,56 @@ mod tests {
         assert_eq!(replay.recorded_workflow(), Some(&mark));
         assert_eq!(replay.send(&request())?.content, vec![Part::text("1")]);
         assert!(replay.send(&request()).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn old_records_and_new_records_replay_in_the_same_reader() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("legacy.jsonl");
+        let mark = WorkflowMark {
+            id: "generic".into(),
+            version: "1".into(),
+            digest: "sha256:00".into(),
+        };
+        let old = format!(
+            "{}\n{}\n",
+            serde_json::to_string(&Header {
+                workflow: mark.clone()
+            })?,
+            serde_json::to_string(&reply("legacy"))?
+        );
+        std::fs::write(&path, old)?;
+        let mut replay = Replay::from_run(&path, &mark)?;
+        assert_eq!(replay.send(&request())?.content, vec![Part::text("legacy")]);
+        let incomplete = trace::Row::Start {
+            workflow: mark.clone(),
+            runner: "scripted".into(),
+            detail: "input".into(),
+        };
+        std::fs::write(&path, serde_json::to_vec(&incomplete)?)?;
+        assert!(Replay::from_run(&path, &mark).is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn a_failed_attempt_keeps_its_place_between_neutral_replies() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let path = dir.path().join("failed.jsonl");
+        let mut file = std::fs::File::create_new(&path)?;
+        for row in [
+            trace::Row::ModelError { bytes: 3, ms: 0.1 },
+            trace::Row::Model {
+                bytes: 5,
+                ms: 0.2,
+                reply: reply("second"),
+            },
+        ] {
+            writeln!(file, "{}", serde_json::to_string(&row)?)?;
+        }
+        let mut replay = Replay::from_file(&path)?;
+        assert!(replay.send(&request()).is_err());
+        assert_eq!(replay.send(&request())?.content, vec![Part::text("second")]);
         Ok(())
     }
 

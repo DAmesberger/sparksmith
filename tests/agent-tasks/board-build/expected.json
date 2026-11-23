@@ -1,0 +1,9 @@
+{
+  "resistor_value": "4.7 kΩ",
+  "led_colour": "Red",
+  "chip_size_mm": [
+    1.6,
+    0.8
+  ],
+  "errors": 0
+}

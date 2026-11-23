@@ -4,6 +4,7 @@ type Fallible = std::result::Result<(), Box<dyn std::error::Error>>;
 
 fn local(name: &str) -> EndpointSetting {
     EndpointSetting {
+        harness_profile: None,
         name: name.into(),
         provider: Wire::Openai,
         base_url: "http://localhost:11434/v1".into(),
@@ -119,6 +120,10 @@ fn every_rule_is_checked_with_its_reason() {
     refused(&|s| s.connection = Some("Gone".into()), "not set up");
     refused(&|s| s.endpoints[0].base_url = "ftp://x".into(), "http");
     refused(&|s| s.endpoints[0].model = " ".into(), "model id");
+    refused(
+        &|s| s.endpoints[0].harness_profile = Some("../test".into()),
+        "harness_profile",
+    );
     refused(&|s| s.endpoints[0].timeout_minutes = 0, "timeout");
     refused(&|s| s.endpoints[0].capabilities = None, "declare");
     refused(

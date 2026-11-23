@@ -72,6 +72,8 @@ pub struct DescribeArgs {
     /// A key from more_defs or reply.more_defs, including its prefix.
     #[serde(default)]
     pub def: Option<String>,
+    #[serde(default)]
+    pub detail: crate::session::SchemaDetail,
 }
 
 /// `query` arguments.
@@ -165,7 +167,7 @@ fn build() -> Vec<Tool> {
         tool(
             DESCRIBE,
             "Describe a catalog entry",
-            "One entry's parameter and reply schemas, the MCP call and its reply entry.",
+            "Input schema and call. Use full for the reply schema.",
             schema::<DescribeArgs>(),
             read,
         ),
@@ -384,6 +386,24 @@ pub fn dispatch(desk: &mut dyn Calls, name: &str, arguments: Value) -> Option<Va
     })
 }
 
+/// Select the default contract view for an agent or a traced MCP session.
+pub fn set_default_detail(verb: &str, args: &mut JsonObject, detail: crate::session::SchemaDetail) {
+    if detail == crate::session::SchemaDetail::Input {
+        return;
+    }
+    let fields = match verb {
+        DESCRIBE => Some(args),
+        QUERY if args.get("name").and_then(Value::as_str) == Some("project.schema") => args
+            .entry("params")
+            .or_insert_with(|| Value::Object(Default::default()))
+            .as_object_mut(),
+        _ => None,
+    };
+    if let Some(fields) = fields {
+        fields.entry("detail").or_insert_with(|| json!(detail));
+    }
+}
+
 fn find_tool(arguments: Value, reaches: &dyn Fn(&EntryMeta) -> bool) -> Value {
     match parse::<FindArgs>(FIND, arguments) {
         Ok(args) => find(args, reaches),
@@ -527,7 +547,7 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
     };
     let mut reply = desk.catalog(envelope(
         "project.schema",
-        json!({"name": args.name, "def": args.def}),
+        json!({"name": args.name, "def": args.def, "detail": args.detail}),
         None,
     ));
     if reply["ok"] != true || args.def.is_some() {
@@ -542,8 +562,12 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
     };
     let mut described = found;
     if let Some(object) = described.as_object_mut() {
+        if args.detail == crate::session::SchemaDetail::Input {
+            object.remove("reply");
+        } else {
+            object.remove("asks_with_path");
+        }
         object.remove("send");
-        object.remove("asks_with_path");
         object.remove("kind");
         object.insert("kind".into(), json!(entry.kind));
         object.insert("title".into(), json!(entry.title));
@@ -561,6 +585,9 @@ fn describe(desk: &mut dyn Calls, args: DescribeArgs) -> Value {
         if entry.person.is_some() {
             object.insert("person".into(), json!(entry.person));
         }
+    }
+    if args.detail == crate::session::SchemaDetail::Input {
+        discovery::fit_input_page(&mut described);
     }
     reply["result"] = described;
     reply

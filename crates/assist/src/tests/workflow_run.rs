@@ -142,6 +142,43 @@ fn published_terminals(session: &Session) -> Fallible<Vec<(String, Vec<&'static 
 }
 
 #[test]
+fn an_unreadable_step_harness_stops_before_the_workflow_changes_anything() -> Fallible {
+    let mut loaded = shipped()?;
+    let step = loaded
+        .workflow
+        .steps
+        .iter_mut()
+        .rfind(|step| step.kind == crate::workflow::StepKind::Model)
+        .ok_or("model step")?;
+    step.harness_profile = Some("missing-model-step-harness".into());
+    let config = local_config(131_072)?;
+    let mut backend = openai(Vec::new(), &config);
+    let mut session = profiled_session();
+    let before = session.engine().revision();
+    let mut person = Scripted::default();
+    let error = start(
+        &loaded,
+        &config,
+        Default::default(),
+        &mut backend,
+        &mut session,
+        &mut person,
+    )
+    .err()
+    .ok_or("invalid harness accepted")?;
+    assert!(
+        error
+            .to_string()
+            .contains("missing-model-step-harness.json"),
+        "{error}"
+    );
+    assert_eq!(session.engine().revision(), before);
+    assert!(person.events.is_empty());
+    assert!(person.asked.is_empty());
+    Ok(())
+}
+
+#[test]
 fn the_datasheet_workflow_runs_its_steps_and_undoes_as_one() -> Fallible {
     let loaded = shipped()?;
     let config = local_config(131_072)?;
@@ -594,7 +631,8 @@ fn a_long_datasheet_reaches_the_model_as_an_outline_and_the_pages_it_reads() -> 
     // A whole run is far inside the limit the person had set (350 000):
     // every request's prompt, re-sent, adds up to well under it.
     let sent: usize = posts.iter().map(|p| p.2.to_string().len()).sum();
-    assert!(sent / 3 < 100_000, "about {} tokens sent", sent / 3);
+    let tokens = crate::usage::estimated_tokens(sent as u64);
+    assert!(tokens < 100_000, "about {tokens} tokens sent");
     Ok(())
 }
 

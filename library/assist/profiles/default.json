@@ -1,5 +1,6 @@
 {
   "format": 1,
   "name": "default",
+  "harness_profile": "compact",
   "system": "base"
 }

@@ -92,6 +92,8 @@ impl OutputLimits {
 /// A model as configured.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ModelProfile {
+    /// Explicit harness override from this model connection.
+    pub harness_profile: Option<String>,
     pub provider: Provider,
     pub model: String,
     pub capabilities: Capabilities,
@@ -111,6 +113,7 @@ impl ModelProfile {
     /// 64 000 after a cut-off, for a 30-minute non-streaming wait.
     pub fn anthropic(model: &str) -> Self {
         Self {
+            harness_profile: None,
             provider: Provider::Anthropic,
             model: model.to_owned(),
             capabilities: Capabilities {
@@ -139,6 +142,7 @@ impl ModelProfile {
     /// everything else stays off until declared.
     pub fn openai_compatible(model: &str, context_tokens: u64) -> Self {
         Self {
+            harness_profile: None,
             provider: Provider::OpenAiCompatible,
             model: model.to_owned(),
             capabilities: Capabilities {

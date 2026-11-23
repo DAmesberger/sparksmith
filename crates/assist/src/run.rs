@@ -10,6 +10,7 @@
 //! accepts the step's answer.
 use crate::desk::{self, Called, Desk};
 use crate::documents::{self, Prepared};
+use crate::harness::{CondenseHistory, ShapeReply, SurfaceStrategy};
 use crate::model::{
     Budget, Image, Message, ModelBackend, ModelProfile, ModelRequest, Part, Role, StopReason,
     ToolSpec, appended_chars,
@@ -37,8 +38,6 @@ const MIN_OUTPUT_ROOM: u64 = 4_000;
 /// Characters of one tool result sent back; longer results are cut with a
 /// note (the model can ask for a narrower view).
 pub const MAX_RESULT_CHARS: usize = 120_000;
-/// Characters per token of what the conversation grows by, for the estimate.
-const CHARS_PER_TOKEN: u64 = 3;
 /// Added to the estimate of the next prompt.
 const ESTIMATE_MARGIN: u64 = 4_000;
 
@@ -48,6 +47,8 @@ pub struct RunConfig {
     pub profile: ModelProfile,
     /// What the model is told and how the loop reacts ([`crate::profile`]).
     pub run_profile: RunProfile,
+    /// The installed and user harness profiles available to the selected connection.
+    pub harnesses: crate::harness::HarnessLibrary,
     /// The shipped base system prompt the run profile builds on
     /// ([`AssistLibrary::system`]).
     pub base_prompt: String,
@@ -69,13 +70,42 @@ impl RunConfig {
     ) -> Result<Self> {
         let run_profile = shipped.select(run_profile, &profile.model, folder)?;
         run_profile.declare(&mut profile);
+        let mut harnesses = shipped.harnesses.clone();
+        harnesses.user_folder = folder
+            .and_then(std::path::Path::parent)
+            .map(|config| config.join("assist-harness"));
         Ok(Self {
             profile,
             run_profile,
+            harnesses,
             base_prompt: shipped.system.clone(),
             budget: Budget::default(),
             reach: shipped.reach.clone(),
         })
+    }
+
+    /// A workflow step resolves its profile before opening a turn. An
+    /// older run profile's repeat override belongs to the model level.
+    pub fn harness_for(
+        &self,
+        workflow: Option<&str>,
+        step: Option<&str>,
+    ) -> Result<crate::harness::HarnessProfile> {
+        let selection = crate::harness::HarnessSelection {
+            model: self.run_profile.harness_profile.as_deref(),
+            workflow,
+            step,
+            connection: self.profile.harness_profile.as_deref(),
+        };
+        let mut harness = self.harnesses.select(selection)?;
+        if workflow.is_none()
+            && step.is_none()
+            && selection.connection.is_none()
+            && let Some(repeat) = self.run_profile.harness.repeat_limit
+        {
+            harness.recover.repeat_limit = repeat;
+        }
+        Ok(harness)
     }
 
     /// A run of the shipped default model on the Messages API.
@@ -147,6 +177,7 @@ fn dispatch_tool_call(
     name: &str,
     input: &Value,
     malformed: Option<&str>,
+    harness: &crate::harness::HarnessProfile,
 ) -> (String, ToolOutcome) {
     if let Some(why) = malformed {
         return (
@@ -239,7 +270,20 @@ fn dispatch_tool_call(
             summary(result.get("outcome").unwrap_or(&result["outcomes"][0]))
         )
     });
-    (label, reply(result, false, step))
+    integers_as_text(&mut result);
+    let text =
+        harness
+            .reply_strategy()
+            .render(verb, &arguments, result, harness.policy().reply_chars);
+    (
+        label,
+        ToolOutcome::Reply {
+            text,
+            error: false,
+            step,
+            images: Vec::new(),
+        },
+    )
 }
 
 fn verb_call(context: &mut ToolContext<'_>, verb: &str, input: Value) -> Called {
@@ -412,7 +456,9 @@ pub(crate) fn tool_specs(run_profile: &RunProfile) -> Vec<ToolSpec> {
 pub(crate) fn first_estimate(system: &str, specs: &[ToolSpec], document_tokens: u64) -> u64 {
     let tool_chars = serde_json::to_string(specs).map_or(0, |t| t.len() as u64);
     document_tokens
-        .saturating_add((tool_chars + system.len() as u64) / CHARS_PER_TOKEN)
+        .saturating_add(crate::usage::estimated_tokens(
+            tool_chars.saturating_add(system.len() as u64),
+        ))
         .saturating_add(ESTIMATE_MARGIN)
 }
 
@@ -443,6 +489,7 @@ pub fn run(
 ) -> Result<Outcome> {
     let profile = &config.profile;
     profile.check()?;
+    let harness = config.harness_for(None, None)?;
     let mut prepared = documents::prepare(&goal.datasheets, &profile.capabilities)?;
     let system = system_prompt(config)?;
     let specs = tool_specs(&config.run_profile);
@@ -465,6 +512,7 @@ pub fn run(
     let mut facts = run_facts(config, backend);
     let started = Instant::now();
     let conversation = Conversation {
+        harness: &harness,
         system: &system,
         specs: &specs,
         messages,
@@ -504,6 +552,7 @@ pub fn run(
 /// One conversation's opening: the system prompt, the tools, the first
 /// messages, and what the loop estimates and stops by.
 pub(crate) struct Conversation<'a> {
+    pub(crate) harness: &'a crate::harness::HarnessProfile,
     pub(crate) system: &'a str,
     pub(crate) specs: &'a [ToolSpec],
     pub(crate) messages: Vec<Message>,
@@ -539,9 +588,9 @@ pub(crate) fn converse(
 ) -> (Stop, Option<Finished>) {
     let config = driver.config;
     let profile = &config.profile;
-    let run_profile = &config.run_profile;
     let budget = &config.budget;
     let Conversation {
+        harness,
         system,
         specs,
         mut messages,
@@ -596,24 +645,22 @@ pub(crate) fn converse(
         if !first {
             // What the server counted last, and what came since; after
             // clearing, the characters left.
-            let grown = last_prompt + appended / CHARS_PER_TOKEN + ESTIMATE_MARGIN;
+            let grown = last_prompt
+                .saturating_add(crate::usage::estimated_tokens(appended))
+                .saturating_add(ESTIMATE_MARGIN);
             let counted = |_: &[Message]| grown;
-            if let Some(condensed) = crate::chat::context::condense(
+            if let Some(condensed) = harness.history_strategy().condense(
                 &mut messages,
-                // Of the whole context: a run's history only grows, so its
-                // prompt cache holds until the context truly fills.
-                &crate::chat::Policy {
-                    window_tokens: u64::MAX,
-                    ..crate::chat::Policy::CHAT
-                },
+                &harness.policy(),
                 profile.capabilities.context_tokens,
                 &counted,
             ) {
-                let after = messages
-                    .iter()
-                    .map(|m| appended_chars(&m.content))
-                    .fold(fixed_chars, u64::saturating_add)
-                    .div_ceil(CHARS_PER_TOKEN);
+                let after = crate::usage::estimated_tokens(
+                    messages
+                        .iter()
+                        .map(|m| appended_chars(&m.content))
+                        .fold(fixed_chars, u64::saturating_add),
+                );
                 events(Event::Condensed(crate::chat::Condensed {
                     after_tokens: after,
                     ..condensed
@@ -639,7 +686,9 @@ pub(crate) fn converse(
         } else if condensed_now {
             last_prompt + ESTIMATE_MARGIN
         } else {
-            last_prompt + appended / CHARS_PER_TOKEN + ESTIMATE_MARGIN
+            last_prompt
+                .saturating_add(crate::usage::estimated_tokens(appended))
+                .saturating_add(ESTIMATE_MARGIN)
         };
         // The context holds prompt and output: never ask for more than fits.
         let room = profile
@@ -763,7 +812,7 @@ pub(crate) fn converse(
             break Stop::Ended;
         }
         let mut results = Vec::new();
-        for (call, (id, name, input, malformed)) in (0u32..).zip(calls) {
+        for (call, (id, name, mut input, malformed)) in (0u32..).zip(calls) {
             let logged = facts.request_log.last_mut();
             let row = |state| Event::Call {
                 request: n,
@@ -800,11 +849,12 @@ pub(crate) fn converse(
                 ));
                 continue;
             }
+            harness.surface_view.apply(&name, &mut input);
             events(row(CallState::Running {
                 input: input.clone(),
             }));
             let (label, outcome) =
-                dispatch_tool_call(driver.context, &name, &input, malformed.as_deref());
+                dispatch_tool_call(driver.context, &name, &input, malformed.as_deref(), harness);
             if let Some(r) = logged {
                 let failed = matches!(outcome, ToolOutcome::Reply { error: true, .. });
                 r.tools.push(if failed {
@@ -853,7 +903,7 @@ pub(crate) fn converse(
                                 "\n\nThis exact call, with the same input, was refused {seen} times. Sending it again will not change the answer: change what the refusal names, or take another step."
                             ));
                         }
-                        if *seen >= run_profile.harness.repeat_limit && repeated.is_none() {
+                        if *seen >= harness.recover.repeat_limit && repeated.is_none() {
                             repeated = Some(format!(
                                 "the model sent the same refused {label} call {seen} times"
                             ));

@@ -10,7 +10,7 @@ workspace = true
 
 [features]
 # Fixtures for the tests of the crates above (never in the product).
-test-fixtures = []
+test-fixtures = ["sparksmith-automation/test-fixtures"]
 
 [dependencies]
 sparksmith-core.workspace = true
@@ -18,6 +18,7 @@ sparksmith-automation.workspace = true
 sparksmith-io.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_path_to_error = "0.1"
 schemars.workspace = true
 thiserror.workspace = true
 sha2.workspace = true

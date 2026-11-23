@@ -16,30 +16,7 @@ use sparksmith_automation::{Grant, Session};
 
 type Fallible<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-/// A fresh project as File › New makes it when the person's default fab
-/// profile is JLCPCB 2-layer (run 12's setup): the shipped new board, the
-/// shipped standards and that profile.
-pub(super) fn fresh() -> Fallible<Session> {
-    let context = sparksmith_io::standards::shipped_context()?;
-    let defaults = sparksmith_io::new_project::shipped()?;
-    let shipped = sparksmith_io::shipped::ShippedLibrary::locate()?;
-    let profile = sparksmith_io::rule_profiles::shipped_profiles(&shipped)?
-        .into_iter()
-        .find(|p| p.id == "jlcpcb-2-layer")
-        .ok_or("no shipped JLCPCB 2-layer profile")?;
-    let mut project = sparksmith_core::Project::new(&defaults.board);
-    project.rules.profile = Some(profile);
-    let mut engine = sparksmith_core::Engine::from_file_with(
-        sparksmith_core::format::EditorFile {
-            version: sparksmith_core::format::FILE_VERSION,
-            project,
-            drafts: Default::default(),
-        },
-        &defaults.presets.glass_dk,
-    )?;
-    engine.set_context(context);
-    Ok(Session::fixture(engine))
-}
+use crate::board_script::fresh;
 
 /// The calls made so far: verb, entry and the reply's size as the chat
 /// hands it to the model (`result` or `error`, as JSON text).

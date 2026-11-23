@@ -89,6 +89,21 @@ fn run() -> Result<()> {
     {
         return help::run(rest);
     }
+    if let Some((command, rest)) = args.split_first()
+        && command == "agent-bench"
+    {
+        let mut call = vec![
+            "run",
+            "--locked",
+            "--profile",
+            "ci",
+            "-p",
+            "sparksmith-agent-bench",
+            "--",
+        ];
+        call.extend(rest.iter().map(String::as_str));
+        return cargo(&call);
+    }
     let command = match args.as_slice() {
         [command] => command.as_str(),
         [command, flag] if command == "licences" && flag == "--check" => "licences --check",
@@ -162,7 +177,7 @@ fn run() -> Result<()> {
         "ui-forms" => ui_forms::check(),
         "raw-keys" => raw_keys::check(),
         _ => Err(
-            "usage: cargo xtask ci | ci-native | fast [--base REV] | affected [--base REV] [--run] | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
+            "usage: cargo xtask agent-bench ARGS | ci | ci-native | fast [--base REV] | affected [--base REV] [--run] | board-parity | wasm | wasm-footprint | layers | core-modules | connectivity | copper-source | f64-lengths \
              | licences --check | brand-crates | clean-room | no-builtin-data | generic-terms | ui-containers | ui-forms | raw-keys | generators build [--ship] | check | reproduce | measure \
              | surface --check | --update | help --check | --update | --stamp <topic-id> | --site <out> | kicad-compare [--design PATH]"
                 .into(),
