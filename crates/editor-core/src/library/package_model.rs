@@ -540,8 +540,8 @@ pub enum PackageEdit {
         PackageDatum,
     ),
     /// `package.datum.edit`: replace the datum of the same name. The
-    /// result counts as authored, so a part file or form no longer
-    /// replaces it. Refused when there is none.
+    /// result counts as authored, so a part file no longer replaces it.
+    /// Refused when there is none.
     SetDatum(
         #[serde(with = "datum_mm")]
         #[schemars(with = "super::datum::PackageDatumParams")]

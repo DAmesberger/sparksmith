@@ -53,8 +53,8 @@ pub enum TraceModel<'a> {
         part: &'a PartFileModel,
         bytes: &'a [u8],
     },
-    /// The package's generated model, or its envelope when it has none:
-    /// the standalone design the host builds from the package.
+    /// The package's envelope: the standalone design the host builds from
+    /// the package.
     Package { package: &'a PackageDefinition },
     /// A STEP library model and its packed bytes, wrapped in a design that
     /// imports them.

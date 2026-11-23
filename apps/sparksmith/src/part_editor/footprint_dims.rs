@@ -287,9 +287,9 @@ pub struct DimFocus {
 
 /// The dimensions the canvas labels, in sketch order. At
 /// [`DimDetail::Key`] a dimension bound to an expression (a pad's corner
-/// radius) or to a derived parameter (one reading other parameters, as a
-/// template's seed and paste-grid positions) is left out, and each
-/// parameter is labelled once, unless the focus touches it.
+/// radius) or to a derived parameter (one reading other parameters) is
+/// left out, and each parameter is labelled once, unless the focus
+/// touches it.
 pub fn shown_dimensions(
     view: &SketchView,
     source: &FootprintSource,

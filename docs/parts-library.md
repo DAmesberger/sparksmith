@@ -27,7 +27,7 @@ A Library row is a **lineage**: one identity with many immutable revisions.
 
 - **Component lineage** (exists): the generic electrical interface with its symbols and bindings.
 - **Package and footprint variants** (exist).
-- **Package row** and **Model** (exist): a cited package form a template builds from, and a 3D model file shared by packages; both are revisioned kinds published before packages.
+- **Package row** and **Model** (exist): a generator and its parameters with a citation or none, and a 3D model file shared by packages; both are revisioned kinds published before packages.
 - **`Part`** (S2): a revisioned lineage holding the manufacturer, the complete MPN, a pinned `ComponentRef` and `BindingRef`, rated specs as typed field values with a comparison meaning, references and provenance. The publish cascade grows to footprint → binding → component → Part. An instance's `PartRef` must agree with its own component and physical choice; a component update that leaves a Part pinned to the old revision raises a finding and an update choice and is never re-pointed silently. An "atomic part" in other tools is a component plus exactly one Part.
 - **Reference** (S2): datasheet or application note link with stable local ID, kind, title, URL, optional document revision, optional asset hash, licence and provenance. A link is not a copy.
 - **Distributor offer** (S2): distributor name, SKU, product URL, optional packaging. No price or stock.

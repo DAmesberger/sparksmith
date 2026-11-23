@@ -267,7 +267,7 @@ These are construction features:
 - `seating`: a plane, z = 0 of the model frame.
 - `pin1`: a point, needed when the part is polarised.
 
-Further named anchors become marking or quick-action targets. The model frame is the one generated models use today, with z = 0 on the seating plane ([M1–M3](component-model.md#generated-3d-models-and-placement-m1m3-as-built)).
+Further named anchors become marking or quick-action targets. The model frame is the one generated models use today, with z = 0 on the seating plane ([M1–M3](component-model.md#package-3d-models-and-placement-m1m3-as-built)).
 
 ### Lead contacts
 

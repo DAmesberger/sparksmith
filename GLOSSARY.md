@@ -84,14 +84,11 @@ A pin function that a particular device binding cannot provide. An instance whos
 A physical component body and its terminal arrangement, independent of the particular PCB land pattern used to mount it.
 _Avoid_: Footprint
 
-**Package form**:
-The authored, typed physical construction of a package (generic, chip, gull-wing, no-lead or pin header) with its dimensions; the only source of `pkg_*` values and of generated 3D models, never inferred from a designator or name.
-
 **Physical material**:
 A built-in material a 3D body is made of (epoxy mould compound, alumina, tin, gold, PBT, …), with cited or estimated optical values; never a colour or a vendor look.
 
-**Generated model**:
-A package's parametric 3D model built from its package form by a family builder, with a body role and a physical material on every body; one shared native definition per package revision, used by every instance.
+**Part file**:
+A parametric Solidcraft design used as a package's 3D body at literal parameter values, with a body role and a physical material on every body; packages with the same file and values share one native definition. A generator names the part file and the values of the part it makes.
 
 **Library model** (3D model):
 A revisioned library definition of a package's 3D model from a file (GLB for appearance, STEP for mechanical shape, `.solidcraft` for parametric): its packed asset by content hash, source frame, bounds, every body mapped explicitly to a role and material, lead tags with measured contacts, an optional marking area and provenance with redistribution. Packages share it by exact revision.

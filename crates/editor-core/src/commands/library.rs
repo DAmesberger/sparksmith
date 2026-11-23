@@ -213,7 +213,7 @@ pub enum LibraryCommand {
         component: ComponentRef,
         name: String,
     },
-    /// Apply 1–256 package edits (form, model, placement, quick action) to one
+    /// Apply 1–256 edits (model, placement, datums, quick action) to one
     /// package draft in order, as one undo step. Any failure leaves the draft
     /// unchanged.
     #[serde(rename = "library.edit_package")]
@@ -223,9 +223,9 @@ pub enum LibraryCommand {
     },
     /// Fit the package draft's model leads onto footprint pads. The host
     /// (app or automation, through the integration crate) may supply the
-    /// lead/pad pairs; empty `pairs` derives them from the typed package
-    /// form and the one footprint draft landing the package. With
-    /// `confirm: false` it only reports the fit.
+    /// lead/pad pairs; empty `pairs` derives them from the package's leads
+    /// and the one footprint draft landing it. With `confirm: false` it only
+    /// reports the fit.
     #[serde(rename = "library.fit_leads")]
     FitLeads {
         draft: DefinitionId,

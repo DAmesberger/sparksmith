@@ -4,8 +4,8 @@
 //! control sends one typed `library.edit_package` datum edit: mark or
 //! unmark for the linked design, remove, or add an opening on the envelope's
 //! front face to start from. Exact geometry from a datasheet's panel
-//! cutout is authored through the same edits (MCP or CLI), from a part
-//! file's `opening-*` planes, or by a connector form.
+//! cutout is authored through the same edits (MCP or CLI), or comes from
+//! a part file's `opening-*` planes.
 use super::PartEditor;
 use super::model_place;
 use crate::kit;
