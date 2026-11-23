@@ -261,4 +261,64 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn shipped_mdi_lvds_and_tmds_aliases_offer_the_published_trace_targets() -> Result<()> {
+        let context = crate::library::standards::Context::fixture()?;
+        let catalog = &context.standards().pairs;
+        let rules = ProjectRules::default();
+        let mdi = ("Ethernet MDI (10BASE-T, 100BASE-TX, 1000BASE-T)", 15.0, "#page=29");
+        let lvds = ("LVDS", 10.0, "#page=6");
+        let tmds = ("HDMI TMDS", 10.0, "#page=199");
+        for (p, n, (interface, tolerance, page)) in [
+            ("eth_tx_p", "ETH_TX_N", mdi),
+            ("MDI_RXP", "MDI_RXN", mdi),
+            ("MDI0_P", "MDI0_N", mdi),
+            ("MDI1_P", "MDI1_N", mdi),
+            ("MDI_C+", "MDI_C-", mdi),
+            ("ETH_MDI_D_P", "ETH_MDI_D_N", mdi),
+            ("LVDS_P", "LVDS_N", lvds),
+            ("LVDS_D0_P", "LVDS_D0_N", lvds),
+            ("LVDS_CLKP", "LVDS_CLKN", lvds),
+            ("HDMI_DP0", "HDMI_DN0", tmds),
+            ("TMDS_DATA1_P", "TMDS_DATA1_N", tmds),
+            ("TMDS_D2+", "TMDS_D2-", tmds),
+            ("HDMI_CLKP", "HDMI_CLKN", tmds),
+        ] {
+            let rows = catalog.suggest(&rules, [(10, n), (20, p)]);
+            let [row] = rows.as_slice() else {
+                return Err(Error::Invalid(format!("Expected one suggestion for {p} and {n}")));
+            };
+            assert_eq!((row.positive, row.negative), (20, 10), "{p}");
+            let target = row.target.as_ref().ok_or_else(|| Error::NotFound(p.into()))?;
+            assert_eq!(target.interface, interface, "{p}");
+            assert_eq!((target.ohms, target.tolerance_pct), (100.0, tolerance), "{p}");
+            assert!(target.url.ends_with(page), "{p}");
+            if interface == "LVDS" {
+                assert!(target.source.contains("typical"));
+            }
+            assert_eq!(row.pair_spec(true).target.as_ref(), Some(target));
+            assert!(row.pair_spec(false).target.is_none());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn lookalike_names_do_not_inherit_interface_targets() -> Result<()> {
+        let context = crate::library::standards::Context::fixture()?;
+        let catalog = &context.standards().pairs;
+        for (p, n) in [
+            ("ETH_RGMII_TX_P", "ETH_RGMII_TX_N"),
+            ("MDI4_P", "MDI4_N"),
+            ("LVDS_D0_P", "LVDS_D1_N"),
+            ("CLK_P", "CLK_N"),
+            ("HDMI_FRL3_P", "HDMI_FRL3_N"),
+            ("HDMI_DDC_P", "HDMI_DDC_N"),
+            ("TMDS_D3+", "TMDS_D3-"),
+        ] {
+            let rows = catalog.suggest(&ProjectRules::default(), [(1, p), (2, n)]);
+            assert!(rows.iter().all(|row| row.target.is_none()), "{p} and {n}");
+        }
+        Ok(())
+    }
 }
